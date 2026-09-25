@@ -8464,7 +8464,7 @@
   fn dahash(name)
   fn main()
 
-[worker.py]
+[scripts/worker.py]
   fn load_system_prompt()
   fn main()
   fn drain_stderr()

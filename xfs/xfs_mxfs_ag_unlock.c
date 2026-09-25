@@ -7,7 +7,7 @@
 int mxfs_ag_prepass_push_iters = 20;
 module_param_named(ag_prepass_push_iters, mxfs_ag_prepass_push_iters, int, 0644);
 MODULE_PARM_DESC(ag_prepass_push_iters,
-	"sess391: no-progress bound (10 ms iterations) of the worker's pre-COMMIT AIL push; non-fatal, the post-COMMIT drains carry Invariant 1 (0 = skip the push)");
+	"no-progress bound (10 ms iterations) of the worker's pre-COMMIT AIL push; non-fatal, the post-COMMIT drains carry Invariant 1 (0 = skip the push)");
 
 /*
  * v0.3.130/0.3.131/0.3.132 v6a phase 2 module params.
@@ -37,13 +37,13 @@ MODULE_PARM_DESC(lazy_ag_drain,
                  "transactions held under cached AG-DLM).");
 
 /*
- * v0.3.147 adaptive yield quantum (prescription E from
- * sess32_lessons.md).  Per-AG effective quantum starts at
+ * v0.3.147 adaptive yield quantum (prescription E of the
+ * 0.3.x yield-fairness study).  Per-AG effective quantum starts at
  * mxfs_ag_yield_quantum, halves on every peer BAST (fairness signal),
  * doubles after MXFS_AG_YIELD_DOUBLE_THRESH consecutive non-contended
  * eager drains.  SOLO converges to mxfs_ag_yield_quantum (fast); contended
  * multi-node converges to a small quantum (fair).  Bridges the
- * sess32-observed SOLO-vs-multi-node tradeoff (q=1 best SOLO, starves T2;
+ * observed SOLO-vs-multi-node tradeoff (q=1 best SOLO, starves T2;
  * q=32 best for SOLO speed too but starves T1 under multi-node) without
  * requiring a workload-aware static knob.
  */
@@ -95,7 +95,7 @@ mxfs_ag_strand_inject_hit(xfs_agnumber_t agno, const char *src)
  * after its full 200 rounds, FAIL the lookup with -ESTALE instead of handing
  * the VFS an inode whose type contradicts the dirent.  Publishing the mismatch
  * is what makes D-DIRENT-INODE-TYPE-MISMATCH durable and cluster-wide (proven:
- * node5.txt became a directory on all 32 nodes).  0 restores the pre-sess22
+ * node5.txt became a directory on all 32 nodes).  0 restores the earlier
  * fall-through for A/B.
  */
 /*
@@ -225,7 +225,7 @@ mxfs_ag_dlm_unlock(
 		 * MXFS_BAST_YIELD_QUANTUM for the next round.
 		 *
 		 * This caps the amount of dirty AG metadata that can
-		 * accumulate before peer's BAST forces drain — sess31
+		 * accumulate before peer's BAST forces drain —
 		 * v0.3.130 experiment showed binary skip-or-drain caused
 		 * peer starvation (T2 stuck 600s while T1 held cached
 		 * grants indefinitely).  Bounded yield quantum amortizes
@@ -361,7 +361,7 @@ mxfs_ag_dlm_unlock(
 		 * pinned in CIL.  Without an explicit log force, wait_unpin
 		 * blocks until xfs_log_worker's auto-tick fires (~30s+) — far
 		 * longer than the peer's 120s CAW timeout once you account for
-		 * BAST scheduling latency.  Sess32 v0.3.137 cross-node bench
+		 * BAST scheduling latency.  v0.3.137 cross-node bench
 		 * caught this directly: T2 rsync 1316 wedged in
 		 *   xfs_buf_wait_unpin
 		 *    xfs_buf_submit
@@ -401,7 +401,7 @@ mxfs_ag_dlm_unlock(
 		 *    in normal operation.  The bug was that we weren't
 		 *    submitting alloc_buflist, NOT that xfsaild was broken.
 		 *
-		 * Sess31 final-loop discovery: lazy unlock left dirty AG-meta
+		 * Final-loop discovery: lazy unlock left dirty AG-meta
 		 * bufs in the delwri queue without submission.  AIL items
 		 * pinned to those bufs blocked log tail advancement.  Log
 		 * grant exhausted -> xfs_trans_alloc blocked forever in
@@ -1224,7 +1224,7 @@ mxfs_trans_drain_inode_unlocks(
 		struct xfs_inode *ip = pending->ip;
 		list_del(&pending->list);
 		/*
-		 * sess9 (ccloop 72513a13) SELF-DEADLOCK GUARD — PROVEN BY INSTRUMENT
+		 * SELF-DEADLOCK GUARD — PROVEN BY INSTRUMENT
 		 * live on test8 (16/tcp tcp_dlm_scaling, mv pid 32573, dossier
 		 * tests/logs/tcp16_dlmscaling_wedge_20260719/): xfs_rename —
 		 * like every modern XFS op — ijoins its inodes with
@@ -1242,7 +1242,7 @@ mxfs_trans_drain_inode_unlocks(
 		 * syscall drops its locks, and the CIL-publish ordering this
 		 * trans_free drain exists for is already satisfied
 		 * (xlog_cil_commit precedes xfs_trans_free on the commit
-		 * path).  Same hazard class + same remedy as the sess47
+		 * path).  Same hazard class + same remedy as the
 		 * inline-path fix (caller-held dir DATA buffer vs the flush).
 		 * Ref contract: our pending ref transfers to the dwork; if the
 		 * dwork is already armed (owns its own ref), drop ours.
@@ -1953,7 +1953,7 @@ mxfs_dlm_ag_bast_work_fn(
 	 * AGI/inobt walk can only surface those) plus parent-unknown entries.
 	 */
 	/*
-	 * (design-consult ruling ccloop-c7ee71c6-sess391-GPT-ruling-ag-handoff-
+	 * (design-consult ruling ag-handoff-
 	 * latch-closing-restartable): if the release COMMIT was already taken
 	 * outside this worker — by the last-holder unlock or by a would-be
 	 * re-adopter (P12-LATCH) — admission is closed, the grant is detached
@@ -2229,7 +2229,7 @@ committed:
 	 * checkpointed and inserted is PINNED (xfs_buf_item_unpin runs from
 	 * xfs_trans_committed_bulk, after the AIL insertion), and the census
 	 * right after the first force reads that directly.  MEASURED on the
-	 * 2-node TCP rig (P12-AGREL-STAGES, sess535-536, 56 releases across
+	 * 2-node TCP rig (P12-AGREL-STAGES,, 56 releases across
 	 * ten peer-truncate laps): pin1=0 in every one, and the sleep +
 	 * force cost 4.0-6.0 ms of a 10-15 ms release.  Keep the old path
 	 * for the case the census says is real — a pinned buffer after a
@@ -2293,7 +2293,7 @@ committed:
 	 * Phase 3 (v0.3.55): bounded inline wait for in-flight meta-buffer
 	 * writes to complete, then a final blkdev_flush and synchronous
 	 * release.  Replaces the defer-to-iodone path because that path
-	 * cannot blkdev_issue_flush (xfs-buf workqueue deadlock — sess18
+	 * cannot blkdev_issue_flush (xfs-buf workqueue deadlock —
 	 * v0.3.26).  bast_work_fn runs on system_wq, not xfs-buf
 	 * workqueue, so it can safely flush.
 	 *

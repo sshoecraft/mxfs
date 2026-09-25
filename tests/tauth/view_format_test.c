@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * view_format_test — docs/tauth-view-table.md §13.2 (build step 1, sess428):
+ * view_format_test — docs/tauth-view-table.md §13.2 (build step 1):
  * the VIEW RECORD / ROOT byte format against the committed vectors
  * tests/tauth/vectors/{view_v1,root_v1}.bin.
  *   (a) rebuild both records from the field values: byte-identical to the files

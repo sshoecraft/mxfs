@@ -95,7 +95,7 @@ uint8_t recompute_granted_mode(const struct mxfs_caw_lock_slot *slot)
  * v0.3.83: holder bitmap validity.  h_ex/h_pw are single-holder modes
  * (EX exclusive, PW single-writer); popcount > 1 means stale-disk
  * garbage from a prior FS that mkfs's pwrite-O_SYNC didn't durably
- * overwrite on this LIO target.  Sess23 captured ino=128 slot=51123
+ * overwrite on this LIO target.  Captured ino=128 slot=51123
  * with hex=e0041d00e1000413 (popcount=16) blocking all peer acquires
  * for 120s until timeout.
  */

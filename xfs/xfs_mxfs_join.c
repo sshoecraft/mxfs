@@ -16,12 +16,12 @@ mxfs_dlm_peer_joined_flush(
 	if (!mp)
 		return -EINVAL;
 
-	mxfs_pal_log(MXFS_LOG_INFO,
+	mxfs_pal_log(MXFS_LOG_DEBUG,
 		"mxfs: peer joined — flushing XFS dirty state before "
 		"single→multi transition");
 
 	/*
-	 * Sess29 v0.3.126: same async-CIL-callback race as the inode bast
+	 * v0.3.126: same async-CIL-callback race as the inode bast
 	 * fix.  log_force(SYNC) returns when log write completes, but
 	 * xlog_cil_committed adds BLI to AIL asynchronously.  Single
 	 * log_force+ail_push could miss in-flight items.  msleep+double
@@ -216,7 +216,7 @@ mxfs_dlm_join_prepare(
 	if (!sb || !(sb->s_flags & SB_BORN))
 		return mxfs_dlm_peer_joined_flush(mp);
 
-	mxfs_pal_log(MXFS_LOG_WARN,
+	mxfs_pal_log(MXFS_LOG_DEBUG,
 		"mxfs: P-JOIN-FREEZE — peer sighted; freezing this mount for the "
 		"single→multi transition (data + log written back, cached views "
 		"dropped, view installed, then thaw)");
@@ -280,7 +280,7 @@ mxfs_dlm_join_commit(
 		unsigned int	seen = 0;
 		unsigned int	orph = mxfs_dlm_count_orphan_bmbt(mp, &seen);
 
-		mxfs_pal_log(MXFS_LOG_WARN,
+		mxfs_pal_log(MXFS_LOG_DEBUG,
 			"mxfs: P-JOIN-BMBT-CENSUS single=%d bmbt_cached=%u orphans=%u — clean cached extent-tree blocks at the join commit, and how many have an owner holding no grant",
 			mp->m_mxfs_dlm ?
 				(int)mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm) : -1,
@@ -293,7 +293,7 @@ mxfs_dlm_join_commit(
 			"mxfs: P-JOIN-THAW-FAIL thaw_super rc=%d after the "
 			"single→multi transition", error);
 	else
-		mxfs_pal_log(MXFS_LOG_WARN,
+		mxfs_pal_log(MXFS_LOG_DEBUG,
 			"mxfs: P-JOIN-THAW — single→multi transition installed; "
 			"mount thawed, every modification now takes a grant");
 }
@@ -722,7 +722,7 @@ mxfs_survivor_sweep_slot(
 
 	if (xfs_is_shutdown(mp) || xfs_is_unmounting(mp))
 		return -EAGAIN;
-	pr_warn("mxfs: P97-SWEEP-START slot=%u bucket=%d inv=%d dead_slots=0x%llx — elected survivor adopting dead slot's unlinked bucket\n",
+	mxfs_probe("mxfs: P97-SWEEP-START slot=%u bucket=%d inv=%d dead_slots=0x%llx — elected survivor adopting dead slot's unlinked bucket\n",
 		dead_slot, bucket, atomic_read(&mxfs_freplay_work_inv),
 		(unsigned long long)mp->m_mxfs_foreign_dead_slots[0]);
 	if (unlikely(mxfs_dbg_sweep_hold_ms > 0)) {
@@ -893,7 +893,7 @@ mxfs_unclaimed_bucket_scan(
 			continue;
 		if (mxfs_v5_dlm_guard_slot(dlm, b))
 			continue;	/* lost the race / busy: not ours */
-		pr_warn("mxfs: P99-UBSWEEP-START slot=%d — sweeping unclaimed slot's bucket under recovery guard\n",
+		mxfs_probe("mxfs: P99-UBSWEEP-START slot=%d — sweeping unclaimed slot's bucket under recovery guard\n",
 			b);
 		if (mxfs_ubsweep_hold_ms > 0) {
 			int held = 0;

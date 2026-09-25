@@ -1365,7 +1365,7 @@ xfs_dir2_sf_to_block(
 	 * is the suspected leak point for test_concurrent_mkdir's lost first
 	 * entry from peer's view.
 	 *
-	 * (instrumented, GPT-confirmed #1 hypothesis): dump the FULL in-core
+	 * (instrumented, review-confirmed #1 hypothesis): dump the FULL in-core
 	 * shortform NAME LIST being frozen into block0.  Cross-reference with
 	 * P-SFREL (release-side raw on-disk SF names): if a peer's durably-
 	 * committed dirent (on-disk via P-SFREL) is ABSENT from this in-core SF

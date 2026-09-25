@@ -1,8 +1,8 @@
-<!-- The shared LUN /home/steve/disk.img AND all 32 guest qcow2 images sit on clyde's ONE 92%-full ext4; probe/log volume deadlocked jbd2 and wedged the h… -->
+<!-- The shared LUN ~/disk.img AND all 32 guest qcow2 images sit on clyde's ONE 92%-full ext4; probe/log volume deadlocked jbd2 and wedged the h… -->
 ## The structural fact nobody had written down
 
-    /sys/kernel/scst_tgt/devices/mxfs/filename = /home/steve/disk.img   (o_direct=1)
-    guest root disks                           = /home/steve/vms/qemu/testN/testN (qcow2)
+    /sys/kernel/scst_tgt/devices/mxfs/filename = ~/disk.img   (o_direct=1)
+    guest root disks                           = ~/vms/qemu/testN/testN (qcow2)
     both                                       = /dev/nvme0n1p2, ext4, 1.8T, 92% FULL
 
 **The shared LUN under test and all 32 guests' root disks are files on the SAME

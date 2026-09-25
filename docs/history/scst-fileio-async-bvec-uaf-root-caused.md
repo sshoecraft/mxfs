@@ -78,7 +78,7 @@ free happens first, the slab is recycled, nvme maps garbage.
 
 ## PRODUCTION IS ON THE SAME PATH — contamination is real
 
-`/sys/kernel/scst_tgt/devices/mxfs`: `vdisk_fileio`, `filename=/home/steve/disk.img`,
+`/sys/kernel/scst_tgt/devices/mxfs`: `vdisk_fileio`, `filename=~/disk.img`,
 **`async=1 o_direct=1`**, blocksize=512, nv_cache=0, write_through=0. Same code.
 Every transfer with >4 segments has been freeing an in-flight bvec, and
 `blk_update_request`/`bio_advance_iter` walk `bi_io_vec` at completion — i.e.

@@ -25,7 +25,7 @@ N="${1:?usage: caw_preflight.sh <N>}"
 [[ "$N" =~ ^[0-9]+$ ]] && [ "$N" -ge 1 ] && [ "$N" -le 32 ] || { echo "N out of range 1..32"; exit 2; }
 
 # Restore the SSH password file if a reboot wiped /tmp.
-[ -s "$PASS" ] || cp /home/steve/.mxfs/pass "$PASS" 2>/dev/null
+[ -s "$PASS" ] || cp "$("$REPO/tools/mxfs_secrets.sh" passfile 2>/dev/null)" "$PASS" 2>/dev/null
 
 ssh_q(){ timeout "${2:-25}" "$SSH" "$1" "$PASS" "$3" 2>/dev/null | grep -vE '^Warning:|^Unauthorized|^If you'; }
 

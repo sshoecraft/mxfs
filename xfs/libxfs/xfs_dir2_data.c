@@ -1140,14 +1140,14 @@ xfs_dir3_data_init(
 								VFS_I(p31e_dp)->i_generation, f_ex);
 							kfree(ict);
 						}
-						/* sess32 instrumented (a)-vs-(b) discriminator:
+						/* instrumented (a)-vs-(b) discriminator:
 						 * bast_pending=1 at the clobber => this node
 						 * is fast-path-serving an EX MODIFY while a
-						 * peer's BAST is deferred under MHT (sess10
+						 * peer's BAST is deferred under MHT (
 						 * case a).  ex_grant_seq vs dirty_seq tells if
 						 * the dirty fork belongs to an earlier EX
 						 * tenure (we yielded EX in between => the
-						 * reacquire did not reload = sess10 case b). */
+						 * reacquire did not reload = case b). */
 						mxfs_probe("mxfs: P31E-DATAINIT-ABA ino=%llu lblk=%d daddr=%lld caller=%pS disk_magic=0x%08x disk_owner=%llu live_dirents=%d first_name=\"%s\" incore_fmt=%d incore_nx=%llu incore_size=%lld dir_gen=%llu loaded_gen=%u dlm_mode=%u dlm_state=%u stale=%d selfc=%d unpub=%d reused=%d bast_pend=%d ex_gseq=%llu dirty_seq=%llu comm=%s — get_buf/init about to ZERO a block holding live peer dirents\n",
 							(unsigned long long)p31e_dp->i_ino,
 							(int)blkno,

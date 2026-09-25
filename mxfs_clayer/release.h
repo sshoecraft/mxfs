@@ -2,7 +2,7 @@
 /*
  * mxfs_clayer/release.h — v6a release-token chokepoint (sketch)
  *
- * STATUS: SKETCH ONLY. Sess36+ implementation task.
+ * STATUS: SKETCH ONLY. Implementation task.
  *
  * Per `docs/v6-cache-architecture-proposal.md` §3.3.
  *
@@ -20,7 +20,7 @@
  *
  * Migration plan:
  *   1. Implement this primitive.
- *   2. Migrate one release site at a time, verify with sess35_capture.sh.
+ *   2. Migrate one release site at a time, verify with scripts/sess35_capture.sh.
  *   3. Once all sites use the chokepoint, remove the per-site invalidations.
  *
  * The Mode A bug doesn't return because there's nowhere else for the
@@ -44,7 +44,7 @@ enum mxfs_clayer_resource_kind {
 /*
  * mxfs_clayer_token: opaque handle to a held DLM token.
  *
- * Sess36 design: this should be allocated lazily at acquire time,
+ * Design: this should be allocated lazily at acquire time,
  * tracked per-mount (or per-inode for inode tokens), and freed at
  * release. Carries the resource kind, the AG number or inode number,
  * and the epoch (for cache-validity checks).
@@ -73,7 +73,7 @@ struct mxfs_clayer_token {
  *
  * Returns 0 on success or -errno.
  *
- * Sess35 evidence: the bug sess20-34 chased exists because v5's
+ * Evidence: the bug chased exists because v5's
  * release sites do steps 1-4 inconsistently (some skip step 4, some
  * have escape hatches like skip_locked=1). The chokepoint guarantees
  * uniformity.

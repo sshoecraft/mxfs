@@ -19,7 +19,7 @@ SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 REPO=$(cd -- "$SCRIPT_DIR/.." && pwd); cd "$REPO"
 SSH="$REPO/tools/mxfs_sshpass.sh"; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"
 N="${1:?usage: dlm_scaling_diag.sh <N> [extra_modargs]}"; EXTRA="${2:-}"
-[ -s "$PASS" ] || cp /home/steve/.mxfs/pass "$PASS" 2>/dev/null
+[ -s "$PASS" ] || cp "$("$REPO/tools/mxfs_secrets.sh" passfile 2>/dev/null)" "$PASS" 2>/dev/null
 sq(){ timeout "${2:-20}" "$SSH" "$1" "$PASS" "$3" 2>/dev/null | grep -vE '^Warning:|^Unauthorized|^If you'; }
 NODES=(); for i in $(seq 1 "$N"); do NODES+=("test$i"); done
 

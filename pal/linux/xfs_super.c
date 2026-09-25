@@ -1861,7 +1861,7 @@ mxfs_departure_quiesced(
 	ok = inflight == 0 && rp == 0 && dirwr == 0 && !after && !corrupt &&
 	     untokened == 0 && stage == MXFS_DEPARTURE_FROZEN;
 	if (ok)
-		xfs_notice(mp,
+		mxfs_xfs_probe(mp,
 "MXFS: P304-RETIRE-QUIESCED at=%s buf_io_inflight=0 rejected_pending=0 dir_wr_inflight=0 io_after_freeze=0 corrupt=0 untokened=0 soft=%lu carried=%lu submitted=%lu drain_stalls=%lu — departure frozen, release stamp may proceed",
 			   where, soft, carried, submitted, stalls);
 	else
@@ -1873,8 +1873,8 @@ mxfs_departure_quiesced(
 }
 
 /*
- * (D-0133, design-consult placement ruling — ccmemory ccloop-c7ee71c6-
- * sess475-GPT-ruling-d0133-lock-inert-put-super-teardown-shape9-hardened).
+ * (D-0133, design-consult placement ruling —
+ * d0133-lock-inert-put-super-teardown-shape9-hardened).
  * The FINAL clustered SB summary write: taken here, while the DLM context
  * and our heartbeat are alive, because put_super tears the DLM down before
  * xfs_unmountfs and the in-quiesce lock of 0.64.28 could never be granted
@@ -2289,7 +2289,7 @@ mxfs_mount_write_admitted(
 	if (unlikely(!READ_ONCE(mp->m_mxfs_dlm))) {
 		if (ok) {
 			atomic64_inc(&mxfs_auth_admit_detached_n);
-			pr_notice_ratelimited(
+			mxfs_probe_ratelimited(
 			    "mxfs: P291-AUTH-TAIL-ADMIT site=%s comm=%s — this mount's DLM is already detached; the submission is admitted because the incarnation's authority lease is still live, and it is the lease that said so\n",
 			    site, current->comm);
 		} else {
@@ -2361,12 +2361,12 @@ xfs_fs_put_super(
 	 * the DLM are still valid, releasing the refs so reclaim can complete.
 	 */
 	/*
-	 * sess37 D-DWORK-TEARDOWN-LASTREF-LEAK class fix.  Close the
+	 * D-DWORK-TEARDOWN-LASTREF-LEAK class fix.  Close the
 	 * bast-arm gate FIRST: every per-inode bast work/dwork arm routes
 	 * through mxfs_bast_arm_queue*() (xfs_mxfs_dlm.c), which refuses
 	 * once m_mxfs_arms_off is set — the caller then drops the arm's
 	 * igrab ref via its existing queued-false path.  Arms landing
-	 * after the flush below would otherwise re-open the sess116
+	 * after the flush below would otherwise re-open the
 	 * window.
 	 */
 	/* late-dirty arm pre-warm — must precede the gate closure */
@@ -2781,11 +2781,11 @@ restart_armsweep:
 				  nulld, anyio, anynd, prew, preic, agl, igc);
 		else if (agw || agr || icw || icr || agl || igc)
 			xfs_alert(mp,
-"MXFS: P483-AGFREE-WINDOW nodlm_wr=0 nodlm_rd=0 iclus_nodlm_wr=0 iclus_nodlm_rd=0 dlm_wr=%lu dlm_rd=%lu iclus_dlm_wr=%lu iclus_dlm_rd=%lu nulldlm_acquires=0 anyio=%lu anyio_nodlm=%lu pre_wr=%lu pre_iclus_wr=%lu aglock_after=%lu inodegc_after_stop=%lu — metadata was touched, an AG grant re-taken, or an inode queued for inactivation after the grants were published; whatever that dirtied was destaged after the re-taken grants were swept, which is the defect the sess485 reordering removes",
+"MXFS: P483-AGFREE-WINDOW nodlm_wr=0 nodlm_rd=0 iclus_nodlm_wr=0 iclus_nodlm_rd=0 dlm_wr=%lu dlm_rd=%lu iclus_dlm_wr=%lu iclus_dlm_rd=%lu nulldlm_acquires=0 anyio=%lu anyio_nodlm=%lu pre_wr=%lu pre_iclus_wr=%lu aglock_after=%lu inodegc_after_stop=%lu — metadata was touched, an AG grant re-taken, or an inode queued for inactivation after the grants were published; whatever that dirtied was destaged after the re-taken grants were swept, which is the defect the reordering removes",
 				  agw, agr, icw, icr, anyio, anynd, prew, preic,
 				  agl, igc);
 		else
-			xfs_notice(mp,
+			mxfs_xfs_probe(mp,
 "MXFS: P483-AGFREE-WINDOW nodlm_wr=0 nodlm_rd=0 iclus_nodlm_wr=0 iclus_nodlm_rd=0 dlm_wr=0 dlm_rd=0 iclus_dlm_wr=0 iclus_dlm_rd=0 nulldlm_acquires=0 anyio=%lu anyio_nodlm=%lu pre_wr=%lu pre_iclus_wr=%lu aglock_after=0 inodegc_after_stop=0 — no AG-metadata or inode-cluster access, no AG acquire and no inactivation queued after the AG grants were published; pre_wr is the positive control (the unmount's metadata work, done under live grants), and a zero here is only a measurement while it is nonzero",
 				   anyio, anynd, prew, preic);
 	}
@@ -3079,7 +3079,7 @@ restart_armsweep:
 		 * without consulting the lease at all.  A non-zero value is
 		 * the ordering being reached, not a verdict on it.
 		 */
-		xfs_notice(mp,
+		mxfs_xfs_probe(mp,
 "MXFS: P291-AUTH-META meta_detached=%lld (module-wide total since load) — metadata writes that reached the metadata authority arm after this mount's DLM was detached",
 			   mta);
 
@@ -3092,7 +3092,7 @@ restart_armsweep:
 "MXFS: P291-AUTH-TAIL tail_admit=%lld tail_refuse=%lld no_authority=%lld tail_blind=0 (module-wide totals since load) — a clustered mount reached the authority gate with no authority object; which incarnation those writes belonged to could not be established",
 				  adm, ref, noa);
 		else
-			xfs_notice(mp,
+			mxfs_xfs_probe(mp,
 "MXFS: P291-AUTH-TAIL tail_admit=%lld tail_refuse=%lld no_authority=0 tail_blind=0 (module-wide totals since load) — submissions made after a mount's DLM was detached, each one decided by that incarnation's own authority lease rather than by the presence of a pointer",
 				   adm, ref);
 	}
@@ -3658,7 +3658,7 @@ static unsigned int mxfs_legacy_rw;
  * under the token gate's authority).
  */
 /*
- * (design-consult ruling ccloop-c7ee71c6-sess448-GPT-ruling-iclus-relmark-
+ * (design-consult ruling iclus-relmark-
  * certificate-and-sequencing): the ICLUSTER clean-release certificate
  * (ic->auth_lineage + marker before the cluster unlock CAS) is LANDED but
  * not yet rig-verified; production readiness is a property of the BUILD.
@@ -3688,7 +3688,7 @@ MODULE_INFO(mxfs_iclus_relmark_lab, "1");
  * authority epochs and a sealed fence-time manifest gives foreign replay
  * its authority source on TCP; on the 2-node TCP cluster a dirty death is
  * fenced, replayed and published with every fsync-acknowledged file readable
- * from the survivor (tests/tcp_death_replay.sh, sess502-504).  Both
+ * from the survivor (tests/tcp_death_replay.sh).  Both
  * transports are therefore admitted; the lab-only compile flag that used to
  * lift the refusal is gone, so a production build and a lab build behave
  * the same.  The transport is still only known once the DLM is initialised,
@@ -3959,7 +3959,7 @@ mxfs_drevalidate(struct dentry *dentry, unsigned int flags)
 	 * (leaving i_dlm_stale set) so this call can never deadlock — at worst the
 	 * lookup reads a slightly-stale dir block and a later access re-resolves.
 	 */
-	mxfs_probe_once("mxfs: H37-MXFS-DREVALIDATE active (sess49 coordinated+deadlock-safe)\n");
+	mxfs_probe_once("mxfs: H37-MXFS-DREVALIDATE active (coordinated+deadlock-safe)\n");
 
 	if (d_really_is_positive(dentry)) {
 		ip = XFS_I(d_inode(dentry));
@@ -5384,7 +5384,7 @@ xfs_fs_fill_super(
 					error = lrc;
 					goto out_filestream_unmount;
 				} else {
-					xfs_notice(mp,
+					mxfs_xfs_probe(mp,
 	"MXFS: P-SLIFE slot=%d slice=%u before=%s after=%s zeroed_bytes=%llu zero_ms=%u — slice lifecycle at claim",
 						   mp->m_mxfs_node_slot, slice,
 						   mxfs_v5_dlm_slice_lifecycle_name(before),
@@ -5993,7 +5993,7 @@ mxfs_report_residual_inodes(
 				held++;
 				if (held > 16)
 					continue;
-				pr_warn("mxfs: P199-UNMOUNT-RESIDUAL-INODE ino=%llu icount=%d mode=0%o nlink=%u dlm_mode=%u dlm_state=%u ex_h=%u pr_h=%u pin=%u bast_pending=%d unpublished=%d iflags=0x%lx pincount=%d in_ail=%d — still in the ICI radix tree at unmount; generic_shutdown_super will report it busy\n",
+				mxfs_probe("mxfs: P199-UNMOUNT-RESIDUAL-INODE ino=%llu icount=%d mode=0%o nlink=%u dlm_mode=%u dlm_state=%u ex_h=%u pr_h=%u pin=%u bast_pending=%d unpublished=%d iflags=0x%lx pincount=%d in_ail=%d — still in the ICI radix tree at unmount; generic_shutdown_super will report it busy\n",
 					(unsigned long long)ip->i_ino,
 					atomic_read(&vip->i_count),
 					vip->i_mode, vip->i_nlink,
@@ -6012,7 +6012,7 @@ mxfs_report_residual_inodes(
 		} while (nr_found == 32);
 	}
 	if (held)
-		pr_warn("mxfs: P199-UNMOUNT-RESIDUAL-TOTAL in_tree=%d still_referenced=%d (printed at most 16) — if the VFS then warns at fs/super.c generic_shutdown_super, the leak is among these\n",
+		mxfs_probe("mxfs: P199-UNMOUNT-RESIDUAL-TOTAL in_tree=%d still_referenced=%d (printed at most 16) — if the VFS then warns at fs/super.c generic_shutdown_super, the leak is among these\n",
 			total, held);
 }
 
@@ -6548,18 +6548,18 @@ MODULE_PARM_DESC(lease_timeout_ms,
 unsigned int mxfs_open_tracking = 1;
 module_param_named(open_tracking, mxfs_open_tracking, uint, 0644);
 MODULE_PARM_DESC(open_tracking,
-	"sess40 cross-node open-unlink protection: 1 (default) = publish an "
+	"cross-node open-unlink protection: 1 (default) = publish an"
 	"open-holder bit when releasing a still-open inode under BAST, and "
 	"defer a peer-open unlinked inode's destructive inactivation; 0 = "
-	"pre-sess40 behaviour (A/B control; a peer's unlink then destroys "
+	"earlier behaviour (A/B control; a peer's unlink then destroys"
 	"data under a live fd).");
 
 unsigned int mxfs_inocl_fence = 1;
 module_param_named(inocl_fence, mxfs_inocl_fence, uint, 0644);
 MODULE_PARM_DESC(inocl_fence,
-	"sess47 inode-cluster time-travel fence: 1 (default) = device flush "
+	"inode-cluster time-travel fence: 1 (default) = device flush"
 	"before a cold inode-cluster read inside an unflushed write window "
-	"(sibling of the sess6 AG-meta fence; closes the fossil "
+	"(sibling of the AG-meta fence; closes the fossil"
 	"di_next_unlinked producer, P53-IUNLINK-MISMATCH); 0 = report-only "
 	"(A/B control).");
 
@@ -6705,7 +6705,7 @@ init_xfs_fs(void)
 		printk(KERN_WARNING "mxfs: lease_timeout_ms=%u is DEPRECATED and "
 		       "has never configured the lease — it is the disklock "
 		       "dead-detection threshold.  Use dead_timeout_ms.  The "
-		       "lease timeout stays 600000 ms by design (sess43).\n",
+		       "lease timeout stays 600000 ms by design .\n",
 		       mxfs_lease_timeout_ms);
 	printk(KERN_INFO "mxfs: dead_timeout_ms=%u (0 = 62s default)\n",
 	       mxfs_resolve_dead_timeout_ms());

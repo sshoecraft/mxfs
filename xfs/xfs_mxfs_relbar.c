@@ -330,7 +330,7 @@ mxfs_relbar_close_or_defer(struct xfs_inode *ip, const char *arm,
 			mxfs_rel_state_set(ip, MXFS_RELSTATE_PROVED);
 			return false;
 		}
-		/* gate=1 with F4 open, or no covering flush ticket (sess258
+		/* gate=1 with F4 open, or no covering flush ticket (
 		 * F3): fall into the durable passes so the flush below can
 		 * retire the obligations / earn the ticket in place */
 	}
@@ -1349,7 +1349,7 @@ module_param_named(iunl_fossil_fix, mxfs_iunl_fossil_fix, int, 0644);
 MODULE_PARM_DESC(iunl_fossil_fix,
 		 "1 (default): xfs_iunlink_insert_inode resets a fossil in-core "
 		 "next pointer and clears a fossil buffer nu on empty-bucket "
-		 "inserts (sess395 F1/F2); 0 = CONTROL arm, repair disabled");
+		 "inserts (F1/F2); 0 = CONTROL arm, repair disabled");
 
 int mxfs_relog_holds_version = 1;
 module_param_named(relog_holds_version, mxfs_relog_holds_version, int, 0644);
@@ -1460,8 +1460,8 @@ module_param_cb(relgate_fault_stage, &mxfs_relgate_fault_stage_ops,
 		&mxfs_relgate_fault_stage, 0644);
 MODULE_PARM_DESC(relgate_fault_stage,
                  "arm deterministic fault injection at this release/mint/"
-                 "gate stage (1-18 per sess197 ruling; 19-21 ICLUS marker "
-                 "stages per sess448 ruling; 0=disarmed default)");
+                 "gate stage (1-18 per ruling; 19-21 ICLUS marker"
+                 "stages per ruling; 0=disarmed default)");
 
 int mxfs_pub_skip_rearm = 0;
 EXPORT_SYMBOL(mxfs_pub_skip_rearm);

@@ -151,7 +151,7 @@ void mxfs_pal_bdev_close(mxfs_bdev_t *dev)
 		return;
 
 	if (dev->stat_writes || dev->stat_writes_fua)
-		pr_info("mxfs: bdev_io: writes=%llu (%llu KB, %llu us, avg %llu us) "
+		mxfs_probe("mxfs: bdev_io: writes=%llu (%llu KB, %llu us, avg %llu us) "
 			"fua=%llu (%llu KB, %llu us, avg %llu us) "
 			"flushes=%llu (%llu us, avg %llu us)\n",
 			(unsigned long long)dev->stat_writes,
@@ -209,7 +209,7 @@ void mxfs_pal_bdev_close_clone(mxfs_bdev_t *dev)
 		return;
 
 	if (dev->stat_writes || dev->stat_writes_fua)
-		pr_info("mxfs: bdev_io (xfs): writes=%llu (%llu KB, %llu us, avg %llu us) "
+		mxfs_probe("mxfs: bdev_io (xfs): writes=%llu (%llu KB, %llu us, avg %llu us) "
 			"fua=%llu (%llu KB, %llu us, avg %llu us) "
 			"flushes=%llu (%llu us, avg %llu us)\n",
 			(unsigned long long)dev->stat_writes,
@@ -912,7 +912,7 @@ EXPORT_SYMBOL_GPL(mxfs_pal_sdev_cache_release);
  *     30 s scsi_execute_cmd timeout  x  1 SCSI retry  x  20 wrapper retries
  *
  * i.e. a worst case of ~20 minutes for ONE slot probe.  The design-consult ruling
- * (ccmemory ccloop-c7ee71c6-sess379-GPT-ruling-detector-io-off-the-fast-path)
+ * (detector-io-off-the-fast-path)
  * names that stack as "exactly the failure-amplification pattern to remove"
  * and prescribes ONE absolute monotonic deadline per LOGICAL operation, with
  * every attempt budget capped by the time remaining, and no nested
@@ -3114,7 +3114,7 @@ int mxfs_pal_defer(void (*fn)(void *), void *arg)
 	return 0;
 }
 
-/* ccloop-4dd7 dump another task's kernel stack by pid (holder
+/* dump another task's kernel stack by pid (holder
  * forensics — the b58r1 184s cross-node stall's EX-admission holders were
  * blocked at a wait site no probe could see; this lets the demote-refusal
  * path print the holder's stack directly).  Safe from process/work context:
@@ -3417,7 +3417,7 @@ EXPORT_SYMBOL_GPL(mxfs_pal_dbg_depart_inject_take);
 
 /*
  * (0.61.6, review #5 conditions 2/3/4 — ccmemory
- * ccloop-c7ee71c6-sess456-GPT-ruling-review5-0611-NO-GO-untokened-failclosed-
+ * review5-0611-NO-GO-untokened-failclosed-
  * 6-conditions).  Three more injectors, all default-off, all consumed by
  * production code paths that read 0 in production:
  *
@@ -3631,7 +3631,7 @@ int mxfs_pal_scsi_pr_register_swap(mxfs_bdev_t *dev, uint64_t old_key,
 		return ret;
 	}
 	if (ret == PR_STS_RESERVATION_CONFLICT) {
-		mxfs_pal_log(MXFS_LOG_WARN,
+		mxfs_pal_log(MXFS_LOG_DEBUG,
 			     "mxfs-pal: P305-PR-SWAP-NOKEY REGISTER rk=0x%llx "
 			     "sark=0x%llx returned RESERVATION CONFLICT: this "
 			     "nexus does not hold rk; nothing changed",
@@ -4364,7 +4364,7 @@ int mxfs_pal_scsi_pr_read_reservation(mxfs_bdev_t *dev,
  *     a path refused.  The only valid reading is "the requested state was not
  *     established by this command — inspect global state".
  *
- * design-consult ruling (ccmemory ccloop-c7ee71c6-sess377-GPT-ruling3-pr-
+ * design-consult ruling (ruling3-pr-
  * unregister-leak-fix-shape): the symmetric unregister is the MECHANISM, the
  * READ KEYS read-back is the POSTCONDITION, and the load-bearing invariant is
  *
@@ -4893,7 +4893,7 @@ out:
 /*
  * v0.3.128: module param to select CAW submission path.
  *   0 = legacy scsi_execute_cmd (uses bio_map_kern → bio_add_virt_nofail
- *       on caller's kernel buffer).  Sess26 P49 confirmed this returns
+ *       on caller's kernel buffer).  P49 confirmed this returns
  *       CAS-success without persisting writes under cross-node stress.
  *   1 = manual bio construction mirroring drivers/scsi/sg.c's path:
  *       fresh alloc_page() per submission, copied data, bio_add_page,
@@ -4921,7 +4921,7 @@ static int mxfs_caw_path = 1;
 module_param_named(caw_path, mxfs_caw_path, int, 0644);
 MODULE_PARM_DESC(caw_path,
                  "CAW submission path: 0=scsi_execute_cmd (legacy, broken "
-                 "under stress per sess26), 1=manual-bio (default, sess30 "
+                 "under stress per), 1=manual-bio (default,"
                  "path A — partial fix).");
 
 /*
@@ -4940,7 +4940,7 @@ MODULE_PARM_DESC(caw_path,
  * CAS-success.  This forces a media-flush before we report success to
  * the caller, ensuring the next peer read sees our write.
  *
- * Sess26 tested blkdev_issue_flush after CAS in v0.3.108 era and said
+ * Tested blkdev_issue_flush after CAS in v0.3.108 era and said
  * "slight degradation, no fix" — but that was BEFORE Mode A
  * fix (msleep+double log_force).  Mode A was masking any improvement.
  * Re-testing in with all correctness fixes in place.
@@ -4952,7 +4952,7 @@ static int mxfs_caw_flush;
 module_param_named(caw_flush, mxfs_caw_flush, int, 0644);
 MODULE_PARM_DESC(caw_flush,
                  "blkdev_issue_flush after CAS-success: 0=off (default), "
-                 "1=force device flush (sess30 — root-cause workaround for "
+                 "1=force device flush (— root-cause workaround for"
                  "no-FUA underlying device).");
 
 /*
@@ -4965,9 +4965,9 @@ MODULE_PARM_DESC(caw_flush,
  * slot fresh, recomputes desired state, and retries the CAW.  No
  * PAL-internal retry, so verify cannot compound with caller retries.
  *
- * Sess30 attempted PAL-level retry-on-mismatch (5 attempts × bounded
+ * An earlier attempt at PAL-level retry-on-mismatch (5 attempts × bounded
  * backoff) and got ETIMEDOUT — verify-retry x caller-retry compounded
- * to exhaust the 60s DLM grant timeout.  See sess30_lessons.md.
+ * to exhaust the 60s DLM grant timeout.
  *
  * 0 = no verify (default; fastest, but vulnerable to silent non-persist).
  * 1 = single FUA-readback verify; mismatch → -EAGAIN to caller.
@@ -5317,8 +5317,8 @@ caw_submit:
 	 * target's "CAS-success" was accepted into a write-back cache and
 	 * the data hasn't yet committed to permanent media (root
 	 * cause #2; storage finding: Samsung 870 EVO doesn't support
-	 * FUA so LIO silently drops our FUA bit on writes — see
-	 * sess30_lessons.md).
+	 * FUA so LIO silently drops our FUA bit on writes;
+	 * docs/condition4_multipath_scope.md).
 	 *
 	 * Strategy: bounded poll-for-persistence with exponential backoff.
 	 * Re-read up to N times waiting for delayed persistence to show up.
@@ -5368,7 +5368,7 @@ caw_submit:
 	 * caller's existing miscompare-retry path.
 	 */
 	atomic64_inc(&mxfs_caw_verify_mismatch);
-	mxfs_probe_ratelimited("mxfs: P71-INSTR caw verify-mismatch lba=%llu — kernel SCSI passthrough non-persist (sess26 root cause #2); returning -EAGAIN\n",
+	mxfs_probe_ratelimited("mxfs: P71-INSTR caw verify-mismatch lba=%llu — kernel SCSI passthrough non-persist (root cause #2); returning -EAGAIN\n",
 		(unsigned long long)lba);
 	ret = -EAGAIN;
 

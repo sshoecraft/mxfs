@@ -692,12 +692,12 @@ mxfs_collect_dir_hashes(struct xfs_mount *mp, struct xfs_da_geometry *geo,
 }
 
 /*
- * sess21 (ccloop 8ddb16a2) MXFS clustered-dir LEAF coherency repair.
+ * MXFS clustered-dir LEAF coherency repair.
  *
  * The shared directory's single LEAF1 (hash index) block is perpetually pinned
  * on whichever node is actively creating (every create touches it, so the CIL
  * never quiesces it).  The DLM acquire-side evict therefore cannot refresh it
- * (clearing XBF_DONE on a pinned buffer loses the un-checkpointed delta = sess64
+ * (clearing XBF_DONE on a pinned buffer loses the un-checkpointed delta =
  * corruption), so a node ends up holding a STALE in-core leaf missing a peer's
  * committed hashvals; its next dir RMW + release-destage durably drops them --
  * readdir still lists the name from the (coherent) DATA block, but lookup

@@ -116,7 +116,7 @@ bool mxfs_dbg_p106_inject_take(uint64_t ino)
 static int mxfs_dbg_sb_late_dirty;
 module_param_named(dbg_sb_late_dirty, mxfs_dbg_sb_late_dirty, int, 0644);
 MODULE_PARM_DESC(dbg_sb_late_dirty,
-	"DEBUG one-shot: log the root inode core after the SB summary seal at the next put_super (sess475 D-0133 late-dirty invariant arm; the departure must go DIRTY)");
+	"DEBUG one-shot: log the root inode core after the SB summary seal at the next put_super (D-0133 late-dirty invariant arm; the departure must go DIRTY)");
 
 /*
  * (D-0487): one-shot arm consumed by mxfs_sb_summary_final_sync AFTER
@@ -131,7 +131,7 @@ MODULE_PARM_DESC(dbg_sb_late_dirty,
 static int mxfs_dbg_sb_inject_unheld_agno = -1;
 module_param_named(dbg_sb_inject_unheld_agno, mxfs_dbg_sb_inject_unheld_agno, int, 0644);
 MODULE_PARM_DESC(dbg_sb_inject_unheld_agno,
-	"DEBUG one-shot: at the next put_super, after the SB summary lock is taken and before its quiesce, commit an unchanged AG-header image for the first unheld AG >= this number (sess492 D-0487 under-lock pin); -1 = off");
+	"DEBUG one-shot: at the next put_super, after the SB summary lock is taken and before its quiesce, commit an unchanged AG-header image for the first unheld AG >= this number (D-0487 under-lock pin); -1 = off");
 
 /*
  * D-0532 directed concurrency arm (design-consult bar: one genuine DLM
@@ -153,16 +153,16 @@ MODULE_PARM_DESC(dbg_sb_inject_unheld_agno,
  */
 static unsigned long long mxfs_dbg_bast_pause_ino;
 module_param_named(dbg_bast_pause_ino, mxfs_dbg_bast_pause_ino, ullong, 0644);
-MODULE_PARM_DESC(dbg_bast_pause_ino, "DEBUG one-shot: park the BAST release drain of this inode before its reg-durable loop for dbg_bast_pause_ms (sess475 D-0532 arm)");
+MODULE_PARM_DESC(dbg_bast_pause_ino, "DEBUG one-shot: park the BAST release drain of this inode before its reg-durable loop for dbg_bast_pause_ms (D-0532 arm)");
 static int mxfs_dbg_bast_pause_ms = 4000;
 module_param_named(dbg_bast_pause_ms, mxfs_dbg_bast_pause_ms, int, 0644);
 MODULE_PARM_DESC(dbg_bast_pause_ms, "DEBUG: hold length for dbg_bast_pause_ino (ms)");
 static unsigned long long mxfs_dbg_relog_force_ino;
 module_param_named(dbg_relog_force_ino, mxfs_dbg_relog_force_ino, ullong, 0644);
-MODULE_PARM_DESC(dbg_relog_force_ino, "DEBUG one-shot: force the P146V clean-but-unlanded re-log arm for this inode in its next release drain (sess475 D-0532 arm)");
+MODULE_PARM_DESC(dbg_relog_force_ino, "DEBUG one-shot: force the P146V clean-but-unlanded re-log arm for this inode in its next release drain (D-0532 arm)");
 static unsigned long long mxfs_dbg_iolock_hold_ino;
 module_param_named(dbg_iolock_hold_ino, mxfs_dbg_iolock_hold_ino, ullong, 0644);
-MODULE_PARM_DESC(dbg_iolock_hold_ino, "DEBUG one-shot: park xfs_ilock after this inode's next IOLOCK_EXCL DLM admission for dbg_iolock_hold_ms (sess475 D-0532 arm)");
+MODULE_PARM_DESC(dbg_iolock_hold_ino, "DEBUG one-shot: park xfs_ilock after this inode's next IOLOCK_EXCL DLM admission for dbg_iolock_hold_ms (D-0532 arm)");
 static int mxfs_dbg_iolock_hold_ms = 8000;
 module_param_named(dbg_iolock_hold_ms, mxfs_dbg_iolock_hold_ms, int, 0644);
 MODULE_PARM_DESC(dbg_iolock_hold_ms, "DEBUG: hold length for dbg_iolock_hold_ino (ms)");
@@ -755,7 +755,7 @@ MODULE_PARM_DESC(demoter_dump,
 
 module_param_cb(dirphantom_dump, &mxfs_dirphantom_dump_ops, NULL, 0644);
 MODULE_PARM_DESC(dirphantom_dump,
-		 "Write any value to dump the sess6 dir-EX phantom-serve counters to dmesg");
+		 "Write any value to dump the dir-EX phantom-serve counters to dmesg");
 
 static int
 mxfs_dland_dump_set(const char *val, const struct kernel_param *kp)

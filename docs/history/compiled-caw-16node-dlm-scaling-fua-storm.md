@@ -35,7 +35,7 @@ Two per-op coherency hooks defeat amortization on a PRIVATE dir:
    to clean every op, re-arming the compare.
 Epoch/tenure levers (`mxfs_dir_tenure_evict`, `dir_evict_prior_tenure`, `force_coherent`,
 `dir_zombie_retire`) all default 0 → ruled out. Environment is NOT the bottleneck: shared LUN
-= `/home/steve/disk.img` (50GB) via SCST vdisk_fileio on `/dev/nvme0n1p2` (Samsung 990 EVO
+= `~/disk.img` (50GB) via SCST vdisk_fileio on `/dev/nvme0n1p2` (Samsung 990 EVO
 Plus 2TB, rotational=0, 12% util), clyde 94GB RAM. 16-node failure = FUA round-trip latency
 (~3-5ms/read) + DLM handoff, not disk bandwidth. Reducing redundant FUA is the right lever.
 

@@ -5,7 +5,7 @@
 
 `tools/caw_slotdump` speaks SG_IO, so it only runs from an initiator (a test
 node).  This reads the same table offline, from the backing file on the target
-host (`/home/steve/disk.img` on clyde), which means a census costs no rig time,
+host (`~/disk.img` on clyde), which means a census costs no rig time,
 takes no lock, writes nothing, and cannot disturb a running board.
 
 ## What it measures and why that is the question

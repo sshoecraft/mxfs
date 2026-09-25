@@ -377,7 +377,7 @@ ignored), and a forge at a COMPLETE stage is invisible to the barrier
 ## 2026-08-22 (sess399-401): `mxfs_agi_dump.py` — platter AGI/btree-root forensics
 
 `tools/mxfs_agi_dump.py [--img PATH] [--xfs-off N] [--scan] AGNO...` decodes,
-read-only and straight from the LUN image (default `/home/steve/disk.img`),
+read-only and straight from the LUN image (default `~/disk.img`),
 each AG's on-platter AGI header — `agi_count` / `agi_freecount` / `newino` /
 `agi_lsn` (cycle:block — identifies WHICH NODE'S LOG slice wrote the AGI last)
 / non-empty unlinked buckets — plus the inobt and finobt root block headers
@@ -443,13 +443,13 @@ skip=`) to archive a failed slice: the in-FS daddr from the kernel's replay
 banner is short of the true image offset by `bt_sector_offset` (~467k
 sectors), and a sess412 dd with the banner offset archived the wrong region.
 `tests/fence_live_node.sh` now calls it automatically (FLN_BACKING, default
-/home/steve/disk.img) whenever a replay-failure line is seen, because the
+~/disk.img) whenever a replay-failure line is seen, because the
 NEXT arm's prep re-formats the LUN and destroys the evidence (slot-27
 type-0 evidence was lost exactly so).
 
 Read-only, envelope-aware, O_DIRECT (dd iflag=direct — page-cache-proof)
 decoder of ONE per-node XFS log slice straight off the SCST backing image
-(`/home/steve/disk.img`).  Parses the 4KB mxfs_ondisk_super at byte 0, the
+(`~/disk.img`).  Parses the 4KB mxfs_ondisk_super at byte 0, the
 XFS sb at xfs_data_offset, computes `slice_daddr = FSB_TO_DADDR(sb_logstart)
 + slice * log_slice_bblks` (identical to mxfs_xlog_recover_foreign_slice),
 then decodes every xlog_rec_header (cycle-stamp unpacking, v2 extended
@@ -821,7 +821,7 @@ peer's waiter bit however the struct is versioned.
 
 **`tools/caw_slotdump` speaks SG_IO, so it only runs from an initiator (a test
 node).** This reads the same table from the SCST `vdisk_fileio` backing file on
-the target host — `/home/steve/disk.img` on clyde — so a census costs no rig time,
+the target host — `~/disk.img` on clyde — so a census costs no rig time,
 takes no lock, writes nothing, and cannot disturb a running board.
 
 It finds the table exactly rather than guessing: `chk_mxfs -v` reports

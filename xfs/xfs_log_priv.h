@@ -579,7 +579,7 @@ struct xlog {
 	uint32_t		l_mxfs_redundant_skips;
 	/*
 	 * (D-FOREIGN-SLICE-INTENTS-ABANDONED, CANCEL tokens — design-consult
-	 * ruling ccmemory ccloop-c7ee71c6-sess476-GPT-ruling-cancel-item-
+	 * ruling cancel-item-
 	 * untagged-fixA-tokenize-binval-pass1-verdict-aware): the pass-1 buffer
 	 * cancel table must be built from ADMITTED transactions only — a
 	 * refused transaction's XFS_BLF_CANCEL would otherwise suppress an

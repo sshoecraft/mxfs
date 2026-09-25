@@ -106,7 +106,7 @@ xfs_setfilesize(
  *
  * io_bio was a pointer and io_type (IOMAP_UNWRITTEN) / IOMAP_F_SHARED were
  * the classifiers pre-v6.17; v6.17 embeds io_bio and replaces io_type with
- * per-ioend IOMAP_IOEND_UNWRITTEN/IOMAP_IOEND_SHARED flags (GPT-assisted
+ * per-ioend IOMAP_IOEND_UNWRITTEN/IOMAP_IOEND_SHARED flags (review-assisted
  * port, cross-checked against 6.17.2-1-pve's actual linux/iomap.h before
  * applying -- see pal.md Known Pitfalls). mxfs_ioend_unwritten/shared below
  * hide the difference so xfs_end_ioend's own logic doesn't fork.
@@ -373,7 +373,7 @@ MODULE_PARM_DESC(fix27_delay_ms,
 int mxfs_demoter_legacy_clobber;
 module_param_named(demoter_legacy_clobber, mxfs_demoter_legacy_clobber, int, 0644);
 MODULE_PARM_DESC(demoter_legacy_clobber,
-	"A/B ONLY: restore the pre-sess25 unqualified i_dlm_demoter claim (reproduces D-BAST-IRELE-INACTIVE-SELF-WEDGE); 0=fixed (default), 1=broken");
+	"A/B ONLY: restore the earlier unqualified i_dlm_demoter claim (reproduces D-BAST-IRELE-INACTIVE-SELF-WEDGE); 0=fixed (default), 1=broken");
 
 /*
  * TEST-ONLY wedge injector.  Makes mxfs_dlm_bast_work_fn drop its own
@@ -453,7 +453,7 @@ MODULE_PARM_DESC(teardown_arm_gate,
 int mxfs_bast_qfalse_inject;
 module_param_named(bast_qfalse_inject, mxfs_bast_qfalse_inject, int, 0644);
 MODULE_PARM_DESC(bast_qfalse_inject,
-	"TEST-ONLY: bast_work_fn self-requeues at entry (own donated ref) so queue_work collisions hit the false branch deterministically — exercises the P226 extra-ref drop (sess36 D-UNMOUNT-BUSY-INODES verification); 0=off (default), 1=inject");
+	"TEST-ONLY: bast_work_fn self-requeues at entry (own donated ref) so queue_work collisions hit the false branch deterministically — exercises the P226 extra-ref drop (D-UNMOUNT-BUSY-INODES verification); 0=off (default), 1=inject");
 
 /*
  * P85: gate the inode-drain skip census + the FUA home-dinode compare
@@ -471,7 +471,7 @@ module_param_named(publish_refuse_unlock, mxfs_p87_refuse_unlock, int, 0644);
 extern int mxfs_p87_repair_budget_ms;
 module_param_named(publish_repair_budget_ms, mxfs_p87_repair_budget_ms, int, 0644);
 MODULE_PARM_DESC(publish_repair_budget_ms,
-	"sess387: aggregate ms budget per AG release for converting split unlinked-list heads before publication (default 3000)");
+	"aggregate ms budget per AG release for converting split unlinked-list heads before publication (default 3000)");
 MODULE_PARM_DESC(publish_refuse_unlock,
 	"P87: if a split unlinked-list head survives repair, shut down rather than publish it (Invariant 1 fail-closed); 0=warn only (default, until the repair rate is measured), 1=enforce");
 
@@ -524,7 +524,7 @@ module_param_named(fix28_drain_stall_ms, mxfs_fix28_drain_stall_ms, int, 0644);
 MODULE_PARM_DESC(fix28_drain_stall_ms,
 	"DEBUG: stall the release drain once, mid-batch, inside its drain-site-2 page flush so a writeback submitter can park in the demote-wait holding a folio of that same batch — closes the ABBA cycle deterministically (0=off)");
 
-/* FIX-27 A/B gate: 0 reproduces the pre-sess24 deadlock (shared-class writeback
+/* FIX-27 A/B gate: 0 reproduces the earlier deadlock (shared-class writeback
  * submitters are NOT admitted through a BAST/DEMOTING demote-wait), 1 = fixed.
  * Exists so the fix can be verified against its own negative control on ONE
  * build, rather than across two builds with a re-prep in between. */

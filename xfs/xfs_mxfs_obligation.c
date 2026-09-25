@@ -53,7 +53,7 @@ MODULE_PARM_DESC(f4_gate,
 		 "F4 committed-never-submitted obligations block the dir "
 		 "release proof (0=telemetry only default; 1=extra durable "
 		 "passes + defer while open — NOT yet sound for enforcement, "
-		 "see sess227 ruling items 4-5)");
+		 "see ruling items 4-5)");
 
 static atomic64_t mxfs_f4_genctr;	/* global monotonic commit generation */
 
@@ -166,7 +166,7 @@ mxfs_f4_registry_destroy(struct xfs_mount *mp)
 	if (live || orphan)
 		pr_warn("mxfs: P286-F4-TEARDOWN-OPEN live=%d orphan=%d — obligations still open at registry destroy\n",
 			live, orphan);
-	pr_info("mxfs: F4-REGISTRY-TOTAL opens=%lld recommits=%lld retires=%lld stale_cancels=%lld shutdown_cancels=%lld abort_keeps=%lld orphans=%lld suppress_skips=%lld ordered=%lld unknown=%d open_at_destroy=%d\n",
+	mxfs_probe("mxfs: F4-REGISTRY-TOTAL opens=%lld recommits=%lld retires=%lld stale_cancels=%lld shutdown_cancels=%lld abort_keeps=%lld orphans=%lld suppress_skips=%lld ordered=%lld unknown=%d open_at_destroy=%d\n",
 		(long long)atomic64_read(&reg->f4_opens),
 		(long long)atomic64_read(&reg->f4_recommits),
 		(long long)atomic64_read(&reg->f4_retires),
@@ -253,7 +253,7 @@ mxfs_icwr_registry_destroy(struct xfs_mount *mp)
 	if (leaked)
 		pr_warn("mxfs: P288-ICWR-TEARDOWN-LEAK inflight=%d — counted inode-cluster writes never completed (orphans=%lld)\n",
 			leaked, (long long)atomic64_read(&reg->icwr_orphans));
-	pr_info("mxfs: ICWR-REGISTRY-TOTAL submits=%lld completes=%lld resubmit_keeps=%lld orphans=%lld underflows=%lld untracked=%lld entries=%d leaked_inflight=%d\n",
+	mxfs_probe("mxfs: ICWR-REGISTRY-TOTAL submits=%lld completes=%lld resubmit_keeps=%lld orphans=%lld underflows=%lld untracked=%lld entries=%d leaked_inflight=%d\n",
 		(long long)atomic64_read(&reg->icwr_submits),
 		(long long)atomic64_read(&reg->icwr_completes),
 		(long long)atomic64_read(&reg->icwr_resubmit_keeps),

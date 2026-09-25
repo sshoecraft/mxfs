@@ -20,7 +20,7 @@ tag `P0-FCOH-DIRINVAL` is gated behind `mxfs.instr`.
 
 - Cluster: test1..test4 (this repo / v5), kernel 6.8.0-101-generic.
 - Storage: SCST iSCSI target on `clyde`, `vdisk_fileio` backing
-  `/home/steve/disk-1.img`, `/dev/sda` inside each VM, `/mnt/shared`.
+  `~/disk-1.img`, `/dev/sda` inside each VM, `/mnt/shared`.
 - Transport: CAW (default).  All probe gates left at `mxfs.instr=0`.
 
 ## Run 1 — force_coherent v1 (lock-state demotion + buf invalidation)

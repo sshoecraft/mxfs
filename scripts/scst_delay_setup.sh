@@ -6,7 +6,7 @@
 # vdisk_blockio "delaydisk" -> iSCSI target iqn.2026-06.repro:delay.
 # All separate from disk1/disk2. Use --teardown to remove everything.
 set -u
-IMG=/home/steve/disk-delay.img
+IMG=$("$(dirname "$(readlink -f "$0")")/../tools/mxfs_lab.sh" get paths delay_image) || exit 1
 DM=scst_delay
 DEV=delaydisk
 TGT=iqn.2026-06.repro:delay

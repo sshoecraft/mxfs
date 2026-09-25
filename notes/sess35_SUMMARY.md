@@ -70,7 +70,7 @@ to v6a chokepoint refactor per `mxfs_clayer/V6A_ROADMAP.md`.
 
 ```
 /src/mxfs/scripts/sess35_capture.sh 2
-# → see /home/steve/.mxfs/results/<latest>/test_concurrent_mkdir/node1.log for P-H17
+# → see ~/.mxfs/results/<latest>/test_concurrent_mkdir/node1.log for P-H17
 # → see /src/mxfs/notes/sess35_dmesg/test{1,2}.log for full dmesg
 ```
 

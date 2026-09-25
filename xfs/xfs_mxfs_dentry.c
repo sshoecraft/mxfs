@@ -2,7 +2,7 @@
 /*
  * mxfs dentry_operations — d_revalidate for cluster coordination.
  *
- * Sess35 finding: upstream XFS does not define dentry_operations because
+ * Finding: upstream XFS does not define dentry_operations because
  * it's a single-node filesystem. mxfs inherited this gap. Cached dentry
  * lookups short-circuit through the VFS dcache without ever hitting
  * mxfs_dlm_ilock_begin → no DLM coordination → catastrophic Mode A

@@ -15,6 +15,18 @@
 /* this file's code site, decoded by MXFS_SITE_ARGS (xfs_mxfs_dlm.h) */
 #define MXFS_SITE	(((unsigned int)MXFS_TU_ID << 16) | __LINE__)
 
+/*
+ * What a block moved out of a long function into a helper asks its caller to
+ * do next (scripts/extract_block.py): carry on after the call, return the
+ * value the helper stored, or jump to the caller's label number k
+ * (MXFS_BLOCK_GOTO + k).
+ */
+enum {
+	MXFS_BLOCK_NEXT = 0,
+	MXFS_BLOCK_RETURN = 1,
+	MXFS_BLOCK_GOTO = 2,
+};
+
 #include <linux/fs.h>
 #include <linux/pagemap.h>
 #include <linux/workqueue.h>
@@ -540,10 +552,10 @@ extern int mxfs_ilock_map_recheck_enabled;
 
 /*
  *  — FENCE-V1 dir-drain task registry (design-consult
- * blueprint, memory entry sess6-D).  The submit-side dir-block write fence in
+ * blueprint, memory entry D).  The submit-side dir-block write fence in
  * xfs_buf_submit_ex suppresses any dir-metadata write whose owner dir's DLM
  * granted mode is < EX and that carries no log obligation — the proven
- * torn-write producer (sess6-C: 19 stale-image PR writes + 1 post-release NL
+ * torn-write producer (C: 19 stale-image PR writes + 1 post-release NL
  * write interleaved with the real holder's leaf1->node split tore the block
  * on the LUN -> EUCLEAN -> 5/8-node shutdown cascade).  The release drain's
  * own publishes are the ONE sanctioned exception (Invariant 1: no unlock
@@ -947,7 +959,7 @@ struct mxfs_pubob {
 	xfs_agino_t		agino;
 	uint32_t		gen;
 	/*
-	 * (D-0351, design-consult ruling ccmemory ccloop-c7ee71c6-sess427-GPT-
+	 * (D-0351, design-consult ruling
 	 * ruling-free-publish-invariant-d0351): the obligation KIND.  An unlink
 	 * obligation (UNLINK) owes "nlink=0 at home"; when that inode is then
 	 * FREED by this node the obligation is not discharged at
@@ -963,8 +975,8 @@ struct mxfs_pubob {
 	 */
 	uint8_t			kind;
 	/*
-	 * (D-0351 chain, design-consult ruling ccmemory ccloop-c7ee71c6-sess430-
-	 * GPT-ruling-free-foreign-chain): the number of times THIS node
+	 * (D-0351 chain, design-consult ruling
+	 * free-foreign-chain): the number of times THIS node
 	 * re-allocated the number (xfs_iget_recycle for a local create) while
 	 * a FREE obligation on it was still open, every time under the SAME
 	 * uninterrupted AG EX tenure (`epoch`).  While the new life is live the
@@ -981,7 +993,7 @@ struct mxfs_pubob {
 	uint16_t		chain;
 	uint64_t		epoch;
 	/*
-	 * (D-0524, design-consult ruling ccmemory ccloop-c7ee71c6-sess465-GPT-
+	 * (D-0524, design-consult ruling
 	 * ruling-d0524-pubob-race-fix): the ENTRY is the single authority for
 	 * every transition, and every decision about it is taken under
 	 * m_mxfs_pubob_lock.  The lost update that killed test1 in chain 88:
@@ -1193,7 +1205,7 @@ extern void mxfs_dlm_lkt_dump(uint64_t want_ino);
  *      a no-op, so nothing covers loss of the shared target's volatile
  *      write cache — CAS may survive a cache loss that dropped the home
  *      write it was supposed to certify;
- *   F3 (proof landed sess256-258, telemetry-only) the release proof was
+ *   F3 (proof landed, telemetry-only) the release proof was
  *      check-then-CAS: an async xfsaild destage between the check and the
  *      CAS could promote durable_seq and certify a closed ledger without
  *      any flush covering it.  The completion-driven proof — keyed
@@ -1445,10 +1457,10 @@ struct mxfs_freplay_closure_arg {
 #define MXFS_ICLUS_HASH_SIZE	(1 << MXFS_ICLUS_HASH_BITS)
 
 /*
- * ccloop 72513a13 sess4 REWORK — coverage-sweep, not refcounts.
+ *  REWORK — coverage-sweep, not refcounts.
  *
  * The first cut counted per-inode refs (ex_refs/pr_refs) and released the
- * disk grant when the last ref dropped under a pending BAST.  A session-4
+ * disk grant when the last ref dropped under a pending BAST.  A
  * audit found the count is structurally fragile: the per-inode machine has
  * half a dozen recovery paths that set i_dlm_mode = NL without transiting
  * a release call (P72 orphan escape, P106 phantom bail, unmount teardown,
@@ -1507,7 +1519,7 @@ struct mxfs_iclus {
 	 */
 	uint64_t		auth_epoch;
 	/*
-	 * (design-consult ruling ccloop-c7ee71c6-sess448-GPT-ruling-iclus-
+	 * (design-consult ruling iclus-
 	 * relmark-certificate-and-sequencing): the slot's resource_lineage from
 	 * the SAME grant image that stamped auth_epoch — installed, snapshotted
 	 * and cleared together with it under ic->lock, so every routed inode's

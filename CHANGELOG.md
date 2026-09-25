@@ -1,3 +1,104 @@
+## 2026-09-25 — 0.89.90 — the three giant DLM functions are split into phases; the default log carries operator events only
+
+### The kernel log: what 0.89.89 still printed by default
+
+0.89.89 moved probes to dynamic debug by a rule (serious wording, rare in one
+measured run).  A whole suite run on it still printed 6,182 module lines at
+default level on one node: `P-TAUTH-RETARGET` alone 5,768 (rare in the
+first measurement, routine in this one), then per-operation lines, the
+counter dumps at unmount and replay, and the internal steps of every join
+and fence.
+
+- `scripts/log_demote_sites.list` names, message by message, the 105
+  default-level prints seen in that run that are not operator events, and
+  `scripts/log_demote_sites.py` moved exactly those 114 call sites to
+  dynamic debug.  A message's refusal variant keeps its level when its
+  routine variant moves; where a level is chosen by a condition, only the
+  routine arm moves; nothing at error level is touched.
+- The default log keeps: mount and unmount, peers connecting and
+  disconnecting, a join installed and a departure received, a death, the
+  fence's kind and certification, a fence that could not be proved,
+  recovery pending, the replay and recovery complete, open obligations or
+  residue at teardown, and every error.  `docs/log-levels.md` gives the
+  rule and how to measure again.
+- `mxfs_xfs_probe(mp, ...)` (`pal/mxfs_probe.h`) is the probe form of
+  `xfs_notice`, with the same `XFS (<dev>):` prefix.
+
+### `mxfs_dlm_bast_process`, `mxfs_dlm_reload_inode_under`, `mxfs_dlm_ilock_begin`
+
+Were 5,214, 4,826 and 3,592 lines; now 1,519, 1,828 and 696.  47 phases
+became static helpers beside them (`mxfs_bast_*`, `mxfs_reload_*`,
+`mxfs_ilock_*`), each carrying the comment that described the phase.
+
+- `scripts/extract_block.py` cut them from clang's AST of the kernel build,
+  and refuses any block it cannot move without changing meaning (a
+  `break`/`continue`/`case` aimed outside the block, a `return` written in
+  a macro, `__func__`, a type declared in the function, an #if region).
+  Locals are passed by value when only read, copied in and out when
+  written, and by reference when their address is taken anywhere in the
+  function or they are function-local statics; returns and gotos leave the
+  helper with an outcome the call site acts on.  `docs/xfs-dlm-layout.md`
+  says how to read the helpers' parameters.
+- `tests/extract_block_selftest.sh` proves the tool on a program built from
+  every construct it handles: each block moved alone and all together, at
+  -O0 and -O2, output identical to the untouched program; the refusals
+  hold; and with the passing modes deliberately broken, 42 of its 43
+  output lines change.
+
+### Process notes out of the source, finished
+
+0.89.89 left 616 session tags: its tool's patterns matched a newline after
+a tag at the end of a comment line, the comment's line count then changed,
+and the whole comment was kept unedited.  Fixed, and extended to
+capitalised and hyphenated tags, string literals (module parameter
+descriptions, `_Static_assert` reasons, probe text) and the names of
+stored notes that no longer exist (the note names were dead pointers; the
+subject after the prefix stays).  What remains are 20 paths to files that
+exist.  Every object's code is byte-identical before and after (`.text` of
+all 160 objects compared).
+
+### Repository hygiene
+
+- No `/home/steve` in code.  Paths into the repo are derived from the
+  script's own location, the SSH password comes from
+  `tools/mxfs_secrets.sh`, and the build host's own files (LUN images, VM
+  directories) from a new `paths` line in the lab file
+  (`tools/mxfs_lab.sh`, which now finds the invoking user's lab under
+  sudo).  Comments and documents say `~`.
+- `tests/suite/tools/fsx` and `tests/fence_inflight/prprobe` are no longer
+  committed; `run.sh` and the fence harnesses build them from their
+  vendored sources when missing or older.
+- The root launchers (`c`, `ca`, `cc`, `con`, `doit`, `mkstatus`, `runcc`)
+  and `worker.py` are in `scripts/`; three loose notes are in `notes/`.
+
+### Verification
+
+Build `B1B7E538F9F908076707471` (`tests/evidence/full_verify_0.89.90.log`):
+
+- Clean build from a fresh copy: 161 objects, no compiler warning.  The
+  tools build clean, the user-mode DLM tests report 0 failures, the
+  extern-declaration audit and `tests/extract_block_selftest.sh` pass.
+- 2-node TCP suite: 30 of 30 PASS.
+- Default kernel log over that whole suite, from test1's journal at
+  `-p info`: 108 module lines, about 40 of them stack frames that print only
+  because the rig runs with probes on.  The same measurement on 0.89.89 gave
+  6,182.
+- Platform builds (Proxmox 6.17 and 7.0, AlmaLinux 9, Rocky 9) and packages
+  built (`scripts/release.sh`, not published).  Packaged rounds PASS on
+  Ubuntu 24.04, Proxmox VE 9 on both kernels, and RHEL 9.8; the RHEL
+  hung-node test PASS.
+- **Not clean: the RHEL SELinux test failed once.**  Run right after the
+  hung-node test, its `qemu-img create` on the survivor's mount made no
+  progress for 60 s and went through only when the resumed victim's mount
+  was taken away.  Recorded as
+  D-SURVIVOR-CREATE-STALLS-60S-AFTER-PEER-DEATH-UNTIL-RESUMED-VICTIM-UNMOUNTS
+  (high, stability).  Nine further attempts of the same sequence, including
+  two in the full order with the packaged round's reboot, passed with the
+  create taking 17-49 ms; whether 0.89.90 introduced it is not known.  The
+  test now records blocked stacks before its budget runs out, so a
+  recurrence names what it waited on.  RHEL 9.8 stays verified at 0.89.89,
+  not 0.89.90.
+
 ## 2026-09-25 — 0.89.89 — the 65,664-line DLM file is 32 files; the kernel log is quiet by default
 
 ### `xfs/xfs_mxfs_dlm.c` split into 32 files
@@ -6312,7 +6413,7 @@ E1FD3D436BFACCF0C4F9C68, the first build carrying the fence crash-cut knob).
 - tests/lib/rig.sh mxfs_host_image, tools/mxfs_host_image.sh, data/rigs.json
   host_image (ledger D-A-HARNESS-CAN-MEASURE-THE-WRONG-DEVICE-AND-REPORT-IT-
   AS-MXFS): 34 harnesses read the LUN's platter from a file on this host,
-  defaulting to /home/steve/disk.img — the fileio image of the earlier SCST
+  defaulting to ~/disk.img — the fileio image of the earlier SCST
   rig. On the qnap rig the LUN lives on the QNAP and nothing on this host
   backs it, so every one of those reads (chk_mxfs -v, the AGI dump, the log
   slice dump, the free-extent query) was a well-formed measurement of
@@ -6330,7 +6431,7 @@ E1FD3D436BFACCF0C4F9C68, the first build carrying the fence crash-cut knob).
   optional log-slice dump in fence_live_node.sh is skipped instead; the
   unused IMG line of d_intents_2tcp_open_efi.sh (0.89.7 moved its query to
   the node) is gone. Both refusals measured: no declaration → ABORT rc 2;
-  MXFS_HOST_IMAGE_PATH=/home/steve/disk.img → ABORT rc 2 naming both fsids.
+  MXFS_HOST_IMAGE_PATH=~/disk.img → ABORT rc 2 naming both fsids.
   The setup scripts that CREATE a fileio target from an image
   (scripts/scst_setup.sh, scripts/lio_tcm_setup.sh) and the host headroom
   check in scripts/clyde_preflight.sh keep their image path: they define or

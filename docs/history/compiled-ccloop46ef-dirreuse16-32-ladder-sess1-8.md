@@ -341,7 +341,7 @@ birth by forcing dir grow/shrink under freshly-verified EX+map).
   `scripts/diag_rv_verify_ab.sh`, `scripts/node_disk_hygiene.sh`, the kcore
   `findino.py`/`rdring.py` inode-DLM-state dumpers, `watch_daddr` buffer-pointer probe,
   netconsole-to-clyde panic capture. Standing gotchas: always window kernlog greps to run
-  start; `/home/steve/disk.img` buffered reads on clyde alias stale page cache — always
+  start; `~/disk.img` buffered reads on clyde alias stale page cache — always
   `iflag=direct`; `tools/mxfs_sshpass.sh` flattens quoted script args, never pass complex
   inline scripts through it; kill stale ccloop predecessor claude sessions at session
   start.

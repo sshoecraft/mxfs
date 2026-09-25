@@ -2,11 +2,11 @@
 /*
  * pageof — print the TCP authority-ledger page and slot of a resource, so a
  * rig P-line naming {type, ino, ag} can be joined to the P-TAUTH-* page
- * lines of the fleet sweep (sess425, D-0345 forensics).
+ * lines of the fleet sweep (D-0345 forensics).
  *
  *   pageof <type> <ino> <ag> [npages] [seed]   type: 1 inode, 3 AG
  *
- * sess427 (D-0348 step 2): routing is per-region — pass the region's page
+ * (D-0348 step 2): routing is per-region — pass the region's page
  * count and hash seed (chk_mxfs -v prints both); defaults = the minimum
  * geometry with seed 0.
  */

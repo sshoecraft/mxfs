@@ -10,7 +10,7 @@
 # TWO MODES.  MXFS_FENCE_MODE=blockio (default) is stage (i) of the ruled plan
 # — the feasibility harness that validates the METHOD.  MXFS_FENCE_MODE=fileio
 # is stage (ii), and it is the one that carries closure weight: the SHIPPED
-# production LUN is vdisk_fileio (device "mxfs", filename /home/steve/disk.img
+# production LUN is vdisk_fileio (device "mxfs", filename ~/disk.img
 # on ext4, o_direct=1, blocksize=512, nv_cache=0, write_through=0), and the
 # ruling is explicit that agreement between the two handlers' code does not
 # substitute for measuring the one that ships.
@@ -95,6 +95,12 @@
 #                          a command PREEMPT AND ABORT dropped without a response
 
 set -u
+
+# prprobe is built here from prprobe.c; the binary is not committed
+PRPROBE="$(dirname "$0")/prprobe"
+[ -x "$PRPROBE" ] && [ ! "$(dirname "$0")/prprobe.c" -nt "$PRPROBE" ] ||
+    gcc -O2 -o "$PRPROBE" "$(dirname "$0")/prprobe.c" ||
+    { echo "cannot build $PRPROBE from prprobe.c" >&2; exit 1; }
 
 DIR=/var/lib/mxfs-fence
 # The LIVE stack records which mode it was built in.  Consumers (inflight_ab.sh
@@ -255,7 +261,7 @@ fio_layers() {
   fstype=$(sudo blkid -o value -s TYPE "$dmdev" 2>/dev/null || true)
   if [ -z "$fstype" ]; then
     echo "mkfs.ext4 on $dmdev (first build)"
-    # Defaults, like production's /home/steve/disk.img filesystem.  No
+    # Defaults, like production's ~/disk.img filesystem.  No
     # encryption, no compression, no reflink — ext4 has none of the three, so
     # the ruled exclusions hold by construction rather than by option.
     sudo mkfs.ext4 -q -F -L mxfsfence "$dmdev" || die "mkfs.ext4 failed"

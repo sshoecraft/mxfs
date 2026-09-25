@@ -720,7 +720,7 @@ int mxfs_lease_process_renewal(struct mxfs_lease_ctx *ctx,
 		/* a withdrawn-but-still-mounted zombie keeps renewing
 		 * every ~500ms after recovery unregistered it — ratelimit or
 		 * this line floods every survivor until the corpse unmounts. */
-		pr_warn_ratelimited(
+		mxfs_probe_ratelimited(
 		    "mxfs: heartbeat received from unknown node %u "
 		    "(may be joining or was recently removed)\n", node_id);
 		return -ENOENT;

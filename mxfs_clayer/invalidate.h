@@ -2,7 +2,7 @@
 /*
  * mxfs_clayer/invalidate.h — v6a invalidation primitives (sketch)
  *
- * STATUS: SKETCH ONLY. Not wired into anything yet. Sess36+ task is to
+ * STATUS: SKETCH ONLY. Not wired into anything yet. Task is to
  * implement these and integrate them at the bast_process / ilock_begin
  * chokepoints, replacing v5's bolted-on per-callsite invalidations.
  *
@@ -15,7 +15,7 @@
  *   mxfs_ail_push_ag_sync(ag_no)      — per-AG AIL drain (already implemented)
  *   mxfs_log_force_resource(R)        — per-resource log force (deferred to v6b)
  *
- * Sess35 evidence: Mode A duplicate-create persists in v5 because v5's
+ * Evidence: Mode A duplicate-create persists in v5 because v5's
  * bolted-on invalidation in BAST-DIR-STALE walk has a `skip_locked=1`
  * escape hatch (bp->b_addr modified in memory, peer reads disk before
  * iflush completes). The chokepoint architecture eliminates the escape

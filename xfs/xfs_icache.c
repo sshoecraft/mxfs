@@ -126,7 +126,7 @@ static int xfs_icwalk_ag(struct xfs_perag *pag,
 		enum xfs_icwalk_goal goal, struct xfs_icwalk *icw);
 
 /*
- * ccloopff21 record the task holding pag_ici_lock, mirroring
+ * record the task holding pag_ici_lock, mirroring
  * mxfs_ag_stamp_holder (xfs_mxfs_dlm.c) for pag_dlm_lock.  Diagnostic only —
  * chasing a soft lockup (kworker/u10, kworker/u11, bash all spinning
  * forever) that followed an XFS_ALL_IRECLAIM_FLAGS assert at line ~3210
@@ -896,7 +896,7 @@ xfs_iget_recycle(
 	trace_xfs_iget_recycle(ip);
 
 	/*
-	 *  direct-evidence probe (Fable-guided,
+	 *  direct-evidence probe (review-guided,
 	 * P135-PRSWEEP-CYCLE root cause hunt).  PROVEN via live capture
 	 * (P139-RECYCLE-UNLINKED, 14 hits in one repro, always on a reused
 	 * ino under directory churn + fault_netpartition, always via the
@@ -1061,7 +1061,7 @@ xfs_iget_recycle(
 	 * the generation matches, this is the SAME incarnation we cached (just
 	 * reclaimed-then-reaccessed locally), so the in-core image is correct
 	 * and may even be AHEAD of disk (a write not yet destaged); re-reading
-	 * would clobber our good size with a stale disk-0 (the sess39
+	 * would clobber our good size with a stale disk-0 (the
 	 * RELOAD-SIZE-DROP regression).  So: reused (gen differs) → trust disk;
 	 * same incarnation → keep in-core.  xfs_reinit_inode preserved
 	 * i_generation, so the compare is valid.
@@ -1069,7 +1069,7 @@ xfs_iget_recycle(
 	if (!error && mp->m_mxfs_dlm &&
 	    !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm) &&
 	    /*
-	     * ccloop-4dd7: a peer-freed dead shell may arrive with
+	     * a peer-freed dead shell may arrive with
 	     * i_dlm_stale unset (the peer freed it without ever BASTing our
 	     * per-inode DLM), so a deferred-deadshell CREATE forces the disk
 	     * re-read regardless — the P-RECYCLE-SANITIZE / reject arms
@@ -1218,7 +1218,7 @@ xfs_iget_recycle(
 			if (deadshell_create &&
 			    be16_to_cpu(dip->di_mode) != 0) {
 				/*
-				 * ccloop-4dd7: dialloc handed out this ino as
+				 * dialloc handed out this ino as
 				 * free (inobt under AG DLM) yet the platter
 				 * dinode is LIVE — genuine cross-node
 				 * incoherence (double-alloc territory), not
@@ -1255,7 +1255,7 @@ xfs_iget_recycle(
 				if (xfs_inode_from_disk(ip, dip) == 0) {
 					i_size_write(VFS_I(ip),
 						     ip->i_disk_size);
-					/* ccloop-4dd7: adopted a DIFFERENT
+					/* adopted a DIFFERENT
 					 * incarnation — the old life's
 					 * local-unlink intent must not leak
 					 * onto it (flag-leak). */
@@ -1283,7 +1283,7 @@ xfs_iget_recycle(
 				   be16_to_cpu(dip->di_mode) == 0 &&
 				   VFS_I(ip)->i_mode != 0) {
 				/*
-				 * ccloop-4dd7 FIX: peer-freed dead shell — the
+				 * FIX: peer-freed dead shell — the
 				 * platter image is FREE while the in-core shell
 				 * still carries the dead incarnation (the
 				 * authorized xfs_inode_uninit ran on the PEER;
@@ -1325,7 +1325,7 @@ xfs_iget_recycle(
 				ip->i_diflags2 = mp->m_ino_geo.new_diflags2;
 				VFS_I(ip)->i_generation =
 					be32_to_cpu(dip->di_gen);
-				/* ccloop-4dd7: prior-life intent must not leak
+				/* prior-life intent must not leak
 				 * into the new life (flag-leak). */
 				xfs_iflags_clear(ip, MXFS_IF_LOCAL_UNLINK | MXFS_IF_ADOPTED_UNLINK);
 				pr_warn_ratelimited(
@@ -1855,7 +1855,7 @@ xfs_iget_cache_hit(
 	struct xfs_mount	*mp = ip->i_mount;
 	int			error;
 	/*
-	 * ccloop-4dd7: CREATE cache-hit a peer-freed IRECLAIMABLE dead shell
+	 * CREATE cache-hit a peer-freed IRECLAIMABLE dead shell
 	 * (nlink==0, in-core mode never zeroed because the authority
 	 * guard skipped local destructive inactivation).  When set, skip the
 	 * fatal xfs_iget_check_free_state (dialloc's inobt-free verdict under
@@ -1984,7 +1984,7 @@ xfs_iget_cache_hit(
 				mxfs_istate(VFS_I(ip)));
 		} else if (VFS_I(ip)->i_nlink == 0) {
 			/*
-			 * ccloop-4dd7 FIX (proven by instrument chain, vmrig ino 139:
+			 * FIX (proven by instrument chain, vmrig ino 139:
 			 * P19-B3DEC will_skip=1 b4_noauth=1 → INACT-SKIP-STALE →
 			 * P-CR63-DEADSHELL → false "Corruption detected!" −117 →
 			 * dirty trans_cancel → cluster-wide shutdown): a PEER
@@ -2169,7 +2169,7 @@ xfs_iget_cache_hit(
 	 * Check the inode free state is valid. This also detects lookup
 	 * racing with unlinks.
 	 *
-	 * ccloop-4dd7: skipped for a peer-freed dead shell on a multi-node
+	 * skipped for a peer-freed dead shell on a multi-node
 	 * CREATE (see cr63_defer_deadshell above) — the recycle path below
 	 * resolves the shell from disk evidence instead.
 	 */
@@ -2307,7 +2307,7 @@ mxfs_dinode_cached_allocated(
 }
 
 /*
- * sess408 (D-FREPLAY-VICTIM-INODE-CORE-NOT-APPLIED-BUCKET-TO-ZERO-CORE-408,
+ * (D-FREPLAY-VICTIM-INODE-CORE-NOT-APPLIED-BUCKET-TO-ZERO-CORE-408,
  * Design-consult ruling option A): read the changecount of the FREED core we are
  * about to reincarnate so xfs_inode_init can continue it (old+1) instead of
  * restarting at 1.  Foreign replay decides inode-item apply/skip by
@@ -2320,26 +2320,26 @@ mxfs_dinode_cached_allocated(
  * Freshness: the last writer of this core is the node that freed it (it
  * drained the cluster buffer before releasing its DLM grant), so the platter
  * is current but OUR cached copy may predate it.  Same discipline as the
- * cache-miss read below (sess38/sess91): stale a cached clean copy so
+ * cache-miss read below: stale a cached clean copy so
  * xfs_imap_to_bp re-reads it, keep it when it carries our own uncheckpointed
  * co-resident modifications.  The cluster buffer of a chunk this very
  * transaction just ICREATE'd is joined to tp (zeroed cores, cc 0): detected
  * with xfs_trans_buf_item_match and read as is (a blocking lock would
  * self-deadlock; counted in mxfs_ccprev_nostale).  Otherwise the lock is
- * BLOCKING (sess409 GPT review: a TRYLOCK-fail "read as cached" fallback
+ * BLOCKING (design review: a TRYLOCK-fail "read as cached" fallback
  * could return a PRIOR-tenure copy while xfsaild had the buffer locked for
  * write — not authoritative for a free core); same lock order as the
- * sess38 cache-miss read and the recycle deadshell reload (AGI held by tp,
+ * cache-miss read and the recycle deadshell reload (AGI held by tp,
  * then the cluster buffer — xfs_ifree takes them in that order too).
- * Inode chunks are never freed in multi-node mode (xfs_ialloc.c sess54
+ * Inode chunks are never freed in multi-node mode (xfs_ialloc.c
  * INODE-CHUNK-KEEP), so a core is zeroed only once, at its chunk's first
  * ICREATE.
  *
- * sess409 PACE (budget): re-reading the cluster on EVERY create cost +18%
- * on the churn median (lap2 vs sess408 lap1).  A free core can only change
+ * PACE (budget): re-reading the cluster on EVERY create cost +18%
+ * on the churn median (lap2 vs lap1).  A free core can only change
  * on the platter under a PEER's AG EX tenure, and a peer gets one only after
  * we yield our grant — which opens a NEW pag->ag_dlm_tenure_id when we next
- * acquire (sess123).  So a cluster buffer we fresh-read under the CURRENT
+ * acquire.  So a cluster buffer we fresh-read under the CURRENT
  * tenure is fresh for the rest of it: stamp b_tenure_id at the fresh read
  * (b_tenure_id is otherwise unused on inode-cluster buffers — AG-meta stamps
  * at modify, dir/bmbt blocks stamp i_mxfs_ex_grant_seq) and skip the stale
@@ -2623,7 +2623,7 @@ xfs_iget_cache_miss(
 					   ip->i_imap.im_len, 0,
 					   &stale_bp) == 0) {
 				/*
-				 * sess91 ROOT FIX (confirmed sess90
+				 * ROOT FIX (confirmed
 				 * P90-FUA-OVER-LOGGED, FIRED 7× on the shutdown
 				 * node, ops=xfs_inode daddr=128): this cluster
 				 * buffer may carry THIS node's logged-but-not-
@@ -2635,16 +2635,16 @@ xfs_iget_cache_miss(
 				 * stale disk content → the lost-update family
 				 * (di_size→0, bnobt lost-removal → double-free
 				 * shutdown).  The peer-allocation-visibility case
-				 * sess38 fixed only arises on a CLEAN cluster
+				 * fixed only arises on a CLEAN cluster
 				 * buffer (no local logged change — inode alloc is
 				 * node-affine per AG, so a peer never allocates
 				 * into a cluster we have logged changes in), so it
 				 * is safe to skip the invalidate when in-core is
 				 * authoritative.  Mirrors the AG-meta hook's
-				 * sess42/sess43 protection.
+				 * /protection.
 				 */
 				if (mxfs_buf_has_uncheckpointed_mods(stale_bp)) {
-					pr_warn_ratelimited(
+					mxfs_probe_ratelimited(
 					    "mxfs: P91-CLUSTER-PROTECT ino=0x%llx blkno=0x%llx pin=%d li_empty=%d has_bli=%d flags=0x%x comm=%s — keeping in-core authoritative cluster buffer (would-be clobber averted)\n",
 					    (unsigned long long)ino,
 					    (unsigned long long)ip->i_imap.im_blkno,
@@ -3288,7 +3288,7 @@ reclaim:
 			current->comm);
 
 	/*
-	 *  audit trail (Fable-guided, P135
+	 *  audit trail (review-guided, P135
 	 * root cause hunt) -- every REAL eviction commit, so a later
 	 * P135/P139 corruption report's ino/ptr can be cross-referenced
 	 * against exactly when and by whom it was actually reclaimed.
@@ -4600,7 +4600,7 @@ xfs_inode_mark_reclaimable(
 	/*
 	 * We should never get here with any of the reclaim flags already set.
 	 *
-	 * ccloopff21 this assert fired live during fence_during_write@
+	 * this assert fired live during fence_during_write@
 	 * 8/caw (0.10.74) immediately preceding a permanent 3-CPU soft lockup
 	 * on the node.  Root cause of the double-entry is unproven — log the
 	 * ino/pid/comm/raw-flags so the next reproduction gives a definitive

@@ -82,7 +82,7 @@ mxfs_getattr_dlm_unlock(struct xfs_inode *ip)
 }
 
 /*
- * STICKY-PR read coherency envelope (Gemini-confirmed architecture; see
+ * STICKY-PR read coherency envelope (review-confirmed architecture; see
  * coherency-sticky-pr-fix.md).  Call at the TOP of xfs_file_read_iter, BEFORE any
  * VFS lock (IOLOCK/ILOCK), so a grant-less (NL) or stale cached regular-file
  * inode is brought coherent before the read touches i_size/pages:

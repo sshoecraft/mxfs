@@ -292,7 +292,7 @@ int mxfs_tauth_ledger_ensure(struct mxfs_tauth_ledger *l, uint32_t page_id,
 }
 
 /*
- * (D-0348, design-consult ruling ccloop-c7ee71c6-sess426-GPT-ruling-tauth-
+ * (D-0348, design-consult ruling tauth-
  * slot-collision-page-open-addressing): PAGE-LOCAL OPEN ADDRESSING.  A
  * resource's hash names its HOME PAGE (and a preferred home index on it);
  * the record may live in ANY of the page's entries, keyed by the FULL
@@ -758,7 +758,7 @@ int mxfs_tauth_ledger_prepare(struct mxfs_tauth_ledger *l, uint32_t page_id,
 			rc = -EPERM;
 			goto out;
 		}
-		mxfs_pal_log(MXFS_LOG_WARN,
+		mxfs_pal_log(MXFS_LOG_DEBUG,
 			     "tauth: P-TAUTH-RETARGET page=%u old_target=%u/%llu new_target=%u/%llu "
 			     "— the old target's incarnation is recovery-purged",
 			     page_id, img->hdr.target_node,

@@ -1066,7 +1066,7 @@ O_DSYNC). Both fixed in `scripts/lio_tcm_setup.sh` (write_back=false + WCE=1).
 - Prints daddr/len/err/ops-name/b_flags/b_hold plus `secrc=[...]` — a
   crc32c fingerprint of EACH 512B sector of the FAILED in-memory image.
   Purpose: offline compare against the raw platter (clyde
-  /home/steve/disk.img at xfs_data_offset from `tools/chk_mxfs -v`) to name
+  ~/disk.img at xfs_data_offset from `tools/chk_mxfs -v`) to name
   WHICH sectors diverged — discriminates a torn in-core page mix (e.g. a
   read racing `xfs_buf_stale` from the P126 xfsaild AG-meta skip in
   xfs_buf_item.c) from durable platter garbage later repaired by a peer's
@@ -1336,7 +1336,7 @@ the flag AND clears XBF_READ, so iowait's second `__xfs_buf_ioend` pass skips
 the read branch entirely — do not "fix" the double-run by removing either.
 
 ### Forensics pitfalls learned here (cross-cutting)
-- clyde's SCST backend (/home/steve/disk.img) is o_direct=1: buffered reads
+- clyde's SCST backend (~/disk.img) is o_direct=1: buffered reads
   of the image on clyde are a STALE page-cache alias — always `dd iflag=direct`.
 - `watch_daddr` module param → PW-DADDR prints `bp=%px` → kcore-read buffer
   fields (b_iowait.done @+184, b_flags @+28, b_addr @+144, b_error @+280).

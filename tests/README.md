@@ -56,7 +56,7 @@ Tests are grouped into three phases, by directory:
   resolver. Currently configured: `test1.vm.localdomain`
   (192.168.120.186) and `test2.vm.localdomain` (192.168.120.182).
 - SSH access via `tools/mxfs_sshpass.sh <host> <pass-file> <command>`.
-  Pass file: `/home/steve/.mxfs/pass` (default) or `/tmp/.mxfs_pass`
+  Pass file: `~/.mxfs/pass` (default) or `/tmp/.mxfs_pass`
   (used by ad-hoc scripts; identical content).
 - NFS mount on each test node: `192.168.120.1:/src/mxfs` →
   `/mnt/mxfs-src/` so the test scripts in `tests/` and the kernel
@@ -80,8 +80,8 @@ Tests are grouped into three phases, by directory:
 | `--phase` | all | single \| cluster \| stress \| all | |
 | `--mount-point` | `/mnt/shared` | (correct) | |
 | `--device` | `/dev/sdb` | **`--device /dev/sda`** | clyde+tcm_loop uses /dev/sda |
-| `--pass-file` | `/home/steve/.mxfs/pass` | (correct) | |
-| `--results-dir` | `/home/steve/.mxfs/results` | (correct) | |
+| `--pass-file` | `~/.mxfs/pass` | (correct) | |
+| `--results-dir` | `~/.mxfs/results` | (correct) | |
 
 ## Running
 

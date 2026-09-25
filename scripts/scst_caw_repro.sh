@@ -28,7 +28,7 @@ INIP=${INIP:-iqn.2026-06.repro:d2}   # initiator name prefix
 P=127.0.0.1:3260
 N=8
 SROOT="/sys/kernel/scst_tgt/targets/iscsi/$T/sessions"
-MON="sudo PYTHONPATH=/home/steve/.local/lib/python3.12/site-packages python3 /src/mxfs/scripts/scst_mon.py $MONDEV"
+MON="sudo PYTHONPATH=$HOME/.local/lib/python3.12/site-packages python3 /src/mxfs/scripts/scst_mon.py $MONDEV"
 PERDEV=${PERDEV:-6}
 NUM=${NUM:-8}
 

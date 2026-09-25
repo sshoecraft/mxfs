@@ -26,7 +26,7 @@ struct work_struct;
 struct mxfs_grant_result;
 
 /*
- * gate for the sess20-35 diagnostic prints (P-, MX-INSTR, H tags).
+ * gate for the diagnostic prints (P-, MX-INSTR, H tags).
  * Default OFF (mxfs.instr=0).  These fire per-metadata-op (P9 dialloc,
  * P13/P63 acquire, P-H27 per dir-block write, H40 per create) and made
  * rsync ~100x slower than native XFS, failing the perf criteria.  They
@@ -1591,7 +1591,7 @@ void mxfs_iclus_purge_all(struct xfs_mount *mp);
 			int n = atomic_inc_return(&solenote);		\
 									\
 			if (n == 1 || n == 100 || n == 10000)		\
-				pr_warn("mxfs: P952-SOLE-SKIP site=%s n=%d — a SOLE SURVIVOR is taking a single-node fast path; the work it skips was written for a mount that has never had a peer\n", \
+				mxfs_probe("mxfs: P952-SOLE-SKIP site=%s n=%d — a SOLE SURVIVOR is taking a single-node fast path; the work it skips was written for a mount that has never had a peer\n", \
 					(site), n);			\
 		}							\
 	} while (0)

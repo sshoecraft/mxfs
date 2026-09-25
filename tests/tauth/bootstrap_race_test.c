@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
  * bootstrap_race_test — D-TAUTH-BOOTSTRAP-CLAIM-NOT-EXCLUSIVE-ACROSS-FALSE-DEATH-0347
- * instrument step 2 (sess426): can two nodes that both believe they are the
+ * instrument step 2: can two nodes that both believe they are the
  * bootstrap node both claim the SAME UNOWNED ledger page?
  *
  * The rig shape: A holds the lowest heartbeat slot but its heartbeat thread

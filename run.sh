@@ -82,6 +82,16 @@ xfs_applicable() { local t; for t in "${XFS_APPLICABLE[@]}"; do [ "$t" = "$1" ] 
 XFS_NO_EQUIVALENT=(dkms_install single_node_paired fio_vs_xfs_baseline fio_perf_vs_xfs alloc_witness)
 xfs_no_equivalent() { local t; for t in "${XFS_NO_EQUIVALENT[@]}"; do [ "$t" = "$1" ] && return 0; done; return 1; }
 
+# Helper binaries the suite runs on the nodes are built here, on the build host,
+# from their vendored sources, and reach the nodes over the shared /src; the
+# nodes may have no compiler.  They are build outputs, not committed files.
+FSX_BIN="$REPO/tests/suite/tools/fsx"
+if [ ! -x "$FSX_BIN" ] || [ "$REPO/tests/suite/tools/fsx.c" -nt "$FSX_BIN" ]; then
+    gcc -O2 -I "$REPO/tests/suite/tools" -o "$FSX_BIN.new" "$REPO/tests/suite/tools/fsx.c" &&
+        mv -f "$FSX_BIN.new" "$FSX_BIN" ||
+        { echo "ERROR: could not build $FSX_BIN from fsx.c"; exit 1; }
+fi
+
 SSH="$REPO/tools/mxfs_sshpass.sh"
 # Node SSH password: resolved from the lab secrets store (~/.config/mxfslab/secrets
 # via tools/mxfs_secrets.sh), which materializes the sshpass passfile. Falls back to

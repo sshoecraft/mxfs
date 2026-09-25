@@ -265,7 +265,7 @@ int mxfs_fr_stab_interval_ms = 2000;
 int mxfs_fr_stab_passes = 2;
 int mxfs_fr_stab_deadline_ms = 45000;
 /*
- * (design-consult ruling ccmemory ccloop-c7ee71c6-sess444-GPT-ruling-frstab-
+ * (design-consult ruling frstab-
  * pipeline-across-slices, option A): the whole-cluster bootstrap replays 31
  * slices serially and each pays the two 2 s stability intervals (4.4 s of
  * a 4.5 s per-slice cost, 136 s of the mount).  The barrier now PREFETCHES
@@ -572,7 +572,7 @@ mxfs_xlog_slice_snapshot(
 			log->l_mxfs_slice_snap = pf->snap;
 			log->l_mxfs_snap_bytes = pf->bytes;
 			log->l_mxfs_snap_unstable_seen = pf->unstable_seen;
-			xfs_notice(mp,
+			mxfs_xfs_probe(mp,
 	"MXFS: P-FRSTAB-STABLE slot=%u passes=%d unstable_seen=%d wall_ms=%u prefetched=1 age_ms=%u waited_ms=%u — slice snapshot immutable (proven on the worker); recovery reads now served from it",
 				   log->l_mxfs_victim_slot, pf->passes,
 				   pf->unstable_seen, pf->wall_ms,
@@ -597,7 +597,7 @@ mxfs_xlog_slice_snapshot(
 	log->l_mxfs_slice_snap = snap;
 	log->l_mxfs_snap_bytes = bytes;
 	log->l_mxfs_snap_unstable_seen = unstable;
-	xfs_notice(mp,
+	mxfs_xfs_probe(mp,
 	"MXFS: P-FRSTAB-STABLE slot=%u passes=%d unstable_seen=%d wall_ms=%u — slice snapshot immutable; recovery reads now served from it",
 		   log->l_mxfs_victim_slot, passes, unstable, wall_ms);
 	return 0;
@@ -1787,7 +1787,7 @@ xlog_find_tail(
 	 * record is exactly the hazard the P308 incarnation boundary closes.
 	 */
 	if (log->l_mp->m_mxfs_dlm)
-		xfs_notice(log->l_mp,
+		mxfs_xfs_probe(log->l_mp,
 	"MXFS: P309-LOGTAIL %s head_blk=%lld tail_blk=%lld tail_lsn=0x%llx head_rec_lsn=0x%llx cycle=%d clean=%d",
 			   xlog_is_mxfs_foreign_replay(log) ? "foreign" :
 			   xlog_is_mxfs_adopted_slice(log) ? "adopted" : "own",
@@ -3150,7 +3150,7 @@ mxfs_shadow_eval_get(
 			se->manifest_rc = mxfs_shadow_build_idx(mp,
 					log->l_mxfs_victim_slot, se->man_ents,
 					se->man_n, &se->man_idx, &se->man_idx_mask);
-		xfs_notice(mp,
+		mxfs_xfs_probe(mp,
 	"MXFS foreign replay: P-RMAN-LOAD victim_slot=%u rc=%d entries=%u seq=%llu no_caw=%d",
 			   log->l_mxfs_victim_slot, se->manifest_rc, se->man_n,
 			   (unsigned long long)se->man_seq,
@@ -3199,7 +3199,7 @@ mxfs_shadow_eval_get(
 	 * slot claim).  would_apply>0 there is itself a finding — an unpurged
 	 * manifest.
 	 */
-	xfs_notice(mp,
+	mxfs_xfs_probe(mp,
 	"MXFS %s replay: P273-SHADOW-CAP victim_slot=%u desc_rc=%d stage=%u victim_epoch=%llu victim_node=%u capable=%d enforce_cfg=%d victim_adopted=%d",
 		   xlog_is_mxfs_foreign_replay(log) ? "foreign" : "adopted",
 		   log->l_mxfs_victim_slot, se->desc_rc,
@@ -3651,12 +3651,12 @@ mxfs_shadow_eval_finish(
 
 	if (!se) {
 		if (log->l_mxfs_shadow_missed)
-			xfs_notice(log->l_mp,
+			mxfs_xfs_probe(log->l_mp,
 	"MXFS %s replay: P273-SHADOW-EVAL victim_slot=%u state=unevaluated missed_txns=%u",
 				   src, log->l_mxfs_victim_slot,
 				   log->l_mxfs_shadow_missed);
 		else
-			xfs_notice(log->l_mp,
+			mxfs_xfs_probe(log->l_mp,
 	"MXFS %s replay: P273-SHADOW-EVAL victim_slot=%u state=no_txns",
 				   src, log->l_mxfs_victim_slot);
 		log->l_mxfs_victim_slot = MXFS_XLOG_VICTIM_NONE;
@@ -3684,7 +3684,7 @@ mxfs_shadow_eval_finish(
 	 * enforcement on — is ENFORCEABLE_WOULD_APPLY; nolineage counts full
 	 * matches that lack the v3 lineage the future gate requires.
 	 */
-	xfs_notice(log->l_mp,
+	mxfs_xfs_probe(log->l_mp,
 	"MXFS %s replay: P273-SHADOW-EVAL victim_slot=%u capable=%d buf=%llu csum=%llu untagged=%llu malformed=%llu v1=%llu classless=%llu sb=%llu unsup=%llu badst=%llu fowner=%llu resmis=%llu winc=%llu manerr=%llu wlineage=%llu notheld=%llu staleep=%llu uncap_match=%llu nolineage=%llu WOULD_APPLY=%llu ENFORCEABLE_WOULD_APPLY=%llu REDUNDANT_CLEAN=%llu txn=%llu all_apply=%llu taint_blocked=%llu mixed=%llu none=%llu nonbuf_taint=%llu enforce_admitted=%llu txn_with_redundant=%llu redundant_skipped=%llu relmarks=%u relmark_overflow=%u uncached=%llu icreate=%llu/%llu/%llu missed_txns=%u victim_adopted=%d preinc=%llu txn_preinc=%llu",
 		   src, log->l_mxfs_victim_slot, se->capable ? 1 : 0,
 		   (unsigned long long)se->buf_items,
@@ -3726,7 +3726,7 @@ mxfs_shadow_eval_finish(
 		   se->victim_adopted ? 1 : 0,
 		   (unsigned long long)se->preincarnation,
 		   (unsigned long long)se->txn_preinc);
-	xfs_notice(log->l_mp,
+	mxfs_xfs_probe(log->l_mp,
 	"MXFS %s replay: P-RMAN-EVAL victim_slot=%u manifest_rc=%d entries=%u seq=%llu no_caw=%d lookups=%llu hits=%llu live_checks=%llu live_check_err=%llu postseal_mutations=%llu abort=%d",
 		   src, log->l_mxfs_victim_slot, se->manifest_rc, se->man_n,
 		   (unsigned long long)se->man_seq, se->manifest_no_caw ? 1 : 0,
@@ -3985,7 +3985,7 @@ mxfs_report_replay_authority(
 		n = atomic_inc_return(&mxfs_tokdet_n);
 		if (n > 400)
 			continue;
-		xfs_notice(log->l_mp,
+		mxfs_xfs_probe(log->l_mp,
 	"MXFS %s replay: P227-TOKEN blkno=%lld len=%u blft=%u v=%u class=%u st=%u res=%llu gepoch=%llu oepoch=%llu slot=%u node=%u lineage=%llu (n=%d)",
 			   src, (long long)blfp->blf_blkno,
 			   (unsigned int)blfp->blf_len,
@@ -4220,7 +4220,7 @@ mxfs_report_replay_authority(
 		nbbuf[nlen] = '\0';
 
 		if (n <= 2000)
-			xfs_notice(log->l_mp,
+			mxfs_xfs_probe(log->l_mp,
 	"MXFS %s replay: P227-TOKENSUM lsn=0x%llx buf_items=%d tokened=%d v1=%d v2=%d v3=%d ag=%d sb=%d ino=%d iclus=%d classless=%d untagged=%d untag_cancel=%d malformed=%d wapply=%d redundant=%d wskip=%d sbclean=%d st:%s classless_blft:%s dino_none=%d dino_agsib=%d",
 				   src, (unsigned long long)trans->r_lsn,
 				   n_buf, n_tok, n_v1, n_v2, n_v3, n_ag, n_sb,
@@ -4435,7 +4435,7 @@ mxfs_fr_enforce_preflight(
 			err = lrc;		/* undecidable: I/O */
 			break;
 		}
-		xfs_notice(log->l_mp,
+		mxfs_xfs_probe(log->l_mp,
 	"MXFS foreign replay: P-RMAN-PREREPLAY-VERIFY victim_slot=%u entries=%u checked=%u mutated=%u unsupported=%u err=%d",
 			   log->l_mxfs_victim_slot, se->man_n, checked, bad,
 			   unsupported, err);
@@ -4669,7 +4669,7 @@ mxfs_classify_untrusted_txn(
 			return MXFS_TXNV_ADMIT;
 		log->l_mxfs_shadow_eval->txn_enforce_admitted++;
 		if (n <= 2000)
-			xfs_notice(log->l_mp,
+			mxfs_xfs_probe(log->l_mp,
 "MXFS foreign replay: ADMIT fully-tokenized transaction lsn=0x%llx items=%d — every buffer image carries an enforceable authority verdict (APPLY or REDUNDANT_CLEAN) (P227-FR-ENFORCE-ADMIT n=%d)",
 				   (unsigned long long)trans->r_lsn,
 				   n_items, n);
@@ -4724,7 +4724,7 @@ refuse:
 
 /*
  * (D-FOREIGN-SLICE-INTENTS-ABANDONED, CANCEL authority tokens —
- * Design-consult ruling ccmemory ccloop-c7ee71c6-sess476-GPT-ruling-cancel-item-
+ * Design-consult ruling cancel-item-
  * untagged-fixA-tokenize-binval-pass1-verdict-aware, part 4): the pass-1
  * buffer cancel table is built from ADMITTED transactions only.
  *
@@ -4955,7 +4955,7 @@ xlog_recover_items_pass2(
 	bool				mxfs_txn_admitted = false;
 
 	/*
-	 * (GPT-approved containment; PROVEN tear: unlinker_death
+	 * (review-approved containment; PROVEN tear: unlinker_death
 	 * reproducer, D-FOREIGN-REPLAY-UNGATED-IMAGES): TRANSACTION-ATOMIC
 	 * SKIP for untrusted (foreign/adopted) replay.  The old per-item
 	 * policy applied a transaction's INODE items while skipping its
@@ -5010,7 +5010,7 @@ xlog_recover_items_pass2(
 	 * another (partial apply = the tear the atomic skip prevents).
 	 */
 	/*
-	 * sess436 (D-FOREIGN-SLICE-INTENTS-ABANDONED, proven by instrument): the
+	 * (D-FOREIGN-SLICE-INTENTS-ABANDONED, proven by instrument): the
 	 * intent/done census must see EVERY intent and done in the slice, so
 	 * it runs BEFORE the whole-transaction verdict below.  The census
 	 * used to be noted inside the item loop, which the SKIP/SBCLEAN/
@@ -5023,7 +5023,7 @@ xlog_recover_items_pass2(
 	 * obligation of the dead slice whether or not its sibling images
 	 * are authoritative here (fail closed: a SKIP or SBCLEAN txn's
 	 * intents count too — their dones pair the same way, and an
-	 * unmatched done is harmless).  The one exception is the sess434
+	 * unmatched done is harmless).  The one exception is the
 	 * PREINC verdict (docs/ag-metadata-coherency.md fix 2): a published
 	 * predecessor incarnation's records are clean by certificate —
 	 * "no images, no inode items, no intents into the census" — and a
@@ -6778,7 +6778,7 @@ xlog_do_recovery_pass(
 			nbuf++;
 			bytes += BBTOB(qbp->b_length);
 		}
-		xfs_notice(log->l_mp,
+		mxfs_xfs_probe(log->l_mp,
 	"MXFS: P-DRAIN-PEAK deferred=%u queued_buffers=%u queued_bytes=%llu — metadata pinned to end-of-pass by the untrusted-replay drain deferral; unbounded except by the slice's distinct-buffer count",
 			   log->l_mxfs_drain_deferred, nbuf,
 			   (unsigned long long)bytes);

@@ -43,7 +43,7 @@ EV="$HERE/tests/evidence/selinux_svirt/$(date +%Y%m%dT%H%M%S)"
 mkdir -p "$EV"
 exec > >(tee -a "$EV/run.log") 2>&1
 say() { echo "[$(date +%T)] $*"; }
-on() { local t=$1; shift; timeout "$t" "$SSH" "$NODE" "$@" 2>&1 | grep -v -E "^Warning: Permanently|^$"; return "${PIPESTATUS[0]}"; }
+on() { local t=$1; shift; timeout "$t" "$SSH" "$NODE" "$@" 2>&1 | grep --line-buffered -v -E "^Warning: Permanently|^$"; return "${PIPESTATUS[0]}"; }
 
 say "node=$NODE mnt=$MNT evidence=$EV"
 on 30 "echo kernel=\$(uname -r); echo enforce=\$(getenforce); echo module=\$(semodule -l | grep -x mxfs)
@@ -60,11 +60,32 @@ tail -2 "$EV/install.log"
 grep -q "install_rc=0" "$EV/install.log" && grep -q "sockets_rc=0" "$EV/install.log" \
     || { say "RESULT FAIL: installing or starting libvirt's QEMU driver (see install.log)"; exit 1; }
 
+# Watchdog: if the step below is still running 8 s before its budget, record
+# the kernel stacks of every blocked task and of the step's own commands, so an
+# overrun names what it waited on (D-SURVIVOR-CREATE-STALLS-60S-AFTER-PEER-DEATH-
+# UNTIL-RESUMED-VICTIM-UNMOUNTS stalled here once with no trace).
+on $RUN_S "rm -f /run/mxfs-svirt.done" >/dev/null
+( on $((RUN_S + 5)) "t=0; while [ \$t -lt $((RUN_S - 8)) ]; do
+        [ -e /run/mxfs-svirt.done ] && exit 0; sleep 1; t=\$((t + 1)); done
+    echo stacks_at=\$(date +%s.%N)
+    for p in /proc/[0-9]*; do
+        st=\$(awk '{print \$3}' \$p/stat 2>/dev/null); c=\$(cat \$p/comm 2>/dev/null)
+        case \"\$st:\$c\" in D:*|*:qemu-img|*:mkdir|*:rm|*:ausearch)
+            echo \"== pid \${p#/proc/} comm=\$c state=\$st\"; cat \$p/stack 2>/dev/null ;;
+        esac
+    done" > "$EV/stacks.log" ) &
+WATCH=$!
+
 on $RUN_S "
     avc() { ausearch -m avc,user_avc,selinux_err -ts boot 2>/dev/null | grep -c 'type=AVC\|type=USER_AVC\|type=SELINUX_ERR'; }
+    # each step stamped, so an overrun names the step that took the time
+    echo t_start=\$(date +%s.%N)
     before=\$(avc)
-    d=$MNT/svirt; mkdir -p \$d; rm -f \$d/disk.img
+    echo t_avc=\$(date +%s.%N)
+    d=$MNT/svirt; mkdir -p \$d; echo t_mkdir=\$(date +%s.%N)
+    rm -f \$d/disk.img; echo t_rm=\$(date +%s.%N)
     qemu-img create -q -f raw \$d/disk.img 64M
+    echo t_create=\$(date +%s.%N)
     echo created_label=\$(stat -c %C \$d/disk.img)
     cat > /run/mxfs-svirt.xml <<X
 <domain type='kvm'>
@@ -94,8 +115,11 @@ X
     echo after_label=\$(stat -c %C \$d/disk.img)
     after=\$(avc); echo avc_new=\$((after - before))
     [ \$after -gt \$before ] && ausearch -m avc,user_avc,selinux_err -ts boot 2>/dev/null | tail -20
+    touch /run/mxfs-svirt.done
     true" > "$EV/svirt.log"
 rc=$?
+wait $WATCH
+[ -s "$EV/stacks.log" ] && { say "the step overran: blocked stacks in stacks.log"; head -40 "$EV/stacks.log"; }
 cat "$EV/svirt.log"
 [ $rc = 124 ] && { say "RESULT FAIL: over the ${RUN_S} s budget"; exit 1; }
 

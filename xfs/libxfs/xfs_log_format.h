@@ -239,7 +239,7 @@ struct xfs_trans_header {
 /*
  * MXFS: clean-release marker — see struct mxfs_relmark_log_format.
  * Deliberately far from the upstream range so a future upstream type cannot
- * collide with it.  A pre-sess403 node cannot parse it (unknown item type
+ * collide with it.  A earlier node cannot parse it (unknown item type
  * fails recovery with -EFSCORRUPTED), which is why MXFS_PROTO_GEN moved 5->6
  * with it: mixed-generation clusters are refused at admission.
  */

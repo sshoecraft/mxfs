@@ -928,7 +928,7 @@ mxfs_iclus_lock(struct xfs_mount *mp, uint64_t ino, uint8_t mode,
 		if (selfclear) {
 			int urc = -EBUSY;
 
-			/* sess46: SKIP THE ACQUIRING INODE.  The sess46
+			/* SKIP THE ACQUIRING INODE.  The
 			 * covered_active widening (local grants count, for
 			 * release-drain correctness) starved this escape:
 			 * the spinner's OWN mode-0-era local grant cannot
@@ -958,7 +958,7 @@ mxfs_iclus_lock(struct xfs_mount *mp, uint64_t ino, uint8_t mode,
 }
 
 /*
- * ICLUSTER Invariant-1 analog (ccloop 72513a13 sess4, zero_silent_loss
+ * ICLUSTER Invariant-1 analog (zero_silent_loss
  * root): no on-disk CLUSTER release until the cluster's in-place dinodes
  * are durable.  The per-inode release path guarantees this per inode via
  * the P146 durable loop — but a covered inode can be EVICTED before any
@@ -970,12 +970,12 @@ mxfs_iclus_lock(struct xfs_mount *mp, uint64_t ino, uint8_t mode,
  * cluster release — the batched-drain economics the design wants.
  * Runs under ic->busy (no concurrent admits), sleepable context.
  *
- * sess198 (step 2): returns 1 when the settle timed out with the cluster
+ * (step 2): returns 1 when the settle timed out with the cluster
  * buffer still dirty — the F1 invariant violation the certificate must
  * record — else 0.  Behavior is unchanged this step: the caller still
  * releases either way (the deferred-release worker is build-order step 6).
  *
- * sess258 (step 5 F3, sess253 ruling item B): the settle alone is
+ * (step 5 F3, ruling item B): the settle alone is
  * check-then-CAS — an async xfsaild destage between the dirty check and
  * the wire CAS could certify a proof no flush ever covered.  The proof is
  * now completion-driven against the cluster's OWN keyed write accounting
@@ -985,7 +985,7 @@ mxfs_iclus_lock(struct xfs_mount *mp, uint64_t ino, uint8_t mode,
  * gets ONE bounce with a fresh flush; any unprovable step sets
  * cert->proof_failed (telemetry release while the gate is off — the
  * release still proceeds, but never certifies PROVED).  TRYLOCK failure
- * in the settle is UNKNOWN, not clean (-EAGAIN vs -ENOENT — the sess257
+ * in the settle is UNKNOWN, not clean (-EAGAIN vs -ENOENT — the
  * finding): bounded retry, then proof_failed.
  */
 static int

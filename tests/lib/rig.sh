@@ -483,7 +483,7 @@ mxfs_dev_same() {
 # ---- the platter from the HOST: a declared, identity-checked backing image
 #
 # 34 harnesses read the LUN's platter from a file on this host, defaulting
-# to /home/steve/disk.img (the SCST fileio image of an earlier rig).  On the
+# to ~/disk.img (the SCST fileio image of an earlier rig).  On the
 # qnap rig the LUN lives on the QNAP and no file on this host backs it, so
 # every one of those reads was a well-formed measurement of some OTHER
 # filesystem, printed as a verdict about the one under test (ledger
@@ -508,8 +508,8 @@ mxfs_host_image_declared() {
     local tag p
     if [ -n "${MXFS_HOST_IMAGE_PATH:-}" ]; then printf '%s\n' "$MXFS_HOST_IMAGE_PATH"; return 0; fi
     tag=$("$MXFS_RIG_LIB_DIR/../../tools/mxfs_rig_tag.sh" 2>/dev/null) || mxfs_dev_abort "the rig cannot be established (tools/mxfs_rig_tag.sh), so no host-side image of its LUN is declared; set MXFS_RIG_TAG or MXFS_HOST_IMAGE_PATH"
-    p=$(python3 -c 'import json,sys
-d=json.load(open(sys.argv[1])); print((d.get(sys.argv[2]) or {}).get("host_image") or "")' "$MXFS_RIG_LIB_DIR/../../data/rigs.json" "$tag" 2>/dev/null)
+    p=$(python3 -c 'import json,os,sys
+d=json.load(open(sys.argv[1])); print(os.path.expanduser((d.get(sys.argv[2]) or {}).get("host_image") or ""))' "$MXFS_RIG_LIB_DIR/../../data/rigs.json" "$tag" 2>/dev/null)
     [ -n "$p" ] || mxfs_dev_abort "rig '$tag' declares no host-side image of its LUN in data/rigs.json (host_image): the platter is not readable from this host — read it from a node (mxfs_chk_on_node, or tools/chk_mxfs --query-only on a mounted node)"
     printf '%s\n' "$p"
 }

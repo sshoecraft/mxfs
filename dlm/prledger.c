@@ -381,7 +381,7 @@ static int prl_own_transition(struct mxfs_prledger *l, uint16_t state,
 	rc = prl_cas(l, (uint32_t)l->own_idx, cur, &want);
 	if (rc == 0)
 		l->own = want;
-	mxfs_pal_log(rc ? MXFS_LOG_ERR : MXFS_LOG_INFO,
+	mxfs_pal_log(rc ? MXFS_LOG_ERR : MXFS_LOG_DEBUG,
 		     "mxfs: P-PRKEY-%s idx=%d key=0x%llx gen=%u node=%u rc=%d",
 		     tag, l->own_idx, (unsigned long long)want.pr_key,
 		     want.key_gen, want.node_id, rc);

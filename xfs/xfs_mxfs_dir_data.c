@@ -563,7 +563,7 @@ mxfs_dir_data_durable(struct xfs_inode *ip)
 			      xfs_buf_ispinned(dbp) ||
 			      (dbp->b_flags & _XBF_DELWRI_Q) ||
 			      /*
-			       * sess47 (ccloop 8ddb16a2) PROVEN GAP (always-on
+			       * PROVEN GAP (always-on
 			       * DIR-STALE-SKIP: blk served wseq=0 lseq=250 DONE
 			       * pin=1, then peer-stale): a dir block can be
 			       * XBF_DONE + clean (!dirty !in_ail !pin !delwri) yet
@@ -571,7 +571,7 @@ mxfs_dir_data_durable(struct xfs_inode *ip)
 			       * b_mxfs_written_seq) — checkpointed out of the AIL
 			       * but its writeback bio was SKIPPED (the xfsaild
 			       * NL/incarn dir-skip emulates a clean ioend without
-			       * submitting) or merely deferred.  The sess33/sess98
+			       * submitting) or merely deferred.  The /
 			       * gate above (dirty|in_ail|pin|delwri) misses this
 			       * "clean-but-unlanded" state, so the release loop
 			       * reported the dir durable and handed EX to a peer
@@ -583,7 +583,7 @@ mxfs_dir_data_durable(struct xfs_inode *ip)
 			       * RELEASE we hold EX, so this block is authoritative
 			       * (no peer can have raced it) and MUST land before
 			       * handoff.  Gated on XBF_DONE so an evict-invalidated
-			       * stale image (!DONE, sess33) is never re-written.
+			       * stale image (!DONE) is never re-written.
 			       */
 			      /* ROOT FIX (instrumented, PROVEN run64
 			       * t6 P42-RELDUR daddr=14654552 bad=0 done=0
@@ -952,7 +952,7 @@ mxfs_dir_dump_block_names(struct xfs_inode *ip, const char *tag)
  * live dirents than our cached copy (a peer added entries we never saw) OR an
  * equal-count content divergence, invalidate the cached buffer so the addname
  * cold-reads the coherent (FUA) image and its bestfree reflects the peer's
- * dirents.  Distinct from the sess10-REFUTED inode-level FUA compare (which
+ * dirents.  Distinct from the REFUTED inode-level FUA compare (which
  * used the lossy IN_AIL/gen gate and always skipped under local churn): this is
  * per-DATA-BLOCK CONTENT (fingerprint count + inumber sum/xor), fires only when
  * disk is provably ahead, and SKIPS any block carrying our own committed-
@@ -1439,17 +1439,17 @@ mxfs_dir_flush_one_daddr(struct xfs_inode *ip, xfs_daddr_t d,
 				       * tenure's release => lseq==wseq).  The write
 				       * below re-validates content before landing. */
 				      mxfs_dir_buf_is_undestaged(dbp) ||
-				      /* sess30(ccloop) instrumented EXPERIMENT: force-flush
+				      /* instrumented EXPERIMENT: force-flush
 				       * every XBF_DONE dir-DATA block at release,
 				       * bypassing the undestaged-tracking
 				       * (mxfs_dir_buf_is_undestaged) that may mis-report a
 				       * just-added-dirent block as already-on-disk
 				       * (written_seq==logged_seq) and SKIP it → the durable
 				       * single-dirent TOTAL loss (node1_f10.md5, leaf+data,
-				       * Inv-1 release-flush completeness gap, PROVEN sess30
+				       * Inv-1 release-flush completeness gap, PROVEN
 				       * 2-node round-2 repro).  DATA/BLOCK ops ONLY — never
 				       * LEAF (leaf force-write reverts a peer's hash =
-				       * refuted sess22 leaf_rebuild harm).  A DONE block here
+				       * refuted leaf_rebuild harm).  A DONE block here
 				       * is fresh-read or our-modified (acquire-evict clears
 				       * DONE on stale), so re-writing it is loss-safe.
 				       * Default-off lever. */
@@ -1457,13 +1457,13 @@ mxfs_dir_flush_one_daddr(struct xfs_inode *ip, xfs_daddr_t d,
 				       (dbp->b_flags & XBF_DONE) &&
 				       (dbp->b_ops == &xfs_dir3_data_buf_ops ||
 					dbp->b_ops == &xfs_dir3_block_buf_ops)) ||
-				      /* sess48 (ccloop, GPT-5.5 consult #1): also
+				      /* (design review consult #1): also
 				       * force-complete the LEAF/NODE/FREE index blocks
 				       * at release.  The DATA-only flush above pushed
 				       * our just-added dirents to the platter but left
 				       * the LEAF hash index STALE there → a peer cold-
 				       * reads fresh DATA + stale LEAF = the P21H-LEAFHOLE
-				       * tear (PROVEN sess48: baking release_flush_all_done
+				       * tear (PROVEN baking release_flush_all_done
 				       * DATA-only → node1_f13..f22.md5 in data, absent from
 				       * leaf → shutdown).  Force-completing OUR leaf (which
 				       * carries our tenure's hash adds merged onto the
@@ -1471,7 +1471,7 @@ mxfs_dir_flush_one_daddr(struct xfs_inode *ip, xfs_daddr_t d,
 				       * makes the whole data fork self-consistent on the
 				       * platter for the next acquirer.  Safe given the
 				       * owner_scan acquire-evict cold-reads the leaf fresh
-				       * each handoff (no stale-leaf survival); the sess22
+				       * each handoff (no stale-leaf survival); the
 				       * "leaf force-write reverts peer hash" harm was WITHOUT
 				       * acquire-side leaf eviction. */
 				      (mxfs_dir_release_flush_leaf &&
@@ -1941,7 +1941,7 @@ mxfs_dir_flush_one_daddr(struct xfs_inode *ip, xfs_daddr_t d,
 							(long long)d, fwr);
 				}
 				/*
-				 * sess13run (GPT-5.5 Option-1 via the PROVEN sess99
+				 * (design review Option-1 via the PROVEN
 				 * publish-and-discard primitive used for bnobt/cntbt):
 				 * this dir block is now DURABLE on the shared LUN
 				 * (synchronous xfs_bwrite waited the bio) and is still
@@ -1955,7 +1955,7 @@ mxfs_dir_flush_one_daddr(struct xfs_inode *ip, xfs_daddr_t d,
 				 * shuts down on a dirty buf) and only on a SUCCESSFULLY
 				 * LANDED buffer (werr==0) so no data can be lost.  This is
 				 * the correct form of "no dir buffer survives an EX
-				 * handoff" — sess96 force-evict-on-release was refuted
+				 * handoff" — force-evict-on-release was refuted
 				 * because it discarded NOT-yet-durable content; here the
 				 * content is provably durable first.
 				 */
@@ -2346,7 +2346,7 @@ int mxfs_dlm_verify_deadline_ms = 1000;
 module_param_named(dlm_verify_deadline_ms, mxfs_dlm_verify_deadline_ms, int, 0644);
 MODULE_PARM_DESC(dlm_verify_deadline_ms,
 		 "Absolute deadline (ms) for a DLM cached-grant ownership verify "
-		 "slot read.  0 = unbounded (pre-sess379 behaviour: 30s x 2 x 20 "
+		 "slot read.  0 = unbounded (earlier behaviour: 30s x 2 x 20"
 		 "~= 20 minutes per probe).  Default 1000.");
 
 int mxfs_dlm_verify_max_inflight = 2;
@@ -2463,7 +2463,7 @@ mxfs_verify_end(struct mxfs_pal_io_budget *b, bool sampled, uint64_t ino)
  * *sampled is set false when the probe was skipped or abandoned, in which case
  * the return value is the historical fail-open answer (MXFS_LOCK_EX, "assume
  * held, do not demote") that an unreachable transport has always produced
- * here — so a skipped sample is byte-for-byte the pre-sess379 behaviour of an
+ * here — so a skipped sample is byte-for-byte the earlier behaviour of an
  * unanswerable read, minus the wait.
  */
 uint8_t
@@ -3020,28 +3020,28 @@ MODULE_PARM_DESC(dir_tenure_evict,
 	"modify-evict-ONLY prior-tenure epoch evict: drop a cached dir DATA block whose b_mxfs_dir_epoch lags i_dlm_dir_valid_epoch, overriding the in-AIL-undestaged keep-guard (Inv 1); the safe evict-only half of dir_evict_prior_tenure; 1=on");
 
 /*
- * sess13run (ccloop 4cb2d0a2; GPT-5.5 Option-1, instrumented/5): RELEASE-side dir
+ * (design review Option-1, instrumented/5): RELEASE-side dir
  * DATA/leaf buffer purge.  PROVEN residual root: the dir_reuse 4/tcp single
  * durable dirent loss is a same-(daddr,offset) free-slot double-allocation in
  * which a node's in-core dir DATA buffer OUTLIVES its DLM EX tenure — it was
- * made durable by the release fence (sess97/98) yet stays cached XBF_DONE with
+ * made durable by the release fence (/98) yet stays cached XBF_DONE with
  * a bestfree[] that predates a peer's later committed add at that offset, and
  * the modify-path force-evict's undestaged-skip can let it survive into the
  * next epoch's addname -> stale free-slot reuse -> 1 dirent clobbered.
  *
- * Enforce GPT's invariant "no dir DATA buffer survives across an EX handoff":
+ * Enforce design review's invariant "no dir DATA buffer survives across an EX handoff":
  * AFTER the release durability fence has run (every dir block flushed +
- * destaged, sess97 loop) and the inode cluster is durable, invalidate
+ * destaged, loop) and the inode cluster is durable, invalidate
  * (clear XBF_DONE|_XBF_FUA_FRESH) every cached dir DATA/leaf buffer that is
  * PROVABLY clean+durable (not dirty / in-AIL / pinned / delwri / undestaged).
  * This forces THIS node's next re-acquire to cold-FUA-read the coherent LUN
  * image (incl. the peer's adds) before its free-slot search.
  *
- * STRICTLY SAFER than the REFUTED sess96 force-evict-on-release: this runs ONLY
+ * STRICTLY SAFER than the REFUTED force-evict-on-release: this runs ONLY
  * post-fence, ONLY on clean+durable BLOCK/LEAF-format dir blocks (never a
  * SHORTFORM dinode, never an undestaged/in-flight buffer) — so it cannot lose
  * our own uncommitted work and cannot resurrect (clearing XBF_DONE on a clean
- * durable buffer just forces an identical-or-newer re-read; the sess96
+ * durable buffer just forces an identical-or-newer re-read; the
  * resurrection was an evict of NOT-yet-durable content).  Gated default 0 for
  * A/B validation via MXFS_EXTRA_MODARGS.
  */
@@ -3072,7 +3072,7 @@ module_param_named(dir_release_retire_bli, mxfs_dir_release_retire_bli, int, 064
  * (design-consult): retire (instead of bwrite) a DONE +
  * destaged + clean in_ail dir DATA/LEAF buffer at the release drain, so NO
  * in_ail dir buffer survives the EX handoff for xfsaild to reflush as a zombie
- * (the PROVEN readdir=799 root — see [[sess38-GPT-architectural-fix-...]]).
+ * (the PROVEN readdir=799 root — see [[review-architectural-fix-...]]).
  * Distinct from dir_release_retire_bli (which retired AFTER bwrite and double-
  * freed because ioend already retired): this retires the DESTAGED buffer in
  * place of the bwrite, so xfs_buf_item_done runs exactly once.  DEFAULT 1.

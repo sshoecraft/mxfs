@@ -57,8 +57,8 @@ set -u
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 MODE="${1:-gate}"
 SCST_ROOT=/sys/kernel/scst_tgt
-IMG="${MXFS_SCST_IMG:-/home/steve/disk.img}"
-VMDIR="${MXFS_VM_DIR:-/home/steve/vms}"
+IMG="${MXFS_SCST_IMG:-$("$(dirname "$(readlink -f "$0")")/../tools/mxfs_lab.sh" get paths image 2>/dev/null)}"
+VMDIR="${MXFS_VM_DIR:-$("$(dirname "$(readlink -f "$0")")/../tools/mxfs_lab.sh" get paths vmdir 2>/dev/null)}"
 
 KMSG_SECS="${MXFS_PREFLIGHT_KMSG_SECS:-3}"
 KMSG_MAX="${MXFS_PREFLIGHT_KMSG_MAX:-40}"

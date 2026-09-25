@@ -6,7 +6,7 @@
 # vdisk_fileio handler implements SCSI COMPARE AND WRITE (0x89) and Persistent
 # Reservations natively — which is what MXFS's default CAW transport needs.
 #
-#   /home/steve/disk.img  ->  SCST vdisk_fileio device "mxfs" (o_direct)
+#   ~/disk.img  ->  SCST vdisk_fileio device "mxfs" (o_direct)
 #                         ->  iSCSI target iqn.2026-05.local.mxfs:shared, LUN 0
 #                         ->  reachable on br0 192.168.120.1:3260
 #
@@ -31,7 +31,7 @@
 
 set -u
 
-IMG="${MXFS_SCST_IMG:-/home/steve/disk.img}"
+IMG="${MXFS_SCST_IMG:-$("$(dirname "$(readlink -f "$0")")/../tools/mxfs_lab.sh" get paths image)}"
 DEV="${MXFS_SCST_DEV:-mxfs}"                       # vdisk_fileio device name
 TGT="${MXFS_SCST_TGT:-iqn.2026-05.local.mxfs:shared}"
 # Cluster network (br0).  clyde has many bridge IPs (libvirt 192.168.122.1,

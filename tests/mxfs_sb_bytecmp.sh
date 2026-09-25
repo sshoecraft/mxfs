@@ -6,7 +6,7 @@
 #
 #   tests/mxfs_sb_bytecmp.sh snap <img> <out.bin> [xfs_data_offset]
 #       dd the 512-byte sb sector at xfs_data_offset (chk_mxfs -v prints it;
-#       default 793497600 = the current /home/steve/disk.img mkfs) into out.bin.
+#       default 793497600 = the current ~/disk.img mkfs) into out.bin.
 #   tests/mxfs_sb_bytecmp.sh cmp <label> <pre.bin> <post.bin>
 #       print one line:
 #         SB-BYTECMP lap=<label> magic_ok=1 diff_total=N diff_outside_counters_crc_lsn=M offsets_outside=[..] pre_*/post_* counters and lsn

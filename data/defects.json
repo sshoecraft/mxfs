@@ -1451,6 +1451,19 @@
       "impact": "noblock",
       "impact_why": "Pace only: in every run, failed or passed, fio completed its I/O on both nodes, the suite continued, and no node crashed, hung, shut down or logged a BUG/Oops; no data check failed.",
       "updated": "2026-09-24"
+    },
+    {
+      "id": "D-SURVIVOR-CREATE-STALLS-60S-AFTER-PEER-DEATH-UNTIL-RESUMED-VICTIM-UNMOUNTS",
+      "severity": "high",
+      "nodes": 2,
+      "dlm": "tcp",
+      "opened": "2026-09-25",
+      "summary": "After a peer is declared dead, fenced and replayed, and the frozen victim resumes (its retired identity's reconnects refused, P164-DEAD-REJECT), a file create on the survivor stalled about 60 s: tests/selinux_svirt_mxfs.sh's qemu-img create on /mnt/mxfs produced no output within its 60 s budget, and the create's real acquire (P-UNPUB-OWNED-META n=64 comm=qemu-img) went through at the moment the resumed victim's mount was taken away.",
+      "evidence": "0.89.90 (srcversion B1B7E538F9F908076707471, packaged rpm, RHEL 9.8 5.14.0-687.49.1.el9_8, alma9-1 survivor / alma9-2 victim), tests/evidence/full_verify_0.89.90.log: tcp_peer_freeze_death VERDICT PASS at 00:46:04 CDT, then selinux_svirt 'RESULT FAIL: over the 60 s budget' at 00:47:05 with an empty svirt.log (not even the line printed after qemu-img create). Survivor dmesg tests/evidence/tcp_peer_freeze_death/20260925T004000/dmesg_alma9-1.log: recovery complete t=232.7, P164-DEAD-REJECT of 708001876 t=457.3, P-UNPUB-OWNED-META comm=qemu-img t=538.73, XFS unmount t=539.0 (the chain's unmount of both nodes), 'TCP peer 708001876 closed after clean departure' t=539.37. The same sequence took 5 s on 0.89.88 and 0.89.89 (one run each). Not reproduced in 6 further laps on the same build: 2 probes-off (tests/evidence/repro_svirt_stall_0.89.90.log, create 17 and 25 ms) and 4 with dyndbg=+p (repro_svirt_stall_probes_0.89.90.log, create 42-49 ms). Ruled out: the retired identity's session being present (it is present at unmount in every run, passing ones included); ausearch cost (6.6 ms on the same audit logs). The failing run is the only one that followed the RHEL packaged round, which reboots the pair (node up 9 min).  FURTHER LAPS: 2 in the full failing order (packaged rhel9 round with its reboot, then tcp_peer_freeze_death, then selinux_svirt_mxfs; tests/evidence/repro_svirt_stall_fullorder_0.89.90.log): both PASS, create 20 and 28 ms, so a fresh reboot does not bring it back by itself. 1 more after the watchdog was added (tests/evidence/svirt_watchdog_check_0.89.90.log): PASS in 5 s. Rate on 0.89.90: 1 stall in 10 attempts.",
+      "next": "Reproduce in the full order (packaged rhel9 round with its reboot, then tcp_peer_freeze_death, then selinux_svirt_mxfs; tests/evidence/repro_svirt_stall_fullorder_0.89.90.log) with per-step timestamps (the harness now prints t_start/t_avc/t_mkdir/t_rm/t_create); if it recurs, capture the survivor's blocked stacks (/proc/<pid>/stack of qemu-img) and the DLM lock the create waits on before the budget expires, then A/B against the 0.89.89 packages in dist/0.89.89. ===== tests/selinux_svirt_mxfs.sh now records, 8 s before its budget, the kernel stacks of every D-state task and of qemu-img/mkdir/rm/ausearch on the node into stacks.log, so the next occurrence names the wait. A/B against 0.89.89 needs many laps per build at a 1-in-10 rate.",
+      "impact": "stability",
+      "impact_why": "A create on a live survivor made no progress for ~60 s and completed only when the resumed peer's mount went away; whether it would have completed otherwise is unmeasured, so it is treated as a possible hang of a node's filesystem operation.",
+      "updated": "2026-09-25"
     }
   ]
 }

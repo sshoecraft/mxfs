@@ -30,7 +30,7 @@
 #define MXFS_SUPER_SIZE         4096
 
 /*
- * sess42 C7 version gate (GPT-designed, ledger D-CROSSNODE-OPEN-UNLINK /
+ * C7 version gate (review-designed, ledger D-CROSSNODE-OPEN-UNLINK /
  * D-AGI-UNLINKED "C7").  The cluster protocol generation is the single
  * monotonically-bumped number for INCOMPATIBLE coordination-protocol
  * changes; every member must run code with an EQUAL generation.
@@ -53,7 +53,7 @@
  */
 #define MXFS_FORMAT_F_PROTOGATE 0x00000001u
 /*
- * sess404 (docs/recovery-manifest.md): the RECOVERY MANIFEST region exists —
+ * (docs/recovery-manifest.md): the RECOVERY MANIFEST region exists —
  * rman_offset / rman_size below are valid.  One slot per disklock heartbeat
  * slot; the fence prover writes the victim's fence-time write-authority
  * manifest there (sealed) before the FENCED descriptor points at it, and the
@@ -62,7 +62,7 @@
  */
 #define MXFS_FORMAT_F_RMAN      0x00000002u
 /*
- * sess421 (docs/tcp-authority-ledger.md step 2): the TCP DURABLE AUTHORITY
+ * (docs/tcp-authority-ledger.md step 2): the TCP DURABLE AUTHORITY
  * LEDGER region exists — tauth_offset / tauth_size below are valid.  One
  * 128-byte authority record per CAW resource-hash slot (65536), in 4 KiB
  * pages with TWO shadow copies each (crash-atomic without compare-and-write;
@@ -74,10 +74,10 @@
  */
 #define MXFS_FORMAT_F_TAUTH     0x00000004u
 /*
- * sess438 (docs/whole-cluster-restart.md item 2): 64-BIT PER-BOOT PR KEYS and
+ * (docs/whole-cluster-restart.md item 2): 64-BIT PER-BOOT PR KEYS and
  * the PR REGISTRANT LEDGER region exist — prkey_offset / prkey_size below are
  * valid.  The SCSI PR key is no longer the 32-bit node_id: it is a 64-bit key
- * derived once per {host boot, LUN} (sess439: from the host/boot/fs uuids —
+ * derived once per {host boot, LUN} (from the host/boot/fs uuids —
  * the ledger is written AFTER the verified REGISTER, because under the
  * cluster's all-registrants reservation an unregistered initiator cannot
  * write it; the derived key gives a retried mount its own registration back
@@ -89,7 +89,7 @@
  */
 #define MXFS_FORMAT_F_PRKEY64   0x00000008u
 /*
- * sess439 (docs/whole-cluster-restart.md §5): the WHOLE-CLUSTER BOOTSTRAP
+ * (docs/whole-cluster-restart.md §5): the WHOLE-CLUSTER BOOTSTRAP
  * RECORD region exists — bootstrap_offset / bootstrap_size below are valid.
  * One CAW-written 512-byte record (dlm/bootstrap.h) that (a) lends the first
  * node up after a total outage a durable PROVISIONAL identity that may own
@@ -102,7 +102,7 @@
  */
 #define MXFS_FORMAT_F_BOOTSTRAP 0x00000010u
 /*
- * sess464/466 (docs/dir-sharding.md): symmetric directory sharding.  The
+ * /466 (docs/dir-sharding.md): symmetric directory sharding.  The
  * value is owned by include/mxfs/mxfs_dirshard.h (MXFS_FORMAT_F_DIRSHARD
  * 0x20); it is one of the three gates (sb incompat bit 29, this flag, and
  * MXFS_PROTO_GEN 18) that must all agree before a PARENT/CONTAINER inode
@@ -194,16 +194,16 @@ struct mxfs_slife_record {
 	uint8_t     pad[MXFS_SLIFE_RECORD_SIZE - 64];
 };
 
-/* Bootstrap record geometry (sess439): one sector, in a 4 KiB region. */
+/* Bootstrap record geometry: one sector, in a 4 KiB region. */
 #define MXFS_BOOTSTRAP_REC_BYTES    512u
-/* sess443 (docs/whole-cluster-restart.md §6.8): 64 sectors — 0 the record;
+/* (docs/whole-cluster-restart.md §6.8): 64 sectors — 0 the record;
  * 1-15 manifest bank A, 16-30 bank B (term parity: a takeover's T+1 manifest
  * never overwrites T's); 31 the TAKEOVER journal; 32-39 completion
  * tombstones (64 x 64 B); 40-47 lineage (8 x one sector); 48-63 reserved.
  * A gen-17 kernel refuses a smaller region (the super carries the size). */
 #define MXFS_BOOTSTRAP_BYTES        32768u
 
-/* PR registrant ledger geometry (sess438).  One 512-byte CAW-written entry
+/* PR registrant ledger geometry.  One 512-byte CAW-written entry
  * per registrant; a registrant is a {host boot, LUN} key, so the ledger must
  * hold every live member plus the crashed boots whose keys are not yet fenced
  * and the clean departures not yet reused.  256 entries = 128 KiB. */
@@ -212,7 +212,7 @@ struct mxfs_slife_record {
 #define MXFS_PRLEDGER_BYTES         ((uint64_t)MXFS_PRLEDGER_ENTRIES * \
 									 MXFS_PRLEDGER_ENTRY_BYTES)
 
-/* Recovery-manifest region geometry (sess404).  Capacity proof: the protocol
+/* Recovery-manifest region geometry.  Capacity proof: the protocol
  * maximum held set is every CAW lock slot (MXFS_CAW_MAX_SLOTS = 65536) x one
  * 32-byte entry = 2 MiB, plus a 4 KiB header -> 2 MiB + 64 KiB per slot.
  * max_held is a tracking cap ("granted but NOT tracked" past it), not a grant
@@ -224,10 +224,10 @@ struct mxfs_slife_record {
 								 65536u)          /* 2 MiB + 64 KiB */
 #define MXFS_RMAN_REGION_BYTES  ((uint64_t)MXFS_RMAN_SLOTS * MXFS_RMAN_SLOT_BYTES)
 /*
- * sess75: 1 -> 2 for the recovery-descriptor v2 fence certificate.
+ * 1 -> 2 for the recovery-descriptor v2 fence certificate.
  *
  * This bump is a HARD PREREQUISITE of MXFS_RECOV_DESC_VERSION 2, not
- * bookkeeping.  The sess74 design-consult ruling REFUTED the claim that a per-slot
+ * bookkeeping.  The design-consult ruling REFUTED the claim that a per-slot
  * version mismatch is fail-closed on its own: a v1 replayer REPLAYS THE
  * FOREIGN SLICE FIRST and only consults the descriptor at completion, so it
  * would replay a v2-fenced slice on the old ungated path and only afterwards
@@ -238,26 +238,26 @@ struct mxfs_slife_record {
  * Bumping this REQUIRES a re-mkfs or `chk_mxfs --upgrade-protogate` (offline,
  * all nodes unmounted) — a v1-formatted volume will refuse to mount.
  *
- * sess86: 2 -> 3 for the NONZERO MOUNT INCARNATION
+ * 2 -> 3 for the NONZERO MOUNT INCARNATION
  * (D-MOUNT-INCARNATION-CONSTANT-ZERO).
  *
  * Until now every heartbeat record carried epoch = 0, measured on the live LUN
- * across all 31 members (sess83).  Nodes now draw a random nonzero 64-bit
+ * across all 31 members.  Nodes now draw a random nonzero 64-bit
  * incarnation, and this bump is a HARD PREREQUISITE of that — not bookkeeping.
  *
  * The mixed-version hazard runs OLD-watching-NEW, which no per-record check on
  * the new side can prevent.  Under gen 2 both peers wrote 0, so the monitor's
  * epoch-change arm could never fire; a gen-2 node watching a gen-3 node reboot
- * sees a genuine incarnation change and fires its death path — the pre-sess86
+ * sees a genuine incarnation change and fires its death path — the earlier
  * one, which rebases node_track onto the SUCCESSOR before declaring the
  * predecessor dead and whose first act is a per-NODE SCSI-PR fence.  The
  * victim of that fence is the healthy node that just rejoined.
  *
- * Per-record fail-closed is no defence here (the sess74 ruling, again): the
+ * Per-record fail-closed is no defence here (the ruling, again): the
  * gen-2 code does not know there is anything to fail closed about.  Only
  * cluster-wide exclusion works, so gen-2 code is kept out by layers 1-3 above.
  *
- * sess346: 3 -> 4 for the CLEAN-DEPARTURE PROVENANCE carve (#92
+ * 3 -> 4 for the CLEAN-DEPARTURE PROVENANCE carve (#92
  * D-CLEAN-RELEASE-TREATED-AS-DEATH-PHANTOM-RECOVERY-526).  The heartbeat
  * record layout changed (evict ring 25→23 entries; a 32-byte
  * mxfs_hb_provenance block now sits at offset 424) and the monitor's
@@ -268,7 +268,7 @@ struct mxfs_slife_record {
  * exactly the defect this carve fixes.  Mixed generations are excluded
  * cluster-wide, as above.
  *
- * sess381: 4 -> 5 for the SCSI-PR RESERVATION TYPE change
+ * 4 -> 5 for the SCSI-PR RESERVATION TYPE change
  * (D-PR-RESERVATION-SINGLE-HOLDER-UNMOUNT-DISARMS-FENCING-381).
  *
  * MXFS reserved the shared LUN with type 0x05 WRITE EXCLUSIVE - REGISTRANTS
@@ -296,21 +296,21 @@ struct mxfs_slife_record {
  * fail closed about — so gen-4 code is kept out cluster-wide by layers 1-3.
  */
 /*
- * Gen 6 (sess403): the journal carries XFS_LI_MXFS_RELMARK clean-release
+ * Gen 6: the journal carries XFS_LI_MXFS_RELMARK clean-release
  * markers.  A gen-5 replayer fails pass 1 of a gen-6 node's slice with
  * -EFSCORRUPTED (unknown item type), so mixed generations are refused.
  *
- * Gen 7 (sess404): the RECOVERY MANIFEST region (MXFS_FORMAT_F_RMAN) and the
+ * Gen 7: the RECOVERY MANIFEST region (MXFS_FORMAT_F_RMAN) and the
  * SNAPSHOTTING recovery stage (docs/recovery-manifest.md).  A gen-6 node
  * would fence a victim without writing its manifest, replay from the live CAW
  * table, and never honour the writer guard on a protected victim's slots; a
  * gen-7 replayer presented with a gen-6 certificate has no manifest to consume.
- * Per-record fail-closed is no defence (sess74 ruling, again): mixed
+ * Per-record fail-closed is no defence (ruling, again): mixed
  * generations are excluded cluster-wide by layers 1-3.  Bumping requires a
  * re-mkfs (the region must exist) — `chk_mxfs --upgrade-protogate` cannot
  * create it.
  *
- * Gen 8 (sess421): the TCP DURABLE AUTHORITY LEDGER region
+ * Gen 8: the TCP DURABLE AUTHORITY LEDGER region
  * (MXFS_FORMAT_F_TAUTH, docs/tcp-authority-ledger.md).  A gen-7 node on the
  * TCP transport keeps grant authority only in memory and purges the whole
  * lock table on every membership change; a gen-8 master makes each grant
@@ -320,7 +320,7 @@ struct mxfs_slife_record {
  * excluded cluster-wide by layers 1-3.  Bumping requires a re-mkfs (the
  * region must exist) — `chk_mxfs --upgrade-protogate` cannot create it.
  *
- * Gen 9 (sess427, D-0348 step 2): the ledger region is FORMAT v2 — the page
+ * Gen 9 (D-0348 step 2): the ledger region is FORMAT v2 — the page
  * count is an mkfs-time parameter in the region header and every resource
  * routes to home_page = seeded_hash % npages.  A gen-8 node routes by the
  * fixed 2115-page, unseeded geometry: on the same region it would master a
@@ -328,7 +328,7 @@ struct mxfs_slife_record {
  * record), and its store refuses a v2 header anyway.  Mixed generations are
  * excluded cluster-wide by layers 1-3.  Bumping requires a re-mkfs.
  *
- * Gen 11 (sess434, D-0354 candidate A): a LONE node's grants are REAL on-disk
+ * Gen 11 (D-0354 candidate A): a LONE node's grants are REAL on-disk
  * CAW grants with real epochs, its journal images carry v3 authority tokens,
  * and its BAST poll thread runs unconditionally.  A gen-10 node grants
  * memory-only while alone (no slot bit, epoch 0, untagged images) and does
@@ -342,7 +342,7 @@ struct mxfs_slife_record {
  * on-disk region: `chk_mxfs --upgrade-protogate` suffices (prep re-mkfs's).
  */
 /*
- * Gen 12 (sess438, docs/whole-cluster-restart.md item 2): the heartbeat
+ * Gen 12 (docs/whole-cluster-restart.md item 2): the heartbeat
  * record carries a 64-byte host/boot/PR-key identity block at offset 360
  * (evict ring 23 → 19 entries) and the PR key is a 64-bit per-boot key from
  * the registrant ledger region (MXFS_FORMAT_F_PRKEY64), no longer node_id.
@@ -351,7 +351,7 @@ struct mxfs_slife_record {
  * nothing; excluded cluster-wide.  New region ⇒ re-mkfs (prep does).
  */
 /*
- * Gen 13 (sess439, docs/whole-cluster-restart.md §5): the WHOLE-CLUSTER
+ * Gen 13 (docs/whole-cluster-restart.md §5): the WHOLE-CLUSTER
  * BOOTSTRAP RECORD region (MXFS_FORMAT_F_BOOTSTRAP).  A gen-12 node never
  * consults it, so it would publish ACTIVE and run xfs_mountfs in the middle
  * of a sealed bootstrap recovery, and would judge a provisional bootstrap
@@ -359,7 +359,7 @@ struct mxfs_slife_record {
  * cluster-wide.  New region ⇒ re-mkfs (prep does).
  */
 /*
- * Gen 18 (sess466, docs/dir-sharding.md): SYMMETRIC DIRECTORY SHARDING
+ * Gen 18 (docs/dir-sharding.md): SYMMETRIC DIRECTORY SHARDING
  * (MXFS_FORMAT_F_DIRSHARD + sb incompat bit 29).  A gen-17 node does not
  * understand the manifest lifecycle (PARENT/CONTAINER inode flags, the
  * manifest block type in replay, the shard-aware inactivation of an
@@ -427,12 +427,12 @@ struct mxfs_slife_record {
 									 * 0.89.0 (gen 21): open-holder marks on the ledger.
 									 * 0.88.0 (gen 20): slice lifecycle region.
 									 * 0.75.0 (gen 19): transport bit in the feature word.
-									 * sess466 (gen 18): directory sharding gates.
-									 * sess443 (gen 17): bootstrap record v5, 32 KB region (manifest banks,
+									 * (gen 18): directory sharding gates.
+									 * (gen 17): bootstrap record v5, 32 KB region (manifest banks,
 									 * completion tombstones, lineage, takeover journal — §6.8).
-									 * sess442: bootstrap record v4 (escrow manifest pointer); sess441: v3 (adopted-
+									 * bootstrap record v4 (escrow manifest pointer); v3 (adopted-
 									 * slice escrow) + HB_FEAT_BOOTSTRAP_PENDING.
-									 * sess440: 8 KB bootstrap region with the
+									 * 8 KB bootstrap region with the
 									  * sealed manifest; descriptor owner kind */
 
 /*
@@ -440,8 +440,8 @@ struct mxfs_slife_record {
  *
  * Layout on device:
  *   [this 4KB super] [journal region] [disklock region] [recovery manifest
- *   region, sess404, iff MXFS_FORMAT_F_RMAN] [TCP authority ledger region,
- *   sess421, iff MXFS_FORMAT_F_TAUTH] [XFS data to end]
+ *   region,, iff MXFS_FORMAT_F_RMAN] [TCP authority ledger region,
+ * , iff MXFS_FORMAT_F_TAUTH] [XFS data to end]
  *
  * All offsets are absolute byte offsets from the start of the device.
  * All multi-byte fields are native byte order (x86 = little-endian).
@@ -463,27 +463,27 @@ struct mxfs_ondisk_super {
 	uint64_t    xfs_data_offset;    /* byte offset where XFS data starts */
 	uint32_t    xfs_log_node_count; /* per-node XFS log slices (0=legacy) */
 	uint32_t    xfs_log_slice_bblks;/* basic blocks (512B) per log slice */
-	uint32_t    cluster_proto_gen;  /* sess42 C7: valid iff flags has
+	uint32_t    cluster_proto_gen;  /* C7: valid iff flags has
 									 * MXFS_FORMAT_F_PROTOGATE; members
 									 * must run code with an EQUAL
 									 * MXFS_PROTO_GEN */
 	uint32_t    pad0;               /* keep the u64s below naturally aligned */
-	uint64_t    rman_offset;        /* sess404: byte offset of the recovery
+	uint64_t    rman_offset;        /* byte offset of the recovery
 									 * manifest region; valid iff flags has
 									 * MXFS_FORMAT_F_RMAN */
-	uint64_t    rman_size;          /* sess404: its size in bytes */
-	uint64_t    tauth_offset;       /* sess421: byte offset of the TCP
+	uint64_t    rman_size;          /* its size in bytes */
+	uint64_t    tauth_offset;       /* byte offset of the TCP
 									 * authority ledger region; valid iff
 									 * flags has MXFS_FORMAT_F_TAUTH */
-	uint64_t    tauth_size;         /* sess421: its size in bytes */
-	uint64_t    prkey_offset;       /* sess438: byte offset of the PR
+	uint64_t    tauth_size;         /* its size in bytes */
+	uint64_t    prkey_offset;       /* byte offset of the PR
 									 * registrant ledger region; valid iff
 									 * flags has MXFS_FORMAT_F_PRKEY64 */
-	uint64_t    prkey_size;         /* sess438: its size in bytes */
-	uint64_t    bootstrap_offset;   /* sess439: byte offset of the bootstrap
+	uint64_t    prkey_size;         /* its size in bytes */
+	uint64_t    bootstrap_offset;   /* byte offset of the bootstrap
 									 * record region; valid iff flags has
 									 * MXFS_FORMAT_F_BOOTSTRAP */
-	uint64_t    bootstrap_size;     /* sess439: its size in bytes */
+	uint64_t    bootstrap_size;     /* its size in bytes */
 	uint64_t    slife_offset;       /* 0.88.0: byte offset of the slice
 									 * lifecycle region; valid iff flags has
 									 * MXFS_FORMAT_F_SLIFE */

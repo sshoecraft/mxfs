@@ -718,7 +718,7 @@ xfs_inode_item_pin(
 		struct mxfs_v5_dlm *p58dlm = ip->i_mount->m_mxfs_dlm;
 
 		/*
-		 * (ccloop-4dd7): b64r1-b69r4 measured 380+ fires, ALL
+		 * b64r1-b69r4 measured 380+ fires, ALL
 		 * with ex_h=1 — a live EX ADMISSION whose i_dlm_mode field
 		 * lags at NL during the release/re-admit window (kworker
 		 * inactivation commits).  Zero correctness failures across

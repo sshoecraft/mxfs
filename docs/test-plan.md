@@ -109,7 +109,7 @@ SSH: tools/mxfs_ssh.exp with password from /tmp/.mxfs_pass.
 **Description**: Verify mxfs.ko compiles with zero warnings on 5.10 headers.
 **Prerequisites**: Debian 11 node with kernel headers installed.
 **Steps**:
-1. `scp -r /home/steve/src/mxfs root@192.168.120.201:/root/`
+1. `scp -r ~/src/mxfs root@192.168.120.201:/root/`
 2. `ssh root@192.168.120.201 "cd /root/mxfs && make kernel 2>&1"`
 **Expected result**: Build succeeds, zero warnings, mxfs.ko produced.
 **Failure indicators**: Compiler errors, undefined symbols, missing headers.

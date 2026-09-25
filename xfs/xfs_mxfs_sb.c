@@ -149,7 +149,7 @@ mxfs_sb_summary_master_self(struct xfs_mount *mp)
 static int mxfs_dbg_sb_pause_point;
 module_param_named(dbg_sb_pause_point, mxfs_dbg_sb_pause_point, int, 0644);
 MODULE_PARM_DESC(dbg_sb_pause_point,
-	"DEBUG one-shot: park the SB summary critical section at point 1-4 for dbg_sb_pause_ms (sess475 D-0133 adversarial/holder-failure arms)");
+	"DEBUG one-shot: park the SB summary critical section at point 1-4 for dbg_sb_pause_ms (D-0133 adversarial/holder-failure arms)");
 static int mxfs_dbg_sb_pause_ms = 5000;
 module_param_named(dbg_sb_pause_ms, mxfs_dbg_sb_pause_ms, int, 0644);
 MODULE_PARM_DESC(dbg_sb_pause_ms, "DEBUG: hold length for dbg_sb_pause_point (ms)");

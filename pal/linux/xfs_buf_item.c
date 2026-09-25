@@ -349,7 +349,7 @@ mxfs_buf_ag_authorized(
 
 /*
  * (D-FOREIGN-SLICE-INTENTS-ABANDONED, design-consult ruling fix shape B —
- * ccmemory ccloop-c7ee71c6-sess467-GPT-ruling-intents-classless-images-fix-
+ * intents-classless-images-fix-
  * shapes-A-B-Q3, Q2): the IUNLINK image of an inode-cluster buffer is
  * AG-authorized.
  *
@@ -962,8 +962,8 @@ mxfs_buf_owner_authority(
 
 /*
  * Resolve the INODE arm of the ladder for one image and record it in the
- * P239-OWNAUTH histogram.  Called only from the capture point (sess103): the
- * histogram used to be taken at CIL format time, where — per the sess102
+ * P239-OWNAUTH histogram.  Called only from the capture point: the
+ * histogram used to be taken at CIL format time, where — per the
  * ruling — neither `durable` nor `none` means what it appears to mean,
  * because authority may have been acquired or released between the mutation
  * and the format.  Taken at first dirty, the same buckets DO describe the
@@ -1060,7 +1060,7 @@ mxfs_ownauth_measure(
 
 	/*
 	 * Only a DURABLE tenure with a real epoch proves anything.  Every
-	 * other outcome maps to the specific non-proving status the sess95
+	 * other outcome maps to the specific non-proving status the
 	 * ruling reserved for it — they must not collapse into one bucket,
 	 * because recovery has to fail closed DIFFERENTLY per reason.
 	 */
@@ -1463,7 +1463,7 @@ mxfs_auth_same(
 int mxfs_dbg_cancel_token_forge;
 module_param_named(dbg_cancel_token_forge, mxfs_dbg_cancel_token_forge, int, 0644);
 MODULE_PARM_DESC(dbg_cancel_token_forge,
-	"DEBUG: forge the authority proof of every CANCEL record captured at xfs_trans_binval: 1=skew grant epoch, 2=mis-target resource (sess476 negative arms)");
+	"DEBUG: forge the authority proof of every CANCEL record captured at xfs_trans_binval: 1=skew grant epoch, 2=mis-target resource (negative arms)");
 static atomic64_t mxfs_dbg_cancel_forged = ATOMIC64_INIT(0);
 
 void
@@ -1605,7 +1605,7 @@ mxfs_bli_auth_capture(
 			cap->mba_capseq = capseq;
 			cap->mba_retype_pending = 0;
 			atomic64_inc(&mxfs_authcap_retype_unproven);
-			pr_warn_ratelimited("mxfs: P-AUTHCAP-VOID why=retype_unproven blkno=%lld len=%u blft=%u st=%u outcome=%u owner_ino=%llu comm=%s\n",
+			mxfs_probe_ratelimited("mxfs: P-AUTHCAP-VOID why=retype_unproven blkno=%lld len=%u blft=%u st=%u outcome=%u owner_ino=%llu comm=%s\n",
 				(long long)bip->bli_formats[0].blf_blkno,
 				(unsigned)bip->bli_formats[0].blf_len,
 				(unsigned)now.mba_blft, (unsigned)now.mba_status,
@@ -2643,7 +2643,7 @@ mxfs_bli_refuse_account(
 		bip->bli_mxfs_refuse_count = 1;
 		if (bp->b_mount)
 			atomic64_inc(&bp->b_mount->m_mxfs_ailpin_refused_n);
-		pr_warn_ratelimited("mxfs: P126-XFSAILD-REFUSE arm=%s agno=%u daddr=%lld ops=%s lsn=0x%llx owner=%llu cap_class=%u cap_st=%u cap_epoch=%llu cap_win=%llu cur_epoch=%llu cached=%d holders=%d in_ail=%d dirty=%d pin=%d — committed image for a grant this node does not hold; not written\n",
+		mxfs_probe_ratelimited("mxfs: P126-XFSAILD-REFUSE arm=%s agno=%u daddr=%lld ops=%s lsn=0x%llx owner=%llu cap_class=%u cap_st=%u cap_epoch=%llu cap_win=%llu cur_epoch=%llu cached=%d holders=%d in_ail=%d dirty=%d pin=%d — committed image for a grant this node does not hold; not written\n",
 			arm, agno, (long long)bp->b_maps[0].bm_bn,
 			mxfs_agmeta_ops_name(bp),
 			(unsigned long long)lip->li_lsn,
@@ -2664,7 +2664,7 @@ mxfs_bli_refuse_account(
 		 * Re-logged while refused: a second unauthorized mutation of
 		 * the same image.  Visible, and NOT a restart of the clock.
 		 */
-		pr_warn_ratelimited("mxfs: P126-XFSAILD-REFUSE-RELOG arm=%s agno=%u daddr=%lld lsn_first=0x%llx lsn_now=0x%llx count=%u\n",
+		mxfs_probe_ratelimited("mxfs: P126-XFSAILD-REFUSE-RELOG arm=%s agno=%u daddr=%lld lsn_first=0x%llx lsn_now=0x%llx count=%u\n",
 			arm, agno, (long long)bp->b_maps[0].bm_bn,
 			(unsigned long long)bip->bli_mxfs_refuse_lsn,
 			(unsigned long long)lip->li_lsn,
@@ -2863,7 +2863,7 @@ xfs_buf_item_push(
 							pag_agno(pag), 0, e0,
 							cached, holders);
 			else
-				pr_warn_ratelimited("mxfs: P126-XFSAILD-REFUSE-TRANSIENT agno=%u daddr=%lld ops=%s epoch=%llu/%llu cached=%d holders=%d — not held at the predicate, hold state in motion; retained, not written\n",
+				mxfs_probe_ratelimited("mxfs: P126-XFSAILD-REFUSE-TRANSIENT agno=%u daddr=%lld ops=%s epoch=%llu/%llu cached=%d holders=%d — not held at the predicate, hold state in motion; retained, not written\n",
 					pag_agno(pag),
 					(long long)bp->b_maps[0].bm_bn,
 					mxfs_agmeta_ops_name(bp),

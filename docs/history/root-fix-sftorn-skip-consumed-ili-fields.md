@@ -22,7 +22,7 @@
 - geometry: isize=512 blocksize=4096 inopblock=8 rootino=128, drc dir=ino131, its own sector daddr=131 (cluster bm_bn=128 len=32), dir block0 ALWAYS blk15/daddr120=0x78 (agbno15, right below ino chunk at agbno16). Leaf daddr 6279744.
 - rm-end shape is legitimately HOLEY (partial shrink; AG-lock timeouts leave empty blocks mapped); create-path negative lookups P26-DSCAN over holey map spam benign MAP_HOLE internal-error lines (P21H class).
 - P74-DINEXT-REGRESS blind for fmt=EXTENTS (BTREE-only guard); P37-STALEBMAP gated instr/dir_relverify.
-- LIO: tcm_loop LUN over /home/steve/disk.img (fileio, O_DSYNC write-through, WCE=1). chk_mxfs -v works on the backing file directly. envelope xfs_data_offset=100704256.
+- LIO: tcm_loop LUN over ~/disk.img (fileio, O_DSYNC write-through, WCE=1). chk_mxfs -v works on the backing file directly. envelope xfs_data_offset=100704256.
 
 ## Residual faces after fix (run16, 15 rounds, 4 fail rounds, no cluster shutdown)
 1. test6 solo shutdown ~r=11: "Corruption of in-memory data (0x8) at xfs_trans_cancel" (dirty cancel) — cause TBD.

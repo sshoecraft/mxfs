@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
  * MXFS — portable header-only SHA-256 (FIPS 180-4) for the module, the tools
- * and the usermode tests alike (sess428, docs/tauth-view-table.md build step
+ * and the usermode tests alike (docs/tauth-view-table.md build step
  * 1): the view record's digest is protocol identity (ACK matching, root
  * selection) and must be computed identically everywhere, with no kernel
  * crypto API dependency (invariant 4: no direct kernel API outside pal/).

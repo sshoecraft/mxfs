@@ -92,11 +92,30 @@ except to record `MXFS_SITE` where `__LINE__` was recorded.  It was made by
 and checked by symbol comparison: every function and every global of the
 old object exists in the new ones, and the module parameters are identical.
 
-## Still to do
+## Phase helpers of the three long functions
 
-Three functions are each larger than most of these files:
-`mxfs_dlm_bast_process` (about 5,200 lines), `mxfs_dlm_reload_inode_under`
-(about 4,800) and `mxfs_dlm_ilock_begin` (about 3,600).  Each is a sequence
-of guarded phases that grew by accretion; breaking them into named phase
-functions is the next structural step, and unlike this split it changes
-code, so it needs the full verification path.
+`mxfs_dlm_bast_process`, `mxfs_dlm_reload_inode_under` and
+`mxfs_dlm_ilock_begin` were each a sequence of guarded phases grown by
+accretion, 3,600 to 5,200 lines long.  Their large phases are now static
+helpers defined just above them in the same file (`mxfs_bast_*`,
+`mxfs_reload_*`, `mxfs_ilock_*`), each carrying the comment that described
+the phase.  The three are now about 1,500, 1,800 and 700 lines.
+
+The helpers were cut by `scripts/extract_block.py`, which works from clang's
+AST of the kernel build and refuses any block it cannot move without
+changing meaning.  How a helper's parameters read follows from that:
+
+- a local the phase only reads is passed by value under its own name;
+- one it writes is passed as `<name>_io` and copied in at entry and out at
+  every exit, so the phase's text is unchanged;
+- one whose address is taken anywhere in the parent, or a function-local
+  static, is passed as `<name>_ref` and written `(*<name>_ref)`, so the
+  phase works on the parent's own object;
+- a `return` in the phase stores the value and leaves with
+  `MXFS_BLOCK_RETURN`, and a `goto` out of it leaves with
+  `MXFS_BLOCK_GOTO + k` (`xfs_mxfs_dlm_priv.h`); the call site returns or
+  jumps.
+
+`tests/extract_block_selftest.sh` holds the tool to that: each construct is
+moved, compiled at -O0 and -O2 and run against the untouched program, and
+the cases it must refuse are refused.

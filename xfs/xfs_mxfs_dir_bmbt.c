@@ -402,7 +402,7 @@ mxfs_sf_fmt_names(struct xfs_mount *mp, struct xfs_dir2_sf_hdr *sfp,
 	}
 }
 
-/* ccloop-4dd7 stamp the EX-admission holder at every ex_holders 0->1
+/* stamp the EX-admission holder at every ex_holders 0->1
  * transition (caller holds i_dlm_lock at every ++ site).  b58r1 forensics:
  * both nodes' 184s stall was pinned by ONE live rm holding an EX admission
  * the whole time, blocked at an invisible wait site.  P36-MHT-REARM prints
@@ -458,7 +458,7 @@ int mxfs_dir_owner_scan = 1;	/* DEFAULT 1 — see below. The four
 				 * with the P43 probes for the next session's A/B. */
 module_param_named(dir_owner_scan, mxfs_dir_owner_scan, int, 0644);
 MODULE_PARM_DESC(dir_owner_scan,
-	"sess43: owner-scan release flush+durability for dir blocks out of the in-core extent map (default 1)");
+	"owner-scan release flush+durability for dir blocks out of the in-core extent map (default 1)");
 
 static bool
 mxfs_dir_buf_is_owned_dir3(struct xfs_buf *bp, uint64_t ino)
@@ -723,7 +723,7 @@ mxfs_dir_noino_land_scan(struct xfs_mount *mp, uint64_t ino, bool land)
  * XBF_DONE + zero dir_gen so the next read FUA-cold-fetches the peer's durable
  * image) every CLEAN one — independent of the extent map.  CLEAN ONLY: a block
  * carrying genuine pending local work (dirty | pinned | delwri |
- * undestaged lseq!=wseq — ccloop-4dd7: enforced in the loop guard, the
+ * undestaged lseq!=wseq —: enforced in the loop guard, the
  * b57r5 -117 root was this loop running mid-tenure and destroying undestaged
  * committed mods) is OUR own un-checkpointed content and is LEFT (clearing its
  * DONE would lose it = resurrection); a DESTAGED in-AIL BLI is retired
@@ -801,7 +801,7 @@ mxfs_dir_evict_owned_data_blocks(struct xfs_inode *ip)
 		 *  - then clear XBF_DONE so the next read FUA-cold-fetches the
 		 *    peer's durable block.
 		 *
-		 * ccloop-4dd7 (b57r5 -117 ROOT, PROVEN BY INSTRUMENT): the caller
+		 * (b57r5 -117 ROOT, PROVEN BY INSTRUMENT): the caller
 		 * gates do NOT guarantee tenure-start.  The fast-path caller
 		 * (~22170) re-runs the refresh on EVERY acquire while
 		 * dir_gen != loaded_gen — and a local modify's self-echo gen
@@ -1374,7 +1374,7 @@ mxfs_dir_evict_bmbt_blocks(struct xfs_inode *ip)
 	struct xfs_buf		*held[MXFS_BMBT_EVICT_MAX];
 	int			nheld = 0, i;
 	/*
-	 * sess68 (ccloop 14d31183): walk-level counters to settle the sess67
+	 * walk-level counters to settle the
 	 * OPEN question — when the stale leaf survives, is it a rhashtable-walk
 	 * MISS (case a) or a found-but-skipped transient pin/dirty (case b)?
 	 * nseen_bmbt = bmbt-format bufs the walk saw (any owner); nthisino =
@@ -2073,7 +2073,7 @@ out:
 		atomic_add(nbusy, &mxfs_recov_busy);
 	if (nlocal)
 		atomic_add(nlocal, &mxfs_recov_localwork);
-	xfs_notice(mp,
+	mxfs_xfs_probe(mp,
 		"MXFS: P-RECOV-IMAGE-EVICT slot %u tagged_cached=%d bmbt=%d dir=%d agbt=%d noverifier=%d fixed=%d selected=%d evicted=%d local=%d busy=%d evict=%d — %s",
 		dead_slot, nseen, ncls[1], ncls[2], ncls[3], ncls[4], ncls[0],
 		nsel, nevict, nlocal, nbusy, mxfs_recov_evict,

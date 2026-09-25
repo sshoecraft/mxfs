@@ -9,7 +9,7 @@ owner).  Built for the sess399 forensics of the AGI-freecount-vs-btree +1
 divergence (AG 0 / AG 5, 0.23.9 tmpfile churn).
 
 Usage: tools/mxfs_agi_dump.py [--img PATH] [--xfs-off N] AGNO [AGNO...]
-  --img     LUN image (default $MXFS_SCST_IMG or /home/steve/disk.img)
+  --img     LUN image (default $MXFS_SCST_IMG or the lab file's paths image=)
   --scan    walk every inobt-allocated inode of the AG and report dead dinodes (leak signature)
   --xfs-off byte offset of the XFS region inside the envelope (default: read
             from `tools/chk_mxfs -v` output line `xfs_data_offset=N`, which is
@@ -23,7 +23,9 @@ def lsn(v): return "%d:0x%x" % (v >> 32, v & 0xffffffff)
 
 def main():
     args = sys.argv[1:]
-    img = os.environ.get("MXFS_SCST_IMG", "/home/steve/disk.img")
+    img = os.environ.get("MXFS_SCST_IMG") or subprocess.run(
+        [os.path.join(os.path.dirname(os.path.abspath(__file__)), "mxfs_lab.sh"), "get", "paths", "image"],
+        capture_output=True, text=True).stdout.strip()
     xfs_off = None
     agnos = []
     scan = False

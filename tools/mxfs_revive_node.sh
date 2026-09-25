@@ -40,7 +40,7 @@
 #
 set -u
 
-VMROOT=/home/steve/vms/qemu
+VMROOT=$("$(dirname "$(readlink -f "$0")")/mxfs_lab.sh" get paths qemu_root) || exit 1
 NBD=/dev/nbd0
 MNT=/mnt/mxfs_revive
 SSH="$(dirname "$0")/mxfs_sshpass.sh"

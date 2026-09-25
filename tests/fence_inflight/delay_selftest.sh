@@ -23,6 +23,9 @@ set -u
 
 HERE=$(cd "$(dirname "$0")" && pwd)
 P="$HERE/prprobe"
+# prprobe is built here from prprobe.c; the binary is not committed
+[ -x "$P" ] && [ ! "$HERE/prprobe.c" -nt "$P" ] ||
+    gcc -O2 -o "$P" "$HERE/prprobe.c" || { echo "cannot build $P from prprobe.c" >&2; exit 1; }
 STACK="$HERE/stack.sh"
 
 W_MS=${1:-12000}

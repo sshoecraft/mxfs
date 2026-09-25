@@ -1,8 +1,8 @@
 [
  "HL001:scripts/drc_parse.sh:DIR=\"${1:-$(ls -dt /tmp/run_dir_reuse_coherency_* 2>/dev/null | head -1)}\"",
- "HL001:scripts/sess36_capture_with_correlation.sh:LATEST=$(ls -tr /home/steve/.mxfs/results | tail -1)",
- "HL001:scripts/sess36_quickstart.sh:latest=$(ls -tr /home/steve/.mxfs/results | tail -1)",
- "HL001:scripts/sess36_quickstart.sh:latest=$(ls -tr /home/steve/.mxfs/results | tail -1)",
+ "HL001:scripts/sess36_capture_with_correlation.sh:LATEST=$(ls -tr $HOME/.mxfs/results | tail -1)",
+ "HL001:scripts/sess36_quickstart.sh:latest=$(ls -tr $HOME/.mxfs/results | tail -1)",
+ "HL001:scripts/sess36_quickstart.sh:latest=$(ls -tr $HOME/.mxfs/results | tail -1)",
  "HL001:tests/ag_handoff_lap_sweep.sh:R=$(ls -td /tmp/run_rsync_paired_* 2>/dev/null | head -1)",
  "HL001:tests/rsync_stall_stacks.sh:RD=$(ls -dt /tmp/run_rsync_paired_* 2>/dev/null | head -1)",
  "HL001:tests/sess426_chain.sh:echo \"STAGE token-errs: $(cat $(ls -td tests/evidence/*_tcptok | head -1)/test*.wl | grep -a '^ERR' | sed 's/f[0-9]*: //' | sort | uniq -c | sort -rn | head -5 ",

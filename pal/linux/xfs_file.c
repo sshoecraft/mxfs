@@ -2054,7 +2054,7 @@ MODULE_PARM_DESC(dbg_incarn_poison_ino,
 	"DEBUG: poison this inode number as a dead incarnation at next open (self-clears)");
 
 /*
- * D-512 race-injection legs (sess413 ruling verification matrix; sess415
+ * D-512 race-injection legs (ruling verification matrix;
  * ruling says these are safe on the current build): a debug window that
  * holds a gated data path OPEN between its poison gate check and the work
  * it guards, so a test can publish the poison mid-window (a second
@@ -2120,7 +2120,7 @@ xfs_file_open(
 	 * couldn't see files, incl. own) and did NOT fix rename/cwr.  Reloading
 	 * the inode at open without holding the DLM grant is too broad/racy.  The
 	 * reused-inode reload must be triggered at the DLM layer (free-time BAST
-	 * peers off the inode number) — see state.md / sess46_lessons.md.
+	 * peers off the inode number).
 	 */
 	file->f_mode |= FMODE_CAN_ODIRECT;
 	if (xfs_get_atomic_write_min(XFS_I(inode)) > 0)

@@ -930,7 +930,7 @@ int  mxfs_v5_dlm_ag_read_generation(struct mxfs_v5_dlm *ctx, uint32_t agno,
 /*
  * (foreign-replay step 5, shadow evaluator) — CONSUMER-side reads of a
  * FENCED victim's frozen state, for untrusted log replay only.  NOT the
- * sess110-deleted producer read returning: these answer "does the VICTIM hold
+ * deleted producer read returning: these answer "does the VICTIM hold
  * exclusive here, under which epoch" against a manifest its fencing froze
  * (purge is ordered after IMAGES_REPLAYED), never "what epoch may I stamp".
  * See mxfs_dlm_caw_victim_manifest_read in dlm_caw.h for the full contract.

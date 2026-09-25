@@ -24,7 +24,7 @@
  *   --slot N    : print ONLY slot N (still a READ(16)+FUA of that sector) and
  *                 exit.  A plain `dd iflag=direct` of the same sector is NOT
  *                 equivalent: this target stack drops the FUA bit, so a direct
- *                 read can return a stale platter image -- sess375 had a slot
+ *                 read can return a stale platter image -- had a slot
  *                 poller act on a tombstone that had been superseded, and bind
  *                 its resource one probe slot too far as a result.
  *
@@ -286,7 +286,7 @@ int main(int argc, char **argv)
         printf("hb[%02d] magic=0x%08x flags=%u node_id=%u epoch=%llu",
                i, magic, flags, node_id,
                (unsigned long long)*(uint64_t *)(hb + 24));
-        /* sess346 32B provenance carve at byte 424 (disklock.h layout
+        /* 32B provenance carve at byte 424 (disklock.h layout
          * asserts).  Only decode when its own magic matches — pre-carve
          * records carry zeros/garbage there. */
         if (*(uint32_t *)(hb + 424) == 0x5650584Du /* MXPV */)
@@ -299,8 +299,8 @@ int main(int argc, char **argv)
         if (!recov)
             continue;
         /*
-         * --recov: decode the sess64 recovery GUARD descriptor (byte 40,
-         * 120B) and the sess323 terminal outcome record (byte 160, 96B)
+         * --recov: decode the recovery GUARD descriptor (byte 40,
+         * 120B) and the terminal outcome record (byte 160, 96B)
          * per struct mxfs_disklock_heartbeat / mxfs_recov_body layout in
          * dlm/disklock.h.  Offsets are load-bearing: desc sits at the
          * union (40), outcome immediately after the 120B desc (160).
@@ -391,7 +391,7 @@ int main(int argc, char **argv)
                    s->magic == CAW_MAGIC ? "LIVE" : "TOMB",
                    s->generation, type_name(s->resource.type),
                    (unsigned long long)s->resource.volume);
-            /* sess375: ag ALWAYS — the closure classifier is AG-scoped for
+            /* ag ALWAYS — the closure classifier is AG-scoped for
              * every resource type, so an audit that can only see the AG of
              * type=ag slots cannot check an inode strip against the mask. */
             printf(" ag=%u", s->resource.ag_number);

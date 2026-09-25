@@ -123,7 +123,7 @@ ALL 17 PASS on 656E89B4** (chunked sequential runs, same build).
   same-line realns pairs. HASH TRAP: the C fnv1a is 32-BIT.
 - P35E `names[]` truncates at ~16 entries and kernlog spans PREVIOUS iterations (same
   ino/daddr reused per mkfs) — always window by realns/run start.
-- SCST mxfs device: fileio `/home/steve/disk.img o_direct=1 async=1 wt=0` — ack-after-AIO-complete;
+- SCST mxfs device: fileio `~/disk.img o_direct=1 async=1 wt=0` — ack-after-AIO-complete;
   read-pass-write NOT proven, but SCST fileio shares the backing page cache (FUA transport
   staleness ruled out as a cause).
 - run.sh FAIL artifacts: `/tmp/run_<test>_<RUNID>`; PASS runs keep nothing.

@@ -13,8 +13,8 @@ between the rig and a third one.
 
 ## The structural fact underneath both
 
-    /sys/kernel/scst_tgt/devices/mxfs/filename = /home/steve/disk.img
-    guest root disks                           = /home/steve/vms/qemu/testN/testN
+    /sys/kernel/scst_tgt/devices/mxfs/filename = ~/disk.img
+    guest root disks                           = ~/vms/qemu/testN/testN
     persistent journal                         = /var/log/journal
     all three                                  = /dev/nvme0n1p2, ext4, 1.8T
 

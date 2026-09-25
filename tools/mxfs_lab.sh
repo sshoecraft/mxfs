@@ -18,6 +18,10 @@
 #   qemu monitor_dir=<dir>
 #       for a guest that is not a libvirt domain: its QMP socket is
 #       <dir>/<node>/<node>.monitor.
+#   paths image=<file> delay_image=<file> vmdir=<dir> qemu_root=<dir>
+#       this host's own files: the fileio image behind the SCST/LIO LUN, the
+#       dm-delay rig's image, the VM directory and the qemu guests' root
+#       (<qemu_root>/<vm>/<vm> is a guest's boot disk).
 #
 # Usage:
 #   mxfs_lab.sh get <key> <field>    # print a field
@@ -29,7 +33,8 @@
 # Sourcing defines functions and nothing else: a sourced script sees the
 # caller's positional parameters, so dispatching on them would run the CLI
 # with the caller's arguments.
-MXFS_LAB="${MXFS_LAB:-$HOME/.config/mxfslab/lab}"
+# The lab is the invoking user's, also under sudo, where $HOME is root's.
+MXFS_LAB="${MXFS_LAB:-$(getent passwd "${SUDO_USER:-$(id -un)}" | cut -d: -f6)/.config/mxfslab/lab}"
 
 lab_get() {  # <key> <field>
     [ -r "$MXFS_LAB" ] || { echo "mxfs_lab: $MXFS_LAB is missing (see lab/README.md)" >&2; return 1; }

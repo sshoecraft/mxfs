@@ -2,7 +2,7 @@
 /*
  * mxfs_clayer/acquire.h — v6a acquire-token chokepoint (sketch)
  *
- * STATUS: SKETCH ONLY. Sess36+ implementation task.
+ * STATUS: SKETCH ONLY. Implementation task.
  *
  * Per `docs/v6-cache-architecture-proposal.md` §3.3.
  *

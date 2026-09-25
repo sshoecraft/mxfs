@@ -17,7 +17,7 @@
 #   6. hctx->fq flush state machine: pending/running idx, both flush_queue
 #      lists, flush_data_in_flight, flush_rq state
 #
-# Run: sudo PYTHONPATH=<site-packages> /home/steve/.local/bin/drgn wq_probe.py
+# Run: sudo PYTHONPATH=<site-packages> ~/.local/bin/drgn wq_probe.py
 
 import drgn
 from drgn import Object, cast, sizeof

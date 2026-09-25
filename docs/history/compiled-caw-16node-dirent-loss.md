@@ -47,7 +47,7 @@ Proven diagnosis + Case B pinned + ≥3 fixes refuted (MHT, release-guards, rele
 ### Infra (fixed this session — reuse)
 - **`scripts/caw_preflight.sh N`** — ALWAYS run before `./run.sh N caw`. Teardown wedged mxfs + power-cycle + /src mount + mpath_up N + verify READY. Prevents run.sh mid-prep power-cycles (lose /src → PREP FAIL).
 - **run.sh `power_cycle_node` PATCHED**: after a reboot it now remounts /src + re-logs BOTH iSCSI portals + `multipath` before the DEV wait (was losing /src + mpatha → PREP FAIL cascade). bash -n OK.
-- Restore `/tmp/.mxfs_pass` from `/home/steve/.mxfs/pass` after reboots.
+- Restore `/tmp/.mxfs_pass` from `~/.mxfs/pass` after reboots.
 - Long runs: `nohup timeout <big> env MXFS_DEV=/dev/mapper/mpatha MXFS_EXTRA_MODARGS="dirwr=1 dirland=1" ./run.sh 16 caw <tests> >log 2>&1 &` then foreground-poll `while ls -d /proc/$PID`. NEVER `pkill -f 'run.sh 16 caw...'` (matches own cmdline → exit 144); kill by captured PID.
 - criteria.json 1/2/4/8 PASS intact. Marker NOT written.
 - Separate known issue: 16-node CONVERGENCE is flaky ("did NOT converge to 16 within 170s") — disklock slot-table read undercount membership-stability issue, contributes to PREP FAILs (see docs/history/docs/history/docs/history/compiled-caw-16node-suite-stability.md).

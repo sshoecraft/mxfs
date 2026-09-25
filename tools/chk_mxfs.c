@@ -54,9 +54,9 @@
 #include <libgen.h>
 
 #include <mxfs/mxfs_super.h>
-#include <mxfs/mxfs_dirshard.h>  /* sess466: dirshard gates + manifest check */
+#include <mxfs/mxfs_dirshard.h>  /* dirshard gates + manifest check */
 #include <mxfs/mxfs_common.h>
-#include <mxfs/mxfs_tauth.h>     /* sess421: TCP authority ledger region */
+#include <mxfs/mxfs_tauth.h>     /* TCP authority ledger region */
 #include "mxfs_offline.h"         /* proving no node can write the device */
 
 /* ─── Version ─── */
@@ -311,7 +311,7 @@ struct ag_summary {
     uint64_t    inobt_free;     /* total free inodes from inobt records */
 };
 
-/* sess466: both directory-sharding gates present on this device (set by
+/* both directory-sharding gates present on this device (set by
  * check_xfs_superblock; the inode walk verifies manifests only then, and
  * reports any PARENT/CONTAINER flag as corruption otherwise). */
 static bool dirshard_gates_ok;
@@ -538,7 +538,7 @@ static int check_mxfs_super(int fd, struct mxfs_ondisk_super *super)
             (unsigned long long)s->device_size);
     }
 
-    /* sess404: the recovery manifest region (docs/recovery-manifest.md).
+    /* the recovery manifest region (docs/recovery-manifest.md).
      * Protocol gen 7 REQUIRES it: a gen-7 fleet fences victims by writing
      * their manifests there, so a gated super without the flag is a format
      * error, not a legacy layout. */
@@ -558,10 +558,10 @@ static int check_mxfs_super(int fd, struct mxfs_ondisk_super *super)
             s->cluster_proto_gen);
     }
 
-    /* sess421: the TCP authority ledger region (docs/tcp-authority-ledger.md).
+    /* the TCP authority ledger region (docs/tcp-authority-ledger.md).
      * Protocol gen 8 REQUIRES it. */
     if (s->flags & MXFS_FORMAT_F_TAUTH) {
-        /* sess427 (D-0348 step 2): mkfs-sized; whole pages, at least the
+        /* (D-0348 step 2): mkfs-sized; whole pages, at least the
          * minimum geometry.  The header's page count is checked against
          * the size below. */
         if (s->tauth_size < MXFS_TAUTH_REGION_BYTES ||
@@ -579,7 +579,7 @@ static int check_mxfs_super(int fd, struct mxfs_ondisk_super *super)
         err("cluster_proto_gen=%u requires the TCP authority ledger region (MXFS_FORMAT_F_TAUTH) but the super does not carry it",
             s->cluster_proto_gen);
     }
-    /* sess438: the PR registrant ledger region; gen 12 requires it. */
+    /* the PR registrant ledger region; gen 12 requires it. */
     if (s->flags & MXFS_FORMAT_F_PRKEY64) {
         if (s->prkey_size < MXFS_PRLEDGER_ENTRY_BYTES ||
             s->prkey_size % MXFS_PRLEDGER_ENTRY_BYTES)
@@ -595,14 +595,14 @@ static int check_mxfs_super(int fd, struct mxfs_ondisk_super *super)
         err("cluster_proto_gen=%u requires the PR registrant ledger region (MXFS_FORMAT_F_PRKEY64) but the super does not carry it",
             s->cluster_proto_gen);
     }
-    /* sess439: the bootstrap record region; gen 13 requires it. */
+    /* the bootstrap record region; gen 13 requires it. */
     if (s->flags & MXFS_FORMAT_F_BOOTSTRAP) {
         if (s->bootstrap_size < MXFS_BOOTSTRAP_REC_BYTES ||
             s->bootstrap_offset % 512)
             err("bootstrap record region malformed: offset=%llu size=%llu",
                 (unsigned long long)s->bootstrap_offset,
                 (unsigned long long)s->bootstrap_size);
-        /* sess443 (§6.8): gen 17 needs the 32 KiB map (banks, tombstones,
+        /* (§6.8): gen 17 needs the 32 KiB map (banks, tombstones,
          * lineage, takeover journal); the kernel refuses a smaller region */
         if ((s->flags & MXFS_FORMAT_F_PROTOGATE) && s->cluster_proto_gen >= 17 &&
             s->bootstrap_size < MXFS_BOOTSTRAP_BYTES)
@@ -640,7 +640,7 @@ static int check_mxfs_super(int fd, struct mxfs_ondisk_super *super)
             s->cluster_proto_gen);
     }
 
-    /* sess466: directory sharding (docs/dir-sharding.md).  Optional on a
+    /* directory sharding (docs/dir-sharding.md).  Optional on a
      * gen 18+ format: mkfs sets MXFS_FORMAT_F_DIRSHARD only when asked
      * (mkfs.mxfs -D), and a format without it simply has sharding off.  The
      * XFS sb incompat bit 29 must agree with it (checked against the sb once
@@ -783,14 +783,14 @@ static int check_mxfs_super(int fd, struct mxfs_ondisk_super *super)
     return 0;
 }
 
-/* ─── Check: TCP authority ledger region (sess421) ───
+/* ─── Check: TCP authority ledger region ───
  *
  * Every page must have at least one valid committed copy: a page with none
  * makes every resource on it UNKNOWN (never FREE), which the authority
  * code fails closed on — an operator must see it here first.  A page with
  * exactly one valid copy is normal after a crash mid-write (the shadow
  * design's whole point) and is reported, not counted as an error. */
-/* sess428 (docs/tauth-view-table.md §13, build step 1): the control pages —
+/* (docs/tauth-view-table.md §13, build step 1): the control pages —
  * view slots A/B and the ROOT.  The root must validate (fs identity, crc,
  * zero pads, the 3584 B page tail zero); with gen 0 each slot is empty or a
  * gen-1 proposal; with a committed gen the named slot must carry exactly
@@ -873,7 +873,7 @@ static void check_tauth_ctrl(int fd, const struct mxfs_ondisk_super *s, uint32_t
 }
 
 /*
- * sess438: the PR REGISTRANT LEDGER region (dlm/prledger.h).  One 512-byte
+ * the PR REGISTRANT LEDGER region (dlm/prledger.h).  One 512-byte
  * entry per registrant; crc32c(~0, entry with crc=0) folded with the index.
  * Prints every non-FREE entry and validates its crc.  A PREPARED/REGISTERED
  * entry is a key the target may still hold (PTPL) for a host boot that has
@@ -891,7 +891,7 @@ struct chk_prledger_entry {
     uint32_t host_src; uint32_t fenced_by; uint32_t crc32c;
     uint32_t succ_pad0;
     uint64_t succ_old_key; uint32_t succ_old_key_gen; uint32_t succ_pad;
-    uint8_t succ_old_boot[16];          /* sess439 self-succession */
+    uint8_t succ_old_boot[16];          /* self-succession */
     uint8_t reserved[376];
 };
 _Static_assert(sizeof(struct chk_prledger_entry) == 512, "prledger entry");
@@ -906,7 +906,7 @@ static const char *prl_state(uint16_t st)
 }
 
 /*
- * sess439: the WHOLE-CLUSTER BOOTSTRAP RECORD (dlm/bootstrap.h).  One
+ * the WHOLE-CLUSTER BOOTSTRAP RECORD (dlm/bootstrap.h).  One
  * 512-byte CAW-written record; mkfs writes it IDLE.  Validates magic/version/
  * crc, prints state, term, owner and the sealed/complete bitmaps — after a
  * total outage this is where an operator sees whether a bootstrap recovery
@@ -927,8 +927,8 @@ struct chk_bootstrap_rec {
     uint32_t prev_owner_node; uint32_t prev_fence_kind;
     uint64_t prev_owner_epoch; uint64_t prev_owner_pr_key;
     uint32_t crc32c;
-    uint32_t refused_slot; uint32_t refused_reason;    /* sess440 v2 */
-    uint32_t escrow_pad;                               /* sess441 v3 */
+    uint32_t refused_slot; uint32_t refused_reason;    /* v2 */
+    uint32_t escrow_pad;                               /* v3 */
     struct {
         uint8_t state; uint8_t cls; uint16_t slot;
         uint32_t victim_node;
@@ -937,14 +937,14 @@ struct chk_bootstrap_rec {
         uint8_t victim_host[16]; uint8_t victim_boot[16];
         uint8_t desc[120];
         uint64_t claim_epoch; uint32_t claim_node; int32_t replay_rc;
-        uint8_t mptr[64];                              /* sess442 */
+        uint8_t mptr[64];                              /* */
     } escrow;
-    uint64_t episode_term; uint16_t lineage_count; uint16_t takeover_gen; /* sess443 v5 */
+    uint64_t episode_term; uint16_t lineage_count; uint16_t takeover_gen; /* v5 */
     uint8_t reserved[12];
 };
 _Static_assert(sizeof(struct chk_bootstrap_rec) == 512, "bootstrap record");
 
-/* sess443 (docs/whole-cluster-restart.md §6.8): the region's other sectors. */
+/* (docs/whole-cluster-restart.md §6.8): the region's other sectors. */
 #define CHK_BOOT_SEC_TAKEOVER   31
 #define CHK_BOOT_SEC_TOMB       32
 #define CHK_BOOT_SEC_LINEAGE    40
@@ -1076,7 +1076,7 @@ static void check_bootstrap(int fd, const struct mxfs_ondisk_super *s)
              vh, vb, r.escrow.old_sector_crc, r.escrow.claim_node,
              (unsigned long long)r.escrow.claim_epoch, r.escrow.replay_rc);
     }
-    /* sess443 (§6.8): episode, lineage, tombstones, takeover journal */
+    /* (§6.8): episode, lineage, tombstones, takeover journal */
     info("bootstrap episode: term=%llu lineage=%u takeover_gen=%u",
          (unsigned long long)r.episode_term, r.lineage_count, r.takeover_gen);
     {
@@ -1261,7 +1261,7 @@ static void check_slife(int fd, const struct mxfs_ondisk_super *s)
 }
 
 /*
- * sess442 (docs/whole-cluster-restart.md §6.6/§6.7): `--clear-bootstrap`.
+ * (docs/whole-cluster-restart.md §6.6/§6.7): `--clear-bootstrap`.
  * A whole-cluster bootstrap term that ended REFUSED is terminal for the
  * kernel: no node can claim, resume or take it over, and ACTIVE admission
  * stays closed.  Only the operator, having repaired what the refusal names,
@@ -1545,13 +1545,13 @@ static int do_clear_bootstrap(const char *device)
     t.refused_slot = 0;
     t.refused_reason = 0;
     memset(&t.escrow, 0, sizeof(t.escrow));
-    t.episode_term = 0;                 /* sess443: the next claim opens an episode */
+    t.episode_term = 0;                 /* the next claim opens an episode */
     t.lineage_count = 0;
     t.takeover_gen = 0;
     memset(t.reserved, 0, sizeof(t.reserved));
     t.crc32c = 0;
     t.crc32c = crc32c(~0U, &t, sizeof(t));
-    /* sess443: a stale takeover journal must not outlive the term it names */
+    /* a stale takeover journal must not outlive the term it names */
     memset(sec, 0, sizeof(sec));
     rc = write_at(fd, sec, 512, (off_t)(sup.bootstrap_offset +
                                         (uint64_t)CHK_BOOT_SEC_TAKEOVER * 512));
@@ -1882,7 +1882,7 @@ static uint32_t crc32c_raw(uint32_t crc, const void *data, size_t len)
  * A terminal replay refusal turns the victim's heartbeat slot into a
  * RECOVERY_GUARD record whose body carries the durable verdict: a
  * mxfs_recov_desc at byte 40 and a mxfs_recov_outcome at byte 160.  That
- * record is the ONLY copy of the verdict, and until the sess377 repair path
+ * record is the ONLY copy of the verdict, and until the repair path
  * exists nothing can clear it — so the very first thing an operator needs is
  * to be able to READ it offline.  Before this, they could not: chk_mxfs did
  * not decode the body, caw_slotdump is a CAW-region tool, and the kernel's
@@ -1896,13 +1896,13 @@ static uint32_t crc32c_raw(uint32_t crc, const void *data, size_t len)
  */
 #define MXFS_DISKLOCK_FLAG_WITHDRAWN_C       2
 #define MXFS_DISKLOCK_FLAG_RECOVERY_GUARD_C  3
-#define MXFS_DISKLOCK_FLAG_RETIRE_PENDING_C  4   /* sess450 */
+#define MXFS_DISKLOCK_FLAG_RETIRE_PENDING_C  4   /* */
 
 #define MXFS_RECOV_DESC_OFF_C       40      /* 40B header, then the body union */
 #define MXFS_RECOV_OUTCOME_OFF_C    (MXFS_RECOV_DESC_OFF_C + 120)
 
 #define MXFS_RECOV_DESC_MAGIC_C     0x5643524Du  /* "MRCV" LE */
-#define MXFS_RECOV_DESC_VERSION_C   3   /* sess405: SNAPSHOTTING + manifest pointer */
+#define MXFS_RECOV_DESC_VERSION_C   3   /* SNAPSHOTTING + manifest pointer */
 #define MXFS_RECOV_OUTCOME_MAGIC_C  0x4F435652u  /* "RVCO" LE */
 
 #define MXFS_RECOV_F_QUARANTINED_C  0x00000001u
@@ -1911,10 +1911,10 @@ static uint32_t crc32c_raw(uint32_t crc, const void *data, size_t len)
 #define MXFS_RECOV_REFUSAL_POLICY_REFUSED_COMPLETE_C    1u
 #define MXFS_RECOV_REFUSAL_PHYSICALLY_TORN_C            2u
 #define MXFS_RECOV_REFUSAL_LEGACY_INTENT_QUARANTINE_C   3u
-#define MXFS_RECOV_REFUSAL_AUTHORITY_MUTATED_C          4u  /* sess405 */
-#define MXFS_RECOV_REFUSAL_MANIFEST_INVALID_C           5u  /* sess405 */
-#define MXFS_RECOV_REFUSAL_ASSEMBLY_DISCONTINUITY_C     6u  /* sess412 */
-#define MXFS_RECOV_REFUSAL_INTENTS_UNDISCHARGED_C       8u  /* sess421 */
+#define MXFS_RECOV_REFUSAL_AUTHORITY_MUTATED_C          4u  /* */
+#define MXFS_RECOV_REFUSAL_MANIFEST_INVALID_C           5u  /* */
+#define MXFS_RECOV_REFUSAL_ASSEMBLY_DISCONTINUITY_C     6u  /* */
+#define MXFS_RECOV_REFUSAL_INTENTS_UNDISCHARGED_C       8u  /* */
 #define MXFS_RECOV_DOMAIN_FSWIDE_C      1u
 #define MXFS_RECOV_DOMAIN_AG_MASK_C     2u
 #define MXFS_RECOV_OUTCOME_F_DIGEST_VALID_C  (1u << 0)
@@ -1959,7 +1959,7 @@ _Static_assert(offsetof(struct chk_recov_outcome, crc32c) == 92,
                "the outcome crc must remain the last field");
 
 /*
- * sess462 (D-FOREIGN-SLICE-INTENTS-ABANDONED item 5, increment 2): the
+ * (D-FOREIGN-SLICE-INTENTS-ABANDONED item 5, increment 2): the
  * OBLIGATION RECORD at recovery-body byte 280 (sector byte 320) and the
  * OBLIGATION LIST in the victim's rman slot zone [4 KiB, 64 KiB).  Mirrors
  * dlm/recov_obl.h byte for byte; the validation here reproduces
@@ -2077,7 +2077,7 @@ static uint32_t chk_recov_body_crc(uint32_t fs_gen, uint32_t node_id,
 
 /*
  * The verdict DIGEST an operator must quote back to authorize a repair
- * (sess377 ruling: "a generic yes must not be able to clear the wrong victim
+ * (ruling: "a generic yes must not be able to clear the wrong victim
  * or filesystem").  Bound to the filesystem UUID, the slot index and the
  * COMPLETE 512-byte guard sector, so it changes if anything about the verdict
  * or its location changes.  Two different seeds give 64 bits; this guards
@@ -2127,7 +2127,7 @@ static const char *chk_refusal_reason_name(uint16_t r)
 }
 
 /*
- * sess462: decode + print the obligation record of one guard sector.
+ * decode + print the obligation record of one guard sector.
  * Returns 1 when a valid record naming a published list (count > 0) was
  * printed (the caller may then read the list), 0 when there is no record or
  * it is empty, -1 when the record bytes are present but INVALID (reported
@@ -2202,7 +2202,7 @@ static int chk_print_obl_record(uint32_t slot, const uint8_t *sec,
 }
 
 /*
- * sess462: read + validate + print the obligation LIST a record names, from
+ * read + validate + print the obligation LIST a record names, from
  * the victim's rman slot zone.  `sec` is the guard sector (for the identity
  * the header must name).  Prints the verdict of every check; never treats a
  * failed check as "no list".
@@ -2525,7 +2525,7 @@ static int chk_print_guard(uint32_t slot, const uint8_t *sec,
     memcpy(&d, sec + MXFS_RECOV_DESC_OFF_C, sizeof(d));
     memcpy(&oc, sec + MXFS_RECOV_OUTCOME_OFF_C, sizeof(oc));
 
-    /* sess377: a RECOVERY_GUARD with NO descriptor body is NOT a damaged
+    /* a RECOVERY_GUARD with NO descriptor body is NOT a damaged
      * verdict — it is the unclaimed-bucket sweep's transient working guard.
      * mxfs_unclaimed_bucket_scan() walks b < XFS_AGI_UNLINKED_BUCKETS (64)
      * and uses the bucket index AS the disklock slot index, taking a bare
@@ -2653,14 +2653,14 @@ static int chk_print_guard(uint32_t slot, const uint8_t *sec,
     }
 
     if (desc_ok)
-        chk_print_obl_record(slot, sec, NULL);      /* sess462 */
+        chk_print_obl_record(slot, sec, NULL);      /* */
     printf("     VERDICT DIGEST    %016llX\n",
            (unsigned long long)chk_verdict_digest(fsuuid, slot, sec));
     if (slice_count_hint && slot >= slice_count_hint)
         printf("     NOTE: this slot is at or above the volume's slice count "
                "(%u) — it bears no journal.\n", slice_count_hint);
     /*
-     * sess433 (D-379 item 5): a readable guard whose descriptor is NOT
+     * (D-379 item 5): a readable guard whose descriptor is NOT
      * flagged QUARANTINED is a recovery IN PROGRESS (or stuck), not a
      * terminal verdict — return 3 so the summary classifies and advises it
      * separately instead of counting it as a quarantine and pointing the
@@ -2676,7 +2676,7 @@ static int chk_print_guard(uint32_t slot, const uint8_t *sec,
  * returns the committed epoch (0 if absent/PREPARED), errs on a
  * corrupt record. */
 /*
- * sess438: the host/boot/PR-key IDENTITY block at offset 360 of a heartbeat
+ * the host/boot/PR-key IDENTITY block at offset 360 of a heartbeat
  * record (dlm/disklock.h mxfs_hb_identity, 64 B).  crc mirrors
  * dlm/disklock.c hb_ident_crc: packed {magic, ver, key_gen, host_uuid[16],
  * boot_uuid[16], pr_key, host_src, slot, flags, fs_gen, node_id, epoch},
@@ -2715,7 +2715,7 @@ static void decode_hb_identity(const uint8_t *r, int slot)
 
     if (magic == 0) {
         uint32_t fl; memcpy(&fl, r + 4, 4);
-        /* sess493 (D-0493): a re-flagged record (GUARD, RETIRE_PENDING)
+        /* (D-0493): a re-flagged record (GUARD, RETIRE_PENDING)
          * with no identity at all is a different finding from one whose
          * identity no longer binds — say which. */
         if (fl == 3 || fl == 4)
@@ -2745,7 +2745,7 @@ static void decode_hb_identity(const uint8_t *r, int slot)
     hex_uuid(b.host, host);
     hex_uuid(b.boot, boot);
     if (want != have) {
-        /* sess493 (D-0493): a recovery GUARD is the victim's record copied
+        /* (D-0493): a recovery GUARD is the victim's record copied
          * byte for byte with only `flags` moved and the identity crc NOT
          * re-bound (dlm/disklock.c recovery_begin / fence intent), so the
          * victim's own identity is still there and binds to the flags the
@@ -2889,7 +2889,7 @@ static void check_disklock(int fd, const struct mxfs_ondisk_super *super)
             }
         }
 
-        /* sess377: `flags` is an ENUM (1 ACTIVE, 2 WITHDRAWN, 3
+        /* `flags` is an ENUM (1 ACTIVE, 2 WITHDRAWN, 3
          * RECOVERY_GUARD), never a bitmask.  The old `hflags &
          * MXFS_DISKLOCK_FLAG_ACTIVE` test reported a quarantined slot
          * (flags==3) as a LIVE MEMBER, which is exactly backwards: a guard is
@@ -2902,13 +2902,13 @@ static void check_disklock(int fd, const struct mxfs_ondisk_super *super)
         case MXFS_DISKLOCK_FLAG_ACTIVE:
             active++;
             info("disklock HB slot %d: ACTIVE (node_id=%u)", i, node_id);
-            decode_hb_identity(buf, i);         /* sess438 */
+            decode_hb_identity(buf, i);         /* */
             break;
         case MXFS_DISKLOCK_FLAG_WITHDRAWN_C:
             withdrawn++;
             info("disklock HB slot %d: WITHDRAWN (node_id=%u) — dirty slice "
                  "awaiting fence+replay", i, node_id);
-            decode_hb_identity(buf, i);         /* sess438 */
+            decode_hb_identity(buf, i);         /* */
             break;
         case MXFS_DISKLOCK_FLAG_RETIRE_PENDING_C:
             withdrawn++;
@@ -2916,7 +2916,7 @@ static void check_disklock(int fd, const struct mxfs_ondisk_super *super)
                  "release awaiting proof its PR key is retired (a live "
                  "peer's READ KEYS settles it; key present past the grace "
                  "-> WITHDRAWN + fence)", i, node_id);
-            decode_hb_identity(buf, i);         /* sess450 */
+            decode_hb_identity(buf, i);         /* */
             break;
         case MXFS_DISKLOCK_FLAG_RECOVERY_GUARD_C:
             guards++;
@@ -3056,7 +3056,7 @@ static int check_xfs_superblock(int fd, const struct mxfs_ondisk_super *super,
          features_ro_compat,
          (features_ro_compat & XFS_SB_FEAT_RO_COMPAT_FINOBT) ? "yes" : "no");
 
-    /* sess466: the directory-sharding gates must agree — XFS sb incompat
+    /* the directory-sharding gates must agree — XFS sb incompat
      * bit 29 (sb_features_incompat at 0xD8) and the envelope flag
      * (docs/dir-sharding.md "THREE GATES"). */
     {
@@ -4503,7 +4503,7 @@ static void orphan_walk_chain(int fd, const struct xfs_geo *geo,
         }
         orphan_push(members, ((uint64_t)agno << (geo->agblklog + geo->inopblog))
                              | agino);
-        /* sess389: -v names every chain member — the on-disk AGI chain-walk
+        /* -v names every chain member — the on-disk AGI chain-walk
          * audit (design-consult ruling) needs the ino/mode/nlink/gen of each
          * leftover so its unlink trail can be found in the nodes' logs. */
         if (verbose)
@@ -4514,7 +4514,7 @@ static void orphan_walk_chain(int fd, const struct xfs_geo *geo,
                         (geo->agblklog + geo->inopblog)) | agino),
                  agino, get_be16(ibuf + 0x02), get_be32(ibuf + 0x10),
                  get_be32(ibuf + 0x44), get_be32(ibuf + 0x60));
-        /* sess408 (D-FREPLAY-VICTIM-INODE-CORE-NOT-APPLIED-BUCKET-TO-ZERO-CORE-408):
+        /* (D-FREPLAY-VICTIM-INODE-CORE-NOT-APPLIED-BUCKET-TO-ZERO-CORE-408):
          * a chain member whose core is FREE (di_mode 0) is corruption, not a
          * pending-reap zombie.  XFS links an inode into a bucket in the same
          * transaction that writes its allocated core, and unlinks it in the
@@ -4578,7 +4578,7 @@ static void orphan_collect_leaf(int fd, const struct xfs_geo *geo,
                     agno, startino + i, get_be16(dip + 0x00));
                 continue;
             }
-            /* sess409 (D-FREPLAY-VICTIM-INODE-CORE-NOT-APPLIED-BUCKET-TO-
+            /* (D-FREPLAY-VICTIM-INODE-CORE-NOT-APPLIED-BUCKET-TO-
              * ZERO-CORE-408, design-consult verification item "inobt allocated
              * implies a valid allocated dinode core"): dialloc clears the
              * inobt free bit and xfs_inode_init sets di_mode in ONE
@@ -4894,7 +4894,7 @@ static void print_summary(int fd, const struct xfs_geo *geo,
            (unsigned long long)allocated);
 }
 
-/* ─── Directory sharding (sess466, docs/dir-sharding.md) ─── */
+/* ─── Directory sharding (docs/dir-sharding.md) ─── */
 
 /*
  * SipHash-2-4 reference mirror (the kernel uses <linux/siphash.h>; both
@@ -6405,7 +6405,7 @@ out:
 /* ─── Usage ─── */
 
 /*
- * sess42 C7 version gate — offline format upgrade (-U / --upgrade-protogate).
+ * C7 version gate — offline format upgrade (-U / --upgrade-protogate).
  *
  * Stamps a legacy MXFS format with the protocol gate so pre-gate kernels can
  * no longer mount it and gate-aware kernels admit it RW:
@@ -6425,7 +6425,7 @@ out:
 
 /* ─── SHA-256 (FIPS 180-4), self-contained ──────────────────────────────────
  *
- * The sess377 ruling asked for a cryptographic digest over the archived
+ * The ruling asked for a cryptographic digest over the archived
  * evidence: the two-seed CRC32C verdict digest is a fine wrong-token detector
  * but is not tamper-resistant, and an archive that outlives the filesystem it
  * describes is an audit artefact.  chk_mxfs is deliberately a single-file
@@ -6546,7 +6546,7 @@ static void sha256_hex(const uint8_t d[32], char out[65])
 /*
  * --show-quarantine — read the terminal recovery verdicts off the platter.
  *
- * D-QUARANTINED-SLOT-EXHAUSTS-CLUSTER-ADMISSION-376, sess377 design-consult ruling
+ * D-QUARANTINED-SLOT-EXHAUSTS-CLUSTER-ADMISSION-376, design-consult ruling
  * step 1 of the repair state machine ("validate and display": print volume
  * UUID, slice/slot, victim identity, incarnation, PR key, fence kind, refusal
  * reason, quarantine domain and digest; require confirmation tied to that
@@ -6568,7 +6568,7 @@ static int do_show_quarantine(const char *device)
     uint32_t slot, slice_count;
     int n_guard = 0, n_active = 0, n_withdrawn = 0, n_other = 0;
     int n_outofrange = 0, n_readable = 0, n_unreadable = 0, n_sweepguard = 0;
-    int n_inprogress = 0;   /* sess433 (D-379 item 5) */
+    int n_inprogress = 0;   /* (D-379 item 5) */
     int n_released = 0;
     int rc = 4;
 
@@ -6677,13 +6677,13 @@ static int do_show_quarantine(const char *device)
                 if (slot >= slice_count)
                     n_outofrange--;   /* legitimate up here — see below */
             } else if (gr == 3) {
-                n_inprogress++;       /* sess433: recovery guard, not a verdict */
+                n_inprogress++;       /* recovery guard, not a verdict */
             } else {
                 n_guard++;
                 if (gr == 1)
                     n_readable++;
             }
-            /* sess462: a readable guard may name an obligation list */
+            /* a readable guard may name an obligation list */
             if (gr == 1 || gr == 3) {
                 struct chk_recov_obl ob;
 
@@ -6695,7 +6695,7 @@ static int do_show_quarantine(const char *device)
             break;
         }
         case 0:  /* MXFS_DISKLOCK_FLAG_EMPTY */
-            /* sess377: a CLEANLY RELEASED slot keeps the MXLK magic and
+            /* a CLEANLY RELEASED slot keeps the MXLK magic and
              * carries flags == EMPTY.  It is free, not damaged — reporting it
              * as an "unknown record" made a healthy fully-departed cluster
              * look like it had 31 corrupt sectors. */
@@ -6758,7 +6758,7 @@ static int do_show_quarantine(const char *device)
     }
     if (n_inprogress) {
         /*
-         * sess433 (D-379 item 5): a guard at stage 1 whose fence certificate
+         * (D-379 item 5): a guard at stage 1 whose fence certificate
          * is kind 0/6 (NONE / KEY_ABSENT_UNPROVEN) is a recovery that cannot
          * advance by itself; while it stands the mount admission barrier
          * refuses EVERY new mount of this volume (it requires the slice
@@ -6804,7 +6804,7 @@ out:
 
 /* ─── Exclusion proofs for the offline quarantine repair ────────────────────
  *
- * sess377 ruling: "'every node unmounted' is necessary but NOT sufficient …
+ * ruling: "'every node unmounted' is necessary but NOT sufficient …
  * absence of fresh heartbeat records is not proof of exclusion."  Three
  * independent proofs are required before anything destructive happens, and
  * every one of them fails CLOSED:
@@ -6823,7 +6823,7 @@ out:
 
 /* ─── Backing-device disjointness for --archive-to ──────────────────────────
  *
- * sess377 ruling: the archive destination must be "proven disjoint from every
+ * ruling: the archive destination must be "proven disjoint from every
  * backing device of the repair target; inability to establish disjointness is
  * an error".  Resolve both sides to their set of LEAF block devices by walking
  * /sys/dev/block/<maj>:<min>/slaves recursively — that unwinds device-mapper,
@@ -7053,7 +7053,7 @@ static int chk_archive_dest_disjoint(const char *device, int destdirfd,
  *
  * The way out is not "clear the slot".  It is the operator ACCEPTING that the
  * refused slice's committed transactions are lost.  The command is named for
- * that, and the sess377 design-consult ruling fixes its shape:
+ * that, and the design-consult ruling fixes its shape:
  *
  *   THE CENTRAL INVARIANT — a quarantined slice remains UNASSIGNABLE until
  *   loss acceptance, slice invalidation, the required consistency repair and
@@ -7660,7 +7660,7 @@ static int do_upgrade_protogate(int fd)
         return 4;
 
     /* ── step 2: envelope gate first ── */
-    /* sess404: gen 7 needs the recovery manifest REGION, which only mkfs can
+    /* gen 7 needs the recovery manifest REGION, which only mkfs can
      * lay out (it sits between disklock and the XFS data; there is no room to
      * carve it in place).  Refuse rather than gate a volume that cannot hold
      * a victim's manifest. */
@@ -7672,7 +7672,7 @@ static int do_upgrade_protogate(int fd)
                 (unsigned)MXFS_PROTO_GEN);
         return 4;
     }
-    /* sess421: gen 8 needs the TCP authority ledger region too. */
+    /* gen 8 needs the TCP authority ledger region too. */
     if (!(sup.flags & MXFS_FORMAT_F_TAUTH)) {
         fprintf(stderr,
                 "upgrade: this volume has no TCP authority ledger region "
@@ -7681,7 +7681,7 @@ static int do_upgrade_protogate(int fd)
                 (unsigned)MXFS_PROTO_GEN);
         return 4;
     }
-    /* sess438: gen 12 needs the PR registrant ledger region too. */
+    /* gen 12 needs the PR registrant ledger region too. */
     if (!(sup.flags & MXFS_FORMAT_F_PRKEY64)) {
         fprintf(stderr,
                 "upgrade: this volume has no PR registrant ledger region "
@@ -7690,7 +7690,7 @@ static int do_upgrade_protogate(int fd)
                 (unsigned)MXFS_PROTO_GEN);
         return 4;
     }
-    /* sess439: gen 13 needs the bootstrap record region too. */
+    /* gen 13 needs the bootstrap record region too. */
     if (!(sup.flags & MXFS_FORMAT_F_BOOTSTRAP)) {
         fprintf(stderr,
                 "upgrade: this volume has no bootstrap record region "
@@ -7767,7 +7767,7 @@ static int do_upgrade_protogate(int fd)
 }
 
 /*
- * sess444 (D-ICREATE-REPLAY-REINIT-CLOBBERS-PEER-INODES-0510 negative arm):
+ * (D-ICREATE-REPLAY-REINIT-CLOBBERS-PEER-INODES-0510 negative arm):
  * print where an inode lives on the IMAGE — absolute byte offset of its
  * dinode and of the inode cluster buffer that contains it, envelope-aware
  * (xfs_data_offset added).  The harness zeroes the dinode magic there,
@@ -7895,7 +7895,7 @@ static int do_geometry(const char *device)
  *
  * 0.89.7 (ledger D-A-HARNESS-CAN-MEASURE-THE-WRONG-DEVICE-AND-REPORT-IT-AS-
  * MXFS, s70): tests/d_intents_2tcp_open_efi.sh asked its free queries of the
- * host image /home/steve/disk.img, which on the qnap rig is the OTHER rig's
+ * host image ~/disk.img, which on the qnap rig is the OTHER rig's
  * filesystem, and asserted "every obligation extent reads FREE on the
  * platter" from that well-formed answer about the wrong device.  The query
  * belongs on a node against the resolved LUN, and the node that has the
@@ -8121,7 +8121,7 @@ int main(int argc, char **argv)
             } else if (strcmp(a, "--query-only") == 0) {
                 query_only = true;
             } else if (strcmp(a, "--dirshard-hash") == 0 && ai + 2 < argc) {
-                /* sess466: no device — routing hash cross-check */
+                /* no device — routing hash cross-check */
                 return dirshard_hash_cmd(argv[ai + 1], argv[ai + 2]);
             } else if (strcmp(a, "--bootstrap") == 0) {
                 show_bootstrap = true;
@@ -8332,10 +8332,10 @@ int main(int argc, char **argv)
     /* 3. Disklock */
     check_disklock(fd, &super);
 
-    /* 3b. TCP authority ledger (sess421) */
+    /* 3b. TCP authority ledger */
     check_tauth(fd, &super);
-    check_prledger(fd, &super);         /* sess438 */
-    check_bootstrap(fd, &super);        /* sess439 */
+    check_prledger(fd, &super);         /* */
+    check_bootstrap(fd, &super);        /* */
     check_slife(fd, &super);            /* 0.88.0 */
 
     /* 4. XFS superblock */
@@ -8391,7 +8391,7 @@ int main(int argc, char **argv)
     check_orphan_inodes(fd, &geo);
 
     /* 7c. Directory sharding: PARENT -> locator -> holder -> manifest block
-     * -> containers; no unreferenced containers (sess466). */
+     * -> containers; no unreferenced containers. */
     check_dirshard(fd, &geo);
 
     /* 7d. Directory entries: every name resolves to an allocated inode

@@ -17,9 +17,9 @@
       "verify_tests": "install both .debs from the built packages; DKMS builds on every installed PVE kernel; for EACH claimed kernel (pinned with proxmox-boot-tool, rebooted into): mount with no options on both nodes; cross-node checksums; create/remote-delete counts; chk_mxfs clean; peer= with multicast blocked; peers=; pvesm add/status/remove holds one mount; O_DIRECT read on a stable-writes device; reboot on that kernel, module auto-loaded, remount, earlier data intact (KERNEL=<krel> tests/packaged_round.sh pve9, once per claimed kernel)",
       "verified": {
         "amd64": {
-          "version": "0.89.89",
-          "date": "2026-09-24",
-          "evidence": "tests/evidence/packaged_round/pve9_0.89.89_20260924T212811/ tests/evidence/packaged_round/pve9_0.89.89_20260924T213516/"
+          "version": "0.89.90",
+          "date": "2026-09-25",
+          "evidence": "tests/evidence/packaged_round/pve9_0.89.90_20260925T002007/ tests/evidence/packaged_round/pve9_0.89.90_20260925T002700/"
         }
       },
       "priority": 4,
@@ -42,9 +42,9 @@
       "notes": "The development rig's platform.",
       "verified": {
         "amd64": {
-          "version": "0.89.89",
-          "date": "2026-09-24",
-          "evidence": "tests/evidence/packaged_round/ubuntu2404_0.89.89_20260924T212033/ tests/evidence/full_verify_0.89.89.log"
+          "version": "0.89.90",
+          "date": "2026-09-25",
+          "evidence": "tests/evidence/packaged_round/ubuntu2404_0.89.90_20260925T001248/ tests/evidence/full_verify_0.89.90.log"
         }
       },
       "priority": 1,

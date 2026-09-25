@@ -232,7 +232,7 @@ mxfs_file_yield_gate(const struct xfs_inode *ip, int mode)
 	     * a self-deadlock the demote-wait only breaks with its 3 s
 	     * rescue polls.  MEASURED (board s522o, 0.75.39):
 	     * dir_reuse_coherency BARRIER_TIMEOUT 116 s with test2 printing
-	     * P-FILE-YIELD ino=8927045 req=5 ex=1 every ~3 s.  The sess4
+	     * P-FILE-YIELD ino=8927045 req=5 ex=1 every ~3 s.  The
 	     * nested-hold breaker admits this case at state BAST; the mode
 	     * fast path keeps admitting it at DEMOTING as before 0.75.39.
 	     */
@@ -307,7 +307,7 @@ MODULE_PARM_DESC(dir_grant_evict,
 	"force-evict a clean in-AIL dir block whose b_mxfs_grant_gen lags the "
 	"inode's cached grant gen (prior-tenure stale base); 1=on default");
 
-int mxfs_dir_gen_evict;	/*  DEFAULT 0 (A/B lever pending validation). Force-evict a clean in-AIL dir DATA/BLOCK block whose b_mxfs_dir_gen (stamped ONLY at cold read time) lags the inode's current i_dlm_dir_gen -- the exact dc_stale predicate the write-side clobber guards (dir_ex_write_guard/dataclobber/dir_reintro_probe) already trust, but which incarn_aba/new_tenure/prior_tenure/grant_stale_base (keyed on other fields) do not cover. Targets cache_coherency@32 "uv gone" (Case B dangling dirent): P-REINTRO proved a bgen<dirgen block reaches destage with stale content because eviction never forced its re-read before the RMW captured it. See the P-GENEVICT site comment for the sess5-relepoch-regression safety analysis (why this field, unlike relepoch, cannot false-fire against in-flight same-tenure work). */
+int mxfs_dir_gen_evict;	/*  DEFAULT 0 (A/B lever pending validation). Force-evict a clean in-AIL dir DATA/BLOCK block whose b_mxfs_dir_gen (stamped ONLY at cold read time) lags the inode's current i_dlm_dir_gen -- the exact dc_stale predicate the write-side clobber guards (dir_ex_write_guard/dataclobber/dir_reintro_probe) already trust, but which incarn_aba/new_tenure/prior_tenure/grant_stale_base (keyed on other fields) do not cover. Targets cache_coherency@32 "uv gone" (Case B dangling dirent): P-REINTRO proved a bgen<dirgen block reaches destage with stale content because eviction never forced its re-read before the RMW captured it. See the P-GENEVICT site comment for the relepoch-regression safety analysis (why this field, unlike relepoch, cannot false-fire against in-flight same-tenure work). */
 module_param_named(dir_gen_evict, mxfs_dir_gen_evict, int, 0644);
 MODULE_PARM_DESC(dir_gen_evict,
 	"force-evict a clean in-AIL dir DATA/BLOCK block whose b_mxfs_dir_gen "
@@ -1272,7 +1272,7 @@ mxfs_dir_evict_data_blocks(struct xfs_inode *ip)
 				 * 0/8.  The acquire-side disk-compare is structurally racy
 				 * anyway (peer's newer write often not yet on the LUN at our
 				 * evict moment) — the fix belongs on the RELEASE side.  See
-				 * `docs/history/docs/history/docs/history/sess16run-acquire-side-refresh-cannot-work-must-be-release-side.md`. */
+				 * `docs/history/sess16run-acquire-side-refresh-cannot-work-must-be-release-side.md`. */
 
 				if (!dr_refreshed)
 					all_evicted = false;

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
  * unowned_page_test — D-TCP-ROOT-INODE-LOCK-RETRY-EXHAUSTION-DURING-RAMP-0345
- * instrument step 2, in usermode (sess426).
+ * instrument step 2, in usermode.
  *
  * Rig shape (32/tcp, 0.35.3 s427 token stage, tests/evidence/sess425_s427_dmesg):
  * the AG-1/2/3/33 EX requests of one node were answered REMASTER 60/60 by

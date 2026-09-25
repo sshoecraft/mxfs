@@ -7,8 +7,8 @@
  * — D-32NODE-SHARED-DIR-CREATE-PACE (board face D-401), on the
  * critical path of D-FOREIGN-REPLAY-UNGATED-IMAGES since.
  * Design: docs/dir-sharding.md.  Format: include/mxfs/mxfs_dirshard.h.
- * Rulings: ccmemory ccloop-c7ee71c6-sess463-GPT-ruling-dirshard-stage1-2-
- * concrete-shape and ccloop-c7ee71c6-sess464-GPT-ruling-dirshard-manifest-
+ * Rulings: dirshard-stage1-2-
+ * concrete-shape and dirshard-manifest-
  * block-S3-amendment.
  *
  * LOCK ORDER (documented for lockdep, ruling Q3):

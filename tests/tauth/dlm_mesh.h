@@ -36,7 +36,7 @@ struct vnode {
     mxfs_cond_t     *qcond;
     struct vmsg     *head, *tail;
     mxfs_thread_t   *rx;
-    mxfs_thread_t   *tick;              /* sess423: handoff + release ticks */
+    mxfs_thread_t   *tick;              /* handoff + release ticks */
     volatile int     stop;
     /* knobs / observations */
     volatile int     drop_grants;       /* drop this many inbound GRANTs */
@@ -190,7 +190,7 @@ static void vrx_fn(void *arg)
     }
 }
 
-/* sess423 (step 4): the mount layer's callbacks.  bootstrap = this node
+/* (step 4): the mount layer's callbacks.  bootstrap = this node
  * holds the lowest heartbeat slot of the current view (the disklock
  * arbitration); node_inc = the disklock table's incarnation for a node. */
 /* D-0347 knob: every node believes it is the bootstrap node (a falsely-dead
@@ -227,7 +227,7 @@ static bool vbootstrap(void *data)
     return true;
 }
 
-/* sess426 (D-0345): who the bootstrap node is — lowest slot of the view */
+/* (D-0345): who the bootstrap node is — lowest slot of the view */
 static mxfs_node_id_t vbootstrap_node(void *data, uint64_t *inc_out)
 {
     struct vnode *best = NULL;
@@ -313,7 +313,7 @@ static struct vnode *node_up(int idx, mxfs_node_id_t id, uint64_t inc, uint16_t 
         n->ledger_open = 1;
         mxfs_dlm_attach_ledger(n->dlm, &n->ledger, inc, slot);
     } else {
-        /* sess427 (D-0348 step 2): a ledger-less member still routes by
+        /* (D-0348 step 2): a ledger-less member still routes by
          * the REGION's geometry (it read the header; it just holds no
          * active ledger) — otherwise its view of who masters what
          * diverges from the cluster's. */

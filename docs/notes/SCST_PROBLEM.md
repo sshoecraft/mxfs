@@ -7,7 +7,7 @@ This is the iSCSI target serving the MXFS test cluster on host **clyde**.
 ## How the rig is wired (context)
 
 - clyde runs SCST with the `vdisk_fileio` handler exporting ONE shared backing
-  device **disk1 = `/home/steve/disk-1.img`** (20G), `write_through 1`,
+  device **disk1 = `~/disk-1.img`** (20G), `write_through 1`,
   `nv_cache 0`. Config: `/etc/scst.conf`.
 - That one device is published through 16 iSCSI targets
   (`iqn.2026-05.local.mxfs:disk1`, `:disk1n2` … `:disk1n16`), each mapping

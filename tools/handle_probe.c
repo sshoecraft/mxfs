@@ -2,7 +2,7 @@
 /*
  * handle_probe — name_to_handle_at / open_by_handle_at probe for MXFS.
  *
- * sess470 (D-0527): xfs_nfs_get_inode decodes a file handle with an
+ * (D-0527): xfs_nfs_get_inode decodes a file handle with an
  * XFS_IGET_UNTRUSTED iget, whose xfs_imap_lookup consults this node's cached
  * AGI/inobt WITHOUT the AG DLM lock.  A handle minted on the node that
  * allocated the inode therefore decodes on a peer only if the peer's cached

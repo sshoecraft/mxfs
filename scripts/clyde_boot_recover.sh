@@ -14,7 +14,7 @@
 #   3. waits for the /src NFS mount
 #   4. resumes the ccloop run given as $1 (or the RUN_ID baked below)
 RUN_ID="${1:-14d31183-faba-4a50-9608-1cd024839b53}"
-LOG=/home/steve/clyde_boot_recover.log
+LOG="$HOME/clyde_boot_recover.log"
 exec >>"$LOG" 2>&1
 echo "=== clyde_boot_recover $(date -u +%Y-%m-%dT%H:%M:%SZ) run=$RUN_ID ==="
 
@@ -54,5 +54,5 @@ echo "nfs: $(df -h /src/mxfs 2>/dev/null | tail -1)"
 # 4. resume the ccloop run headlessly
 cd /src/mxfs || exit 1
 export PATH="$HOME/.local/bin:$HOME/bin:/usr/local/bin:/usr/bin:/bin"
-setsid nohup ccloop --resume-run "$RUN_ID" >/home/steve/ccloop_resume.log 2>&1 &
+setsid nohup ccloop --resume-run "$RUN_ID" >"$HOME/ccloop_resume.log" 2>&1 &
 echo "ccloop resume launched (pid $!)"

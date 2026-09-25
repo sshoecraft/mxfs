@@ -75,7 +75,7 @@
 
 /*
  * THE ADOPTED-SLICE ESCROW (docs/whole-cluster-restart.md §6.5,
- * Design-consult ruling ccmemory ccloop-c7ee71c6-sess441-GPT-ruling-item5d-adopt-one-
+ * Design-consult ruling item5d-adopt-one-
  * slice).  After phase 3 the owner needs a heartbeat slot and a journal
  * slice of its own to run xfs_log_mount — under full occupancy the only
  * slots are the victims'.  It adopts ONE certified class-2 victim slot K:

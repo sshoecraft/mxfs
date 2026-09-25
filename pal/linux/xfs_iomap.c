@@ -109,7 +109,7 @@ xfs_iomap_valid(
 	 * lap cannot ask any other way.  Not rate-limited but ONCE — a per-write
 	 * census of a passing check is noise on the write path.
 	 */
-	pr_info_once("mxfs: P312-IOMAP-REVALIDATED ino=%llu pos=%lld cookie=0x%llx — the mapping revalidation hook is installed and iomap is calling it\n",
+	mxfs_probe_once("mxfs: P312-IOMAP-REVALIDATED ino=%llu pos=%lld cookie=0x%llx — the mapping revalidation hook is installed and iomap is calling it\n",
 		     (unsigned long long)ip->i_ino, (long long)iomap->offset,
 		     (unsigned long long)iomap->validity_cookie);
 
@@ -2354,7 +2354,7 @@ xfs_read_iomap_begin(
 	 * peer reads a renamed file's content as '' under 4-node concurrent
 	 * rename+read = stale EMPTY extent map on a reused inode) needs a SAFE
 	 * non-blocking refresh of the extent map — NOT an in-read EXCL/reload.
-	 * See state.md / sess46_lessons.md for the narrowed diagnosis.
+	 *
 	 *
 	 * P104 DETECTOR (always-on, ratelimited, NON-BLOCKING — no lock,
 	 * no reload): fires exactly on the failing anomaly — a multi-node

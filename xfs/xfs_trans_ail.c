@@ -1111,7 +1111,7 @@ xfs_log_item_in_ag(
  *
  * Differs from v0.3.141-142's bounded timeout (which proceeded
  * to release after timeout, causing Mode A): on -EAGAIN, the caller
- * MUST NOT release.  Sess27 finding "bounded per-AG drain is unsafe"
+ * MUST NOT release.  Finding "bounded per-AG drain is unsafe"
  * referred to release-after-bound, not abort-after-bound.
  */
 #include <linux/sched/debug.h>	/* sched_show_task */
@@ -1425,7 +1425,7 @@ xfs_ail_push_ag_sync(
 	/*
 	 * Legacy unbounded wrapper around xfs_ail_push_ag_sync_bounded.
 	 * stall_iters=0 disables the stall-abort behavior, preserving
-	 * pre-sess33 semantics.  Used by mxfs_dlm_bast_process (inode
+	 * earlier semantics.  Used by mxfs_dlm_bast_process (inode
 	 * BAST drain) where the caller cannot reasonably abort.
 	 */
 	(void)xfs_ail_push_ag_sync_bounded(ailp, agno, 0, 0, 0);

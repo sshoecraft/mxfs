@@ -25,7 +25,7 @@ module_param_named(dir_modify_target_flush, mxfs_dir_modify_target_flush, int, 0
  * dir_reuse@8/tcp r2 leaf-hash lookup_fail got=127) reproduced 1-in-5 on
  * v0.11.82 with this OFF and 0-in-3 (same pace, 101-102s) with it ON.  The
  * once-per-tenure union-only rebuild (see xfs_dir2.c consumption site) is the
- * sess26-designed countermeasure; every-create variants were the perturbing
+ * designed countermeasure; every-create variants were the perturbing
  * ones, not this gating. */
 int mxfs_dir_leaf_rebuild = 1;
 module_param_named(dir_leaf_rebuild, mxfs_dir_leaf_rebuild, int, 0644);
@@ -741,7 +741,7 @@ module_param_named(dir_sf_rebase, mxfs_dir_sf_rebase, int, 0644);
 int mxfs_dir_sf_rebase_ownskip = 1;	/* default ON. legacy plain-skip of rebase while dir holds un-checkpointed own work (only used when merge OFF). */
 module_param_named(dir_sf_rebase_ownskip, mxfs_dir_sf_rebase_ownskip, int, 0644);
 /*
- * ccloop c7ee71c6 sess19 (instrumented, BYTE-EXACT PROOF — fence_during_write @32/caw,
+ *  (instrumented, BYTE-EXACT PROOF — fence_during_write @32/caw,
  * dir .fence_during_write ino=56623232, tests/logs/fdw_32caw_20260728_120403):
  * the wholesale REBASE below adopts the on-disk shortform image with NO test
  * that it is not OLDER than the coherent in-core fork.  Captured chain on
@@ -771,7 +771,7 @@ module_param_named(dir_sf_rebase_ownskip, mxfs_dir_sf_rebase_ownskip, int, 0644)
  * verdict, and the same predicate, the reload path already reaches).
  *
  * NOT a content union: a clean fork legitimately differs from a NEWER disk
- * image by entries a peer REMOVED, and unioning those back is the sess56
+ * image by entries a peer REMOVED, and unioning those back is the
  * durable resurrection.  The changecount is what distinguishes "disk is
  * behind us" from "disk is ahead of us"; only the first case is refused.
  */
@@ -1836,14 +1836,14 @@ MODULE_PARM_DESC(dir_force_block,
 	"force new multinode dirs to block format at mkdir: 1=on (default), 0=off. "
 	"Eliminates cross-node sf->block CONVERSION divergence (two nodes "
 	"independently converting a fresh shared shortform dir -> logical block0 "
-	"split -> durable dirent loss). sess44's feared regression (force_block keeps "
+	"split -> durable dirent loss). feared regression (force_block keeps"
 	"a dir BLOCK in-core while a peer converts it to SHORTFORM on disk -> "
 	"P43B-overrides-P34D format divergence -> bnobt double-free shutdown) NO "
-	"LONGER OCCURS: the sess49 P43 soundness gate (fmtrevert-skip gated on "
+	"LONGER OCCURS: the P43 soundness gate (fmtrevert-skip gated on"
 	"dfr_dirty || EX) lets a clean PR/NL cacher adopt a peer's durable shortform "
-	"shrink. sess67 (ccloop 4cb2d0a2) PROVED on=1 -> full ./run.sh 2 tcp = 17/17 "
+	"shrink. PROVED on=1 -> full ./run.sh 2 tcp = 17/17"
 	"PASS (build 621FD271/EE5F752F), incl. dlm_fairness + cache_coherency. NOTE: "
-	"force_block must run WITHOUT dir_merge=1 (merge alone caused sess65's "
+	"force_block must run WITHOUT dir_merge=1 (merge alone caused"
 	"corruption, NOT force_block).");
 
 /* True when a freshly-created directory dp should be forced to block format. */
@@ -2531,7 +2531,7 @@ EXPORT_SYMBOL(mxfs_dir_reconcile_stale_data_blocks);
 int mxfs_dir_postrmw_probe_enabled;
 module_param_named(dir_postrmw_probe, mxfs_dir_postrmw_probe_enabled, int, 0644);
 MODULE_PARM_DESC(dir_postrmw_probe,
-	"sess32 A-vs-B probe: after create RMW, log disk-extra dirents the in-core "
+	"A-vs-B probe: after create RMW, log disk-extra dirents the in-core"
 	"block lacks (proves stale-base-RMW vs writeback-ABA): 1=on");
 
 void
@@ -3108,12 +3108,12 @@ mxfs_dir_drain_evict_data_blocks(struct xfs_inode *ip)
 		pinned = xfs_buf_ispinned(dbp);
 
 		/*
-		 * sess97 ACQUIRE INVALIDATION FENCE (GPT design, design-consult).
+		 * ACQUIRE INVALIDATION FENCE (design review, design-consult).
 		 * Wait out the async unpin tail for a pin-ONLY block, UNBOUNDED.
 		 * The OLD 50-iter (~100ms) bound gave up (P-ACQ-DRAIN-SKIP) while
 		 * the block was still pin-tailed, so the node KEPT a stale cached
 		 * dir block and RMW'd its own create/delete onto it — clobbering a
-		 * peer's concurrently-committed dirent (the proven sess96
+		 * peer's concurrently-committed dirent (the proven
 		 * lost-update; the unlink_visibility "deleted file resurrected"
 		 * residual: node B removes its dirent from a STALE base that still
 		 * lists node A's already-removed dirent, resurrecting A's file).
@@ -3121,9 +3121,9 @@ mxfs_dir_drain_evict_data_blocks(struct xfs_inode *ip)
 		 * node's own already-committed work whose CIL unpin tail just hasn't
 		 * fired; xfs_log_force drives the commit, then we wait for the unpin
 		 * so we can cleanly evict it (clearing XBF_DONE on a pinned buffer
-		 * corrupts — sess64).  Runs off the CAW poll thread (slow-path
+		 * corrupts —).  Runs off the CAW poll thread (slow-path
 		 * acquire, process ctx), so blocking is safe.
-		 * sess97 PERF REVERT: the unbounded variant (15000 iters +
+		 * PERF REVERT: the unbounded variant (15000 iters +
 		 * log_force every 16) caused a 5.5x unlink slowdown (28s→155s) by
 		 * spinning on pin-tailed blocks under heavy concurrent-unlink CIL
 		 * pressure, and it did NOT fix the unlink loss (that is a write-side
@@ -3150,7 +3150,7 @@ mxfs_dir_drain_evict_data_blocks(struct xfs_inode *ip)
 
 		/*
 		 * v0.5.2 (PROVEN BY INSTRUMENT, solo-rsync error-117 forensics): the
-		 * sess101 "evict in-AIL/dirty/delwri too" policy below was
+		 * "evict in-AIL/dirty/delwri too" policy below was
 		 * justified by publish-before-notify (every committed dir
 		 * change durable on the LUN before any peer gen bump).
 		 * durable_signal is now PUBLISH-ONLY (no disk I/O), so a
@@ -3164,7 +3164,7 @@ mxfs_dir_drain_evict_data_blocks(struct xfs_inode *ip)
 		 * xfs_da_read_buf hook: an in-AIL buffer whose last mods are
 		 * already destaged is safe to refresh; committed-unwritten
 		 * work is skipped (the skip branch keeps loaded_gen back so
-		 * the refresh retries after the AIL push).  The sess101
+		 * the refresh retries after the AIL push).  The
 		 * lost-update cannot recur from this guard: a genuine peer
 		 * modification implies WE released EX first, and the release
 		 * drain (invariant #1) destages our blocks out of the AIL —
@@ -3184,18 +3184,18 @@ mxfs_dir_drain_evict_data_blocks(struct xfs_inode *ip)
 		if ((dbp->b_flags & XBF_DONE) && !pinned && !dirty && !delwri &&
 		    !mxfs_dir_buf_is_undestaged(dbp)) {
 			/*
-			 * sess101 ROOT FIX (Gemini design-consult, reconciled the
-			 * sess96/99 vs sess69 contradiction): EVICT in-AIL / dirty /
+			 * ROOT FIX (design review design-consult, reconciled the
+			 * /99 vs contradiction): EVICT in-AIL / dirty /
 			 * delwri dir blocks too — only PINNED is a hard skip.
 			 *
-			 * The sess99 "aggressive acquire cold-read returns stale
+			 * The "aggressive acquire cold-read returns stale
 			 * SCST content" regression PREDATED publish-before-notify:
 			 * back then the releaser unlocked before its data fenced to
 			 * the SCST media, so a cold-read genuinely raced an
 			 * unflushed write.  publish-before-notify (xfs_bwrite +
 			 * blkdev_issue_flush, EX held, post-commit) now fences every
 			 * committed dir change to the LUN BEFORE a peer is told, so a
-			 * plain cold-read reliably observes the durable image (sess69
+			 * plain cold-read reliably observes the durable image (
 			 * PROVED raw O_DIRECT reads are byte-identical across
 			 * initiators = transport coherent).
 			 *
@@ -3208,7 +3208,7 @@ mxfs_dir_drain_evict_data_blocks(struct xfs_inode *ip)
 			 * ENOENTs a CONTIGUOUS RANGE of files it created, because a
 			 * peer clobbered them from a stale base).
 			 *
-			 * SAFETY (Gemini): clearing XBF_DONE on a clean-but-in-AIL
+			 * SAFETY (design review): clearing XBF_DONE on a clean-but-in-AIL
 			 * buffer is safe — the BLI stays attached, the AIL keeps the
 			 * old LSN (whose data is already durable via
 			 * publish-before-notify), the next read cold-fetches the
@@ -3216,7 +3216,7 @@ mxfs_dir_drain_evict_data_blocks(struct xfs_inode *ip)
 			 * buffer (advancing the BLI).  We must NOT xfs_buf_stale()
 			 * (drops the rhashtable entry while the AIL still refs it ->
 			 * ghost/duplicate buf cache corruption).  We must NOT clear
-			 * DONE on a PINNED buffer (sess64 corruption) — the bounded
+			 * DONE on a PINNED buffer (corruption) — the bounded
 			 * drain loop above already log_force'd + waited the pin tail;
 			 * a still-pinned block is left for the next acquire.
 			 *
@@ -3539,7 +3539,7 @@ MODULE_PARM_DESC(dir_priv_ex_skip,
  * loading the iext tree only READS committed disk state (local EXCL
  * still serializes the in-core build).  Kills the post-adopt lookup
  * cluster-EX that starved 3x120s -> rc=-110 -> FS shutdown on 12/32
- * nodes in cache_coherency@32's read-only verify.  0 = pre-sess1
+ * nodes in cache_coherency@32's read-only verify.  0 = earlier
  * EX mapping (A/B). */
 /*  — P194 measurement probe (see xfs_dir_lookup):
  * count directory operations that run on a base whose epoch does not match the
@@ -3820,7 +3820,7 @@ mxfs_dir_base_invalidate(
 
 /*
  *  — see the block comment at the retry loop in
- * xfs/xfs_dir2_readdir.c.  1 = the pre-sess28 unconditional 200x msleep(1)
+ * xfs/xfs_dir2_readdir.c.  1 = the earlier unconditional 200x msleep(1)
  * retry, kept ONLY as the negative control for the A/B; it is a guaranteed
  * ~1.2 s per readdir on any directory flagged stale, because the reload it
  * retries can never take the write lock the caller is already holding for read.
@@ -3829,7 +3829,7 @@ int mxfs_readdir_reload_retry_selfread;
 module_param_named(readdir_reload_retry_selfread,
 		   mxfs_readdir_reload_retry_selfread, int, 0644);
 MODULE_PARM_DESC(readdir_reload_retry_selfread,
-	"retry the readdir extent-map reload even when the caller holds ILOCK_SHARED and it can never land (1=pre-sess28 ~1.2s/readdir, 0=skip)");
+	"retry the readdir extent-map reload even when the caller holds ILOCK_SHARED and it can never land (1=earlier ~1.2s/readdir, 0=skip)");
 
 /*
  * 0.84.4, TEST ONLY.  A leaf listing re-acquires the directory's cluster
@@ -3870,8 +3870,8 @@ module_param_named(iread_pr, mxfs_iread_pr, int, 0644);
 MODULE_PARM_DESC(iread_pr,
 	"extent-map iread ILOCK_EXCL takes cluster PR instead of EX (local-only exclusivity); 1=on");
 
-/* sess1 (ccloop 46efd8b6) datascan gen-gate — see mxfs_dir2_datascan_lookup
- * (xfs_dir2_leaf.c) and i_mxfs_dscan_clean_key (xfs_inode.h).  The sess22
+/* datascan gen-gate — see mxfs_dir2_datascan_lookup
+ * (xfs_dir2_leaf.c) and i_mxfs_dscan_clean_key (xfs_inode.h).  The
  * leaf-hash-hole heal ran the O(dir) authoritative data scan on EVERY
  * negative lookup of a multi-node dir: measured 459 read-IOs / ~112ms per
  * miss on the 640-entry cache_coherency rv/uv dirs (the scan's coherent
@@ -3881,7 +3881,7 @@ MODULE_PARM_DESC(iread_pr,
  * consistent; later misses at the same state trust the leaf.  Peer writes
  * move the epoch/gen (hole formation requires a peer write), and real fork
  * adopts reset the key sentinel, each re-arming exactly one scan.  0 =
- * pre-sess1 scan-every-miss (A/B). */
+ * earlier scan-every-miss (A/B). */
 int mxfs_dscan_gen_gate = 1;
 module_param_named(dscan_gen_gate, mxfs_dscan_gen_gate, int, 0644);
 MODULE_PARM_DESC(dscan_gen_gate,
@@ -4074,7 +4074,7 @@ MODULE_PARM_DESC(dbg_ialloc_dblcheck,
  * (b) journal replay covers the dead-node case.
  *
  * Phase 2 is gated by this knob so the change is reversible without
- * a code change.  Sess32 should A/B with eager vs lazy on the rsync
+ * a code change.  Should A/B with eager vs lazy on the rsync
  * bench and on the canonical 5×256 stress harness.  If lazy passes
  * both, it can become the default in a later version.
  *
@@ -4082,7 +4082,7 @@ MODULE_PARM_DESC(dbg_ialloc_dblcheck,
  * measurement).
  */
 /*
- * gate for the sess20-35 diagnostic prints (P-*, MX-INSTR, H*).
+ * gate for the diagnostic prints (P-*, MX-INSTR, H*).
  * Default 0 (off) — these per-op prints made metadata workloads ~100x
  * slower (failed perf criteria).  Pure logging; off-by-default is safe.
  */
@@ -4120,14 +4120,14 @@ MODULE_PARM_DESC(dirwr,
  * across initiators, so cross-node freshness is preserved by buffer
  * invalidation, not by bypassing the cache.  0=use-FUA, 1=disable (default).
  */
-int mxfs_fua_disable = 1;	/* sess6(ccloop 12e0d157): DEFAULT 1 for the SCST CAW-multipath target
+int mxfs_fua_disable = 1;	/* DEFAULT 1 for the SCST CAW-multipath target
 				 * (criteria cluster: /dev/mapper/mpatha vendor CONFIRMED "SCST_FIO", all 32 nodes).
 				 * On SCST every initiator shares ONE coherent write-back cache: a plain BIO read sees
 				 * the coherent shared cache (fresh + fast), while a SCSI-FUA read PIERCES past it to the
-				 * un-destaged platter (STALER + slower = the 32-node read-storm). PROVEN sess6: with
+				 * un-destaged platter (STALER + slower = the 32-node read-storm). PROVEN with
 				 * fua_disable=1, cache_coherency/strong_consistency/dir_reuse @4 = 17/17 (incl the reuse
 				 * cell no reload-skip fix could pass), and it clears the 32-node storm (FUA-reread
-				 * dir-coherency is "fundamentally too slow at scale" per sess43/45/94). The sess14
+				 * dir-coherency is "fundamentally too slow at scale" per /45/94). The
 				 * DEFAULT 0 was for the OLD /dev/sda LIO-ORG TCP cluster (per-initiator-cached, FUA
 				 * REQUIRED) — a DIFFERENT target. A LIO target needs fua_disable=0; future work =
 				 * auto-detect SCST vs LIO by SCSI vendor at mount. See ccmemory

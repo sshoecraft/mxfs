@@ -34,6 +34,7 @@ Usage:
 import argparse
 import glob
 import json
+import os
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 
@@ -165,7 +166,7 @@ def m(x):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--projects-dir", default="/home/steve/.claude/projects")
+    ap.add_argument("--projects-dir", default=os.path.expanduser("~/.claude/projects"))
     ap.add_argument("--weeks", type=int, default=0,
                     help="only report the most recent N quota weeks")
     ap.add_argument("--exclude", action="append", default=[],

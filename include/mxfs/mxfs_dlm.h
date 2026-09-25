@@ -38,7 +38,7 @@ enum mxfs_lock_mode {
 /*
  * THE single test for "this mode authorizes a durable write image".
  *
- * sess105 design-consult ruling: one helper everywhere.  The tree previously mixed
+ * design-consult ruling: one helper everywhere.  The tree previously mixed
  * `>= MXFS_LOCK_PW` (ordering-based) with `== EX || == PW` (exact); they agree
  * only because of the current enum order, which is NOT part of the contract.
  * MXFS_LOCK_CW is deliberately excluded: concurrent-write is not a protected
@@ -56,7 +56,7 @@ enum mxfs_lock_type {
 	MXFS_LTYPE_AG,
 	MXFS_LTYPE_JOURNAL,
 	MXFS_LTYPE_SUPER,       /* superblock lock — mount/unmount coordination */
-	/* ccloop 72513a13 sess3 (ICLUSTER PLAN, DLM_PLAN.md): one resource
+	/*  (ICLUSTER PLAN, DLM_PLAN.md): one resource
 	 * per XFS inode cluster (res.ino = cluster base ino).  Regular-file
 	 * dinode coherence batches ~32 inodes onto one slot; directories
 	 * stay on MXFS_LTYPE_INODE.  Namespaced separately so a cluster
@@ -65,9 +65,9 @@ enum mxfs_lock_type {
 };
 
 /*
- * sess97 step 5.3(b) — immutable provenance of ONE successful durable grant.
+ * step 5.3(b) — immutable provenance of ONE successful durable grant.
  *
- * The sess96 design-consult ruling rejected reading the grant epoch back out of a
+ * The design-consult ruling rejected reading the grant epoch back out of a
  * cache after the fact.  A cache can only establish "this epoch came from
  * SOME grant on this resource"; what an authority certificate needs is "this
  * epoch came from THIS acquire, whose authority is now being installed".  The
@@ -87,10 +87,10 @@ enum mxfs_lock_type {
  * Consumers must treat this as immutable: fill once at the granting CAS, copy
  * by value, never mutate afterwards.
  *
- * sess105: `valid` was a BOOLEAN, and its false case conflated two opposite
+ * `valid` was a BOOLEAN, and its false case conflated two opposite
  * meanings — "not applicable" (we held a read grant; nothing was authorized
  * and nothing is wrong) and "broken/incomplete authorization record" (we held
- * a WRITING grant but the slot carried no epoch).  The sess104 measurement
+ * a WRITING grant but the slot carried no epoch).  The measurement
  * had 2863 refusals all landing in that one bucket, so it proved nothing.
  * The classification now happens at SNAPSHOT CONSTRUCTION, where `held` and
  * `ex_grant_epoch` are one coherent image, and is carried as a tagged status.
@@ -106,7 +106,7 @@ enum mxfs_grant_auth_status {
 	 * any read-heavy workload. */
 	MXFS_GAUTH_NONWRITE_MODE,
 	/* Writing mode but ex_grant_epoch == 0.  This is a REAL GAP: the
-	 * snapshot is incomplete.  Candidates (sess104 ruling): tombstone /
+	 * snapshot is incomplete.  Candidates (ruling): tombstone /
 	 * epoch-namespace restart; write mode published before the epoch;
 	 * the acquisition observed between publication steps; a snapshot
 	 * coherence bug.  Never silently merged with the benign case. */
@@ -114,7 +114,7 @@ enum mxfs_grant_auth_status {
 	/* No backing resource at all — nothing was acquired to describe. */
 	MXFS_GAUTH_NO_RESOURCE,
 	/*
-	 * sess432 (D-0353, design-consult ruling): the CAW single-node fast path — the
+	 * (D-0353, design-consult ruling): the CAW single-node fast path — the
 	 * grant lives in memory only, no slot image was touched, no epoch was
 	 * minted.  NON-PROVING for journal replay (its images carry epoch 0),
 	 * but a legitimate tenure while the DLM stays single-node: the cached
@@ -131,7 +131,7 @@ struct mxfs_grant_result {
 	uint64_t	resource;	/* exact resource id: ino, or cluster base ino */
 	uint64_t	grant_epoch;	/* ex_grant_epoch stamped by THIS CAS */
 	/*
-	 * sess176 (sess175 lineage ruling): the slot's resource_lineage in
+	 * (lineage ruling): the slot's resource_lineage in
 	 * the SAME image that carried grant_epoch — the binding identity the
 	 * token producer stamps beside the epoch.  Zero = binding predates
 	 * the lineage scheme (legacy slot granted by an old build); such
@@ -178,14 +178,14 @@ static inline bool mxfs_grant_result_proving(const struct mxfs_grant_result *g)
 }
 
 /*
- * ─── sess121 (GPT sess118 ruling item 7) — the force-release precondition ───
+ * ─── (design-consult ruling item 7) — the force-release precondition ───
  *
  * "mxfs_dlm_caw_force_release_self needs an EXPLICIT precondition — same defect
  * across more slots if it can run while this mount still issues dependent I/O."
  *
  * The DLM cannot check that condition itself.  Dependent-use lifetime is known
  * only to the layer that admitted the use (XFS holders, pins, writeback), so
- * the requirement has to arrive from above.  Until sess121 it arrived as a
+ * the requirement has to arrive from above.  Until it arrived as a
  * SENTENCE IN A COMMENT, which is not a precondition: a second caller added
  * later satisfies it by accident or not at all, and the failure is silent
  * corruption across every slot on the resource's probe chain.
@@ -232,7 +232,7 @@ struct mxfs_forcerel_attest {
 };
 
 /*
- * D-AGLOCK-ORPHAN-EX-TRACKING-LOSS-LIVELOCK-488 (sess273 ruling): the
+ * D-AGLOCK-ORPHAN-EX-TRACKING-LOSS-LIVELOCK-488 (ruling): the
  * outcome of an on-disk lock release is TRI-STATE, not an errno.  A caller
  * that surrendered in-core tenure before the release must know whether the
  * platter bit is provably gone (RELEASED), provably still ours (STILL_HELD
@@ -254,7 +254,7 @@ enum mxfs_lock_state {
 	MXFS_LSTATE_CONVERTING,   /* mode upgrade/downgrade in flight */
 	MXFS_LSTATE_BLOCKED,      /* blocked by incompatible holder */
 	/*
-	 * sess422 (tcp-authority-ledger step 3d/3e, master-side only):
+	 * (tcp-authority-ledger step 3d/3e, master-side only):
 	 * PENDING_DURABLE — the master DECIDED this grant and is committing
 	 * it to the authority ledger.  Counts as a holder in every
 	 * compatibility check, is never returned to a local caller and never
@@ -303,11 +303,11 @@ enum mxfs_dlm_msg_type {
 	MXFS_MSG_JOURNAL_RECOVER,
 	MXFS_MSG_JOURNAL_DONE,
 	MXFS_MSG_CACHE_INVAL,
-	/* sess422 (step 3e): master -> releaser, after the release transition
+	/* (step 3e): master -> releaser, after the release transition
 	 * is durable.  The releaser keeps pending-release state (and retries
 	 * the LOCK_RELEASE) until this arrives. */
 	MXFS_MSG_LOCK_RELEASE_ACK,
-	MXFS_MSG_PAGE_HANDOFF,      /* sess423 step 4: ledger page handoff */
+	MXFS_MSG_PAGE_HANDOFF,      /* step 4: ledger page handoff */
 	/*
 	 * Master -> requester, when a remote request cannot be granted now and
 	 * is queued behind a conflicting holder.  Before this existed the
@@ -335,7 +335,7 @@ enum mxfs_dlm_msg_type {
 	MXFS_MSG_LOCK_CANCEL_ACK,
 
 	/*
-	 * sess67 ASYMMETRIC MDS (Phase 1, see ASYMMETRIC_MDS_PLAN.md).
+	 * ASYMMETRIC MDS (Phase 1, see ASYMMETRIC_MDS_PLAN.md).
 	 * Metadata-mutation RPCs: a non-MDS (client) node forwards a directory
 	 * metadata operation to the MDS node, which runs the real XFS
 	 * transaction and replies.  Carried over the TCP peer mesh (dlm/peer.c),
@@ -374,7 +374,7 @@ struct mxfs_dlm_lock_req {
 	uint8_t                 mode;    /* requested mxfs_lock_mode */
 	uint8_t                 pad[3];
 	uint32_t                flags;   /* MXFS_LKF_* */
-	/* sess422 (tcp-authority-ledger step 3b): the requester's identity as
+	/* (tcp-authority-ledger step 3b): the requester's identity as
 	 * the ledger records it — {node (hdr.sender), mount incarnation,
 	 * heartbeat slot} — and a per-requester request id so a retried
 	 * request returns the already-durable grant instead of minting
@@ -412,7 +412,7 @@ struct mxfs_dlm_lock_resp {
 	struct mxfs_resource_id resource;
 	uint8_t                 mode;    /* granted mode (may differ from request) */
 	uint8_t                 status;  /* mxfs_error */
-	uint8_t                 handoff; /* sess63: 1 = this EX grant is a cross-node
+	uint8_t                 handoff; /* 1 = this EX grant is a cross-node
 	                                  * handoff (a DIFFERENT node held EX since
 	                                  * the grantee last did).  Was pad[0]; wire
 	                                  * size unchanged. */
@@ -422,14 +422,14 @@ struct mxfs_dlm_lock_resp {
 	 * its LOCK_RELEASE so the master can ignore a stale release that was
 	 * issued for a now-superseded grant episode (Bug-51 safe re-affirm). */
 	uint32_t                grant_gen;
-	/* sess64 (GPT design): per-resource MONOTONIC cross-node handoff epoch.
+	/* (design review): per-resource MONOTONIC cross-node handoff epoch.
 	 * The master bumps it once per cross-node EX handoff and stamps every
 	 * grant with the current value; the grantee compares it level-triggered
 	 * (> its valid_epoch) to decide whether its cached dir base is stale.
 	 * All cluster nodes run the same build, so growing this wire struct is
 	 * safe (no mixed-version peers within a mount). */
 	uint32_t                dir_epoch;
-	/* sess422 (step 3b): the DURABLE grant id {authority_epoch,
+	/* (step 3b): the DURABLE grant id {authority_epoch,
 	 * grant_seq64} the ledger minted for this grant (0/0 on DENY and on a
 	 * shared-mode grant, which records a holder bit, not a grant id), the
 	 * record's resource lineage, and the request id this answers. */
@@ -456,8 +456,8 @@ struct mxfs_dlm_lock_release {
 	struct mxfs_dlm_msg_hdr hdr;
 	struct mxfs_resource_id resource;
 	uint32_t                grant_gen;  /* gen the releaser believes it holds */
-	uint32_t                rel_id;     /* sess422: releaser's release id (ACK echo) */
-	/* sess422 (step 3e): full validation of the release — the ledger
+	uint32_t                rel_id;     /* releaser's release id (ACK echo) */
+	/* (step 3e): full validation of the release — the ledger
 	 * clears the record only for {node, inc, grant_id} (exclusive) or
 	 * {lineage, slot, node, inc} (shared). */
 	uint64_t                authority_epoch;
@@ -489,7 +489,7 @@ struct mxfs_dlm_lock_release {
 	uint8_t                 pad2[3];
 };
 
-/* sess422 (step 3e): master -> releaser once the release transition is
+/* (step 3e): master -> releaser once the release transition is
  * durable (or was already superseded: status MXFS_OK either way, the
  * releaser holds nothing).  MXFS_ERR_LEDGER = the master could not retire
  * the record; the releaser keeps its pending-release state and retries. */
@@ -542,7 +542,7 @@ struct mxfs_dlm_cancel_ack {
 };
 
 /*
- * sess423 (tcp-authority-ledger step 4): ledger PAGE HANDOFF.  Page
+ * (tcp-authority-ledger step 4): ledger PAGE HANDOFF.  Page
  * authority moves only through a durable PREPARED -> ACTIVE pair; these
  * messages are the liveness side (a lost message is recovered by reading
  * the page, never by thawing).  kinds:
@@ -611,7 +611,7 @@ struct mxfs_dlm_cache_inval {
 };
 
 /*
- * sess67 ASYMMETRIC MDS (Phase 1) — metadata-mutation RPC.
+ * ASYMMETRIC MDS (Phase 1) — metadata-mutation RPC.
  *
  * A client (non-MDS) node forwards a directory metadata op to the MDS, which
  * runs the real XFS transaction and replies.  Names are carried inline after
@@ -674,7 +674,7 @@ struct mxfs_dlm_node_msg {
 	uint16_t                port;
 	uint8_t                 pad[2];
 	mxfs_volume_id_t        volume_id; /* multi-LUN: identifies which mount */
-	/* sess426 (D-0350): the sender's mount incarnation (disklock epoch).
+	/* (D-0350): the sender's mount incarnation (disklock epoch).
 	 * On NODE_LEAVE the receiver's takeover of the pages the departing
 	 * node left needs it, and the heartbeat slot may already be released
 	 * or unmonitored by the time the GOODBYE is processed (0 = unknown:
@@ -701,7 +701,7 @@ struct mxfs_dlm_node_msg {
  * does not spuriously churn healthy waits.
  */
 /*
- * sess36 (ccloop): lowered 6000 -> 1000.  A contended dir-EX handoff can be
+ * lowered 6000 -> 1000.  A contended dir-EX handoff can be
  * stranded by a subtle master-side queue-vs-grant race (the requester queues
  * its waiter in the instant the holder owns no grant -> no BAST is captured;
  * the holder then re-acquires and nothing re-fires the BAST) — PROVEN on the

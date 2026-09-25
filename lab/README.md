@@ -61,13 +61,17 @@ storage portal=<ip> target=<iqn> lun=/dev/disk/by-id/<id> also=<nodes>
 pair ubuntu2404=<nodeA>,<nodeB> rhel9=<nodeA>,<nodeB>
 addr <node>=<ipv4>
 qemu monitor_dir=<dir>
+paths image=<file> delay_image=<file> vmdir=<dir> qemu_root=<dir>
 ```
 `also=` lists nodes outside the pairs that attach to the same LUN; they are
 unmounted before the harness formats it. `addr` is only for a node no
 resolver knows. `qemu monitor_dir` is only for a guest started outside
 libvirt, which `tests/tcp_peer_freeze_death.sh` freezes through its QMP
-socket. A platform with no `pair` line cannot be verified here, and the
-harness says so and stops.
+socket. `paths` names the build host's own files: the fileio image behind an
+SCST or LIO LUN, the dm-delay rig's image, the VM directory and the qemu
+guests' root; the rig-setup scripts and the host preflight read them from here
+unless an `MXFS_*` variable overrides them for one run. A platform with no
+`pair` line cannot be verified here, and the harness says so and stops.
 
 ## `run.sh` is virsh-coupled on the VM path (gated), with an external escape hatch
 - **VMs (default):** `prep_cluster()` **directly** `virsh list`s the `test[0-9]+`

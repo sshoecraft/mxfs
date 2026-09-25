@@ -822,7 +822,7 @@ A wedged host's journal going quiet is the wedge, not the absence of one.
 - Re-prep at 25 AGs on the 128 GiB LUN: `MXFS_MKFS_OPTS="-d 50G" MXFS_FORCE_PREP=1
   D385_STEP="arm_prep TREATMENT" tests/d385_publication_verify.sh 3 32` (prep wall
   77-83 s; cap 330 s — never cap a prep under ~300 s).  It deploys the tree's module.
-  Verify with `tools/chk_mxfs -v /home/steve/disk.img | grep agcount` and a fleet
+  Verify with `tools/chk_mxfs -v ~/disk.img | grep agcount` and a fleet
   `srcversion` sweep (dmesg only — `journalctl -k -b` exceeds a 25 s ssh cap on the
   long-uptime nodes).  Restore: same step without MXFS_MKFS_OPTS (→ 64 AGs).
 - Laps: `CHUNK_TIMEOUT=330 D385_STEP="arm_lap TREATMENT <n>"` ONE lap per
@@ -1123,7 +1123,7 @@ A wedged host's journal going quiet is the wedge, not the absence of one.
   (90 s): D-379 item 5 — unmounts the fleet, saves slot N, forges a LIVE
   stage-1 recovery guard with `recov_forge --live --stage 1` from <probe>
   (SG_IO on the LUN), runs `tools/chk_mxfs -Q` on clyde against
-  `$MXFS_SCST_IMG` (/home/steve/disk.img), asserts `recoveries in progress 1`,
+  `$MXFS_SCST_IMG` (~/disk.img), asserts `recoveries in progress 1`,
   `quarantined verdicts 0`, the IN PROGRESS advice, no -376 pointer, rc=5,
   then restores the sector byte-for-byte (crc compared).  First run (s434g)
   exposed D-0358 (forge wrote descriptor v2 vs kernel v3).

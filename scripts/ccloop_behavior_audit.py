@@ -26,7 +26,8 @@ import sys
 from collections import Counter
 
 RUNS = "/src/mxfs/.ccloop/runs"
-PROJECT_DIR = "/home/steve/.claude/projects/-src-mxfs"
+PROJECT_DIR = os.path.join(os.path.expanduser("~/.claude/projects"),
+                           os.path.dirname(os.path.dirname(os.path.abspath(__file__))).replace("/", "-"))
 
 # Bash invocations that are really "read a source file to understand it".
 BASH_READ = re.compile(r"\b(sed\s+-n|cat|head|tail|less|more)\b")

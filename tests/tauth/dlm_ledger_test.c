@@ -87,7 +87,7 @@ int main(int argc, char **argv)
     R2 = res_mastered_by(A, 22, 5000);
     /* R3: mastered by A (11) in the 2-node view AND by C (33) once C joins in
      * group 6 (sorted {11,22,33}: page % 3 == 2), so group 6 hands R3's page
-     * to C and group 7's successor takeover on A has a page to take.  sess427:
+     * to C and group 7's successor takeover on A has a page to take.
      * explicit — the seeded hash no longer lands R3 on such a page by luck. */
     R3 = res_mastered_by(A, 11, R.ino + 100000);
     while (tl_page(&R3) % 3 != 2)
@@ -167,7 +167,7 @@ int main(int argc, char **argv)
           "4 A(local)+B(remote) PR holders bits=%#llx", (unsigned long long)e.holders);
     B->auto_release = 1;
     rc = lock_sync(A, &R, MXFS_LOCK_EX, &granted);
-    /* the engine's contract (sess12): a blocked INODE upgrade is refused
+    /* the engine's contract: a blocked INODE upgrade is refused
      * with -EDEADLK and the caller drops its lower grant and re-acquires
      * the target mode through the FIFO — do what the XFS layer does */
     CHECK(rc == -EDEADLK, "4 A's PR->EX upgrade under B's PR = -EDEADLK (rc=%d)", rc);
@@ -191,7 +191,7 @@ int main(int argc, char **argv)
     A = node_up(0, 11, 1001, 1, 1);              /* A's next incarnation */
     membership(ids2, 2);
     CHECK(A->dlm->ledger_imports == 0, "5 fresh A has imported nothing yet");
-    /* sess423 (step 4): the dead incarnation's pages are ACTIVE(11/1000)
+    /* (step 4): the dead incarnation's pages are ACTIVE(11/1000)
      * on the platter; nobody may serve them until the certified successor
      * (lowest live slot = A') takes them over — what v5 does after the
      * fence certificate, before the lease unregister */
@@ -266,7 +266,7 @@ int main(int argc, char **argv)
         lock_finish(j);
     }
 
-    /* 7b (sess425, D-0342) a PARTIAL recovery purge keeps the dead holder's
+    /* 7b (D-0342) a PARTIAL recovery purge keeps the dead holder's
      * blocker and is re-driven by the master's tick: C returns, holds R2
      * EX, dies again; the master's first purge page-commit fails (-EIO
      * injected) -> rc<0, blockers kept, W stays blocked, purge_pending=1;
@@ -375,7 +375,7 @@ int main(int argc, char **argv)
         membership(ids2, 2);
         t0 = mxfs_pal_time_ms();
         rc = mxfs_dlm_lock_retries(B->dlm, &R, MXFS_LOCK_EX, 0, &granted, 2);
-        /* sess426 (D-0348): the foreign record on R's home index no longer
+        /* (D-0348): the foreign record on R's home index no longer
          * blocks R — the master records R in another entry of the page */
         CHECK(rc == 0 && granted == MXFS_LOCK_EX && A->ledger.collisions == 0 && A->ledger.probes >= 1,
               "8 foreign record on the home index: R granted elsewhere rc=%d probes=%llu in %llums",

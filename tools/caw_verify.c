@@ -2,7 +2,7 @@
  * caw_verify — verify SCSI COMPARE AND WRITE (opcode 0x89) cross-initiator
  * persistence on a multi-initiator iSCSI/LIO stack.
  *
- * Sess24 finding: MXFS DLM CAW slot writes succeed locally on the writing
+ * Finding: MXFS DLM CAW slot writes succeed locally on the writing
  * initiator (verify-read sees what was written) but the same FUA-read from
  * a peer initiator returns stale or empty content.  This test isolates that
  * behavior from the rest of MXFS.

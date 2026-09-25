@@ -176,8 +176,8 @@ It reads XFS on-disk format directly — effectively a simplified XFS without jo
 
 #### Shared Storage Setup
 - iSCSI target: LIO on dev machine, block backstore + loopback with direct-io
-- Image: /home/steve/iscsi-lun.img (50GB, preallocated with dd)
-- Loopback: `sudo losetup --direct-io=on -f /home/steve/iscsi-lun.img` → /dev/loop0
+- Image: ~/iscsi-lun.img (50GB, preallocated with dd)
+- Loopback: `sudo losetup --direct-io=on -f ~/iscsi-lun.img` → /dev/loop0
 - Target IQN: iqn.2024-01.localdomain.dev:mxfs
 - Portal: 192.168.120.1:3260
 - LUN NAA: naa.600140529a4fe6e7aaf45bfb09ec952c
@@ -272,13 +272,13 @@ It reads XFS on-disk format directly — effectively a simplified XFS without jo
 #### Startup Checklist for Next Session
 1. Symlink password file: `ln -s ~/.mxfs/pass /tmp/.mxfs_pass`
 2. Verify loopback+iSCSI target running: `sudo targetcli ls /`
-   - If not: `sudo losetup --direct-io=on -f /home/steve/iscsi-lun.img && sudo systemctl restart rtslib-fb-targetctl`
+   - If not: `sudo losetup --direct-io=on -f ~/iscsi-lun.img && sudo systemctl restart rtslib-fb-targetctl`
 3. Verify br0 MTU: `ip link show br0` — should be 9000
 4. Keep enp6s0 at MTU 1500! (management network)
 5. Power on ESX hosts, verify "connected" in vCenter
 6. Power on test VMs, verify /dev/sdb visible
 7. Set MTU 9000 on test VMs: `sudo ip link set eth0 mtu 9000` (doesn't persist)
-8. Mount NFS on test nodes: `sudo mount -t nfs 192.168.120.1:/home/steve/src/mxfs /mnt/mxfs-src`
+8. Mount NFS on test nodes: `sudo mount -t nfs 192.168.120.1:~/src/mxfs /mnt/mxfs-src`
 9. Build on test1: `cd /mnt/mxfs-src/v2 && make clean && make`
 10. Format XFS: `sudo mkfs.xfs -f /dev/sdb` (on one node only, others not connected)
 11. Deploy and test Bug Z fix (4-node concurrent file creation)
@@ -688,8 +688,8 @@ via tcm_loop+iblock CAW).
 
 ### Where the data actually lives
 
-- `/home/steve/src/mxfs.1/state.md` — sess74 section at top, dated 2026-05-07.
-- `/home/steve/src/mxfs.1/bench.json` — `sess74_resurrect_v0140_fio`
+- `~/src/mxfs.1/state.md` — sess74 section at top, dated 2026-05-07.
+- `~/src/mxfs.1/bench.json` — `sess74_resurrect_v0140_fio`
   entry (canonical fio sweep), `sess74_resurrect_v0140_dd` (paired
   XFS / mxfs.1 dd numbers).
 - `~/.claude/projects/-src-mxfs-1/memory/sess74_lessons.md` —

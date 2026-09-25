@@ -589,7 +589,7 @@ xfs_alloc_fixup_trees(
 
 #ifdef __KERNEL__
 	/*
-	 * ccloop-4dd7 P145-ALLOC — the alloc-side twin of P145-FREE
+	 * P145-ALLOC — the alloc-side twin of P145-FREE
 	 * (every extent leaving the free space).  The round-3 leaf/data
 	 * double-map (dir 131 block0 and its new LEAF both at AG1 bno 27)
 	 * needs the full cross-node ALLOC/FREE interleave for one agbno to

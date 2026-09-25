@@ -350,12 +350,12 @@ restart:
 	ip->i_mxfs_openprot_pid = current->pid;
 	ip->i_mxfs_openprot_arm = 0;
 	spin_unlock(&ip->i_dlm_lock);
-	/* sess238 fault injection (moved BEFORE the ilock ride — the sess237
+	/* fault injection (moved BEFORE the ilock ride — the
 	 * placement AFTER the ride could not reproduce because the ride itself
 	 * must land in the release's post-terminal-store tail): with the knob
 	 * set and a demote in flight, hold the open HERE until the release
 	 * worker's terminal NL store lands while the flush tail is still
-	 * running ({mode==NL, RELFLUSH set} — the sess47 relflush-admit arm's
+	 * running ({mode==NL, RELFLUSH set} — the relflush-admit arm's
 	 * window), or the knob's ms budget expires.  Entering the ilock ride
 	 * inside that window is the 0.11.482 interleaving.  First pass only:
 	 * the restart loop under test runs at natural timing. */

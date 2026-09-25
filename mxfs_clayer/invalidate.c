@@ -2,7 +2,7 @@
 /*
  * mxfs_clayer/invalidate.c — v6a invalidation primitives (SKETCH)
  *
- * STATUS: SKELETON ONLY. Not built into the module. Sess36+ implementation
+ * STATUS: SKELETON ONLY. Not built into the module. Implementation
  * task. The functions below are stubs documenting the intended structure;
  * the actual logic should be lifted/refactored from existing v5 code at:
  *
@@ -12,7 +12,7 @@
  *
  * Per `docs/v6-cache-architecture-proposal.md` §3.2.
  *
- * Sess35 prescription: do this AFTER more careful design work in.
+ * Prescription: do this AFTER more careful design work in.
  * Don't merge as-is. The skeleton exists to let fill it in
  * without re-deriving the design.
  */
@@ -36,7 +36,7 @@
 int mxfs_invalidate_ag(struct xfs_mount *mp, xfs_agnumber_t ag_no)
 {
 	/*
-	 * Sess36 implementation:
+	 * Implementation:
 	 * 1. xfs_perag_get(mp, ag_no)
 	 * 2. mutex_lock(&pag->pag_dlm_lock)
 	 * 3. Walk pag->pag_bcache.bc_hash via rhashtable_walk_*
@@ -50,7 +50,7 @@ int mxfs_invalidate_ag(struct xfs_mount *mp, xfs_agnumber_t ag_no)
 	 * 6. xfs_perag_clear_initialised(pag)
 	 * 7. mutex_unlock + xfs_perag_put
 	 *
-	 * Reference: lift logic from xfs_mxfs_dlm.c:2480-2716 (sess25
+	 * Reference: lift logic from xfs_mxfs_dlm.c:2480-2716 (
 	 * v0.3.99) into this function, then remove the original.
 	 */
 	(void)mp; (void)ag_no;
@@ -60,11 +60,11 @@ int mxfs_invalidate_ag(struct xfs_mount *mp, xfs_agnumber_t ag_no)
 int mxfs_invalidate_inode(struct xfs_inode *ip)
 {
 	/*
-	 * Sess36 implementation (CRITICAL — this is the Mode A fix):
+	 * Implementation (CRITICAL — this is the Mode A fix):
 	 *
 	 * 1. spin_lock(&ip->i_dlm_lock); ip->i_dlm_stale = true; spin_unlock
 	 * 2. **Pre-step: drain in-flight transactions on this inode.**
-	 *    The skip_locked problem in v5's BAST-DIR-STALE walk (sess34
+	 *    The skip_locked problem in v5's BAST-DIR-STALE walk (
 	 *    P-H12) is that the dir3 buf is held by an in-flight
 	 *    transaction commit. We need to ensure no transaction is
 	 *    actively modifying our dir at this moment. Approach (e) from
@@ -85,7 +85,7 @@ int mxfs_invalidate_inode(struct xfs_inode *ip)
 	 * 4. For inode itself: filemap_write_and_wait(VFS_I(ip)->i_mapping)
 	 * 5. invalidate_inode_pages2(VFS_I(ip)->i_mapping)
 	 * 6. xfs_imap_to_bp barrier — ensures inode-cluster-buf bio
-	 *    completion (sess29 fix at xfs_mxfs_dlm.c:527-545)
+	 *    completion (fix at xfs_mxfs_dlm.c:527-545)
 	 *
 	 * The CRUCIAL difference from v5: NO skip_locked escape.
 	 * Step 2's log_force + AIL drain ensures the buf is unlocked
@@ -103,7 +103,7 @@ int mxfs_invalidate_inode(struct xfs_inode *ip)
 int mxfs_pagecache_inval_inode(struct xfs_inode *ip)
 {
 	/*
-	 * Sess36 implementation:
+	 * Implementation:
 	 * truncate_inode_pages_final(VFS_I(ip)->i_mapping, 0);
 	 *
 	 * Or just call mxfs_invalidate_inode if we don't separately

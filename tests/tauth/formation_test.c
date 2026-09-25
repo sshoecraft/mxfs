@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * formation_test — the 0.34.0 rig failure shape, in usermode (sess424,
+ * formation_test — the 0.34.0 rig failure shape, in usermode (
  * instrument step 2 for D-0287's step-3/4 landing).
  *
  * On the 32/tcp rig (0.34.0, s422) four mounts failed "can't read

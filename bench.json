@@ -17824,5 +17824,27 @@
         "iops": 28226
       }
     }
+  },
+  "fio_perf_2n_tcp_1790311994": {
+    "ts": "2026-09-25T04:53:14Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 108
+      },
+      "seq_read_1m": {
+        "bw_mib": 114
+      },
+      "rand_write_4k": {
+        "iops": 22783
+      },
+      "rand_read_4k": {
+        "iops": 28315
+      }
+    }
   }
 }

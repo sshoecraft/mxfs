@@ -16,8 +16,8 @@ OUT=/src/mxfs/notes/sess36_dmesg
 mkdir -p "$OUT"
 "$SCRIPTS/sess35_capture.sh" 2 2>&1 | tail -5
 
-LATEST=$(ls -tr /home/steve/.mxfs/results | tail -1)
-H17_LOG="/home/steve/.mxfs/results/$LATEST/test_concurrent_mkdir/node1.log"
+LATEST=$(ls -tr $HOME/.mxfs/results | tail -1)
+H17_LOG="$HOME/.mxfs/results/$LATEST/test_concurrent_mkdir/node1.log"
 
 echo
 echo "==================================================="

@@ -6,7 +6,7 @@
 # Usage: tests/reboot_cluster.sh [N]   (default 16)
 set -u
 N=${1:-16}
-SSH=/home/steve/src/mxfs/tools/mxfs_sshpass.sh
+SSH="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)/tools/mxfs_sshpass.sh"
 PF=/tmp/.mxfs_pass
 VIRSH="virsh -c qemu:///system"
 

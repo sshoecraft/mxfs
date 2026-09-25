@@ -249,7 +249,7 @@ bool mxfs_authority_take_withdraw(struct mxfs_authority *auth, int *reason_out);
 
 /*
  * (D-REJOIN-CLAIM-ENOSPC-DURING-TRANSIENT-SWEEP-GUARD-AT-CAPACITY-0523,
- * Design-consult ruling ccmemory ccloop-c7ee71c6-sess464-GPT-ruling-d0523-claim-wait-
+ * Design-consult ruling d0523-claim-wait-
  * transient-guard-at-capacity): when every slice is occupied but some
  * occupants are TRANSIENT records a live peer resolves (a bucket-sweep guard,
  * a recovery lease, a WITHDRAWN slice awaiting fence+replay, a RETIRE_PENDING
@@ -323,7 +323,7 @@ struct mxfs_disklock_record {
 
 /*
  * entry TYPE, carried in the former `pad` field (wire size unchanged,
- * fully backward compatible — a pre-sess80 peer always wrote pad=0 which now
+ * fully backward compatible — a earlier peer always wrote pad=0 which now
  * reads as INODE_FREE).
  *   INODE_FREE  — a peer freed inode `ino` (now at di_gen `gen`); consumer
  *                 flags any NL-cached in-core copy XFS_ISTALE_CAW so the next
@@ -486,7 +486,7 @@ struct mxfs_mepoch_rec {
  * record and consumed only from a peer's ACTIVE record (the monitor's ring
  * consumer sits behind a flags == ACTIVE test), so a GUARD record's ring bytes
  * are dead space in every existing build.  No region growth, no mkfs change,
- * and the descriptor carries its own magic + crc so a pre-sess64 node's zeroed
+ * and the descriptor carries its own magic + crc so a earlier node's zeroed
  * or ring-shaped bytes can never be misread as a descriptor.
  */
 #define MXFS_RECOV_DESC_MAGIC       0x5643524Du  /* "MRCV" LE */
@@ -1045,10 +1045,10 @@ struct mxfs_recov_body {
 	struct mxfs_recov_desc      desc;
 	struct mxfs_recov_outcome   outcome;    /* terminal refusal */
 	struct mxfs_recov_manifest_ptr mptr;    /* manifest pointer */
-	struct mxfs_recov_obl       obl;        /* sess462: obligation record —
-											 * the last 40 pad bytes (sess346:
-											 * 200→168; sess405: →104; sess438
-											 * identity carve: →40; sess462: 0).
+	struct mxfs_recov_obl       obl;        /* obligation record —
+											 * the last 40 pad bytes (
+											 * 200→168; →104;
+											 * identity carve: →40; 0).
 											 * All-zero = no record (pre-0.62.1
 											 * builds); recov_obl.h */
 };
@@ -1142,7 +1142,7 @@ struct mxfs_rman_hdr {
 #define MXFS_HB_FEAT_MAGIC      0x47465846u  /* "FXFG" LE → reads MXFG-ish */
 
 /*
- * sess186 (D-SHUTDOWN-UMOUNT-CLEAN-RELEASE-DIRTY-SLICE blocker 1, sess184
+ * (D-SHUTDOWN-UMOUNT-CLEAN-RELEASE-DIRTY-SLICE blocker 1,
  * Design-consult ruling): WRITE-TIME provenance for a SINGLE_NODE_LOCAL_LOG
  * incarnation.  Set in every own-record write of a mount that claimed its
  * slot under the operator's single_node_exclusive assertion, from the CLAIM
@@ -1342,7 +1342,7 @@ struct mxfs_disklock_heartbeat {
 	 * The ring producer writes only into its OWN active record and the ring
 	 * consumer sits behind a flags == ACTIVE test, so the two never alias in
 	 * a live path.  Both members carry their own magic so a record written by
-	 * the other interpretation (or by a pre-sess64 node, which zeroed these
+	 * the other interpretation (or by a earlier node, which zeroed these
 	 * bytes in a guard) is rejected rather than misread.
 	 */
 	union {
@@ -1372,15 +1372,15 @@ struct mxfs_disklock_heartbeat {
 _Static_assert(sizeof(struct mxfs_disklock_heartbeat) == MXFS_DISKLOCK_RECORD_SIZE,
 	       "mxfs_disklock_heartbeat must be exactly 512 bytes");
 _Static_assert(sizeof(struct mxfs_evict_ring) == 320,
-	       "mxfs_evict_ring must be 19 entries (sess438 identity carve)");
+	       "mxfs_evict_ring must be 19 entries (identity carve)");
 _Static_assert(sizeof(struct mxfs_hb_identity) == 64,
-	       "mxfs_hb_identity is the 64-byte sess438 carve");
+	       "mxfs_hb_identity is the 64-byte carve");
 _Static_assert(offsetof(struct mxfs_disklock_heartbeat, ident) == 360,
 	       "the identity block sits between the body union and prov");
 _Static_assert(sizeof(struct mxfs_mepoch_rec) == 44,
 	       "mxfs_mepoch_rec is 44 bytes on disk (§7.C)");
 _Static_assert(sizeof(struct mxfs_hb_feature) == 12,
-	       "mxfs_hb_feature is the 12-byte HB tail (sess42 C7)");
+	       "mxfs_hb_feature is the 12-byte HB tail (C7)");
 #endif
 
 /*
@@ -1392,7 +1392,7 @@ _Static_assert(sizeof(struct mxfs_hb_feature) == 12,
  * peers' heartbeat parsing; assert it where the kernel compiler will see it.
  */
 _Static_assert(sizeof(struct mxfs_recov_desc) == 120,
-	       "mxfs_recov_desc is 120 bytes on disk (sess75 v2 certificate)");
+	       "mxfs_recov_desc is 120 bytes on disk (v2 certificate)");
 _Static_assert(offsetof(struct mxfs_recov_desc, fence_kind) == 76,
 	       "the v2 certificate starts at byte 76");
 _Static_assert(offsetof(struct mxfs_recov_desc, crc32c) == 116,
@@ -1400,13 +1400,13 @@ _Static_assert(offsetof(struct mxfs_recov_desc, crc32c) == 116,
 _Static_assert(sizeof(struct mxfs_recov_body) == sizeof(struct mxfs_evict_ring),
 	       "recovery descriptor body must exactly overlay the evict ring");
 _Static_assert(sizeof(struct mxfs_recov_outcome) == 96,
-	       "mxfs_recov_outcome is 96 bytes on disk (sess323)");
+	       "mxfs_recov_outcome is 96 bytes on disk");
 _Static_assert(offsetof(struct mxfs_recov_outcome, crc32c) == 92,
 	       "the outcome crc must remain the LAST field");
 _Static_assert(offsetof(struct mxfs_recov_body, outcome) == 120,
 	       "the outcome record sits immediately after the 120B descriptor");
 _Static_assert(sizeof(struct mxfs_recov_manifest_ptr) == 64,
-	       "mxfs_recov_manifest_ptr is 64 bytes on disk (sess405)");
+	       "mxfs_recov_manifest_ptr is 64 bytes on disk");
 _Static_assert(offsetof(struct mxfs_recov_manifest_ptr, crc32c) == 52 &&
 	       offsetof(struct mxfs_recov_manifest_ptr, writer_epoch) == 56,
 	       "the manifest pointer crc/writer_epoch layout");
@@ -1416,30 +1416,30 @@ _Static_assert(offsetof(struct mxfs_recov_body, obl) == 280,
 	       "desc+outcome+mptr must stay contiguous ahead of the obligation record");
 _Static_assert(sizeof(struct mxfs_recov_obl) == 40 &&
 	       offsetof(struct mxfs_recov_obl, crc32c) == 36,
-	       "mxfs_recov_obl is the 40-byte tail of the recovery body (sess462)");
+	       "mxfs_recov_obl is the 40-byte tail of the recovery body");
 _Static_assert(sizeof(struct mxfs_recov_body) == 320,
-	       "the recovery body must keep its 320-byte footprint (sess462)");
+	       "the recovery body must keep its 320-byte footprint");
 _Static_assert(sizeof(struct mxfs_rman_obl_hdr) == MXFS_RMAN_OBL_HDR_BYTES &&
 	       offsetof(struct mxfs_rman_obl_hdr, hdr_crc32c) == 108 &&
 	       MXFS_RMAN_OBL_ENTRIES_OFF +
 	       (uint64_t)MXFS_RECOV_OBL_MAX_EXTENTS * sizeof(struct mxfs_recov_obl_ext) <=
 	       MXFS_RMAN_ENTRIES_OFF,
-	       "the obligation list zone must stay inside [4 KiB, 64 KiB) of the rman slot (sess462)");
+	       "the obligation list zone must stay inside [4 KiB, 64 KiB) of the rman slot");
 _Static_assert(sizeof(struct mxfs_rman_entry) == 32,
-	       "mxfs_rman_entry is 32 bytes on disk (sess405)");
+	       "mxfs_rman_entry is 32 bytes on disk");
 _Static_assert(sizeof(struct mxfs_rman_hdr) == 4096,
-	       "mxfs_rman_hdr is the 4 KiB manifest header (sess405)");
+	       "mxfs_rman_hdr is the 4 KiB manifest header");
 _Static_assert(offsetof(struct mxfs_rman_hdr, hdr_crc32c) == 84 &&
 	       offsetof(struct mxfs_rman_hdr, seal) == 88,
 	       "manifest header crc/seal layout");
 _Static_assert(sizeof(struct mxfs_disklock_heartbeat) == MXFS_DISKLOCK_RECORD_SIZE,
-	       "sess64 union must not change the 512-byte heartbeat record");
+	       "union must not change the 512-byte heartbeat record");
 _Static_assert(sizeof(struct mxfs_hb_provenance) == 32,
-	       "mxfs_hb_provenance is the 32-byte sess346 carve");
+	       "mxfs_hb_provenance is the 32-byte carve");
 _Static_assert(offsetof(struct mxfs_disklock_heartbeat, prov) == 424,
 	       "the provenance block sits between the body union and mepoch");
 _Static_assert(offsetof(struct mxfs_disklock_heartbeat, mepoch) == 456,
-	       "sess64 union must not move the mepoch/feat tail");
+	       "union must not move the mepoch/feat tail");
 
 struct mxfs_disklock_node_track {
 	uint64_t        last_timestamp;
@@ -1475,7 +1475,7 @@ struct mxfs_disklock_node_track {
  * The monitor's epoch-change arm adopts the NEW incarnation into
  * node_track[].last_epoch before it declares the old one dead, so any consumer
  * that resolved the victim epoch by reading node_track back named the LIVE
- * successor as the victim.  Under the pre-sess85 constant-zero epoch that was
+ * successor as the victim.  Under the earlier constant-zero epoch that was
  * invisible (every comparison was 0 == 0); with real incarnations and required
  * matching it would lay a recovery guard on a live node.  dead_epoch is the
  * incarnation that actually stopped — 0 only where the caller genuinely never
@@ -2546,7 +2546,7 @@ int mxfs_disklock_recovery_refresh(struct mxfs_disklock_ctx *ctx, int slot,
 int mxfs_disklock_recovery_read(struct mxfs_disklock_ctx *ctx, int slot,
 				struct mxfs_recov_desc *out);
 /*
- * sess420 (D-RECOV-ADVANCE-UNBOUNDED-RETRY, sess91 ruling item 3 + sess420
+ * (D-RECOV-ADVANCE-UNBOUNDED-RETRY, ruling item 3 +
  * ruling): durably give back ONE recovery lease this incarnation owns, so a
  * successor can take the descriptor over — the per-slot twin of
  * mxfs_disklock_recovery_relinquish_owned.  The expected image is read fresh
@@ -2993,7 +2993,7 @@ int mxfs_disklock_recovery_publish_refusal(struct mxfs_disklock_ctx *ctx,
 				    struct mxfs_recov_outcome *oc_out);
 /*
  * (D-FOREIGN-SLICE-INTENTS-ABANDONED item 5, increment 2; ruling
- * ccmemory ccloop-c7ee71c6-sess462-GPT-ruling-item5-inc2-obligation-record-
+ * item5-inc2-obligation-record-
  * plumbing-only): the OBLIGATION LIST + RECORD (recov_obl.h).
  *
  * mxfs_disklock_recovery_obl_write() — the recovery-lease OWNER makes the

@@ -65,6 +65,18 @@ tests/logs/
 # ---- Compiled test helpers (rebuilt from the .c beside them) ----
 /tests/caw/caw_align_probe
 /tests/net2/net2_harness
+/tests/suite/tools/fsx
+/tests/suite/tools/fsx.new
+/tests/fence_inflight/prprobe
+/tests/tauth/bootstrap_race_test
+/tests/tauth/concurrent_release_test
+/tests/tauth/dlm_ledger_test
+/tests/tauth/formation_test
+/tests/tauth/ledger_test
+/tests/tauth/pageof
+/tests/tauth/tauth_test
+/tests/tauth/unowned_page_test
+/tests/tauth/view_format_test
 
 # ---- ccloop session transcripts: symlinks to full raw session JSONL under
 # ---- ~/.claude/projects/, absolute-path (non-portable) and can carry

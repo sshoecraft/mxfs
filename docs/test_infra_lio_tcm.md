@@ -21,7 +21,7 @@ through LIO's loopback fabric (`tcm_loop`), passed into the VMs as a SCSI LUN.
 
 ## The chain
 ```
-/home/steve/disk.img (50G, fallocated)
+~/disk.img (50G, fallocated)
    → LIO fileio backstore "mxfs"  (write-through, emulate_write_cache=0)
    → tcm_loop LUN 0               (in-kernel loopback SCSI HBA)
    → host /dev/sdX                (vendor LIO-ORG, model "mxfs")
@@ -46,7 +46,7 @@ Host-side LIO/tcm_loop export.
 - `status` — show backstore, loopback target, and the host device.
 - `teardown` — remove the loopback target + backstore and the symlink. Leaves
   `disk.img` intact.
-- Env: `MXFS_LIO_IMG` (default `/home/steve/disk.img`), `MXFS_LIO_BSNAME`
+- Env: `MXFS_LIO_IMG` (default `~/disk.img`), `MXFS_LIO_BSNAME`
   (default `mxfs`).
 
 ### `wire_vms.sh {attach|detach|status} {N|node-list}`

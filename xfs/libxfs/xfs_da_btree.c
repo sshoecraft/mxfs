@@ -3298,7 +3298,7 @@ xfs_da_read_buf(
 	    dp->i_dlm_dir_gen == 0 && S_ISDIR(VFS_I(dp)->i_mode) &&
 	    dp->i_mount->m_mxfs_dlm &&
 	    !mxfs_v5_dlm_is_single_node(dp->i_mount->m_mxfs_dlm)) {
-		/* sess46 RE-ENABLED (was sess43 A/B disabled): ENGAGE the dir-gen
+		/* RE-ENABLED (was A/B disabled): ENGAGE the dir-gen
 		 * coherency mechanism on the first multi-node DATA-fork dir read.
 		 * readdir/lookup use lock_flags=0 and bypass mxfs_dlm_ilock_begin,
 		 * so i_dlm_dir_gen never bumps off 0 → the invalidation hook below
@@ -3310,7 +3310,7 @@ xfs_da_read_buf(
 		 * gen 0 mismatch (0 < 1) → invalidated + FUA-re-read fresh.  The
 		 * dirty/in-AIL/pin/delwri guards in that hook protect this node's
 		 * own uncommitted work.  The cross_write_read EACCES regression
-		 * that motivated the sess43 A/B disable was addressed by sess45
+		 * that motivated the A/B disable was addressed by
 		 * (node-affine alloc + atime-skip + getattr ILOCK reload). */
 		dp->i_dlm_dir_gen = 1;
 	}
@@ -3733,8 +3733,8 @@ xfs_da_read_buf(
 			 * and clobbers in-core metadata.  The pin guard MUST stay.
 			 */
 			/*
-			 * sess133 (instrumented, PROVEN true-silent-dirent-loss):
-			 * the blanket !in_ail guard above (sess43) also
+			 * (instrumented, PROVEN true-silent-dirent-loss):
+			 * the blanket !in_ail guard above also
 			 * blocked refreshing a buffer whose content was
 			 * DRAINED-DURABLE at the previous release but whose
 			 * BLI lingers in the AIL (dirty=0 li_empty=1
@@ -3745,7 +3745,7 @@ xfs_da_read_buf(
 			 * whose last mods were already written
 			 * (!mxfs_dir_buf_is_undestaged) is safe to refresh —
 			 * disk is a superset of our destaged content; only
-			 * genuinely committed-unwritten work keeps the sess43
+			 * genuinely committed-unwritten work keeps the
 			 * protection.
 			 */
 			/* ABA alias = cached dir DATA/BLOCK block whose v5

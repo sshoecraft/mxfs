@@ -1,0 +1,121 @@
+# Prints moved to dynamic debug by hand, from a measured kernel log.
+# Input to scripts/log_demote_sites.py; each fragment names one message.
+# docs/log-levels.md gives the rule these decisions apply.
+#
+# Measured on 0.89.89 (527AE4F8): a whole 2-node TCP suite run, and a
+# 5-test workload with probes off (tests/evidence/quietlog3_0.89.89_*).
+
+# --- routine, per operation --------------------------------------------------
+# 5,768 lines in one suite run; every retarget onto a purged incarnation
+P-TAUTH-RETARGET
+P-TAUTH-HANDOFF-STALE-TARGET
+ONDEMAND-SERVED
+-TOKEN blkno
+VALIDATE-PUBPEND
+P-AUTHCAP-VOID
+TYPEFLIP-REUSE
+SWALLOW-DEAD
+CLUSTER-PROTECT
+XFSAILD-REFUSE	3
+CAW-FALSEPOS-CLEAR
+AGI-PUBLISH-TOTALS
+IOMAP-REVALIDATED
+SKIP-DIFFERS
+RECOV-OWNED daddr
+SOLE-SKIP
+
+# --- counter dumps at unmount, replay and teardown ---------------------------
+ICWR-REGISTRY-TOTAL
+-REGISTRY-TOTAL opens
+AGIFC-AUDIT-COVERAGE
+P-TAUTH-DLM-STATS
+UNMOUNT-RESIDUAL-TOTAL
+UNMOUNT-RESIDUAL-INODE
+RETIRE-QUIESCED
+no_authority=0 tail_blind=0 (module-wide
+meta_detached=
+— no AG-metadata or inode-cluster access
+bdev_io	2
+LATE-RELEASE unmount_clean=1
+AUTH-TAIL-ADMIT
+P-DRAIN-PEAK
+TOKENSUM
+ADMIT fully-tokenized
+SHADOW-CAP
+SHADOW-EVAL	3
+RMAN-EVAL
+P-RMAN-LOAD victim
+RMAN-PREREPLAY-VERIFY
+LOGTAIL
+FRSTAB-STABLE	2
+RECOV-IMAGE-EVICT
+replayed images flushed home before
+BARRIER-CLOCK
+P-SLIFE slot
+
+# --- internal steps of a join, a departure, a fence and a recovery -----------
+# The operator still sees: peer connected/disconnected, P-JOIN-INSTALLED,
+# P-GOODBYE-RX, the death, FENCEKIND, FENCE-CERTIFIED, P238's unproven
+# absence, RECOVERY-PENDING, the replay itself and RECOVERY-COMPLETE.
+peer joined — flushing
+cached-view invalidation complete
+DLM lock caching enabled
+heartbeat received from unknown node
+DLM init: node_id	2
+DLM shutting down
+P-JOIN-FREEZE — peer sighted
+P-JOIN-QUEUED
+P-JOIN-THAW — single
+JOIN-BMBT-CENSUS
+P-DEPART-WORKER started
+P-DEPART-WORKER exiting
+PR-WORKER started
+P290-AUTH-WITHDRAW-THREAD node
+P-DEPART-WORK node
+P-DEPART-WORK-ORPHAN-SWEEP
+P-DEPART-WORK-REFUSED
+P-RELALL-WIRED
+P-RELALL-LEFT
+P-GOODBYE-SENT
+P-TAUTH-TAKEOVER departed
+P-TAUTH-TAKEOVER-RUN
+P-TAUTH-ORPHAN-AUTH
+P-TAUTH-ORPHAN-SWEEP by
+ORPHAN-SWEEP-INTERRUPTED
+P-TAUTH-SEAL node
+P-TAUTH-DEPART node
+P-TAUTH-DEPART-LEFT
+P-PRKEY-%s idx
+FENCECAP-OK
+P303-FENCECAP '%s' ptpl_c
+P-PR-OWN-PROOF '%s' key
+PR-DEPARTURE-UNHELD
+PR-SWAP-NOKEY
+P-PR-FENCE-ABSENT
+LURESET-ADMIT
+LURESET-CONVERGE
+LURESET-BARRIER
+LURESET-FENCE '
+FENCE-INTENT slot
+FENCE-ARM slot
+FENCE-SEALED slot
+DEATH-FENCE-QUEUED
+DEATH-FENCE-RUN
+P238-FENCE-LURESET slot
+GATE-NO-RETIRE-BASIS
+BOOTSUCC-HOST-NOT-LIVE
+P-TCPDEATH-DEFERRED
+DEAD-NOTE
+P-DEAD-INC
+P-RMAN-SNAPSHOT slot
+P-RMAN-PROTECT mask
+P-RMAN-SEALED slot
+P-RMAN-LOADED slot
+RECOV-CLAIMED
+RECOV-LEASE slot	2
+SLOT-TENANCY-RETIRED
+P-FREPLAY-NOTIFY
+P-FREPLAY-ENTER
+P-FREPLAY-EXIT
+P-FREPLAY-PHASE
+SWEEP-START slot	2

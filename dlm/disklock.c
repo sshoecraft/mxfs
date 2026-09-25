@@ -4161,7 +4161,7 @@ rebase_only:
 					uint64_t was = ctx->protected_mask;
 
 					ctx->protected_mask = prot_mask;
-					mxfs_pal_log(MXFS_LOG_WARN,
+					mxfs_pal_log(MXFS_LOG_DEBUG,
 					    "mxfs: P-RMAN-PROTECT mask=0x%llx was=0x%llx — victim "
 					    "slots whose CAW EX/PW authority is write-protected "
 					    "(recovery descriptor present, stage >= FENCING) changed",
@@ -5471,7 +5471,7 @@ void mxfs_disklock_withdraw(struct mxfs_disklock_ctx *ctx)
 	} else {
 		/* The read failed — we cannot see the slot, but a peer that never
 		 * gets a death signal waits the full 62 s stale window over a node
-		 * that is already gone.  Stamp it; the risk is the pre-sess78 one
+		 * that is already gone.  Stamp it; the risk is the earlier one
 		 * and strictly smaller than never declaring death at all. */
 		rc = write_sector_fua(ctx, off, hb);
 	}
@@ -6374,7 +6374,7 @@ static uint64_t recov_stamp_after(uint64_t prev)
  * newer) authority.
  *
  * A NULL auth is accepted only where the caller has no prior claim to check —
- * it degrades to the pre-sess67 owner-identity test and is never used by the
+ * it degrades to the earlier owner-identity test and is never used by the
  * coordinator.
  */
 static void recov_auth_issue(struct mxfs_recov_auth *auth,
@@ -9050,7 +9050,7 @@ int mxfs_disklock_recovery_fence_intent(struct mxfs_disklock_ctx *ctx, int slot,
 	rc = recov_cas_durable(ctx, slot, cur, want);
 	if (rc == 0) {
 		recov_fence_auth_issue(out_auth, &want->recov.desc);
-		mxfs_pal_log(MXFS_LOG_WARN,
+		mxfs_pal_log(MXFS_LOG_DEBUG,
 		    "disklock: P236-FENCE-INTENT slot=%d victim=%u epoch=%llu key=%llu "
 		    "slice=%u/%u prover=%u term=1 — fencing intent is DURABLE; the "
 		    "PREEMPT AND ABORT may now be issued.  This authorises NOTHING: "
@@ -9240,7 +9240,7 @@ int mxfs_disklock_recovery_fence_arm_submit(struct mxfs_disklock_ctx *ctx,
 
 	rc = recov_cas_durable(ctx, slot, cur, want);
 	if (rc == 0)
-		mxfs_pal_log(MXFS_LOG_WARN,
+		mxfs_pal_log(MXFS_LOG_DEBUG,
 		    "disklock: P304-FENCE-ARM slot=%d victim=%u prover=%u term=%u — "
 		    "the command-submission boundary is DURABLE.  From this point a "
 		    "PREEMPT-family command MAY have reached the target, so no reader "
@@ -9816,7 +9816,7 @@ int mxfs_disklock_recovery_manifest_write(struct mxfs_disklock_ctx *ctx, int slo
 	out_ptr->writer_epoch   = ctx->epoch;
 	out_ptr->fence_term     = d->fence_term;
 	out_ptr->scan_slots     = scan_slots;
-	mxfs_pal_log(MXFS_LOG_WARN,
+	mxfs_pal_log(MXFS_LOG_DEBUG,
 	    "disklock: P-RMAN-SEALED slot=%d victim=%u epoch=%llu term=%u seq=%llu "
 	    "entries=%u bytes=%u scan_slots=%u flags=0x%x hdr_crc=0x%08x — the "
 	    "fence-time manifest is durably sealed; publishing the pointer next",
@@ -9888,7 +9888,7 @@ int mxfs_disklock_recovery_fence_seal(struct mxfs_disklock_ctx *ctx, int slot,
 
 	rc = recov_cas_durable(ctx, slot, cur, want);
 	if (rc == 0)
-		mxfs_pal_log(MXFS_LOG_WARN,
+		mxfs_pal_log(MXFS_LOG_DEBUG,
 		    "disklock: P236-FENCE-SEALED slot=%d victim=%u epoch=%llu kind=%s "
 		    "prover=%u term=%u manifest{seq=%llu entries=%u bytes=%u "
 		    "flags=0x%x} — certificate + sealed fence-time manifest are "
@@ -10131,7 +10131,7 @@ static int rman_manifest_read_impl(struct mxfs_disklock_ctx *ctx, int slot,
 	*out_ents = ents;
 	ents = NULL;
 	*out_count = hdr->entry_count;
-	mxfs_pal_log(MXFS_LOG_WARN,
+	mxfs_pal_log(MXFS_LOG_DEBUG,
 	    "disklock: P-RMAN-LOADED slot=%d victim=%u epoch=%llu seq=%llu "
 	    "entries=%u flags=0x%x writer=%u/%llu term=%u — sealed fence-time "
 	    "manifest validated against the certificate's pointer",
@@ -10474,7 +10474,7 @@ int mxfs_disklock_recovery_claim(struct mxfs_disklock_ctx *ctx, int slot,
 	rc = recov_cas_durable(ctx, slot, cur, want);
 	if (rc == 0) {
 		recov_auth_issue(out_auth, &want->recov.desc);
-		mxfs_pal_log(MXFS_LOG_WARN,
+		mxfs_pal_log(MXFS_LOG_DEBUG,
 		    "disklock: P236-RECOV-CLAIMED slot=%d victim=%u epoch=%llu "
 		    "gen=%llu owner=%u term=1 stage=%u — claimed a CERTIFIED unowned "
 		    "recovery (proved by node=%u term=%u); this is a recovery lease, "
@@ -11272,7 +11272,7 @@ void mxfs_disklock_slot_tenancy_retire(struct mxfs_disklock_ctx *ctx, int slot,
 		ctx->slot_node_id[slot] = 0;
 	}
 	mxfs_pal_mutex_unlock(ctx->lock);
-	mxfs_pal_log(MXFS_LOG_WARN,
+	mxfs_pal_log(MXFS_LOG_DEBUG,
 		     "mxfs: P-SLOT-TENANCY-RETIRED slot=%d node=%u inc=%llu "
 		     "successor=%u/%llu — the recovered incarnation's tracking "
 		     "is retired with it; the slot's next claimant is a new "
@@ -11621,7 +11621,7 @@ static void hb_report_claim_exhausted(struct mxfs_disklock_ctx *ctx,
  * one shared preferred AG -> concurrent same-AG inode alloc/free corrupts the
  * inobt -> FS shutdown).
  *
- * Unlike the racy sess130-era plain-write claim (read-scan + blind FUA write,
+ * Unlike the racy earlier plain-write claim (read-scan + blind FUA write,
  * no confirmation — two parallel mounts both took the same slot), this path
  * FUA-WRITES then FUA-READS-BACK and only accepts the slot if our own
  * node_id AND our unique timestamp survived.  A racing claimer that wrote the
@@ -12875,9 +12875,9 @@ int mxfs_disklock_get_withdrawn_slots(struct mxfs_disklock_ctx *ctx,
 	return 0;
 }
 
-/* sess190: see disklock.h.  The admission barrier's requires-recovery
+/* see disklock.h.  The admission barrier's requires-recovery
  * sweep.  Unlike get_withdrawn_slots this also reports slots the fence
- * pipeline has already converted to a recovery descriptor — the sess189
+ * pipeline has already converted to a recovery descriptor — the
  * measured root was exactly that conversion racing the mount's
  * WITHDRAWN-only scan (monitor consumed the stamp during DLM init, the
  * step-6.5 scan found nothing, and the barrier went live over an
@@ -13063,7 +13063,7 @@ int mxfs_disklock_gate_owed_sweep(struct mxfs_disklock_ctx *ctx,
 }
 
 /*
- * sess54 (D-FOREIGN-REPLAY step 4a) — CONTINUOUS, CANCELLABLE DEAD CONFIRM.
+ * (D-FOREIGN-REPLAY step 4a) — CONTINUOUS, CANCELLABLE DEAD CONFIRM.
  *
  * mxfs_disklock_get_stale_slot_mask() above answers "did this slot advance
  * during ONE window", and it re-baselines on every call.  That is fine for
@@ -13073,7 +13073,7 @@ int mxfs_disklock_gate_owed_sweep(struct mxfs_disklock_ctx *ctx,
  * between call N's last poll and call N+1's baseline read is invisible to
  * both — N never sees it, N+1 adopts it as its own baseline — so a node
  * whose heartbeat is merely slow can be declared dead by the chain even
- * though it advanced inside the nominal window.  (design-consult review, sess54
+ * though it advanced inside the nominal window.  (design-consult review,
  * item 3.)
  *
  * This entry point keeps ONE baseline for the whole window and samples

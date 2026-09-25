@@ -63,6 +63,39 @@ every tag in a node's kernel log; running it again against a fresh
 measurement re-applies the same rule.  On the run it was measured from, the
 probes left visible printed 131 of the 75,165 probe lines.
 
+The rule alone is not enough, for two reasons:
+
+- A message can be rare in one run and routine in another.
+  `P-TAUTH-RETARGET` names a "recovery-purged" incarnation, fired rarely in
+  the first measurement, and printed 5,768 lines in a later suite run.
+- Wording is a poor guide to what an operator acts on.  The counter dumps
+  at unmount and replay (`*-REGISTRY-TOTAL`, `P291-AUTH-TAIL`,
+  `P273-SHADOW-EVAL`, ...), and the internal steps of a join or a fence
+  (intent, arm, seal, manifest, freeze, thaw), use words like "replay",
+  "refuse" and "orphan", but nobody acts on them.
+
+So a second pass works from what actually printed.
+`scripts/log_demote_sites.list` names, message by message, the
+default-level prints seen in a measured log that are not operator events,
+and `scripts/log_demote_sites.py` moves exactly those call sites to dynamic
+debug.  A fragment names one message variant, not a tag family: the success
+line of `P303-FENCECAP` moves and its `-NOPERSIST` refusal stays.  Where a
+level is chosen by a condition (`rc ? MXFS_LOG_WARN : MXFS_LOG_INFO`), only
+the less severe arm, the routine outcome, is demoted.  Error-level prints
+(`pr_err`, `xfs_alert`, `MXFS_LOG_ERR`) are never demoted: an error that
+fires routinely is a defect to fix, not a line to hide.
+
+What stays visible for a node's life: the mount and its slice and domain,
+peers connecting and disconnecting, the join installed, a clean departure
+received, a death, the fence's kind and certification, a fence that could
+not be proved, recovery pending, the replay and recovery complete, open
+obligations or residue at teardown, and every error.
+
+To measure again: run the suite, then read each node's kernel journal at
+`-p info` (which excludes `pr_debug`) over the window the build was loaded.
+Discard `callbacks suppressed` lines and probe-gated stack dumps; with
+probes on they are artifacts of the probes themselves.
+
 ## Adding a message
 
 - Something the harness needs to see, or that helps diagnose one mechanism:

@@ -97,7 +97,7 @@ mxfs_inode_unpin(
 		   ip->i_dlm_ex_holders == 0 &&
 		   ip->i_dlm_pr_holders == 0) {
 		/*
-		 * mirror of mxfs_dlm_ilock_end's sess9-v3
+		 * mirror of mxfs_dlm_ilock_end's v3
 		 * CACHED&&bast_pending arm (with the consume).  A
 		 * deferred BAST parked behind i_dlm_bast_pending (MHT
 		 * batch_arm / gen-moved abort) whose tenure's LAST quiescent

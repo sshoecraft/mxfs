@@ -91,14 +91,14 @@ mxfs_blkdev_flush_durable(struct xfs_mount *mp)
 }
 
 /*
- * ccloop c7ee71c6 sess2: coalesced background destage kick (see xfs_mount.h
+ *  coalesced background destage kick (see xfs_mount.h
  * field comment).  One SYNC log force + a full (async) AIL push per debounce
  * window destages every recently freed/created inode cluster within ~ms,
  * replacing the per-unlink eager force+drain+flush (ifree_eager_durable=0)
  * without reopening the reuse-convergence stalls (VISNUDGE 55s spins,
  * dir_reuse reload livelock, uv-create barrier timeouts) that pure-lazy
  * xfsaild pacing produced.  xfs_ail_push_all is non-blocking (xfsaild does
- * the writes) — no whole-AIL *sync* wait, so none of the sess129/sess32
+ * the writes) — no whole-AIL *sync* wait, so none of the /
  * cross-AG deadlock shapes apply.
  */
 void

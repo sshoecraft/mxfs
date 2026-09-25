@@ -266,7 +266,7 @@ mxfs_dlm_evict(
 	ip->i_dlm_bast_pending = false;
 
 	/*
-	 * sess83 FIX (durable dir-block lost-update root):
+	 * FIX (durable dir-block lost-update root):
 	 *
 	 * xfs_reclaim_inode reaches here once the inode CORE is clean
 	 * (xfs_inode_clean) and unpinned — but a DIRECTORY's data-fork block
@@ -278,7 +278,7 @@ mxfs_dlm_evict(
 	 * If we release the on-disk DLM slot now with dir blocks still dirty /
 	 * in-AIL, a peer acquires the dir, FUA-reads STALE disk (missing this
 	 * node's committed dirents), RMWs and DURABLY CLOBBERS them — the
-	 * 90/120 "node lost its own files" lost-update.  PROVEN (sess83
+	 * 90/120 "node lost its own files" lost-update.  PROVEN (
 	 * P-NOINO-BAST): the shared test dir inode is reclaimed mid-run, so a
 	 * peer's later BAST hits the no-inode direct-unlock path having never
 	 * drained these blocks.
@@ -457,17 +457,17 @@ mxfs_dlm_evict(
 			(unsigned long long)ip->i_ino, ip->i_dlm_mode);
 
 		/*
-		 * sess162 (D-FOREIGN-REPLAY item 2, the evict ordering gap):
+		 * (D-FOREIGN-REPLAY item 2, the evict ordering gap):
 		 * until now the certificate stayed PROVING across the wire
 		 * releases below and was only revoked by the NL store at the
 		 * end of this function — publish-then-revoke.  In that window
 		 * a peer could be granted the freed slot and mint a tenure
 		 * while our journal's authority claims still named this one.
 		 * Announce release-begin before relinquishment becomes
-		 * PEER-EFFECTIVE (design-consult sess163 ruling B: that, not
+		 * PEER-EFFECTIVE (design-consult ruling B: that, not
 		 * "eviction begin", is the invariant — peer-visible activity
 		 * under the still-held grant is legitimate).  It must stay
-		 * AFTER the P237 last-chance publish and the sess83/sess85
+		 * AFTER the P237 last-chance publish and the /
 		 * durability arms above: a successful P237 CAS is itself a
 		 * proving act, and log items formatted by the durability
 		 * arms must carry the live tenure's authority.  A FAILED
@@ -957,7 +957,7 @@ int mxfs_lru_sweep_enable;	/* DEFAULT 0.  The sweep was built
 				 * an opt-in diagnostic only. */
 module_param_named(lru_sweep, mxfs_lru_sweep_enable, int, 0644);
 MODULE_PARM_DESC(lru_sweep,
-		 "opt-in repatriation sweep (default 0 — see sess39 note; page-held inodes are off-LRU by upstream design)");
+		 "opt-in repatriation sweep (default 0 — see note; page-held inodes are off-LRU by upstream design)");
 
 /*
  * The sweep's batch, off the stack (1 KB).  Only mxfs_lru_sweep_fn touches it,
@@ -1062,7 +1062,7 @@ MODULE_PARM_DESC(inode_caw_local,
                  "(0=off default, 1=skip disk CAW for inode locks)");
 
 /*
- * sess31 (ccloop c7ee71c6) D-CAW-YIELD-STARVATION-SHUTDOWN fix knobs.
+ * D-CAW-YIELD-STARVATION-SHUTDOWN fix knobs.
  * A compatible fresh INODE acquire that defers to yield_to used to be
  * invisible to the ticket (releases snapshot yield_to = waiters and the
  * defer path never registered) — under continuous handoff on a hot shared
@@ -1073,7 +1073,7 @@ MODULE_PARM_DESC(inode_caw_local,
  * of consecutive compatible-yield deferrals a REGISTERED fresh acquire
  * tolerates before it stops deferring and takes the compatible claim
  * (~25 ms/lap measured; 16 ~= 400 ms).  0 disables the respective part
- * (pre-fix behaviour, A/B control).  Conversions are untouched (sess130
+ * (pre-fix behaviour, A/B control).  Conversions are untouched (
  * priority, v0.10.41 pure-PR-batch exception).
  */
 int mxfs_caw_fresh_register = 1;
@@ -1081,7 +1081,7 @@ module_param_named(caw_fresh_register, mxfs_caw_fresh_register, int, 0644);
 MODULE_PARM_DESC(caw_fresh_register,
                  "register fresh compatible-yield INODE/AG acquires as waiters "
                  "so release tickets include them (1=on default, 0=pre-fix; "
-                 "AG added 0.24.2 sess404)");
+                 "AG added 0.24.2)");
 
 int mxfs_caw_fresh_yield_bound = 16;
 module_param_named(caw_fresh_yield_bound, mxfs_caw_fresh_yield_bound, int, 0644);
@@ -1162,7 +1162,7 @@ MODULE_PARM_DESC(surgical_inode_write,
 int mxfs_partial_iwrite = 1;
 module_param_named(partial_iwrite, mxfs_partial_iwrite, int, 0644);
 MODULE_PARM_DESC(partial_iwrite,
-                 "Partial-sector inode-cluster writes (sess115): 1=on (default), "
+                 "Partial-sector inode-cluster writes: 1=on (default),"
                  "0=force whole-buffer write (diagnostic)");
 
 /*
@@ -1195,7 +1195,7 @@ MODULE_PARM_DESC(partial_iwrite,
  * pre-fix whole-buffer behaviour for a same-filesystem, same-age comparison
  * (tests/d0946_disklive_knob_vs_aging.sh alternates it in place).
  *
- * Measured before the fix (sess574-582, 2/tcp, clean unmount and death):
+ * Measured before the fix (2/tcp, clean unmount and death):
  * the six unauthorised passenger slots the record was filed on were the
  * mkfs realtime inodes 129/130 riding the root cluster -- reserved, never
  * owned by the peer, not stale.  Four workload shapes with the platter probe

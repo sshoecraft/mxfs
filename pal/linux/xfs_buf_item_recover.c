@@ -1352,7 +1352,7 @@ xlog_recover_buf_commit_pass2(
 	}
 	/*
 	 * (D-0517, proven by instrument on chain 80 laps 2-3 + chain 81; design-consult
-	 * ruling ccmemory ccloop-c7ee71c6-sess459-GPT-ruling-d0517-buf-lsn-skip-
+	 * ruling d0517-buf-lsn-skip-
 	 * bypass-STOP-SHIP-6-items): on an UNTRUSTED replay current_lsn is the
 	 * dead node's slice position while the on-disk stamp (bb_lsn / agi_lsn
 	 * / agf_lsn / dir lsn ...) was written by whichever node last flushed

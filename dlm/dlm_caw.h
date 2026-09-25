@@ -41,7 +41,7 @@
  * don't have access to the dynamic per-mount cap derived from
  * mxfs_cache_caps.dlm_lock).
  *
- * Sess33 (sibling project mxfs.1): per-inode lock caching is
+ * (sibling project mxfs.1): per-inode lock caching is
  * an architectural invariant — each cached inode = one held DLM lock.
  * Real workloads exceed 4096 trivially (element-web rsync alone uses
  * ~5400 inodes).  When the cap is hit, "disk lock table full" floods
@@ -85,7 +85,7 @@
 #define MXFS_CAW_INODE_FASTPOLL_INTERVAL_MS 2
 #define MXFS_CAW_BAST_POLL_MS       200     /* BAST poll thread interval (no contention) */
 /*
- * BAST poll interval under contention.  v5 sess33 (mxfs.1 sess74
+ * BAST poll interval under contention.  v5 (mxfs.1
  * finding ported): was 5 ms.  At 256 slots polled per cycle, 5 ms =
  * 51K reads/sec which storms the disk queue at scale (16+ nodes
  * contending on a shared LUN).  100 ms still gives sub-second BAST
@@ -340,7 +340,7 @@ struct mxfs_caw_bast_notify {
 	uint8_t                 pad2[3];
 	uint8_t                 volume_uuid[16];
 	/*
-	 * NUDGE v2 — targeted wakeups (Gemini-reviewed).
+	 * NUDGE v2 — targeted wakeups (review-reviewed).
 	 * v1 grant nudges woke EVERY blocked acquirer on every node; each did
 	 * a READ(16)+FUA re-check, and at a 32-node single-dir create convoy
 	 * those ~28 serialized reads at the one SCSI target WERE the measured
@@ -1265,7 +1265,7 @@ struct mxfs_dlm_caw_ctx {
  * present, so the owed worker retries this indefinitely with backoff and the
  * calling thread — an XFS thread, mid-operation — has no reason to keep
  * spinning on a contended slot.  Short on purpose; persistence lives in the
- * worker now, which is the entire point of the sess122-127 machinery. */
+ * worker now, which is the entire point of the machinery. */
 #define MXFS_CAW_DROP_OWED_MS       200
 /* ... and when it is NOT.  With no registry (its allocation failed at start)
  * there is no worker and no record, so the calling thread is the only collector
@@ -1589,7 +1589,7 @@ int mxfs_dlm_caw_read_generation(struct mxfs_dlm_caw_ctx *ctx,
  * (D-FOREIGN-REPLAY-UNGATED-IMAGES step 5, shadow evaluator) —
  * CONSUMER-ONLY read of one slot of a FENCED VICTIM's held-at-death manifest.
  *
- * This is NOT the sess110-deleted producer primitive coming back.  That one
+ * This is NOT the deleted producer primitive coming back.  That one
  * read ex_grant_epoch out of band to STAMP it into new log records as write
  * authority, and no second read can prove the epoch it saw belongs to the
  * grant the caller holds.  This one runs on the CONSUMER side of the same

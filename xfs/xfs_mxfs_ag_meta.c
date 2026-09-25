@@ -5,9 +5,9 @@
 #define MXFS_TU_ID 25	/* igrab/iput call-site file id */
 #include "xfs_mxfs_dlm_priv.h"
 /*
- * sess391 (design-consult ruling ccloop-c7ee71c6-sess391-GPT-ruling-ag-handoff-latch-
+ * (design-consult ruling ag-handoff-latch-
  * closing-restartable): the armed handoff latch — see pag_dlm_latched in
- * xfs_ag.h and mxfs_ag_handoff_commit() below.  Replaces the sess390
+ * xfs_ag.h and mxfs_ag_handoff_commit below.  Replaces the
  * admission-window knob (ag_readopt_window_ms): arm 3 of that (blocking
  * acquirers waited at the gate) wedged two nodes, arm 4 (nonblock refused,
  * blocking re-adopted PINNED) livelocked at 1.5-2.2 M refusals per lap; both
@@ -24,15 +24,15 @@
 int mxfs_ag_handoff_latch = 1;
 module_param_named(ag_handoff_latch, mxfs_ag_handoff_latch, int, 0644);
 MODULE_PARM_DESC(ag_handoff_latch,
-	"sess391: commit a pending AG handoff at the first holders==0 after the worker prepass + grace (1=on, 0=legacy worker-only COMMIT)");
+	"commit a pending AG handoff at the first holders==0 after the worker prepass + grace (1=on, 0=legacy worker-only COMMIT)");
 int mxfs_ag_handoff_grace_ms = 0;
 module_param_named(ag_handoff_grace_ms, mxfs_ag_handoff_grace_ms, int, 0644);
 MODULE_PARM_DESC(ag_handoff_grace_ms,
-	"sess391: local re-adoptions admitted for this many ms after a peer's AG BAST before the handoff latch arms (default 0 = immediate)");
+	"local re-adoptions admitted for this many ms after a peer's AG BAST before the handoff latch arms (default 0 = immediate)");
 int mxfs_ag_handoff_admit_cap = 0;
 module_param_named(ag_handoff_admit_cap, mxfs_ag_handoff_admit_cap, int, 0644);
 MODULE_PARM_DESC(ag_handoff_admit_cap,
-	"sess391: the handoff latch also arms after this many post-BAST local re-adoptions (0 = no count cap)");
+	"the handoff latch also arms after this many post-BAST local re-adoptions (0 = no count cap)");
 
 /* ─── AG allocation locks ─── */
 
@@ -103,7 +103,7 @@ mxfs_ag_dlm_wait_demote(
 }
 
 /*
- * handoff latch (design-consult ruling ccloop-c7ee71c6-sess391-GPT-ruling-
+ * handoff latch (design-consult ruling
  * ag-handoff-latch-closing-restartable).  Both helpers run under pag_dlm_lock.
  *
  * mxfs_ag_handoff_closing: is local admission closed for this BAST
@@ -467,7 +467,7 @@ mxfs_buf_is_undestaged(struct xfs_buf *bp)
 					 * completion — content is on disk */
 	if (!test_bit(XFS_LI_IN_AIL, &bip->bli_item.li_flags))
 		/*
-		 * ccloop-4dd7 (b62r4 ROOT, PROVEN by
+		 * (b62r4 ROOT, PROVEN by
 		 * P110@18:11:38.727064): a BLI exists from first modification
 		 * until xfs_buf_item_done at WRITE COMPLETION — so a live BLI
 		 * that is neither pinned nor in the AIL is in the async
@@ -629,7 +629,7 @@ mxfs_dir_bmbt_invalidate_stale(struct xfs_inode *dp, xfs_daddr_t d, int len)
 	    !S_ISDIR(VFS_I(dp)->i_mode) || dp->i_dlm_dir_gen == 0)
 		return;
 	/*
-	 * sess66 (ccloop 14d31183) ROOT FIX for zero_silent_loss: only
+	 * ROOT FIX for zero_silent_loss: only
 	 * invalidate the cached bmbt leaf when the in-core extent list is NOT
 	 * loaded (need_iread).  When the iext tree IS loaded it is the
 	 * authoritative in-core copy of the dir's extent map, and the
@@ -642,13 +642,13 @@ mxfs_dir_bmbt_invalidate_stale(struct xfs_inode *dp, xfs_daddr_t d, int len)
 	 * iext=N leaf_numrecs=N-1 comm=mkdir -> xfs_bmap_add_extent_hole_real
 	 * i!=1 -> xfs_trans_cancel -> shutdown; and the torn (dinode=N,
 	 * leaf=N-1) image a peer then reads as P59-IREAD-MISMATCH loaded=N-1
-	 * if_nextents=N.  This is the exact revert sess60 documented for the
+	 * if_nextents=N.  This is the exact revert documented for the
 	 * sibling evict path (mxfs_dir_evict_bmbt_blocks is gated need_iread at
 	 * its call site, mxfs_dir_drain_evict_data_blocks) and the tenure
 	 * authority guard the AG sibling carries (mxfs_ag_meta_invalidate_stale,
-	 * sess123); the sess133 bmbt hook was added without either guard.
+	 * ); the bmbt hook was added without either guard.
 	 * need_iread==1 is precisely the reload / xfs_iread_extents window the
-	 * hook was built for (cold-read a peer's fresh children), so the sess133
+	 * hook was built for (cold-read a peer's fresh children), so the
 	 * fix is fully preserved.
 	 */
 	if (!xfs_need_iread_extents(&dp->i_df))
@@ -723,7 +723,7 @@ mxfs_ag_meta_invalidate_stale(struct xfs_mount *mp, struct xfs_perag *pag,
 					      &bip->bli_item.li_flags);
 
 		/*
-		 * sess123 (Gemini design-consult) — DLM-TENURE AUTHORITY, the structural
+		 * (design review design-consult) — DLM-TENURE AUTHORITY, the structural
 		 * replacement for the gen/LSN preserve-vs-discard heuristics that
 		 * lost the AGI unlinked-list head for ~12 sessions.  If this buffer
 		 * was read/modified during the CURRENT AG-DLM hold (b_tenure_id ==
@@ -738,7 +738,7 @@ mxfs_ag_meta_invalidate_stale(struct xfs_mount *mp, struct xfs_perag *pag,
 		 * current, e.g. a prev-epoch drained log-tail artifact that lingers
 		 * in_ail) fall through to the gen-based cold-read below; those ARE
 		 * durable on disk (Invariant #1 drained them before we yielded), so
-		 * re-reading the peer's image is correct (preserves the sess117
+		 * re-reading the peer's image is correct (preserves the
 		 * bnobt-double-free fix).  b_tenure_id is stamped to the current
 		 * tenure by the AG-meta read sites (xfs_read_agi / xfs_read_agf /
 		 * xfs_btree read) after each successful read under the hold.
@@ -978,7 +978,7 @@ mxfs_ag_meta_invalidate_stale(struct xfs_mount *mp, struct xfs_perag *pag,
 				int ptu_seq = atomic_inc_return(&ptu_n);
 
 				if (ptu_seq <= 200)
-					pr_warn("mxfs: P-AGMETA-PRIORTENURE-UNDESTAGED-INAIL agno=%u daddr=%lld ops=%s buf_tenure=%llu cur_tenure=%llu buf_gen=%llu pag_gen=%llu holders=%d comm=%s realns=%llu — committed-unwritten AG-meta image from a PRIOR tenure survived its release: an un-tenured AG-meta writer exists (sess399 premise violation)\n",
+					pr_warn("mxfs: P-AGMETA-PRIORTENURE-UNDESTAGED-INAIL agno=%u daddr=%lld ops=%s buf_tenure=%llu cur_tenure=%llu buf_gen=%llu pag_gen=%llu holders=%d comm=%s realns=%llu — committed-unwritten AG-meta image from a PRIOR tenure survived its release: an un-tenured AG-meta writer exists (premise violation)\n",
 						pag_agno(pag),
 						(long long)cbp->b_maps[0].bm_bn,
 						mxfs_agmeta_name(cbp),
@@ -1261,9 +1261,9 @@ mxfs_ag_buf_disk_differs(struct xfs_buf *bp)
 }
 
 /*
- * sess79 instrumented DIRECTION PROBE.  For a bnobt/cntbt buffer we are about to
+ * instrumented DIRECTION PROBE.  For a bnobt/cntbt buffer we are about to
  * WRITE, FUA-read the SAME block from the medium and extract the on-disk
- * level-0 numrecs and first record (start,len).  Decides the sess52/sess79
+ * level-0 numrecs and first record (start,len).  Decides the /
  * stale-in-AIL question: if the in-core buffer we are writing has FEWER
  * records than disk (and a different rec0), our buffer is BEHIND the medium
  * (a peer wrote a newer version while we did not hold the AG, and our cached

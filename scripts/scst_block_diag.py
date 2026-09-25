@@ -17,7 +17,7 @@
 # .../sessions/*/commands, PR registrations held by zombie sessions.
 #
 # Usage:
-#   sudo PYTHONPATH=/home/steve/.local/lib/python3.12/site-packages \
+#   sudo PYTHONPATH=~/.local/lib/python3.12/site-packages \
 #        python3 scst_block_diag.py [path/to/scst.ko]
 import os
 import re

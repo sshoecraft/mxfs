@@ -8,7 +8,7 @@ on ALL nodes (~41-44/s each; agg=1319, max_single=44). 16/caw PASSES (~82/s = 13
 **aggregate ceiling ÷ N** effect: agg throughput saturates ~1319/s → 32 nodes get 41/s (<50).
 
 ### PROVEN chain (the instrument-first loop, instrumented)
-1. **Read-bound, not write.** SCST target (`/home/steve/disk.img`, vdisk_fileio) served ~2.7 GB
+1. **Read-bound, not write.** SCST target (`~/disk.img`, vdisk_fileio) served ~2.7 GB
    READS vs ~289 MB WRITES per run (~9:1). Host stat: `read_io_count_kb`/`write_io_count_kb` under
    `/sys/kernel/scst_tgt/targets/iscsi/iqn.2026-05.local.mxfs:shared/`.
 2. **NVMe backing store is NOT the bottleneck.** iostat nvme0n1 during op-loop: r/s≈24000, r_await
@@ -48,7 +48,7 @@ regress the coherency tests that share dirs.
 reads AND changes coherency behavior; NOT a clean "fewer reads" lever. Do not use as the fix path.
 
 ### Infra lessons this session
-- `/tmp/.mxfs_pass` missing after host /tmp wipe → restore `cp /home/steve/.mxfs/pass /tmp/.mxfs_pass`.
+- `/tmp/.mxfs_pass` missing after host /tmp wipe → restore `cp ~/.mxfs/pass /tmp/.mxfs_pass`.
 - 0 VMs at session start; boot all 32 `virsh -c qemu:///system start testN`, then
   `scripts/caw_preflight.sh 32` (assembles mpatha, mounts /src, verifies READY).
 - DON'T run heavy shell-fork fan-out probes (ds_probe on all 32) — leftover runaway loops wedge

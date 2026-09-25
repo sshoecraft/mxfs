@@ -1283,8 +1283,8 @@ xfs_iread_bmbt_block(
 		}
 	}
 	/*
-	 * sess70 (ccloop 14d31183) zero_silent_loss FIX — symmetric completion
-	 * of the sess68 leaf refresh (instrument step 2b, proven cause).  The sess68
+	 * zero_silent_loss FIX — symmetric completion
+	 * of the leaf refresh (instrument step 2b, proven cause).  The
 	 * fix refreshes a STALE cached bmbt LEAF from its FUA on-disk image so the
 	 * reader consumes the peer's committed map.  That repairs ONE half of the
 	 * (dinode, leaf) pair; the OTHER half — the in-core di_nextents
@@ -1295,7 +1295,7 @@ xfs_iread_bmbt_block(
 	 * reload).  The fresh leaf then carries MORE records than the stale dinode
 	 * expects: ir->loaded + num_recs > if_nextents -> "corrupt dinode N
 	 * (btree extents)" EFSCORRUPTED -> FS shutdown -> the whole-storm zsl
-	 * cascade (the over-count torn pair, the INVERSE of the sess68
+	 * cascade (the over-count torn pair, the INVERSE of the
 	 * under-count; PROVEN this session: instr=0 iter1 shutdown on ino=131
 	 * leaf numrecs=19 > if_nextents).  The dirwr run PROVED the on-disk
 	 * (dinode, leaf) pair IS coherent (every P62-IFLUSH-FORCE released
@@ -1304,7 +1304,7 @@ xfs_iread_bmbt_block(
 	 * on-disk dinode and adopt its di_nextents into if_nextents so the pair
 	 * is coherent and the walk completes instead of shutting down.  Scoped to
 	 * the over-count case on a multi-node BTREE-format dir data fork; held
-	 * ILOCK_EXCL (FUA under ILOCK proven safe, sess67 P34B).  If the on-disk
+	 * ILOCK_EXCL (FUA under ILOCK proven safe, P34B).  If the on-disk
 	 * dinode does not account for these records either (disk_nx still <
 	 * loaded+num_recs), it is genuine corruption — fall through to the
 	 * existing shutdown.
@@ -5730,7 +5730,7 @@ __xfs_bunmapi(
 
 	/*
 	 * v0.3.77 P29-INSTR: dump inode bmap at unmap entry to correlate
-	 * inode-bmap state with bnobt corruption.  Sess22 v0.3.76 finding:
+	 * inode-bmap state with bnobt corruption.  v0.3.76 finding:
 	 * T1 saw a free at bno=131080 len=65520 in agno=0, but T1's P23
 	 * alloc-extent log only showed alloc at agno=0 agbno=24 — never
 	 * at agbno=131080.  Hypothesis: perf_t1's bmap is corrupt, listing

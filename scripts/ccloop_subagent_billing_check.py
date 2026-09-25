@@ -25,6 +25,7 @@ Usage:
 import argparse
 import glob
 import json
+import os
 from collections import Counter, defaultdict
 
 
@@ -57,7 +58,7 @@ def scan(path):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--projects-dir", default="/home/steve/.claude/projects")
+    ap.add_argument("--projects-dir", default=os.path.expanduser("~/.claude/projects"))
     ap.add_argument("--project", default="-src-mxfs")
     ap.add_argument("--session", help="restrict to one transcript uuid prefix")
     args = ap.parse_args()

@@ -15,7 +15,7 @@ throughput saturates ~1319/s → 32 nodes get 41 (<50). Need agg ≥1600 (32×50
 
 ### Symptom PROVEN (read-bound, AG-0, peer-induced) — `docs/history/caw-32node-dlm-scaling-root-shared-ag0-reread.md`
 RULE-4 instrumented chain on build `115CCA8`:
-1. Read-bound not write: SCST vdisk (`/home/steve/disk.img`) served ~2.7GB READ vs ~289MB WRITE (~9:1),
+1. Read-bound not write: SCST vdisk (`~/disk.img`) served ~2.7GB READ vs ~289MB WRITE (~9:1),
    per `read_io_count_kb`/`write_io_count_kb` under `/sys/kernel/scst_tgt/...:shared/`.
 2. NVMe backing store is NOT the bottleneck: iostat nvme0n1 r/s≈24000, r_await 0.04ms (served from clyde
    RAM), %util 46%. Bottleneck = the iSCSI/SCST **command round-trip** at huge aggregate read-command rate.
@@ -167,7 +167,7 @@ fault_netpartition, soak, dlm_lock_correctness; plus a final one-build full-ladd
   CHECK-CONDITION retry (`pal/linux/kern.c`, pr_register 5×) is insufficient under concurrent 4-node join
   after PR churn. Fix direction: strengthen pr-register UA retry (clear UA before register / serialize the
   join) OR full cold recovery (destroy all 32, clear LUN PR, longer settle, join SERIALLY).
-- `/tmp/.mxfs_pass` missing after host /tmp wipe → `cp /home/steve/.mxfs/pass /tmp/.mxfs_pass`.
+- `/tmp/.mxfs_pass` missing after host /tmp wipe → `cp ~/.mxfs/pass /tmp/.mxfs_pass`.
 - Boot: 0 VMs at session start → `virsh -c qemu:///system start testN` (all 32) → `scripts/caw_preflight.sh
   32` (assembles mpatha, mounts /src, verifies READY).
 - DON'T run heavy shell-fork fan-out probes (ds_probe on all 32) — runaway loops wedge mounts → run.sh

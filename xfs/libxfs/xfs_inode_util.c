@@ -17,7 +17,7 @@
 #include "xfs_trans.h"
 #include "xfs_ialloc.h"
 #include "xfs_health.h"
-#include "../../dlm/v5_mount.h"	/* ccloop-4dd7 mxfs_v5_dlm_is_single_node (recycle heal) */
+#include "../../dlm/v5_mount.h"	/* mxfs_v5_dlm_is_single_node (recycle heal) */
 #include "xfs_bmap.h"
 #include "xfs_mxfs_dlm.h"
 #include "xfs_error.h"
@@ -267,9 +267,9 @@ xfs_icreate_want_attrfork(
  * mxfs: clear a non-NULLAGINO di_next_unlinked on the in-buffer dinode of
  * an inode that is PROVABLY not on any unlinked list, logging the 4-byte
  * range (+CRC) in the caller's transaction — the exact iunlink-item write
- * idiom.  Two provable points use it: the create transaction (sess48,
+ * idiom.  Two provable points use it: the create transaction (
  * P-CREATE-NUFIX: xfs_dialloc just returned the number free) and the
- * EMPTY-bucket insert (sess395, P-IUNL-NUFIX: the inode is being added to a
+ * EMPTY-bucket insert (P-IUNL-NUFIX: the inode is being added to a
  * list it is not on, and upstream's empty-bucket path never touches the
  * dinode, so a platter fossil there would otherwise survive to be re-imported
  * by the next cache-miss/reload and to read as [ours -> fossil] on disk).
@@ -278,7 +278,7 @@ xfs_icreate_want_attrfork(
  * has no meaning; the write is a no-op when the buffer already reads
  * NULLAGINO.  Silent on a stale/unreadable buffer (the create path's
  * existing behaviour).  Returns 1 when it cleared something, 0 otherwise.
- * (mxfs_dinode_nu_write is the general form: it is also how the sess395
+ * (mxfs_dinode_nu_write is the general form: it is also how the
  * fault injector STAMPS a fossil into the buffer so the clear arm can be
  * exercised on demand — never call it with want != NULLAGINO otherwise.)
  */
@@ -446,7 +446,7 @@ xfs_inode_init(
 	 * idiom factored into mxfs_dinode_nu_clear and shared
 	 * with the empty-bucket insert path (the second provable point).
 	 *
-	 * (design-consult ruling ccmemory ccloop-c7ee71c6-sess396-GPT-ruling-
+	 * (design-consult ruling
 	 * insert-mode-iunlink-item): the early xfs_imap_to_bp(tp) + log here
 	 * took the new inode's cluster buffer DIRTY before the sorted
 	 * precommit — an unordered prefix that is a real ABBA against a peer
@@ -799,7 +799,7 @@ xfs_iunlink_insert_inode(
 			(next_agino == agino) ? "yes" : "no",
 			xfs_verify_agino_or_null(pag, next_agino));
 		/*
-		 * mxfs (ccloop-4dd7, ino 0x80008e round-3 autopsy): a
+		 * mxfs (ino 0x80008e round-3 autopsy): a
 		 * bucket head ALREADY naming our agino is a LEAKED entry from
 		 * this number's PRIOR life (an inactivation skip whose unleak
 		 * could not run — the P2L-INACT-LEAK family), hit again when

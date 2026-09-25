@@ -24,8 +24,8 @@ SINGLE_TEST=""
 LIST_TESTS=0
 MOUNT_POINT="/mnt/shared"
 DEVICE=""   # resolved by identity below when not given
-PASS_FILE="/home/steve/.mxfs/pass"
-RESULTS_DIR="/home/steve/.mxfs/results"
+PASS_FILE="$("$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)/tools/mxfs_secrets.sh" passfile 2>/dev/null)"
+RESULTS_DIR="$HOME/.mxfs/results"
 NO_COLOR=0
 DEBUG=0
 
@@ -52,8 +52,8 @@ while [ $# -gt 0 ]; do
             echo "  --list             List all available tests"
             echo "  --mount-point PATH Shared mount point. Default: /mnt/shared"
             echo "  --device DEV       Block device. Default: the rig's declared LUN, resolved by identity on test1"
-            echo "  --pass-file PATH   SSH password file. Default: /home/steve/.mxfs/pass"
-            echo "  --results-dir PATH Where to write results. Default: /home/steve/.mxfs/results/"
+            echo "  --pass-file PATH   SSH password file. Default: the lab secrets store"
+            echo "  --results-dir PATH Where to write results. Default: ~/.mxfs/results/"
             echo "  --no-color         Disable colored output"
             echo "  --debug            Enable debug output"
             echo ""

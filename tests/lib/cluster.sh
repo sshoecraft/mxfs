@@ -3,8 +3,8 @@
 # SSH wrappers, node enumeration, barriers, mount helpers
 
 # ---------- Configuration ----------
-MXFS_SSH_TOOL="${MXFS_SSH_TOOL:-/home/steve/src/mxfs/tools/mxfs_sshpass.sh}"
-MXFS_PASS_FILE="${MXFS_PASS_FILE:-/home/steve/.mxfs/pass}"
+MXFS_SSH_TOOL="${MXFS_SSH_TOOL:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/tools/mxfs_sshpass.sh}"
+MXFS_PASS_FILE="${MXFS_PASS_FILE:-$("$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/tools/mxfs_secrets.sh" passfile 2>/dev/null)}"
 MXFS_TESTS_DIR="${MXFS_TESTS_DIR:-/mnt/mxfs-src/tests}"
 MXFS_MOUNT_POINT="${MXFS_MOUNT_POINT:-/mnt/shared}"
 MXFS_DEVICE="${MXFS_DEVICE:-/dev/sdb}"

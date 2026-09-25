@@ -5,8 +5,8 @@
  * successor) can complete them without ever re-reading the slice.
  *
  * — D-FOREIGN-SLICE-INTENTS-ABANDONED item 5, increment 2.
- * Design-consult rulings: ccmemory ccloop-c7ee71c6-sess461-GPT-ruling-intents-item5-
- * efi-completion-design (the design) and ccloop-c7ee71c6-sess462-GPT-ruling-
+ * Design-consult rulings: intents-item5-
+ * efi-completion-design (the design) and
  * item5-inc2-obligation-record-plumbing-only (this increment's shape).
  *
  * Two on-disk pieces, both bound to the victim identity {fs_gen, node_id,

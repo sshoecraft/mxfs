@@ -38,9 +38,9 @@
 #include <linux/fs.h>
 
 #include <mxfs/mxfs_super.h>
-#include <mxfs/mxfs_dirshard.h>  /* sess466: MXFS_DIRSHARD_SB_INCOMPAT, MXFS_FORMAT_F_DIRSHARD */
+#include <mxfs/mxfs_dirshard.h>  /* MXFS_DIRSHARD_SB_INCOMPAT, MXFS_FORMAT_F_DIRSHARD */
 #include <mxfs/mxfs_common.h>
-#include <mxfs/mxfs_tauth.h>     /* sess421: TCP authority ledger region */
+#include <mxfs/mxfs_tauth.h>     /* TCP authority ledger region */
 
 /* ─── Constants from libmxfs headers (duplicated to stay standalone) ─── */
 
@@ -109,7 +109,7 @@
 #define XFS_INODE_CHUNK_BLOCKS  8   /* 64 * 512 / 4096 */
 
 /* Feature flags.
- * ATTRBIT (0x0010) is preset at format time (sess353, #94 closure + GPT
+ * ATTRBIT (0x0010) is preset at format time (#94 closure + design review
  * ruling): FEATURES2 already advertises ATTR2, and leaving ATTRBIT unset
  * makes the kernel perform a LAZY per-node xfs_add_attr + whole-SB log on
  * the first xattr-bearing create — an uncoordinated cluster-wide SB feature
@@ -119,7 +119,7 @@
 #define XFS_SB_VERSIONNUM      0xB4B5
 #define XFS_SB_FEATURES2       0x018A  /* LAZYSBCOUNT|ATTR2|PROJID32|CRC */
 #define XFS_SB_FEAT_RO_COMPAT_FINOBT  (1 << 0)  /* free inode btree */
-/* sess42 C7: FTYPE|SPINODES + MXFS_PROTOGATE (bit 30).  The PROTOGATE
+/* C7: FTYPE|SPINODES + MXFS_PROTOGATE (bit 30).  The PROTOGATE
  * incompat bit makes every pre-gate mxfs kernel REFUSE the mount outright
  * (inherited upstream unknown-incompat check) — the preventative half of
  * the C7 version gate; see include/mxfs/mxfs_super.h. */
@@ -212,7 +212,7 @@ static void xfs_set_crc(void *buf, size_t len, size_t crc_off)
 
 /* ─── UUID generation ─── */
 
-/* sess427 (D-0348 step 2): draw @len bytes from /dev/urandom (the
+/* (D-0348 step 2): draw @len bytes from /dev/urandom (the
  * authority-ledger hash seed).  Returns 0 or -1 (message printed). */
 static int read_random_bytes(void *buf, size_t len)
 {
@@ -373,7 +373,7 @@ static int write_sectors(int fd, uint64_t offset, const void *buf, uint64_t len)
  * verifies the device actually accepts and durably persists zeros).  pwrite
  * fallback for devices that don't support the ioctl.  After writes, read
  * back a sample (every 4MB) and verify content is zeros — catches
- * VM/iSCSI/LIO setups that silently drop writes (sess19 root cause: pwrite
+ * VM/iSCSI/LIO setups that silently drop writes (root cause: pwrite
  * returned success but disklock region retained pre-mkfs ASCII text).
  */
 static int zero_region(int fd, uint64_t offset, uint64_t len)
@@ -393,7 +393,7 @@ static int zero_region(int fd, uint64_t offset, uint64_t len)
      * it).  A 33MB single command can starve past the initiator's 60s
      * timeout under concurrent CAW load, escalating to ABORT_TASK →
      * LUN_RESET → nexus loss, which wedges the target until host reboot
-     * (sess14/sess15 root cause).  4MB chunks complete in well under the
+     * (/root cause).  4MB chunks complete in well under the
      * timeout individually; total cost is the same. */
     {
         uint64_t zdone = 0;
@@ -450,7 +450,7 @@ verify:
 
     /* Read-back verify every 4MB.  Catches setups where the kernel reports
      * write success but the underlying device silently drops the data
-     * (observed on this LIO/qemu test setup in sess19).  4MB stride keeps
+     * (observed on this LIO/qemu test setup in).  4MB stride keeps
      * total verify cost <1s for 33MB regions while sampling ~9 points. */
     if (posix_memalign(&vbuf, 4096, 4096) != 0) {
         pr_err("mkfs.mxfs: posix_memalign for verify failed\n");
@@ -641,7 +641,7 @@ static int write_mxfs_super(int fd, uint64_t super_offset,
     memset(&sup, 0, sizeof(sup));
     sup.magic = MXFS_FORMAT_MAGIC;
     sup.version = MXFS_FORMAT_VERSION;
-    /* sess42 C7 version gate: every new format is protocol-gated — members
+    /* C7 version gate: every new format is protocol-gated — members
      * must run code speaking exactly cluster_proto_gen (see mxfs_super.h). */
     sup.flags = MXFS_FORMAT_F_PROTOGATE | MXFS_FORMAT_F_RMAN |
                 MXFS_FORMAT_F_TAUTH | MXFS_FORMAT_F_PRKEY64 |
@@ -657,16 +657,16 @@ static int write_mxfs_super(int fd, uint64_t super_offset,
     /* 0.88.0: the slice lifecycle region (mxfs_super.h, MXFS_FORMAT_F_SLIFE). */
     sup.slife_offset = slife_offset;
     sup.slife_size = slife_size;
-    /* sess404: the recovery manifest region (docs/recovery-manifest.md). */
+    /* the recovery manifest region (docs/recovery-manifest.md). */
     sup.rman_offset = rman_offset;
     sup.rman_size = rman_size;
-    /* sess421: the TCP authority ledger region (docs/tcp-authority-ledger.md). */
+    /* the TCP authority ledger region (docs/tcp-authority-ledger.md). */
     sup.tauth_offset = tauth_offset;
     sup.tauth_size = tauth_size;
-    /* sess438: the PR registrant ledger region (docs/whole-cluster-restart.md). */
+    /* the PR registrant ledger region (docs/whole-cluster-restart.md). */
     sup.prkey_offset = prkey_offset;
     sup.prkey_size = prkey_size;
-    /* sess439: the whole-cluster bootstrap record (docs/whole-cluster-restart.md §5). */
+    /* the whole-cluster bootstrap record (docs/whole-cluster-restart.md §5). */
     sup.bootstrap_offset = bootstrap_offset;
     sup.bootstrap_size = bootstrap_size;
     memcpy(sup.fs_uuid, uuid, 16);
@@ -692,7 +692,7 @@ static int write_mxfs_super(int fd, uint64_t super_offset,
     return write_sectors(fd, super_offset, &sup, MXFS_SUPER_SIZE);
 }
 
-/* ─── Bootstrap record region (sess439, docs/whole-cluster-restart.md §5) ───
+/* ─── Bootstrap record region (docs/whole-cluster-restart.md §5) ───
  *
  * Mirrors struct mxfs_bootstrap_rec (dlm/bootstrap.h) byte for byte: mkfs
  * writes the one IDLE record the kernel requires (an all-zero sector is
@@ -715,9 +715,9 @@ struct mkfs_bootstrap_rec {
     uint32_t prev_owner_node; uint32_t prev_fence_kind;
     uint64_t prev_owner_epoch; uint64_t prev_owner_pr_key;
     uint32_t crc32c;
-    uint32_t refused_slot; uint32_t refused_reason;    /* sess440 v2 */
-    uint32_t escrow_pad; uint8_t escrow[264];          /* sess441 v3, sess442 mptr */
-    uint64_t episode_term; uint16_t lineage_count; uint16_t takeover_gen; /* sess443 v5 */
+    uint32_t refused_slot; uint32_t refused_reason;    /* v2 */
+    uint32_t escrow_pad; uint8_t escrow[264];          /* v3, mptr */
+    uint64_t episode_term; uint16_t lineage_count; uint16_t takeover_gen; /* v5 */
     uint8_t reserved[12];
 };
 _Static_assert(sizeof(struct mkfs_bootstrap_rec) == 512, "bootstrap record");
@@ -729,7 +729,7 @@ static int write_bootstrap_record(int fd, uint64_t offset, const uint8_t *uuid)
 
     memset(&r, 0, sizeof(r));
     r.magic = MKFS_BOOTSTRAP_MAGIC;
-    r.ver = 5;                              /* sess443: MXFS_BOOTSTRAP_VERSION */
+    r.ver = 5;                              /* MXFS_BOOTSTRAP_VERSION */
     r.state = 0;                            /* IDLE */
     memcpy(r.fs_uuid, uuid, 16);
     r.crc32c = crc32c(~0U, &r, sizeof(r));
@@ -777,7 +777,7 @@ static int write_slife_records(int fd, uint64_t offset, uint64_t size,
     return 0;
 }
 
-/* ─── TCP authority ledger region (sess421) ───
+/* ─── TCP authority ledger region ───
  *
  * Complete valid coverage from the first mount: every page is written as a
  * committed EMPTY page (seq 1) in copy A; copy B and the spare header copy
@@ -786,7 +786,7 @@ static int write_slife_records(int fd, uint64_t offset, uint64_t size,
  * hold (docs/tcp-authority-ledger.md invariant: complete negative
  * authority).  One sequential write per copy array keeps this fast
  * (2115 pages = 8.3 MiB each). */
-/* sess427 (D-0348 step 2): the ledger's page count is an mkfs-time
+/* (D-0348 step 2): the ledger's page count is an mkfs-time
  * parameter.  Default: one record per 64 KiB of device (a generous peak
  * tenure count — mean occupancy stays far below 31/page), clamped to the
  * format's [MIN, MAX]; -t ENTRIES overrides.  128 GiB -> 67,650 pages ->
@@ -840,7 +840,7 @@ static int format_tauth_region(int fd, uint64_t tauth_offset, uint64_t tauth_siz
                           pg, sizeof(*pg)) < 0)
             goto fail;
     }
-    /* sess428 (docs/tauth-view-table.md §13, build step 1): the control
+    /* (docs/tauth-view-table.md §13, build step 1): the control
      * pages.  View slots A/B stay all-zero (= empty, validated as such by
      * mxfs_tauth_ctrl_validate); the ROOT is the mkfs image — no committed
      * view, ballot 0, nonce {0,1} — occupying the first 512 B of its page
@@ -1389,13 +1389,13 @@ static int format_xfs_native(int fd, uint64_t data_size, uint64_t base_offset,
     geom.dblocks = data_size / XFS_BLOCKSIZE;
 
     /*
-     * D-LOG-SLICE-SHARED-MULTIWRITER (sess219): the internal log is carved
+     * D-LOG-SLICE-SHARED-MULTIWRITER: the internal log is carved
      * into log_node_count per-node slices, the slice index IS the heartbeat
      * slot (identity, no modulo), and the kernel refuses admission of any
      * slot >= log_node_count.  So the count formatted here is the cluster's
      * hard node limit for this filesystem, and every slice must be viable:
      *
-     *  - each slice needs ~64MB (16384 fsb).  sess21: 32MB slices keep the
+     *  - each slice needs ~64MB (16384 fsb).  32MB slices keep the
      *    log tail under constant pressure (rsync wedge); mkfs.xfs has
      *    enforced a 64MB minimum since xfsprogs 5.19.
      *  - XFS caps the whole internal log at 2GiB-10MiB (XFS_MAX_LOG_BYTES,
@@ -1404,8 +1404,8 @@ static int format_xfs_native(int fd, uint64_t data_size, uint64_t base_offset,
      *  - the log must fit in ONE AG, so AG size is derived FROM the log
      *    requirement (fewer, larger AGs on small devices) — never the other
      *    way around.  If the device cannot host every slice, mkfs FAILS
-     *    with the numbers; it never silently shrinks slices (the pre-sess219
-     *    AG-fit clamp did, reintroducing the sess36 wedge).
+     *    with the numbers; it never silently shrinks slices (the earlier
+     *    AG-fit clamp did, reintroducing the wedge).
      */
     {
         const uint32_t max_log_fsb = (uint32_t)
@@ -1493,7 +1493,7 @@ static int format_xfs_native(int fd, uint64_t data_size, uint64_t base_offset,
     }
 
     /*
-     * sess389 (D-RSYNC-LAP-PACE-AG-SHARING-388, design-consult ruling): the kernel
+     * (D-RSYNC-LAP-PACE-AG-SHARING-388, design-consult ruling): the kernel
      * gives every node the home AG (node_slot % agcount), so with fewer AGs
      * than nodes, slots >= agcount share a home AG pairwise and their dirops
      * ping-pong the AG EX grant.  Measured 25 AGs / 32 nodes: the 14 shared-AG
@@ -1533,7 +1533,7 @@ static int format_xfs_native(int fd, uint64_t data_size, uint64_t base_offset,
     /* Verify the log fits its AG (log starts at block 5 of the log AG,
      * after SB+AGF+AGI+AGFL, BNO, CNT, INO, FINO; +4 AGFL +16 slack).
      * With multiple slices this must never shrink — a shrunken slice is
-     * the sess36 wedge — so a misfit is a hard error.  A single legacy
+     * the wedge — so a misfit is a hard error.  A single legacy
      * slice may still shrink to fit tiny devices. */
     {
         uint32_t log_ag_len = (geom.log_ag == geom.agcount - 1) ?
@@ -1858,10 +1858,10 @@ int main(int argc, char *argv[])
     uint64_t device_size;
     uint64_t disklock_offset, journal_offset, xfs_data_offset;
     uint64_t journal_size, disklock_size, xfs_data_size;
-    uint64_t rman_offset, rman_size;    /* sess404 recovery manifests */
-    uint64_t tauth_offset, tauth_size;  /* sess421 TCP authority ledger */
-    uint64_t prkey_offset, prkey_size;  /* sess438 PR registrant ledger */
-    uint64_t bootstrap_offset, bootstrap_size;  /* sess439 bootstrap record */
+    uint64_t rman_offset, rman_size;    /* recovery manifests */
+    uint64_t tauth_offset, tauth_size;  /* TCP authority ledger */
+    uint64_t prkey_offset, prkey_size;  /* PR registrant ledger */
+    uint64_t bootstrap_offset, bootstrap_size;  /* bootstrap record */
     uint64_t slife_offset, slife_size;  /* 0.88.0 slice lifecycle records */
     uint32_t max_nodes = MXFS_MAX_NODES;
     uint32_t log_node_count = 0;    /* 0 = auto-size from the device;
@@ -1874,7 +1874,7 @@ int main(int argc, char *argv[])
     struct stat st;
     uint64_t data_cap = 0;              /* -d: XFS data-area cap, 0 = whole device */
     uint32_t tauth_npages = 0;          /* -t: authority-ledger records, 0 = derive */
-    uint64_t tauth_seed = 0;            /* sess427: per-format routing-hash seed */
+    uint64_t tauth_seed = 0;            /* per-format routing-hash seed */
 
     while ((opt = getopt(argc, argv, "fc:Dn:d:t:vVZ")) != -1) {
         switch (opt) {
@@ -1896,7 +1896,7 @@ int main(int argc, char *argv[])
             skip_log_zero = true;
             break;
         case 't': {
-            /* sess427 (D-0348 step 2): authority-ledger capacity in
+            /* (D-0348 step 2): authority-ledger capacity in
              * RECORDS (rounded up to whole 31-record pages). */
             char *end = NULL;
             unsigned long long v = strtoull(optarg, &end, 10);
@@ -1918,7 +1918,7 @@ int main(int argc, char *argv[])
             break;
         }
         case 'd': {
-            /* sess389: data-area cap (geometry reproduction).  Accepts a
+            /* data-area cap (geometry reproduction).  Accepts a
              * plain byte count or K/M/G/T suffix. */
             char *end = NULL;
             unsigned long long v = strtoull(optarg, &end, 10);
@@ -2018,12 +2018,12 @@ int main(int argc, char *argv[])
     disklock_size = MXFS_DISKLOCK_REGION_SIZE;
 
     /* New layout: [MXFS super 4KB] [journal] [disklock] [rman] [XFS data to end]
-     * sess404: the recovery manifest region — one 2 MiB + 64 KiB slot per
+     * the recovery manifest region — one 2 MiB + 64 KiB slot per
      * heartbeat slot (docs/recovery-manifest.md). */
     rman_size = MXFS_RMAN_REGION_BYTES;
-    /* sess421: the TCP authority ledger region follows the manifests
+    /* the TCP authority ledger region follows the manifests
      * (docs/tcp-authority-ledger.md): 2 header + 2 x npages page copies.
-     * sess427 (D-0348 step 2): npages is sized from the device (or -t). */
+     * (D-0348 step 2): npages is sized from the device (or -t). */
     if (!tauth_npages)
         tauth_npages = tauth_npages_for_device(device_size);
     tauth_size = MXFS_TAUTH_REGION_BYTES_FOR(tauth_npages);
@@ -2035,11 +2035,11 @@ int main(int argc, char *argv[])
     disklock_offset = ALIGN_UP_4K(journal_offset + journal_size);
     rman_offset = ALIGN_UP_4K(disklock_offset + disklock_size);
     tauth_offset = ALIGN_UP_4K(rman_offset + rman_size);
-    /* sess438: the PR registrant ledger (docs/whole-cluster-restart.md
+    /* the PR registrant ledger (docs/whole-cluster-restart.md
      * item 2): 256 x 512 B CAW-written entries, zero-filled (FREE). */
     prkey_size = MXFS_PRLEDGER_BYTES;
     prkey_offset = ALIGN_UP_4K(tauth_offset + tauth_size);
-    /* sess439: the whole-cluster bootstrap record (§5): one CAW sector in a
+    /* the whole-cluster bootstrap record (§5): one CAW sector in a
      * 4 KiB region, written IDLE (an all-zero sector is UNFORMATTED and the
      * kernel fails closed on it). */
     bootstrap_size = MXFS_BOOTSTRAP_BYTES;
@@ -2182,7 +2182,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    /* ─── Step 3a: Zero the recovery manifest region (sess404) ───
+    /* ─── Step 3a: Zero the recovery manifest region ───
      * A manifest slot is valid only with its own header magic + seal, so a
      * zeroed region reads as "no manifest" on every path. */
     pr_info("Zeroing recovery manifest region...\n");
@@ -2191,7 +2191,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    /* ─── Step 3a': Format the TCP authority ledger region (sess421) ─── */
+    /* ─── Step 3a': Format the TCP authority ledger region ─── */
     pr_info("Formatting TCP authority ledger region (%u pages)...\n",
             tauth_npages);
     if (format_tauth_region(fd, tauth_offset, tauth_size, uuid, tauth_npages,
@@ -2199,7 +2199,7 @@ int main(int argc, char *argv[])
         close(fd);
         return 1;
     }
-    /* ─── Step 3a'': the PR registrant ledger (sess438): all entries FREE ─── */
+    /* ─── Step 3a'': the PR registrant ledger: all entries FREE ─── */
     pr_info("Formatting PR registrant ledger region (%u entries)...\n",
             (unsigned)MXFS_PRLEDGER_ENTRIES);
     if (zero_region(fd, prkey_offset, prkey_size) < 0) {
@@ -2207,7 +2207,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    /* ─── Step 3a''': the bootstrap record (sess439): IDLE, crc-sealed ─── */
+    /* ─── Step 3a''': the bootstrap record: IDLE, crc-sealed ─── */
     pr_info("Formatting bootstrap record region (IDLE)...\n");
     if (zero_region(fd, bootstrap_offset, bootstrap_size) < 0 ||
         write_bootstrap_record(fd, bootstrap_offset, uuid) < 0) {

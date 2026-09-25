@@ -53,4 +53,4 @@ lifecycle + dir-DLM lineage + raw disk hash post-delete-release.
 ## Repro plan
 Fresh prep + precond+cache_coherency+strong_consistency+posix_multi (~5min/iter, no fio initially),
 MXFS_EXTRA_MODARGS="dblalloc_probe=1", pull ALL 32 journals per-iter immediately (beat rotation), static
-fork-overlap check on /home/steve/disk.img per-iter. Harness → tests/ per the source-tree rule.
+fork-overlap check on ~/disk.img per-iter. Harness → tests/ per the source-tree rule.

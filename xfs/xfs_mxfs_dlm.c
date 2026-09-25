@@ -142,7 +142,7 @@ atomic64_t mxfs_noino_lifecycle_timeouts;
 static int mxfs_agmutex_warn_ms = 300;
 module_param_named(agmutex_warn_ms, mxfs_agmutex_warn_ms, int, 0644);
 MODULE_PARM_DESC(agmutex_warn_ms,
-	"sess388: warn when pag_dlm_lock is held or waited for >= this many ms (0=off)");
+	"warn when pag_dlm_lock is held or waited for >= this many ms (0=off)");
 
 void
 mxfs_pag_dlm_lock(struct xfs_perag *pag, int site)
@@ -1594,10 +1594,10 @@ mxfs_dlm_inode_init(
 	ip->i_dlm_pr_holders = 0; MXFS_DLMTR_H(ip);
 	ip->i_dlm_pin_count = 0;
 	ip->i_dlm_acq_inflight = 0;	/* daf50d34 no slow-path acquire in flight */
-	ip->i_dlm_acq_pid = 0;		/* ccloop-4dd7 ACQUIRING-setter forensics */
+	ip->i_dlm_acq_pid = 0;		/* ACQUIRING-setter forensics */
 	ip->i_dlm_acq_comm[0] = '\0';
 	ip->i_dlm_acq_set_ns = 0;
-	ip->i_dlm_exh_pid = 0;		/* ccloop-4dd7 EX-admission holder forensics */
+	ip->i_dlm_exh_pid = 0;		/* EX-admission holder forensics */
 	ip->i_dlm_exh_comm[0] = '\0';
 	ip->i_dlm_exh_since_ns = 0;
 	ip->i_dlm_acq_strikes = 0;
@@ -2414,7 +2414,7 @@ mxfs_dlm_cache_init(
 	atomic64_set(&mxfs_dlm_stat_ag_release, 0);
 	mxfs_dlm_stat_last_report = 0;
 
-	mxfs_pal_log(MXFS_LOG_INFO, "mxfs: DLM lock caching enabled");
+	mxfs_pal_log(MXFS_LOG_DEBUG, "mxfs: DLM lock caching enabled");
 }
 
 /*

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
  * MXFS TCP durable-authority ledger — ON-DISK LAYOUT of the TAUTH envelope
- * region (docs/tcp-authority-ledger.md, build step 2; sess418 design-consult ruling
+ * region (docs/tcp-authority-ledger.md, build step 2; design-consult ruling
  * docs/rulings/tcp-durable-authority-ledger.md).
  *
  * This header is kernel/user neutral: it is included by the kernel module
@@ -34,7 +34,7 @@
  *   [region hdr copy A: 4 KiB] [region hdr copy B: 4 KiB]
  *   [page 0..npages-1 copy A]  [page 0..npages-1 copy B]
  * Every page is 4 KiB = 128-byte page header + 31 x 128-byte entries.
- * npages is a FORMAT-TIME parameter (v2, sess427) held in the region header.
+ * npages is a FORMAT-TIME parameter (v2) held in the region header.
  *
  * Absence == FREE only with COMPLETE valid coverage: mkfs writes every page
  * as a valid EMPTY page (seq 1) in copy A, so a fresh region has no
@@ -59,8 +59,8 @@
 #define MXFS_TAUTH_PAGE_MAGIC       0x47504154u  /* "TAPG" LE */
 #define MXFS_TAUTH_TICKET_MAGIC     0x4b545441u  /* "ATTK" LE: a copy under commit */
 #define MXFS_TAUTH_TICKET_BYTES     512u
-#define MXFS_TAUTH_VERSION          4u   /* sess427 (D-0348 step 2): v2 = mkfs-sized
-										  * geometry + seeded hash; sess428
+#define MXFS_TAUTH_VERSION          4u   /* (D-0348 step 2): v2 = mkfs-sized
+										  * geometry + seeded hash;
 										  * (docs/tauth-view-table.md build step 1):
 										  * v3 adds the VIEW RECORD control pages;
 										  * 0.89.0: v4 puts the open-holder mask in
@@ -92,7 +92,7 @@
 #define MXFS_TAUTH_ENTRIES_PER_PAGE ((MXFS_TAUTH_PAGE_BYTES - MXFS_TAUTH_PAGE_HDR_BYTES) / \
 									 MXFS_TAUTH_ENTRY_BYTES)          /* 31 */
 /*
- * sess427 (D-0348 step 2, design-consult ruling ccloop-c7ee71c6-sess426-GPT-ruling-
+ * (D-0348 step 2, design-consult ruling
  * tauth-slot-collision-page-open-addressing): the page count is an MKFS-TIME
  * PARAMETER recorded in the region header, not a compile-time constant.  A
  * resource hashes deterministically to ONE home page
@@ -130,7 +130,7 @@
 
 /*
  * One authority record (128 bytes) — the CAW authority schema with a
- * single-writer WRITE backend (sess421 design-consult ruling 2, option (b), ccmemory
+ * single-writer WRITE backend (design-consult ruling 2, option (b), ccmemory
  * docs/rulings/tauth-step3-master-ledger-design.md):
  *
  *  - shared holders are a 64-bit HEARTBEAT-SLOT bitmap (`holders`) under one
@@ -187,7 +187,7 @@ struct mxfs_tauth_entry {
 	uint32_t    auth_node;          /* 112: the master that minted the EX
 									 * grant (authority_epoch is its mount
 									 * incarnation; together = the writer
-									 * generation, sess422 step 3c) */
+									 * generation, step 3c) */
 	uint16_t    auth_slot;          /* 116: that master's heartbeat slot */
 	uint8_t     reserved[2];        /* 118 */
 	uint64_t    volume;             /* 120: resource identity (volume id) */
@@ -209,7 +209,7 @@ struct mxfs_tauth_page_hdr {
 	uint64_t    config_epoch;       /* 32 */
 	uint32_t    writer_node;        /* 40 */
 	uint32_t    write_nonce;        /* 44: per-write random; the readback must
-									 * match the WHOLE image (sess423 step 4:
+									 * match the WHOLE image (step 4:
 									 * a lost same-seq race is NOT durable) */
 	uint64_t    writer_inc;         /* 48 */
 	uint64_t    stamp_ms;           /* 56 */
@@ -217,7 +217,7 @@ struct mxfs_tauth_page_hdr {
 	uint64_t    grant_seq_next;     /* 80: next EX grant_seq64 on this page */
 	uint64_t    transition_seq_next;/* 88: next transition_seq64 on this page */
 	/*
-	 * sess423 (step 4, ordered mastership handoff): the page's AUTHORITY is
+	 * (step 4, ordered mastership handoff): the page's AUTHORITY is
 	 * durable in the page itself.  Only {auth_node, authority_epoch(=auth
 	 * inc)} may write entry transitions while auth_state is ACTIVE; a
 	 * handoff is TWO durable transitions: the authority writes PREPARED
@@ -249,7 +249,7 @@ struct mxfs_tauth_page {
 };                                  /* 4096 */
 
 /*
- * sess426 (D-0347, conditional commit): a copy under commit carries a
+ * (D-0347, conditional commit): a copy under commit carries a
  * TICKET in its sector 0 instead of a page header.  Its magic makes the
  * 4 KiB image INVALID (readers keep the other copy as the truth); its
  * identity names the writer and the exact committed image (base_seq /
@@ -299,7 +299,7 @@ struct mxfs_tauth_region_hdr {
 };                                  /* 4096 */
 
 /*
- * sess428 — VIEW RECORD + ROOT (docs/tauth-view-table.md §13, frozen layout,
+ * — VIEW RECORD + ROOT (docs/tauth-view-table.md §13, frozen layout,
  * little-endian on media; every reserved/pad byte zero on write and
  * validated zero on read).  The committed member list is the ONLY durable
  * input to page ownership (owner(page) = HRW over the members' heartbeat
@@ -427,7 +427,7 @@ static inline uint64_t mxfs_tauth_page_off(uint32_t npages, uint32_t page_id,
 		(uint64_t)copy * npages + page_id);
 }
 
-/* sess428: the control pages (view slots A/B, root) follow the header copies. */
+/* the control pages (view slots A/B, root) follow the header copies. */
 static inline uint64_t mxfs_tauth_ctrl_off(unsigned which)
 {
 	return (uint64_t)MXFS_TAUTH_PAGE_BYTES * (MXFS_TAUTH_HDR_COPIES + which);
@@ -573,7 +573,7 @@ static inline void mxfs_tauth_page_init_empty(struct mxfs_tauth_page *pg,
 	pg->hdr.crc32c   = mxfs_tauth_page_crc(pg, crc);
 }
 
-/* sess428: the mkfs ROOT — no committed view, ballot 0, nonce {0, 1}. */
+/* the mkfs ROOT — no committed view, ballot 0, nonce {0, 1}. */
 static inline void mxfs_tauth_root_init_empty(struct mxfs_tauth_root *r,
 					      uint32_t fs_gen, const uint8_t fs_uuid[16],
 					      uint64_t stamp_ms, mxfs_tauth_crc_fn crc)
@@ -591,7 +591,7 @@ static inline void mxfs_tauth_root_init_empty(struct mxfs_tauth_root *r,
 }
 
 /*
- * sess428 — view record / root format helpers (docs/tauth-view-table.md
+ * — view record / root format helpers (docs/tauth-view-table.md
  * §13; build step 1).  Header-only so the module, mkfs/chk (single TU) and
  * the usermode tests compute the SAME digest/crc/validation.
  */

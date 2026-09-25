@@ -29,7 +29,7 @@
  * POLICY_REFUSED — the census domain is folded into that verdict so the
  * quarantine also covers the open obligations.
  *
- * (item 5 increment 1, design-consult ruling ccloop-c7ee71c6-sess461-GPT-
+ * (item 5 increment 1, design-consult ruling
  * ruling-intents-item5-efi-completion-design): the census now keeps, per
  * intent, the EXTENTS it names and the whole-transaction verdict of the
  * intent's transaction and of the done's transaction, and CLASSIFIES every

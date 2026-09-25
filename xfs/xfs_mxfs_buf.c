@@ -5,8 +5,8 @@
 #define MXFS_TU_ID 31	/* igrab/iput call-site file id */
 #include "xfs_mxfs_dlm_priv.h"
 /*
- * (0.39.12, D-0353, design-consult ruling ccmemory ccloop-c7ee71c6-sess432-
- * GPT-ruling-single-node-false-fresh-discard): the fresh-acquire AG-meta
+ * (0.39.12, D-0353, design-consult ruling
+ * single-node-false-fresh-discard): the fresh-acquire AG-meta
  * invalidation is FAIL-CLOSED.  agmeta_inval_enforce=1: before anything is
  * staled, a dry preflight pass looks for AG-metadata buffers that still carry
  * this node's un-landed committed content (pinned = CIL-resident, bli DIRTY or
@@ -349,7 +349,7 @@ mxfs_dlm_invalidate_ag_meta(
 					continue;
 
 				/*
-				 * v0.3.28 (sess18): for AG-meta bufs, do NOT
+				 * v0.3.28: for AG-meta bufs, do NOT
 				 * skip on BLI attached or on delwri-queued.
 				 * The original rationale ("cached-AG release
 				 * flushes those before peer acquires") is
@@ -360,7 +360,7 @@ mxfs_dlm_invalidate_ag_meta(
 				 * cached buf retains our prior content.  Next
 				 * xfs_read_agi returns cached buf → stale view
 				 * → xfs_iunlink_insert reads stale agi_unlinked
-				 * → "next_agino == agino" corruption (sess18
+				 * → "next_agino == agino" corruption (
 				 * iter-4 H1 family).
 				 *
 				 * Solution: stale ALL AG-meta bufs unconditionally.
@@ -1468,9 +1468,9 @@ mxfs_buf_xfsaild_skip_dir_write(struct xfs_buf *bp, struct mxfs_dir_skip_info *i
 			   !(bp->b_flags & _XBF_DELWRI_Q) &&
 			   !mxfs_dir_buf_is_undestaged(bp)) {
 			/*
-			 * sess37 (ccloop) — fix for the 8/tcp dir_reuse
+			 * — fix for the 8/tcp dir_reuse
 			 * readdir=799 durable single/contiguous dirent loss.
-			 * The loss write (PROVEN sess25/32/33, instrumented) is a
+			 * The loss write (PROVEN /32/33, instrumented) is a
 			 * "zombie BLI": a dir DATA/BLOCK buffer that is CLEAN
 			 * (BLI !dirty), already-DESTAGED (b_mxfs_logged_seq ==
 			 * b_mxfs_written_seq && !pinned: its last logged content
@@ -1486,7 +1486,7 @@ mxfs_buf_xfsaild_skip_dir_write(struct xfs_buf *bp, struct mxfs_dir_skip_info *i
 			 * and stops the revert.
 			 *
 			 * Why this is safe where prior arms were not:
-			 *  - destaged (lseq==wseq) is the key, NOT sess33's
+			 *  - destaged (lseq==wseq) is the key, NOT
 			 *    !XBF_DONE (which CATASTROPHICALLY dropped fresh
 			 *    undestaged writes).  A legit active write is DIRTY or
 			 *    undestaged (lseq>wseq) -> EXCLUDED here.  Only a
@@ -1498,12 +1498,12 @@ mxfs_buf_xfsaild_skip_dir_write(struct xfs_buf *bp, struct mxfs_dir_skip_info *i
 			 *    deadlock unlike dir_ail_defer.
 			 *  - DATA/BLOCK only (the dirent carriers).  Leaf/node/
 			 *    free index blocks are NOT skipped — dropping those
-			 *    breaks the da-btree mapping (sess37 v1 DABUF_MAP_HOLE
+			 *    breaks the da-btree mapping (v1 DABUF_MAP_HOLE
 			 *    corruption); the dirents themselves live only in
 			 *    DATA/BLOCK blocks so DATA coverage is sufficient.
 			 *  - Gen-blind on purpose: the 8/tcp loss buffer is
 			 *    stamped CURRENT gen (bgen==dir_gen, stale=0), so a
-			 *    bgen<dir_gen gate misses it entirely (sess37 v1
+			 *    bgen<dir_gen gate misses it entirely (v1
 			 *    P37=2x).  Destaged-zombie is the right discriminator.
 			 * A destaged buffer whose BLI is still in the AIL is the
 			 * anomaly itself (a completed write normally retires the
@@ -1514,14 +1514,14 @@ mxfs_buf_xfsaild_skip_dir_write(struct xfs_buf *bp, struct mxfs_dir_skip_info *i
 				info->tenure_reflush = true;
 		} else if (bp->b_tenure_id != ip->i_mxfs_ex_grant_seq) {
 			/*
-			 * sess17 (ccloop, instrumented): the tenure-mismatch arm is
+			 * (instrumented): the tenure-mismatch arm is
 			 * recorded for the DETECTOR only — it must NOT drive a
 			 * skip for dir blocks.  PROVEN false-positive: a
 			 * freshly-created leaf during block->leaf conversion has
 			 * its header owner unset at the first xfs_trans_log_buf,
 			 * so mxfs_dir_data_track can't stamp it and b_tenure_id
 			 * stays 0 != epoch on a LEGIT comm=dd write -> skipping
-			 * it would drop the whole leaf (corruption, the sess23
+			 * it would drop the whole leaf (corruption, the
 			 * suppression-was-corruptor class).  Only the
 			 * NL-released arm above is safe to enforce.
 			 */
@@ -1678,8 +1678,8 @@ mxfs_buf_needs_fua_read(
 	       ops == &xfs_dir3_leafn_buf_ops ||
 	       ops == &xfs_dir3_free_buf_ops ||
 	       /*
-		* sess63 (instrumented): FUA-pierce BTREE-dir extent-map (bmbt) leaf
-		* reads.  This is the READ-side complement to the sess63
+		* (instrumented): FUA-pierce BTREE-dir extent-map (bmbt) leaf
+		* reads.  This is the READ-side complement to the
 		* writer-side fix (route bmbt-leaf WRITES through the SCSI FUA
 		* passthrough in xfs_buf_submit, so the leaf lands durably and
 		* pierces the SCST write cache).  P63-TORN-FLUSH proved the
@@ -1690,8 +1690,8 @@ mxfs_buf_needs_fua_read(
 		* it just reverted to N-1.  FUA-reading the leaf makes the
 		* re-read return the true latest durable image.
 		*
-		* This was tried & reverted in sess60 (made it WORSE) but that
-		* predated BOTH (a) the durable FUA bmbt WRITE (sess60's leaf
+		* This was tried & reverted in (made it WORSE) but that
+		* predated BOTH (a) the durable FUA bmbt WRITE (leaf
 		* writes were failing -EIO so FUA-read surfaced a real on-disk
 		* lag) and (b) the read-over-logged guards that refuse to DMA
 		* disk over a bmbt buffer carrying uncheckpointed mods
@@ -2430,7 +2430,7 @@ mxfs_dlm_invalidate_cached_views(
 		}
 
 		/*
-		 * 0.41.0 (sess434, D-0354 candidate A): the v0.3.86/sess25
+		 * 0.41.0 (D-0354 candidate A): the v0.3.86/
 		 * single→multi SURRENDER of cached AG-DLM and per-inode
 		 * grants that used to live here is gone.  It existed because
 		 * a lone node's grants were memory-only (the disk slot held
@@ -2478,7 +2478,7 @@ mxfs_dlm_invalidate_cached_views(
 			invalidated, ags_retained, bufs_retained, ags_held,
 			blocks_dropped);
 	else
-		mxfs_pal_log(MXFS_LOG_INFO,
+		mxfs_pal_log(MXFS_LOG_DEBUG,
 			"mxfs: cached-view invalidation complete (%u perags, "
 			"%u AG(s) with live holders, grants retained, "
 			"%u cached block(s) marked for re-read)",

@@ -4,7 +4,7 @@
 # Builds the shared block device used by the test cluster entirely on the
 # local host via LIO's loopback fabric (tcm_loop):
 #
-#   /home/steve/disk.img  ->  fileio backstore "mxfs"  ->  tcm_loop LUN 0  ->  /dev/sdX
+#   ~/disk.img  ->  fileio backstore "mxfs"  ->  tcm_loop LUN 0  ->  /dev/sdX
 #
 # tcm_loop instantiates a virtual SCSI HBA inside the host kernel and maps the
 # LIO backstore onto it, so the LUN shows up as a normal local SCSI disk on
@@ -24,7 +24,7 @@
 
 set -u
 
-IMG="${MXFS_LIO_IMG:-/home/steve/disk.img}"
+IMG="${MXFS_LIO_IMG:-$("$(dirname "$(readlink -f "$0")")/../tools/mxfs_lab.sh" get paths image)}"
 BSNAME="${MXFS_LIO_BSNAME:-mxfs}"          # backstore name == SCSI INQUIRY model
 CORE=/sys/kernel/config/target/core
 LOOP=/sys/kernel/config/target/loopback

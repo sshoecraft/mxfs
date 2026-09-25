@@ -38,7 +38,7 @@ fmt/gen fields + LOCAL dinodes no longer skipped (was EXTENTS/BTREE-only!).
 - P142 slot dump: hex/self are node-BIT masks (t1=0x1 t2=0x2 t3=0x4 t4=0x8).
 - EXREL/EXGRANT rapid cadence (rel_gen +2..4 per 10ms) is NORMAL under storm.
 - run.sh FAIL artifacts: /tmp/run_<test>_<RUNID>; PASS runs keep nothing.
-- SCST mxfs device: fileio /home/steve/disk.img o_direct=1 async=1 wt=0 —
+- SCST mxfs device: fileio ~/disk.img o_direct=1 async=1 wt=0 —
   ack-after-AIO-complete (read-pass-write NOT proven; the .6238 stale read in
   the n2_r15 case was actually explained by P136 blindness).
 

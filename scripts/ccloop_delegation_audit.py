@@ -41,7 +41,8 @@ import sys
 from collections import Counter, defaultdict
 
 RUNS = "/src/mxfs/.ccloop/runs"
-PROJECT_DIR = "/home/steve/.claude/projects/-src-mxfs"
+PROJECT_DIR = os.path.join(os.path.expanduser("~/.claude/projects"),
+                           os.path.dirname(os.path.dirname(os.path.abspath(__file__))).replace("/", "-"))
 
 MECH = ("fleet-ssh", "harness-run", "build-deploy", "text/listing",
         "transcript", "ledger", "dmesg-local")

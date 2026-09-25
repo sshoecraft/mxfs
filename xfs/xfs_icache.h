@@ -67,7 +67,7 @@ void xfs_inode_mark_reclaimable(struct xfs_inode *ip);
  * bare spin_lock(&pag->pag_ici_lock) at every acquire site so the holder
  * fields are trustworthy no matter which caller is actually holding the lock
  * when a hang is observed (chasing a soft lockup first seen at
- * fence_during_write@8/caw, ccloopff21 / xfs_icache.c P-DBLRECLAIM).
+ * fence_during_write@8/caw, / xfs_icache.c P-DBLRECLAIM).
  */
 void mxfs_ici_lock(struct xfs_perag *pag);
 

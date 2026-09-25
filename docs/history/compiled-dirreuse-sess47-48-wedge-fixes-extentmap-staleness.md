@@ -162,7 +162,7 @@ marginally but intermittently and adds the derived-budget rule slowness.
 
 **The BACKING IS COHERENT — decisive reframe** (`docs/history/docs/history/docs/history/compiled-dirreuse-sess47-48-wedge-fixes-extentmap-staleness.md`):
 verified on clyde the target is NOT SCST but **LIO** (`target_core_mod`+`iscsi_target_mod`), backstore
-FILEIO `mxfs` → single `/home/steve/disk.img`, `emulate_write_cache=0` (WRITE-THROUGH),
+FILEIO `mxfs` → single `~/disk.img`, `emulate_write_cache=0` (WRITE-THROUGH),
 `emulate_fua_write=1`, `emulate_fua_read=1`. => single shared file behind a single host page cache,
 write-through = PERFECTLY cross-initiator coherent; there is NO un-destaged write-cache staleness. This
 resolves the long FUA-read-stale confusion: the lost-update is NOT a target/FUA coherency gap.

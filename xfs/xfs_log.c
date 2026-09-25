@@ -929,7 +929,7 @@ mxfs_freplay_slice_digest(
 }
 
 /*
- * D-513 fault injection (sess325 ruling, Q7 rig plan; scope per the sess328
+ * D-513 fault injection (ruling, Q7 rig plan; scope per the
  * ruling Q2): force a foreign-replay refusal.  Shapes 1-3 forge the verdict
  * AFTER a clean replay — phase-A containment/plumbing coverage only (durable
  * outcome publish, survivor import, quarantine EIO, PENDING park, lease
@@ -1268,7 +1268,7 @@ mxfs_xlog_recover_foreign_slice(
 				 * ASSIGN, not OR.  Shape 1's verdict is
 				 * explicitly synthetic ("fires with the chosen
 				 * domain"), and a real replay usually has
-				 * genuinely refused AGs of its own — sess374
+				 * genuinely refused AGs of its own —
 				 * measured 0x2 forged | 0x81 real = 0x83, which
 				 * silently put ag0 back INTO the closure and
 				 * made the out-of-closure test unable to
@@ -1302,7 +1302,7 @@ mxfs_xlog_recover_foreign_slice(
 				  dead_slot, frc);
 			error = frc;
 		} else {
-			xfs_notice(mp,
+			mxfs_xfs_probe(mp,
 		"MXFS: P226-FR-HOMEFLUSH slot %u — replayed images flushed home before the IMAGES_REPLAYED milestone",
 				   dead_slot);
 			/*
@@ -1561,7 +1561,7 @@ census_done:;
 
 	/*
 	 * Capture the refused slice's forensic digest.  A failed reread keeps
-	 * digest_valid=false; the verdict STILL publishes terminally (sess325
+	 * digest_valid=false; the verdict STILL publishes terminally (
 	 * ruling item 5) — the outcome record carries the DIGEST_VALID flag
 	 * clear and a zero digest, weakening forensics but never containment.
 	 */
@@ -2016,7 +2016,7 @@ xfs_log_unmount_write(
 
 /*
  * /475 (D-0133, design-consult design A+ and the placement ruling,
- * ccmemory ccloop-c7ee71c6-sess475-GPT-ruling-d0133-lock-inert-put-super-
+ * d0133-lock-inert-put-super-
  * teardown-shape9-hardened): the clustered SB summary counters are written
  * ONLY inside the summary critical section — dedicated cluster EX lock ->
  * uncached-coherent AGF/AGI recount -> cover (whole-sector SB home write) ->

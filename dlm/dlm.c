@@ -1975,7 +1975,7 @@ int mxfs_dlm_seal_owner(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t node,
 		}
 		mxfs_pal_sleep_ms(DLM_SEAL_POLL_MS);
 	}
-	mxfs_pal_log(MXFS_LOG_WARN,
+	mxfs_pal_log(MXFS_LOG_DEBUG,
 		     "mxfs: P-TAUTH-SEAL node=%u inc=%llu settle_ms=%llu — owner sealed; "
 		     "its releases are refused until the recovery purge",
 		     node, (unsigned long long)inc,
@@ -3003,7 +3003,7 @@ static int dlm_page_hand_to(struct mxfs_dlm_ctx *ctx, uint32_t page,
 	    (!departing && (dlm_node_departing(ctx, target) ||
 			    dlm_page_handoff_owner(ctx, page) != target))) {
 		ctx->handoff_stale_targets++;
-		mxfs_pal_log(MXFS_LOG_WARN,
+		mxfs_pal_log(MXFS_LOG_DEBUG,
 			     "mxfs: P-TAUTH-HANDOFF-STALE-TARGET page=%u to=%u/%llu why=%s "
 			     "in_view=%d departing=%d — the view moved during the freeze "
 			     "drain; not prepared, re-routed on the next pass",
@@ -3736,7 +3736,7 @@ int mxfs_dlm_handoff_takeover(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t node,
 	}
 	ctx->handoff_takeovers += done;
 	mxfs_tauth_pass_quiet = 0;
-	mxfs_pal_log(MXFS_LOG_WARN,
+	mxfs_pal_log(MXFS_LOG_DEBUG,
 		     "mxfs: P-TAUTH-TAKEOVER departed=%u/%llu pages_prepared=%d skipped=%d by=%u "
 		     "scanned=%u cand=%u bad=%u scan_ms=%llu total_ms=%llu",
 		     node, (unsigned long long)inc, done, skipped, ctx->local_node,
@@ -3871,7 +3871,7 @@ int mxfs_dlm_takeover_orphans(struct mxfs_dlm_ctx *ctx)
 	for (i = 0; i < s->nauth; i++) {
 		if (s->auth[i].dead)
 			ndead++;
-		mxfs_pal_log(MXFS_LOG_WARN,
+		mxfs_pal_log(MXFS_LOG_DEBUG,
 			     "mxfs: P-TAUTH-ORPHAN-AUTH node=%u inc=%llu pages=%u dead=%d "
 			     "judging=%d in_view=%d purged=%d occupant=%d",
 			     s->auth[i].node, (unsigned long long)s->auth[i].inc,
@@ -3896,7 +3896,7 @@ int mxfs_dlm_takeover_orphans(struct mxfs_dlm_ctx *ctx)
 				if (s->idx[q])
 					remaining++;
 			ctx->handoff_takeover_interrupted++;
-			mxfs_pal_log(MXFS_LOG_WARN,
+			mxfs_pal_log(MXFS_LOG_DEBUG,
 				     "mxfs: P-TAUTH-ORPHAN-SWEEP-INTERRUPTED at_page=%u "
 				     "prepared=%d skipped=%d remaining=%u cand=%u "
 				     "elapsed_ms=%llu — this mount is leaving; the "
@@ -3940,7 +3940,7 @@ int mxfs_dlm_takeover_orphans(struct mxfs_dlm_ctx *ctx)
 			skipped++;
 	}
 	ctx->handoff_takeovers += done;
-	mxfs_pal_log(MXFS_LOG_WARN,
+	mxfs_pal_log(MXFS_LOG_DEBUG,
 		     "mxfs: P-TAUTH-ORPHAN-SWEEP by=%u scanned=%u authorities=%d dead=%d "
 		     "cand=%u live_pages=%u judging_pages=%u prepared=%d skipped=%d "
 		     "bad=%u overflow=%u settle_wait_ms=%d scan_ms=%llu total_ms=%llu",
@@ -3983,7 +3983,7 @@ int mxfs_dlm_handoff_depart(struct mxfs_dlm_ctx *ctx)
 		if (rc)
 			left++;
 	}
-	mxfs_pal_log(MXFS_LOG_WARN, "mxfs: P-TAUTH-DEPART node=%u pages_left=%d",
+	mxfs_pal_log(MXFS_LOG_DEBUG, "mxfs: P-TAUTH-DEPART node=%u pages_left=%d",
 		     ctx->local_node, left);
 	return left;
 }
@@ -4026,7 +4026,7 @@ static int dlm_ledger_prepare(struct mxfs_dlm_ctx *ctx,
 		 * the transition HERE (this node masters its page) or at the
 		 * joiner, which asks by FREEZE_REQ */
 		if (ctx->handoff_ondemand != od0)
-			pr_warn_ratelimited(
+			mxfs_probe_ratelimited(
 			    "mxfs: P960-ONDEMAND-SERVED type=%u ino=%llu ag=%u page=%u rc=%d "
 			    "— a request on a page under a dead authority, served ahead of "
 			    "the bulk pass\n",
@@ -4459,7 +4459,7 @@ static int dlm_txn_finalize(struct mxfs_dlm_ctx *ctx, struct dlm_txn *txn,
 
 	mxfs_pal_rwlock_wrlock(ctx->table_rwlock);
 	/*
-	 * (design-consult ruling ccmemory ccloop-c7ee71c6-sess424-GPT-ruling-
+	 * (design-consult ruling
 	 * ghost-grant-delivery-and-unresolved-pr-bits): a SUCCESSFUL commit is
 	 * delivered whatever the view did afterwards.  The page write + exact
 	 * readback is the proof of authority; the record is on the platter and
@@ -5283,7 +5283,7 @@ int mxfs_dlm_ledger_purge_owner(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t node,
 				     "mxfs: P-TAUTH-PURGE-FAIL node=%u slot=%d rc=%d", node, slot, rc);
 	}
 	/*
-	 * (D-0342, ruling ccmemory ccloop-c7ee71c6-sess425-GPT-ruling-
+	 * (D-0342, ruling
 	 * partial-ledger-purge-held-failure): a purge that did not complete
 	 * (a page commit failed, or the view moved and the walk stopped at a
 	 * page that is no longer ours under this generation) leaves bits on
@@ -9302,7 +9302,7 @@ void mxfs_dlm_release_all(struct mxfs_dlm_ctx *ctx)
 			}
 		}
 		mxfs_pal_rwlock_unlock(ctx->table_rwlock);
-		mxfs_pal_log(MXFS_LOG_WARN,
+		mxfs_pal_log(MXFS_LOG_DEBUG,
 			     "mxfs: P-RELALL-LEFT node=%u held=%u pr=%u ex=%u other=%u — "
 			     "grants this clean departure leaves to the peers' purge",
 			     ctx->local_node, nheld, npr, nex, nother);
@@ -9342,7 +9342,7 @@ void mxfs_dlm_release_all(struct mxfs_dlm_ctx *ctx)
 						after++;
 			}
 			mxfs_pal_rwlock_unlock(ctx->table_rwlock);
-			mxfs_pal_log(MXFS_LOG_WARN,
+			mxfs_pal_log(MXFS_LOG_DEBUG,
 				     "mxfs: P-RELALL-WIRED node=%u released=%d ack_rc=%d held_after=%u "
 				     "— the clean departure released its remaining grants through the DLM",
 				     ctx->local_node, wired, arc, after);
@@ -9379,7 +9379,7 @@ void mxfs_dlm_release_all(struct mxfs_dlm_ctx *ctx)
 		     "dlm: released %d local locks on unmount", released);
 	/* the master-side ledger counters (the ledger's own
 	 * P-TAUTH-STATS covers the page store) */
-	mxfs_pal_log(MXFS_LOG_WARN,
+	mxfs_pal_log(MXFS_LOG_DEBUG,
 		     "mxfs: P-TAUTH-DLM-STATS node=%u grants=%llu denies=%llu imports=%llu "
 		     "imports_resolved=%llu import_residue=%llu imports_adopted=%llu ghosts=%llu remaster=%llu late=%llu "
 		     "rel_acks=%llu rel_resends=%llu rel_unacked=%llu rel_recommits=%llu "
@@ -9695,13 +9695,13 @@ bool mxfs_dlm_is_single_node(struct mxfs_dlm_ctx *ctx)
  * dir lost-update).  Read-only walk under table_rwlock(read); cheap, no I/O.
  */
 /*
- * ccloop c7ee71c6 sess21 — ATOMIC-CONTEXT-SAFE variant of
+ *  — ATOMIC-CONTEXT-SAFE variant of
  * mxfs_dlm_held_mode.
  *
  * ROOT (proven byte-exact, 32/tcp rsync_paired, test31 + 7 more nodes):
  * mxfs_dlm_held_mode takes ctx->table_rwlock with mxfs_pal_rwlock_rdlock,
  * and in the kernel PAL that is a struct rw_semaphore.  Under contention
- * down_read() enters rwsem_down_read_slowpath -> schedule().  The sess20
+ * down_read enters rwsem_down_read_slowpath -> schedule.  The
  * "non-blocking" helper mxfs_v5_dlm_inode_held_nb called straight into
  * here on the TCP arm, from inside spin_lock(&pag->pag_ici_lock):
  *

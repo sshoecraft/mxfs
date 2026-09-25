@@ -14,7 +14,7 @@ set -u
 N="${1:?num nodes}"
 OUT="${2:?output log}"
 POLL="${3:-8}"
-SSH_TOOL="${MXFS_SSH_TOOL:-/home/steve/src/mxfs/tools/mxfs_sshpass.sh}"
+SSH_TOOL="${MXFS_SSH_TOOL:-$(cd "$(dirname "$(readlink -f "$0")")/../.." && pwd)/tools/mxfs_sshpass.sh}"
 PASS_FILE="${MXFS_PASS_FILE:-/tmp/.mxfs_pass}"
 
 declare -A last_cap

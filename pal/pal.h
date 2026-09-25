@@ -949,7 +949,7 @@ struct mxfs_pal_pr_reservation {
      * all-registrants type there is no single holder and SPC reports this
      * field as ZERO (measured on SCST: READ RESERVATION returns Key=0x0 for
      * a WR_EX_AR reservation).  `held` is therefore decided by `type`, never
-     * by this field — the pre-sess381 `held = (key != 0)` test would have
+     * by this field — the earlier `held = (key != 0)` test would have
      * reported a live WR_EX_AR reservation as "none held".
      */
     uint64_t    key;            /* reservation-holder's key (0 under *_AR) */

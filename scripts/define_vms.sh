@@ -9,7 +9,7 @@
 #   - uuid        : existing domain uuid (preserved) or freshly generated
 #   - MAC         : existing interface MAC (PRESERVED — tied to DHCP hostname
 #                   resolution; regenerating it would break `testN` lookups)
-#   - boot disk   : existing qcow2 path, else /home/steve/vms/qemu/testN/testN
+#   - boot disk   : existing qcow2 path, else <lab paths qemu_root>/testN/testN
 #
 # Hardware (4 vCPU / 4096 MB, pc-i440fx-noble, virtio-scsi, shareable
 # /dev/mxfs-shared LUN at guest sda, virtio NIC on br0) comes from the template
@@ -125,7 +125,7 @@ define_one() {
     [ -n "$uuid" ] || uuid=$(uuidgen)
     mac=$($V dumpxml "$vm" --inactive 2>/dev/null | grep -oP "mac address='\K[^']+" | head -1)
     boot=$($V dumpxml "$vm" --inactive 2>/dev/null | grep -A3 "device='disk'" | grep -oP "source file='\K[^']+" | head -1)
-    [ -n "$boot" ] || boot="/home/steve/vms/qemu/$vm/$vm"
+    [ -n "$boot" ] || boot="$("$(dirname "$(readlink -f "$0")")/../tools/mxfs_lab.sh" get paths qemu_root)/$vm/$vm"
     if [ -z "$mac" ]; then
         printf -v mac "52:54:00:%02x:%02x:%02x" $(( (n>>16)&0xff )) $(( (n>>8)&0xff )) $(( n&0xff ))
         echo "$vm: WARN no existing MAC — generated $mac"

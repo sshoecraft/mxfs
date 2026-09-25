@@ -11,7 +11,7 @@ resurrection** that is still open at sess53 end. Best reliability reached: **4/5
 on plain defaults. Marker NEVER written through sess53.
 
 Two-node LIO rig fact (kills a wrong sess48 premise): storage is **LIO fileio over
-`/home/steve/disk.img`, ONE instance on clyde, virtio-scsi to both VMs = ONE coherent
+`~/disk.img`, ONE instance on clyde, virtio-scsi to both VMs = ONE coherent
 host page cache** (`emulate_write_cache=0`). No per-initiator/SCST read cache — never
 chase SCST/FUA for coherency on this rig. DLM mode enum: `0=NL 3=PR 5=EX`.
 

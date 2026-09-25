@@ -74,7 +74,7 @@ xfs_extent_busy_insert_list(
 					current->comm);
 		} else {
 			/*
-			 * ccloop-4dd7 (proven by instrument, 2-CPU soft-lockup
+			 * (proven by instrument, 2-CPU soft-lockup
 			 * autopsy): an EXACT-duplicate busy bno means this node
 			 * queued the SAME extent free twice in-flight (the
 			 * cross-node stale-map double-free family).  Upstream's

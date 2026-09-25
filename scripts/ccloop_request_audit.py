@@ -39,6 +39,7 @@ Usage:
 import argparse
 import glob
 import json
+import os
 import re
 from collections import defaultdict
 from datetime import datetime, timezone
@@ -122,7 +123,7 @@ def scan(path):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--projects-dir", default="/home/steve/.claude/projects")
+    ap.add_argument("--projects-dir", default=os.path.expanduser("~/.claude/projects"))
     ap.add_argument("--project", default="-src-mxfs")
     ap.add_argument("--from", dest="lo")
     ap.add_argument("--to", dest="hi")

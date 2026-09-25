@@ -1,11 +1,11 @@
-<!-- Plan to replace hand-rolled btree code in alloc.c with XFS-based cursor engine. Phase 1-5 plan in /home/steve/.claude/plans/curious-cooking-tome.md -->
+<!-- Plan to replace hand-rolled btree code in alloc.c with XFS-based cursor engine. Phase 1-5 plan in ~/.claude/plans/curious-cooking-tome.md -->
 ## Btree Engine Replacement (Session 60+)
 
 Replacing alloc.c's hand-rolled btree manipulation (~4937 lines) with XFS's cursor-based btree engine. Root cause of Bug 138 (stale bnobt records → double allocation in multi-node mode).
 
 **Why:** alloc.c zeros records instead of deleting, never updates parent keys, has no cursor abstraction, no atomic dual-tree updates. 138+ bugs are symptoms.
 
-**How to apply:** Full plan at `/home/steve/.claude/plans/curious-cooking-tome.md`. XFS reference code cached in /tmp/xfs_btree_*.txt during sessions.
+**How to apply:** Full plan at `~/.claude/plans/curious-cooking-tome.md`. XFS reference code cached in /tmp/xfs_btree_*.txt during sessions.
 
 ### New Files
 - `libmxfs/mxfs_btree.h` — cursor, ops vtable, key/rec/ptr types

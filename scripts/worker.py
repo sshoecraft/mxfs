@@ -26,7 +26,7 @@ import time
 
 CLAUDE_BIN = os.path.expanduser("~/.local/bin/claude")
 MAX_OUTPUT_TOKENS = 64000
-DIRECTOR_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+DIRECTOR_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                             ".claude", "director")
 
 

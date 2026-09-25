@@ -65,7 +65,7 @@ static struct mxfs_tauth_op mkop(uint8_t kind, const struct mxfs_resource_id *r,
     return op;
 }
 
-/* sess427: a "slot" in this test = page * 31 + home index (the v1 slot
+/* a "slot" in this test = page * 31 + home index (the v1 slot
  * identity, kept as the test's own encoding of {home page, home index}). */
 static uint32_t enc_slot(const struct mxfs_resource_id *r)
 {
@@ -92,7 +92,7 @@ static struct mxfs_resource_id find_res(uint32_t want_slot, int same_page_only)
 
 struct scan_acc { int n; uint32_t last_slot; struct mxfs_tauth_entry last; };
 
-/* sess423 step 4: page authority.  bootstrap = claim an UNOWNED page as the
+/* step 4: page authority.  bootstrap = claim an UNOWNED page as the
  * lowest live slot; takeover = the certified recovery coordinator PREPAREs
  * the dead authority {vnode, vinc}'s page to itself and consumes it. */
 static int page_bootstrap(struct mxfs_tauth_ledger *L, uint32_t page, uint64_t gen)
@@ -284,7 +284,7 @@ int main(int argc, char **argv)
     CHECK(rc == 0 && ops[0].grant_seq64 == 2, "7 re-grant R: seq=%llu (allocator continues)",
           (unsigned long long)ops[0].grant_seq64);
     gid_seq = ops[0].grant_seq64;
-    /* sess426 (D-0348): page-local open addressing — R2 shares R's home
+    /* (D-0348): page-local open addressing — R2 shares R's home
      * index but gets its OWN entry on the page; nothing is refused. */
     ops[0] = mkop(MXFS_TAUTH_OP_GRANT_EX, &R2, 6, 200, 4, MXFS_LOCK_EX);
     rc = mxfs_tauth_ledger_commit(&L, ops, 1, 1, 80);
@@ -378,7 +378,7 @@ int main(int argc, char **argv)
     }
 
     /* 12 persistence / takeover */
-    /* 7b (sess426, D-0348): a FULL home page is a capacity WAIT, never EIO:
+    /* 7b (D-0348): a FULL home page is a capacity WAIT, never EIO:
      * fill R4's page with 31 distinct ACTIVE records, the 32nd -> -EDQUOT
      * (P-TAUTH-PAGE-FULL); release one and it lands. */
     {

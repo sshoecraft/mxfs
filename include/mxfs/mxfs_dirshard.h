@@ -3,11 +3,11 @@
  * Symmetric directory sharding: ON-DISK MANIFEST FORMAT and the pure
  * (kernel- and user-mode) manifest structure check.
  *
- * sess464 — D-32NODE-SHARED-DIR-CREATE-PACE (board face D-401), on the
- * critical path of D-FOREIGN-REPLAY-UNGATED-IMAGES since sess463.
+ * — D-32NODE-SHARED-DIR-CREATE-PACE (board face D-401), on the
+ * critical path of D-FOREIGN-REPLAY-UNGATED-IMAGES since.
  * Design: docs/dir-sharding.md.  Design-consult rulings: ccmemory
  * docs/rulings/symmetric-directory-sharding-design.md
- * (shape) and ccloop-c7ee71c6-sess463-GPT-ruling-dirshard-stage1-2-concrete-
+ * (shape) and dirshard-stage1-2-concrete-
  * shape (this format: private flags + ROOT-namespace manifest xattr, the
  * verifier split, keyed SipHash routing, cookie partition).
  *
@@ -39,7 +39,7 @@
  * the manifest is checked by mxfs_dirshard_manifest_check() below, called
  * under the parent lock by the kernel loader and by chk_mxfs.
  *
- * WHERE THE MANIFEST LIVES (sess464 ruling, amending sess463 — ccmemory
+ * WHERE THE MANIFEST LIVES (ruling, amending — ccmemory
  * docs/rulings/dirshard-manifest-block-s3-amendment.md):
  *
  *   parent dinode ──ROOT xattr "mxfs.dirshard" (12-byte LOCATOR, written
@@ -101,7 +101,7 @@
  * Private di_flags2 bits.  Upstream owns bits 0-5 (DAX..METADATA, 6.19-rc);
  * we take two HIGH bits, mirroring the sb-bit policy, and add them to
  * XFS_DIFLAG2_ANY in xfs_format.h (xfs_dinode_verify does not reject unknown
- * flags2 bits — audited sess464 — but formatters, bulkstat and scrub key off
+ * flags2 bits — audited — but formatters, bulkstat and scrub key off
  * XFS_DIFLAG2_ANY and must see them).
  */
 #define MXFS_DIFLAG2_DIRSHARD_CONTAINER_BIT 60
@@ -590,7 +590,7 @@ mxfs_dirshard_blk_check(const struct mxfs_dirshard_blk *blk, size_t blocksize,
  * can be written against it) ---------------------------------------------- */
 
 /*
- * MXFS has no private ioctl namespace of its own (audited sess464: zero
+ * MXFS has no private ioctl namespace of its own (audited zero
  * MXFS_IOC_* in the tree; upstream XFS uses type 'X').  Type 0xB7 is not in
  * Documentation/userspace-api/ioctl/ioctl-number.rst as of 6.19-rc — collision
  * watch on every upstream merge, like the sb bit.

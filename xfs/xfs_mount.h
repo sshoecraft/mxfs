@@ -588,7 +588,7 @@ typedef struct xfs_mount {
 	bool			m_mxfs_join_frozen;
 	/*
 	 * (D-0133 fix placement, design-consult ruling ccmemory
-	 * ccloop-c7ee71c6-sess475-GPT-ruling-d0133-lock-inert-put-super-
+	 * d0133-lock-inert-put-super-
 	 * teardown-shape9-hardened): the SB summary critical section
 	 * (dedicated cluster EX lock -> uncached-coherent recount -> cover ->
 	 * flush -> POST read -> unlock) runs in put_super WHILE THE DLM IS
@@ -748,10 +748,10 @@ typedef struct xfs_mount {
 	spinlock_t		m_mxfs_unpub_lock;
 	atomic_t		m_mxfs_pubdrain_active;	/* detached timed-out publish drain workers still referencing mp */
 	/*
-	 * v0.5.4 (sess24 ccloop 14d31183): background publisher for
+	 * v0.5.4: background publisher for
 	 * unpublished DIRECTORY inodes.  Queued (on m_mxfs_inode_bast_wq)
 	 * by xfs_create after a mkdir so the new dir's on-disk CAW slot is
-	 * claimed off the syscall path; without it the sess107
+	 * claimed off the syscall path; without it the
 	 * unpublished-dir-EX backstop in mxfs_dlm_ilock_begin performs the
 	 * claim synchronously inside the dir's first pin-free EX op
 	 * (ftrace-proven: rsync's per-dir utimensat → xfs_vn_setattr at
@@ -805,7 +805,7 @@ typedef struct xfs_mount {
 	 */
 	DECLARE_BITMAP(m_mxfs_foreign_torn_slots, 64);
 	/*
-	 * sess324 (D-FOREIGN-REPLAY-REFUSAL-CLUSTERWIDE-SUICIDE-513, sess320
+	 * (D-FOREIGN-REPLAY-REFUSAL-CLUSTERWIDE-SUICIDE-513,
 	 * Design-consult ruling): the VICTIM-DOMAIN QUARANTINE map.  When a foreign
 	 * slice replay is terminally refused (policy-refused complete or
 	 * physically torn), the recovery-lease owner publishes a durable
@@ -821,7 +821,7 @@ typedef struct xfs_mount {
 	 * writers serialize on the spinlock.  The (seen_epoch, seen_seq)
 	 * TUPLE dedups the import LOGGING per victim slot — seq alone is
 	 * wrong across slot reuse, where a new victim incarnation restarts
-	 * publish_seq at 1 (sess325 ruling item 3); the map itself is
+	 * publish_seq at 1 (ruling item 3); the map itself is
 	 * idempotent.
 	 */
 	/*

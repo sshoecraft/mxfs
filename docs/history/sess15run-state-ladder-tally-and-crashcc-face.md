@@ -23,7 +23,7 @@ crash_consistency (cold-reload durability test — umount/mount, NO node crash):
   committed metadata — tension with sess43 invariant BB54A138!) →
   P91-FUA-SKIP-LOGGED same daddr → xfs_inobt_read_verify CRC error 74 →
   EIO shutdown → netpartition/tds inherited dead FS (0/2 cascade).
-- POST-MORTEM RAW DISK (clyde /home/steve/disk.img, xfs_data_offset=
+- POST-MORTEM RAW DISK (clyde ~/disk.img, xfs_data_offset=
   100704256 from chk_mxfs): block at daddr 8372920 NOW has VALID CRC
   (calc==stored d12f8902), monotonic records, LSN cycle=1. First 128B are
   byte-identical to the failing image's dump → the failure was in the tail

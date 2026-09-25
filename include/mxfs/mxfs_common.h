@@ -80,7 +80,7 @@ enum mxfs_error {
 	MXFS_ERR_VOLUME_UNKNOWN,
 	MXFS_ERR_NOT_MOUNTED,
 	/*
-	 * sess12 (2/tcp double-grant root fix): a blocked INODE upgrade
+	 * (2/tcp double-grant root fix): a blocked INODE upgrade
 	 * (sender holds GRANTED lower mode, requests higher, conflicts with
 	 * another holder).  The master KEEPS the sender's grant visible (so no
 	 * peer can be granted a conflicting mode = the P-CONVBLK-REMOVE double-
@@ -91,23 +91,23 @@ enum mxfs_error {
 	 */
 	MXFS_ERR_UPGRADE_CONFLICT,
 	/*
-	 * sess422 (tcp-authority-ledger step 3d): the master could not make the
+	 * (tcp-authority-ledger step 3d): the master could not make the
 	 * grant DURABLE (ledger refused: collision / conflicting record /
 	 * exhaustion / unknown page / proven-uncommitted write / not mastered
 	 * under the current ownership generation).  Never granted around: the
 	 * requester gets -EIO (or retries on RETRY-class causes).
 	 */
 	MXFS_ERR_LEDGER,
-	/* sess422: the master is not (or no longer) the page owner under the
+	/* the master is not (or no longer) the page owner under the
 	 * generation the request was decided in — retry against the master the
 	 * current membership names. */
 	MXFS_ERR_REMASTER,
-	/* sess425: the ledger refused the grant because the record still
+	/* the ledger refused the grant because the record still
 	 * carries another holder whose retirement is in flight (the master's
 	 * decision raced a concurrent release).  Transient: the requester
 	 * retries; the master re-commits the release alone. */
 	MXFS_ERR_LEDGER_BUSY,
-	/* sess426 (D-0348): the resource's home page has no free entry for a
+	/* (D-0348): the resource's home page has no free entry for a
 	 * new record (31 live tenures per page).  Retryable with backoff —
 	 * never an error to the file operation; a persistent full page is a
 	 * capacity health event (P-TAUTH-PAGE-FULL). */
@@ -152,7 +152,7 @@ enum mxfs_node_state {
  *
  * A self-fence is the most severe event this node can emit: it force-shuts
  * down a LIVE mount.  Four independent detectors can fire it, and until
- * sess79 all four reported the SAME cause to the operator — the sess131 one,
+ * all four reported the SAME cause to the operator — the one,
  * "device reformatted under live mount".  Three of the four were therefore
  * lying: a node fenced by a peer told its admin the shared LUN had been
  * re-mkfs'd, which is a data-loss panic response to what is actually normal
@@ -175,7 +175,7 @@ enum mxfs_self_fence_reason {
 	/* SCSI PR: repeated RESERVATION CONFLICT on data-path I/O triggered
 	 * an inspection, and PR IN (READ FULL STATUS / READ KEYS) confirmed
 	 * this node's key is no longer registered — a peer fenced us while
-	 * our own media reads were stale (sess276 fenced-victim ruling). */
+	 * our own media reads were stale (fenced-victim ruling). */
 	MXFS_SELF_FENCE_PR_CONFLICT_FENCED,
 	/* Local authority lease: this node's own heartbeat has not landed for
 	 * longer than the lease a landed beat buys, so a peer may already have

@@ -37,9 +37,9 @@ SMART on nvme0n1: PASSED. No MCE/EDAC entries. ext4 superblock state: clean
 
 clyde has ONE disk. lsblk: nvme0n1 1.8T -> p1 /boot/efi, p2 ext4 /. Everything
 lives on that one ext4:
-  - all 32 VM qcow2 disks under /home/steve/vms/qemu/testN/testN
+  - all 32 VM qcow2 disks under ~/vms/qemu/testN/testN
   - THE SHARED MXFS LUN: /sys/kernel/scst_tgt/devices/mxfs/filename =
-    /home/steve/disk.img (50GB), handler vdisk_fileio, o_direct=1, nv_cache=0,
+    ~/disk.img (50GB), handler vdisk_fileio, o_direct=1, nv_cache=0,
     blocksize 512, threads_num 8.
 
 So any host-side data-integrity failure can fabricate an "MXFS corruption"
@@ -54,7 +54,7 @@ Each oops leaves unkillable D-state tasks. Two nodes were lost this way:
     ext4_buffered_write_iter+0x39 (inode_lock) on its qcow2. The GPF killed the
     lock holder mid-critical-section, so the inode rwsem is held forever. The
     libvirt domain is stuck "in shutdown"; `virsh destroy test4` returns rc=124.
-    The 27.9GB file /home/steve/vms/qemu/test4/test4 can never be unlinked.
+    The 27.9GB file ~/vms/qemu/test4/test4 can never be unlinked.
   - test5: killed when run.sh's prep power-cycled it; new qemu is Z with a
     vhost_task stuck D in exit_mmap -> __mmput.
 
@@ -75,7 +75,7 @@ This worked twice this session. Total ~3 minutes per node.
 2. If the dead node's OWN disk file is still readable (test5 case), just clone
    it — identity is already correct, no editing needed:
      sudo qemu-img convert -p -T none -t none -O qcow2 \
-        /home/steve/vms/qemu/test5/test5 /home/steve/vms/qemu/test5r/test5r
+        ~/vms/qemu/test5/test5 ~/vms/qemu/test5r/test5r
    Use -T none -t none (O_DIRECT both ways). A plain `cp` of 6.5GB pushed
    kswapd hard and is what tripped oopses #2 and #3. 13s with O_DIRECT.
 
@@ -100,7 +100,7 @@ This worked twice this session. Total ~3 minutes per node.
       empty. netplan is 50-cloud-init.yaml, eth0 dhcp4:true.
    e. umount; sudo vgchange -an ubuntu-vg; sudo qemu-nbd --disconnect /dev/nbd0
    f. Copy any live node's XML (they are 674-byte hand-written files at
-      /home/steve/vms/qemu/testN/testN.xml), change <name>, <source file>, and
+      ~/vms/qemu/testN/testN.xml), change <name>, <source file>, and
       add the dead node's <mac address> to the bridge interface. Note the
       stock XMLs have NO explicit mac; you must add one. virsh define; virsh start.
 
@@ -115,5 +115,5 @@ count (`sudo dmesg -T | grep -cE '\[#[0-9]+\]'` — was 3 at end of sess377)
 before it is entered in the the zero-defect bar ledger as an MXFS defect.
 
 Disk pressure: / was 88% full at session start, 89% after the two clones
-(206G free). The 27.9GB orphan /home/steve/vms/qemu/test4/test4 is
+(206G free). The 27.9GB orphan ~/vms/qemu/test4/test4 is
 unreclaimable without a reboot.

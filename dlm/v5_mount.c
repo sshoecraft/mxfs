@@ -334,7 +334,7 @@ static void v5_recov_obl_cb(void *data, int slot, int state,
 
 /*
  * — D-PURGE-NONATOMIC-PUBLICATION verification injectors (design-consult
- * ruling: ccmemory ccloop-c7ee71c6-sess419-GPT-ruling-purge-nonatomic-
+ * ruling: purge-nonatomic-
  * verification-design).  Served to disklock through the dbg_purge_hook:
  *   dbg_purge_pause_ms  — the recovery OWNER parks this long right after
  *                         the phase-0 freeze gate passed, so a non-owner's
@@ -1966,7 +1966,7 @@ static void v5_peer_msg_cb_tcp(void *data, mxfs_node_id_t sender,
 /*
  * Refresh DLM active node list from the lease subsystem.  Called on
  * peer connect/disconnect.  Userspace dlm/mount.c stabilizes this
- * over a 3s window; we do the simpler immediate update here — sess27
+ * over a 3s window; we do the simpler immediate update here —
  * priority is correctness, not low-churn membership.
  */
 /* see dead_nodes in the ctx.  Membership entry points MUST treat a
@@ -2007,7 +2007,7 @@ static void v5_note_dead_inc(struct mxfs_v5_dlm *ctx, mxfs_node_id_t node,
 	i = ctx->dead_inc_next++ % MXFS_V5_DEAD_SET;
 	ctx->dead_incs[i].node = node;
 	ctx->dead_incs[i].epoch = epoch;
-	mxfs_pal_log(MXFS_LOG_WARN,
+	mxfs_pal_log(MXFS_LOG_DEBUG,
 		     "mxfs: P-DEAD-INC node=%u inc=%llu — incarnation certified "
 		     "fenced; its recovery descriptors are takeable", node,
 		     (unsigned long long)epoch);
@@ -2022,7 +2022,7 @@ static void v5_note_dead_inc(struct mxfs_v5_dlm *ctx, mxfs_node_id_t node,
  * EVERY heartbeat-slot claim (disklock.c hb_draw_incarnation at claim), so one
  * node id legitimately carries several incarnations over its life — a node
  * that lost its slot mid-recovery and re-claimed it is alive under a NEW
- * epoch while the descriptor still names its OLD one.  The pre-sess437 test
+ * epoch while the descriptor still names its OLD one.  The earlier test
  * ("owner_node is alive => wait") then blocked every survivor, and the owner
  * itself, for ever: chain-7 takeover arm, tests/evidence/20260829T024351Z_
  * radv_takeover — P238-RECOV-OWNED every 30 s on R with owner_node == R.
@@ -2153,7 +2153,7 @@ static void v5_note_dead_node_locked(struct mxfs_v5_dlm *ctx,
 	if (!node_id || v5_node_is_dead(ctx, node_id))
 		return;
 	ctx->dead_nodes[ctx->dead_next++ % MXFS_V5_DEAD_SET] = node_id;
-	mxfs_pal_log(MXFS_LOG_WARN,
+	mxfs_pal_log(MXFS_LOG_DEBUG,
 		     "mxfs: P164-DEAD-NOTE node=%u — identity retired; its "
 		     "announces/connects are ignored from now on", node_id);
 }
@@ -2381,7 +2381,7 @@ static mxfs_node_id_t v5_slot_node_cb(void *data, int slot, uint64_t *inc_out)
  * engine never PREPAREs to an incarnation it cannot name).
  */
 /*
- * (D-0347, design-consult ruling ccloop-c7ee71c6-sess426-GPT-ruling-
+ * (D-0347, design-consult ruling
  * tauth-conditional-commit-ticket-caw): the lowest-live-slot election is
  * NOT exclusive by itself — a node ranks its own slot first regardless of
  * its own health, and its peers drop a slot from `live` at death
@@ -2746,7 +2746,7 @@ static void v5_handoff_takeover(struct mxfs_v5_dlm *ctx, mxfs_node_id_t node,
 		return;
 	}
 	if (rc != 0)
-		mxfs_pal_log(MXFS_LOG_WARN,
+		mxfs_pal_log(MXFS_LOG_DEBUG,
 			     "mxfs: P-TAUTH-TAKEOVER-RUN node=%u inc=%llu why=%s rc=%d",
 			     node, (unsigned long long)inc, why, rc);
 }
@@ -2865,7 +2865,7 @@ static void v5_depart_run(struct mxfs_v5_dlm *ctx, const struct v5_depart_req *r
 	 * same reason is dropped with it.
 	 */
 	if (mxfs_pal_flag_get(&ctx->depart_stop)) {
-		mxfs_pal_log(MXFS_LOG_WARN,
+		mxfs_pal_log(MXFS_LOG_DEBUG,
 			     "mxfs: P-DEPART-WORK-REFUSED node=%u inc=%llu why=%s — "
 			     "this mount is leaving; the departed authority's pages "
 			     "stay frozen for the next bootstrap node's orphan sweep",
@@ -2898,7 +2898,7 @@ static void v5_depart_run(struct mxfs_v5_dlm *ctx, const struct v5_depart_req *r
 	if (r->orphan_sweep) {
 		int orc = mxfs_dlm_takeover_orphans(ctx->dlm);
 
-		mxfs_pal_log(MXFS_LOG_WARN,
+		mxfs_pal_log(MXFS_LOG_DEBUG,
 			     "mxfs: P-DEPART-WORK-ORPHAN-SWEEP rc=%d queued_ms=%llu total_ms=%llu",
 			     orc, (unsigned long long)(t0 - r->queued_ms),
 			     (unsigned long long)(mxfs_pal_time_ms() - t0));
@@ -2978,7 +2978,7 @@ static void v5_depart_run(struct mxfs_v5_dlm *ctx, const struct v5_depart_req *r
 	 */
 	if (!r->orphan_sweep)
 		v5_orphan_sweep_queue(ctx);
-	mxfs_pal_log(MXFS_LOG_WARN,
+	mxfs_pal_log(MXFS_LOG_DEBUG,
 		     "mxfs: P-DEPART-WORK node=%u inc=%llu slot=%d why=%s queued_ms=%llu "
 		     "refresh_ms=%llu purge_rc=%d purge_ms=%llu table_ms=%llu "
 		     "takeover_ms=%llu total_ms=%llu",
@@ -2996,7 +2996,7 @@ static void v5_depart_worker_fn(void *arg)
 	struct mxfs_v5_dlm *ctx = arg;
 	struct v5_depart_req r;
 
-	mxfs_pal_log(MXFS_LOG_INFO, "mxfs: P-DEPART-WORKER started");
+	mxfs_pal_log(MXFS_LOG_DEBUG, "mxfs: P-DEPART-WORKER started");
 	while (!mxfs_pal_flag_get(&ctx->depart_stop)) {
 		bool have = false;
 
@@ -3022,7 +3022,7 @@ static void v5_depart_worker_fn(void *arg)
 		ctx->depart_cur_inc = 0;
 		mxfs_pal_mutex_unlock(ctx->depart_lock);
 	}
-	mxfs_pal_log(MXFS_LOG_INFO, "mxfs: P-DEPART-WORKER exiting");
+	mxfs_pal_log(MXFS_LOG_DEBUG, "mxfs: P-DEPART-WORKER exiting");
 }
 
 static int v5_depart_queue2(struct mxfs_v5_dlm *ctx, mxfs_node_id_t node,
@@ -4940,8 +4940,8 @@ out:
 
 /*
  * ── THE TAKEOVER ARM (docs/whole-cluster-restart.md §6.8) ──
- * Design-consult rulings: ccmemory ccloop-c7ee71c6-sess442-GPT-ruling-item5f-
- * bootstrap-takeover (design) and ccloop-c7ee71c6-sess443-GPT-review-item5f-
+ * Design-consult rulings: item5f-
+ * bootstrap-takeover (design) and item5f-
  * takeover-build-plan (this build; its 16-step ordering is followed below).
  *
  * A bootstrap term owned by another boot is never taken on silence: the
@@ -6529,7 +6529,7 @@ static int v5_prkey_setup(struct mxfs_v5_dlm *ctx)
 /*
  * self-succession, successor side (docs/whole-cluster-restart.md
  * §5.2 + "Item 2 correction"; design-consult rulings in ccmemory
- * ccloop-c7ee71c6-sess439-GPT-ruling-*).  Reached when the plain REGISTER
+ * *).  Reached when the plain REGISTER
  * hit RESERVATION CONFLICT and REGISTER(rk=K, sark=K) proved the nexus holds
  * a DIFFERENT key: a registration this host made before.  Replace it only if
  * it is provably a PREVIOUS BOOT of this host:
@@ -7081,7 +7081,7 @@ static void v5_boot_succession_consume(struct mxfs_v5_dlm *ctx, int slot,
 	}
 	if (!mxfs_disklock_host_live_other_boot(ctx->disklock, host, boot,
 						&live_node, &live_slot)) {
-		mxfs_pal_log(MXFS_LOG_WARN,
+		mxfs_pal_log(MXFS_LOG_DEBUG,
 			     "mxfs: P238-BOOTSUCC-HOST-NOT-LIVE slot=%d victim=%u "
 			     "inc=%llu host=%02x%02x%02x%02x boot=%02x%02x%02x%02x — "
 			     "the victim's host is not heartbeating under a later boot; "
@@ -8654,7 +8654,7 @@ static void v5_fence_retry_worker_fn(void *arg)
 	uint64_t auth_pump_until_ms = 0;    /* dbg_auth_pump_pause_ms deadline */
 	uint64_t auth_withdraw_until_ms = 0; /* dbg_auth_withdraw_pause_ms deadline */
 
-	mxfs_pal_log(MXFS_LOG_INFO,
+	mxfs_pal_log(MXFS_LOG_DEBUG,
 		     "mxfs: P304-PR-WORKER started (fence retry + reservation "
 		     "health)");
 
@@ -9639,7 +9639,7 @@ static int v5_rman_snapshot(struct mxfs_v5_dlm *ctx, int slot,
 	}
 	rc = mxfs_disklock_recovery_fence_seal(ctx->disklock, slot, fauth, &mp);
 	if (rc == 0)
-		mxfs_pal_log(MXFS_LOG_WARN,
+		mxfs_pal_log(MXFS_LOG_DEBUG,
 			     "mxfs: P-RMAN-SNAPSHOT slot=%d victim=%u epoch=%llu "
 			     "entries=%u scanned=%u flags=0x%x seq=%llu ms=%llu — "
 			     "fence-time manifest sealed and certified (FENCED)",
@@ -10237,7 +10237,7 @@ republish_done:
 								  gobs, &gclaim,
 								  gwhy, sizeof(gwhy));
 				if (gbasis == MXFS_RETIRE_BASIS_NONE) {
-					mxfs_pal_log(MXFS_LOG_WARN,
+					mxfs_pal_log(MXFS_LOG_DEBUG,
 						     "mxfs: P238-GATE-NO-RETIRE-BASIS slot=%d "
 						     "node=%u epoch=%llu key=0x%llx obs=%s — this "
 						     "node is the only live member and the "
@@ -10337,7 +10337,7 @@ republish_done:
 							mxfs_pal_free(lf);
 							goto gate_done;
 						}
-						mxfs_pal_log(lf->certified ? MXFS_LOG_WARN
+						mxfs_pal_log(lf->certified ? MXFS_LOG_DEBUG
 									   : MXFS_LOG_ERR,
 									 "mxfs: P238-FENCE-LURESET slot=%d node=%u "
 									 "epoch=%llu key=0x%llx certified=%d "
@@ -10917,7 +10917,7 @@ static void v5_tcp_declare_dead(struct mxfs_v5_dlm *ctx, mxfs_node_id_t node_id)
 	if (ctx->disklock)
 		slot = mxfs_disklock_find_node_slot(ctx->disklock, node_id);
 	if (slot >= 0) {
-		mxfs_pal_log(MXFS_LOG_WARN,
+		mxfs_pal_log(MXFS_LOG_DEBUG,
 			     "mxfs: P-TCPDEATH-DEFERRED node=%u slot=%d — fenced; "
 			     "grants and mastership stay FROZEN until its journal "
 			     "slice is replayed (recovery completion purges)",
@@ -11187,7 +11187,7 @@ static void v5_join_queue(struct mxfs_v5_dlm *ctx,
 		return;
 	if (old)
 		mxfs_pal_thread_join(old);      /* the previous worker has exited */
-	mxfs_pal_log(MXFS_LOG_WARN,
+	mxfs_pal_log(MXFS_LOG_DEBUG,
 		     "mxfs: P-JOIN-QUEUED node=%u peer=%u — single→multi "
 		     "transition queued to the join worker",
 		     ctx->node_id, s->node_id);
@@ -11240,7 +11240,7 @@ static void v5_peer_connect_cb_tcp(void *data, mxfs_node_id_t node_id)
 		     "mxfs: TCP peer %u connected", node_id);
 
 	/*
-	 * (ccloop-4dd7) pve9 split-brain ROOT FIX: an inbound/fallback
+	 * pve9 split-brain ROOT FIX: an inbound/fallback
 	 * TCP connect can be this node's FIRST sight of any peer — the
 	 * accepting node's own discovery of the initiator arrives LATER and
 	 * early-returns on mxfs_lease_has_node (we register the node below),
@@ -11872,7 +11872,7 @@ static void v5_auth_withdraw_thread_start(struct mxfs_v5_dlm *ctx)
 	}
 	WRITE_ONCE(mxfs_auth_withdraw_threads,
 		   READ_ONCE(mxfs_auth_withdraw_threads) + 1);
-	mxfs_pal_log(MXFS_LOG_INFO,
+	mxfs_pal_log(MXFS_LOG_DEBUG,
 		     "mxfs: P290-AUTH-WITHDRAW-THREAD node %u transport=%d — the "
 		     "withdraw thread is running; a closure is converted within "
 		     "100 ms whatever the PR worker is doing",
@@ -12491,7 +12491,7 @@ static void v5_death_fence_handoff(struct mxfs_v5_dlm *ctx,
 	ctx->death_fence_epoch[dead_slot]  = dead_epoch;
 	/* Full barrier: the worker cannot see the latch before the two stores. */
 	(void)mxfs_atomic32_xchg(&ctx->death_fence_pending[dead_slot], 1);
-	mxfs_pal_log(MXFS_LOG_WARN,
+	mxfs_pal_log(MXFS_LOG_DEBUG,
 		     "mxfs: P309-DEATH-FENCE-QUEUED slot=%d victim=%u epoch=%llu "
 		     "— the death is declared; the fence, the reset and the "
 		     "post-reset barrier run on the PR worker so this thread can "
@@ -12522,7 +12522,7 @@ static void v5_death_fence_drain(struct mxfs_v5_dlm *ctx)
 		epoch  = ctx->death_fence_epoch[slot];
 		if (mxfs_atomic32_xchg(&ctx->death_fence_pending[slot], 0) == 0)
 			continue;
-		mxfs_pal_log(MXFS_LOG_WARN,
+		mxfs_pal_log(MXFS_LOG_DEBUG,
 			     "mxfs: P309-DEATH-FENCE-RUN slot=%d victim=%u epoch=%llu "
 			     "— taking the handed-over death on the PR worker",
 			     slot, victim, (unsigned long long)epoch);
@@ -13130,7 +13130,7 @@ int mxfs_v5_dlm_settle_own_slot(struct mxfs_v5_dlm *ctx)
 			     "mxfs: P226-SETTLE-PASS1-NOPURGE slot=%u — own-stamp "
 			     "reclaim path (previous incarnation's slice replayed "
 			     "as our own log): un-adopted authority bits are LEFT "
-			     "IN PLACE, not purged (unproven path, sess420 ruling "
+			     "IN PLACE, not purged (unproven path, ruling"
 			     "item 4); peers block on them until this node unmounts",
 			     ctx->node_slot);
 		mxfs_dlm_caw_set_adopt_window(ctx->dlm_caw, false);
@@ -14331,7 +14331,7 @@ int mxfs_v5_dlm_recovery_acquire_bounded(struct mxfs_v5_dlm *ctx,
 		 * (mutate1 on 0.26.2: the replayer's own CAS cleared a victim EX bit
 		 * 1.7 s before its monitor pass published the protection). */
 		mxfs_disklock_protected_mask_add(ctx->disklock, (int)dead_slot);
-		mxfs_pal_log(MXFS_LOG_WARN,
+		mxfs_pal_log(MXFS_LOG_DEBUG,
 			     "mxfs: P238-RECOV-LEASE slot=%u node=%u inc=%llu stage=%u "
 			     "— execution lease acquired against a CERTIFIED fence and "
 			     "the exclusion still holds; this slice may now be replayed",
@@ -14756,7 +14756,7 @@ int mxfs_v5_dlm_recovery_acquire_bounded(struct mxfs_v5_dlm *ctx,
 				ctx->recov_auth[dead_slot] = auth;
 				ctx->recov_auth_mask |= bit;
 				v5_complete_retry_reset(ctx, dead_slot, &auth); /* */
-				mxfs_pal_log(MXFS_LOG_WARN,
+				mxfs_pal_log(MXFS_LOG_DEBUG,
 					     "mxfs: P238-RECOV-LEASE slot=%u node=%u inc=%llu "
 					     "stage=%d — execution lease acquired after a "
 					     "fencing-attempt takeover",
@@ -14870,7 +14870,7 @@ static int v5_dead_grants_retire(struct mxfs_v5_dlm *ctx, uint32_t dead_slot,
 		tc_ledger = mxfs_pal_time_ms();
 		if (rc < 0) {
 			/*
-			 * (D-0342, ruling ccmemory ccloop-c7ee71c6-sess425-GPT-
+			 * (D-0342, ruling
 			 * ruling-partial-ledger-purge-held-failure): the victim's
 			 * ledger records are NOT all retired — its blockers stay in
 			 * the table and the DLM re-drives the purge from its tick.
@@ -16365,7 +16365,7 @@ struct mxfs_v5_dlm *mxfs_v5_dlm_init(const struct mxfs_v5_dlm_opts *opts)
 		goto err_free;
 	}
 
-	mxfs_pal_log(MXFS_LOG_INFO,
+	mxfs_pal_log(MXFS_LOG_DEBUG,
 		     "mxfs: DLM init: node_id=%u requested_transport=%s",
 		     ctx->node_id,
 		     ctx->transport == MXFS_V5_TRANSPORT_CAW ? "caw" : "tcp");
@@ -16457,7 +16457,7 @@ struct mxfs_v5_dlm *mxfs_v5_dlm_init(const struct mxfs_v5_dlm_opts *opts)
 	}
 	/* 0.75.2: the transport this mount actually runs, after the census
 	 * (the line above names only the module default that was asked for). */
-	mxfs_pal_log(MXFS_LOG_INFO,
+	mxfs_pal_log(MXFS_LOG_DEBUG,
 		     "mxfs: DLM init: node_id=%u transport=%s",
 		     ctx->node_id,
 		     ctx->transport == MXFS_V5_TRANSPORT_CAW ? "caw" : "tcp");
@@ -17118,7 +17118,7 @@ tcp_bootstrap_again:
 		}
 
 		/*
-		 * (ccloop-4dd7) MEMBERSHIP-SETTLE GATE (pve9 n1_seed loss):
+		 * MEMBERSHIP-SETTLE GATE (pve9 n1_seed loss):
 		 * the disklock slot table is ground truth of liveness — if OTHER
 		 * ACTIVE slots exist at mount time, an existing cluster owns this
 		 * LUN, and returning before DLM membership includes those nodes
@@ -18025,7 +18025,7 @@ static int v5_tcp_release_gate(struct mxfs_v5_dlm *ctx, const char *what,
 }
 
 /*
- * (D-0357, design-consult ruling ccloop-c7ee71c6-sess433-GPT-ruling-d0357):
+ * (D-0357, design-consult ruling d0357):
  * the SAME gate for the CAW transport.  The reasoning "the slot
  * layer refuses after caw_stop" left a window: put_super runs
  * mxfs_dlm_ag_force_release_all and mxfs_iclus_purge_all BEFORE caw_stop,
@@ -18152,7 +18152,7 @@ void mxfs_v5_dlm_shutdown_defer_release(struct mxfs_v5_dlm *ctx,
 	if (!ctx)
 		return;
 
-	mxfs_pal_log(MXFS_LOG_INFO, "mxfs: DLM shutting down");
+	mxfs_pal_log(MXFS_LOG_DEBUG, "mxfs: DLM shutting down");
 	ctx->mounted = false;
 
 	if (ctx->dlm)
@@ -18265,7 +18265,7 @@ void mxfs_v5_dlm_shutdown_defer_release(struct mxfs_v5_dlm *ctx,
 			int left = mxfs_dlm_handoff_depart(ctx->dlm);
 
 			if (left)
-				mxfs_pal_log(MXFS_LOG_WARN,
+				mxfs_pal_log(MXFS_LOG_DEBUG,
 					     "mxfs: P-TAUTH-DEPART-LEFT node=%u pages=%d — "
 					     "successor takeover on GOODBYE completes them",
 					     ctx->node_id, left);
@@ -18370,7 +18370,7 @@ void mxfs_v5_dlm_shutdown_defer_release(struct mxfs_v5_dlm *ctx,
 		leave.incarnation = ctx->disklock ? (uint64_t)ctx->disklock->epoch : 0;
 		v5_depart_race_inject(ctx, 3);
 		mxfs_peer_broadcast(ctx->peer, &leave, sizeof(leave));
-		mxfs_pal_log(MXFS_LOG_INFO,
+		mxfs_pal_log(MXFS_LOG_DEBUG,
 			     "mxfs: P-GOODBYE-SENT clean departure broadcast (node %u) "
 			     "teardown_releases_served=%u teardown_local_basts_dropped=%u",
 			     ctx->node_id, ctx->teardown_releases_served,
@@ -18660,7 +18660,7 @@ bool mxfs_v5_dlm_slot_release_commit(struct mxfs_v5_dlm_slot_release *late,
 
 	if (unmount_clean) {
 		rc = mxfs_disklock_release_slot(late->disklock);
-		mxfs_pal_log(rc ? MXFS_LOG_WARN : MXFS_LOG_INFO,
+		mxfs_pal_log(rc ? MXFS_LOG_WARN : MXFS_LOG_DEBUG,
 			     "mxfs: P278-LATE-RELEASE unmount_clean=1 release rc=%d",
 			     rc);
 		/*
@@ -18999,7 +18999,7 @@ int mxfs_v5_dlm_inode_lock_retries(struct mxfs_v5_dlm *ctx, uint64_t ino,
 		 * its transaction held the AGI buffer, freezing every local
 		 * inactive-ifree (ILOCK->AGI), the AIL min, and finally the noino
 		 * release fence => 13-node self-shutdown cascade (measured
-		 * 2026-08-21, evidence sess386_ailfreeze_1313).  Honor the caller's
+		 * 2026-08-21).  Honor the caller's
 		 * budget on CAW exactly as TCP does: ~retries seconds, as an
 		 * absolute deadline.  Expiry cancels the waiter (grant-wins race
 		 * handling inside) and returns -ETIMEDOUT, which reserve callers
@@ -20703,7 +20703,7 @@ int mxfs_v5_dlm_lu_reset_barrier(struct mxfs_v5_dlm *ctx,
 	else
 		auth_live = beat_landed && mxfs_disklock_authority_ok(dl);
 
-	mxfs_pal_log(auth_live ? MXFS_LOG_WARN : MXFS_LOG_ERR,
+	mxfs_pal_log(auth_live ? MXFS_LOG_DEBUG : MXFS_LOG_ERR,
 		     "mxfs: P307-LURESET-BARRIER node %u victim=%u held=%d arm=%s "
 		     "beat_landed=%d beat_ms=%llu reset_issued_ms=%llu wait_ms=%u "
 		     "deadline_ms=%llu incarnation=%llu boot_hb_lost=%d "
@@ -21803,7 +21803,7 @@ int mxfs_v5_dlm_ag_read_generation(struct mxfs_v5_dlm *ctx, uint32_t agno,
 }
 
 /*
- * sess48's mxfs_v5_dlm_ag_grant_epoch() lived here and was DELETED in sess110
+ * mxfs_v5_dlm_ag_grant_epoch lived here and was DELETED in
  * (step 5.3 ruling blocker 5).  It re-read the slot's ex_grant_epoch in a
  * SECOND I/O after the acquire had already returned, and a second read cannot
  * establish that the epoch it saw belongs to the grant this caller holds — any

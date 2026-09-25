@@ -100,7 +100,7 @@ xfs_trans_log_inode(
 	/*
 	 * D3 residual — publication obligation,
 	 * wiring step 1 of 4 (design + remaining steps at xfs_inode.h's
-	 * i_mxfs_pub_pending_seq block; rationale in ccmemory sess14-J).
+	 * i_mxfs_pub_pending_seq block; rationale in ccmemory J).
 	 * Every logged inode-core change creates an obligation to land that
 	 * change at the home location before the DLM grant is handed off.
 	 * This is the single chokepoint for "a change was committed" and is

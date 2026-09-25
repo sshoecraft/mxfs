@@ -1900,11 +1900,11 @@ int mxfs_mount(const struct mxfs_mount_opts *opts,
 			mxfs_discovery_destroy(probe_disc);
 		}
 
-		/* Sess26 NOTE: this file (dlm/mount.c) is USERSPACE, not part
+		/* NOTE: this file (dlm/mount.c) is USERSPACE, not part
 		 * of the kernel module.  The kernel uses dlm/v5_mount.c which
 		 * only supports CAW transport (see line ~206).  TCP transport
 		 * needs to be implemented in v5_mount.c first to be usable.
-		 * Sess27 work item. */
+		 * Work item. */
 		if (detected < 2) {
 			/* No peers found or couldn't read transport — probe device.
 			 * Try a SCSI Compare-And-Write on the first disklock slot.

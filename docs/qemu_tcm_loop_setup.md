@@ -89,7 +89,7 @@ sudo virsh start VMNAME
 
 **If start fails with "Permission denied" on the qcow2 file** → fix permissions:
 ```
-sudo chmod 666 /home/steve/vms/qemu/VMNAME/VMNAME
+sudo chmod 666 ~/vms/qemu/VMNAME/VMNAME
 sudo virsh start VMNAME
 ```
 

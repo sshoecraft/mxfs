@@ -5,7 +5,7 @@
 standalone **10/10**. dir_reuse_coherency 2/2 (NO regression). Reliability re-runs in progress.
 
 ### sess48's "SCST per-initiator read cache" conclusion was WRONG (false premise)
-Storage = **LIO fileio over /home/steve/disk.img, ONE instance on clyde, virtio-scsi to both
+Storage = **LIO fileio over ~/disk.img, ONE instance on clyde, virtio-scsi to both
 VMs = ONE coherent host page cache** (emulate_write_cache=0). NO per-initiator cache. See
 [[storage-backend-is-lio-fileio-not-scst]]. Never chase SCST/FUA for coherency on this rig.
 

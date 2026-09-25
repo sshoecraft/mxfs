@@ -492,7 +492,7 @@ void mxfs_pubob_arm(struct xfs_mount *mp, struct xfs_inode *ip)
 	}
 	if (!n) {
 		spin_unlock(&mp->m_mxfs_pubob_lock);
-		/* A lost obligation is exactly the pre-sess387 exposure for
+		/* A lost obligation is exactly the earlier exposure for
 		 * this one unlink; loud so allocation pressure is visible. */
 		mxfs_probe("mxfs: P88-PUBOB-ENOMEM ino=%llu\n",
 			(unsigned long long)ip->i_ino);
@@ -938,7 +938,7 @@ bool mxfs_pubob_lookup(struct xfs_mount *mp, uint64_t ino, uint8_t *kind,
 EXPORT_SYMBOL(mxfs_pubob_lookup);
 
 /*
- * (0.38.4, design-consult ruling ccloop-c7ee71c6-sess429-GPT-ruling-home-free-
+ * (0.38.4, design-consult ruling home-free-
  * ledger-settle): a FREE obligation found ALREADY SATISFIED at home (the home
  * dinode is mode 0 — at any gen, per the 0.38.3 classification) is settled
  * BY EQUIVALENCE, not merely discharged.  The freed incarnation's publication

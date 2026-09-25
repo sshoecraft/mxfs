@@ -144,7 +144,7 @@ daddr (e.g. lba 120 = byte 61440, inside the journal/envelope) → all zeros →
 - The PRODUCTION read paths are CORRECT: `mxfs_buf_read_fua` (pal/linux/xfs_buf.c
   ~1520), the xfs_buf bio path (~1399), xfs_iomap (~131), and xfs_log all add
   `bt_sector_offset`.  Only the P-H16 diagnostic omitted it.
-- Verified storage is COHERENT: read clyde's backing file /home/steve/disk-1.img at
+- Verified storage is COHERENT: read clyde's backing file ~/disk-1.img at
   the CORRECT offset (100704256 + daddr*512) after a failing iter → a VALID `XDB3`
   dir3 block is present (not zeros).  SCST is write_through=1, nv_cache=0, device
   WCE=write-through → writes durable on completion.

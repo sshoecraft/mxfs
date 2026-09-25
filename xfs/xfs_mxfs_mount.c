@@ -38,7 +38,7 @@ MODULE_PARM_DESC(dbg_barrier_refuse_after_claim,
 	"TEST: one-shot: refuse the mount right after the barrier claims a recovery lease, giving it back durably; self-clears");
 
 /*
- * sess330 (D-513 design-consult ruling): the admission barrier's terminal
+ * (D-513 design-consult ruling): the admission barrier's terminal
  * classification.  A slice whose recovery was terminally REFUSED is not
  * pending work — no lease is ever obtainable over its quarantined
  * descriptor (the claim path's certificate evaluator refuses it), so
@@ -57,7 +57,7 @@ MODULE_PARM_DESC(dbg_barrier_refuse_after_claim,
  *   0      nonterminal — proceed to acquire/replay as before.
  *   -EAGAIN transient classify state — retry in a later round.
  *   1 with *fswide set — terminal, FSWIDE: every operation this mount
- *          could ever admit would fail with EIO.  sess334 (sess333
+ *          could ever admit would fail with EIO.  (
  *          review item A): the FSWIDE case returns 1 like any terminal
  *          disposition — never a bare error — so the caller ALWAYS sets
  *          the slot's terminal bit FIRST and only then jumps to the
@@ -111,7 +111,7 @@ mxfs_barrier_clock(
 	unsigned int		wait_ms = t_loop ?
 					jiffies_to_msecs(jiffies - t_loop) : 0;
 
-	xfs_notice(mp,
+	mxfs_xfs_probe(mp,
 		"MXFS mount barrier: P-BARRIER-CLOCK result=%s wait_ms=%u "
 		"bound_ms=%u overrun_ms=%u rounds=%d last_round_ms=%u "
 		"total_ms=%u — the admission wait is bounded by elapsed time; "
@@ -749,10 +749,10 @@ mxfs_dlm_mount_recovery_barrier(
 						goto abort_fswide;
 					continue;
 				}
-				/* sess333 item C cleanup: a transient
+				/* item C cleanup: a transient
 				 * reclassify here is the same "neither
 				 * replayable nor provably quarantined"
-				 * state the poll phase tracks.  sess335
+				 * state the poll phase tracks.
 				 * review: it is NOT the generic wait state —
 				 * continue, so the "not provably excluded"
 				 * alert below doesn't misdescribe it.  A

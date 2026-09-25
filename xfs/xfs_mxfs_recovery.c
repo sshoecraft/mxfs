@@ -85,7 +85,7 @@ mxfs_replay_gate_enforce_set(const char *val, const struct kernel_param *kp)
 		unmet++;
 	}
 	if (unmet) {
-		pr_err("mxfs: replay_gate_enforce stays 0 — %d prerequisite(s) unmet (fail closed, sess197 ruling)\n",
+		pr_err("mxfs: replay_gate_enforce stays 0 — %d prerequisite(s) unmet (fail closed, ruling)\n",
 		       unmet);
 		return -EINVAL;
 	}
@@ -157,7 +157,7 @@ mxfs_fr_token_enforce_set(const char *val, const struct kernel_param *kp)
 	}
 	if (unmet) {
 		mutex_unlock(&mxfs_fr_cfg_lock);
-		pr_err("mxfs: foreign_replay_token_enforce stays 0 — %d prerequisite(s) unmet (fail closed, sess357 ruling)\n",
+		pr_err("mxfs: foreign_replay_token_enforce stays 0 — %d prerequisite(s) unmet (fail closed, ruling)\n",
 		       unmet);
 		return -EINVAL;
 	}
@@ -181,7 +181,7 @@ MODULE_PARM_DESC(foreign_replay_token_enforce,
                  "icluster_dlm=1)");
 module_param_named(fr_stab_prefetch, mxfs_fr_stab_prefetch, int, 0644);
 MODULE_PARM_DESC(fr_stab_prefetch,
-	"sess444/445: pipeline DEPTH of victim-slice snapshot stability proofs run on workers ahead of the mount-cohort barrier's replays (each holds ~68 MiB); 0 = inline only, default 3, max 8");
+	"/445: pipeline DEPTH of victim-slice snapshot stability proofs run on workers ahead of the mount-cohort barrier's replays (each holds ~68 MiB); 0 = inline only, default 3, max 8");
 module_param_named(fr_stab_interval_ms, mxfs_fr_stab_interval_ms, int, 0644);
 MODULE_PARM_DESC(fr_stab_interval_ms,
 		 "delay between foreign-slice stabilization compare passes (ms)");
@@ -221,14 +221,14 @@ mxfs_dlm_fence_notify(
 }
 
 /*
- * sess325 (D-FOREIGN-REPLAY-REFUSAL-CLUSTERWIDE-SUICIDE-513, sess320
+ * (D-FOREIGN-REPLAY-REFUSAL-CLUSTERWIDE-SUICIDE-513,
  * Design-consult ruling): fold a terminal recovery-refusal domain into this
  * mount's quarantine map.  Monotonic under m_mxfs_quar_lock — entries
  * are only ever added; quarantine is terminal until remount.  The
  * (victim_epoch, publish_seq) TUPLE dedups the LOGGING per victim slot
  * (the disklock monitor re-imports every pass, and seq alone is wrong
  * across slot reuse — a new victim incarnation restarts publish_seq at
- * 1; sess325 ruling item 3); the map itself is idempotent.  Called both
+ * 1; ruling item 3); the map itself is idempotent.  Called both
  * by the publisher itself (immediately after a successful publish —
  * enforcement must not wait a monitor lap) and by the monitor import
  * callback for every survivor.
@@ -1271,7 +1271,7 @@ mxfs_dlm_foreign_replay_work_fn(
 	mxfs_recovtask_enter(&recov, MXFS_RECOV_PHASE_CLEANUP);
 	/* D-0514 provenance: one line per instance so the trail shows
 	 * which instance a death was queued behind. */
-	pr_warn("mxfs: P-FREPLAY-ENTER inv=%d dead_slots=0x%llx sweep_pending=0x%llx\n",
+	mxfs_probe("mxfs: P-FREPLAY-ENTER inv=%d dead_slots=0x%llx sweep_pending=0x%llx\n",
 		atomic_inc_return(&mxfs_freplay_work_inv),
 		(unsigned long long)mp->m_mxfs_foreign_dead_slots[0],
 		(unsigned long long)mp->m_mxfs_sweep_pending_slots[0]);
@@ -1740,11 +1740,11 @@ complete_ladder:
 	 * durable duty; the batch-complete reap_sched below is the wakeup.
 	 */
 	if (!bitmap_empty(mp->m_mxfs_sweep_pending_slots, 64))
-		pr_warn("mxfs: P-FREPLAY-PHASE inv=%d phase=SWEEP-DEFERRED sweep_pending=0x%llx dead_slots=0x%llx — bucket sweeps handed to the reap worker (D-0514 fix)\n",
+		mxfs_probe("mxfs: P-FREPLAY-PHASE inv=%d phase=SWEEP-DEFERRED sweep_pending=0x%llx dead_slots=0x%llx — bucket sweeps handed to the reap worker (D-0514 fix)\n",
 			atomic_read(&mxfs_freplay_work_inv),
 			(unsigned long long)mp->m_mxfs_sweep_pending_slots[0],
 			(unsigned long long)mp->m_mxfs_foreign_dead_slots[0]);
-	pr_warn("mxfs: P-FREPLAY-EXIT inv=%d dead_slots=0x%llx sweep_pending=0x%llx\n",
+	mxfs_probe("mxfs: P-FREPLAY-EXIT inv=%d dead_slots=0x%llx sweep_pending=0x%llx\n",
 		atomic_read(&mxfs_freplay_work_inv),
 		(unsigned long long)mp->m_mxfs_foreign_dead_slots[0],
 		(unsigned long long)mp->m_mxfs_sweep_pending_slots[0]);
@@ -1786,7 +1786,7 @@ mxfs_dlm_dead_node_notify(
 		bool q = queue_work(system_unbound_wq,
 				    &mp->m_mxfs_foreign_replay_work);
 
-		pr_warn("mxfs: P-FREPLAY-NOTIFY slot=%u qret=%d busy=%s%s inv=%d dead_slots=0x%llx\n",
+		mxfs_probe("mxfs: P-FREPLAY-NOTIFY slot=%u qret=%d busy=%s%s inv=%d dead_slots=0x%llx\n",
 			dead_slot, q ? 1 : 0,
 			(busy & WORK_BUSY_RUNNING) ? "RUNNING" : "",
 			(busy & WORK_BUSY_PENDING) ? "+PENDING" : "",

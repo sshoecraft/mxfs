@@ -1496,7 +1496,7 @@ xfs_dialloc_check_ino(
 
 #ifdef __KERNEL__
 /*
- * P150 (instrumented, ccloop-4dd7 inobt double-free record corruption): record-
+ * P150 (instrumented, inobt double-free record corruption): record-
  * level trace of EVERY inobt/finobt record RMW in multi-node mode.  Joined
  * across nodes per (agno,startino), the ALLOC/FREE interleaving shows
  * directly where a peer's alloc/free vanished from the record (stale-base
@@ -1668,7 +1668,7 @@ mxfs_agifc_mod(
 #endif
 
 /*
- * ccloop-4dd7 sess2 (GPT-reviewed design; deadlock-3 autopsy): reserve the
+ * (reviewed design; deadlock-3 autopsy): reserve the
  * candidate ino's cluster DLM EX at SELECTION time, BEFORE the inobt/finobt
  * record RMW dirties the transaction.  Upstream's create order is
  * AG -> (dirty) -> child-ino ILOCK at icreate/iget; a peer's truncate order
@@ -1680,11 +1680,11 @@ mxfs_agifc_mod(
  * node-cached, so icreate/iget's ilock fast-paths on it — the reservation IS
  * the handoff token.
  *
- * 0.23.0 (sess392, design-consult ruling ccloop-c7ee71c6-sess392-GPT-ruling-dialloc-
+ * 0.23.0 (design-consult ruling dialloc-
  * try-reserve-candidate-rotation; D-RSYNC-LAP-PACE-AG-SHARING-388): the
  * reserve is a NONQUEUED try (one CAW slot CAS, no waiter, nothing outlives
  * the call) and a contended candidate is SKIPPED — the next free inode in
- * the record, then the next record — instead of waited for.  The sess386
+ * the record, then the next record — instead of waited for.  The
  * 1 s bounded acquire that this replaces was measured as THE lap-2 pace
  * root at agcount<nodes: two nodes sharing an AG, the first-free candidate
  * is always an inode the peer just freed and still holds (noino lifecycle,
@@ -1953,7 +1953,7 @@ mxfs_dialloc_validate_candidate(
 		rs->pubpend++;
 		mxfs_resv_cool_add_kind(pag, agino, MXFS_RESV_COOL_PUBPEND);
 		if (n <= 32 || (n % 500) == 0)
-			pr_warn("mxfs: P946-VALIDATE-PUBPEND ino=%llu agno=%u agino=%u okind=%u ogen=%u oepoch=%llu ochain=%u n=%d — candidate REFUSED: this node's own free of this number is not on the platter yet, so its home still carries our live predecessor image; transient cooldown, re-picking (no transaction dirtied)\n",
+			mxfs_probe("mxfs: P946-VALIDATE-PUBPEND ino=%llu agno=%u agino=%u okind=%u ogen=%u oepoch=%llu ochain=%u n=%d — candidate REFUSED: this node's own free of this number is not on the platter yet, so its home still carries our live predecessor image; transient cooldown, re-picking (no transaction dirtied)\n",
 				(unsigned long long)ino, pag_agno(pag), agino,
 				(unsigned)okind, ogen,
 				(unsigned long long)oepoch, (unsigned)ochain, n);
@@ -3266,8 +3266,8 @@ xfs_dialloc_good_ag(
 
 #ifdef __KERNEL__
 /*
- * (D-0351 containment, design-consult ruling ccmemory ccloop-c7ee71c6-sess430-
- * GPT-ruling-d0351-dialloc-containment-two-phase).  Phase 1: pick + reserve a
+ * (D-0351 containment, design-consult ruling
+ * d0351-dialloc-containment-two-phase).  Phase 1: pick + reserve a
  * candidate under the cursors, trees untouched (pick_only).  Drop the AGI,
  * validate the candidate's platter image (plain LUN read; the pubob store
  * first), re-take the AGI.  A LIVE image is quarantined for the mount and the
@@ -4384,7 +4384,7 @@ xfs_difree_inobt(
 			(unsigned)be32_to_cpu(dbg_agi->agi_freecount),
 			(int)(mp->m_mxfs_dlm && !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm)));
 		/*
-		 * ccloop-4dd7 (round-5 ino 134 autopsy): in multi-node
+		 * (round-5 ino 134 autopsy): in multi-node
 		 * mode this is not a can't-happen — it is the SECOND
 		 * inactivation of an inode whose unlink+free a peer already
 		 * completed.  Our in-core mirror adopted nlink=0 from disk

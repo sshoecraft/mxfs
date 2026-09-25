@@ -39,7 +39,7 @@ static inline void raw_read(uint64_t off, void *buf, size_t len)
     close(fd);
 }
 
-/* sess427 (D-0348 step 2): every usermode region is formatted with the
+/* (D-0348 step 2): every usermode region is formatted with the
  * MINIMUM geometry and this fixed seed, so a test can route a resource
  * without an open ledger (tl_page / tl_home == the ledger's own routing). */
 #define TL_SEED 0x5eed0000c0ffee11ULL

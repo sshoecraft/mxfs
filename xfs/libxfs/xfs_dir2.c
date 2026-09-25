@@ -1290,7 +1290,7 @@ xfs_dir2_shrink_inode(
 
 #ifdef __KERNEL__
 	/*
-	 * ccloop-4dd7 P148-DIRSHRINK — every dir-block free with the
+	 * P148-DIRSHRINK — every dir-block free with the
 	 * BASE COHERENCY stamps at free time.  The round-3 double-map's
 	 * suspected poison step is a shrink whose base predates a peer's
 	 * regrow (stale-lineage free of the peer's live block).  Joined with
@@ -1718,7 +1718,7 @@ xfs_dir_remove_child(
 		 * drop the link.
 		 */
 		/*
-		 * ccloop-4dd7 DEAD-CHILD GUARD (proven by instrument, ino 2097824
+		 * DEAD-CHILD GUARD (proven by instrument, ino 2097824
 		 * droplink -117 autopsy): under multi-node churn our cached dir
 		 * base can still list a dirent for a child a PEER has already
 		 * unlinked+freed — the child's reload adopted the freed state

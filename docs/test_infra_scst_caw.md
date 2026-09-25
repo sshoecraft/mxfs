@@ -19,7 +19,7 @@ shared target serves both CAW conditions; the difference is *who logs in*.
 ## The chain
 
 ```
-/home/steve/disk.img
+~/disk.img
   → SCST vdisk_fileio device "mxfs"  (o_direct=1 — sess26 perf; CAW 0x89 + PR native)
   → iSCSI target iqn.2026-05.local.mxfs:shared, LUN 0   (br0 192.168.120.1:3260)
         │

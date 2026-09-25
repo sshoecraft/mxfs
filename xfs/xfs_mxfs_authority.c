@@ -263,7 +263,7 @@ mxfs_inode_authority_phantom_loss_locked(struct xfs_inode *ip, u32 line)
 }
 
 /*
- * (design-consult ruling ccloop-c7ee71c6-sess403-GPT-ruling-release-marker-
+ * (design-consult ruling release-marker-
  * log-item-redundant-clean): CLEAN-RELEASE MARKER publication helpers for the
  * two EX release pipelines.  Both run at the last point before the on-disk
  * unlock CAS, after the Invariant-1 drain and after every "keep the tenure"
@@ -582,7 +582,7 @@ mxfs_dlm_authority_install(struct xfs_inode *ip,
 
 /*
  * fix shape A (D-FOREIGN-SLICE-INTENTS-ABANDONED; design-consult ruling
- * ccmemory ccloop-c7ee71c6-sess467-GPT-ruling-intents-classless-images-fix-
+ * intents-classless-images-fix-
  * shapes-A-B-Q3, Q1): the inactivation path takes its cluster-wide EX
  * through the RAW acquire (xfs_inactive: mxfs_v5_dlm_inode_lock /
  * mxfs_iclus_lock with a grant result, never mxfs_dlm_ilock_begin, because

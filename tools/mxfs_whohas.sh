@@ -12,7 +12,7 @@
 # file table, not the mm.  The command name comes from /proc/<pid>/comm.
 #
 # Usage:  mxfs_whohas.sh <extended-regex matched against the fd target>
-#         mxfs_whohas.sh '/home/steve/disk-1.img'
+#         mxfs_whohas.sh '~/disk-1.img'
 #         mxfs_whohas.sh '/dev/sd[a-z]$|/dev/mapper/mpath'
 # Prints: <pid> <state> <comm> <fd> -> <target> per match; exit 0 if any,
 #         1 if none.  Tasks skipped for being in D state are listed on stderr.

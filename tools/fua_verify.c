@@ -2,7 +2,7 @@
  * fua_verify — synthetic verification of SCSI READ(16)/WRITE(16) FUA
  * semantics on a multi-initiator iSCSI/LIO stack.
  *
- * Sess21/sess22 hypothesis: even with the FUA bit set in READ(16) CDB,
+ * Hypothesis: even with the FUA bit set in READ(16) CDB,
  * the iSCSI/LIO target may serve from a per-initiator read cache that
  * does not see another initiator's prior FUA writes.  This test proves
  * or disproves that.

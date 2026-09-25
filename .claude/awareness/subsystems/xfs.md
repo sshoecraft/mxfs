@@ -341,7 +341,7 @@ crc32c fingerprint of the FAILED image (capped 16).  Armed for the 2/tcp r3
 crash_consistency face: inobt 0x7fc2b8 CRC-failed an instant after
 P126-XFSAILD-SKIP-AGMETA staled the same dirty in-AIL buffer, yet the platter
 block was later fully valid — compare P15I sector CRCs against the raw disk
-(clyde /home/steve/disk.img, xfs_data_offset from tools/chk_mxfs -v) to
+(clyde ~/disk.img, xfs_data_offset from tools/chk_mxfs -v) to
 separate torn in-core mix from durable-garbage-later-repaired.  Suspect #1:
 the P126 discard of committed (in-AIL) AG-meta (tension with the sess43
 BB54A138 invariant).

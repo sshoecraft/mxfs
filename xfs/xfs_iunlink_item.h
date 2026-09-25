@@ -19,7 +19,7 @@ struct xfs_iunlink_item {
 	xfs_agino_t		old_agino;
 	/*
 	 * (D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN, design-consult
-	 * ruling ccmemory ccloop-c7ee71c6-sess396-GPT-ruling-insert-mode-
+	 * ruling insert-mode-
 	 * iunlink-item): INSERT mode.  Created by xfs_iunlink_insert_inode,
 	 * the one path that PROVES the inode is on no unlinked list, so any
 	 * non-NULL di_next_unlinked the cluster buffer carries at precommit is

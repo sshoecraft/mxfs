@@ -1326,7 +1326,7 @@ xfs_setattr_size(
 	xfs_ilock(ip, XFS_ILOCK_EXCL);
 
 	/*
-	 * mxfs (ccloop-4dd7, ino 133 autopsy): the DLM EX acquire inside
+	 * mxfs (ino 133 autopsy): the DLM EX acquire inside
 	 * xfs_ilock can RELOAD this inode to a DIFFERENT incarnation — a peer
 	 * freed the number and reused it (P-RELOAD-TYPEFLIP incore=0100644
 	 * disk=040755) or the reload adopted a peer-freed image (mode 0).  The

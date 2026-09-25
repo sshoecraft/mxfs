@@ -203,7 +203,7 @@ __mxfs_ag_dlm_lock(
 	 * (consistent with exhaustive read-side-fix failures).
 	 * REVERTED.  The real fix is upstream (CAW transient concurrent-EX /
 	 * slot claim-race) or owner-side, NOT the acquirer's read path.
-	 * See state.md / docs/history/session-46-lessons.md.
+	 * See docs/history/session-46-lessons.md.
 	 */
 
 	/*
@@ -293,7 +293,7 @@ __mxfs_ag_dlm_lock(
 	if (pag->pag_dlm_cached && unlikely(pag->pag_dlm_bast_pending) &&
 	    mxfs_ag_handoff_closing(pag)) {
 		/*
-		 * (design-consult ruling ccloop-c7ee71c6-sess391-GPT-ruling-
+		 * (design-consult ruling
 		 * ag-handoff-latch-closing-restartable): the handoff latch,
 		 * ACQUIRE side.  A peer's BAST is pending, the worker's prepass
 		 * ran, the grace is spent — this would-be re-adoption is
@@ -988,7 +988,7 @@ __mxfs_ag_dlm_lock(
 				/* The missing piece every prior attempt skipped:
 				 * reset the in-core PAG summary so the cold-read
 				 * AGF/AGI rebuild the pagf and pagi summaries
-				 * CONSISTENT with the re-read bnobt/cntbt (sess118
+				 * CONSISTENT with the re-read bnobt/cntbt (
 				 * desynced = fresh AGF buffer + stale pagf summary). */
 				clear_bit(XFS_AGSTATE_AGF_INIT, &pag->pag_opstate);
 				clear_bit(XFS_AGSTATE_AGI_INIT, &pag->pag_opstate);
@@ -1371,7 +1371,7 @@ mxfs_dlm_ag_drain_alloc_buflist(
  * v0.3.133 BUG FIX: async variant of drain_alloc_buflist for
  * the lazy_ag_drain=1 path.
  *
- * Sess31 final-loop discovery: the binary skip-or-drain in
+ * Final-loop discovery: the binary skip-or-drain in
  * mxfs_ag_dlm_unlock caused XFS log space exhaustion under heavy
  * create workloads (open-gpu rsync wedged in xlog_grant_head_wait).
  * Skipping the drain meant dirty AG-meta bufs sat in the per-AG
@@ -1701,7 +1701,7 @@ mxfs_p87_read_home_dinode(
 int mxfs_agifc_release_audit_on = 1;
 module_param_named(agifc_release_audit, mxfs_agifc_release_audit_on, int, 0644);
 MODULE_PARM_DESC(agifc_release_audit,
-	"sess399: platter AGI-freecount vs inobt/finobt audit at every AG release (0=off)");
+	"platter AGI-freecount vs inobt/finobt audit at every AG release (0=off)");
 
 /*
  * WHY THIS AUDIT'S SILENCE NEEDS A DENOMINATOR.
@@ -1742,7 +1742,7 @@ static atomic64_t mxfs_agifc_audit_skip_multilevel = ATOMIC64_INIT(0);
 void
 mxfs_agifc_audit_coverage(const char *site)
 {
-	pr_warn("mxfs: P482-AGIFC-AUDIT-COVERAGE site=%s calls=%lld ran=%lld skip_off=%lld skip_singlenode=%lld skip_shutdown=%lld skip_readfail=%lld skip_multilevel=%lld — 'ran' is the denominator for any RELEASE-MISMATCH count; a zero against ran=0 measures nothing\n",
+	mxfs_probe("mxfs: P482-AGIFC-AUDIT-COVERAGE site=%s calls=%lld ran=%lld skip_off=%lld skip_singlenode=%lld skip_shutdown=%lld skip_readfail=%lld skip_multilevel=%lld — 'ran' is the denominator for any RELEASE-MISMATCH count; a zero against ran=0 measures nothing\n",
 		site,
 		(long long)atomic64_read(&mxfs_agifc_audit_calls),
 		(long long)atomic64_read(&mxfs_agifc_audit_ran),
@@ -2464,7 +2464,7 @@ obligations:
 		atomic64_add(badhead, &mxfs_p86_badhead);
 		atomic64_add(repaired, &mxfs_p86_repaired);
 		if (printk_timed_ratelimit(&mxfs_p86_last, 30 * 1000))
-			pr_warn("mxfs: P86-AGI-PUBLISH-TOTALS heads=%lld joint_ok=%lld REPAIRED=%lld SPLIT=%lld BADHEAD=%lld\n",
+			mxfs_probe("mxfs: P86-AGI-PUBLISH-TOTALS heads=%lld joint_ok=%lld REPAIRED=%lld SPLIT=%lld BADHEAD=%lld\n",
 				(long long)atomic64_read(&mxfs_p86_heads),
 				(long long)atomic64_read(&mxfs_p86_ok),
 				(long long)atomic64_read(&mxfs_p86_repaired),
@@ -2524,7 +2524,7 @@ mxfs_dlm_ag_drain_inode_buffers(
 	 * release AG immediately after this drain"), (b) in v0.3.27 ("if
 	 * xfsaild has the buf locked because it's mid-I/O, trylock would skip
 	 * and we'd release the DLM grant before xfsaild's I/O finishes"), and
-	 * (c) in / ccloop-4dd7 (the committed-to-CIL-but-not-yet-
+	 * (c) in / (the committed-to-CIL-but-not-yet-
 	 * in-AIL window is PINNED or BLI-attached, not clean).
 	 *
 	 * They mattered more here than they did for AG-meta, because the normal
@@ -2836,7 +2836,7 @@ mxfs_dlm_ag_drain_meta_buffers(
 	unsigned int		p40_passes = 0;
 
 	/*
-	 * (ccloop-4dd7) RCU fix: rhashtable_walk_start takes
+	 * RCU fix: rhashtable_walk_start takes
 	 * rcu_read_lock, and the write path below must sleep (blocking
 	 * xfs_buf_lock; xfs_bwrite waits the bio) — the once-per-boot
 	 * "Voluntary context switch within RCU read-side critical section"
@@ -2900,7 +2900,7 @@ mxfs_dlm_ag_drain_meta_buffers(
 					 * double-free at xfs_alloc.c:2244 (P47
 					 * "DISK-LIVE-same-gen => A-lost-removal",
 					 * P28 disk_differs=0).  This is THE deep
-					 * recurring AG-corruption blocker (sess39-52).
+					 * recurring AG-corruption blocker.
 					 *
 					 * Fix: if the buffer is PINNED, do NOT skip —
 					 * fall through to the lock+xfs_bwrite path.
@@ -2911,7 +2911,7 @@ mxfs_dlm_ag_drain_meta_buffers(
 					 * Only a genuinely-clean (unpinned) buffer is
 					 * skipped.
 					 *
-					 * ccloop-4dd7 (b62r4 ROOT): a live BLI
+					 * (b62r4 ROOT): a live BLI
 					 * that is unpinned and NOT in the AIL is in the
 					 * async CIL→AIL window — committed-unwritten,
 					 * exactly like pinned (state b) but
@@ -3206,7 +3206,7 @@ MODULE_PARM_DESC(p125_ag_diverge,
  * Default 32 = MXFS_BAST_YIELD_QUANTUM (the validated spec D10
  * constant for the inode side).  Smaller values reduce accumulated
  * dirty AG metadata per cached-grant epoch — important if BAST
- * work fn drain time exceeds CAW poll timeout (120s).  Sess31
+ * work fn drain time exceeds CAW poll timeout (120s).
  * disambiguation showed T1 shutdown reproducing at quantum=32;
  * try smaller values (8, 4, 2) to bound BAST drain duration.
  */

@@ -23,8 +23,8 @@ case "${1:-default}" in
     for i in 1 2 3 4 5 6 7 8 9 10; do
       printf "%-3d: " "$i"
       timeout 600 "$SCRIPTS/sess35_capture.sh" 2 >/dev/null 2>&1 || true
-      latest=$(ls -tr /home/steve/.mxfs/results | tail -1)
-      grep -E 'P-H17|directory count' "/home/steve/.mxfs/results/$latest/test_concurrent_mkdir/node1.log" 2>/dev/null | tr '\n' ' ' | head -c 200
+      latest=$(ls -tr $HOME/.mxfs/results | tail -1)
+      grep -E 'P-H17|directory count' "$HOME/.mxfs/results/$latest/test_concurrent_mkdir/node1.log" 2>/dev/null | tr '\n' ' ' | head -c 200
       echo
     done
     ;;
@@ -65,11 +65,11 @@ EOF
     echo
     echo "[2] Confirm sess35 baseline still reproduces"
     timeout 600 "$SCRIPTS/sess35_capture.sh" 2 2>&1 | tail -5
-    latest=$(ls -tr /home/steve/.mxfs/results | tail -1)
-    grep -E 'P-H17|directory count' "/home/steve/.mxfs/results/$latest/test_concurrent_mkdir/node1.log" 2>/dev/null
+    latest=$(ls -tr $HOME/.mxfs/results | tail -1)
+    grep -E 'P-H17|directory count' "$HOME/.mxfs/results/$latest/test_concurrent_mkdir/node1.log" 2>/dev/null
     echo
     echo "[3] Host-side verification of cliff (post-test)"
-    LBA=$(grep -oE 'lba=[0-9]+' "/home/steve/.mxfs/results/$latest/test_concurrent_mkdir/node1.log" 2>/dev/null | head -1 | cut -d= -f2)
+    LBA=$(grep -oE 'lba=[0-9]+' "$HOME/.mxfs/results/$latest/test_concurrent_mkdir/node1.log" 2>/dev/null | head -1 | cut -d= -f2)
     LBA=${LBA:-8388408}
     echo "    LBA $LBA on /dev/sda:"
     sudo dd if=/dev/sda bs=512 count=1 skip="$LBA" iflag=direct status=none 2>&1 | xxd | head -2 | sed "s/^/    /"

@@ -105,7 +105,7 @@ tried it, made it worse): `del_device` → `scst_acg_del_lun` → `scst_wait_for
 an UNBOUNDED `while(cmds>0) msleep`. With cmds wedged, `scst_uid` (single SCST sysfs work
 thread) goes D-state → ALL SCST mgmt blocked (can't even add disk1b targets), and the
 device stays on `vdev_list` mid-`vdisk_del_device`. If you already deleted it, recreate:
-`echo 'add_device disk1 filename=/home/steve/disk-1.img;async=1;o_direct=1' >
+`echo 'add_device disk1 filename=~/disk-1.img;async=1;o_direct=1' >
 /sys/kernel/scst_tgt/handlers/vdisk_fileio/mgmt` (PR now generation=0 CLEAN), remap LUN0
 on all 16 targets, re-login host iSCSI.
 
@@ -203,7 +203,7 @@ blocking/atomic/abort path). Backup patch `/tmp/scst-caw-abort-reclaim.patch`.
 **Per-node SCST rebuild — sess26** (`docs/history/docs/history/compiled-scst-iscsi-infra-wedge-recovery.md`, 2026-06-11):
 - Cluster moved off dead `disk1b` (stale WERO PR key 0x43356bc + 46 zombie closing sessions,
   cleanup threads D-state — still there until reboot) onto SCST device **`disk1`** (backing
-  `/home/steve/disk-1.img`, 20G fallocated).
+  `~/disk-1.img`, 20G fallocated).
 - `disk1` recreated with **`async=1; o_direct=1`** (create-time params). Root cause proven:
   buffered pwrite to one backing file serializes all nodes on the inode i_rwsem → ~930MB/s
   ceiling; async+o_direct → ~2.8GB/s NVMe-bound (16-node parallel dd 10.5s→3.8s/node).
@@ -225,7 +225,7 @@ blocking/atomic/abort path). Backup patch `/tmp/scst-caw-abort-reclaim.patch`.
 - The entire SCST iSCSI stack was TORN DOWN and replaced by a **LIO fileio + tcm_loop single
   shared LUN, LOCAL, no iSCSI/network/initiator-login**. This **dodges the sess14-68
   iscsi-loopback host-wedge class entirely** (no iscsi_conn_cleanup kthreads).
-- Chain: `/home/steve/disk.img` (50G fallocated) → LIO **fileio** backstore `mxfs`
+- Chain: `~/disk.img` (50G fallocated) → LIO **fileio** backstore `mxfs`
   (write-through, `emulate_write_cache=0`) → **tcm_loop** LUN0 → local `/dev/sdX`
   (vendor `LIO-ORG`, model `mxfs`). `scripts/lio_tcm_setup.sh {setup|status|teardown}`.
   Stable symlink `/dev/mxfs-shared` → live sdX (sdX letter + WWN change across re-setup;

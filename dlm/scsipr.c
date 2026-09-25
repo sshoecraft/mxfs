@@ -152,7 +152,7 @@ void mxfs_scsipr_departure_unlock(void)
 static void scsipr_dep_enter(struct mxfs_scsipr_ctx *ctx, const char *op)
 {
 	if (!mxfs_scsipr_departure_held())
-		mxfs_pal_log(MXFS_LOG_INFO,
+		mxfs_pal_log(MXFS_LOG_DEBUG,
 			     "scsipr: P-PR-DEPARTURE-UNHELD '%s' op=%s pid=%d — a "
 			     "local PROUT issued outside a departure-locked section "
 			     "(a fence, a self-succession); taking the host-wide "
@@ -956,7 +956,7 @@ int mxfs_scsipr_own_registration_proven(struct mxfs_scsipr_ctx *ctx)
 			     attempt, why, gen);
 		mxfs_pal_sleep_ms(50u * (uint32_t)attempt);
 	}
-	mxfs_pal_log(proof ? MXFS_LOG_INFO : MXFS_LOG_ERR,
+	mxfs_pal_log(proof ? MXFS_LOG_DEBUG : MXFS_LOG_ERR,
 		     "scsipr: P-PR-OWN-PROOF '%s' key=0x%llx %s gen=%u rc=%d "
 		     "why=%s — %s",
 		     ctx->dev_name, (unsigned long long)ctx->local_key,
@@ -2042,7 +2042,7 @@ int mxfs_scsipr_fence_node(struct mxfs_scsipr_ctx *ctx,
 		 * the registration table; it has to consume the winner's durably
 		 * published evidence.  Name it unproven and let the caller do that.
 		 */
-		mxfs_pal_log(MXFS_LOG_INFO,
+		mxfs_pal_log(MXFS_LOG_DEBUG,
 			     "scsipr: P-PR-FENCE-ABSENT victim key 0x%llx already "
 			     "absent on '%s' (gen=%u) — exclusion NOT proved here; "
 			     "caller must consume published fence evidence",
@@ -2353,7 +2353,7 @@ int mxfs_scsipr_validate_admission(struct mxfs_scsipr_ctx *ctx)
 		return ret;
 	}
 
-	mxfs_pal_log(MXFS_LOG_INFO,
+	mxfs_pal_log(MXFS_LOG_DEBUG,
 		     "scsipr: P303-FENCECAP '%s' ptpl_c=%d ptpl_a=%d crh=%d "
 		     "sip_c=%d atp_c=%d tmv=%d type_mask=0x%04x we_ro=%d we_ar=%d "
 		     "abort_capable=%d",
@@ -2381,7 +2381,7 @@ int mxfs_scsipr_validate_admission(struct mxfs_scsipr_ctx *ctx)
 			     "protocol generation 5 on.  The single-holder type this "
 			     "build no longer uses loses the reservation on the "
 			     "holder's clean unmount and disarms fencing for the whole "
-			     "cluster (sess381)",
+			     "cluster",
 			     ctx->dev_name, (int)caps.tmv, (unsigned)caps.type_mask,
 			     (int)caps.we_ro, (int)caps.we_ar);
 		return -EPERM;
@@ -2472,7 +2472,7 @@ int mxfs_scsipr_validate_admission(struct mxfs_scsipr_ctx *ctx)
 		return -EPERM;
 	}
 
-	mxfs_pal_log(MXFS_LOG_INFO,
+	mxfs_pal_log(MXFS_LOG_DEBUG,
 		     "scsipr: P303-FENCECAP-OK '%s' registrants=%d gen=%u "
 		     "resv=%s — fencing capability validated at admission: "
 		     "all-registrants reservation held (it survives any single "
@@ -3486,7 +3486,7 @@ out:
 	 * from — a refusal that cannot say which fact was missing is
 	 * indistinguishable from a bug in this function.
 	 */
-	mxfs_pal_log(out->admitted ? MXFS_LOG_WARN : MXFS_LOG_ERR,
+	mxfs_pal_log(out->admitted ? MXFS_LOG_DEBUG : MXFS_LOG_ERR,
 		     "scsipr: P306-LURESET-ADMIT '%s' admitted=%d reason=%s "
 		     "victim_node=%u victim_key=0x%016llx victim_present=%d "
 		     "own_n=%d other_n=%d gen=%u resv_type=0x%x (%s) rc=%d — %s",
@@ -3651,7 +3651,7 @@ int mxfs_scsipr_lu_reset_converge(struct mxfs_scsipr_ctx *ctx,
 	out->refusal = MXFS_LURESET_CONVERGED;
 done:
 	out->total_ms = (uint32_t)(mxfs_pal_time_ms() - t0);
-	mxfs_pal_log(out->converged ? MXFS_LOG_WARN : MXFS_LOG_ERR,
+	mxfs_pal_log(out->converged ? MXFS_LOG_DEBUG : MXFS_LOG_ERR,
 		     "scsipr: P307-LURESET-CONVERGE '%s' converged=%d reason=%s "
 		     "victim_node=%u probe_tries=%d probe_ms=%u total_ms=%u "
 		     "gen_before=%u gen_after=%u readmit=%s own_n=%d other_n=%d "
@@ -4156,7 +4156,7 @@ refused:
 	if (t0)
 		out->total_ms = (uint32_t)(mxfs_pal_time_ms() - t0);
 log:
-	mxfs_pal_log(out->certified ? MXFS_LOG_WARN : MXFS_LOG_ERR,
+	mxfs_pal_log(out->certified ? MXFS_LOG_DEBUG : MXFS_LOG_ERR,
 		     "scsipr: P308-LURESET-FENCE '%s' certified=%d verdict=%s "
 		     "victim_node=%u victim_key=0x%016llx epoch=%llu kind=%d "
 		     "phase=%s basis=%s claim=%s obs=%s admit_run=%d admitted=%d "
@@ -4252,8 +4252,8 @@ int mxfs_scsipr_self_check(struct mxfs_scsipr_ctx *ctx, int live_members)
 }
 
 /*
- * sess276/277 — AM I THE FENCED NODE?  Target-authoritative, callable
- * from a node whose media READS may be arbitrarily stale (the sess276
+ * /277 — AM I THE FENCED NODE? Target-authoritative, callable
+ * from a node whose media READS may be arbitrarily stale (the
  * victim's heartbeat re-reads were 51 generations behind the platter,
  * which is why mxfs_scsipr_self_check's READ-KEYS path never fired for
  * it: this rig's CAW transport never ran self_check at all, and a

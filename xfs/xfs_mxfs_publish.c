@@ -266,7 +266,7 @@ mxfs_dlm_unpublish_drop(
  * slot we acquired (peer reads durable disk).  Both outcomes are coherent.
  */
 /*
- * v0.5.6 (sess29 ccloop 14d31183): scope predicate for the BAST-side
+ * v0.5.6: scope predicate for the BAST-side
  * publish drain.  A peer blocked on the lock we are releasing can reach
  * an unpublished inode only by (a) reading the released DIRECTORY's
  * dirents and chasing a child ino — covered by the parent_ino scope —
@@ -274,7 +274,7 @@ mxfs_dlm_unpublish_drop(
  * covered by the agno scope.  Entries whose parent is unrecorded
  * (parent == 0: tmpfile, whiteout, or the tiny window between
  * grant_local_new and xfs_create's assignment) match EVERY scope, so a
- * missed assignment degrades to over-publishing, never to the sess107
+ * missed assignment degrades to over-publishing, never to the
  * peer-acquires-empty-slot hole.  Called under m_mxfs_unpub_lock.
  */
 static bool
@@ -705,7 +705,7 @@ mxfs_dlm_publish_drain_loop(
 					 * the OLD exclusion primitive for
 					 * exactly this case: claim the
 					 * cluster EX from THIS worker.  Safe
-					 * post-sess5: the caller's batch wait
+					 * now: the caller's batch wait
 					 * is 5s-bounded, so a remote-waiting
 					 * claim can no longer wedge the bast
 					 * pipeline (it just lands late,
@@ -1066,11 +1066,11 @@ report:
 }
 
 /*
- * v0.5.4 (sess24 ccloop 14d31183) — background DIRECTORY publisher.
+ * v0.5.4 — background DIRECTORY publisher.
  *
  * Work fn for mp->m_mxfs_publish_work (queued on m_mxfs_inode_bast_wq by
  * xfs_create after each mkdir).  Claims the on-disk CAW slot for every
- * unpublished DIRECTORY on m_mxfs_unpub_list so the sess107
+ * unpublished DIRECTORY on m_mxfs_unpub_list so the
  * unpublished-dir-EX backstop in mxfs_dlm_ilock_begin (a synchronous
  * ~1.5 ms CAW acquire + reload inside the dir's first pin-free EX op —
  * rsync's per-dir utimensat) finds the dir already published and
@@ -1084,7 +1084,7 @@ report:
  * guarantees the peer is blocked and cannot reach the inode.  Here there
  * is no such shield: clearing the flag first would let a local EX-modify
  * fast-path through ilock_begin during the in-flight acquire while a
- * peer might own the slot — the exact sess107 mutual-exclusion hole.
+ * peer might own the slot — the exact mutual-exclusion hole.
  * With acquire-first, the flag (and thus the backstop) stays armed until
  * the slot is provably ours.
  *
@@ -1155,10 +1155,10 @@ mxfs_dlm_publish_dirs_work(
 				sc_file++;
 				continue;
 			}
-			/* v0.5.6 (sess29 ccloop 14d31183): only REUSED-incarnation
+			/* v0.5.6: only REUSED-incarnation
 			 * dirs need a pre-claimed slot — peers may still name
 			 * their ino from stale dcache of the prior incarnation
-			 * WITHOUT transiting a lock we hold, and the sess107
+			 * WITHOUT transiting a lock we hold, and the
 			 * backstop that covers that costs a synchronous ~1.5 ms
 			 * CAW acquire on the dir's first EX-modify.  FRESH
 			 * creates are reachable only through locks we hold, so
@@ -1207,12 +1207,12 @@ mxfs_dlm_publish_dirs_work(
 		rc = mxfs_v5_dlm_inode_lock(dlm, ino, MXFS_LOCK_EX,
 					    pubip ? &pub_gres : NULL);
 
-		/* sess28 CREATOR BASELINE STAMP site 2 — read the post-claim
+		/* CREATOR BASELINE STAMP site 2 — read the post-claim
 		 * baseline HERE, in sleepable context, BEFORE taking the list
 		 * spinlock.  The stamp itself is two scalar stores and happens
 		 * under the lock below; hoisting only the QUERY keeps the
 		 * sleeping grant_meta mutex (dlm_caw.c:1120) out of atomic
-		 * context, which is what made this site awkward in the sess27
+		 * context, which is what made this site awkward in the
 		 * design note.  We hold EX from the call above and do not
 		 * release it, so no peer can advance either value in between. */
 		if (rc == 0) {

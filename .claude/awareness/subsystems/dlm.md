@@ -796,7 +796,7 @@ the owner claiming, kill the owner), `pr_reregister_probe.sh` (does a fenced
 victim get back in?), `excl_lapse_probe.sh` (does a returned victim stop the
 recovery?).
 
-**Rig technique worth reusing:** the SCST backing store `/home/steve/disk.img`
+**Rig technique worth reusing:** the SCST backing store `~/disk.img`
 can be read from clyde with `O_DIRECT` and is COHERENT with the live cluster
 (verified: a live node's heartbeat sector changes across a 1.5 s host-side
 reread). Superblock at 0, disklock table offset at `sb+64`, slot record =

@@ -85,7 +85,7 @@ struct xfs_perag {
 	int		pag_ici_reclaimable;	/* reclaimable inodes */
 	unsigned long	pag_ici_reclaim_cursor;	/* reclaim restart point */
 	/*
-	 * ccloopff21 holder tracking mirroring pag_dlm_holder_pid/comm
+	 * holder tracking mirroring pag_dlm_holder_pid/comm
 	 * below, for diagnosing a soft-lockup where multiple threads spun
 	 * forever apparently contending pag_ici_lock (kworker/u10, kworker/u11,
 	 * bash all stuck; xfs_icache.c:3201 XFS_ALL_IRECLAIM_FLAGS assert fired
@@ -280,7 +280,7 @@ struct xfs_perag {
 	 * cached buffer (which has our in-memory modifications) is the
 	 * authoritative content rather than disk.
 	 *
-	 * Sess22 evidence: T2 alloc'd agbno=22456 len=65520 at
+	 * Evidence: T2 alloc'd agbno=22456 len=65520 at
 	 * 179860.910, fail at 179864.180 with gtbno=22456 (pre-alloc
 	 * state) — T2's own modifications were wiped during exclusive
 	 * AG hold.  Hypothesis: a non-fresh-acquire FUA read replaced
@@ -395,7 +395,7 @@ struct xfs_perag {
 	 */
 	bool			pag_dlm_readopt_pending;
 	/*
-	 * (design-consult ruling ccloop-c7ee71c6-sess391-GPT-ruling-ag-handoff-
+	 * (design-consult ruling ag-handoff-
 	 * latch-closing-restartable; D-RSYNC-LAP-PACE-AG-SHARING-388): the
 	 * handoff LATCH.  The AG BAST worker's release COMMIT (cached=false,
 	 * demoting=true, epoch=0) used to be reachable only by the worker
@@ -431,7 +431,7 @@ struct xfs_perag {
 	u64			pag_dlm_queued_ns;	/* first worker queue after rx */
 	int			pag_dlm_rx_holders;	/* holders at first rx */
 	/*
-	 * 0.23.0 (design-consult ruling ccloop-c7ee71c6-sess392-GPT-ruling-
+	 * 0.23.0 (design-consult ruling
 	 * dialloc-try-reserve-candidate-rotation): dialloc candidate-rotation
 	 * state.  pag_resv_cool = inode numbers whose DLM slot a peer held at a
 	 * recent try-reserve (skipped without a probe until `until`); a bounded
@@ -459,8 +459,8 @@ struct xfs_perag {
 	unsigned int		pag_resv_cool_next;
 	xfs_agino_t		pag_resv_cursor;
 	/*
-	 * (D-0351 containment, design-consult ruling ccloop-c7ee71c6-sess430-
-	 * GPT-ruling-d0351-dialloc-containment-two-phase): DISK-LIVE quarantine.
+	 * (D-0351 containment, design-consult ruling
+	 * d0351-dialloc-containment-two-phase): DISK-LIVE quarantine.
 	 * aginos dialloc found FREE in the inobt but LIVE on the platter (a
 	 * crossed FREE-PUBLISH invariant on some node).  Exact membership, no
 	 * expiry, never evicted for the life of the mount; the allocator skips
@@ -561,7 +561,7 @@ struct xfs_perag {
 	 * zeroes the epoch and then WAITS for this to drain before its
 	 * buffer drain runs, so a copy-in that validated against the old
 	 * epoch is always drain-visible (the bare epoch read had a TOCTOU —
-	 * Design-consult ruling ccloop-c7ee71c6-sess427-GPT-ruling-free-publish-
+	 * Design-consult ruling free-publish-
 	 * invariant-d0351).  begin: inc, smp_mb, re-check epoch (dec on
 	 * mismatch); end: dec after the copy-in has attached the item to the
 	 * locked buffer.

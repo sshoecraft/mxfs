@@ -13,7 +13,7 @@
  *   3. the shared terminal classifier(mxfs_freplay_classify_terminal ->
  *                                     mxfs_freplay_import_verdict)
  *
- * The sess333 design-consult review demanded pre-disposition checks that a MALFORMED
+ * The design-consult review demanded pre-disposition checks that a MALFORMED
  * or MISPLACED record makes every one of them fail CLOSED, and that the
  * refusing path never rewrites the sector it refused.  Nothing in the tree can
  * produce those inputs: the kernel only ever writes well-formed records.  This
@@ -113,8 +113,8 @@
 #define DL_FLAG_GUARD       3u
 
 #define RECOV_DESC_MAGIC    0x5643524Du   /* "MRCV" LE */
-/* sess434: MUST track MXFS_RECOV_DESC_VERSION in dlm/disklock.h.  The kernel
- * moved to 3 in sess405 (SNAPSHOTTING stage + manifest pointer; the 120-byte
+/* MUST track MXFS_RECOV_DESC_VERSION in dlm/disklock.h.  The kernel
+ * moved to 3 in (SNAPSHOTTING stage + manifest pointer; the 120-byte
  * descriptor layout is unchanged) while this stayed at 2, so every forge
  * since then read as a version-mismatch — the kernel's -EPROTO fail-closed
  * arm and chk_mxfs's "will not interpret it" — and no shape exercised what it

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
  * concurrent_release_test — two shared holders release at once while an EX
- * waiter is queued (sess425, instrument step 2 for the 0.35.0 32/tcp wedge).
+ * waiter is queued (instrument step 2 for the 0.35.0 32/tcp wedge).
  *
  * On the rig (0.35.0, s424) test2 took over the root inode's page, imported
  * three PR holders, and 8 ms later logged P-TAUTH-DOUBLE-GRANT "req ... EX
