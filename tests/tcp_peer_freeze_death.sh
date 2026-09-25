@@ -212,7 +212,19 @@ fi
 sleep 20
 # the busy writer outlives the fence and would hold the victim's mount busy
 on $V 20 "kill \$(cat /root/freeze_busy.pid) 2>/dev/null; rm -f /root/freeze_busy.pid" >/dev/null
-kill $BG 2>/dev/null
+# Each background instrument is a subshell running timeout | grep; killing the
+# subshell alone left timeout -> sshpass -> ssh running to their own timeout,
+# ~95 s into whatever test ran next (a PR-IN on the LUN every 2 s among them).
+# The whole tree goes, children read from /proc so no process-table scan runs.
+kill_tree() {
+    local p c
+    for p in "$@"; do
+        c=$(cat /proc/$p/task/*/children 2>/dev/null)
+        kill "$p" 2>/dev/null
+        [ -n "$c" ] && kill_tree $c
+    done
+}
+kill_tree $BG
 on $V 30 "dmesg | tail -80" > "$EV/dmesg_${V}_after_resume.log"
 on $S 20 "grep ' mxfs ' /proc/mounts; ls $MNT/freeze | wc -l" > "$EV/survivor_state_at_end.txt"
 

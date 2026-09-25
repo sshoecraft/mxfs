@@ -243,8 +243,8 @@ static inline int dax_break_layout_final(struct inode *inode)
 }
 #endif
 
-/* mapping_max_folio_size_supported added in ~6.15 */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 15, 0)
+/* mapping_max_folio_size_supported: probed, since 6.12 stable carries it */
+#ifndef MXFS_HAVE_MAPPING_MAX_FOLIO_SIZE_SUPPORTED
 static inline unsigned long mapping_max_folio_size_supported(void)
 {
 	return PAGE_SIZE;
@@ -266,7 +266,8 @@ static inline unsigned long mapping_max_folio_size_supported(void)
 #define FS_LBS 0
 #endif
 
-/* kvrealloc changed from 4-arg to 3-arg in ~6.13.  The compat MUST carry
+/* kvrealloc changed from 4-arg to 3-arg (probed: 6.12 stable has the 3-arg
+ * form, so a version gate at 6.13 picked the wrong one).  The compat MUST carry
  * the true old size: 4-arg kvrealloc copies exactly oldsize bytes and
  * frees the old buffer, so the old alias passing oldsize=0 DISCARDED the
  * existing content of every realloc'd buffer — in recovery's
@@ -274,12 +275,19 @@ static inline unsigned long mapping_max_folio_size_supported(void)
  * straddles a record boundary (D-530: the entire churn-slice -117
  * family — garbage di_magic, type-0 items — on every <6.13 kernel,
  * foreign AND own-crash recovery alike). */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 13, 0)
+#ifndef MXFS_HAVE_KVREALLOC_3
 #define mxfs_kvrealloc(p, oldsize, newsize, gfp) \
 	kvrealloc(p, oldsize, newsize, gfp)
 #else
 #define mxfs_kvrealloc(p, oldsize, newsize, gfp) \
 	kvrealloc(p, newsize, gfp)
+#endif
+
+/* FOP_DONTCACHE came after the other FOP_* flags (6.12 lacks it) */
+#ifdef FOP_DONTCACHE
+#define MXFS_FOP_DONTCACHE FOP_DONTCACHE
+#else
+#define MXFS_FOP_DONTCACHE 0
 #endif
 
 /* WQ_PERCPU added in v6.17 */
@@ -702,13 +710,17 @@ static inline struct iomap_ioend *iomap_init_ioend(struct inode *inode,
 #define MXFS_DIO_IOEND_BIOSET 1
 #endif
 
-/* iomap_file_buffered_write gained write_ops+private in ~6.15 */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 15, 0)
-#define mxfs_iomap_file_buffered_write(iocb, from, ops, wops, priv) \
-	iomap_file_buffered_write(iocb, from, ops)
-#else
+/* iomap_file_buffered_write gained a private argument (6.12 stable has it)
+ * and later write_ops before it; probed, not gated on a version */
+#if defined(MXFS_HAVE_IOMAP_BUFFERED_WRITE_OPS)
 #define mxfs_iomap_file_buffered_write(iocb, from, ops, wops, priv) \
 	iomap_file_buffered_write(iocb, from, ops, wops, priv)
+#elif defined(MXFS_HAVE_IOMAP_BUFFERED_WRITE_PRIVATE)
+#define mxfs_iomap_file_buffered_write(iocb, from, ops, wops, priv) \
+	iomap_file_buffered_write(iocb, from, ops, priv)
+#else
+#define mxfs_iomap_file_buffered_write(iocb, from, ops, wops, priv) \
+	iomap_file_buffered_write(iocb, from, ops)
 #endif
 
 /* iomap_page_mkwrite gained write_ops param in ~6.15 */
@@ -730,12 +742,21 @@ static inline struct iomap_ioend *iomap_init_ioend(struct inode *inode,
 #define FMODE_CAN_ATOMIC_WRITE 0
 #endif
 
-/* generic_atomic_write_valid added in ~6.13 (RHEL 9.8 has it) */
-#ifndef MXFS_HAVE_GENERIC_ATOMIC_WRITE_VALID
-static inline bool generic_atomic_write_valid(struct kiocb *iocb,
-					      struct iov_iter *iter)
+/*
+ * generic_atomic_write_valid: used where the kernel exports it (RHEL 9.8
+ * does); Debian 13's 6.12 declares it without exporting it, so the fallback
+ * has its own name.  Without the kernel's check an atomic write cannot be
+ * validated, so it is refused: the fallback used to return false, which the
+ * caller reads as 0, "valid".
+ */
+#ifdef MXFS_HAVE_GENERIC_ATOMIC_WRITE_VALID
+#define mxfs_generic_atomic_write_valid(iocb, iter) \
+	generic_atomic_write_valid(iocb, iter)
+#else
+static inline int mxfs_generic_atomic_write_valid(struct kiocb *iocb,
+						  struct iov_iter *iter)
 {
-	return false;  /* atomic writes not supported on old kernels */
+	return -EINVAL;
 }
 #endif
 

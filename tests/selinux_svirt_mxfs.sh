@@ -77,7 +77,10 @@ on $RUN_S "rm -f /run/mxfs-svirt.done" >/dev/null
 WATCH=$!
 
 on $RUN_S "
-    avc() { ausearch -m avc,user_avc,selinux_err -ts boot 2>/dev/null | grep -c 'type=AVC\|type=USER_AVC\|type=SELINUX_ERR'; }
+    # --input-logs: without it ausearch reads its stdin whenever stdin is a
+    # pipe, which over ssh it always is -- it counted an empty stream instead
+    # of the audit log, and blocked for as long as the caller's stdin stayed open
+    avc() { ausearch --input-logs -m avc,user_avc,selinux_err -ts boot </dev/null 2>/dev/null | grep -c 'type=AVC\|type=USER_AVC\|type=SELINUX_ERR'; }
     # each step stamped, so an overrun names the step that took the time
     echo t_start=\$(date +%s.%N)
     before=\$(avc)
@@ -114,7 +117,7 @@ X
     virsh -c qemu:///system destroy mxfs-svirt; echo destroy_rc=\$?
     echo after_label=\$(stat -c %C \$d/disk.img)
     after=\$(avc); echo avc_new=\$((after - before))
-    [ \$after -gt \$before ] && ausearch -m avc,user_avc,selinux_err -ts boot 2>/dev/null | tail -20
+    [ \$after -gt \$before ] && ausearch --input-logs -m avc,user_avc,selinux_err -ts boot </dev/null 2>/dev/null | tail -20
     touch /run/mxfs-svirt.done
     true" > "$EV/svirt.log"
 rc=$?

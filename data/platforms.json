@@ -22,7 +22,7 @@
           "evidence": "tests/evidence/packaged_round/pve9_0.89.90_20260925T002007/ tests/evidence/packaged_round/pve9_0.89.90_20260925T002700/"
         }
       },
-      "priority": 4,
+      "priority": 1,
       "arch": [
         "amd64"
       ]
@@ -47,7 +47,7 @@
           "evidence": "tests/evidence/packaged_round/ubuntu2404_0.89.90_20260925T001248/ tests/evidence/full_verify_0.89.90.log"
         }
       },
-      "priority": 1,
+      "priority": 3,
       "arch": [
         "amd64"
       ]
@@ -140,7 +140,7 @@
     "debian13": {
       "name": "Debian 13",
       "status": "development",
-      "priority": 3,
+      "priority": 4,
       "kernels": [
         "6.12.x (trixie)"
       ],
@@ -150,7 +150,8 @@
       "notes": "Proxmox VE 9 is built on it, with Proxmox's own newer kernel. Plain Debian runs 6.12, which is also the base of RHEL 10 and SLES 16, so the 6.12 build serves all three.",
       "arch": [
         "amd64"
-      ]
+      ],
+      "build_check": "scripts/debian_kbuild_check.sh -i debian:13"
     },
     "sles16": {
       "name": "SUSE Linux Enterprise Server 16",

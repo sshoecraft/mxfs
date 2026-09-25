@@ -1,3 +1,97 @@
+## 2026-09-25 — 0.89.91 — MAP_SYNC is refused on non-DAX files before 6.19; the module builds for Debian 13; the RHEL SELinux checks read the audit log
+
+### MAP_SYNC was accepted on ordinary files (Proxmox VE 9 on 6.17)
+
+From 6.15 MXFS sets `FOP_MMAP_SYNC`, but below 6.19 its `->mmap` is the older
+`xfs_file_mmap`, which had no DAX check, so `mmap(MAP_SHARED_VALIDATE |
+MAP_SYNC)` of an ordinary file succeeded.  `MAP_SYNC` promises that a write
+fault leaves the metadata needed to reach the data durable; an application
+relying on it skips `fsync` and could lose writes after a node crash.
+
+- Measured on pve9-1 with the 0.89.90 package: on 6.17.2-1-pve "MAP_SYNC
+  ACCEPTED"; on 7.0.14-19-pve (the 6.19+ `mmap_prepare` path, which checks)
+  refused with EOPNOTSUPP.
+- `xfs_file_mmap` now refuses `VM_SYNC` unless the inode is DAX on a
+  synchronous dax device, which is what `daxdev_mapping_supported` decides on
+  6.19+.  Same node, same 6.17 kernel, this build: refused with EOPNOTSUPP; an
+  ordinary shared mapping still writes and reads back.
+- Removed from the defect queue as fixed and verified:
+  `D-MAP-SYNC-ACCEPTED-ON-NON-DAX-FILES-BEFORE-6-19`.  Verified at runtime on
+  6.17 only; 6.12 and RHEL 9.8 run the same checked function, untested.
+
+### Debian 13 (6.12) builds
+
+`scripts/debian_kbuild_check.sh` compiles the module in a `debian:13`
+container against Debian's own headers (6.12.107+deb13).  It failed: Debian's
+6.12 stable kernel carries some of the newer APIs that version gates assumed
+arrive only in 6.13–6.17, and not others.
+
+- Seven gates became compile probes in `pal/linux/kcompat_probe.sh`: the
+  embedded ioend bio, the ioend classifier flags, `->map_blocks` with a
+  length, `iomap_file_buffered_write` with a private argument (and with
+  write_ops), `mapping_max_folio_size_supported`, 3-argument `kvrealloc`, and
+  `generic_atomic_write_valid` now also required to be exported (6.12
+  declares it and does not export it).
+- One of them was wrong without failing to compile: with the bio embedded,
+  iomap no longer points `bi_private` at the ioend, and the old completion
+  read it anyway.  It now uses `iomap_ioend_from_bio` wherever the bio is
+  embedded.
+- The `generic_atomic_write_valid` fallback returned `false`, which its
+  caller reads as 0, "valid"; it now refuses the atomic write (-EINVAL).
+- `.fop_flags` was set only from 6.15; it is now set wherever the kernel has
+  it (the `FOP_*` macros arrived with the member), so 6.12 and RHEL 9.8 no
+  longer serialize io_uring O_DIRECT writes.  The `MAP_SYNC` fix above came
+  first, since this also sets `FOP_MMAP_SYNC` on both.
+- Every probe gives each already-shipping kernel the same branch its version
+  gate did (6.8, RHEL 9.8 5.14, Proxmox 6.17 and 7.0); only 6.12 changes.
+  An audit of all 57 remaining version gates above 6.12 against the 6.12
+  headers found no other mismatch.
+
+### The AVC checks never read the audit log
+
+`ausearch` reads its stdin instead of the audit log whenever stdin is a pipe,
+and over ssh it always is.  Both SELinux checks ran it that way, so each
+counted an empty stream: "no AVC denials" passed without looking.  Measured
+on alma9-1 with the stdin of an ssh held open 10 s: the old form found 0
+login records and returned after 9.8 s; with `--input-logs` it found 73 in
+36 ms.
+
+- `tests/selinux_svirt_mxfs.sh` and the selinux step of
+  `tests/packaged_round.sh` now pass `--input-logs` and `</dev/null`.
+- The old form also blocks for as long as the caller's stdin stays open (an
+  open 25 s pipe held it 24.8 s).  That is one mechanism that matches the
+  stall below — a create that ran the moment the harness's ssh was killed —
+  but every lap here ran with stdin on /dev/null, where it returns in 6 ms,
+  so it is not proven to be what happened.
+
+### `tests/tcp_peer_freeze_death.sh` left its instruments running
+
+Its three survivor instruments (`dmesg -W`, the death-worker sampler, and a
+`sg_persist --read-keys` on the LUN every 2 s) are background subshells
+running `timeout | grep`.  Cleanup killed the subshells only; `timeout`,
+`sshpass` and `ssh` ran on to their own 420 s limit, about 94 s past the end
+of the test, in every run on record — through the whole SELinux test that
+follows it.  Cleanup now kills each subshell's whole tree, reading children
+from `/proc/<pid>/task/*/children`.
+
+### D-SURVIVOR-CREATE-STALLS-60S-AFTER-PEER-DEATH-UNTIL-RESUMED-VICTIM-UNMOUNTS stays open
+
+- `tests/svirt_stall_laps.sh VERSION LAPS` repeats the failing order
+  (packaged rhel9 round with its reboot, freeze-death, SELinux test) and stops
+  at the first stall with its stacks saved.  12 laps on 0.89.90: no stall,
+  create 46–164 ms.  On 0.89.90 that is 1 stall in 22 attempts.
+- The failing run's timing, read again: the create's grant (t=538.73) fell
+  between the SELinux test's ssh being killed at its 60 s budget and the
+  survivor's own unmount (539.0), and 0.6 s before the victim left (539.37) —
+  not when the victim's mount went away, as first recorded.  Through the
+  stall, the survivor answered its 1 s sampler and the LUN answered a PR-IN
+  every 2 s without a gap.
+
+### Platform priority
+
+`data/platforms.json`: Proxmox VE 9 first (MXFS is what lets it compete with
+VMware), then RHEL 9, Ubuntu 24.04, Debian 13.
+
 ## 2026-09-25 — 0.89.90 — the three giant DLM functions are split into phases; the default log carries operator events only
 
 ### The kernel log: what 0.89.89 still printed by default

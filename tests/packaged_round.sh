@@ -340,7 +340,9 @@ if [ $FAM = rpm ]; then
         f=$MNT/selinux.\$(hostname -s); echo x > \$f
         echo new_file=\$(stat -c %C \$f)
         chcon -t virt_image_t \$f && echo chcon=\$(stat -c %C \$f)
-        echo avc=\$(ausearch -m avc,user_avc,selinux_err -ts boot 2>&1 | grep -c 'type=AVC')" || fail "selinux commands"
+        # --input-logs: over ssh stdin is a pipe, and without it ausearch
+        # counts that (empty) stream instead of the audit log
+        echo avc=\$(ausearch --input-logs -m avc,user_avc,selinux_err -ts boot </dev/null 2>&1 | grep -c 'type=AVC')" || fail "selinux commands"
     for h in $A $B; do
         grep -q "enforce=Enforcing" "$EV/selinux_$h.log" || fail "$h: SELinux is not enforcing"
         grep -q "module=mxfs" "$EV/selinux_$h.log" || fail "$h: the mxfs SELinux module is not installed"

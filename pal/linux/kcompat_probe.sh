@@ -106,9 +106,11 @@ probe GENERIC_FILL_STATX_ATOMIC_WRITES_4 '#include <linux/fs.h>
 probe GENERIC_FILL_STATX_ATOMIC_WRITES_3 '#include <linux/fs.h>
 #include <linux/stat.h>' \
     'void p(struct kstat *s) { generic_fill_statx_atomic_writes(s, 1, 1); }'
+# exported too: Debian 13's 6.12 declares it and does not export it
 probe GENERIC_ATOMIC_WRITE_VALID '#include <linux/fs.h>
 #include <linux/uio.h>' \
-    'int p(struct kiocb *k, struct iov_iter *i) { return generic_atomic_write_valid(k, i); }'
+    'int p(struct kiocb *k, struct iov_iter *i) { return generic_atomic_write_valid(k, i); }' \
+    generic_atomic_write_valid
 
 # --- iomap ----------------------------------------------------------------
 probe IOMAP_LAST_WRITTEN_BLOCK '#include <linux/iomap.h>' \
@@ -134,6 +136,29 @@ probe IOMAP_DIO_BOUNCE '#include <linux/iomap.h>' \
     'unsigned int p(void) { return IOMAP_DIO_BOUNCE; }'
 probe IOMAP_DIO_RW_PRIVATE '#include <linux/iomap.h>' \
     'ssize_t p(struct kiocb *k, struct iov_iter *i, const struct iomap_ops *o) { return iomap_dio_rw(k, i, o, NULL, 0, NULL, 0); }'
+# The ioend and writeback shapes changed one at a time, and a stable series
+# carries some of the newer ones without the rest: Debian 13's 6.12 embeds the
+# bio and passes ->map_blocks a length, yet keeps io_type and IOMAP_F_SHARED.
+# With the bio embedded, iomap no longer points bi_private at the ioend, so
+# the completion must find it with iomap_ioend_from_bio -- the old read still
+# compiles and completes against whatever bi_private holds.
+probe IOMAP_IOEND_BIO_EMBEDDED '#include <linux/iomap.h>' \
+    'struct bio *p(struct bio *b) { return &iomap_ioend_from_bio(b)->io_bio; }'
+probe IOMAP_IOEND_FLAGS '#include <linux/iomap.h>' \
+    'unsigned int p(struct iomap_ioend *e) { return e->io_flags & (IOMAP_IOEND_UNWRITTEN | IOMAP_IOEND_SHARED); }'
+probe IOMAP_MAP_BLOCKS_LEN '#include <linux/iomap.h>' \
+    'static int m(struct iomap_writepage_ctx *w, struct inode *i, loff_t o, unsigned int l) { return 0; }
+const struct iomap_writeback_ops p = { .map_blocks = m };'
+probe IOMAP_BUFFERED_WRITE_PRIVATE '#include <linux/iomap.h>' \
+    'ssize_t p(struct kiocb *k, struct iov_iter *i, const struct iomap_ops *o) { return iomap_file_buffered_write(k, i, o, NULL); }'
+probe IOMAP_BUFFERED_WRITE_OPS '#include <linux/iomap.h>' \
+    'ssize_t p(struct kiocb *k, struct iov_iter *i, const struct iomap_ops *o) { return iomap_file_buffered_write(k, i, o, NULL, NULL); }'
+
+# --- memory ---------------------------------------------------------------
+probe MAPPING_MAX_FOLIO_SIZE_SUPPORTED '#include <linux/pagemap.h>' \
+    'size_t p(void) { return mapping_max_folio_size_supported(); }'
+probe KVREALLOC_3 '#include <linux/slab.h>' \
+    'void *p(const void *o) { return kvrealloc(o, 64, GFP_KERNEL); }'
 
 # --- VFS operation signatures ---------------------------------------------
 probe UPDATE_TIME_TIMESPEC '#include <linux/fs.h>' \

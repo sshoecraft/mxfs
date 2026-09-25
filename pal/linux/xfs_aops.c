@@ -110,17 +110,23 @@ xfs_setfilesize(
  * port, cross-checked against 6.17.2-1-pve's actual linux/iomap.h before
  * applying -- see pal.md Known Pitfalls). mxfs_ioend_unwritten/shared below
  * hide the difference so xfs_end_ioend's own logic doesn't fork.
+ *
+ * The two changes are probed separately, not gated on 6.17: Debian 13's 6.12
+ * already embeds io_bio but still classifies with io_type/IOMAP_F_SHARED.
  */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
-#define mxfs_ioend_bi_status(ioend)	((ioend)->io_bio->bi_status)
-#define mxfs_ioend_shared(ioend)	((ioend)->io_flags & IOMAP_F_SHARED)
-#define mxfs_ioend_unwritten(ioend)	((ioend)->io_type == IOMAP_UNWRITTEN)
-#define mxfs_ioend_set_bi_end_io(ioend, fn)	((ioend)->io_bio->bi_end_io = (fn))
-#else
+#ifdef MXFS_HAVE_IOMAP_IOEND_BIO_EMBEDDED
 #define mxfs_ioend_bi_status(ioend)	((ioend)->io_bio.bi_status)
+#define mxfs_ioend_set_bi_end_io(ioend, fn)	((ioend)->io_bio.bi_end_io = (fn))
+#else
+#define mxfs_ioend_bi_status(ioend)	((ioend)->io_bio->bi_status)
+#define mxfs_ioend_set_bi_end_io(ioend, fn)	((ioend)->io_bio->bi_end_io = (fn))
+#endif
+#ifdef MXFS_HAVE_IOMAP_IOEND_FLAGS
 #define mxfs_ioend_shared(ioend)	((ioend)->io_flags & IOMAP_IOEND_SHARED)
 #define mxfs_ioend_unwritten(ioend)	((ioend)->io_flags & IOMAP_IOEND_UNWRITTEN)
-#define mxfs_ioend_set_bi_end_io(ioend, fn)	((ioend)->io_bio.bi_end_io = (fn))
+#else
+#define mxfs_ioend_shared(ioend)	((ioend)->io_flags & IOMAP_F_SHARED)
+#define mxfs_ioend_unwritten(ioend)	((ioend)->io_type == IOMAP_UNWRITTEN)
 #endif
 
 STATIC void
@@ -690,10 +696,12 @@ void
 xfs_end_bio(
 	struct bio		*bio)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
-	struct iomap_ioend	*ioend = bio->bi_private;
-#else
+	/* once the bio is embedded iomap no longer sets bi_private to the
+	 * ioend, and reading it would still compile */
+#ifdef MXFS_HAVE_IOMAP_IOEND_BIO_EMBEDDED
 	struct iomap_ioend	*ioend = iomap_ioend_from_bio(bio);
+#else
+	struct iomap_ioend	*ioend = bio->bi_private;
 #endif
 	struct xfs_inode	*ip = XFS_I(ioend->io_inode);
 	unsigned long		flags;
@@ -1279,8 +1287,28 @@ xfs_discard_folio(
 }
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
+#ifdef MXFS_HAVE_IOMAP_MAP_BLOCKS_LEN
+/*
+ * ->map_blocks gained the length of the dirty range before 6.17 (6.12 stable
+ * has it).  xfs_map_blocks maps the extent covering offset and iomap asks
+ * again past its end, which is how the 6.17 ->writeback_range path above
+ * already calls it, so the length is not needed.
+ */
+static int
+xfs_map_blocks_len(
+	struct iomap_writepage_ctx *wpc,
+	struct inode		*inode,
+	loff_t			offset,
+	unsigned int		len)
+{
+	return xfs_map_blocks(wpc, inode, offset);
+}
+#define mxfs_writeback_map_blocks	xfs_map_blocks_len
+#else
+#define mxfs_writeback_map_blocks	xfs_map_blocks
+#endif
 static const struct iomap_writeback_ops xfs_writeback_ops = {
-	.map_blocks		= xfs_map_blocks,
+	.map_blocks		= mxfs_writeback_map_blocks,
 	.prepare_ioend		= xfs_prepare_ioend,
 	.discard_folio		= xfs_discard_folio,
 };

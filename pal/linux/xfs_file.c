@@ -1517,7 +1517,7 @@ xfs_file_write_iter(
 		if (ocount > xfs_get_atomic_write_max(ip))
 			return -EINVAL;
 
-		ret = generic_atomic_write_valid(iocb, from);
+		ret = mxfs_generic_atomic_write_valid(iocb, from);
 		if (ret)
 			return ret;
 	}
@@ -2837,8 +2837,22 @@ xfs_file_mmap(
 	struct file		*file,
 	struct vm_area_struct	*vma)
 {
+	struct inode		*inode = file_inode(file);
+
+	/*
+	 * MAP_SYNC promises that a write fault leaves the metadata needed to
+	 * reach the data durable, which only a DAX mapping on a synchronous
+	 * dax device keeps (what daxdev_mapping_supported decides on 6.19+).
+	 * With FOP_MMAP_SYNC set the VFS lets the flag through to here, and
+	 * without this check an ordinary file accepted it.
+	 */
+	if ((vma->vm_flags & VM_SYNC) &&
+	    !(IS_DAX(inode) &&
+	      dax_synchronous(xfs_inode_buftarg(XFS_I(inode))->bt_daxdev)))
+		return -EOPNOTSUPP;
+
 	/* no new mapping of a poisoned dead incarnation */
-	if (mxfs_inode_incarn_estale(XFS_I(file_inode(file))))
+	if (mxfs_inode_incarn_estale(XFS_I(inode)))
 		return -ESTALE;
 	file_accessed(file);
 	vma->vm_ops = &xfs_file_vm_ops;
@@ -2869,10 +2883,13 @@ const struct file_operations xfs_file_operations = {
 	.fallocate	= xfs_file_fallocate,
 	.fadvise	= xfs_file_fadvise,
 	.remap_file_range = xfs_file_remap_range,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 15, 0)
+	/* fop_flags arrived with its FOP_* macros, so the macro says whether
+	 * the member exists; a 6.15 gate left it unset on 6.12, where io_uring
+	 * then serialized every O_DIRECT write to a file */
+#ifdef FOP_BUFFER_RASYNC
 	.fop_flags	= FOP_MMAP_SYNC | FOP_BUFFER_RASYNC |
 			  FOP_BUFFER_WASYNC | FOP_DIO_PARALLEL_WRITE |
-			  FOP_DONTCACHE,
+			  MXFS_FOP_DONTCACHE,
 #endif
 	.setlease	= generic_setlease,
 };
