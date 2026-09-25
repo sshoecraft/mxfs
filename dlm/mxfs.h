@@ -76,59 +76,59 @@ struct mxfs_extent_range;
 /* ─── Stat result ─── */
 
 struct mxfs_stat {
-    uint64_t    ino;
-    uint16_t    mode;
-    uint32_t    nlink;
-    uint32_t    uid;
-    uint32_t    gid;
-    uint64_t    size;
-    uint32_t    atime_sec;
-    uint32_t    atime_nsec;
-    uint32_t    mtime_sec;
-    uint32_t    mtime_nsec;
-    uint32_t    ctime_sec;
-    uint32_t    ctime_nsec;
-    uint32_t    blksize;
-    uint64_t    blocks;
-    uint32_t    rdev;           /* device number for block/char special files */
+	uint64_t    ino;
+	uint16_t    mode;
+	uint32_t    nlink;
+	uint32_t    uid;
+	uint32_t    gid;
+	uint64_t    size;
+	uint32_t    atime_sec;
+	uint32_t    atime_nsec;
+	uint32_t    mtime_sec;
+	uint32_t    mtime_nsec;
+	uint32_t    ctime_sec;
+	uint32_t    ctime_nsec;
+	uint32_t    blksize;
+	uint64_t    blocks;
+	uint32_t    rdev;           /* device number for block/char special files */
 };
 
 /* ─── Readdir callback ─── */
 
 typedef int (*mxfs_readdir_fn)(void *ctx, const char *name,
-                                uint8_t namelen, uint64_t ino,
-                                uint8_t ftype);
+				uint8_t namelen, uint64_t ino,
+				uint8_t ftype);
 
 /* ─── DLM transport selection ─── */
 
 enum mxfs_dlm_transport {
-    MXFS_DLM_TRANSPORT_CAW = 0,     /* compare-and-write (disk-based) */
-    MXFS_DLM_TRANSPORT_TCP = 1,     /* TCP (network-based) */
-    MXFS_DLM_TRANSPORT_AUTO = 2,    /* auto-detect from peers or device capability */
+	MXFS_DLM_TRANSPORT_CAW = 0,     /* compare-and-write (disk-based) */
+	MXFS_DLM_TRANSPORT_TCP = 1,     /* TCP (network-based) */
+	MXFS_DLM_TRANSPORT_AUTO = 2,    /* auto-detect from peers or device capability */
 };
 
 /* ─── Mount options ─── */
 
 struct mxfs_mount_opts {
-    const char  *device;            /* block device path (required) */
-    const char  *node_uuid_path;    /* path to /etc/mxfs/node.uuid */
-    uint16_t    dlm_port;           /* TCP port for DLM (default 7600) */
-    uint16_t    discovery_port;     /* UDP port for discovery (default 7601) */
-    const char  *multicast_addr;    /* multicast group (default 239.66.83.1) */
-    bool        use_broadcast;      /* use broadcast instead of multicast */
-    int         max_block_cache;    /* max cached blocks (0 = default 4096) */
-    int         max_inode_cache;    /* max cached inodes (0 = default 8192) */
-    int         max_dir_cache;      /* max cached dirs (0 = default 2048) */
-    int         max_dlm_lock_caw;   /* v5 sess33: max held CAW DLM locks
-                                     * (0 = default MXFS_CAW_MAX_HELD).  Each
-                                     * cached inode = one held DLM lock, so
-                                     * real workloads need much more than the
-                                     * legacy 4096.  Cap at MXFS_CAW_MAX_SLOTS. */
-    uint32_t    node_slot;          /* node slot for AG affinity */
-    uint64_t    disklock_offset;    /* byte offset for disklock region */
-    uint64_t    journal_offset;     /* byte offset for journal region (0 = no journal) */
-    uint64_t    xfs_data_offset;    /* byte offset where XFS data starts */
-    enum mxfs_dlm_transport dlm_transport;  /* DLM transport: CAW (default) or TCP */
+	const char  *device;            /* block device path (required) */
+	const char  *node_uuid_path;    /* path to /etc/mxfs/node.uuid */
+	uint16_t    dlm_port;           /* TCP port for DLM (default 7600) */
+	uint16_t    discovery_port;     /* UDP port for discovery (default 7601) */
+	const char  *multicast_addr;    /* multicast group (default 239.66.83.1) */
+	bool        use_broadcast;      /* use broadcast instead of multicast */
+	int         max_block_cache;    /* max cached blocks (0 = default 4096) */
+	int         max_inode_cache;    /* max cached inodes (0 = default 8192) */
+	int         max_dir_cache;      /* max cached dirs (0 = default 2048) */
+	int         max_dlm_lock_caw;   /* v5 max held CAW DLM locks
+									 * (0 = default MXFS_CAW_MAX_HELD).  Each
+									 * cached inode = one held DLM lock, so
+									 * real workloads need much more than the
+									 * legacy 4096.  Cap at MXFS_CAW_MAX_SLOTS. */
+	uint32_t    node_slot;          /* node slot for AG affinity */
+	uint64_t    disklock_offset;    /* byte offset for disklock region */
+	uint64_t    journal_offset;     /* byte offset for journal region (0 = no journal) */
+	uint64_t    xfs_data_offset;    /* byte offset where XFS data starts */
+	enum mxfs_dlm_transport dlm_transport;  /* DLM transport: CAW (default) or TCP */
 };
 
 /* ─── Lifecycle ─── */
@@ -141,7 +141,7 @@ struct mxfs_mount_opts {
  * Returns 0 on success, negative errno on failure.
  */
 int mxfs_mount(const struct mxfs_mount_opts *opts,
-               struct mxfs_mount **mnt_out);
+	       struct mxfs_mount **mnt_out);
 
 /*
  * Unmount an MXFS filesystem.
@@ -164,15 +164,15 @@ enum mxfs_dlm_transport mxfs_get_dlm_transport(struct mxfs_mount *mnt);
  * Returns 0 on success with *ino_out set, -ENOENT if not found.
  */
 int mxfs_lookup(struct mxfs_mount *mnt,
-                uint64_t dir_ino,
-                const char *name, uint8_t namelen,
-                uint64_t *ino_out);
+		uint64_t dir_ino,
+		const char *name, uint8_t namelen,
+		uint64_t *ino_out);
 
 /*
  * Get inode attributes.
  */
 int mxfs_stat(struct mxfs_mount *mnt, uint64_t ino,
-              struct mxfs_stat *st);
+	      struct mxfs_stat *st);
 
 /* ─── File operations ─── */
 
@@ -181,7 +181,7 @@ int mxfs_stat(struct mxfs_mount *mnt, uint64_t ino,
  * Returns number of bytes read, or negative errno on error.
  */
 int64_t mxfs_read(struct mxfs_mount *mnt, uint64_t ino,
-                   void *buf, uint64_t offset, uint32_t len);
+		   void *buf, uint64_t offset, uint32_t len);
 
 /*
  * Bulk read: holds the inode DLM lock for the entire operation.
@@ -204,20 +204,20 @@ int64_t mxfs_read(struct mxfs_mount *mnt, uint64_t ino,
  * prevent soft lockups during long I/O.
  */
 typedef int (*mxfs_read_chunk_fn)(void *ctx, const void *data,
-                                   uint32_t len);
+				   uint32_t len);
 
 int64_t mxfs_read_bulk(struct mxfs_mount *mnt, uint64_t ino,
-                        uint64_t offset, uint64_t total_len,
-                        uint32_t chunk_size,
-                        mxfs_read_chunk_fn cb, void *ctx,
-                        uint64_t *size_out);
+			uint64_t offset, uint64_t total_len,
+			uint32_t chunk_size,
+			mxfs_read_chunk_fn cb, void *ctx,
+			uint64_t *size_out);
 
 /*
  * Write data to a file.
  * Returns number of bytes written, or negative errno on error.
  */
 int64_t mxfs_write(struct mxfs_mount *mnt, uint64_t ino,
-                    const void *buf, uint64_t offset, uint32_t len);
+		    const void *buf, uint64_t offset, uint32_t len);
 
 /*
  * Callback for mxfs_write_bulk() — requests the next chunk of data
@@ -242,10 +242,10 @@ typedef int (*mxfs_write_chunk_fn)(void *ctx, void *buf, uint32_t max_len);
  * New: write_bulk(get_ex ... put) = 1 DLM round-trip total
  */
 int64_t mxfs_write_bulk(struct mxfs_mount *mnt, uint64_t ino,
-                          uint64_t offset, uint64_t total_len,
-                          uint32_t chunk_size,
-                          mxfs_write_chunk_fn write_fn, void *ctx,
-                          uint64_t *size_out);
+			  uint64_t offset, uint64_t total_len,
+			  uint32_t chunk_size,
+			  mxfs_write_chunk_fn write_fn, void *ctx,
+			  uint64_t *size_out);
 
 /*
  * Truncate a file to the specified size.
@@ -291,7 +291,7 @@ int mxfs_fsync(struct mxfs_mount *mnt, uint64_t ino);
  * Returns 0 on success, negative errno on failure.
  */
 int mxfs_fallocate(struct mxfs_mount *mnt, uint64_t ino,
-                    int mode, uint64_t offset, uint64_t len);
+		    int mode, uint64_t offset, uint64_t len);
 
 /*
  * Sync all dirty data and metadata to disk.
@@ -307,40 +307,40 @@ int mxfs_sync_fs(struct mxfs_mount *mnt);
  * Calls cb() for each entry.
  */
 int mxfs_readdir(struct mxfs_mount *mnt, uint64_t dir_ino,
-                 mxfs_readdir_fn cb, void *ctx);
+		 mxfs_readdir_fn cb, void *ctx);
 
 /*
  * Create a new file in a directory.
  * Returns 0 on success with *ino_out set to the new inode number.
  */
 int mxfs_create(struct mxfs_mount *mnt,
-                uint64_t dir_ino,
-                const char *name, uint8_t namelen,
-                uint16_t mode, uint32_t uid, uint32_t gid,
-                uint64_t *ino_out);
+		uint64_t dir_ino,
+		const char *name, uint8_t namelen,
+		uint16_t mode, uint32_t uid, uint32_t gid,
+		uint64_t *ino_out);
 
 /*
  * Create a new directory.
  */
 int mxfs_mkdir(struct mxfs_mount *mnt,
-               uint64_t parent_ino,
-               const char *name, uint8_t namelen,
-               uint16_t mode, uint32_t uid, uint32_t gid,
-               uint64_t *ino_out);
+	       uint64_t parent_ino,
+	       const char *name, uint8_t namelen,
+	       uint16_t mode, uint32_t uid, uint32_t gid,
+	       uint64_t *ino_out);
 
 /*
  * Remove a directory (must be empty).
  */
 int mxfs_rmdir(struct mxfs_mount *mnt,
-               uint64_t parent_ino,
-               const char *name, uint8_t namelen);
+	       uint64_t parent_ino,
+	       const char *name, uint8_t namelen);
 
 /*
  * Unlink (delete) a file.
  */
 int mxfs_unlink(struct mxfs_mount *mnt,
-                uint64_t dir_ino,
-                const char *name, uint8_t namelen);
+		uint64_t dir_ino,
+		const char *name, uint8_t namelen);
 
 /*
  * Rename flags (matches Linux RENAME_* values).
@@ -357,17 +357,17 @@ int mxfs_unlink(struct mxfs_mount *mnt,
  *   MXFS_RENAME_EXCHANGE  — atomically swap source and dest entries
  */
 int mxfs_rename(struct mxfs_mount *mnt,
-                uint64_t old_dir_ino, const char *old_name, uint8_t old_namelen,
-                uint64_t new_dir_ino, const char *new_name, uint8_t new_namelen,
-                unsigned int flags);
+		uint64_t old_dir_ino, const char *old_name, uint8_t old_namelen,
+		uint64_t new_dir_ino, const char *new_name, uint8_t new_namelen,
+		unsigned int flags);
 
 /*
  * Create a hard link.
  */
 int mxfs_link(struct mxfs_mount *mnt,
-              uint64_t dir_ino,
-              const char *name, uint8_t namelen,
-              uint64_t target_ino);
+	      uint64_t dir_ino,
+	      const char *name, uint8_t namelen,
+	      uint64_t target_ino);
 
 /*
  * Create a special file (device node, FIFO, or socket).
@@ -376,28 +376,28 @@ int mxfs_link(struct mxfs_mount *mnt,
  * For FIFOs/sockets, rdev is ignored.
  */
 int mxfs_mknod(struct mxfs_mount *mnt,
-               uint64_t dir_ino,
-               const char *name, uint8_t namelen,
-               uint16_t mode, uint32_t uid, uint32_t gid,
-               uint32_t rdev,
-               uint64_t *ino_out);
+	       uint64_t dir_ino,
+	       const char *name, uint8_t namelen,
+	       uint16_t mode, uint32_t uid, uint32_t gid,
+	       uint32_t rdev,
+	       uint64_t *ino_out);
 
 /*
  * Create a symbolic link.
  */
 int mxfs_symlink(struct mxfs_mount *mnt,
-                 uint64_t dir_ino,
-                 const char *name, uint8_t namelen,
-                 const char *target, uint16_t target_len,
-                 uint32_t uid, uint32_t gid,
-                 uint64_t *ino_out);
+		 uint64_t dir_ino,
+		 const char *name, uint8_t namelen,
+		 const char *target, uint16_t target_len,
+		 uint32_t uid, uint32_t gid,
+		 uint64_t *ino_out);
 
 /*
  * Read a symbolic link target.
  * Returns bytes copied into buf, or negative errno.
  */
 int mxfs_readlink(struct mxfs_mount *mnt, uint64_t ino,
-                  char *buf, uint32_t buflen);
+		  char *buf, uint32_t buflen);
 
 /* ─── Attribute operations ─── */
 
@@ -410,14 +410,14 @@ int mxfs_chmod(struct mxfs_mount *mnt, uint64_t ino, uint16_t mode);
  * Change file ownership.
  */
 int mxfs_chown(struct mxfs_mount *mnt, uint64_t ino,
-               uint32_t uid, uint32_t gid);
+	       uint32_t uid, uint32_t gid);
 
 /*
  * Set file timestamps (atime and mtime). ctime is updated automatically.
  */
 int mxfs_utimes(struct mxfs_mount *mnt, uint64_t ino,
-                uint32_t atime_sec, uint32_t atime_nsec,
-                uint32_t mtime_sec, uint32_t mtime_nsec);
+		uint32_t atime_sec, uint32_t atime_nsec,
+		uint32_t mtime_sec, uint32_t mtime_nsec);
 
 /* ─── Query ─── */
 
@@ -430,11 +430,11 @@ uint64_t mxfs_root_ino(struct mxfs_mount *mnt);
  * Get filesystem geometry info.
  */
 int mxfs_statfs(struct mxfs_mount *mnt,
-                uint32_t *blocksize,
-                uint64_t *total_blocks,
-                uint64_t *free_blocks,
-                uint64_t *total_inodes,
-                uint64_t *free_inodes);
+		uint32_t *blocksize,
+		uint64_t *total_blocks,
+		uint64_t *free_blocks,
+		uint64_t *total_inodes,
+		uint64_t *free_inodes);
 
 /* ─── Page cache support ─── */
 
@@ -452,8 +452,8 @@ int mxfs_statfs(struct mxfs_mount *mnt,
 #define MXFS_PGCACHE_F_UNWRITTEN  0x02
 
 int mxfs_get_block_map(struct mxfs_mount *mnt, uint64_t ino,
-                       uint64_t logical_block,
-                       uint64_t *phys_block_out, uint32_t *flags_out);
+		       uint64_t logical_block,
+		       uint64_t *phys_block_out, uint32_t *flags_out);
 
 /*
  * Range-based block map lookup.
@@ -462,8 +462,8 @@ int mxfs_get_block_map(struct mxfs_mount *mnt, uint64_t ino,
  * Returns 0 on success, negative errno on failure.
  */
 int mxfs_get_block_map_range(struct mxfs_mount *mnt, uint64_t ino,
-                              uint64_t logical_block,
-                              struct mxfs_extent_range *range);
+			      uint64_t logical_block,
+			      struct mxfs_extent_range *range);
 
 /*
  * Acquire a shared (PR) DLM lock on an inode for page cache reads.
@@ -472,7 +472,7 @@ int mxfs_get_block_map_range(struct mxfs_mount *mnt, uint64_t ino,
  * file size. Caller must call mxfs_inode_unlock() when done.
  */
 int mxfs_inode_lock_shared(struct mxfs_mount *mnt, uint64_t ino,
-                           uint64_t *size_out);
+			   uint64_t *size_out);
 
 /*
  * Acquire an exclusive (EX) DLM lock on an inode for page cache writes.
@@ -480,7 +480,7 @@ int mxfs_inode_lock_shared(struct mxfs_mount *mnt, uint64_t ino,
  * Caller must call mxfs_inode_unlock() when done.
  */
 int mxfs_inode_lock_exclusive(struct mxfs_mount *mnt, uint64_t ino,
-                              uint64_t *size_out);
+			      uint64_t *size_out);
 
 /*
  * Release the reference on an inode lock.
@@ -503,7 +503,7 @@ int mxfs_inode_lock_downgrade(struct mxfs_mount *mnt, uint64_t ino);
  * marks inode dirty, and serializes the new size to the raw buffer.
  */
 int mxfs_update_inode_size(struct mxfs_mount *mnt, uint64_t ino,
-                           uint64_t new_size);
+			   uint64_t new_size);
 
 /*
  * Allocate a disk block for a file at the given logical offset.
@@ -512,8 +512,8 @@ int mxfs_update_inode_size(struct mxfs_mount *mnt, uint64_t ino,
  * Returns 0 on success with *phys_block_out set.
  */
 int mxfs_alloc_file_block(struct mxfs_mount *mnt, uint64_t ino,
-                          uint64_t logical_block,
-                          uint64_t *phys_block_out);
+			  uint64_t logical_block,
+			  uint64_t *phys_block_out);
 
 /*
  * Convert an unwritten (fallocate-preallocated) extent to written.
@@ -526,7 +526,7 @@ int mxfs_alloc_file_block(struct mxfs_mount *mnt, uint64_t ino,
  * Returns 0 on success.
  */
 int mxfs_convert_unwritten(struct mxfs_mount *mnt, uint64_t ino,
-                            uint64_t logical_block);
+			    uint64_t logical_block);
 
 /*
  * Set the page cache invalidation callback.
@@ -535,7 +535,7 @@ int mxfs_convert_unwritten(struct mxfs_mount *mnt, uint64_t ino,
  * before releasing the DLM lock.
  */
 void mxfs_set_page_invalidate_cb(struct mxfs_mount *mnt,
-                                 void (*fn)(void *, uint64_t), void *ctx);
+				 void (*fn)(void *, uint64_t), void *ctx);
 
 /* ─── Sparse file seek support ─── */
 
@@ -576,7 +576,7 @@ int64_t mxfs_seek_hole(struct mxfs_mount *mnt, uint64_t ino, int64_t offset);
  * Returns attribute value length on success, negative errno on error.
  */
 int mxfs_getxattr(struct mxfs_mount *mnt, uint64_t ino,
-                  const char *name, void *value, int size);
+		  const char *name, void *value, int size);
 
 /*
  * Set an extended attribute.
@@ -585,8 +585,8 @@ int mxfs_getxattr(struct mxfs_mount *mnt, uint64_t ino,
  * Returns 0 on success, negative errno on error.
  */
 int mxfs_setxattr(struct mxfs_mount *mnt, uint64_t ino,
-                  const char *name, const void *value, int size,
-                  int flags);
+		  const char *name, const void *value, int size,
+		  int flags);
 
 /*
  * List all extended attribute names (NUL-separated).
@@ -594,13 +594,13 @@ int mxfs_setxattr(struct mxfs_mount *mnt, uint64_t ino,
  * Returns total bytes for the list, negative errno on error.
  */
 int mxfs_listxattr(struct mxfs_mount *mnt, uint64_t ino,
-                   char *list, int size);
+		   char *list, int size);
 
 /*
  * Remove an extended attribute by name.
  * Returns 0 on success, -ENODATA if not found.
  */
 int mxfs_removexattr(struct mxfs_mount *mnt, uint64_t ino,
-                     const char *name);
+		     const char *name);
 
 #endif /* MXFS_LIBMXFS_MXFS_H */

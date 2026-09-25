@@ -72,7 +72,7 @@ leave() {
 # validated (the mount state line is the shape; MARK feeds the journal window)
 arm() {
     local h; h=$(fault_host "$3" "$1")
-    rsx 60 "$h" "M=\$(date +%s); echo MARK=\$M; insmod $KO $2; echo INSMOD_RC=\$?; T0=\$(date +%s); timeout 40 mount -t mxfs $DEV $MNT; R=\$?; echo MOUNT_RC=\$R; echo WALL=\$(( \$(date +%s) - T0 )); journalctl -k --since @\$M --no-pager 2>/dev/null | grep -a 'DLM init: node_id=' | tail -1 | sed 's/.*node_id=\([0-9]*\).*transport=\([a-z]*\).*/NODE_ID=\1\nTRANSPORT=\2/'; mountpoint -q $MNT && echo MOUNTED || echo NOT_MOUNTED" > "$OUT/$3.txt"
+    rsx 60 "$h" "M=\$(date +%s); echo MARK=\$M; insmod $KO dyndbg=+p $2; echo INSMOD_RC=\$?; T0=\$(date +%s); timeout 40 mount -t mxfs $DEV $MNT; R=\$?; echo MOUNT_RC=\$R; echo WALL=\$(( \$(date +%s) - T0 )); journalctl -k --since @\$M --no-pager 2>/dev/null | grep -a 'DLM init: node_id=' | tail -1 | sed 's/.*node_id=\([0-9]*\).*transport=\([a-z]*\).*/NODE_ID=\1\nTRANSPORT=\2/'; mountpoint -q $MNT && echo MOUNTED || echo NOT_MOUNTED" > "$OUT/$3.txt"
     capture_require "$OUT/$3.txt" '^(MOUNTED|NOT_MOUNTED)$' "$3: the mount on $1"
     capture_require "$OUT/$3.txt" '^MARK=[0-9]+$' "$3: the clock mark of the mount on $1"
 }

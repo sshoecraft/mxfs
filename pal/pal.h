@@ -295,14 +295,14 @@ void mxfs_pal_mutex_lock(mxfs_mutex_t *m);
 void mxfs_pal_mutex_unlock(mxfs_mutex_t *m);
 
 /*
- * sess454 (0.61.0, D1/D8): try to lock a mutex without blocking.
+ * (0.61.0, D1/D8): try to lock a mutex without blocking.
  * Returns 1 when acquired, 0 when it is held by someone else.  A worker
  * that must honour a stop flag while competing for a lock polls this.
  */
 int mxfs_pal_mutex_trylock(mxfs_mutex_t *m);
 
 /*
- * sess454: the OS task id of the CALLING thread (0 when unavailable).
+ * the OS task id of the CALLING thread (0 when unavailable).
  * Pairs with mxfs_pal_thread_pid(); used to record and assert lock
  * ownership (the host-wide PR departure mutex).
  */
@@ -318,7 +318,7 @@ int mxfs_pal_current_pid(void);
 int mxfs_pal_fatal_signal_pending(void);
 
 /*
- * sess454 (D8): pin / unpin this module while a quarantined thread — one
+ * (D8): pin / unpin this module while a quarantined thread — one
  * whose join timed out because it is stuck in a SCSI command — may still
  * be executing its code.  Kernel: try_module_get / module_put on the
  * module itself; user mode: always succeeds, no-op.  Returns true when
@@ -328,7 +328,7 @@ bool mxfs_pal_module_pin(void);
 void mxfs_pal_module_unpin(void);
 
 /*
- * sess454 (D8): single-word flags shared between a thread and its
+ * (D8): single-word flags shared between a thread and its
  * controller without a lock — a plain read/write that the compiler may
  * not tear, cache or reorder with itself (READ_ONCE/WRITE_ONCE in the
  * kernel PAL, relaxed atomics in user mode).  Not a memory barrier for
@@ -390,7 +390,7 @@ void mxfs_pal_rwlock_rdlock(mxfs_rwlock_t *rw);
  * Try to acquire the read lock WITHOUT EVER SLEEPING.  Returns 1 if the
  * lock was taken (caller must mxfs_pal_rwlock_unlock), 0 if it was not.
  *
- * ccloop c7ee71c6 sess21: this exists because mxfs_rwlock_t is a SLEEPING
+ *  this exists because mxfs_rwlock_t is a SLEEPING
  * lock in the kernel PAL (struct rw_semaphore), so mxfs_pal_rwlock_rdlock
  * is illegal in atomic context — see mxfs_dlm_held_mode_nb.  Only the
  * trylock form is safe to call with a spinlock held.
@@ -401,11 +401,11 @@ int mxfs_pal_rwlock_tryrdlock(mxfs_rwlock_t *rw);
  * Is the current context allowed to sleep?  1 = yes, 0 = atomic (spinlock
  * held, preemption or IRQs disabled).  User-mode builds always return 1.
  *
- * ccloop c7ee71c6 sess21: exists so the DLM layer can ASSERT its sleeping
+ *  exists so the DLM layer can ASSERT its sleeping
  * entry points are not reached from atomic context, without importing a
  * kernel API outside pal/ (architectural invariant 4).  Sleeping under
  * pag_ici_lock corrupts preempt state and soft-locks a peer CPU forever,
- * and that bug reached the tree TWICE (sess19 via a SCSI read, sess20 via
+ * and that bug reached the tree TWICE (via a SCSI read, via
  * an rwsem) because nothing checked.
  */
 int mxfs_pal_may_sleep(void);
@@ -611,7 +611,7 @@ void mxfs_pal_sleep_ms(uint32_t ms);
 /*
  * Sleep INTERRUPTIBLY.
  *
- * sess381: mxfs_pal_sleep_ms() is msleep(), which is TASK_UNINTERRUPTIBLE, so a
+ * mxfs_pal_sleep_ms is msleep, which is TASK_UNINTERRUPTIBLE, so a
  * long-lived kernel thread that idles in it shows as a permanent D-state task —
  * +1 to loadavg per such thread, forever, on every mounted node, and
  * indistinguishable from the wedged-in-I/O tasks the rig's readiness check
@@ -646,6 +646,8 @@ __attribute__((format(printf, 2, 3)))
 #endif
 void mxfs_pal_log(int level, const char *fmt, ...);
 
+#include "mxfs_probe.h"	/* mxfs_probe*: diagnostic lines, dynamic debug */
+
 /*
  * Dump the calling thread's kernel stack to the log (kernel: dump_stack();
  * user builds: no-op).  Diagnostic only — used by capped one-shot probes
@@ -658,7 +660,7 @@ void mxfs_pal_dump_task_stack(int pid);	/* dump another task's kernel stack by p
 /* ─── Fail-stop ─── */
 
 /*
- * sess133 (GPT sess133 ruling B1): NON-RETURNING LOCAL FAIL-STOP.
+ * (design-consult ruling B1): NON-RETURNING LOCAL FAIL-STOP.
  *
  * The clustered-filesystem answer to "this node can neither prove it released
  * its shared-storage state nor safely continue".  It exists because the two
@@ -685,7 +687,7 @@ void mxfs_pal_dump_task_stack(int pid);	/* dump another task's kernel stack by p
  * Kernel: panic().  User builds: abort() (the tools have no shared-storage
  * state to protect, but must not continue past a failed invariant either).
  *
- * ─── sess134: WHY THIS IS A MACRO OVER A NON-__noreturn FUNCTION ───
+ * ─── WHY THIS IS A MACRO OVER A NON-__noreturn FUNCTION ───
  *
  * objtool validates control flow per object file against a HARDCODED list of
  * noreturn functions and cannot learn about one defined in another translation
@@ -721,7 +723,7 @@ void mxfs_pal_failstop_fn(const char *fmt, ...);
 /* ─── Deferred one-shot call ─── */
 
 /*
- * sess133 (GPT sess133 ruling B3): run fn(arg) SOON, in a context that is not
+ * (design-consult ruling B3): run fn(arg) SOON, in a context that is not
  * the caller's, exactly once.
  *
  * The escalation notifier needs this.  Delivering an upcall from inside
@@ -767,7 +769,7 @@ void mxfs_pal_sort(void *base, size_t nmemb, size_t size,
 /*
  * Register this node's key with the device.
  *
- * sess433 (D-379(B) / D-0355, sess432 design-consult ruling): this is a PLAIN
+ * (D-379(B) / D-0355, design-consult ruling): this is a PLAIN
  * REGISTER (service action 0x00, reservation key 0).  SPC answers it with
  * RESERVATION CONFLICT when this I_T nexus ALREADY holds a registration —
  * which, since MXFS keys are minted per incarnation, can only be a
@@ -788,12 +790,12 @@ int mxfs_pal_scsi_pr_register(mxfs_bdev_t *dev, uint64_t key);
  * REGISTER AND IGNORE EXISTING KEY: replace whatever registration this
  * nexus holds with `key`.  ONLY for the operator-asserted
  * single_node_exclusive path, where exclusion holds by topology and a
- * retained predecessor key protects nothing (sess432 ruling).
+ * retained predecessor key protects nothing (ruling).
  */
 int mxfs_pal_scsi_pr_register_replace(mxfs_bdev_t *dev, uint64_t key);
 
 /*
- * sess439: PR OUT REGISTER with reservation key = old_key, service action
+ * PR OUT REGISTER with reservation key = old_key, service action
  * reservation key = new_key — the target-side COMPARE AND SWAP on THIS I_T
  * nexus's registration.  It changes the registration only if the nexus
  * currently holds exactly old_key; it never touches another nexus and
@@ -819,7 +821,7 @@ int mxfs_pal_scsi_pr_register_swap(mxfs_bdev_t *dev, uint64_t old_key,
  * Acquire a persistent reservation of `type` (an MXFS_PAL_PR_TYPE_* wire
  * value; only WR_EX_RO and WR_EX_AR are accepted).
  *
- * sess381 (D-PR-RESERVATION-SINGLE-HOLDER-UNMOUNT-DISARMS-FENCING-381):
+ * (D-PR-RESERVATION-SINGLE-HOLDER-UNMOUNT-DISARMS-FENCING-381):
  * this used to hardcode WR_EX_RO and to SWALLOW a RESERVATION CONFLICT into
  * 0 ("we're registered, which is all we need for type 5 access").  Both were
  * wrong.  WR_EX_RO is a SINGLE-HOLDER type: SPC releases it when its holder's
@@ -854,7 +856,7 @@ int mxfs_pal_scsi_pr_reserve(mxfs_bdev_t *dev, uint64_t key, uint32_t type);
  *
  * For I/O fencing the caller MUST pass abort=true: MXFS kills victims
  * mid-write, so the in-flight window is exactly the window that matters
- * (sess71, D-PR-FENCE-PREEMPT-WITHOUT-ABORT).
+ * (D-PR-FENCE-PREEMPT-WITHOUT-ABORT).
  *
  * Return convention — a caller may NOT collapse these:
  *   0        the service action was accepted and COMPLETED by the target.
@@ -910,7 +912,7 @@ int mxfs_pal_scsi_pr_read_keys(mxfs_bdev_t *dev, uint64_t *keys,
  * probe available to a possibly-fenced node: PR IN is permitted to an
  * unregistered initiator under WE-RO, and the answer is generated by the
  * target at command time — unlike a media read of the heartbeat sector,
- * which can be arbitrarily stale on a wedged initiator (sess276: the
+ * which can be arbitrarily stale on a wedged initiator (the
  * fenced victim's reads were 51 generations behind the platter).
  *
  * *present  ← 1 if `key` is registered, 0 if provably absent.
@@ -965,7 +967,7 @@ int mxfs_pal_scsi_pr_read_reservation(mxfs_bdev_t *dev,
                                       struct mxfs_pal_pr_reservation *out);
 
 /*
- * sess452 DEBUG (kernel module param dbg_pr_bracket_fail=N; user mode:
+ * DEBUG (kernel module param dbg_pr_bracket_fail=N; user mode:
  * always false): fail the next N key-state BRACKETS (dlm/scsipr.c) before
  * they issue any command, so a mount's own admission checks — which use
  * the same PR INs — pass while its barrier settlement answers UNKNOWN.
@@ -977,23 +979,23 @@ bool mxfs_pal_dbg_pr_bracket_fail_take(void);
  * make when a PROUT disturbs one (kernel knob dbg_pr_own_proof_brackets,
  * default 4; 1 = the single-bracket behaviour for A/B). */
 uint32_t mxfs_pal_dbg_pr_own_proof_brackets(void);
-/* sess454 (0.61.0, D9): settle-absent / probe-lifecycle injectors (kernel
+/* (0.61.0, D9): settle-absent / probe-lifecycle injectors (kernel
  * module params dbg_settle_pause_ms, dbg_settle_inval_after_mint,
  * dbg_settle_double_consume, dbg_probe_hang_ms; user mode: always 0/false). */
 uint32_t mxfs_pal_dbg_settle_pause_ms(void);
 bool     mxfs_pal_dbg_settle_inval_after_mint_take(void);
 bool     mxfs_pal_dbg_settle_double_consume_take(void);
 uint32_t mxfs_pal_dbg_probe_hang_take(void);
-/* sess454 (0.61.0, D4 late-completion test): module param
+/* (0.61.0, D4 late-completion test): module param
  * dbg_depart_late_token_ms (one-shot) — at the departure freeze, take one
  * synthetic token retired this many ms later; user mode: always 0. */
 uint32_t mxfs_pal_dbg_depart_late_token_take(void);
-/* sess459: module param dbg_depart_inject (one-shot) — departure-gate fault
+/* module param dbg_depart_inject (one-shot) — departure-gate fault
  * injector arm consumed by put_super (1 untokened completion, 2 post-teardown
  * submission, 3 orphan+token, 4 orphan+rejection, 5 overflow, 6 underflow);
  * user mode: always 0. */
 int mxfs_pal_dbg_depart_inject_take(void);
-/* sess460 (0.61.6, review #5 conditions 2/3/4; user mode: always 0/false):
+/* (0.61.6, review #5 conditions 2/3/4; user mode: always 0/false):
  * dbg_depart_crash_cut (one-shot cut id) + dbg_depart_crash_hold_ms (park
  * length) for the crash-cut state table; dbg_retire_hang_ms (one-shot) makes
  * the retire settle worker ignore its stop; dbg_cas_nocaw_ops (bitmask) makes
@@ -1008,7 +1010,7 @@ bool     mxfs_pal_dbg_cas_nocaw(unsigned int opbit, const char *what);
  *
  * The single command that answers, AT MOUNT TIME, whether this device can
  * actually produce the fencing evidence recovery will later demand.  Before
- * sess378 MXFS never issued it, so the first time anyone learned that PR was
+ * MXFS never issued it, so the first time anyone learned that PR was
  * absent, that persistence was not active, or that WR_EX_RO was not offered,
  * was AFTER a peer had died — by which point the slice is unrecoverable and
  * peers are already blocked on its grants.
@@ -1219,7 +1221,7 @@ uint64_t mxfs_pal_bdev_get_base_offset(mxfs_bdev_t *dev);
 /* ─── Per-task absolute I/O budget (kernel only) ─── */
 
 /*
- * sess379 (D-MASS-UMOUNT-ROOT-EX-SERIALIZE-100S-526B, design-consult ruling item 5).
+ * (D-MASS-UMOUNT-ROOT-EX-SERIALIZE-100S-526B, design-consult ruling item 5).
  *
  * Puts ONE absolute deadline on every SCSI slot read this task issues for the
  * span of one logical operation, replacing the stacked

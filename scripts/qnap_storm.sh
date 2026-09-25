@@ -72,7 +72,7 @@ mount_cluster() {
     # a second insmod fails File-exists SILENTLY and INSMOD_OPTS params are
     # swallowed.  Force a fresh load so params always apply.
     lsmod | grep -q '^mxfs ' && rmmod mxfs 2>/dev/null
-    insmod $MODULE ${INSMOD_OPTS:-} 2>/dev/null
+    insmod $MODULE dyndbg=+p ${INSMOD_OPTS:-} 2>/dev/null
     sg_persist --out --register-ignore --param-sark=0x5eed $DEV 2>&1 | grep -i 'conflict\|fail' | sed 's/^/PR_REGISTER: /'
     sg_persist --out --clear --param-rk=0x5eed $DEV 2>&1 | grep -i 'conflict\|fail' | sed 's/^/PR_CLEAR: /'
     echo y | /src/mxfs/tools/mkfs_mxfs $DEV >/tmp/m.log 2>&1 && echo MKFS_OK || { echo MKFS_FAIL_rc=\$?; tail -3 /tmp/m.log; }
@@ -84,7 +84,7 @@ mount_cluster() {
     }" 150)
   echo "$out" | grep -q MOUNT_OK || { echo "form $NODE0 FAILED: $out"; return 1; }
   for n in "${NODES[@]:1}"; do
-    ( run "$n" "/src/mxfs/tools/prep_qnap_node.sh >/tmp/p.log 2>&1; modprobe libcrc32c; lsmod | grep -q '^mxfs ' && rmmod mxfs 2>/dev/null; insmod $MODULE ${INSMOD_OPTS:-} 2>/dev/null; mount -t mxfs $DEV $MNT && echo OK" 120 | grep -q OK || echo "join $n FAIL" ) &
+    ( run "$n" "/src/mxfs/tools/prep_qnap_node.sh >/tmp/p.log 2>&1; modprobe libcrc32c; lsmod | grep -q '^mxfs ' && rmmod mxfs 2>/dev/null; insmod $MODULE dyndbg=+p ${INSMOD_OPTS:-} 2>/dev/null; mount -t mxfs $DEV $MNT && echo OK" 120 | grep -q OK || echo "join $n FAIL" ) &
   done
   wait
   return 0

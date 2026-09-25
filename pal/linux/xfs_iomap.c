@@ -95,7 +95,7 @@ xfs_iomap_valid(
 	if (iomap->validity_cookie !=
 			xfs_iomap_inode_sequence(ip, iomap->flags)) {
 		trace_xfs_iomap_invalid(ip, iomap);
-		pr_warn_ratelimited(
+		mxfs_probe_ratelimited(
 		    "mxfs: P312-IOMAP-STALE ino=%llu pos=%lld len=%llu type=%u flags=0x%x cookie=0x%llx now=0x%llx — the cached mapping no longer describes this inode's extents; iomap must remap before writing\n",
 		    (unsigned long long)ip->i_ino, (long long)iomap->offset,
 		    (unsigned long long)iomap->length, iomap->type, iomap->flags,
@@ -805,7 +805,7 @@ xfs_iomap_write_unwritten(
 			ip->i_disk_size = i_size;
 			xfs_trans_log_inode(tp, ip, XFS_ILOG_CORE);
 		} else if (offset + count > ip->i_disk_size) {
-			/* P-WU-CLAMP (sess10 ccloop 72513a13, instrumented drc size=0):
+			/* P-WU-CLAMP (instrumented drc size=0):
 			 * this conversion covers bytes beyond di_size yet
 			 * xfs_new_eof refused the advance — VFS i_size was
 			 * reverted below the written range (reload sever),
@@ -813,7 +813,7 @@ xfs_iomap_write_unwritten(
 			static atomic_t p_wuc_n = ATOMIC_INIT(0);
 
 			if (atomic_inc_return(&p_wuc_n) <= 300)
-				pr_warn("mxfs: P-WU-CLAMP ino=%llu end=%llu vfs=%llu disk=%llu dlm_state=%u comm=%s\n",
+				mxfs_probe("mxfs: P-WU-CLAMP ino=%llu end=%llu vfs=%llu disk=%llu dlm_state=%u comm=%s\n",
 					(unsigned long long)ip->i_ino,
 					(unsigned long long)(offset + count),
 					(unsigned long long)i_size_read(inode),
@@ -1026,7 +1026,7 @@ xfs_direct_write_iomap_begin(
 	xfs_fileoff_t		orig_end_fsb = end_fsb;
 	int			nimaps = 1, error = 0;
 
-	/* sess414 (D-512 ruling): mapping-layer recheck — the file-op entry
+	/* (D-512 ruling): mapping-layer recheck — the file-op entry
 	 * gate can race a poison publishing between its test and this map;
 	 * here we are past the op's IOLOCK acquisition, so a poison that
 	 * published before the revocation drain is visible */
@@ -1206,7 +1206,7 @@ allocate_blocks:
 		int loops = atomic_inc_return(&mxfs_agrestart_loops);
 
 		if ((loops & 15) == 1)
-			pr_warn("mxfs: P270-AGRESTART-LOOP ino=%llu comm=%s total_restarts=%d\n",
+			mxfs_probe("mxfs: P270-AGRESTART-LOOP ino=%llu comm=%s total_restarts=%d\n",
 				(unsigned long long)ip->i_ino, current->comm,
 				loops);
 		nimaps = 1;
@@ -1981,7 +1981,7 @@ xfs_buffered_write_iomap_begin(
 	if (xfs_is_shutdown(mp))
 		return -EIO;
 
-	/* sess414 (D-512 ruling): mapping-layer recheck, see
+	/* (D-512 ruling): mapping-layer recheck, see
 	 * xfs_direct_write_iomap_begin */
 	error = mxfs_inode_incarn_estale(ip);
 	if (error)
@@ -2326,7 +2326,7 @@ xfs_read_iomap_begin(
 	if (xfs_is_shutdown(mp))
 		return -EIO;
 
-	/* sess414 (D-512 ruling): mapping-layer recheck, see
+	/* (D-512 ruling): mapping-layer recheck, see
 	 * xfs_direct_write_iomap_begin */
 	error = mxfs_inode_incarn_estale(ip);
 	if (error)
@@ -2346,7 +2346,7 @@ xfs_read_iomap_begin(
 		return error;
 
 	/*
-	 * sess46 NOTE: a hole-within-di_size cross-node read reload fix was
+	 * NOTE: a hole-within-di_size cross-node read reload fix was
 	 * TRIED here (build 53813959, taking ILOCK_EXCL to force a slow-path
 	 * reload) and REVERTED — taking ILOCK_EXCL in the hot read path routes
 	 * through mxfs_dlm_ilock_begin's DLM EX acquire (CAW poll up to 120s),
@@ -2356,7 +2356,7 @@ xfs_read_iomap_begin(
 	 * non-blocking refresh of the extent map — NOT an in-read EXCL/reload.
 	 * See state.md / sess46_lessons.md for the narrowed diagnosis.
 	 *
-	 * sess46 P104 DETECTOR (always-on, ratelimited, NON-BLOCKING — no lock,
+	 * P104 DETECTOR (always-on, ratelimited, NON-BLOCKING — no lock,
 	 * no reload): fires exactly on the failing anomaly — a multi-node
 	 * regular-file read mapping a HOLE at an offset WITHIN di_size.  Logs the
 	 * inode's DLM mode + stale flag so the next session can see the exact
@@ -2371,7 +2371,7 @@ xfs_read_iomap_begin(
 		    S_ISREG(VFS_I(ip)->i_mode) &&
 		    imap.br_startblock == HOLESTARTBLOCK &&
 		    offset < XFS_ISIZE(ip))
-			pr_warn_ratelimited("mxfs: P104-READ-HOLE-IN-SIZE ino=%llu off=%lld isize=%lld dlm_mode=%u stale=%d fmt=%u nextents=%lld\n",
+			mxfs_probe_ratelimited("mxfs: P104-READ-HOLE-IN-SIZE ino=%llu off=%lld isize=%lld dlm_mode=%u stale=%d fmt=%u nextents=%lld\n",
 				(unsigned long long)ip->i_ino,
 				(long long)offset, (long long)XFS_ISIZE(ip),
 				ip->i_dlm_mode, ip->i_dlm_stale,
@@ -2410,7 +2410,7 @@ xfs_seek_iomap_begin(
 	if (xfs_is_shutdown(mp))
 		return -EIO;
 
-	/* sess414 (D-512 ruling): mapping-layer recheck, see
+	/* (D-512 ruling): mapping-layer recheck, see
 	 * xfs_direct_write_iomap_begin */
 	error = mxfs_inode_incarn_estale(ip);
 	if (error)
@@ -2502,7 +2502,7 @@ xfs_xattr_iomap_begin(
 	if (xfs_is_shutdown(mp))
 		return -EIO;
 
-	/* sess414 (D-512 ruling): mapping-layer recheck, see
+	/* (D-512 ruling): mapping-layer recheck, see
 	 * xfs_direct_write_iomap_begin */
 	error = mxfs_inode_incarn_estale(ip);
 	if (error)

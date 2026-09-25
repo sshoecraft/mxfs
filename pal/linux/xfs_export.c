@@ -16,7 +16,7 @@
 #include "xfs_inode_item.h"
 #include "xfs_icache.h"
 #include "xfs_pnfs.h"
-#include "xfs_mxfs_dirshard.h"	/* sess466: containers are never handle-reachable */
+#include "xfs_mxfs_dirshard.h"	/* containers are never handle-reachable */
 
 /*
  * Note that we only accept fileids which are long enough rather than allow
@@ -126,7 +126,7 @@ xfs_nfs_get_inode(
 	 */
 	error = xfs_iget(mp, NULL, ino, XFS_IGET_UNTRUSTED, 0, &ip);
 	/*
-	 * sess466 (docs/dir-sharding.md): shard containers and the manifest
+	 * (docs/dir-sharding.md): shard containers and the manifest
 	 * holder are internal — never reachable by name, never by handle.
 	 * A handle naming one is stale by definition.
 	 */

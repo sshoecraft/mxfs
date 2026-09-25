@@ -258,7 +258,7 @@ xfs_symlink(
 		goto out_trans_cancel;
 
 	/*
-	 * v0.5.6 (sess29 ccloop 14d31183): record the naming directory for
+	 * v0.5.6: record the naming directory for
 	 * the scoped BAST-side publish drain, same as xfs_create (see
 	 * i_mxfs_unpub_parent in xfs_inode.h).
 	 */

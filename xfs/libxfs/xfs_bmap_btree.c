@@ -445,11 +445,11 @@ xfs_bmbt_read_verify(
 		trace_xfs_btree_corrupt(bp, _RET_IP_);
 #ifdef __KERNEL__
 	/*
-	 * sess3 (ccloop 46efd8b6): a freshly-READ bmbt image IS the cluster-
+	 * a freshly-READ bmbt image IS the cluster-
 	 * current truth (fua_disable=1: plain reads hit the coherent SCST
 	 * cache).  Stamp it with the owner dir's current EX-tenure epoch so
 	 * the write-side tenure-authority gate (which now also guards the
-	 * sess63 FUA passthrough) treats it as re-publishable.  Without this,
+	 * FUA passthrough) treats it as re-publishable.  Without this,
 	 * "tenure" means "logged this tenure" only — a leaf whose last log
 	 * was a prior tenure could never land again and the platter leaf
 	 * starved behind (run 051505Z: holes x4 worse after the bare gate).
@@ -475,7 +475,7 @@ xfs_bmbt_write_verify(
 		return;
 	}
 	/*
-	 * sess66 (ccloop 14d31183) instrumented write-side probe for zero_silent_loss.
+	 * instrumented write-side probe for zero_silent_loss.
 	 * Every bmbt LEAF (level 0) write submit passes here regardless of the
 	 * submit path (xfs_iflush force, release drain, OR plain xfsaild/delwri
 	 * background writeback that bypasses the xfs_iflush ownership guards).
@@ -488,7 +488,7 @@ xfs_bmbt_write_verify(
 	{
 		struct xfs_btree_block	*blk = bp->b_addr;
 
-		/* sess3 (ccloop 46efd8b6): + tenure stamp, LSN, and first/last
+		/* + tenure stamp, LSN, and first/last
 		 * rec startoff so a stale-generation leaf write is attributable
 		 * (which tenure produced the image, and which dablks it maps)
 		 * against the P62-DUALREAD/P-DIRDW ordering. */
@@ -502,7 +502,7 @@ xfs_bmbt_write_verify(
 				xfs_bmbt_disk_get_all(
 					xfs_bmbt_rec_addr(bp->b_mount, blk, nr), &rl);
 			}
-			pr_warn_ratelimited("mxfs: P66-LEAFWRITE owner=%llu numrecs=%u daddr=%lld tenure=%llu lsn=%llu off0=%llu offN=%llu comm=%s\n",
+			mxfs_probe_ratelimited("mxfs: P66-LEAFWRITE owner=%llu numrecs=%u daddr=%lld tenure=%llu lsn=%llu off0=%llu offN=%llu comm=%s\n",
 				(unsigned long long)be64_to_cpu(blk->bb_u.l.bb_owner),
 				nr,
 				(long long)xfs_buf_daddr(bp),

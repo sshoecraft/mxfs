@@ -26,7 +26,7 @@
 /* mxfs log-wedge diagnostic gate (defined in xfs_mxfs_dlm.c, module param mxfs.instr) */
 extern int mxfs_instr_enabled;
 
-/* sess129: latched ON by the P128-AILSTUCK dump; see xfs_trans_priv.h. */
+/* latched ON by the P128-AILSTUCK dump; see xfs_trans_priv.h. */
 atomic_t mxfs_ailstuck_probe = ATOMIC_INIT(0);
 atomic_t mxfs_ailstuck_odumps = ATOMIC_INIT(0);
 atomic_t mxfs_ailstuck_fence_armers = ATOMIC_INIT(0);
@@ -147,7 +147,7 @@ xfs_ail_min_lsn(
 }
 
 /*
- * sess6(ccloop) FIX-12b: lsn of the LAST (newest) item in the AIL, 0 when
+ * FIX-12b: lsn of the LAST (newest) item in the AIL, 0 when
  * empty.  Lets the no-inode BAST release skip its whole-AIL fence when the
  * newest AIL item is already at-or-below the last fully-drained target (the
  * inode-reuse churn fires hundreds of noino releases per round; only the
@@ -548,7 +548,7 @@ xfsaild_push(
 
 		if (test_bit(XFS_LI_FLUSHING, &lip->li_flags)) {
 			/*
-			 * sess396 DIAG (D-474 FLUSHING dead-end, armed only):
+			 * DIAG (D-474 FLUSHING dead-end, armed only):
 			 * the AIL min sitting in FLUSHING is invisible to every
 			 * iop_push probe.  While the AIL-stuck probe is latched
 			 * (a noino fence froze on it), name the min item's
@@ -568,7 +568,7 @@ xfsaild_push(
 							ili_item);
 
 					p129f_last = now;
-					pr_warn("mxfs: P129-FLUSHING-SKIP ino=%llu lsn=0x%llx liflags=0x%lx fields=0x%x last=0x%x flush_lsn=0x%llx — AIL min is FLUSHING; xfsaild cannot push it, only its buffer's delwri write can retire it\n",
+					mxfs_probe("mxfs: P129-FLUSHING-SKIP ino=%llu lsn=0x%llx liflags=0x%lx fields=0x%x last=0x%x flush_lsn=0x%llx — AIL min is FLUSHING; xfsaild cannot push it, only its buffer's delwri write can retire it\n",
 						(unsigned long long)(fiip->ili_inode ?
 							fiip->ili_inode->i_ino : 0),
 						(unsigned long long)lip->li_lsn,
@@ -811,7 +811,7 @@ xfs_ail_push_all_sync(
 	spin_lock(&ailp->ail_lock);
 	while (xfs_ail_max(ailp) != NULL) {
 		/*
-		 * sess128 instrumented probe: this wait has no bound; when it wedges
+		 * instrumented probe: this wait has no bound; when it wedges
 		 * (test_many_files single-node inodegc pile-up) we need to see
 		 * WHAT is stuck.  Every ~30s of waiting (3000 × 10ms), dump
 		 * the first few AIL items: type/flags/lsn, plus buf flags or
@@ -821,7 +821,7 @@ xfs_ail_push_all_sync(
 			struct xfs_log_item	*dlip;
 			int			dk = 0;
 
-			/* sess129: latch the push-path branch probes ON. */
+			/* latch the push-path branch probes ON. */
 			mxfs_ailstuck_probe_arm();
 			pr_warn("mxfs: P128-AILSTUCK iter=%u comm=%s dumping AIL head:\n",
 				iter, current->comm);
@@ -872,7 +872,7 @@ xfs_ail_push_all_sync(
 		wake_up_process(ailp->ail_task);
 		spin_unlock(&ailp->ail_lock);
 		/*
-		 * v0.3.144 sess32: kick CIL push every few iterations.
+		 * v0.3.144 kick CIL push every few iterations.
 		 *
 		 * Standard XFS upstream relies on xfsaild's natural-pressure
 		 * push to drain AIL.  Under MXFS lazy_ag_drain=1, CIL
@@ -899,7 +899,7 @@ xfs_ail_push_all_sync(
 }
 
 /*
- * sess39: BOUNDED whole-AIL sync push.  Like xfs_ail_push_all_sync but gives
+ * BOUNDED whole-AIL sync push.  Like xfs_ail_push_all_sync but gives
  * up after max_ms milliseconds instead of waiting (possibly forever) for the
  * AIL to fully drain.  Used by multi-node sync_fs for cross-node di_size
  * coherence: we want the dirty inode clusters written to disk before a peer
@@ -937,7 +937,7 @@ xfs_ail_push_all_sync_bounded(
 }
 
 /*
- * sess6(ccloop a9a03929) FIX-12: LSN-targeted bounded whole-AIL sync push for
+ * FIX-12: LSN-targeted bounded whole-AIL sync push for
  * the no-inode BAST release (Invariant #1 without an extent map).  The noino
  * release cannot scope its drain to the departing inode's dir blocks (no
  * in-core inode => no data fork), and its old single-AG push provably missed
@@ -1028,7 +1028,7 @@ xfs_log_item_in_ag(
 		if (xfs_daddr_to_agno(mp, xfs_buf_daddr(bp)) != agno)
 			return false;
 		/*
-		 * v0.3.148 sess33: skip ONLY bufs queued by mxfs's
+		 * v0.3.148 skip ONLY bufs queued by mxfs's
 		 * alloc-buflist path (cluster bufs from
 		 * xfs_ialloc_inode_init).  These have BOTH _XBF_DELWRI_Q
 		 * and _XBF_MXFS_ALLOC_QUEUED set, and they're drained by
@@ -1041,7 +1041,7 @@ xfs_log_item_in_ag(
 		 * btree blocks logged via normal trans paths) have
 		 * _XBF_DELWRI_Q only when xfsaild itself queued them.
 		 * They MUST NOT be skipped here — Phase 2 doesn't drain
-		 * them.  Skipping them caused sess33 iter-3 dir3 corruption
+		 * them.  Skipping them caused iter-3 dir3 corruption
 		 * (signature: xfs_dir3_data_reada_verify on peer after
 		 * AG-DLM transition with stale dir block on disk).
 		 */
@@ -1059,7 +1059,7 @@ xfs_log_item_in_ag(
 		if (XFS_INO_TO_AGNO(mp, iip->ili_inode->i_ino) != agno)
 			return false;
 		/*
-		 * v0.3.148 sess33: items in IFLUSHING state are being flushed
+		 * v0.3.148 items in IFLUSHING state are being flushed
 		 * — xfs_iflush_cluster has already written content into the
 		 * cluster buf and set IFLUSHING.  The buf may be on
 		 * pag_mxfs_alloc_buflist (mxfs's own delwri queue), where it
@@ -1097,7 +1097,7 @@ xfs_log_item_in_ag(
  * sleep keeps us off the CPU between walks.
  */
 /*
- * v0.3.147 sess33: bounded variant.  Returns 0 if drain completed,
+ * v0.3.147 bounded variant.  Returns 0 if drain completed,
  * -ETIMEDOUT if max_iters reached without items leaving the AG.
  * max_iters=0 disables the bound (legacy unbounded behavior).
  *
@@ -1109,14 +1109,14 @@ xfs_log_item_in_ag(
  * poll times out, peer drops its transaction's ILOCK, and the next
  * bast cycle can drain.
  *
- * Differs from sess32 v0.3.141-142's bounded timeout (which proceeded
+ * Differs from v0.3.141-142's bounded timeout (which proceeded
  * to release after timeout, causing Mode A): on -EAGAIN, the caller
  * MUST NOT release.  Sess27 finding "bounded per-AG drain is unsafe"
  * referred to release-after-bound, not abort-after-bound.
  */
-#include <linux/sched/debug.h>	/* sess13(c7ee71c6): sched_show_task */
+#include <linux/sched/debug.h>	/* sched_show_task */
 
-/* sess13(c7ee71c6): peek the i_lock rwsem owner — a writer, or the last
+/* peek the i_lock rwsem owner — a writer, or the last
  * reader hint (RWSEM_READER_OWNED-tagged, best-effort).  Same technique the
  * kernel's own rwsem_spin_on_owner uses; task_struct deref is RCU-safe.
  * Debug read for the AG-AIL stall probe: names the task that blocks iflush. */
@@ -1130,7 +1130,7 @@ mxfs_rwsem_owner_peek(struct rw_semaphore *sem, bool *reader)
 }
 
 /*
- * sess391: @max_iters is a HARD cap on polling iterations (10 ms each), 0 =
+ * @max_iters is a HARD cap on polling iterations (10 ms each), 0 =
  * none.  The no-progress detector alone is unbounded under churn (a count
  * that occasionally decreases resets it), and the AG BAST worker's prepass
  * now runs with local holders admitted, so its AIL set need never empty.
@@ -1159,7 +1159,7 @@ xfs_ail_push_ag_sync_bounded(
 			unsigned int stuck_iflags = 0;
 			bool stuck_buf_locked = false;
 			/*
-			 * sess109 P109-DRAIN: capture the exact iop_push gating
+			 * P109-DRAIN: capture the exact iop_push gating
 			 * state for the first stuck inode item.  xfs_inode_item_push
 			 * returns PINNED if (li_buf==NULL || ISTALE) or
 			 * (i_pincount>0 || buf pinned); FLUSHING if IFLUSHING;
@@ -1172,13 +1172,13 @@ xfs_ail_push_ag_sync_bounded(
 			unsigned int stuck_ili_fields = 0;
 			bool stuck_in_ail = false;
 			unsigned int stuck_buf_flags = 0;
-			/* sess16 (a9a03929) P16-ILOCKED: k1 tds 2-node wedge — is the
+			/* P16-ILOCKED: k1 tds 2-node wedge — is the
 			 * stuck inode's ILOCK rwsem held?  Hypothesis: a rename thread
 			 * holds the child's ILOCK (ascending-ino set lock) while its
 			 * dir PR->EX conversion EDEADLK-retries cross-node, so iflush
 			 * can never take ILOCK_SHARED and the AG drain stalls. */
 			bool stuck_ilocked = false;
-			/* sess13(c7ee71c6): 32/caw fence wedge forensics — the
+			/* 32/caw fence wedge forensics — the
 			 * incident boot proved a 212s continuously-rwsem-held
 			 * stuck inode with the holder invisible to hung_task
 			 * (short-sleep/interruptible waits).  Name the holder:
@@ -1240,7 +1240,7 @@ xfs_ail_push_ag_sync_bounded(
 								&lip->li_buf->b_pin_count) > 0;
 							stuck_buf_flags = lip->li_buf->b_flags;
 						}
-						/* sess13(c7ee71c6) wedge forensics */
+						/* wedge forensics */
 						{
 							struct xfs_inode *sip = iip->ili_inode;
 
@@ -1305,7 +1305,7 @@ xfs_ail_push_ag_sync_bounded(
 				}
 			}
 			/*
-			 * v0.3.148 sess33: don't return on first iter even
+			 * v0.3.148 don't return on first iter even
 			 * if !found.  Items skipped via xfs_log_item_in_ag
 			 * (XFS_IFLUSHING set or _XBF_DELWRI_Q set) need
 			 * xfsaild's iop_push to ACTUALLY run before they
@@ -1315,7 +1315,7 @@ xfs_ail_push_ag_sync_bounded(
 			 * submits that current content).  If we return at
 			 * iter=0 before xfsaild runs, the cluster buf still
 			 * has stale/empty content → peer reads corruption
-			 * (xfs_dinode_verify failure observed in sess33).
+			 * (xfs_dinode_verify failure observed in).
 			 *
 			 * Force at least one push+log_force+msleep cycle.
 			 * This gives xfsaild time to walk AIL and run
@@ -1328,7 +1328,7 @@ xfs_ail_push_ag_sync_bounded(
 			}
 			/*
 			 * 0.75.56: a HARD-CAPPED caller is the AG release worker's
-			 * prepass, which sess391 made advisory — the post-COMMIT
+			 * prepass, which made advisory — the post-COMMIT
 			 * drains (alloc buflist, xfs_iflush_cluster of the inode
 			 * cluster buffers, the AG-meta drains, the device flushes)
 			 * carry Invariant 1 synchronously, so the "force at least
@@ -1360,7 +1360,7 @@ xfs_ail_push_ag_sync_bounded(
 						agno, iter, stall, total,
 						n_buf, n_inode, n_other,
 						n_pinned_buf);
-					/* sess13(c7ee71c6): name the ILOCK holder +
+					/* name the ILOCK holder +
 					 * log/AIL position so the wedge's blocking
 					 * task and log-space state are in every
 					 * abort line (the incident boot had neither). */
@@ -1394,7 +1394,7 @@ xfs_ail_push_ag_sync_bounded(
 			if (last_count == UINT_MAX || total < last_count)
 				last_count = total;
 			if (max_iters && iter >= max_iters) {
-				pr_warn_ratelimited("mxfs: P67-INSTR AG-AIL-PUSH-CAP agno=%u iter=%u total=%u(buf=%u inode=%u other=%u pinned=%u) — hard cap reached, push advisory\n",
+				mxfs_probe_ratelimited("mxfs: P67-INSTR AG-AIL-PUSH-CAP agno=%u iter=%u total=%u(buf=%u inode=%u other=%u pinned=%u) — hard cap reached, push advisory\n",
 					agno, iter, total, n_buf, n_inode,
 					n_other, n_pinned_buf);
 				return -EAGAIN;

@@ -33,13 +33,13 @@ xfs_iunlink_item_release(
 {
 	struct xfs_iunlink_item	*iup = IUL_ITEM(lip);
 
-	/* mxfs sess203: retire the pending-transition certificate.  On the
+	/* retire the pending-transition certificate.  On the
 	 * precommit path this runs after the buffer and the iunl store have
 	 * caught up (both under the cluster buffer lock, which every overlay
 	 * site also holds), so no observer can see divergent in-core state
 	 * without an explanation.  On the cancel path the trans is dirty and
 	 * shutdown follows anyway. */
-	/* sess398: retire the certificate only if it still describes THIS
+	/* retire the certificate only if it still describes THIS
 	 * item.  An O_TMPFILE create stacks two items for one inode in one
 	 * transaction (create-path INSERT NULL->NULL, then xfs_iunlink's
 	 * NULL->head); the later item's cert supersedes the earlier one's and
@@ -93,7 +93,7 @@ xfs_iunlink_log_dinode(
 	/* Make sure the old pointer isn't garbage. */
 	old_ptr = be32_to_cpu(dip->di_next_unlinked);
 	/*
-	 * mxfs sess402 NEGATIVE-MISMATCH ARM (TESTING ONLY; ledger
+	 * NEGATIVE-MISMATCH ARM (TESTING ONLY; ledger
 	 * D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN closure item "negative-
 	 * mismatch test"): iunl_mismatch_inject=N perturbs the value the strict
 	 * non-INSERT compare below sees for the next N non-INSERT items on this
@@ -113,7 +113,7 @@ xfs_iunlink_log_dinode(
 			if (fake == iup->next_agino)
 				fake++;
 			WRITE_ONCE(mxfs_iunl_mismatch_inject, inj - 1);
-			pr_warn("mxfs: P-IUNL-MISMATCH-INJECT ino=0x%llx old_ptr=0x%x fake=0x%x old_agino=0x%x next_agino=0x%x left=%d comm=%s — negative arm: the strict non-INSERT compare must now fire P53-IUNLINK-MISMATCH\n",
+			mxfs_probe("mxfs: P-IUNL-MISMATCH-INJECT ino=0x%llx old_ptr=0x%x fake=0x%x old_agino=0x%x next_agino=0x%x left=%d comm=%s — negative arm: the strict non-INSERT compare must now fire P53-IUNLINK-MISMATCH\n",
 				(unsigned long long)ip->i_ino, old_ptr, fake,
 				iup->old_agino, iup->next_agino, inj - 1,
 				current->comm);
@@ -122,7 +122,7 @@ xfs_iunlink_log_dinode(
 	}
 	if (iup->insert) {
 		/*
-		 * mxfs sess396 INSERT mode (design-consult ruling, see the header):
+		 * INSERT mode (design-consult ruling, see the header):
 		 * the insert path proved this inode is on no unlinked list, so
 		 * the buffer's current pointer carries no chain meaning.  A
 		 * non-NULL value here is a prior-life platter fossil that the
@@ -137,7 +137,7 @@ xfs_iunlink_log_dinode(
 		 * lock/brelse with no log traffic.
 		 */
 		if (iup->old_agino != NULLAGINO) {
-			pr_warn("mxfs: P-IUNL-PRECOMMIT-INSERT-BADOLD ino=0x%llx old_agino=0x%x next_agino=0x%x old_ptr=0x%x — INSERT item with a non-NULL captured old value; falling back to the strict check\n",
+			mxfs_probe("mxfs: P-IUNL-PRECOMMIT-INSERT-BADOLD ino=0x%llx old_agino=0x%x next_agino=0x%x old_ptr=0x%x — INSERT item with a non-NULL captured old value; falling back to the strict check\n",
 				(unsigned long long)ip->i_ino, iup->old_agino,
 				iup->next_agino, old_ptr);
 		} else {
@@ -165,7 +165,7 @@ xfs_iunlink_log_dinode(
 	if (old_ptr != iup->old_agino) {
 		struct xfs_buf_log_item *mbli = ibp->b_log_item;
 
-		pr_warn("mxfs: P53-IUNLINK-MISMATCH ino=0x%llx old_ptr=0x%x old_agino=0x%x next_agino=0x%x i_next_unlinked=0x%x dip_mode=0%o dip_gen=%u i_gen=%u i_flags=0x%lx b_flags=0x%x fuafresh=%d bli=%d bli_dirty=%d uncp=%d\n",
+		mxfs_probe("mxfs: P53-IUNLINK-MISMATCH ino=0x%llx old_ptr=0x%x old_agino=0x%x next_agino=0x%x i_next_unlinked=0x%x dip_mode=0%o dip_gen=%u i_gen=%u i_flags=0x%lx b_flags=0x%x fuafresh=%d bli=%d bli_dirty=%d uncp=%d\n",
 			(unsigned long long)ip->i_ino,
 			old_ptr, iup->old_agino, iup->next_agino,
 			ip->i_next_unlinked,
@@ -176,7 +176,7 @@ xfs_iunlink_log_dinode(
 			mbli ? 1 : 0,
 			(mbli && (mbli->bli_flags & XFS_BLI_DIRTY)) ? 1 : 0,
 			mxfs_buf_has_uncheckpointed_mods(ibp) ? 1 : 0);
-		/* sess48: every fatal carries the store's view of this ino
+		/* every fatal carries the store's view of this ino
 		 * (record present+value+homed vs absent) — the c2-392 fatal
 		 * had ZERO store telemetry, leaving the record lifecycle at
 		 * the mismatch undetermined. */
@@ -188,7 +188,7 @@ xfs_iunlink_log_dinode(
 		}
 
 		/*
-		 * sess53 (instrumented, PROVEN tcp_dlm_scaling iunlink corruption fix):
+		 * (instrumented, PROVEN tcp_dlm_scaling iunlink corruption fix):
 		 * under rapid free->reuse->free churn on a SHARED dir's child inodes
 		 * a concurrent reuse path advances BOTH the on-buffer di_next_unlinked
 		 * AND the in-core i_next_unlinked cache to THIS item's next_agino
@@ -205,7 +205,7 @@ xfs_iunlink_log_dinode(
 		 */
 		if (old_ptr == iup->next_agino &&
 		    ip->i_next_unlinked == iup->next_agino) {
-			pr_warn_ratelimited(
+			mxfs_probe_ratelimited(
 			    "mxfs: P53-IUNLINK-IDEMPOTENT ino=0x%llx old_ptr=0x%x next_agino=0x%x (free/reuse race; chain already correct, no-op)\n",
 			    (unsigned long long)ip->i_ino, old_ptr,
 			    iup->next_agino);
@@ -214,7 +214,7 @@ xfs_iunlink_log_dinode(
 		}
 
 		/*
-		 * mxfs sess203 (GPT ruling, backstop (b)): if a live iunl-store
+		 * (design-consult ruling, backstop (b)): if a live iunl-store
 		 * record for exactly this slot (ino+gen+daddr+boffset) says the
 		 * committed value IS our captured old_agino, then the buffer's
 		 * old_ptr is a proven fossil — some image install slipped past
@@ -238,7 +238,7 @@ xfs_iunlink_log_dinode(
 					ibp->b_maps[0].bm_bn,
 					ip->i_imap.im_boffset,
 					iup->old_agino)) {
-				pr_warn("mxfs: P-IUNL-PRECOMMIT-FOSSILFIX ino=0x%llx old_ptr=0x%x committed=old_agino=0x%x next_agino=0x%x incore=0x%x — buffer held a proven fossil; repairing via the normal transition\n",
+				mxfs_probe("mxfs: P-IUNL-PRECOMMIT-FOSSILFIX ino=0x%llx old_ptr=0x%x committed=old_agino=0x%x next_agino=0x%x incore=0x%x — buffer held a proven fossil; repairing via the normal transition\n",
 					(unsigned long long)ip->i_ino, old_ptr,
 					iup->old_agino, iup->next_agino,
 					ip->i_next_unlinked);
@@ -262,7 +262,7 @@ apply:
 	xfs_dinode_calc_crc(tp->t_mountp, dip);
 	xfs_trans_inode_buf(tp, ibp);
 	xfs_trans_log_buf(tp, ibp, offset, offset + sizeof(xfs_agino_t) - 1);
-	/* sess47 A-prime: record the committed value at MOUNT scope until its
+	/* A-prime: record the committed value at MOUNT scope until its
 	 * home write completes — the only defense that survives inode reclaim
 	 * + buffer teardown (fossil producer, memories TAIL7-TAIL11). */
 	if (tp->t_mountp->m_mxfs_dlm) {
@@ -341,7 +341,7 @@ __xfs_iunlink_log_inode(
 	 * current pointer is the same as the new value, unless we're
 	 * terminating the list.
 	 *
-	 * mxfs sess396: an INSERT item is created even for NULL -> NULL (the
+	 * an INSERT item is created even for NULL -> NULL (the
 	 * empty-bucket insert) so the cluster buffer's di_next_unlinked is
 	 * examined and, if it carries a fossil, cleared at sorted precommit.
 	 */
@@ -362,13 +362,13 @@ __xfs_iunlink_log_inode(
 	iup->insert = (uint8_t)insert;
 	iup->pag = xfs_perag_hold(pag);
 
-	/* mxfs sess203: publish the pending-transition certificate BEFORE the
+	/* publish the pending-transition certificate BEFORE the
 	 * caller advances i_next_unlinked, so any overlay that observes the
 	 * advanced in-core edge also observes the certificate explaining it
 	 * (the item-init-to-precommit window is a legitimate skew window, not
-	 * record abandonment — GPT ruling sess203).  The trailing barrier
+	 * record abandonment — design-consult ruling).  The trailing barrier
 	 * orders valid=1 before the caller's in-core store. */
-	/* sess398: an O_TMPFILE create carries TWO items for the same inode in
+	/* an O_TMPFILE create carries TWO items for the same inode in
 	 * ONE transaction — the create-path INSERT (NULL->NULL, site 2, from
 	 * xfs_inode_init) and xfs_iunlink's insert — so a valid {NULL->NULL}
 	 * certificate under a new INSERT item is that legitimate pair, not a
@@ -376,7 +376,7 @@ __xfs_iunlink_log_inode(
 	if (ip->i_mxfs_nu_cert_valid &&
 	    !(insert && ip->i_mxfs_nu_cert_old == NULLAGINO &&
 	      ip->i_mxfs_nu_cert_next == NULLAGINO))
-		pr_warn_ratelimited("mxfs: P-IUNL-CERT-STACKED ino=0x%llx prev={0x%x->0x%x} new={0x%x->0x%x}\n",
+		mxfs_probe_ratelimited("mxfs: P-IUNL-CERT-STACKED ino=0x%llx prev={0x%x->0x%x} new={0x%x->0x%x}\n",
 			(unsigned long long)ip->i_ino,
 			ip->i_mxfs_nu_cert_old, ip->i_mxfs_nu_cert_next,
 			ip->i_next_unlinked, next_agino);
@@ -403,7 +403,7 @@ xfs_iunlink_log_inode(
 }
 
 /*
- * mxfs sess396: INSERT-mode transition for xfs_iunlink_insert_inode ONLY (the
+ * INSERT-mode transition for xfs_iunlink_insert_inode ONLY (the
  * path that proves non-membership).  The caller must already have reset a
  * fossil in-core pointer to NULLAGINO (P-IUNL-FOSSIL-ENTRY), so old_agino is
  * NULLAGINO by construction; the precommit then overwrites whatever the

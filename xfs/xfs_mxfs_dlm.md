@@ -1,5 +1,8 @@
 # xfs_mxfs_dlm — XFS-Side DLM Lock Caching + AG Allocation Locks
 
+Since 0.89.89 this layer is 32 files, `xfs_mxfs_*.c`, sharing
+`xfs_mxfs_dlm_priv.h`; `docs/xfs-dlm-layout.md` says which file holds what.
+
 ## Purpose
 
 Three DLM lock subsystems for MXFS v5:

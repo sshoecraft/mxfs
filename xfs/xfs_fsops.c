@@ -309,7 +309,7 @@ xfs_growfs_data(
 
 	if (!capable(CAP_SYS_ADMIN))
 		return -EPERM;
-	/* sess419 D-0133: whole-SB producer (geometry + imaxpct), cluster-refused
+	/* D-0133: whole-SB producer (geometry + imaxpct), cluster-refused
 	 * before m_sb is touched; grow offline with tools/resize_mxfs. */
 	error = mxfs_sb_mutation_refuse(mp, "growfs_data");
 	if (error)
@@ -366,7 +366,7 @@ xfs_growfs_log(
 
 	if (!capable(CAP_SYS_ADMIN))
 		return -EPERM;
-	error = mxfs_sb_mutation_refuse(mp, "growfs_log");	/* sess419 D-0133 */
+	error = mxfs_sb_mutation_refuse(mp, "growfs_log");	/* D-0133 */
 	if (error)
 		return error;
 	if (!mutex_trylock(&mp->m_growlock))
@@ -524,7 +524,7 @@ xfs_do_force_shutdown(
 		mp->m_sb_bp->b_flags |= XBF_DONE;
 
 	/*
-	 * sess9 (ccloop a864): first shutdown of this mount — withdraw from
+	 * ( a864): first shutdown of this mount — withdraw from
 	 * the cluster DLM (queued; this context must not sleep).  A dead FS
 	 * must not keep acquiring/holding cluster locks: in the r13 32/caw
 	 * collapse, 27 acquire-timeout-shutdown nodes kept contending the hot

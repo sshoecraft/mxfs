@@ -170,7 +170,7 @@ xlog_recover_dquot_commit_pass2(
 	ASSERT(bp->b_mount == mp);
 	bp->b_flags |= _XBF_LOGRECOVERY;
 	/*
-	 * sess340 513B: ownership-safe foreign provenance + queue.  Unlike
+	 * 513B: ownership-safe foreign provenance + queue.  Unlike
 	 * the corruption arm above (upstream tolerates a bad dquot here and
 	 * returns 0 — quotacheck repairs it), a queue-ownership conflict
 	 * refuses the replay.

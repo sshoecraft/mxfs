@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
- * mxfs_clayer/release.h — v6a release-token chokepoint (sess35 sketch)
+ * mxfs_clayer/release.h — v6a release-token chokepoint (sketch)
  *
  * STATUS: SKETCH ONLY. Sess36+ implementation task.
  *

@@ -12,7 +12,7 @@ struct xfs_buf;
 struct xlog;
 struct xlog_ticket;
 struct xfs_mount;
-struct mxfs_shadow_eval;	/* sess165: shadow authority evaluator state */
+struct mxfs_shadow_eval;	/* shadow authority evaluator state */
 
 struct xfs_log_iovec {
 	void			*i_addr;/* beginning address of region */
@@ -465,7 +465,7 @@ struct xlog {
 	uint32_t		l_iclog_roundoff;/* padding roundoff */
 
 	/*
-	 * sess165 (foreign-replay step 5): the heartbeat slot of the VICTIM
+	 * (foreign-replay step 5): the heartbeat slot of the VICTIM
 	 * whose records this xlog replays — the dead peer for a FOREIGN_REPLAY
 	 * shadow xlog, our own slot's prior incarnation for an ADOPTED_SLICE
 	 * mount log.  MXFS_XLOG_VICTIM_NONE on every other xlog.  Consumed by
@@ -485,7 +485,7 @@ struct xlog {
 	uint64_t		l_mxfs_victim_epoch;
 	struct mxfs_shadow_eval	*l_mxfs_shadow_eval;
 	/*
-	 * sess359 (#1 GPT review Q3): ATTEMPT-LOCAL token-enforcement mode,
+	 * (#1 design review Q3): ATTEMPT-LOCAL token-enforcement mode,
 	 * established exactly once by mxfs_fr_enforce_preflight before
 	 * xlog_recover runs and never resampled from the global knob — a
 	 * knob armed after the preflight point cannot turn enforcement on
@@ -495,14 +495,14 @@ struct xlog {
 	 */
 	int			l_mxfs_fr_enforce_mode;
 	/*
-	 * sess166: untrusted-replay transactions the report pass saw while no
+	 * untrusted-replay transactions the report pass saw while no
 	 * evaluator state existed (allocation failed / dlm ctx absent) — lets
 	 * the P273-SHADOW-EVAL summary declare itself INCOMPLETE instead of
-	 * a partial count reading as a full one (design-consult sess166 review).
+	 * a partial count reading as a full one (design-consult review).
 	 */
 	uint32_t		l_mxfs_shadow_missed;
 	/*
-	 * sess187 (D-SHUTDOWN-UMOUNT, sess184 ruling): untagged-record replay
+	 * (D-SHUTDOWN-UMOUNT, ruling): untagged-record replay
 	 * authority for a FOREIGN shadow xlog (never set on adopted-slice
 	 * mount logs).  Two predicates evaluated once at shadow-log creation
 	 * from the victim's recovery descriptor:
@@ -525,7 +525,7 @@ struct xlog {
 	bool			l_mxfs_cert_single_node;
 	uint32_t		l_mxfs_untagged_skips;
 	/*
-	 * sess352 (#94 D-IDLE-SLICE-WSKIP-REFUSAL-AG-QUARANTINE-0130):
+	 * (#94 D-IDLE-SLICE-WSKIP-REFUSAL-AG-QUARANTINE-0130):
 	 * counter-only SB transactions the blanket ATOMIC-SKIP classified
 	 * CLEAN and skipped without refusal.  Lazy SB counters are
 	 * reconstructible from AGF/AGI (and mxfs mounts recompute them
@@ -539,7 +539,7 @@ struct xlog {
 	uint32_t		l_mxfs_sbclean_skips;
 	struct xfs_dsb		*l_mxfs_sb_baseline;
 	/*
-	 * sess323 (sess320 ruling, D-513): the quarantine domain accumulated
+	 * (ruling, D-513): the quarantine domain accumulated
 	 * from REFUSED items on this shadow xlog — which AGs the refused
 	 * work would have modified.  Feeds the terminal outcome record when
 	 * a foreign replay is refused.  Any item that cannot be mapped to an
@@ -549,15 +549,15 @@ struct xlog {
 	 */
 	uint64_t		l_mxfs_refused_ag_mask;
 	bool			l_mxfs_refused_fswide;
-	/* sess405: the shadow evaluator saw the victim's fence-time authority
+	/* the shadow evaluator saw the victim's fence-time authority
 	 * mutated after the seal (terminal; see mxfs_fr_shadow_mutated) */
 	bool			l_mxfs_rman_mutated;
-	/* sess405: the sealed manifest failed structural validation (-EPROTO)
+	/* the sealed manifest failed structural validation (-EPROTO)
 	 * under enforcement — terminal MANIFEST_INVALID */
 	bool			l_mxfs_rman_invalid;
 	uint32_t		l_mxfs_malformed_skips;
 	/*
-	 * sess332 (sess328 ruling Q2b): mid-replay TORN fault injection.
+	 * (ruling Q2b): mid-replay TORN fault injection.
 	 * Nonzero = fail pass 2 with -EFSCORRUPTED before applying the Nth
 	 * item, leaving a deterministic applied prefix and taking the REAL
 	 * xlog_recover_cancel unwind — the genuine torn-slice shape, unlike
@@ -567,7 +567,7 @@ struct xlog {
 	 */
 	uint32_t		l_mxfs_force_torn_countdown;
 	/*
-	 * sess403 (design-consult ruling, REDUNDANT_CLEAN): pass-1 table of the
+	 * (design-consult ruling, REDUNDANT_CLEAN): pass-1 table of the
 	 * victim's clean-release markers (XFS_LI_MXFS_RELMARK) on an
 	 * untrusted-replay xlog, consulted by the pass-2 authority gate.
 	 * Allocated lazily on the first marker, freed with the log.
@@ -578,7 +578,7 @@ struct xlog {
 	struct mxfs_relmark_tbl	*l_mxfs_relmark_tbl;
 	uint32_t		l_mxfs_redundant_skips;
 	/*
-	 * sess476 (D-FOREIGN-SLICE-INTENTS-ABANDONED, CANCEL tokens — design-consult
+	 * (D-FOREIGN-SLICE-INTENTS-ABANDONED, CANCEL tokens — design-consult
 	 * ruling ccmemory ccloop-c7ee71c6-sess476-GPT-ruling-cancel-item-
 	 * untagged-fixA-tokenize-binval-pass1-verdict-aware): the pass-1 buffer
 	 * cancel table must be built from ADMITTED transactions only — a
@@ -603,7 +603,7 @@ struct xlog {
 	uint32_t		l_mxfs_cancel_put_miss;
 	uint32_t		l_mxfs_image_cancel_skips;	/* pass-2 images the table suppressed */
 	/*
-	 * sess421 (D-FOREIGN-SLICE-INTENTS-ABANDONED interim, sess420 barrier
+	 * (D-FOREIGN-SLICE-INTENTS-ABANDONED interim, barrier
 	 * ruling): per-slice intent/done census on an untrusted-replay xlog
 	 * (xfs_mxfs_icensus.c).  Lazily allocated on the first intent/done
 	 * item, freed with the log.  l_mxfs_icensus_lost = the census could
@@ -613,7 +613,7 @@ struct xlog {
 	struct mxfs_icensus	*l_mxfs_icensus;
 	bool			l_mxfs_icensus_lost;
 	/*
-	 * sess411 (D-FOREIGN-REPLAY-UNSTABLE-SLICE-READ-FALSE-TORN-527):
+	 * (D-FOREIGN-REPLAY-UNSTABLE-SLICE-READ-FALSE-TORN-527):
 	 * immutable snapshot of the victim's whole slice, captured by
 	 * mxfs_xlog_slice_snapshot() only after repeated full-slice reads
 	 * agree (the live-fenced victim's admitted-pre-preempt writes can
@@ -628,19 +628,19 @@ struct xlog {
 	char			*l_mxfs_slice_snap;
 	unsigned int		l_mxfs_snap_bytes;
 	bool			l_mxfs_snap_unstable_seen;
-	/* sess412: unknown-tid ophdrs skipped as slack during recovery of
+	/* unknown-tid ophdrs skipped as slack during recovery of
 	 * this log — the count a P-FRASM-DISCONT refusal reports as the
 	 * discontinuity evidence.  Probe output is bounded by the _probes
 	 * budget; the count is not. */
 	unsigned int		l_mxfs_unktid_skips;
 	unsigned int		l_mxfs_unktid_probes;
-	/* sess459 (D-0517 instrument step 2): buffer images an untrusted replay
+	/* (D-0517 instrument step 2): buffer images an untrusted replay
 	 * dropped at xlog_recover_buf_commit_pass2's on-disk-LSN >= txn-LSN
 	 * skip.  Across per-node slices those LSNs are incomparable (the inode
 	 * path already replaced the test with di_changecount), so every count
 	 * here is a candidate lost update; reported on the completion line. */
 	unsigned int		l_mxfs_buflsn_skips;
-	/* sess459 (D-0517 fix): APPLY images of class AG/INODE whose on-disk
+	/* (D-0517 fix): APPLY images of class AG/INODE whose on-disk
 	 * stamp would have vetoed them and were applied anyway (the token is
 	 * the authority; the stamp is another slice's number). */
 	unsigned int		l_mxfs_buflsn_overrides;
@@ -658,13 +658,13 @@ struct xlog {
 
 #define MXFS_XLOG_VICTIM_NONE	((uint32_t)-1)
 
-/* sess411 (D-527): capture + stabilize the foreign slice snapshot (defined in
+/* (D-527): capture + stabilize the foreign slice snapshot (defined in
  * xfs_log_recover.c beside xlog_do_io, its consumer).  Returns 0 with
  * l_mxfs_slice_snap set, -EBUSY if the slice would not quiesce inside the
  * deadline (retryable — the caller must NOT publish a terminal verdict),
  * -ENOMEM on allocation failure (equally retryable). */
 int mxfs_xlog_slice_snapshot(struct xlog *log);
-/* sess444: prefetch the NEXT victim's stability proof (barrier); cancel at unmount */
+/* prefetch the NEXT victim's stability proof (barrier); cancel at unmount */
 void mxfs_xlog_snap_prefetch(struct xfs_mount *mp, uint32_t slot);
 void mxfs_xlog_snap_prefetch_cancel(struct xfs_mount *mp);
 
@@ -683,7 +683,7 @@ void mxfs_xlog_snap_prefetch_cancel(struct xfs_mount *mp);
 					   (live-AIL tail/head updates, in-core
 					   sb re-init, intent AIL insertion)
 					   must be skipped. */
-#define XLOG_MXFS_ADOPTED_SLICE	6	/* mxfs sess32: mount-time recovery of a
+#define XLOG_MXFS_ADOPTED_SLICE	6	/* mount-time recovery of a
 					   slice inherited via a PASS-2 (fresh)
 					   disklock claim — any dirty records
 					   belong to an already-recovered or
@@ -718,7 +718,7 @@ xlog_is_mxfs_foreign_replay(struct xlog *log)
 }
 
 /*
- * sess441 (docs/whole-cluster-restart.md §6.5 shape B): this mount's own
+ * (docs/whole-cluster-restart.md §6.5 shape B): this mount's own
  * log is a certified VICTIM's slice adopted by the whole-cluster bootstrap
  * owner under a RECOVERING term.  It is the real mount log (mount side
  * effects run, intents are processed) AND an untrusted replay (every
@@ -741,7 +741,7 @@ xlog_is_mxfs_bootstrap_adopted(struct xlog *log)
 	return test_bit(XLOG_MXFS_BOOTSTRAP_ADOPTED, &log->l_opstate);
 }
 
-/* sess32: replay of records whose authority cannot be validated — either a
+/* replay of records whose authority cannot be validated — either a
  * dead peer's slice (live foreign replay) or an inherited dirty slice at
  * mount.  Image records without a node-independent gate must not be applied
  * from an untrusted source; inode records use the di_changecount gate. */
@@ -750,7 +750,7 @@ xlog_is_mxfs_untrusted_replay(struct xlog *log)
 {
 	return xlog_is_mxfs_foreign_replay(log) ||
 	       xlog_is_mxfs_adopted_slice(log) ||
-	       xlog_is_mxfs_bootstrap_adopted(log);	/* sess441 */
+	       xlog_is_mxfs_bootstrap_adopted(log);	/* */
 }
 
 /*
@@ -773,14 +773,14 @@ xlog_recover_finish(
 	struct xlog		*log);
 extern void
 xlog_recover_cancel(struct xlog *);
-/* sess165: emit the shadow authority evaluator's summary (P273-SHADOW-EVAL)
+/* emit the shadow authority evaluator's summary (P273-SHADOW-EVAL)
  * and free its state; no-op when no evaluation ran on this xlog. */
 void	mxfs_shadow_eval_finish(struct xlog *log);
-/* sess358 (#1): token-enforcement preflight at foreign-slice entry —
+/* (#1): token-enforcement preflight at foreign-slice entry —
  * creates the shared evaluator; aborts elected recovery when enforcement
  * is configured but the victim's FENCED descriptor is unproven. */
 int	mxfs_fr_enforce_preflight(struct xlog *log);
-bool	mxfs_fr_shadow_mutated(struct xlog *log);	/* sess405 */
+bool	mxfs_fr_shadow_mutated(struct xlog *log);	/* */
 
 __le32	 xlog_cksum(struct xlog *log, struct xlog_rec_header *rhead,
 		char *dp, unsigned int hdrsize, unsigned int size);

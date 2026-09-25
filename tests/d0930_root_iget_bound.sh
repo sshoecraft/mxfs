@@ -84,7 +84,7 @@ leave_require() {  # <tag> <node>
     capture_require "$OUT/$1_leave.txt" '^(UNLOADED|STILL_LOADED)$' "$1: the departure of $2"
 }
 join() {  # <node> <tag> <modargs> <bound>
-    rsx $(( $4 + 30 )) "$1" "M=\$(date +%s); echo MARK=\$M; lsmod | grep -q '^mxfs ' || insmod $KO $3; echo INSMOD_RC=\$?; T0=\$(date +%s%N); timeout $4 mount -t mxfs $MXFS_DEV $MNT; R=\$?; echo MOUNT_RC=\$R; echo WALL_MS=\$(( (\$(date +%s%N) - T0) / 1000000 )); mountpoint -q $MNT && echo MOUNTED || echo NOT_MOUNTED; echo DSTATE_MOUNTS=\$(ps -o stat= -C mount 2>/dev/null | grep -c '^D')" > "$OUT/$2_join.txt"
+    rsx $(( $4 + 30 )) "$1" "M=\$(date +%s); echo MARK=\$M; lsmod | grep -q '^mxfs ' || insmod $KO dyndbg=+p $3; echo INSMOD_RC=\$?; T0=\$(date +%s%N); timeout $4 mount -t mxfs $MXFS_DEV $MNT; R=\$?; echo MOUNT_RC=\$R; echo WALL_MS=\$(( (\$(date +%s%N) - T0) / 1000000 )); mountpoint -q $MNT && echo MOUNTED || echo NOT_MOUNTED; echo DSTATE_MOUNTS=\$(ps -o stat= -C mount 2>/dev/null | grep -c '^D')" > "$OUT/$2_join.txt"
     capture_require "$OUT/$2_join.txt" '^(MOUNTED|NOT_MOUNTED)$' "$2: the mount on $1"
     capture_require "$OUT/$2_join.txt" '^MARK=[0-9]+$' "$2: the clock mark of the mount on $1"
     capture_require "$OUT/$2_join.txt" '^DSTATE_MOUNTS=[0-9]+$' "$2: the D-state census on $1"

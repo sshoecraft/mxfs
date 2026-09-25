@@ -123,7 +123,7 @@ fi
 # ---- K: B mounts under a SIGTERM at KILL_AT_S.
 KMARK=$(date +%s)
 echo "MARK=$KMARK" > "$OUT/K_join.txt"
-rsx $((KILL_AT_S + 90)) "$B" "lsmod | grep -q '^mxfs ' || insmod $KO $MODARGS; echo INSMOD_RC=\$?; T0=\$(date +%s%N); timeout -s TERM $KILL_AT_S mount -t mxfs $MXFS_DEV $MNT; echo MOUNT_RC=\$?; echo WALL_MS=\$(( (\$(date +%s%N) - T0) / 1000000 )); mountpoint -q $MNT && echo MOUNTED || echo NOT_MOUNTED" >> "$OUT/K_join.txt"
+rsx $((KILL_AT_S + 90)) "$B" "lsmod | grep -q '^mxfs ' || insmod $KO dyndbg=+p $MODARGS; echo INSMOD_RC=\$?; T0=\$(date +%s%N); timeout -s TERM $KILL_AT_S mount -t mxfs $MXFS_DEV $MNT; echo MOUNT_RC=\$?; echo WALL_MS=\$(( (\$(date +%s%N) - T0) / 1000000 )); mountpoint -q $MNT && echo MOUNTED || echo NOT_MOUNTED" >> "$OUT/K_join.txt"
 measure "$B" 60 "$OUT/K_journal.txt" '^JOURNAL_END$' "the kernel journal on $B since the signalled join" "journalctl -k --since @$KMARK --no-pager 2>/dev/null | cut -c1-600; echo JOURNAL_END"
 measure "$B" 30 "$OUT/K_mount_stack.txt" '^STACK_END$' "the stack of any mount still running on $B" "for p in /proc/[0-9]*; do [ \"\$(cat \$p/comm 2>/dev/null)\" = mount ] || continue; echo \"PID=\${p#/proc/} STATE=\$(cut -d' ' -f3 \$p/stat)\"; cat \$p/stack 2>/dev/null; done; echo STACK_END"
 capture_require "$OUT/K_join.txt" '^(MOUNTED|NOT_MOUNTED)$' "the signalled join of $B"
@@ -145,7 +145,7 @@ ck   "K: $B is not mounted" "$(c '^NOT_MOUNTED' "$OUT/K_join.txt")" 1
 # must be recoverable.
 CMARK=$(date +%s)
 echo "MARK=$CMARK" > "$OUT/C_join.txt"
-rsx $((JOIN_BOUND + 60)) "$A" "lsmod | grep -q '^mxfs ' || insmod $KO $MODARGS; echo INSMOD_RC=\$?; T0=\$(date +%s%N); mountpoint -q $MNT || timeout $JOIN_BOUND mount -t mxfs $MXFS_DEV $MNT; echo MOUNT_RC=\$?; echo WALL_MS=\$(( (\$(date +%s%N) - T0) / 1000000 )); mountpoint -q $MNT && echo MOUNTED || echo NOT_MOUNTED" >> "$OUT/C_join.txt"
+rsx $((JOIN_BOUND + 60)) "$A" "lsmod | grep -q '^mxfs ' || insmod $KO dyndbg=+p $MODARGS; echo INSMOD_RC=\$?; T0=\$(date +%s%N); mountpoint -q $MNT || timeout $JOIN_BOUND mount -t mxfs $MXFS_DEV $MNT; echo MOUNT_RC=\$?; echo WALL_MS=\$(( (\$(date +%s%N) - T0) / 1000000 )); mountpoint -q $MNT && echo MOUNTED || echo NOT_MOUNTED" >> "$OUT/C_join.txt"
 measure "$A" 60 "$OUT/C_journal.txt" '^JOURNAL_END$' "the kernel journal on $A since its join" "journalctl -k --since @$CMARK --no-pager 2>/dev/null | cut -c1-600; echo JOURNAL_END"
 capture_require "$OUT/C_join.txt" '^(MOUNTED|NOT_MOUNTED)$' "the join of $A"
 cmrc=$(field "$OUT/C_join.txt" MOUNT_RC); cwall=$(field "$OUT/C_join.txt" WALL_MS)
@@ -165,7 +165,7 @@ ck   "C: A completed its mount over the records the cancelled mount left behind"
 # ---- R: B mounts again, unsignalled.
 RMARK=$(date +%s)
 echo "MARK=$RMARK" > "$OUT/R_join.txt"
-rsx $((JOIN_BOUND + 60)) "$B" "lsmod | grep -q '^mxfs ' || insmod $KO $MODARGS; echo INSMOD_RC=\$?; T0=\$(date +%s%N); mountpoint -q $MNT || timeout $JOIN_BOUND mount -t mxfs $MXFS_DEV $MNT; echo MOUNT_RC=\$?; echo WALL_MS=\$(( (\$(date +%s%N) - T0) / 1000000 )); mountpoint -q $MNT && echo MOUNTED || echo NOT_MOUNTED" >> "$OUT/R_join.txt"
+rsx $((JOIN_BOUND + 60)) "$B" "lsmod | grep -q '^mxfs ' || insmod $KO dyndbg=+p $MODARGS; echo INSMOD_RC=\$?; T0=\$(date +%s%N); mountpoint -q $MNT || timeout $JOIN_BOUND mount -t mxfs $MXFS_DEV $MNT; echo MOUNT_RC=\$?; echo WALL_MS=\$(( (\$(date +%s%N) - T0) / 1000000 )); mountpoint -q $MNT && echo MOUNTED || echo NOT_MOUNTED" >> "$OUT/R_join.txt"
 measure "$B" 60 "$OUT/R_journal.txt" '^JOURNAL_END$' "the kernel journal on $B since its retry" "journalctl -k --since @$RMARK --no-pager 2>/dev/null | cut -c1-600; echo JOURNAL_END"
 capture_require "$OUT/R_join.txt" '^(MOUNTED|NOT_MOUNTED)$' "the retry join of $B"
 echo "STAGE R: B mount rc=$(field "$OUT/R_join.txt" MOUNT_RC) wall=$(field "$OUT/R_join.txt" WALL_MS)ms $(grep -a '^MOUNTED\|^NOT_MOUNTED' "$OUT/R_join.txt")"

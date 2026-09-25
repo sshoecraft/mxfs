@@ -113,7 +113,7 @@ one_arm() {
     timeout 180 "$SSH" "$NODE" "
         timeout 60 umount $MNT 2>/dev/null
         rmmod mxfs 2>/dev/null
-        insmod $KO $KNOBS $knobs 2>&1 | head -2
+        insmod $KO dyndbg=+p $KNOBS $knobs 2>&1 | head -2
         echo 'MXFS-FENCECAP-$tag' > /dev/kmsg
         timeout 60 mount -t mxfs $LOOP $MNT 2>&1; echo mount_rc=\$?
         echo mounted=\$(grep -c ' $MNT ' /proc/mounts)

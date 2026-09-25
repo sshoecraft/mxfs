@@ -18,7 +18,7 @@
 #include "xfs_btree.h"
 #include "xfs_log_recover.h"
 #include "xfs_fsops.h"
-#include "xfs_mxfs_dirshard.h"	/* sess467: MXFS_IOC_TYPE, mxfs_dirshard_ioctl */
+#include "xfs_mxfs_dirshard.h"	/* MXFS_IOC_TYPE, mxfs_dirshard_ioctl */
 /* the real prototypes, so each stub is checked against what its callers call */
 #include "xfs_rtrefcount_btree.h"
 #include "xfs_rtrmap_btree.h"

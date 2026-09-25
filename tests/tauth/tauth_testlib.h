@@ -32,7 +32,7 @@ static void raw_write(uint64_t off, const void *buf, size_t len)
     fsync(fd); close(fd);
 }
 
-static void raw_read(uint64_t off, void *buf, size_t len)
+static inline void raw_read(uint64_t off, void *buf, size_t len)
 {
     int fd = open(tl_path, O_RDONLY);
     if (fd < 0 || pread(fd, buf, len, off) != (ssize_t)len) { perror("raw_read"); exit(2); }

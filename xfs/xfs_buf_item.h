@@ -42,12 +42,12 @@ struct xfs_mount;
 	{ XFS_BLI_MXFS_AGMETA_TRACKED, "MXFS_AGMETA" }
 
 /*
- * ─── MXFS AUTHORITY PROOF SIDECAR (sess103, step 5.3, ruling P0/P1) ───
+ * ─── MXFS AUTHORITY PROOF SIDECAR (step 5.3, ruling P0/P1) ───
  *
  * D-FOREIGN-REPLAY-UNGATED-IMAGES needs every logged metadata image to carry
  * proof of the grant that authorized the MUTATION.  Until 0.11.435 that proof
  * was looked up in xfs_buf_item_format_segment, at CIL format time, and the
- * sess102 design-consult ruling declared that UNSOUND (release blocker P0):
+ * design-consult ruling declared that UNSOUND (release blocker P0):
  *
  *     modify under epoch E1 -> release E1 -> reacquire under E2
  *                           -> the formatter stamps E2
@@ -85,7 +85,7 @@ struct mxfs_bli_auth {
 	uint8_t		mba_status;	/* MXFS_AUTH_ST_* */
 	uint8_t		mba_outcome;	/* MXFS_OWNAUTH_* diagnostic bucket */
 	uint8_t		mba_dlm_mode;	/* i_dlm_mode at capture (inode arm) */
-	uint8_t		mba_retype_pending;	/* sess445 D-0512: the BLFT changed
+	uint8_t		mba_retype_pending;	/* D-0512: the BLFT changed
 					 * after capture in this window and the
 					 * proof has not been re-established under
 					 * the new type; serialize voids while set */
@@ -137,7 +137,7 @@ extern unsigned int mxfs_ailpin_clear_report_ms;
  */
 struct xfs_trans;
 void	mxfs_bli_auth_capture(struct xfs_trans *tp, struct xfs_buf *bp);
-/* sess476: negative-arm forge of a CANCEL record's captured proof */
+/* negative-arm forge of a CANCEL record's captured proof */
 void	mxfs_dbg_cancel_token_forge_apply(struct xfs_buf *bp);
 void	mxfs_bli_auth_note_retype(struct xfs_trans *tp, struct xfs_buf *bp,
 				  uint16_t new_blft);

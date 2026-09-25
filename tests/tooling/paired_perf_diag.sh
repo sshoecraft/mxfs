@@ -103,7 +103,7 @@ umount "$MNT"
 
 # ---- mxfs leg ----
 modprobe libcrc32c 2>/dev/null || true
-lsmod | grep -q '^mxfs' || insmod "$MODULE" force_transport=1 || fail "insmod"
+lsmod | grep -q '^mxfs' || insmod "$MODULE" dyndbg=+p force_transport=1 || fail "insmod"
 "$MKFS_MXFS" -f "$DEV" >/dev/null 2>&1 || fail "mkfs_mxfs"
 mount -t mxfs "$DEV" "$MNT" || fail "mxfs mount"
 run_leg mxfs mxfs

@@ -45,7 +45,7 @@ MARK="F2ICLUS-$LABEL-$$"
 timeout 12 $SSH "$NODE" "echo '$MARK' > /dev/kmsg" >/dev/null 2>&1
 value_now_into urc "$NODE" 60 "$OUT/rv_urc_2.txt" '^rc=' "urc on $NODE" "if grep -q ' $MNT ' /proc/mounts; then timeout 45 umount $MNT; echo rc=\$?; else echo rc=0; fi"; urc=$(printf '%s\n' "$urc" | sed -n 's/^rc=//p')
 ck "$NODE unmounted for the reload" "$urc" "0"
-value_now_into rl "$NODE" 30 "$OUT/rv_rl_3.txt" '^-?[0-9]+$' "rl on $NODE" "rmmod mxfs && insmod /src/mxfs/mxfs.ko icluster_dlm=1 && cat $P/icluster_dlm"
+value_now_into rl "$NODE" 30 "$OUT/rv_rl_3.txt" '^-?[0-9]+$' "rl on $NODE" "rmmod mxfs && insmod /src/mxfs/mxfs.ko dyndbg=+p icluster_dlm=1 && cat $P/icluster_dlm"
 ck "module reloaded with icluster_dlm=1" "$rl" "1"
 
 # F2-ok knobs so the ICLUS predicate is the ONLY unmet one
@@ -70,7 +70,7 @@ value_now_into psetv2 "$NODE" 10 "$OUT/pset_2.txt" '^(OK|REFUSED)$' "a knob set 
 ck "disarm still allowed" "$psetv2" "OK"
 
 # control: same knobs, icluster_dlm=0 -> arm accepted
-value_now_into rl "$NODE" 30 "$OUT/rv_rl_4.txt" '^-?[0-9]+$' "rl on $NODE" "rmmod mxfs && insmod /src/mxfs/mxfs.ko && cat $P/icluster_dlm"
+value_now_into rl "$NODE" 30 "$OUT/rv_rl_4.txt" '^-?[0-9]+$' "rl on $NODE" "rmmod mxfs && insmod /src/mxfs/mxfs.ko dyndbg=+p && cat $P/icluster_dlm"
 ck "module reloaded plain (icluster_dlm=0)" "$rl" "0"
 pset fua_disable 0 >/dev/null
 value_now_into pgetv3 "$NODE" 10 "$OUT/pget_3.txt" '^-?[0-9]+$' "a knob read on $NODE" "cat $P/release_proof_enforce"

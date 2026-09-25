@@ -206,12 +206,12 @@ deploy_ko "$B" 1
 # B: module loaded, NOT mounted.  A mount is what registers a PR key and takes
 # a heartbeat slot, so an insmod alone leaves B outside the cluster entirely.
 measure "$B" 60 "$OUT/B_insmod.txt" '^INSMOD_RC=' "the observer's module load" \
-    "lsmod | grep -q '^mxfs ' || insmod $KO $MODARGS; echo INSMOD_RC=\$?; mountpoint -q $MNT && echo MOUNTED || echo NOT_MOUNTED"
+    "lsmod | grep -q '^mxfs ' || insmod $KO dyndbg=+p $MODARGS; echo INSMOD_RC=\$?; mountpoint -q $MNT && echo MOUNTED || echo NOT_MOUNTED"
 ck "the observer $B is loaded and NOT mounted" "$(grep -ac '^NOT_MOUNTED' "$OUT/B_insmod.txt")" 1
 
 # ---- 2. A alone claims the bootstrap term
 MARK="BTK-MARK-$LABEL"
-rsx 60 "$A" "echo $MARK > /dev/kmsg; lsmod | grep -q '^mxfs ' || insmod $KO $MODARGS; echo INSMOD_RC=\$?; nohup timeout $CLAIM_BOUND mount -t mxfs $MXFS_DEV $MNT > /run/btk_mount.log 2>&1 & echo LAUNCHED" > "$OUT/A_mount_launch.txt"
+rsx 60 "$A" "echo $MARK > /dev/kmsg; lsmod | grep -q '^mxfs ' || insmod $KO dyndbg=+p $MODARGS; echo INSMOD_RC=\$?; nohup timeout $CLAIM_BOUND mount -t mxfs $MXFS_DEV $MNT > /run/btk_mount.log 2>&1 & echo LAUNCHED" > "$OUT/A_mount_launch.txt"
 capture_require "$OUT/A_mount_launch.txt" '^LAUNCHED$' "A's bootstrap mount launch"
 echo "STAGE A's bootstrap mount launched at +$(el)s (waiting for P-BOOT-CLAIMED, bound ${CLAIM_BOUND}s)"
 wait_for_into claimed "$A" "$CLAIM_BOUND" "$MARK" "P-BOOT-CLAIMED"
@@ -274,7 +274,7 @@ arm_run() {     # <node> <arm-name> <tag>
     rec_into "$B" "$m0" "the record before the $name arm"
     mstate=$(bs_field "$m0" state); mterm=$(bs_field "$m0" term)
     mowner=$(bs_field "$m0" owner); mkey=$(bs_field "$m0" key)
-    rsx $((JOIN_BOUND + 90)) "$n" "echo $MARK-$tag > /dev/kmsg; lsmod | grep -q '^mxfs ' || insmod $KO $MODARGS; echo INSMOD_RC=\$?; T0=\$(date +%s%N); timeout $JOIN_BOUND mount -t mxfs $MXFS_DEV $MNT; echo MOUNT_RC=\$?; echo WALL_MS=\$(( (\$(date +%s%N) - T0) / 1000000 )); mountpoint -q $MNT && echo MOUNTED || echo NOT_MOUNTED" > "$OUT/${tag}_mount.txt"
+    rsx $((JOIN_BOUND + 90)) "$n" "echo $MARK-$tag > /dev/kmsg; lsmod | grep -q '^mxfs ' || insmod $KO dyndbg=+p $MODARGS; echo INSMOD_RC=\$?; T0=\$(date +%s%N); timeout $JOIN_BOUND mount -t mxfs $MXFS_DEV $MNT; echo MOUNT_RC=\$?; echo WALL_MS=\$(( (\$(date +%s%N) - T0) / 1000000 )); mountpoint -q $MNT && echo MOUNTED || echo NOT_MOUNTED" > "$OUT/${tag}_mount.txt"
     capture_require "$OUT/${tag}_mount.txt" '^(MOUNTED|NOT_MOUNTED)$' "the $name mount attempt"
     measure "$n" 60 "$j" '^JOURNAL_END$' "the kernel journal for the $name arm" \
         "dmesg | sed -n '/$MARK-$tag/,\$p' | cut -c1-600; echo JOURNAL_END"

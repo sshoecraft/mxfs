@@ -184,7 +184,7 @@ import re, sys
 path, PASS, F = sys.argv[1], sys.argv[2], sys.argv[3]
 cre, gap, wall, per = [], [], [], {}
 for ln in open(path, errors="replace"):
-    m = re.search(r"creates=(\d+) wall_ms=(\d+) mean_ms=(\d+) gap_ms=(\d+).*?endsrc=(\d+)", ln)
+    m = re.search(r"creates=(\d+) wall_ms=(\d+) mean_ms=(\d+) gap_ms=(\d+).*?endsrc=(\d+:\d+)", ln)
     if not m:
         continue
     cre.append(int(m.group(1))); wall.append(int(m.group(2)))

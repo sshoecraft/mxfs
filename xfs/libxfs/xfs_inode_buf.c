@@ -23,8 +23,8 @@
 
 #include <linux/iversion.h>
 
-#include "xfs_inode_item.h"	/* sess62: b_li_list own-flush mask */
-#include "../../dlm/v5_mount.h"	/* sess60: P-DIRFLUSH write-verify detector */
+#include "xfs_inode_item.h"	/* b_li_list own-flush mask */
+#include "../../dlm/v5_mount.h"	/* P-DIRFLUSH write-verify detector */
 
 /*
  * If we are doing readahead on an inode buffer, we might be in log recovery
@@ -79,7 +79,7 @@ xfs_inode_buf_verify(
 				be16_to_cpu(dip->di_magic));
 #endif
 			/*
-			 * sess44 (ccloop 8ddb16a2) INSTRUMENTED PROBE — the 2/tcp
+			 * INSTRUMENTED PROBE — the 2/tcp
 			 * cumulative-churn wedge reads a node's OWN-AG inode
 			 * cluster as ALL ZEROS (di_magic=0) -> verify fail ->
 			 * shutdown.  Capture WHO reads the dead cluster (the
@@ -93,13 +93,13 @@ xfs_inode_buf_verify(
 				static atomic_t p_badv = ATOMIC_INIT(0);
 
 				if (atomic_inc_return(&p_badv) <= 6) {
-					pr_warn("mxfs: P-ICLUSTER-BADVERIFY daddr=%lld slot=%d magic=0x%x di_gen=%u comm=%s pid=%d\n",
+					mxfs_probe("mxfs: P-ICLUSTER-BADVERIFY daddr=%lld slot=%d magic=0x%x di_gen=%u comm=%s pid=%d\n",
 						(long long)xfs_buf_daddr(bp), i,
 						be16_to_cpu(dip->di_magic),
 						be32_to_cpu(dip->di_gen),
 						current->comm,
 						task_pid_nr(current));
-					dump_stack();
+					mxfs_probe_stack();
 				}
 			}
 			xfs_buf_verifier_error(bp, -EFSCORRUPTED,
@@ -126,9 +126,9 @@ xfs_inode_buf_readahead_verify(
 }
 
 /*
- * sess60 instrumented ALWAYS-ON: P-DIRFLUSH.
+ * instrumented ALWAYS-ON: P-DIRFLUSH.
  *
- * The cross_visibility lost-update was proven (sess59) to be a DISK REVERSION:
+ * The cross_visibility lost-update was proven to be a DISK REVERSION:
  * the on-disk shortform dir progresses through all 4 entries, then ~3s later
  * every node FUA-reloads it back to count=1.  Strong hypothesis: a node's
  * cached inode-CLUSTER buffer still holds the STALE dir image (count=1) because
@@ -167,7 +167,7 @@ mxfs_inode_buf_write_dirlog(
 	ni = XFS_BB_TO_FSB(mp, bp->b_length) * mp->m_sb.sb_inopblock;
 
 	/*
-	 * sess62 instrumented H-A vs H-B discriminator: build the mask of slots being
+	 * instrumented H-A vs H-B discriminator: build the mask of slots being
 	 * flushed THIS round (inodes still attached to b_li_list in IFLUSHING
 	 * state until buffer I/O completes).  A dir written sub-max whose slot
 	 * is in this mask is an OWN-flush of a stale in-core dir inode (H-A:
@@ -194,7 +194,7 @@ mxfs_inode_buf_write_dirlog(
 	}
 
 	/*
-	 * sess45 (ccloop 8ddb16a2) INSTRUMENTED PROBE — the 2/tcp durable wedge is a
+	 * INSTRUMENTED PROBE — the 2/tcp durable wedge is a
 	 * cluster persisted with mixed valid+zero slots (slots 0-3 magic IN,
 	 * 4-15 magic 0).  The write verifier checks EVERY slot's magic and would
 	 * -EFSCORRUPTED such a buffer, so a normal verified full-cluster write
@@ -222,13 +222,13 @@ mxfs_inode_buf_write_dirlog(
 			static atomic_t p45_wz = ATOMIC_INIT(0);
 
 			if (atomic_inc_return(&p45_wz) <= 12) {
-				pr_warn("mxfs: P45-WR-CLUSTER daddr=%lld ni=%d full_ni=%d b_len_bb=%u zero_mask=0x%llx alloc_mask=0x%llx comm=%s pid=%d\n",
+				mxfs_probe("mxfs: P45-WR-CLUSTER daddr=%lld ni=%d full_ni=%d b_len_bb=%u zero_mask=0x%llx alloc_mask=0x%llx comm=%s pid=%d\n",
 					(long long)xfs_buf_daddr(bp), ni,
 					full_ni, bp->b_length,
 					(unsigned long long)zero_mask,
 					(unsigned long long)alloc_mask,
 					current->comm, task_pid_nr(current));
-				dump_stack();
+				mxfs_probe_stack();
 			}
 		}
 	}
@@ -257,7 +257,7 @@ mxfs_inode_buf_write_dirlog(
 		if (nl > 24)
 			nl = 24;
 		/*
-		 * Volume/perturbation cut (sess60): the cross_visibility dirs
+		 * Volume/perturbation cut: the cross_visibility dirs
 		 * hold node*.txt entries.  Only log a shortform dir whose FIRST
 		 * entry name begins with "node" — this is the failing dir family
 		 * and excludes the bulk of unrelated inode-cluster writes (most
@@ -268,14 +268,14 @@ mxfs_inode_buf_write_dirlog(
 		if (nl < 4 || sfep->name[0] != 'n' || sfep->name[1] != 'o' ||
 		    sfep->name[2] != 'd' || sfep->name[3] != 'e')
 			continue;
-		/* sess61: P-DIRFLUSH quieted (was per-shortform-write flood that
+		/* P-DIRFLUSH quieted (was per-shortform-write flood that
 		 * wrapped the ring + slowed the test). Kept compiled, capped low. */
 		{
 			static atomic_t pdf = ATOMIC_INIT(0);
 			if (atomic_inc_return(&pdf) > 20000)
 				continue;
 		}
-		mxfs_pal_log(MXFS_LOG_WARN,
+		mxfs_pal_log(MXFS_LOG_DEBUG,
 			"mxfs: P-DIRFLUSH ino=%llu count=%u i8=%u own=%d first=[%.*s] realns=%llu",
 			(unsigned long long)ino, sfp->count, sfp->i8count,
 			(flushing & (1ULL << i)) ? 1 : 0,
@@ -402,7 +402,7 @@ xfs_inode_from_disk(
 		ip->i_projid = 0;
 	} else {
 		/*
-		 * sess9(a9a03929) instrumented s_remove_count skew ledger: soak FAILs
+		 * instrumented s_remove_count skew ledger: soak FAILs
 		 * on a WARN flood at fs/inode.c:289 (__destroy_inode decrements
 		 * s_remove_count at 0).  Log every counter-affecting nlink EDGE
 		 * (0 <-> nonzero) applied from a disk image, with the live
@@ -416,7 +416,7 @@ xfs_inode_from_disk(
 			if ((p9_old == 0) != (p9_new == 0)) {
 				static atomic_t p9nl_n = ATOMIC_INIT(0);
 				if (atomic_inc_return(&p9nl_n) <= 4000)
-					pr_warn("mxfs: P9-NLEDGE from_disk ino=%llu old=%u new=%u rmcnt=%ld acct=%d comm=%s\n",
+					mxfs_probe("mxfs: P9-NLEDGE from_disk ino=%llu old=%u new=%u rmcnt=%ld acct=%d comm=%s\n",
 						(unsigned long long)ip->i_ino,
 						p9_old, p9_new,
 						atomic_long_read(&inode->i_sb->s_remove_count),
@@ -448,7 +448,7 @@ xfs_inode_from_disk(
 			      xfs_inode_from_disk_ts(from, from->di_ctime));
 
 	/*
-	 * sess33 (ccloop 8ddb16a2) P33-FROMDISK-DIRSHRINK (instrumented, decisive):
+	 * P33-FROMDISK-DIRSHRINK (instrumented, decisive):
 	 * catch ANY adopt-from-disk path (reload, recycle, cache-miss-over-
 	 * existing) that REVERTS a directory's data-fork size to a SMALLER
 	 * value.  The dir grew to >1 data block, then a stale on-disk image
@@ -474,7 +474,7 @@ xfs_inode_from_disk(
 			static atomic_t p33fd = ATOMIC_INIT(0);
 
 			if (atomic_inc_return(&p33fd) <= 80)
-				pr_warn("mxfs: P33-FROMDISK-DIRSHRINK ino=%llu old_size=%lld new_size=%lld old_nx=%llu new_nx=%llu old_fmt=%u new_fmt=%u disk_gen=%u sz_shrink=%d nx_shrink=%d comm=%s — dir data-fork REVERTED smaller (leaf-vs-data tear source)\n",
+				mxfs_probe("mxfs: P33-FROMDISK-DIRSHRINK ino=%llu old_size=%lld new_size=%lld old_nx=%llu new_nx=%llu old_fmt=%u new_fmt=%u disk_gen=%u sz_shrink=%d nx_shrink=%d comm=%s — dir data-fork REVERTED smaller (leaf-vs-data tear source)\n",
 					(unsigned long long)ip->i_ino,
 					p33_old, p33_new,
 					(unsigned long long)p33_oldnx,
@@ -494,7 +494,7 @@ xfs_inode_from_disk(
 	ip->i_next_unlinked = be32_to_cpu(from->di_next_unlinked);
 
 	/*
-	 * sess395 (D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN, lap-3 test10
+	 * (D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN, lap-3 test10
 	 * AG10 bucket-10 autopsy): a dinode image whose di_nlink > 0 can never
 	 * be an unlinked-list member, so a non-NULLAGINO di_next_unlinked on
 	 * such an image is a PLATTER FOSSIL — a prior life's chain pointer
@@ -512,7 +512,7 @@ xfs_inode_from_disk(
 		static atomic_t p_fossil_ingress = ATOMIC_INIT(0);
 
 		if (atomic_inc_return(&p_fossil_ingress) <= 300)
-			pr_warn("mxfs: P-IUNL-FOSSIL-INGRESS ino=%llu agino=0x%x disk_next=0x%x nlink=%u mode=0%o gen=%u caller=%pS comm=%s — LINKED dinode image carries a non-NULL di_next_unlinked (platter fossil) and it is being imported into core\n",
+			mxfs_probe("mxfs: P-IUNL-FOSSIL-INGRESS ino=%llu agino=0x%x disk_next=0x%x nlink=%u mode=0%o gen=%u caller=%pS comm=%s — LINKED dinode image carries a non-NULL di_next_unlinked (platter fossil) and it is being imported into core\n",
 				(unsigned long long)ip->i_ino,
 				XFS_INO_TO_AGINO(ip->i_mount, ip->i_ino),
 				ip->i_next_unlinked, inode->i_nlink,
@@ -617,7 +617,7 @@ xfs_inode_to_disk(
 	to->di_mode = cpu_to_be16(inode->i_mode);
 
 	/*
-	 * sess33 (ccloop 8ddb16a2) P33-TODISK-DIRSHRINK (instrumented, decisive):
+	 * P33-TODISK-DIRSHRINK (instrumented, decisive):
 	 * write-side twin of P33-FROMDISK-DIRSHRINK.  `to` points into the
 	 * live cluster buffer, so to->di_size still holds the CURRENT on-disk
 	 * size.  If we are about to iflush a DIRECTORY whose in-core size is
@@ -634,7 +634,7 @@ xfs_inode_to_disk(
 			static atomic_t p33td = ATOMIC_INIT(0);
 
 			if (atomic_inc_return(&p33td) <= 80)
-				pr_warn("mxfs: P33-TODISK-DIRSHRINK ino=%llu disk_size=%lld writing_size=%lld writing_nx=%llu disk_gen=%u writing_gen=%u comm=%s — iflush REVERTING dir data-fork size smaller (leaf-vs-data tear source)\n",
+				mxfs_probe("mxfs: P33-TODISK-DIRSHRINK ino=%llu disk_size=%lld writing_size=%lld writing_nx=%llu disk_gen=%u writing_gen=%u comm=%s — iflush REVERTING dir data-fork size smaller (leaf-vs-data tear source)\n",
 					(unsigned long long)ip->i_ino,
 					p33_old, p33_new,
 					(unsigned long long)xfs_ifork_nextents(&ip->i_df),
@@ -650,7 +650,7 @@ xfs_inode_to_disk(
 	to->di_aformat = xfs_ifork_format(&ip->i_af);
 	to->di_flags = cpu_to_be16(ip->i_diflags);
 
-	/* P-CCREGRESS (sess10 ccloop 72513a13, instrumented drc@32 unanimous-48
+	/* P-CCREGRESS (instrumented drc@32 unanimous-48
 	 * dirent clobber): writing a di_changecount LOWER than the value the
 	 * live cluster buffer already carries (same incarnation) means this
 	 * iflush serializes an in-core image based on a STALE base — the
@@ -665,7 +665,7 @@ xfs_inode_to_disk(
 			static atomic_t p_ccr = ATOMIC_INIT(0);
 
 			if (atomic_inc_return(&p_ccr) <= 300)
-				pr_warn("mxfs: P-CCREGRESS ino=%llu cc_disk=%llu cc_writing=%llu gen=%u size=%lld comm=%s realns=%llu\n",
+				mxfs_probe("mxfs: P-CCREGRESS ino=%llu cc_disk=%llu cc_writing=%llu gen=%u size=%lld comm=%s realns=%llu\n",
 					(unsigned long long)ip->i_ino,
 					(unsigned long long)ccr_old,
 					(unsigned long long)ccr_new,
@@ -1081,7 +1081,7 @@ xfs_dinode_verify(
 		return __this_address;
 
 	/*
-	 * MXFS directory sharding (sess466, docs/dir-sharding.md, ruling Q1
+	 * MXFS directory sharding (docs/dir-sharding.md, ruling Q1
 	 * verifier split): only dinode-visible facts.  Either private flag
 	 * needs the sb feature; CONTAINER (a shard directory or the manifest
 	 * holder file) is S_IFDIR or S_IFREG; PARENT is S_IFDIR; never both.

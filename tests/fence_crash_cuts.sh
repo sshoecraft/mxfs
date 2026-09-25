@@ -794,7 +794,7 @@ else
     ck "B back: A1's registration persists as the fence target" "$k2_p" 1
 fi
 BMARK=$(date +%s)
-rsx $((JOIN_BOUND + 60)) "$B" "lsmod | grep -q '^mxfs ' || insmod $KO $MODARGS; echo INSMOD_RC=\$?; T0=\$(date +%s%N); timeout $JOIN_BOUND mount -t mxfs $MXFS_DEV $MNT; echo MOUNT_RC=\$?; echo WALL_MS=\$(( (\$(date +%s%N) - T0) / 1000000 )); mountpoint -q $MNT && echo MOUNTED || echo NOT_MOUNTED" > "$OUT/B_mount.txt"
+rsx $((JOIN_BOUND + 60)) "$B" "lsmod | grep -q '^mxfs ' || insmod $KO dyndbg=+p $MODARGS; echo INSMOD_RC=\$?; T0=\$(date +%s%N); timeout $JOIN_BOUND mount -t mxfs $MXFS_DEV $MNT; echo MOUNT_RC=\$?; echo WALL_MS=\$(( (\$(date +%s%N) - T0) / 1000000 )); mountpoint -q $MNT && echo MOUNTED || echo NOT_MOUNTED" > "$OUT/B_mount.txt"
 capture_require "$OUT/B_mount.txt" '^(MOUNTED|NOT_MOUNTED)$' "the mount on $B's fresh boot"
 echo "STAGE B mount rc=$(field "$OUT/B_mount.txt" MOUNT_RC) wall=$(field "$OUT/B_mount.txt" WALL_MS)ms $(grep -ao '^MOUNTED\|^NOT_MOUNTED' "$OUT/B_mount.txt") at +$(el)s"
 measure "$B" 60 "$OUT/B_journal.txt" '^JOURNAL_END$' "the kernel journal on $B since its boot" "dmesg | cut -c1-600; echo JOURNAL_END"
@@ -998,7 +998,7 @@ $VIRSH start "$A" > /dev/null 2>&1
 waitboot "$A"
 deploy_ko "$A"
 AMARK2=$(date +%s)
-rsx $((JOIN_BOUND + 60)) "$A" "lsmod | grep -q '^mxfs ' || insmod $KO $MODARGS; echo INSMOD_RC=\$?; T0=\$(date +%s%N); timeout $JOIN_BOUND mount -t mxfs $MXFS_DEV $MNT; echo MOUNT_RC=\$?; echo WALL_MS=\$(( (\$(date +%s%N) - T0) / 1000000 )); mountpoint -q $MNT && echo MOUNTED || echo NOT_MOUNTED" > "$OUT/A_join.txt"
+rsx $((JOIN_BOUND + 60)) "$A" "lsmod | grep -q '^mxfs ' || insmod $KO dyndbg=+p $MODARGS; echo INSMOD_RC=\$?; T0=\$(date +%s%N); timeout $JOIN_BOUND mount -t mxfs $MXFS_DEV $MNT; echo MOUNT_RC=\$?; echo WALL_MS=\$(( (\$(date +%s%N) - T0) / 1000000 )); mountpoint -q $MNT && echo MOUNTED || echo NOT_MOUNTED" > "$OUT/A_join.txt"
 capture_require "$OUT/A_join.txt" '^(MOUNTED|NOT_MOUNTED)$' "the rejoin of $A"
 echo "STAGE A join rc=$(field "$OUT/A_join.txt" MOUNT_RC) wall=$(field "$OUT/A_join.txt" WALL_MS)ms $(grep -ao '^MOUNTED\|^NOT_MOUNTED' "$OUT/A_join.txt") at +$(el)s"
 measure "$A" 60 "$OUT/A_join_journal.txt" '^JOURNAL_END$' "the kernel journal on $A since its boot" "dmesg | cut -c1-600; echo JOURNAL_END"

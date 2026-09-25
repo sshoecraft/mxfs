@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
- * mxfs_clayer/acquire.h — v6a acquire-token chokepoint (sess35 sketch)
+ * mxfs_clayer/acquire.h — v6a acquire-token chokepoint (sketch)
  *
  * STATUS: SKETCH ONLY. Sess36+ implementation task.
  *

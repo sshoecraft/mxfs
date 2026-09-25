@@ -237,7 +237,7 @@ struct xfs_trans_header {
 #define	XFS_LI_CUI_RT		0x124e	/* realtime refcount update intent */
 #define	XFS_LI_CUD_RT		0x124f	/* realtime refcount update done */
 /*
- * MXFS (sess403): clean-release marker — see struct mxfs_relmark_log_format.
+ * MXFS: clean-release marker — see struct mxfs_relmark_log_format.
  * Deliberately far from the upstream range so a future upstream type cannot
  * collide with it.  A pre-sess403 node cannot parse it (unknown item type
  * fails recovery with -EFSCORRUPTED), which is why MXFS_PROTO_GEN moved 5->6
@@ -273,7 +273,7 @@ struct xfs_trans_header {
 	{ XFS_LI_MXFS_RELMARK,	"XFS_LI_MXFS_RELMARK" }
 
 /*
- * MXFS clean-release marker (sess403 design-consult ruling, D-FOREIGN-REPLAY-UNGATED-
+ * MXFS clean-release marker (design-consult ruling, D-FOREIGN-REPLAY-UNGATED-
  * IMAGES / D-402).  Logged ALONE in its own transaction by the node that is
  * releasing the named EX/PW tenure, after the Invariant-1 drain and before the
  * on-disk unlock CAS, and forced synchronously.  Identity is the COMPLETE
@@ -545,7 +545,7 @@ struct xfs_log_dinode {
 #define	XFS_BLF_GDQUOT_BUF	(1<<4)
 
 /*
- * sess48 (MXFS foreign-replay authority token, step 3): this buffer log
+ * (MXFS foreign-replay authority token, step 3): this buffer log
  * format region carries a trailing struct mxfs_blf_authority immediately
  * after the dirty bitmap (offset = the base_size recomputed from
  * blf_map_size — never a stored offset).  Un-aware readers ignore the
@@ -559,7 +559,7 @@ struct xfs_log_dinode {
 /*
  * Authority classes for mxfs_blf_authority.mba_class.
  *
- * sess95 design-consult ruling, release blocker 1 (the epoch NAMESPACE problem): an
+ * design-consult ruling, release blocker 1 (the epoch NAMESPACE problem): an
  * inode's grant may be backed by EITHER the per-inode CAW slot
  * (MXFS_LTYPE_INODE) or the inode-CLUSTER slot (MXFS_LTYPE_ICLUSTER), chosen
  * at acquire time and recorded in ip->i_dlm_routed_iclus.  A durable epoch
@@ -585,7 +585,7 @@ struct xfs_log_dinode {
 #define MXFS_AUTH_CLASS_MAX	5	/* wire values >= this are MALFORMED */
 
 /*
- * sess94 step 5.2, design-consult ruling item (a): the explicit token STATUS.
+ * step 5.2, design-consult ruling item (a): the explicit token STATUS.
  *
  * v1 had no status field, so class == NONE overloaded six distinct
  * conditions into one value — "no authority is required", "the capture
@@ -618,7 +618,7 @@ struct xfs_log_dinode {
 #define MXFS_AUTH_ST_WRITE_AUTH	7	/* write-tenure authority, not a grant */
 #define MXFS_AUTH_ST_UNSUPPORTED 8	/* producer cannot classify this image */
 /*
- * sess95 step 5.3, design-consult ruling Q5.  The v2 set cannot express the five ways
+ * step 5.3, design-consult ruling Q5.  The v2 set cannot express the five ways
  * an INODE-authority capture can fail to prove anything, and the ruling is
  * explicit that they must not be collapsed: recovery has to fail closed
  * DIFFERENTLY per reason, and report-only mode has to size each population
@@ -661,7 +661,7 @@ struct xfs_log_dinode {
  * image (the CAW slot's ex_grant_epoch, mirrored in
  * pag_mxfs_grant_epoch); mba_owner_slot/boot bind it to the emitting
  * node instance.  Captured at CIL format time (iop_format) — see the
- * sess48 step-2b ruling: the release path's log_force(SYNC) barrier
+ * step-2b ruling: the release path's log_force(SYNC) barrier
  * guarantees no item formats after its authorizing grant is gone.
  */
 struct mxfs_blf_authority {
@@ -674,7 +674,7 @@ struct mxfs_blf_authority {
 };
 /*
  * VERSION 1 IS REPORT-ONLY AND MUST NEVER GATE AN APPLY/SKIP DECISION.
- * (sess82 step 5.0, from a design-consult ruling.)  Three defects are inherent to
+ * (step 5.0, from a design-consult ruling.) Three defects are inherent to
  * the v1 shape, so no producer-side improvement can promote it:
  *   - mba_resource is a __be32 agno: it cannot name an inode, so a record
  *     whose real authority is an inode EX grant can only be labelled by its
@@ -688,7 +688,7 @@ struct mxfs_blf_authority {
 #define MXFS_BLF_AUTHORITY_V1	1
 
 /*
- * sess94 step 5.2 — VERSION 2.  40 bytes, big-endian, naturally aligned
+ * step 5.2 — VERSION 2.  40 bytes, big-endian, naturally aligned
  * (2+2+4 | 8 | 8 | 8 | 4+4), so sizeof() is 40 on every ABI; the
  * _Static_assert below is the guarantee, not a hope.
  *
@@ -698,13 +698,13 @@ struct mxfs_blf_authority {
  *                    pag_mxfs_grant_epoch).
  *   mba_owner_epoch  be64 — the EMITTING MOUNT'S INCARNATION.  This is the
  *                    field v1 could not have: until D-MOUNT-INCARNATION-
- *                    CONSTANT-ZERO was closed (sess91) the incarnation was a
+ *                    CONSTANT-ZERO was closed the incarnation was a
  *                    measured constant 0, so no record could be bound to a
  *                    specific victim instance.  It is now a random nonzero
  *                    64-bit value redrawn per mount.
  *   mba_owner_slot   be32 — the emitter's disklock heartbeat slot.
  *   mba_owner_node   be32 — the emitter's node_id, kept as an INDEPENDENT
- *                    slot<->node consistency check (sess89 measured that
+ *                    slot<->node consistency check (measured that
  *                    nodes migrate slots across mounts; a token whose slot
  *                    and node disagree with the victim's heartbeat record is
  *                    evidence of a stale or forged image).
@@ -732,7 +732,7 @@ struct mxfs_blf_authority_v2 {
 #define MXFS_BLF_AUTHORITY_V2	2
 
 /*
- * sess177 — VERSION 3.  48 bytes: v2 plus the RESOURCE LINEAGE.
+ * — VERSION 3.  48 bytes: v2 plus the RESOURCE LINEAGE.
  *
  *   mba_lineage      be64 — the random nonzero lineage minted when the CAW
  *                    slot's current resource binding was created (fresh claim)
@@ -747,7 +747,7 @@ struct mxfs_blf_authority_v2 {
  * grant (pre-lineage grant still in tenure); the evaluator classifies that
  * separately (v2_no_lineage semantics) rather than treating 0 as a value.
  *
- * VERSION 3 IS STILL REPORT-ONLY IN THIS BUILD (sess175 ruling Q-B: emit may
+ * VERSION 3 IS STILL REPORT-ONLY IN THIS BUILD (ruling Q-B: emit may
  * precede the proto-gen 4 admission gate; ENFORCEMENT stays hard-gated on the
  * cluster-admitted generation >= 4, not on any local constant).
  */
@@ -1338,7 +1338,7 @@ struct xfs_icreate_log {
 };
 
 /*
- * MXFS (sess444, design-consult ruling): an ICREATE record's WRITER-TIME protocol,
+ * MXFS (design-consult ruling): an ICREATE record's WRITER-TIME protocol,
  * persisted on the record itself.  The icreate iovec is the upstream
  * xfs_icreate_log immediately followed by this trailer; upstream replay
  * reads only the struct and ignores the extra bytes.

@@ -283,7 +283,7 @@ static ssize_t mxfs_lureset_report_write(struct file *file,
 		mxfs_lureset_slot.buf[0] = '\0';
 		spin_unlock(&mxfs_lureset_slot.lock);
 		kfree(stage);
-		pr_warn("mxfs: P305-LURESET-STALE a report naming nonce=%s arrived while another invocation is outstanding — discarded; the channel stays armed for the report that was asked for\n",
+		mxfs_probe("mxfs: P305-LURESET-STALE a report naming nonce=%s arrived while another invocation is outstanding — discarded; the channel stays armed for the report that was asked for\n",
 			nonce_seen);
 		return -EPERM;
 	}
@@ -536,7 +536,7 @@ int mxfs_pal_lu_reset_witness(const struct mxfs_pal_lu_reset_req *req,
 	argv[5] = (char *)MXFS_LURESET_PROC_PATH;
 	argv[6] = NULL;
 
-	pr_warn("mxfs: P305-LURESET-ISSUE lun=%s epoch=%llu victim=%s nonce=%s helper=%s bound_ms=%u — issuing ONE LOGICAL UNIT RESET, escalation forbidden\n",
+	mxfs_probe("mxfs: P305-LURESET-ISSUE lun=%s epoch=%llu victim=%s nonce=%s helper=%s bound_ms=%u — issuing ONE LOGICAL UNIT RESET, escalation forbidden\n",
 		req->lun_id, (unsigned long long)req->epoch, argv[4], nonce_str,
 		helper, mxfs_lu_reset_timeout_ms);
 
@@ -603,13 +603,13 @@ int mxfs_pal_lu_reset_witness(const struct mxfs_pal_lu_reset_req *req,
 	}
 
 verdict:
-	pr_warn("mxfs: P305-LURESET-VERDICT lun=%s epoch=%llu nonce=%s verdict=%s issued=%d reset_rc=%d reset_ms=%u upcall_ms=%u krel=%s reason=%s\n",
+	mxfs_probe("mxfs: P305-LURESET-VERDICT lun=%s epoch=%llu nonce=%s verdict=%s issued=%d reset_rc=%d reset_ms=%u upcall_ms=%u krel=%s reason=%s\n",
 		req->lun_id, (unsigned long long)req->epoch, nonce_str,
 		mxfs_lureset_verdict_name(out->verdict), out->issued,
 		out->reset_rc, out->reset_wall_ms, out->upcall_wall_ms,
 		out->krel[0] ? out->krel : "?", out->reason);
 	if (out->report_len)
-		pr_warn("mxfs: P305-LURESET-REPORT nonce=%s bytes=%zu <<%s>>\n",
+		mxfs_probe("mxfs: P305-LURESET-REPORT nonce=%s bytes=%zu <<%s>>\n",
 			nonce_str, out->report_len, out->report);
 
 	mutex_unlock(&mxfs_lureset_invoke_lock);

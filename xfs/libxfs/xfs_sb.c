@@ -31,7 +31,7 @@
 #include "xfs_rtrmap_btree.h"
 #include "xfs_rtrefcount_btree.h"
 
-/* sess62: forward-declare so the local externs for the cluster lazy-counter
+/* forward-declare so the local externs for the cluster lazy-counter
  * clamp (xfs_sb_write_verify + xfs_log_sb) reference one consistent type. */
 struct mxfs_v5_dlm;
 bool mxfs_v5_dlm_is_single_node(struct mxfs_v5_dlm *ctx);
@@ -1173,7 +1173,7 @@ xfs_sb_write_verify(
 	__xfs_sb_from_disk(&sb, dsb, false);
 	error = xfs_validate_sb_common(mp, bp, &sb);
 	if (error) {
-		pr_warn("mxfs: P62-SBV which=COMMON err=%d daddr=0x%llx dlm=%d single=%d fdblocks=%llu/%llu icount=%llu ifree=%llu\n",
+		mxfs_probe("mxfs: P62-SBV which=COMMON err=%d daddr=0x%llx dlm=%d single=%d fdblocks=%llu/%llu icount=%llu ifree=%llu\n",
 			error, (unsigned long long)xfs_buf_daddr(bp),
 			mp->m_mxfs_dlm ? 1 : 0,
 			(mp->m_mxfs_dlm && mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm)) ? 1 : 0,
@@ -1185,7 +1185,7 @@ xfs_sb_write_verify(
 	}
 
 	/*
-	 * sess62 (MXFS): last-line cluster lazy-summary-counter clamp.
+	 * (MXFS): last-line cluster lazy-summary-counter clamp.
 	 *
 	 * xfs_log_sb (xfs_sb.c ~1387) already clamps the in-core lazy counters
 	 * (icount/ifree/fdblocks) for multi-node mounts before encoding the SB
@@ -1203,7 +1203,7 @@ xfs_sb_write_verify(
 	 * single-node keeps upstream strict behaviour.
 	 */
 	/*
-	 * sess115: the clamp must survive DLM TEARDOWN.  PROVEN (P62-SBV
+	 * the clamp must survive DLM TEARDOWN.  PROVEN (P62-SBV
 	 * which=WRITE err=-117 dlm=0 icount=0): the final SB write during
 	 * UNMOUNT runs after mxfs_v5_dlm teardown nulled mp->m_mxfs_dlm, so the
 	 * original `mp->m_mxfs_dlm && !single_node` gate SKIPPED the clamp and a
@@ -1238,7 +1238,7 @@ xfs_sb_write_verify(
 			clamped = true;
 		}
 		if (clamped)
-			pr_warn_ratelimited("mxfs: P62-SBCLAMP write-verify clamped benign cluster lazy counters: fdblocks=%llu/dblocks=%llu icount=%llu ifree=%llu\n",
+			mxfs_probe_ratelimited("mxfs: P62-SBCLAMP write-verify clamped benign cluster lazy counters: fdblocks=%llu/dblocks=%llu icount=%llu ifree=%llu\n",
 				(unsigned long long)sb.sb_fdblocks,
 				(unsigned long long)sb.sb_dblocks,
 				(unsigned long long)sb.sb_icount,
@@ -1247,7 +1247,7 @@ xfs_sb_write_verify(
 
 	error = xfs_validate_sb_write(mp, bp, &sb);
 	if (error) {
-		pr_warn("mxfs: P62-SBV which=WRITE err=%d daddr=0x%llx dlm=%d single=%d fdblocks=%llu/%llu icount=%llu ifree=%llu\n",
+		mxfs_probe("mxfs: P62-SBV which=WRITE err=%d daddr=0x%llx dlm=%d single=%d fdblocks=%llu/%llu icount=%llu ifree=%llu\n",
 			error, (unsigned long long)xfs_buf_daddr(bp),
 			mp->m_mxfs_dlm ? 1 : 0,
 			(mp->m_mxfs_dlm && mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm)) ? 1 : 0,
@@ -1411,10 +1411,10 @@ xfs_log_sb(
 	struct xfs_mount	*mp = tp->t_mountp;
 	struct xfs_buf		*bp = xfs_trans_getsb(tp);
 
-	/* sess475 (D-0133 seal probe): no SB log after the summary seal. */
+	/* (D-0133 seal probe): no SB log after the summary seal. */
 	if (unlikely(READ_ONCE(mp->m_mxfs_sb_sealed))) {
 		atomic_inc(&mp->m_mxfs_seal_syncsb);
-		pr_warn("mxfs: P-SB-SEAL-SYNCSB slot=%u comm=%s caller=%pS — xfs_log_sb after the SB summary seal\n",
+		mxfs_probe("mxfs: P-SB-SEAL-SYNCSB slot=%u comm=%s caller=%pS — xfs_log_sb after the SB summary seal\n",
 			mp->m_mxfs_node_slot, current->comm, (void *)_RET_IP_);
 	}
 
@@ -1453,7 +1453,7 @@ xfs_log_sb(
 			mp->m_sb.sb_ifree = d_if;
 			mp->m_sb.sb_fdblocks = d_fd;
 		}
-		pr_warn("mxfs: P-SB-LOG-UNLOCKED slot=%u derr=%d icount=%llu ifree=%llu fdblocks=%llu comm=%s caller=%pS — SB logged outside the summary section with the durable counters (never this node's private view)\n",
+		mxfs_probe("mxfs: P-SB-LOG-UNLOCKED slot=%u derr=%d icount=%llu ifree=%llu fdblocks=%llu comm=%s caller=%pS — SB logged outside the summary section with the durable counters (never this node's private view)\n",
 			mp->m_mxfs_node_slot, derr,
 			(unsigned long long)mp->m_sb.sb_icount,
 			(unsigned long long)mp->m_sb.sb_ifree,
@@ -1480,7 +1480,7 @@ xfs_log_sb(
 	}
 
 	/*
-	 * sess44 (MXFS): cluster lazy-summary-counter clamp.
+	 * (MXFS): cluster lazy-summary-counter clamp.
 	 *
 	 * The lazy sb summary counters (icount/ifree/fdblocks) are
 	 * per-node-private percpu counters seeded from the on-disk SB at

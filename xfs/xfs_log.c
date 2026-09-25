@@ -24,17 +24,17 @@
 #include "xfs_ag.h"
 #include "xfs_zone_alloc.h"
 
-/* sess409: xfs_mxfs_dlm.c — queued cluster withdrawal on first shutdown */
+/* xfs_mxfs_dlm.c — queued cluster withdrawal on first shutdown */
 void mxfs_dlm_shutdown_withdraw(struct xfs_mount *mp);
-#include "xfs_relmark_item.h"	/* sess403: clean-release marker table teardown */
+#include "xfs_relmark_item.h"	/* clean-release marker table teardown */
 #include "xfs_mxfs_dlm.h"	/* mxfs_recov_image_evict: retire replay-written cached images */
-#include "xfs_mxfs_icensus.h"	/* sess421: intent/done census terminal predicate */
-#include "../dlm/v5_mount.h"	/* sess187: victim untagged-replay authority */
+#include "xfs_mxfs_icensus.h"	/* intent/done census terminal predicate */
+#include "../dlm/v5_mount.h"	/* victim untagged-replay authority */
 #include <mxfs/mxfs_super.h>	/* 0.88.0: MXFS_SLIFE_* slice lifecycle states */
 
 /* mxfs log-wedge diagnostic gate (module param mxfs.instr, defined in xfs_mxfs_dlm.c) */
 extern int mxfs_instr_enabled;
-extern int mxfs_adopted_slice_full_replay;	/* sess32: xfs_mxfs_dlm.c */
+extern int mxfs_adopted_slice_full_replay;	/* xfs_mxfs_dlm.c */
 extern int mxfs_obl_complete_enable;		/* 0.85.0: xfs_mxfs_dlm.c */
 
 /* mxfs grant-balance diagnostic counters (reserve_head only) */
@@ -111,9 +111,9 @@ xlog_grant_sub_space(
 		atomic64_add(bytes, &mxfs_dbg_grant_subbed);
 		atomic64_inc(&mxfs_dbg_grant_subcnt);
 		if (bytes < 0) {
-			pr_warn_ratelimited("mxfs: P-LSUBNEG xlog_grant_sub_space NEGATIVE bytes=%lld\n",
+			mxfs_probe_ratelimited("mxfs: P-LSUBNEG xlog_grant_sub_space NEGATIVE bytes=%lld\n",
 				(long long)bytes);
-			dump_stack();
+			mxfs_probe_stack();
 		}
 	}
 }
@@ -148,7 +148,7 @@ xlog_grant_return_space(
 	int64_t		diff = xlog_lsn_sub(log, new_head, old_head);
 
 	if (unlikely(mxfs_instr_enabled))
-		pr_warn_ratelimited("mxfs: P-LRET return_space old=0x%llx new=0x%llx diff=%lld\n",
+		mxfs_probe_ratelimited("mxfs: P-LRET return_space old=0x%llx new=0x%llx diff=%lld\n",
 			(unsigned long long)old_head, (unsigned long long)new_head,
 			(long long)diff);
 	xlog_grant_sub_space(&log->l_reserve_head, diff);
@@ -253,7 +253,7 @@ xlog_grant_head_wait(
 
 		if (unlikely(mxfs_instr_enabled)) {
 			struct xfs_cil_ctx *ctx = log->l_cilp ? log->l_cilp->xc_ctx : NULL;
-			pr_warn_ratelimited("mxfs: P-LGRANT wait need=%d free=%llu logsize=%d tail_space=%llu rgrant=%lld wgrant=%lld head_lsn=0x%llx tail_lsn=0x%llx cil_space=%d cil_push_seq=%llu cil_ctx_seq=%llu\n",
+			mxfs_probe_ratelimited("mxfs: P-LGRANT wait need=%d free=%llu logsize=%d tail_space=%llu rgrant=%lld wgrant=%lld head_lsn=0x%llx tail_lsn=0x%llx cil_space=%d cil_push_seq=%llu cil_ctx_seq=%llu\n",
 				need_bytes,
 				(unsigned long long)xlog_grant_space_left(log, head),
 				log->l_logsize,
@@ -265,7 +265,7 @@ xlog_grant_head_wait(
 				ctx ? atomic_read(&ctx->space_used) : -1,
 				(unsigned long long)(log->l_cilp ? log->l_cilp->xc_push_seq : 0),
 				(unsigned long long)(ctx ? ctx->sequence : 0));
-			pr_warn_ratelimited("mxfs: P-LGRANT2 added=%lld subbed=%lld balance=%lld addcnt=%lld subcnt=%lld\n",
+			mxfs_probe_ratelimited("mxfs: P-LGRANT2 added=%lld subbed=%lld balance=%lld addcnt=%lld subcnt=%lld\n",
 				(long long)atomic64_read(&mxfs_dbg_grant_added),
 				(long long)atomic64_read(&mxfs_dbg_grant_subbed),
 				(long long)(atomic64_read(&mxfs_dbg_grant_added) - atomic64_read(&mxfs_dbg_grant_subbed)),
@@ -581,7 +581,7 @@ xlog_state_release_iclog(
 }
 
 /*
- * MXFS sess179 B1 (D-MIXED-VERSION-UNGATED-REPLAY): no log image may be
+ * MXFS B1 (D-MIXED-VERSION-UNGATED-REPLAY): no log image may be
  * applied before this node's cluster-protocol admission is decided.
  * xfs_fs_fill_super sets m_mxfs_proto_admitted after the C7 gate admits
  * (trivially for non-envelope mounts); every recovery entry point calls
@@ -643,7 +643,7 @@ xfs_log_mount(
 	mp->m_log = log;
 
 	/*
-	 * sess32 (D-FOREIGN-REPLAY-UNGATED-IMAGES): a PASS-2 (fresh) disklock
+	 * (D-FOREIGN-REPLAY-UNGATED-IMAGES): a PASS-2 (fresh) disklock
 	 * claim means this node's previous-incarnation stamp was absent or
 	 * zeroed — so any dirty records in the inherited log slice belong to
 	 * an incarnation whose recovery already completed (the elected
@@ -658,14 +658,14 @@ xfs_log_mount(
 	 */
 	if (mp->m_mxfs_bootstrap_adopted) {
 		/*
-		 * sess441 (§6.5 shape B): the whole-cluster bootstrap owner's
+		 * (§6.5 shape B): the whole-cluster bootstrap owner's
 		 * slot is a certified VICTIM's slice.  Never ADOPTED_SLICE
 		 * (that suppresses images and intents): this is the FULL
 		 * own-log replay the ruling requires, gated per transaction
 		 * by the victim's escrowed certificate + fence-time manifest
 		 * (the evaluator is fed from the escrow for this slot).
 		 *
-		 * sess442 (design-consult review S1): the bootstrap finish records
+		 * (design-consult review S1): the bootstrap finish records
 		 * K_REPLAY_OK on the strength of THIS replay having run.  A
 		 * norecovery mount skips xlog_recover entirely, so under it
 		 * an adopted slice must not mount at all — the term would be
@@ -686,7 +686,7 @@ xfs_log_mount(
 	} else if (mp->m_mxfs_slice_adopted && !mxfs_adopted_slice_full_replay) {
 		set_bit(XLOG_MXFS_ADOPTED_SLICE, &log->l_opstate);
 		/*
-		 * sess165: the "victim" whose records the shadow authority
+		 * the "victim" whose records the shadow authority
 		 * evaluator judges here is the PRIOR incarnation of the slot
 		 * we just claimed — same slot number, dead incarnation.  Its
 		 * CAW authority was purged when its recovery completed (a
@@ -759,7 +759,7 @@ xfs_log_mount(
 		if (error)
 			goto out_destroy_ail;
 		/*
-		 * sess442: the adopted slot K runs the ENFORCING gate (the
+		 * the adopted slot K runs the ENFORCING gate (the
 		 * evaluator + sealed fence-time manifest from the escrow),
 		 * armed here exactly as the foreign path arms it.  A
 		 * structurally invalid manifest is a typed terminal for the
@@ -779,7 +779,7 @@ xfs_log_mount(
 		}
 		error = xlog_recover(log);
 		/*
-		 * sess459 (D-0521): a clustered mount's own-slice recovery
+		 * (D-0521): a clustered mount's own-slice recovery
 		 * (trusted PASS-1 reclaim, or an adopted/bootstrap slice) reports
 		 * how many buffer images the on-disk LSN stamp vetoed; on a
 		 * clustered mount every such veto is a candidate lost update.
@@ -796,7 +796,7 @@ xfs_log_mount(
 			xfs_warn(mp, "log mount/recovery failed: error %d",
 				error);
 			/*
-			 * sess442 (design-consult review (a)): on the adopted slice K
+			 * (design-consult review (a)): on the adopted slice K
 			 * only a TYPED verdict is terminal for the term — a
 			 * torn/corrupt K (the ruling's "torn K is a terminal
 			 * K_REPLAY_REFUSED").  A transport error (-EIO,
@@ -810,7 +810,7 @@ xfs_log_mount(
 			goto out_destroy_ail;
 		}
 		/*
-		 * sess441 (§6.5 shape B): on the bootstrap owner's adopted
+		 * (§6.5 shape B): on the bootstrap owner's adopted
 		 * victim slice a refused (ATOMIC-SKIP / untagged) transaction
 		 * or an evaluator abort is TERMINAL for the term — the mount
 		 * fails here and the DLM unwind records K_REPLAY_REFUSED.
@@ -830,7 +830,7 @@ xfs_log_mount(
 				  log->l_mxfs_rman_mutated ? 1 : 0,
 				  log->l_mxfs_icensus_lost ? 1 : 0);
 			error = -EFSCORRUPTED;
-			/* sess442: the typed refusal — the ONLY path (with a
+			/* the typed refusal — the ONLY path (with a
 			 * torn K above) that ends the term; recorded here, at
 			 * the verdict, never inferred by the unwind */
 			mxfs_v5_dlm_bootstrap_k_refused(mp->m_mxfs_dlm, error);
@@ -885,11 +885,11 @@ out:
  */
 
 /*
- * sess324 (D-513): forensic identity of a REFUSED slice — reread the whole
+ * (D-513): forensic identity of a REFUSED slice — reread the whole
  * slice image from the shared LUN and crc32c it.  Runs only on the refusal
  * path, so the extra IO never touches a successful replay.  A failed read
  * leaves the digest invalid; the verdict still publishes terminally with
- * digest_valid=false and a zero digest (sess325 ruling item 5: the digest is
+ * digest_valid=false and a zero digest (ruling item 5: the digest is
  * forensics, never a gate on containment).
  */
 static int
@@ -961,7 +961,7 @@ module_param_named(freplay_force_torn_items, mxfs_freplay_force_torn_items,
 MODULE_PARM_DESC(freplay_force_torn_items,
 	"Fault injection: shape-4 fails pass 2 before applying the Nth item (deterministic prefix = N-1)");
 /*
- * sess374: which AG-mask shape 1 forges.  Default 1 (AG 0) keeps the
+ * which AG-mask shape 1 forges.  Default 1 (AG 0) keeps the
  * pre-existing shape-1 semantics byte for byte.  The out-of-closure purge and
  * scrub (D-REFUSAL-GRANT-FREEZE-OUT-OF-CLOSURE-356) can only be exercised with
  * a domain that EXCLUDES the AG the probe resources live in — with ag0 in the
@@ -974,7 +974,7 @@ module_param_named(freplay_force_ag_mask, mxfs_freplay_force_ag_mask,
 MODULE_PARM_DESC(freplay_force_ag_mask,
 	"Fault injection: AG bitmask shape-1 forges as the refused domain (default 1 = ag0)");
 /*
- * sess410 (D-LOG-ERROR-SHUTDOWN-SKIPS-DLM-WITHDRAW-409 verification): fail the
+ * (D-LOG-ERROR-SHUTDOWN-SKIPS-DLM-WITHDRAW-409 verification): fail the
  * next N iclog write completions with -EIO so the FIRST shutdown of this mount
  * originates in xlog_force_shutdown (the "shut down due to log error" path),
  * not in xfs_do_force_shutdown.  This build has no DEBUG, so the upstream
@@ -1000,7 +1000,7 @@ mxfs_log_inject_ioerr_take(void)
 }
 
 /*
- * sess413 (D-FOREIGN-REPLAY-FAILURE-PUBLISHED-AS-RECOVERED closure arm):
+ * (D-FOREIGN-REPLAY-FAILURE-PUBLISHED-AS-RECOVERED closure arm):
  * while >0, every foreign-slice replay fails with a RETRYABLE -EIO before
  * any replay work.  The callers must then refuse to publish: the live path
  * keeps the victim's HB sector ACTIVE and manifest intact and re-arms the
@@ -1041,7 +1041,7 @@ mxfs_xlog_recover_foreign_slice(
 	if (xfs_is_shutdown(mp) || !mp->m_log)
 		return -EIO;
 	/*
-	 * sess407 (design-consult ruling Q5, D-FSWIDE-TERMINAL-REPLAY-CONTINUES-407):
+	 * (design-consult ruling Q5, D-FSWIDE-TERMINAL-REPLAY-CONTINUES-407):
 	 * an FSWIDE TERMINAL quarantine means a filesystem-level recovery
 	 * invariant failed (authority mutated post-seal / manifest invalid) and
 	 * the operator owns the filesystem now — NO further slice replay may
@@ -1109,7 +1109,7 @@ mxfs_xlog_recover_foreign_slice(
 		return PTR_ERR(shadow);
 	}
 	set_bit(XLOG_MXFS_FOREIGN_REPLAY, &shadow->l_opstate);
-	/* sess165: bind the shadow authority evaluator to the dead node */
+	/* bind the shadow authority evaluator to the dead node */
 	shadow->l_mxfs_victim_slot = dead_slot;
 	/*
 	 * 0.89.18: and to the dead node's INCARNATION, because the slot alone
@@ -1130,7 +1130,7 @@ mxfs_xlog_recover_foreign_slice(
 	}
 
 	/*
-	 * sess187 (sess184 ruling): untagged-record replay authority.  Both
+	 * (ruling): untagged-record replay authority.  Both
 	 * predicates come from the victim's recovery descriptor — the kind-17
 	 * certificate (operator assertion, proven at fence time by the
 	 * membership gate) and the victim's own durable write-time snlocal
@@ -1160,7 +1160,7 @@ mxfs_xlog_recover_foreign_slice(
 	shadow->l_ailp = ailp;
 
 	/*
-	 * sess358 (#1, sess357 ruling): enforcement preflight — one
+	 * (#1, ruling): enforcement preflight — one
 	 * descriptor read, cached on the shadow log for every per-txn
 	 * verdict.  A configured-but-uncapable recovery aborts HERE, before
 	 * any replay side effect; the plain (non -EFSCORRUPTED) error keeps
@@ -1169,9 +1169,9 @@ mxfs_xlog_recover_foreign_slice(
 	 */
 	error = mxfs_fr_enforce_preflight(shadow);
 	/*
-	 * sess411 (D-527): capture + stabilize the slice snapshot BEFORE
+	 * (D-527): capture + stabilize the slice snapshot BEFORE
 	 * consuming the one-shot injection knob (same principle as the
-	 * sess359 preflight ordering: an abort here must never eat an armed
+	 * preflight ordering: an abort here must never eat an armed
 	 * injection) and before any recovery read.  -EBUSY (not quiesced) and
 	 * -ENOMEM are plain errors: verdict reason stays NONE, nothing
 	 * publishes, the slice stays dirty and a later election retries.
@@ -1212,10 +1212,10 @@ mxfs_xlog_recover_foreign_slice(
 		error = mxfs_xlog_slice_snapshot(shadow);
 	if (!error && !slife_empty) {
 		/*
-		 * sess328 ruling Q2: consume the fault knob ONE-SHOT, scoped
+		 * ruling Q2: consume the fault knob ONE-SHOT, scoped
 		 * to the configured victim slot — this replay attempt (and
 		 * only this one) carries the injection, so every other
-		 * recovery's verdict stays unambiguous.  sess359 (GPT review
+		 * recovery's verdict stays unambiguous.  (design review
 		 * Q1): consumed only AFTER a successful preflight, so a
 		 * preflight abort can never eat an armed injection — the
 		 * shape fires on the attempt that actually replays.
@@ -1231,7 +1231,7 @@ mxfs_xlog_recover_foreign_slice(
 					  mxfs_freplay_force_torn_items);
 		}
 		/*
-		 * Shape 4 (sess328 ruling Q2b): genuine mid-replay TORN — arm
+		 * Shape 4 (ruling Q2b): genuine mid-replay TORN — arm
 		 * the pass-2 countdown on the shadow log so the failure
 		 * happens INSIDE the replay, after a deterministic applied
 		 * prefix, with the real xlog_recover_cancel unwind below.
@@ -1283,7 +1283,7 @@ mxfs_xlog_recover_foreign_slice(
 	if (error)
 		xlog_recover_cancel(shadow);
 	/*
-	 * sess462 (item 5 increment 2, design-consult ruling STOP-SHIP 1): the
+	 * (item 5 increment 2, design-consult ruling STOP-SHIP 1): the
 	 * IMAGES_REPLAYED milestone that follows a clean replay attests that
 	 * the applied images are HOME — a takeover successor is forbidden to
 	 * re-replay once it sees that milestone durable, so the milestone must
@@ -1318,7 +1318,7 @@ mxfs_xlog_recover_foreign_slice(
 	WRITE_ONCE(mp->m_mxfs_freplay_task, NULL);
 
 	/*
-	 * sess324 (D-513, sess320 ruling): a corrupt/torn slice image is as
+	 * (D-513, ruling): a corrupt/torn slice image is as
 	 * DETERMINISTIC a refusal as a policy one — replaying it again reads
 	 * the same broken bytes.  It carries no trustworthy per-item domain
 	 * information (the failure may precede item parsing entirely), so the
@@ -1334,7 +1334,7 @@ mxfs_xlog_recover_foreign_slice(
 	}
 
 	/*
-	 * sess412 (D-527 ruling): the assembly validator refused a committed
+	 * (D-527 ruling): the assembly validator refused a committed
 	 * transaction whose item stream crossed an ophdr discontinuity —
 	 * regions the platter's real stream would have held were replaced by
 	 * stale prior-life records and silently skipped as slack.  With the
@@ -1345,7 +1345,7 @@ mxfs_xlog_recover_foreign_slice(
 	 *
 	 * -EILSEQ, NOT -EUCLEAN: EUCLEAN IS EFSCORRUPTED (same errno, 117),
 	 * so an EUCLEAN class would shadow every TORN verdict above — the
-	 * sess412 fln7 publish loop (reason 6 rejected -EINVAL, retry
+	 * fln7 publish loop (reason 6 rejected -EINVAL, retry
 	 * forever) was exactly that mistake.
 	 */
 	if (error == -EILSEQ && verdict) {
@@ -1356,7 +1356,7 @@ mxfs_xlog_recover_foreign_slice(
 	}
 
 	/*
-	 * sess405 (docs/recovery-manifest.md; GPT review items 8/9): the
+	 * (docs/recovery-manifest.md; design review items 8/9): the
 	 * evaluator found the victim's fence-time authority MUTATED after the
 	 * seal (manifest entry vs live slot).  That is a broken protocol
 	 * invariant, never a transient — TERMINAL, FSWIDE, nothing purged.
@@ -1379,14 +1379,14 @@ mxfs_xlog_recover_foreign_slice(
 	}
 
 	/*
-	 * sess187: a kind-17 slice that had untagged records REFUSED cannot be
+	 * a kind-17 slice that had untagged records REFUSED cannot be
 	 * published as recovered — the operator called the victim's log local,
 	 * so those untagged images are part of the slice's durable state and a
 	 * replay that skipped them is a TORN image.  Fail the whole replay so
 	 * the caller keeps the slice frozen/unpublished (same containment path
 	 * as any other replay error).
 	 *
-	 * sess233 (#21 incident-481 design-consult ruling): generalized to EVERY
+	 * (#21 incident-481 design-consult ruling): generalized to EVERY
 	 * untrusted replay, not just kind-17.  An ATOMIC-SKIP abandons a
 	 * COMMITTED victim transaction, and skipping cannot undo the victim's
 	 * own partial AIL writeback of that transaction's buffers: incident
@@ -1413,7 +1413,7 @@ mxfs_xlog_recover_foreign_slice(
 				  shadow->l_mxfs_sbclean_skips);
 		error = -EFSCORRUPTED;
 		/*
-		 * sess324 (D-513): the gates refused every part of the slice
+		 * (D-513): the gates refused every part of the slice
 		 * they could not authorize — a complete, deterministic policy
 		 * verdict.  The quarantine domain is the AG set the refused
 		 * items would have modified, collected per-item during the
@@ -1430,7 +1430,7 @@ mxfs_xlog_recover_foreign_slice(
 	}
 
 	/*
-	 * sess421 (D-FOREIGN-SLICE-INTENTS-ABANDONED interim; sess420 barrier
+	 * (D-FOREIGN-SLICE-INTENTS-ABANDONED interim; barrier
 	 * ruling stop-ship 1): FAIL BEFORE PURGE.  A slot may reach
 	 * GRANTS_RELEASED only if IMAGES_REPLAYED && (OBLIGATIONS_DONE or an
 	 * enforced QUARANTINED).  Nothing on this path can discharge a dead
@@ -1457,7 +1457,7 @@ mxfs_xlog_recover_foreign_slice(
 			bool		recoverable = false;
 
 			/*
-			 * sess461 (item 5 increment 1): classify the open set
+			 * (item 5 increment 1): classify the open set
 			 * per the ruling's matrix.  RECOVER entries are the
 			 * admitted EFIs the recovery owner may complete once the
 			 * completion increments land; QUARANTINE entries keep
@@ -1466,7 +1466,7 @@ mxfs_xlog_recover_foreign_slice(
 			mxfs_icensus_classify(shadow, "foreign", &nrec, &rmask,
 					      &nq, &qmask, &qfsw);
 			/*
-			 * sess462 (increment 2): hand the RECOVER extents out
+			 * (increment 2): hand the RECOVER extents out
 			 * through the verdict so the publisher can make them
 			 * durable as evidence next to the terminal outcome.
 			 * A list that cannot be built is reported as LOST —
@@ -1576,7 +1576,7 @@ census_done:;
 			verdict->digest_valid = true;
 	}
 
-	/* sess352 (#94): counted clean skips survive shadow teardown so the
+	/* (#94): counted clean skips survive shadow teardown so the
 	 * outcome line reports them — a slice of ONLY routine SB-counter
 	 * logging now completes instead of arming the terminal verdict. */
 	{
@@ -1603,7 +1603,7 @@ census_done:;
 	return error;
 }
 
-/* sess462: release the obligation list a verdict carries (idempotent). */
+/* release the obligation list a verdict carries (idempotent). */
 void
 mxfs_freplay_verdict_free(
 	struct mxfs_freplay_verdict *verdict)
@@ -1624,10 +1624,10 @@ mxfs_freplay_verdict_free(
  * not doing recovery, then we have a RO filesystem and we don't need to start
  * it.
  */
-static void xlog_unmount_write(struct xlog *log);	/* sess434: P308 */
+static void xlog_unmount_write(struct xlog *log);	/* P308 */
 
 /*
- * 0.41.2 (sess435, D-0354 lap 3): the P308 boundary record is written
+ * 0.41.2 (D-0354 lap 3): the P308 boundary record is written
  * through xlog_write directly, not through a CIL checkpoint, and the AIL
  * head is advanced ONLY by xlog_cil_ail_insert (measured 0.41.1, test5
  * 22:20Z: 'P308 ... did NOT advance ail_head_lsn (0x100000012)').  With
@@ -1720,7 +1720,7 @@ xfs_log_mount_finish(
 			xfs_log_force(mp, XFS_LOG_SYNC);
 			xfs_ail_push_all_sync(mp->m_ail);
 			/*
-			 * 0.41.1 (sess434, D-0354 lap 2): INCARNATION BOUNDARY.
+			 * 0.41.1 (D-0354 lap 2): INCARNATION BOUNDARY.
 			 *
 			 * Measured: a node that recovered a dirty slice at mount
 			 * (its own crash, or an ADOPTED already-published
@@ -1786,11 +1786,11 @@ xfs_log_mount_finish(
 	}
 	xfs_buftarg_drain(mp->m_ddev_targp);
 
-	/* sess165: an ADOPTED_SLICE mount log accumulated shadow authority
+	/* an ADOPTED_SLICE mount log accumulated shadow authority
 	 * verdicts during pass 2 — recovery is over, emit and free them.
 	 * No-op on every other mount (state never allocated). */
 	mxfs_shadow_eval_finish(log);
-	/* sess403: the adopted slice's pass-1 clean-release marker table is
+	/* the adopted slice's pass-1 clean-release marker table is
 	 * recovery-scoped too — free it now rather than at unmount. */
 	mxfs_relmark_tbl_free(log);
 
@@ -2015,7 +2015,7 @@ xfs_log_unmount_write(
 }
 
 /*
- * sess474/475 (D-0133, design-consult design A+ and the sess475 placement ruling,
+ * /475 (D-0133, design-consult design A+ and the placement ruling,
  * ccmemory ccloop-c7ee71c6-sess475-GPT-ruling-d0133-lock-inert-put-super-
  * teardown-shape9-hardened): the clustered SB summary counters are written
  * ONLY inside the summary critical section — dedicated cluster EX lock ->
@@ -2048,7 +2048,7 @@ mxfs_sb_summary_cover(
 		/* 0.75.34 (D-0536): node-local order against the runtime cover */
 		mutex_lock(&mp->m_mxfs_sb_summary_mutex);
 		lk = mxfs_sb_summary_lock(mp, &mp->m_mxfs_sb_grant_epoch);
-		pr_info("mxfs: P-SB-SUMMARY-LOCK slot=%u rc=%d epoch=%llu master_self=%d at=quiesce\n",
+		mxfs_probe("mxfs: P-SB-SUMMARY-LOCK slot=%u rc=%d epoch=%llu master_self=%d at=quiesce\n",
 			mp->m_mxfs_node_slot, lk,
 			(unsigned long long)mp->m_mxfs_sb_grant_epoch,
 			mxfs_sb_summary_master_self(mp));
@@ -2069,10 +2069,10 @@ mxfs_sb_summary_cover(
 	mxfs_sb_summary_pause(mp, 1);
 	/*
 	 * P-SB-SYNC-PRE: the durable SB counters before this node's recount
-	 * + cover, beside its own in-core view (sess474 instrumentation).
+	 * + cover, beside its own in-core view (instrumentation).
 	 */
 	derr = mxfs_sb_read_counters_coherent(mp, &d_ic, &d_if, &d_fd);
-	pr_info("mxfs: P-SB-SYNC-PRE slot=%u epoch=%llu local[icount=%llu ifree=%llu fdblocks=%llu] durable[err=%d icount=%llu ifree=%llu fdblocks=%llu]\n",
+	mxfs_probe("mxfs: P-SB-SYNC-PRE slot=%u epoch=%llu local[icount=%llu ifree=%llu fdblocks=%llu] durable[err=%d icount=%llu ifree=%llu fdblocks=%llu]\n",
 		mp->m_mxfs_node_slot,
 		(unsigned long long)mp->m_mxfs_sb_grant_epoch,
 		(unsigned long long)percpu_counter_sum(&mp->m_icount),
@@ -2081,12 +2081,12 @@ mxfs_sb_summary_cover(
 		derr, (unsigned long long)d_ic,
 		(unsigned long long)d_if, (unsigned long long)d_fd);
 	error = mxfs_sb_summary_recount_uncached(mp, &ags);
-	pr_info("P30-QUIESCE-RECOUNT err=%d ifree pre=%llu post=%llu icount=%llu fdblocks=%llu\n",
+	mxfs_probe("P30-QUIESCE-RECOUNT err=%d ifree pre=%llu post=%llu icount=%llu fdblocks=%llu\n",
 		error, (unsigned long long)pre_ifree,
 		(unsigned long long)mp->m_sb.sb_ifree,
 		(unsigned long long)mp->m_sb.sb_icount,
 		(unsigned long long)mp->m_sb.sb_fdblocks);
-	pr_info("mxfs: P-SB-RECOUNT-DONE slot=%u err=%d ags=%u mode=uncached-coherent\n",
+	mxfs_probe("mxfs: P-SB-RECOUNT-DONE slot=%u err=%d ags=%u mode=uncached-coherent\n",
 		mp->m_mxfs_node_slot, error, ags);
 	if (error) {
 		/*
@@ -2099,7 +2099,7 @@ mxfs_sb_summary_cover(
 		goto out_unlock;
 	}
 	mxfs_sb_summary_pause(mp, 2);
-	pr_info("mxfs: P-SB-SYNC-WRITE slot=%u epoch=%llu icount=%llu ifree=%llu fdblocks=%llu — counters this node's cover logs into the whole SB sector\n",
+	mxfs_probe("mxfs: P-SB-SYNC-WRITE slot=%u epoch=%llu icount=%llu ifree=%llu fdblocks=%llu — counters this node's cover logs into the whole SB sector\n",
 		mp->m_mxfs_node_slot,
 		(unsigned long long)mp->m_mxfs_sb_grant_epoch,
 		(unsigned long long)mp->m_sb.sb_icount,
@@ -2112,7 +2112,7 @@ mxfs_sb_summary_cover(
 	xfs_buftarg_wait(mp->m_ddev_targp);
 	blkdev_issue_flush(mp->m_ddev_targp->bt_bdev);
 	derr = mxfs_sb_read_counters_coherent(mp, &d_ic, &d_if, &d_fd);
-	pr_info("mxfs: P-SB-SYNC-POST slot=%u epoch=%llu cover_err=%d durable[err=%d icount=%llu ifree=%llu fdblocks=%llu]\n",
+	mxfs_probe("mxfs: P-SB-SYNC-POST slot=%u epoch=%llu cover_err=%d durable[err=%d icount=%llu ifree=%llu fdblocks=%llu]\n",
 		mp->m_mxfs_node_slot,
 		(unsigned long long)mp->m_mxfs_sb_grant_epoch, error, derr,
 		(unsigned long long)d_ic, (unsigned long long)d_if,
@@ -2140,7 +2140,7 @@ out_unlock:
 	if (!caller_held) {
 		WRITE_ONCE(mp->m_mxfs_sb_lock_held, false);
 		mxfs_sb_summary_unlock(mp);
-		pr_info("mxfs: P-SB-SUMMARY-UNLOCK slot=%u epoch=%llu held=1 at=quiesce\n",
+		mxfs_probe("mxfs: P-SB-SUMMARY-UNLOCK slot=%u epoch=%llu held=1 at=quiesce\n",
 			mp->m_mxfs_node_slot,
 			(unsigned long long)mp->m_mxfs_sb_grant_epoch);
 		mutex_unlock(&mp->m_mxfs_sb_summary_mutex);
@@ -2153,7 +2153,7 @@ out_unlock:
  * 0536): the clustered periodic log cover.  Upstream's cover (xfs_log_worker
  * -> xfs_sync_sb) logs the whole superblock with THIS node's private lazy
  * counters folded in and leaves the sector write to the AIL — measured on
- * 32 nodes (chain 116 v2, sess476) and on the two-node TCP rig (s520 sbrc
+ * 32 nodes (chain 116 v2) and on the two-node TCP rig (s520 sbrc
  * laps): an idle peer's 1 s-period cover landed unlocked inside another
  * node's summary critical section every time, so the lock was not
  * exclusive against all SB-sector writers.  The cover now runs inside the
@@ -2183,13 +2183,13 @@ mxfs_sb_runtime_cover(
 	int			lk, derr, error;
 
 	if (!mutex_trylock(&mp->m_mxfs_sb_summary_mutex)) {
-		pr_info_ratelimited("mxfs: P-SB-RUNTIME-COVER-BUSY slot=%u — the summary section is held by this node's final sync or freeze cover; skipping this period's cover\n",
+		mxfs_probe_ratelimited("mxfs: P-SB-RUNTIME-COVER-BUSY slot=%u — the summary section is held by this node's final sync or freeze cover; skipping this period's cover\n",
 				    mp->m_mxfs_node_slot);
 		return;
 	}
 	if (READ_ONCE(mp->m_mxfs_sb_sealed) || mp->m_mxfs_sb_summary_done ||
 	    xfs_is_shutdown(mp) || !xfs_log_writable(mp)) {
-		pr_info_ratelimited("mxfs: P-SB-RUNTIME-COVER-SKIP slot=%u sealed=%d done=%d — no runtime cover after the final sync\n",
+		mxfs_probe_ratelimited("mxfs: P-SB-RUNTIME-COVER-SKIP slot=%u sealed=%d done=%d — no runtime cover after the final sync\n",
 				    mp->m_mxfs_node_slot,
 				    READ_ONCE(mp->m_mxfs_sb_sealed) ? 1 : 0,
 				    mp->m_mxfs_sb_summary_done ? 1 : 0);
@@ -2197,7 +2197,7 @@ mxfs_sb_runtime_cover(
 	}
 	lk = mxfs_sb_summary_lock(mp, &epoch);
 	if (lk) {
-		pr_warn_ratelimited("mxfs: P-SB-RUNTIME-COVER-LOCK-FAIL slot=%u rc=%d — summary lock unavailable; NOT covering (no unlocked SB write)\n",
+		mxfs_probe_ratelimited("mxfs: P-SB-RUNTIME-COVER-LOCK-FAIL slot=%u rc=%d — summary lock unavailable; NOT covering (no unlocked SB write)\n",
 				    mp->m_mxfs_node_slot, lk);
 		goto out_mutex;
 	}
@@ -2205,7 +2205,7 @@ mxfs_sb_runtime_cover(
 	WRITE_ONCE(mp->m_mxfs_sb_lock_held, true);
 	derr = mxfs_sb_read_counters_coherent(mp, &d_ic, &d_if, &d_fd);
 	if (derr) {
-		pr_warn_ratelimited("mxfs: P-SB-RUNTIME-COVER-READ-FAIL slot=%u epoch=%llu rc=%d — durable counters unreadable; NOT covering\n",
+		mxfs_probe_ratelimited("mxfs: P-SB-RUNTIME-COVER-READ-FAIL slot=%u epoch=%llu rc=%d — durable counters unreadable; NOT covering\n",
 				    mp->m_mxfs_node_slot,
 				    (unsigned long long)epoch, derr);
 		goto out_unlock;
@@ -2235,7 +2235,7 @@ mxfs_sb_runtime_cover(
 		xfs_buftarg_wait(mp->m_ddev_targp);
 		blkdev_issue_flush(mp->m_ddev_targp->bt_bdev);
 	}
-	pr_info("mxfs: P-SB-RUNTIME-COVER slot=%u epoch=%llu rc=%d durable[icount=%llu ifree=%llu fdblocks=%llu] — periodic log cover written under the summary lock with the durable counters\n",
+	mxfs_probe("mxfs: P-SB-RUNTIME-COVER slot=%u epoch=%llu rc=%d durable[icount=%llu ifree=%llu fdblocks=%llu] — periodic log cover written under the summary lock with the durable counters\n",
 		mp->m_mxfs_node_slot, (unsigned long long)epoch, error,
 		(unsigned long long)d_ic, (unsigned long long)d_if,
 		(unsigned long long)d_fd);
@@ -2247,7 +2247,7 @@ out_mutex:
 }
 
 /*
- * sess475: the guarded quiesce after put_super's locked final sync (the DLM
+ * the guarded quiesce after put_super's locked final sync (the DLM
  * is gone by now).  Nothing may have logged since the seal: the log must
  * still be covered and every seal counter zero — then there is nothing to
  * write and the unmount record may follow.  Otherwise the clean departure is
@@ -2279,7 +2279,7 @@ mxfs_sb_summary_sealed_quiesce(
 		   st == XLOG_STATE_COVER_IDLE);
 	if (covered && !mp->m_mxfs_sb_late_dirty &&
 	    n_trans == 0 && n_syncsb == 0 && n_sbwrite == 0) {
-		pr_info("mxfs: P-SB-SEAL-OK slot=%u epoch=%llu cover_state=%d trans=0 syncsb=0 sbwrite=0 — sealed quiesce writes nothing\n",
+		mxfs_probe("mxfs: P-SB-SEAL-OK slot=%u epoch=%llu cover_state=%d trans=0 syncsb=0 sbwrite=0 — sealed quiesce writes nothing\n",
 			mp->m_mxfs_node_slot,
 			(unsigned long long)mp->m_mxfs_sb_grant_epoch, st);
 		return 0;
@@ -2336,7 +2336,7 @@ xfs_log_quiesce(
 	xfs_buf_unlock(mp->m_sb_bp);
 
 	/*
-	 * mxfs (sess30 run14d): the lazy-sbcount sync in xfs_log_cover folds
+	 * mxfs (run14d): the lazy-sbcount sync in xfs_log_cover folds
 	 * THIS node's in-core percpu counters into the on-disk superblock.
 	 * On a shared LUN those counters only track our own deltas — a node
 	 * that idled while a peer allocated inodes/blocks would clobber the
@@ -2399,7 +2399,7 @@ void
 xfs_log_unmount(
 	struct xfs_mount	*mp)
 {
-	/* sess444: a prefetched slice proof must never outlive its mount */
+	/* a prefetched slice proof must never outlive its mount */
 	mxfs_xlog_snap_prefetch_cancel(mp);
 	xfs_log_clean(mp);
 
@@ -2607,7 +2607,7 @@ xlog_ioend_work(
 	 * Race to shutdown the filesystem if we see an error.
 	 */
 	/*
-	 * sess406 (D-FENCED-VICTIM-NONCONTAINMENT-498): a log write bounced
+	 * (D-FENCED-VICTIM-NONCONTAINMENT-498): a log write bounced
 	 * with SCSI RESERVATION CONFLICT means this node has been fenced.  The
 	 * shutdown below still happens; ALSO tell the DLM so the fenced-self
 	 * inspection runs and the cluster withdrawal (leave, stop fencing
@@ -2784,9 +2784,9 @@ xlog_alloc_log(
 	xlog_assign_atomic_lsn(&log->l_tail_lsn, 1, 0);
 	log->l_curr_cycle  = 1;	    /* 0 is bad since this is initial value */
 
-	/* sess165: slot 0 is valid, so the no-victim state needs a sentinel —
+	/* slot 0 is valid, so the no-victim state needs a sentinel —
 	 * kzalloc's 0 would silently mean "evaluate against slot 0".
-	 * sess166: eval state/missed-count explicitly initialized (design-consult
+	 * eval state/missed-count explicitly initialized (design-consult
 	 * review) rather than riding the allocator's zeroing. */
 	log->l_mxfs_victim_slot = MXFS_XLOG_VICTIM_NONE;
 	log->l_mxfs_shadow_eval = NULL;
@@ -3257,7 +3257,7 @@ xlog_dealloc_log(
 		iclog = next_iclog;
 	}
 
-	/* sess165 backstop: a recovery that errored out (or a mount-cancel
+	/* backstop: a recovery that errored out (or a mount-cancel
 	 * path) can reach teardown without passing a finish site; emit
 	 * whatever was counted rather than leaking it silently. */
 	mxfs_shadow_eval_finish(log);
@@ -3269,15 +3269,15 @@ xlog_dealloc_log(
 	if (log->l_mp->m_log == log)
 		log->l_mp->m_log = NULL;
 	destroy_workqueue(log->l_ioend_workqueue);
-	/* sess352 (#94): masked-compare baseline cached by the counter-only
+	/* (#94): masked-compare baseline cached by the counter-only
 	 * SB clean-skip classifier (foreign shadow logs and adopted mount
 	 * logs alike). */
 	kfree(log->l_mxfs_sb_baseline);
-	/* sess403: pass-1 clean-release marker table (untrusted replay) */
+	/* pass-1 clean-release marker table (untrusted replay) */
 	mxfs_relmark_tbl_free(log);
-	/* sess421: intent/done census (untrusted replay) */
+	/* intent/done census (untrusted replay) */
 	mxfs_icensus_free(log);
-	/* sess411 (D-527): foreign-slice snapshot — every exit path lands here */
+	/* (D-527): foreign-slice snapshot — every exit path lands here */
 	kvfree(log->l_mxfs_slice_snap);
 	kfree(log);
 }
@@ -4864,13 +4864,13 @@ xlog_force_shutdown(
 		if (xfs_error_level >= XFS_ERRLEVEL_HIGH)
 			xfs_stack_trace();
 		/*
-		 * sess409 (D-FENCED-VICTIM-NONCONTAINMENT-498, churn arm): when
+		 * (D-FENCED-VICTIM-NONCONTAINMENT-498, churn arm): when
 		 * the FIRST shutdown of this mount originates in the log (a log
 		 * write bounced — e.g. RESERVATION CONFLICT on a fenced node, or
 		 * any log I/O error), the mount shutdown bit is set HERE and
 		 * xfs_do_force_shutdown never runs for this mount — every later
 		 * caller (the fence_notify self-withdraw included) returns early
-		 * on xfs_set_shutdown.  The sess9 cluster withdrawal
+		 * on xfs_set_shutdown.  The cluster withdrawal
 		 * (mxfs_dlm_shutdown_withdraw: fence new acquires, stop the
 		 * disklock heartbeat so peers reclaim our slots) therefore never
 		 * ran: test20 kept heartbeating (bouncing -52) for 61 s holding
@@ -4971,7 +4971,7 @@ xfs_log_check_lsn(
 	 * Gate on m_mxfs_dlm_was_active, NOT m_mxfs_dlm: put_super tears
 	 * the DLM down before xfs_unmountfs, and the quiesce-time summary
 	 * counter recompute (and any other late read) still encounters
-	 * peer-stamped LSNs after that point (sess30 run14d: AGF read at
+	 * peer-stamped LSNs after that point (run14d: AGF read at
 	 * quiesce failed -EFSCORRUPTED on "LSN (1:5) ahead of (1:0)").
 	 */
 	if (mp->m_mxfs_dlm_was_active)

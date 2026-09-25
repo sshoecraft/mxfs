@@ -442,7 +442,7 @@ xlog_recover_inode_commit_pass2(
 			  static atomic_t p77_n = ATOMIC_INIT(0);
 			  if (unlikely(mxfs_instr_enabled) ||
 			      atomic_inc_return(&p77_n) <= 6000)
-				pr_warn("P77-FRINODE %s ino=%lld txn_lsn=0x%llx disk_di_lsn=0x%llx lsn_cmp=%d disk_cc=%llu log_cc=%llu disk_nx=%llu log_nx=%llu disk_fmt=%u log_fmt=%u disk_size=%llu log_size=%llu fields=0x%x disk_mode=0%o log_mode=0%o disk_gen=%u log_gen=%u verdict=%s\n",
+				mxfs_probe("P77-FRINODE %s ino=%lld txn_lsn=0x%llx disk_di_lsn=0x%llx lsn_cmp=%d disk_cc=%llu log_cc=%llu disk_nx=%llu log_nx=%llu disk_fmt=%u log_fmt=%u disk_size=%llu log_size=%llu fields=0x%x disk_mode=0%o log_mode=0%o disk_gen=%u log_gen=%u verdict=%s\n",
 					xlog_is_mxfs_foreign_replay(log) ?
 						"foreign" : "adopted",
 					(long long)in_f->ilf_ino,
@@ -470,7 +470,7 @@ xlog_recover_inode_commit_pass2(
 			}
 		} else if (lsn && lsn != -1 && XFS_LSN_CMP(lsn, current_lsn) > 0) {
 			/*
-			 * sess459 (D-0521): on a clustered mount a TRUSTED
+			 * (D-0521): on a clustered mount a TRUSTED
 			 * recovery (PASS-1 own-stamp reclaim) still lands here,
 			 * comparing this slice's LSN with a stamp another slice
 			 * may have written.  Observability only until that path
@@ -692,7 +692,7 @@ out_owner_change:
 	    (in_f->ilf_boffset >> mp->m_sb.sb_inodelog) < 64)
 		bp->b_mxfs_recov_slots |=
 			1ULL << (in_f->ilf_boffset >> mp->m_sb.sb_inodelog);
-	/* sess340 513B: ownership-safe foreign provenance + queue */
+	/* 513B: ownership-safe foreign provenance + queue */
 	error = xfs_buf_delwri_queue_recovery(bp, buffer_list,
 			xlog_is_mxfs_foreign_replay(log));
 

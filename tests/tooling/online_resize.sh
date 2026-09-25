@@ -39,7 +39,7 @@ if [ "$FSTYPE" = xfs ]; then
     umount "$MP"
 else
 [ -x "$RESIZE" ] || { emit FAIL setup "resize_mxfs missing"; exit 1; }
-modprobe libcrc32c 2>/dev/null || true; lsmod | grep -q '^mxfs' || insmod "$MODULE" force_transport=1 2>/dev/null
+modprobe libcrc32c 2>/dev/null || true; lsmod | grep -q '^mxfs' || insmod "$MODULE" dyndbg=+p force_transport=1 2>/dev/null
 
 truncate -s "$SMALL" "$IMG"
 LOOP=$(losetup --find --show "$IMG") || { emit FAIL setup losetup; exit 1; }

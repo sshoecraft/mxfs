@@ -589,7 +589,7 @@ xfs_alloc_fixup_trees(
 
 #ifdef __KERNEL__
 	/*
-	 * ccloop-4dd7 sess2 P145-ALLOC — the alloc-side twin of P145-FREE
+	 * ccloop-4dd7 P145-ALLOC — the alloc-side twin of P145-FREE
 	 * (every extent leaving the free space).  The round-3 leaf/data
 	 * double-map (dir 131 block0 and its new LEAF both at AG1 bno 27)
 	 * needs the full cross-node ALLOC/FREE interleave for one agbno to
@@ -599,7 +599,7 @@ xfs_alloc_fixup_trees(
 		static atomic_t p145a_n = ATOMIC_INIT(0);
 
 		if (atomic_inc_return(&p145a_n) <= 8000)
-			pr_warn("mxfs: P145-ALLOC agno=%u bno=%u len=%u comm=%s realns=%llu\n",
+			mxfs_probe("mxfs: P145-ALLOC agno=%u bno=%u len=%u comm=%s realns=%llu\n",
 				cnt_cur->bc_group ?
 				  pag_agno(to_perag(cnt_cur->bc_group)) : (xfs_agnumber_t)-1,
 				rbno, rlen, current->comm,
@@ -627,7 +627,7 @@ xfs_alloc_fixup_trees(
 			return error;
 		if (XFS_IS_CORRUPT(mp, i != 1)) {
 			/*
-			 * sess42 P70-INSTR: fires ONLY on the cnt-tree lookup
+			 * P70-INSTR: fires ONLY on the cnt-tree lookup
 			 * failure (xfs_alloc.c:630 corruption) — near-zero
 			 * overhead, does not hide races.  Captures whether the
 			 * cnt/bno leaf buffers are gen-stale (b_mxfs_ag_gen <
@@ -640,7 +640,7 @@ xfs_alloc_fixup_trees(
 			struct xfs_buf *p70_bb = bno_cur->bc_levels[0].bp;
 			int p70_cd = p70_cb ? mxfs_ag_buf_disk_differs(p70_cb) : -99;
 			int p70_bd = p70_bb ? mxfs_ag_buf_disk_differs(p70_bb) : -99;
-			pr_warn("mxfs: P70-INSTR cnt-lookup-fail agno=%u fbno=%u flen=%u rbno=%u rlen=%u flags=0x%x pag_gen=%llu cached=%d holders=%d "
+			mxfs_probe("mxfs: P70-INSTR cnt-lookup-fail agno=%u fbno=%u flen=%u rbno=%u rlen=%u flags=0x%x pag_gen=%llu cached=%d holders=%d "
 				"cnt_daddr=%lld cnt_gen=%llu cnt_bflags=0x%x cnt_disk_differs=%d "
 				"bno_daddr=%lld bno_gen=%llu bno_bflags=0x%x bno_disk_differs=%d\n",
 				pag_agno(p70_pag), fbno, flen, rbno, rlen, flags,
@@ -675,7 +675,7 @@ xfs_alloc_fixup_trees(
 		if ((error = xfs_alloc_lookup_eq(bno_cur, fbno, flen, &i)))
 			return error;
 		if (XFS_IS_CORRUPT(mp, i != 1)) {
-			/* sess42 P70-INSTR: bno-tree branch (see cnt branch). */
+			/* P70-INSTR: bno-tree branch (see cnt branch). */
 			struct xfs_perag *p70_pag = to_perag(bno_cur->bc_group);
 			struct xfs_buf *p70_cb = cnt_cur->bc_levels[0].bp;
 			struct xfs_buf *p70_bb = bno_cur->bc_levels[0].bp;
@@ -684,7 +684,7 @@ xfs_alloc_fixup_trees(
 			int p70_bdirty = (p70_bb && p70_bb->b_log_item &&
 				test_bit(XFS_LI_DIRTY, &p70_bb->b_log_item->bli_item.li_flags)) ? 1 : 0;
 			int p70_bpin = p70_bb ? atomic_read(&p70_bb->b_pin_count) : -1;
-			/* sess42: dump record-level detail to see the NATURE of the
+			/* dump record-level detail to see the NATURE of the
 			 * on-disk bno/cnt disagreement (numrecs + the bno record at
 			 * the failed-lookup cursor position). */
 			int p70_bnr = p70_bb ? be16_to_cpu(XFS_BUF_TO_BLOCK(p70_bb)->bb_numrecs) : -1;
@@ -692,7 +692,7 @@ xfs_alloc_fixup_trees(
 			xfs_agblock_t p70_gbno = 0; xfs_extlen_t p70_glen = 0; int p70_gs = -1;
 			{ int gerr = xfs_alloc_get_rec(bno_cur, &p70_gbno, &p70_glen, &p70_gs);
 			  if (gerr) p70_gs = -2; }
-			pr_warn("mxfs: P70-INSTR bno-lookup-fail agno=%u fbno=%u flen=%u rbno=%u rlen=%u flags=0x%x pag_gen=%llu cached=%d holders=%d "
+			mxfs_probe("mxfs: P70-INSTR bno-lookup-fail agno=%u fbno=%u flen=%u rbno=%u rlen=%u flags=0x%x pag_gen=%llu cached=%d holders=%d "
 				"cnt_daddr=%lld cnt_gen=%llu cnt_bflags=0x%x cnt_disk_differs=%d cnt_numrecs=%d "
 				"bno_daddr=%lld bno_gen=%llu bno_bflags=0x%x bno_disk_differs=%d bno_dirty=%d bno_pin=%d bno_numrecs=%d "
 				"bno_rec_at_cursor=[bno=%u len=%u stat=%d]\n",
@@ -754,7 +754,7 @@ xfs_alloc_fixup_trees(
 		fixup_longest = true;
 
 	/*
-	 * sess42 P74-INSTR: fire ONLY when we are about to MODIFY (delete from)
+	 * P74-INSTR: fire ONLY when we are about to MODIFY (delete from)
 	 * a cnt-by-size leaf buffer that is gen-STALE (b_mxfs_ag_gen lags
 	 * pag_dlm_meta_gen).  Cheap gen check up front; disk_differs (FUA read)
 	 * computed only on the rare stale hit.  If a writer modifies a stale
@@ -763,7 +763,7 @@ xfs_alloc_fixup_trees(
 	 * UPDATE that produces inconsistent on-disk bno/cnt (P70 disk_differs=0).
 	 */
 	/*
-	 * sess21 (ccloop): GATED behind mxfs.instr.  The "rare stale hit"
+	 * GATED behind mxfs.instr.  The "rare stale hit"
 	 * premise is false — b_mxfs_ag_gen is never stamped on the alloc
 	 * path (cnt_gen=0) while pag_dlm_meta_gen>=1, so this fired on
 	 * EVERY extent allocation, and each hit pays a synchronous FUA
@@ -780,7 +780,7 @@ xfs_alloc_fixup_trees(
 			int p74_pin = atomic_read(&p74_cb->b_pin_count);
 			int p74_dirty = (p74_cb->b_log_item &&
 				test_bit(XFS_LI_DIRTY, &p74_cb->b_log_item->bli_item.li_flags)) ? 1 : 0;
-			pr_warn("mxfs: P74-INSTR cnt-modify-on-STALE-buf agno=%u fbno=%u flen=%u rbno=%u rlen=%u "
+			mxfs_probe("mxfs: P74-INSTR cnt-modify-on-STALE-buf agno=%u fbno=%u flen=%u rbno=%u rlen=%u "
 				"cnt_daddr=%lld cnt_gen=%llu pag_gen=%llu cnt_disk_differs=%d pin=%d dirty=%d holders=%d\n",
 				pag_agno(p74_pag), fbno, flen, rbno, rlen,
 				(long long)p74_cb->b_maps[0].bm_bn,
@@ -869,7 +869,7 @@ xfs_alloc_fixup_trees(
 	}
 
 	/*
-	 * sess42 P76-INSTR: catch the fixup that LEAVES bno/cnt inconsistent.
+	 * P76-INSTR: catch the fixup that LEAVES bno/cnt inconsistent.
 	 * For the hot AG (1), after both trees are updated, verify each residual
 	 * free extent is present consistently in BOTH trees.  Uses DUPLICATE
 	 * cursors so the originals (incl. cnt_cur for fixup_longest) are
@@ -895,7 +895,7 @@ xfs_alloc_fixup_trees(
 				if (xfs_alloc_lookup_eq(bdup, p76_res[k], p76_rl[k], &bi))
 					bi = -2;
 				if (ci != bi)
-					pr_warn("mxfs: P76-INSTR fixup-LEFT-INCONSISTENT agno=1 residual=(%u,%u) in_cnt=%d in_bno=%d allocd=(%u,%u) from=(%u,%u) cnt_bp=%p bno_bp=%p\n",
+					mxfs_probe("mxfs: P76-INSTR fixup-LEFT-INCONSISTENT agno=1 residual=(%u,%u) in_cnt=%d in_bno=%d allocd=(%u,%u) from=(%u,%u) cnt_bp=%p bno_bp=%p\n",
 						p76_res[k], p76_rl[k], ci, bi,
 						rbno, rlen, fbno, flen,
 						cnt_cur->bc_levels[0].bp,
@@ -2221,7 +2221,7 @@ xfs_free_ag_extent(
 	mp = tp->t_mountp;
 
 	/*
-	 * sess6 (ccloop 8ba7ae5c) P145 — every free-space insert, so a later
+	 * P145 — every free-space insert, so a later
 	 * double-alloc's "was that agbno ever freed?" question is answered
 	 * from journals instead of inference (the iter_10/12 braids hinged
 	 * on proving the uv-dir blocks were NEVER freed).
@@ -2230,13 +2230,13 @@ xfs_free_ag_extent(
 		static atomic_t p145_n = ATOMIC_INIT(0);
 
 		if (atomic_inc_return(&p145_n) <= 8000)
-			pr_warn("mxfs: P145-FREE agno=%u bno=%u len=%u comm=%s realns=%llu\n",
+			mxfs_probe("mxfs: P145-FREE agno=%u bno=%u len=%u comm=%s realns=%llu\n",
 				pag_agno(pag), bno, len, current->comm,
 				(unsigned long long)ktime_get_real_ns());
 	}
 
 	/*
-	 * sess44 P96 (AG-DLM held-at-modify check) REVERTED: fired 0× — the
+	 * P96 (AG-DLM held-at-modify check) REVERTED: fired 0× — the
 	 * node ALWAYS holds the AG-DLM when it modifies the bnobt at the free.
 	 * So bnobt modifies ARE coordinated (hold the lock); NOT a deferred-op-
 	 * without-lock issue.  BUT mxfs_v5_dlm_ag_held only checks OUR bit is
@@ -2282,12 +2282,12 @@ xfs_free_ag_extent(
 			haveleft = 0;
 		else {
 			/*
-			 * <ccloop sess3> Defensive skip of a stale-map DOUBLE-FREE.
+			 * < > Defensive skip of a stale-map DOUBLE-FREE.
 			 * ltbno+ltlen > bno means the range being freed is already
 			 * (partly) free.  If it is FULLY contained in the already-free
 			 * left neighbour (ltbno <= bno guaranteed by lookup_le, and
 			 * ltbno+ltlen >= bno+len), the blocks are genuinely already
-			 * free cluster-wide (PROVEN not a double-ALLOC: sess30/sess55).
+			 * free cluster-wide (PROVEN not a double-ALLOC: /).
 			 * The freeing inode simply carried a STALE extent map.  Skip
 			 * the redundant free cleanly instead of XFS_IS_CORRUPT shutdown
 			 * (which cascades the whole 4/8 suite).  Multi-node + full
@@ -2319,7 +2319,7 @@ xfs_free_ag_extent(
 				int p28_level = bno_cur->bc_levels[0].ptr ? 0 : -1;
 				if (p28_level >= 0)
 					p28_lbp = bno_cur->bc_levels[0].bp;
-				pr_warn("P15-INSTR realns=%llu FREE-AG-EXTENT-FAIL-LEFT caller=%pS caller2=%pS comm=%s agno=%u bno=%u len=%u ltbno=%u ltlen=%u haveright=NA agf_freeblks=%u agf_longest=%u pagf_freeblks=%u pagf_longest=%u\n",
+				mxfs_probe("P15-INSTR realns=%llu FREE-AG-EXTENT-FAIL-LEFT caller=%pS caller2=%pS comm=%s agno=%u bno=%u len=%u ltbno=%u ltlen=%u haveright=NA agf_freeblks=%u agf_longest=%u pagf_freeblks=%u pagf_longest=%u\n",
 					(unsigned long long)ktime_get_real_ns(),
 					__builtin_return_address(0),
 					__builtin_return_address(1),
@@ -2337,7 +2337,7 @@ xfs_free_ag_extent(
 						uint64_t p47_ino = mxfs_dbg_inactive_ino;
 						uint32_t p47_dgen = 0;
 						uint16_t p47_dm = mxfs_dbg_disk_di_mode(mp, p47_ino, &p47_dgen);
-						pr_warn("mxfs: P47-INACT agno=%u bno=%u inact_ino=%llu inact_agno=%llu incore_gen=%u disk_di_mode=0%o disk_di_gen=%u verdict=%s\n",
+						mxfs_probe("mxfs: P47-INACT agno=%u bno=%u inact_ino=%llu inact_agno=%llu incore_gen=%u disk_di_mode=0%o disk_di_gen=%u verdict=%s\n",
 							(unsigned)pag_agno(pag), (unsigned)bno,
 							(unsigned long long)p47_ino,
 							(unsigned long long)XFS_INO_TO_AGNO(mp, p47_ino),
@@ -2347,7 +2347,7 @@ xfs_free_ag_extent(
 							p47_dm == 0xFFFF ? "read-err/badmagic" :
 							(p47_dgen != mxfs_dbg_inactive_gen) ? "GEN-MISMATCH=>B-stale-inode" :
 							"DISK-LIVE-same-gen=>A-lost-removal");
-						/* sess81: decisive fork — does the inode's
+						/* decisive fork — does the inode's
 						 * ON-DISK extent map actually claim the block
 						 * being double-freed?  freed fsbno = AGB_TO_FSB
 						 * (agno,bno).  If the on-disk first extent's
@@ -2373,7 +2373,7 @@ xfs_free_ag_extent(
 								p81_len > 0 &&
 								p81_freed_fsb >= p81_sb &&
 								p81_freed_fsb < p81_sb + p81_len;
-							pr_warn("mxfs: P81-DEXT ino=%llu freed_fsb=0x%llx disk_rc=%d disk_fmt=%u disk_ndext=%llu disk_ext0=[off=%llu,sb=0x%llx,len=%llu] disk_claims_freed=%d verdict=%s\n",
+							mxfs_probe("mxfs: P81-DEXT ino=%llu freed_fsb=0x%llx disk_rc=%d disk_fmt=%u disk_ndext=%llu disk_ext0=[off=%llu,sb=0x%llx,len=%llu] disk_claims_freed=%d verdict=%s\n",
 								(unsigned long long)p47_ino,
 								(unsigned long long)p81_freed_fsb,
 								p81_rc, (unsigned)p81_fmt,
@@ -2388,7 +2388,7 @@ xfs_free_ag_extent(
 						}
 					}
 				/*
-				 * sess44 P93 (WARN_ONCE stack dump here) REVERTED:
+				 * P93 (WARN_ONCE stack dump here) REVERTED:
 				 * the XFS_IS_CORRUPT below already dumps the call
 				 * stack via xfs_corruption_error.  That stack PROVED
 				 * the overlap fires at UNMOUNT (Comm=umount →
@@ -2403,7 +2403,7 @@ xfs_free_ag_extent(
 				if (p28_lbp) {
 					struct xfs_btree_block *p33_blk;
 					struct xfs_buf *p33_dump_bp = NULL;
-					/* sess44 P85: decisive read-vs-write fork.
+					/* P85: decisive read-vs-write fork.
 					 * FUA-read on-disk bnobt leaf, compare in-core.
 					 * differs=0 => on-disk ALSO carries the wrong
 					 * (pristine) image => peer allocs never durably
@@ -2411,7 +2411,7 @@ xfs_free_ag_extent(
 					 * in-core stale vs correct disk = READ-side
 					 * staleness (FUA-refresh hook missed this leaf). */
 					int p85_dd = mxfs_ag_buf_disk_differs(p28_lbp);
-					pr_warn("P28-INSTR LEFT-FAIL leaf_buf daddr=0x%llx flags=0x%x b_log_item=%p hold=%u disk_differs=%d in_ail=%d\n",
+					mxfs_probe("P28-INSTR LEFT-FAIL leaf_buf daddr=0x%llx flags=0x%x b_log_item=%p hold=%u disk_differs=%d in_ail=%d\n",
 						(unsigned long long)p28_lbp->b_maps[0].bm_bn,
 						p28_lbp->b_flags,
 						p28_lbp->b_log_item,
@@ -2430,7 +2430,7 @@ xfs_free_ag_extent(
 						union xfs_btree_rec *rN = nr > 1 ?
 						  xfs_btree_rec_addr(bno_cur,
 							nr, p33_blk) : r0;
-						pr_warn("mxfs: P33-INSTR fail-bnobt-snap "
+						mxfs_probe("mxfs: P33-INSTR fail-bnobt-snap "
 							"agno=%u failtype=LEFT "
 							"leaf_daddr=0x%llx flags=0x%x "
 							"bli=%p hold=%u nr=%u "
@@ -2489,7 +2489,7 @@ xfs_free_ag_extent(
 			 */
 			if (XFS_IS_CORRUPT(mp, bno + len > gtbno)) {
 				struct xfs_agf *p14_agf = agbp->b_addr;
-				pr_warn("P14-INSTR realns=%llu FREE-AG-EXTENT-FAIL agno=%u bno=%u len=%u gtbno=%u gtlen=%u haveleft=%d ltbno=%u ltlen=%u agf_freeblks=%u agf_longest=%u pagf_freeblks=%u pagf_longest=%u\n",
+				mxfs_probe("P14-INSTR realns=%llu FREE-AG-EXTENT-FAIL agno=%u bno=%u len=%u gtbno=%u gtlen=%u haveleft=%d ltbno=%u ltlen=%u agf_freeblks=%u agf_longest=%u pagf_freeblks=%u pagf_longest=%u\n",
 					(unsigned long long)ktime_get_real_ns(),
 					(unsigned)pag_agno(pag),
 					(unsigned)bno, (unsigned)len,
@@ -2505,7 +2505,7 @@ xfs_free_ag_extent(
 					if (p28_lbp) {
 						struct xfs_btree_block *p33_blk;
 						struct xfs_buf *p33_dump_bp = NULL;
-						pr_warn("P28-INSTR RIGHT-FAIL leaf_buf daddr=0x%llx flags=0x%x b_log_item=%p hold=%u\n",
+						mxfs_probe("P28-INSTR RIGHT-FAIL leaf_buf daddr=0x%llx flags=0x%x b_log_item=%p hold=%u\n",
 							(unsigned long long)p28_lbp->b_maps[0].bm_bn,
 							p28_lbp->b_flags,
 							p28_lbp->b_log_item,
@@ -2521,7 +2521,7 @@ xfs_free_ag_extent(
 							union xfs_btree_rec *rN = nr > 1 ?
 							  xfs_btree_rec_addr(bno_cur,
 								nr, p33_blk) : r0;
-							pr_warn("mxfs: P33-INSTR fail-bnobt-snap "
+							mxfs_probe("mxfs: P33-INSTR fail-bnobt-snap "
 								"agno=%u failtype=RIGHT "
 								"leaf_daddr=0x%llx flags=0x%x "
 								"bli=%p hold=%u nr=%u "
@@ -3554,13 +3554,13 @@ xfs_alloc_put_freelist(
 	__be32			*agfl_bno;
 	int			startoff;
 
-	/* sess6 (8ba7ae5c) P145 sibling: AGFL inserts can also hand a live
+	/* P145 sibling: AGFL inserts can also hand a live
 	 * block back to the allocator — trace them like xfs_free_ag_extent. */
 	if (mp->m_mxfs_dlm && !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm)) {
 		static atomic_t p145f_n = ATOMIC_INIT(0);
 
 		if (atomic_inc_return(&p145f_n) <= 4000)
-			pr_warn("mxfs: P145-AGFL agno=%u bno=%u btreeblk=%d comm=%s realns=%llu\n",
+			mxfs_probe("mxfs: P145-AGFL agno=%u bno=%u btreeblk=%d comm=%s realns=%llu\n",
 				pag_agno(pag), bno, btreeblk, current->comm,
 				(unsigned long long)ktime_get_real_ns());
 	}
@@ -3793,7 +3793,7 @@ xfs_read_agf(
 	trace_xfs_read_agf(pag);
 
 	/*
-	 * sess40: AG free-space read coherency.  A peer may have allocated from
+	 * AG free-space read coherency.  A peer may have allocated from
 	 * this AG while we did not hold it; our cached AGF buffer (which holds
 	 * agf_freeblks + the bnobt/cntbt root pointers) is then STALE, and the
 	 * allocator would double-allocate (-> bmap/SB corruption + shutdown
@@ -3818,7 +3818,7 @@ xfs_read_agf(
 	if (error)
 		return error;
 
-	/* sess125: tenure stamped at MODIFY time (mxfs_ag_meta_track in
+	/* tenure stamped at MODIFY time (mxfs_ag_meta_track in
 	 * xfs_trans_log_buf), not read time — see xfs_read_agi.  A read-only
 	 * AGF stays prior-tenure so a stale cache-hit is refreshed; an AGF
 	 * modified this tenure (freeblks update) is stamped current. */
@@ -4026,7 +4026,7 @@ xfs_alloc_vextent_prepare_ag(
 		error = mxfs_ag_dlm_trylock(args->mp, args->pag);
 	else if (args->tp && (args->tp->t_flags & XFS_TRANS_DIRTY))
 		/*
-		 * sess5 ABBA edge-2 (stack-proven run36): a DIRTY trans here
+		 * ABBA edge-2 (stack-proven run36): a DIRTY trans here
 		 * holds unreleasable resources (dir DLM EX during
 		 * xfs_dir2_grow_inode at minimum).  Parking 61s on ONE
 		 * peer-held AG deadlocks against a peer create that holds
@@ -4129,8 +4129,8 @@ xfs_alloc_vextent_finish(
 	    args->tp->t_mxfs_wouldblock_agno != NULLAGNUMBER &&
 	    !(args->tp->t_flags & XFS_TRANS_DIRTY)) {
 		static DEFINE_RATELIMIT_STATE(mxfs_agrestart_rl, 30 * HZ, 4);
-		if (__ratelimit(&mxfs_agrestart_rl))
-			pr_warn("mxfs: P270-AGRESTART wouldblock ag=%u -> restart\n",
+		if (mxfs_probe_on() && __ratelimit(&mxfs_agrestart_rl))
+			mxfs_probe("mxfs: P270-AGRESTART wouldblock ag=%u -> restart\n",
 				args->tp->t_mxfs_wouldblock_agno);
 		alloc_error = -MXFS_ERESTART_AG;
 	}
@@ -4181,12 +4181,12 @@ xfs_alloc_vextent_finish(
 
 	{ extern int mxfs_instr_enabled;
 	if (mxfs_instr_enabled && args->len > 0 && args->pag) {
-		/* sess40: gated behind mxfs.instr (was ungated per-alloc printk =
+		/* gated behind mxfs.instr (was ungated per-alloc printk =
 		 * perf cost).  This IS the P33-style cross-node alloc-overlap
 		 * detector: with instr=1, collect agno/agbno/len/realns from ALL
 		 * nodes; overlapping (agno,agbno..+len) ranges at ~same realns =
 		 * AG free-space double-alloc (the rename-storm corruption). */
-		pr_warn("mxfs: P23-INSTR alloc-extent agno=%u agbno=%u len=%u "
+		mxfs_probe("mxfs: P23-INSTR alloc-extent agno=%u agbno=%u len=%u "
 			"wasfromfl=%d realns=%llu\n",
 			pag_agno(args->pag), (unsigned)args->agbno,
 			(unsigned)args->len, (int)args->wasfromfl,
@@ -4194,7 +4194,7 @@ xfs_alloc_vextent_finish(
 	} }
 
 	/*
-	 * sess55 (ccloop) instrumented SOURCE DETECTOR for the dir-data-over-inode-
+	 * instrumented SOURCE DETECTOR for the dir-data-over-inode-
 	 * cluster double-allocation (Face B, the posix_semantics_multi16
 	 * shutdown).  PROVEN symptom: a directory data block (dirents) lands on
 	 * top of a live inode cluster -> the cluster fails its verifier on the
@@ -4255,7 +4255,7 @@ xfs_alloc_vextent_finish(
 				}
 				spin_unlock_irqrestore(&p55_lock, fl);
 				if (hit >= 0)
-					pr_warn("mxfs: P55-ALLOC-OVER-INODE agno=%u DATA alloc=(%u,%u) owner_ino=%llu OVERLAPS inode-chunk=(%u,%u) chunk_slot=%u my_slot=%d %s wasfromfl=%d realns=%llu\n",
+					mxfs_probe("mxfs: P55-ALLOC-OVER-INODE agno=%u DATA alloc=(%u,%u) owner_ino=%llu OVERLAPS inode-chunk=(%u,%u) chunk_slot=%u my_slot=%d %s wasfromfl=%d realns=%llu\n",
 						agno, a0, (unsigned)args->len,
 						(unsigned long long)args->oinfo.oi_owner,
 						hb, hl, hs, myslot,
@@ -4264,7 +4264,7 @@ xfs_alloc_vextent_finish(
 						(unsigned long long)ktime_get_real_ns());
 
 				/*
-				 * sess55 CROSS-NODE catch: the ring above only
+				 * CROSS-NODE catch: the ring above only
 				 * knows THIS node's inode-chunk allocations.  A peer
 				 * may have allocated the conflicting chunk.  Probe
 				 * the LOCAL buffer cache for a live inode-cluster
@@ -4291,7 +4291,7 @@ xfs_alloc_vextent_finish(
 						    XBF_TRYLOCK, &ibp) == 0 && ibp) {
 							if (ibp->b_ops == &xfs_inode_buf_ops ||
 							    ibp->b_ops == &xfs_inode_buf_ra_ops) {
-								pr_warn("mxfs: P55-ALLOC-OVER-CACHEDINODE agno=%u DATA alloc=(%u,%u) owner_ino=%llu cluster_agbno=%u cluster_daddr=0x%llx ibuf_flags=0x%x my_slot=%d wasfromfl=%d realns=%llu\n",
+								mxfs_probe("mxfs: P55-ALLOC-OVER-CACHEDINODE agno=%u DATA alloc=(%u,%u) owner_ino=%llu cluster_agbno=%u cluster_daddr=0x%llx ibuf_flags=0x%x my_slot=%d wasfromfl=%d realns=%llu\n",
 									agno, a0, (unsigned)args->len,
 									(unsigned long long)args->oinfo.oi_owner,
 									(unsigned)cb,
@@ -4305,8 +4305,8 @@ xfs_alloc_vextent_finish(
 					}
 				}
 				/*
-				 * sess33 (ccloop 8ddb16a2) RE-ADD the cross-node
-				 * P33-ALLOC-OVER-DISKINODE plain-bio probe sess55 removed
+				 * RE-ADD the cross-node
+				 * P33-ALLOC-OVER-DISKINODE plain-bio probe removed
 				 * for perf.  On 2-node TCP (this criterion) the perf cost
 				 * is irrelevant, and the intra-node ring (P55) + cached-
 				 * inode probe both fire 0× — they CANNOT see a PEER's
@@ -4321,12 +4321,12 @@ xfs_alloc_vextent_finish(
 				 * mis-write.
 				 */
 				/*
-				 * sess55: the P55-ALLOC-OVER-DISKINODE plain-bio probe
+				 * the P55-ALLOC-OVER-DISKINODE plain-bio probe
 				 * (one 512B coherent read per DATA alloc) RULED OUT M1
 				 * decisively (0× on all nodes while shutdowns persisted)
 				 * — the allocator never hands a DATA request a block
 				 * holding a live inode cluster.  Removed: it slowed the
-				 * 16-node storm past the repro budget.  sess33 re-added it
+				 * 16-node storm past the repro budget.  re-added it
 				 * (every-alloc sync read) and confirmed it TIMES OUT the
 				 * 2-node test (budget) — too heavy for the alloc hot path
 				 * holding the AGF; reverted.  A cheaper cross-node check is
@@ -4338,7 +4338,7 @@ xfs_alloc_vextent_finish(
 	}
 
 	/*
-	 * ccloop P-DBLALLOC (instrumented, dir_reuse_coherency 2/tcp): the proven
+	 *  P-DBLALLOC (instrumented, dir_reuse_coherency 2/tcp): the proven
 	 * symptom is a dir LEAF block daddr that holds .md5 FILE data
 	 * (P54-DIRBLK-PROBE disk_magic="a27b" = md5 hex) -> the dir's leaf block
 	 * and a file's data block share one daddr (cross-node free-space
@@ -4353,7 +4353,7 @@ xfs_alloc_vextent_finish(
 	 * dirwr/instr; diagnostic only.
 	 */
 	/*
-	 * sess30 (ccloop 8ddb16a2): UN-GATED (was instr/dirwr) + capped so
+	 * UN-GATED (was instr/dirwr) + capped so
 	 * dir_reuse_coherency can run WITHOUT instr — instr=1 is ~100x slower and
 	 * HIDES the cross-node double-alloc race.  This is the decisive FACE C
 	 * detector: at a DATA-fork alloc, coherently plain-read the allocated block;
@@ -4367,7 +4367,7 @@ xfs_alloc_vextent_finish(
 	if (({ extern int mxfs_dblalloc_probe; mxfs_dblalloc_probe; }) &&
 	    mp->m_mxfs_dlm && !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm) &&
 	    args->len > 0 && args->pag && args->agbp &&
-	    /* sess1(a16ec5f2): oi_owner>0 was DEAD for bmap data allocs —
+	    /* oi_owner>0 was DEAD for bmap data allocs —
 	     * btalloc passes SKIP_UPDATE (owner=0), so the detector missed
 	     * the exact class that wrote urandom over dir block daddr=120.
 	     * mxfs_diag_owner carries ap->ip->i_ino for those. */
@@ -4396,13 +4396,13 @@ xfs_alloc_vextent_finish(
 			bool inode = (m[0] == 0x49 && m[1] == 0x4e);
 
 			if (dirblk || leaf || inode) {
-				/* sess3 8ba7ae5c: prior owner from the dir3
+				/* 8ba7ae5c: prior owner from the dir3
 				 * blk hdr (offset 0x28) — identifies WHOSE
 				 * live block the allocator just re-handed. */
 				uint64_t da_owner = dirblk ?
 					be64_to_cpu(*(__be64 *)(m + 0x28)) : 0;
 
-				pr_warn("mxfs: P-DBLALLOC agno=%u agbno=%u len=%u new_owner_ino=%llu daddr=%lld holds=%s disk_owner=%llu magic0=%02x%02x%02x%02x off8=0x%04x tenure=%llu node=%d wasfromfl=%d comm=%s realns=%llu\n",
+				mxfs_probe("mxfs: P-DBLALLOC agno=%u agbno=%u len=%u new_owner_ino=%llu daddr=%lld holds=%s disk_owner=%llu magic0=%02x%02x%02x%02x off8=0x%04x tenure=%llu node=%d wasfromfl=%d comm=%s realns=%llu\n",
 					da_agno, (unsigned)args->agbno,
 					(unsigned)args->len,
 					(unsigned long long)(args->oinfo.oi_owner ?:
@@ -4418,7 +4418,7 @@ xfs_alloc_vextent_finish(
 					current->comm,
 					(unsigned long long)ktime_get_real_ns());
 				/*
-				 * P-DBLALLOC-AGF (sess3 8ba7ae5c, GPT read-vs-
+				 * P-DBLALLOC-AGF (8ba7ae5c, design review read-vs-
 				 * write discriminator, modeled on the BIRTH
 				 * probe's variant in xfs_dir2_data.c): compare
 				 * this node's in-core AGF summary against the
@@ -4444,7 +4444,7 @@ xfs_alloc_vextent_finish(
 							struct xfs_agf *dagf2 = ab2;
 							uint32_t dfree2 = be32_to_cpu(
 								dagf2->agf_freeblks);
-							pr_warn("mxfs: P-DBLALLOC-AGF agno=%u incore_freeblks=%u disk_freeblks=%u differ=%d — %s\n",
+							mxfs_probe("mxfs: P-DBLALLOC-AGF agno=%u incore_freeblks=%u disk_freeblks=%u differ=%d — %s\n",
 								da_agno,
 								(unsigned)args->pag->pagf_freeblks,
 								dfree2,
@@ -4493,7 +4493,7 @@ xfs_alloc_vextent_finish(
 					union xfs_btree_rec *rN = nr > 1 ?
 						xfs_btree_rec_addr(p33_cur,
 							nr, p33_blk) : r0;
-					pr_warn("mxfs: P33-INSTR alloc-bnobt-snap "
+					mxfs_probe("mxfs: P33-INSTR alloc-bnobt-snap "
 						"agno=%u alloc=(%u,%u) "
 						"leaf_daddr=0x%llx flags=0x%x "
 						"bli=%p hold=%u nr=%u "
@@ -4673,7 +4673,7 @@ restart:
 		 * xfs_trans_free on both commit and cancel) before dropping
 		 * the perag, or pag_dlm_holders leaks at 1 forever: the BAST
 		 * worker then bails on holders>0 and the on-disk EX bit
-		 * strands — the -488 dead-holder livelock (sess265: dd killed
+		 * strands — the -488 dead-holder livelock (dd killed
 		 * mid-allocation left ag=10 EX-held fleet-wide).  agbp is the
 		 * discriminant: prepare_ag's own error paths unlock the DLM
 		 * themselves and always leave agbp NULL (fix_freelist clears
@@ -4940,13 +4940,13 @@ __xfs_free_extent(
 	/*
 	 * MXFS: acquire per-AG DLM lock for extent freeing.
 	 *
-	 * -488 (sess263 + sess267 third face): a defer chain freeing extents
+	 * -488 (+ third face): a defer chain freeing extents
 	 * blocks here on a peer-held AG while (a) retaining other AGs' grants
-	 * until commit (proven 3-node ABBA, sess263) and (b) holding the
+	 * until commit (proven 3-node ABBA) and (b) holding the
 	 * caller's ILOCK_EXCL, which pins the caller's own committed inode
 	 * log item in the AIL and so wedges its HOME AG's release drain —
 	 * a cross-node Coffman cycle with ZERO retained grants (proven
-	 * test3/test25 truncate pair, sess267).  Blocking here is therefore
+	 * test3/test25 truncate pair).  Blocking here is therefore
 	 * never safe inside defer processing, retained grants or not:
 	 *  - trylock succeeded -> proceed (cached/nested fast path).
 	 *  - inside defer (SAFE or UNSAFE): record the wanted AG on the
@@ -4964,7 +4964,7 @@ __xfs_free_extent(
 
 		if (tp->t_mxfs_ag_relsafe == MXFS_AG_RELSAFE_NOTDEFER) {
 			if (!list_empty(&tp->t_mxfs_ag_unlocks))
-				pr_warn("mxfs: P271-AGNOTDEFER want ag=%u comm=%s — retained grants outside defer, blocking (audit)\n",
+				mxfs_probe("mxfs: P271-AGNOTDEFER want ag=%u comm=%s — retained grants outside defer, blocking (audit)\n",
 					pag_agno(pag), current->comm);
 			error = mxfs_ag_dlm_lock(mp, pag);
 		} else {
@@ -4974,8 +4974,8 @@ __xfs_free_extent(
 				xfs_perag_hold(pag);
 				tp->t_mxfs_ag_want = pag;
 			}
-			if (__ratelimit(&mxfs_agwant_rl))
-				pr_warn("mxfs: P271-AGWANT want ag=%u relsafe=%u comm=%s — requeueing to post-roll seam\n",
+			if (mxfs_probe_on() && __ratelimit(&mxfs_agwant_rl))
+				mxfs_probe("mxfs: P271-AGWANT want ag=%u relsafe=%u comm=%s — requeueing to post-roll seam\n",
 					pag_agno(pag), tp->t_mxfs_ag_relsafe,
 					current->comm);
 			return -EAGAIN;

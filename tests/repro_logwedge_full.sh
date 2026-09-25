@@ -23,7 +23,7 @@ ssh_n() { timeout "${2:-60}" "$SSH" "$N" "$PASS" "$1" 2>&1 | grep -vE 'Warning|U
 echo "=== fresh single-node mxfs mount on $N (instr=1) ==="
 ssh_n 'umount '"$MNT"' 2>/dev/null; rmmod mxfs 2>/dev/null; true' 40 >/dev/null
 MXFS_DEV=${MXFS_DEV:?the shared LUN as this rig names it. This script predates tests/lib/rig.sh and takes the device it is given without an identity check}
-ssh_n '/src/mxfs/tools/prep_tcm_node_scst.sh >/tmp/p.log 2>&1; modprobe libcrc32c; lsmod|grep -q "^mxfs " || insmod /src/mxfs/mxfs.ko instr=1; echo 1 > /sys/module/mxfs/parameters/instr; echo "instr=$(cat /sys/module/mxfs/parameters/instr)"; sg_persist --out --register-ignore --param-sark=0x5eed '"$MXFS_DEV"' >/dev/null 2>&1; sg_persist --out --clear --param-rk=0x5eed '"$MXFS_DEV"' >/dev/null 2>&1; echo y|/src/mxfs/tools/mkfs_mxfs '"$MXFS_DEV"' >/tmp/m.log 2>&1 && echo MKFS_OK; grep -i "slice\|log:" /tmp/m.log; mount -t mxfs '"$MXFS_DEV"' '"$MNT"' && echo MOUNT_OK' 90
+ssh_n '/src/mxfs/tools/prep_tcm_node_scst.sh >/tmp/p.log 2>&1; modprobe libcrc32c; lsmod|grep -q "^mxfs " || insmod /src/mxfs/mxfs.ko dyndbg=+p instr=1; echo 1 > /sys/module/mxfs/parameters/instr; echo "instr=$(cat /sys/module/mxfs/parameters/instr)"; sg_persist --out --register-ignore --param-sark=0x5eed '"$MXFS_DEV"' >/dev/null 2>&1; sg_persist --out --clear --param-rk=0x5eed '"$MXFS_DEV"' >/dev/null 2>&1; echo y|/src/mxfs/tools/mkfs_mxfs '"$MXFS_DEV"' >/tmp/m.log 2>&1 && echo MKFS_OK; grep -i "slice\|log:" /tmp/m.log; mount -t mxfs '"$MXFS_DEV"' '"$MNT"' && echo MOUNT_OK' 90
 
 echo "=== clear dmesg, start FULL recursive rsync ==="
 ssh_n 'dmesg -C; rm -rf '"$MNT"'/w; mkdir -p '"$MNT"'/w; (rsync -a '"$SRC"'/ '"$MNT"'/w/ >/tmp/rs.log 2>&1; echo DONE_$? >/tmp/rs.done) & echo started' 15 >/dev/null

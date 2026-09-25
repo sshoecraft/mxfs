@@ -367,7 +367,7 @@ xfs_update_alignment(
 		error = xfs_check_new_dalign(mp, mp->m_dalign, &update_sb);
 		if (error || !update_sb)
 			return error;
-		/* sess419 D-0133: sunit/swidth are non-counter SB fields */
+		/* D-0133: sunit/swidth are non-counter SB fields */
 		error = mxfs_sb_mutation_refuse(mp, "dalign mount option");
 		if (error)
 			return error;
@@ -548,7 +548,7 @@ xfs_check_summary_counts(
 	 * superblock to be correct and we don't need to do anything here.
 	 * Otherwise, recalculate the summary counters.
 	 *
-	 * MXFS (sess352, #94 sess351 ruling2 Q1 limit case): a cluster
+	 * MXFS (#94 ruling2 Q1 limit case): a cluster
 	 * (envelope) mount NEVER trusts the on-disk summary counters, clean
 	 * log or not.  Every node's lazy-counter writeback last-writer-wins
 	 * over the shared SB home with its own node-local drifted values,
@@ -885,7 +885,7 @@ xfs_mountfs(
 	 * sb_bad_features2 before it is logged or written to disk.
 	 */
 	if (xfs_sb_has_mismatched_features2(sbp)) {
-		/* sess419 D-0133: a cluster mount may not repair the SB */
+		/* D-0133: a cluster mount may not repair the SB */
 		error = mxfs_sb_mutation_refuse(mp, "features2 mismatch repair");
 		if (error)
 			goto out;
@@ -897,7 +897,7 @@ xfs_mountfs(
 
 	/* always use v2 inodes by default now */
 	if (!(mp->m_sb.sb_versionnum & XFS_SB_VERSION_NLINKBIT)) {
-		error = mxfs_sb_mutation_refuse(mp, "NLINKBIT add");	/* sess419 D-0133 */
+		error = mxfs_sb_mutation_refuse(mp, "NLINKBIT add");	/* D-0133 */
 		if (error)
 			goto out;
 		mp->m_sb.sb_versionnum |= XFS_SB_VERSION_NLINKBIT;
@@ -906,7 +906,7 @@ xfs_mountfs(
 	}
 
 	/*
-	 * MXFS (sess353, #94 closure + GPT ruling): a cluster mount requires
+	 * MXFS (#94 closure + design-consult ruling): a cluster mount requires
 	 * ATTRBIT preset by mkfs_mxfs.  Without it the first xattr-bearing
 	 * create on ANY node performs a lazy per-node xfs_add_attr +
 	 * whole-SB log — an uncoordinated cluster-wide SB feature transition
@@ -1119,7 +1119,7 @@ xfs_mountfs(
 	}
 
 	/*
-	 * MXFS sess57 (D-FOREIGN-REPLAY step 4a) — MOUNT RECOVERY BARRIER.
+	 * MXFS (D-FOREIGN-REPLAY step 4a) — MOUNT RECOVERY BARRIER.
 	 *
 	 * Our log slice is recovered; nothing below has taken a cluster lock
 	 * yet.  This is the only window in which the previous incarnation's
@@ -1233,7 +1233,7 @@ xfs_mountfs(
 	 * perform the update e.g. for the root filesystem.
 	 */
 	if (mp->m_update_sb && !xfs_is_readonly(mp)) {
-		/* sess419 D-0133: every m_update_sb source is gated above; this
+		/* D-0133: every m_update_sb source is gated above; this
 		 * is the fail-closed backstop for any future one. */
 		error = mxfs_sb_mutation_refuse(mp, "mount-time sb update");
 		if (error)
@@ -1249,7 +1249,7 @@ xfs_mountfs(
 	 * Initialise the XFS quota management subsystem for this mount
 	 */
 	if (XFS_IS_QUOTA_ON(mp)) {
-		/* sess419 D-0133: quota accounting flips sb_versionnum QUOTABIT
+		/* D-0133: quota accounting flips sb_versionnum QUOTABIT
 		 * / sb_qflags and allocates quota inodes into the SB — whole-SB
 		 * producers (xfs_qm_prep_metadir_sb, qino_alloc, mount_quotas).
 		 * A cluster mount with quota options is refused outright, before
@@ -1267,7 +1267,7 @@ xfs_mountfs(
 		 * quotachecked license.
 		 */
 		if (mp->m_sb.sb_qflags & XFS_ALL_QUOTA_ACCT) {
-			/* sess419 D-0133: this reset is a non-counter SB log too;
+			/* D-0133: this reset is a non-counter SB log too;
 			 * a cluster mount refuses it (clear the flags offline). */
 			error = mxfs_sb_mutation_refuse(mp, "reset_sbqflags");
 			if (error)
@@ -1437,7 +1437,7 @@ xfs_mountfs(
  * This flushes out the inodes,dquots and the superblock, unmounts the
  * log and makes sure that incore structures are freed.
  *
- * sess485 (D-0483): split in two.  A clustered unmount must finish every
+ * (D-0483): split in two.  A clustered unmount must finish every
  * piece of metadata work that can still dirty an allocation group BEFORE it
  * publishes its AG grants to the cluster, and only the log teardown may
  * follow the publication.  The prepare half is everything up to and
@@ -1471,14 +1471,14 @@ xfs_unmountfs_prepare(
 		xfs_unmount_zones(mp);
 	xfs_rtunmount_inodes(mp);
 	xfs_irele(mp->m_rootip);
-	mp->m_rootip = NULL;	/* sess485: the mount's reference is gone; nothing below may use it */
+	mp->m_rootip = NULL;	/* the mount's reference is gone; nothing below may use it */
 	if (mp->m_metadirip) {
 		xfs_irele(mp->m_metadirip);
 		mp->m_metadirip = NULL;
 	}
 
 	/*
-	 * sess485: the releases above are the last events on this mount that
+	 * the releases above are the last events on this mount that
 	 * could queue an inode for inactivation (none should: the root is a
 	 * directory, the rest are internal inodes).  Flush whatever they
 	 * queued and DISABLE the queue, so that from here on nothing can
@@ -1745,7 +1745,7 @@ xfs_add_incompat_log_feature(
 	ASSERT(hweight32(feature) == 1);
 	ASSERT(!(feature & XFS_SB_FEAT_INCOMPAT_LOG_UNKNOWN));
 
-	/* sess419 D-0133: log_incompat bits (LARP, XCHG) are non-counter SB
+	/* D-0133: log_incompat bits (LARP, XCHG) are non-counter SB
 	 * state written straight to the primary and then logged whole; in
 	 * cluster mode neither write is coordinated.  Refuse before the bwrite
 	 * — callers (exchange-range, logged xattrs) fail with -EOPNOTSUPP. */
@@ -1829,7 +1829,7 @@ xfs_clear_incompat_log_features(
 	    xfs_is_shutdown(mp) ||
 	    !xfs_is_done_with_log_incompat(mp))
 		return false;
-	/* sess419 D-0133: clearing the bits is a non-counter SB mutation too;
+	/* D-0133: clearing the bits is a non-counter SB mutation too;
 	 * in cluster mode the bits stay as found (a higher protection level
 	 * than the log needs is harmless — see the caller's comment). */
 	if (mxfs_sb_mutation_refuse(mp, "clear_incompat_log_features"))

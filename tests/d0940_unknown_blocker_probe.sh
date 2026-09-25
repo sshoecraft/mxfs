@@ -146,7 +146,7 @@ done
 # Remount, with A importing its first INJECT_N shared bits as unresolvable.
 # The knob must be set AFTER insmod and BEFORE mount, so the two are split.
 join() {  # <node> <tag> <inject>
-    rsx $((JOIN_BOUND + 60)) "$1" "M=\$(date +%s); echo MARK=\$M; lsmod | grep -q '^mxfs ' || insmod $KO $MODARGS; echo INSMOD_RC=\$?; [ '$3' = 1 ] && { echo $INJECT_N > $PARAM 2>/dev/null; echo ARMED=\$(cat $PARAM 2>/dev/null); }; T0=\$(date +%s%N); mountpoint -q $MNT || timeout $JOIN_BOUND mount -t mxfs $MXFS_DEV $MNT; echo MOUNT_RC=\$?; echo WALL_MS=\$(( (\$(date +%s%N) - T0) / 1000000 )); mountpoint -q $MNT && echo MOUNTED || echo NOT_MOUNTED" > "$OUT/$2_join.txt"
+    rsx $((JOIN_BOUND + 60)) "$1" "M=\$(date +%s); echo MARK=\$M; lsmod | grep -q '^mxfs ' || insmod $KO dyndbg=+p $MODARGS; echo INSMOD_RC=\$?; [ '$3' = 1 ] && { echo $INJECT_N > $PARAM 2>/dev/null; echo ARMED=\$(cat $PARAM 2>/dev/null); }; T0=\$(date +%s%N); mountpoint -q $MNT || timeout $JOIN_BOUND mount -t mxfs $MXFS_DEV $MNT; echo MOUNT_RC=\$?; echo WALL_MS=\$(( (\$(date +%s%N) - T0) / 1000000 )); mountpoint -q $MNT && echo MOUNTED || echo NOT_MOUNTED" > "$OUT/$2_join.txt"
 }
 # Arm BOTH nodes: whichever wins the page-takeover race is the one
 # that imports, and it is not predictable.  Measured s585b: test1 was

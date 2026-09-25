@@ -45,7 +45,7 @@ t0=$(date +%s%N)
 out=$(ssh_node "$N3" "
     $MXFS_PREP >/tmp/prep.log 2>&1
     modprobe libcrc32c
-    insmod $MXFS_MODULE 2>/dev/null
+    insmod $MXFS_MODULE dyndbg=+p 2>/dev/null
     mount -t mxfs ${MXFS_MOUNT_OPTS} $MXFS_DEV $MXFS_MOUNT && echo MOUNT_OK
 ")
 t1=$(date +%s%N)

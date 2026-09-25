@@ -94,7 +94,7 @@ join() {   # join <tag> <node> <extra insmod args>
     local t=$1 n=$2 extra=$3 mark
     mark=$(date +%s)
     echo "MARK=$mark" > "$OUT/${t}_join.txt"
-    rsx $((JOIN_BOUND + 60)) "$n" "lsmod | grep -q '^mxfs ' || insmod $KO $MODARGS $extra; echo INSMOD_RC=\$?; T0=\$(date +%s%N); mountpoint -q $MNT || timeout $JOIN_BOUND mount -t mxfs $MXFS_DEV $MNT; echo MOUNT_RC=\$?; echo WALL_MS=\$(( (\$(date +%s%N) - T0) / 1000000 )); mountpoint -q $MNT && echo MOUNTED || echo NOT_MOUNTED" >> "$OUT/${t}_join.txt"
+    rsx $((JOIN_BOUND + 60)) "$n" "lsmod | grep -q '^mxfs ' || insmod $KO dyndbg=+p $MODARGS $extra; echo INSMOD_RC=\$?; T0=\$(date +%s%N); mountpoint -q $MNT || timeout $JOIN_BOUND mount -t mxfs $MXFS_DEV $MNT; echo MOUNT_RC=\$?; echo WALL_MS=\$(( (\$(date +%s%N) - T0) / 1000000 )); mountpoint -q $MNT && echo MOUNTED || echo NOT_MOUNTED" >> "$OUT/${t}_join.txt"
     measure "$n" 60 "$OUT/${t}_journal.txt" '^JOURNAL_END$' "the kernel journal on $n since its join" "journalctl -k --since @$mark --no-pager 2>/dev/null | cut -c1-600; echo JOURNAL_END"
     capture_require "$OUT/${t}_join.txt" '^(MOUNTED|NOT_MOUNTED)$' "the join of $n"
     echo "STAGE $t: $n mount rc=$(field "$OUT/${t}_join.txt" MOUNT_RC) wall=$(field "$OUT/${t}_join.txt" WALL_MS)ms $(grep -a '^MOUNTED\|^NOT_MOUNTED' "$OUT/${t}_join.txt")"

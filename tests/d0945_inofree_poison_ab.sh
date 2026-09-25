@@ -118,7 +118,7 @@ for i in $(seq 1 "$LAPS"); do
     rs 30 "$A" "dmesg | sed -n '/$MK/,\$p' | grep -a 'RELEASE-POISONED\|P220-EPOCH-LEDGER-OPEN\|P52-GRANT-FREE' | tail -20" > "$OUT/gate_$i.txt"
 
     rs 90 "$A" "umount $MNT 2>&1 | tail -2; echo umount_rc=\$?; rmmod mxfs 2>&1 | tail -2; echo loaded=\$(grep -c '^mxfs ' /proc/modules)" > "$OUT/unload_$i.txt"
-    rs 200 "$A" "modprobe libcrc32c 2>/dev/null; insmod $KO $PARAMS && echo INSMOD_OK sv=\$(cat /sys/module/mxfs/srcversion); mkdir -p $MNT; timeout 150 mount -t mxfs $MXFS_DEV $MNT; mrc=\$?; echo REJOIN mount_rc=\$mrc mounted=\$(grep -c ' $MNT mxfs ' /proc/mounts)" > "$OUT/rejoin_$i.txt"
+    rs 200 "$A" "modprobe libcrc32c 2>/dev/null; insmod $KO dyndbg=+p $PARAMS && echo INSMOD_OK sv=\$(cat /sys/module/mxfs/srcversion); mkdir -p $MNT; timeout 150 mount -t mxfs $MXFS_DEV $MNT; mrc=\$?; echo REJOIN mount_rc=\$mrc mounted=\$(grep -c ' $MNT mxfs ' /proc/mounts)" > "$OUT/rejoin_$i.txt"
     mrc=$(sed -n 's/.*REJOIN mount_rc=\([0-9]*\).*/\1/p' "$OUT/rejoin_$i.txt" | head -1)
 
     rs 40 "$B" "dmesg | sed -n '/$MK/,\$p' | grep -a 'P273-SHADOW-EVAL' | tail -1" > "$OUT/shadow_$i.txt"

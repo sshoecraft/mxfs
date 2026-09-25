@@ -21,9 +21,9 @@
 #include "xfs_buf_item.h"
 #include "xfs_health.h"
 #ifdef __KERNEL__
-#include "../../dlm/v5_mount.h"	/* sess21: mxfs_v5_dlm_is_single_node */
-#include <linux/sort.h>		/* sess21: sort() for leaf rebuild */
-#include "../xfs_mxfs_dlm.h"	/* sess10(a9a03929): mxfs_ino_watched */
+#include "../../dlm/v5_mount.h"	/* mxfs_v5_dlm_is_single_node */
+#include <linux/sort.h>		/* sort for leaf rebuild */
+#include "../xfs_mxfs_dlm.h"	/* mxfs_ino_watched */
 #endif
 
 /*
@@ -245,7 +245,7 @@ xfs_dir3_leaf_read_verify(
 
 	if (xfs_has_crc(mp) &&
 	     !xfs_buf_verify_cksum(bp, XFS_DIR3_LEAF_CRC_OFF)) {
-		/* sess38(ccloop) instrumented decisive probe: a leaf read that fails
+		/* instrumented decisive probe: a leaf read that fails
 		 * CRC.  Dump the ACTUAL on-disk header so we can tell a torn
 		 * write of a real leaf (leaf magic, bad crc) from an extent-map
 		 * divergence / block double-alloc (a DATA/other block sitting at
@@ -253,7 +253,7 @@ xfs_dir3_leaf_read_verify(
 		 * ratelimited; only the failure path pays it. */
 		{
 			struct xfs_da3_blkinfo *bi = bp->b_addr;
-			pr_warn_ratelimited(
+			mxfs_probe_ratelimited(
 				"mxfs: P38-LEAFCRC-FAIL daddr=%lld found_magic=0x%04x self_blkno=%llu owner=%llu comm=%s\n",
 				(long long)bp->b_maps[0].bm_bn,
 				be16_to_cpu(bi->hdr.magic),
@@ -267,7 +267,7 @@ xfs_dir3_leaf_read_verify(
 		if (fa)
 			xfs_verifier_error(bp, -EFSCORRUPTED, fa);
 		else {
-			/* sess2 (a9a03929) P2R-LEAFR: provenance of every leaf
+			/* P2R-LEAFR: provenance of every leaf
 			 * block that comes off the platter.  run49 t7 died on a
 			 * PRIOR-incarnation leaf (bestcount=2) under a same-
 			 * incarnation dinode with disize=4096 (1 data block) —
@@ -292,7 +292,7 @@ xfs_dir3_leaf_read_verify(
 							     bp->b_addr);
 				p2bc = be32_to_cpu(p2ltp->bestcount);
 			}
-			pr_warn("mxfs: P2R-LEAFR daddr=%lld owner=%llu blkno=%llu magic=0x%04x bestcount=%u count=%u stale=%u lsn=%llu comm=%s realns=%llu\n",
+			mxfs_probe("mxfs: P2R-LEAFR daddr=%lld owner=%llu blkno=%llu magic=0x%04x bestcount=%u count=%u stale=%u lsn=%llu comm=%s realns=%llu\n",
 				(long long)bp->b_maps[0].bm_bn,
 				(unsigned long long)be64_to_cpu(p2bi->owner),
 				(unsigned long long)be64_to_cpu(p2bi->blkno),
@@ -326,7 +326,7 @@ xfs_dir3_leaf_write_verify(
 	if (bip)
 		hdr3->info.lsn = cpu_to_be64(bip->bli_item.li_lsn);
 
-	/* sess2 (a9a03929) P2W-LEAFW: pair of P2R-LEAFR — provenance of every
+	/* P2W-LEAFW: pair of P2R-LEAFR — provenance of every
 	 * leaf block written toward the platter (drain, xfsaild, durable
 	 * signal), so a stale-image writeback (ghost revert) or a missing
 	 * fresh-leaf destage is directly visible.  comm= identifies the
@@ -345,7 +345,7 @@ xfs_dir3_leaf_write_verify(
 						     bp->b_addr);
 			p2bc = be32_to_cpu(p2ltp->bestcount);
 		}
-		pr_warn("mxfs: P2W-LEAFW daddr=%lld owner=%llu blkno=%llu magic=0x%04x bestcount=%u count=%u stale=%u lsn=%llu comm=%s realns=%llu\n",
+		mxfs_probe("mxfs: P2W-LEAFW daddr=%lld owner=%llu blkno=%llu magic=0x%04x bestcount=%u count=%u stale=%u lsn=%llu comm=%s realns=%llu\n",
 			(long long)bp->b_maps[0].bm_bn,
 			(unsigned long long)be64_to_cpu(p2bi->owner),
 			(unsigned long long)be64_to_cpu(p2bi->blkno),
@@ -485,7 +485,7 @@ xfs_dir3_leaf_init(
 		xfs_trans_buf_set_type(tp, bp, XFS_BLFT_DIR_LEAFN_BUF);
 	}
 
-	/* sess16(ccloop): stamp the coherent-tenure epoch on a freshly created
+	/* stamp the coherent-tenure epoch on a freshly created
 	 * LEAF block (see xfs_dir3_data_init) so the prior-tenure evict override
 	 * can distinguish a stale prior-tenure leaf cache-hit from our own
 	 * current-tenure leaf without resurrecting a just-created leaf.  Inert
@@ -631,7 +631,7 @@ xfs_dir2_block_to_leaf(
 	xfs_dir3_leaf_log_bests(args, lbp, 0, 0);
 #ifdef __KERNEL__
 	/*
-	 * sess36 ROOT FIX (dir_reuse_coherency round-1 format-transition loss):
+	 * ROOT FIX (dir_reuse_coherency round-1 format-transition loss):
 	 * block 0's daddr is reused in place (block-fmt -> data-fmt) with no
 	 * dir-gen advance, so a pre-conversion cached image aliases as current
 	 * and a later writeback clobbers this post-conversion data block.  Bump
@@ -658,7 +658,7 @@ mxfs_leaf_kv_cmp(const void *a, const void *b)
 }
 
 /*
- * sess21: collect {hashval<<32 | dataptr} for every LIVE dirent in one DATA
+ * collect {hashval<<32 | dataptr} for every LIVE dirent in one DATA
  * block image `img` (either an in-core buffer or a coherent plain-bio snapshot)
  * for data block number `db`.  Appends to kv[] starting at n; returns the new
  * count, or -1 on overflow (img holds more entries than kvcap -> caller bails).
@@ -740,13 +740,13 @@ mxfs_dir_rebuild_leaf_from_data(
 	if (dp->i_df.if_format != XFS_DINODE_FMT_EXTENTS) {
 		static atomic_t p26b = ATOMIC_INIT(0);
 		if (atomic_inc_return(&p26b) <= 60)
-			pr_warn("mxfs: P26-REBUILD-BAIL ino=%llu reason=fmt=%d (not-extents)\n",
+			mxfs_probe("mxfs: P26-REBUILD-BAIL ino=%llu reason=fmt=%d (not-extents)\n",
 				(unsigned long long)dp->i_ino, dp->i_df.if_format);
 		return 0;	/* shortform / btree: not a single-leaf dir */
 	}
 
 	/*
-	 * ccloop c7ee71c6 sess7: gate on the ACTUAL dir format before probing
+	 *  gate on the ACTUAL dir format before probing
 	 * geo->leafblk.  The old unconditional leaf_read assumed "no leaf
 	 * block -> clean failure", but xfs_dir3_leaf_read maps the offset via
 	 * xfs_dabuf_map WITHOUT XFS_DABUF_MAP_HOLE_OK, so on a BLOCK-form dir
@@ -776,7 +776,7 @@ mxfs_dir_rebuild_leaf_from_data(
 	    leafhdr.magic != XFS_DIR3_LEAF1_MAGIC) {
 		static atomic_t p26n = ATOMIC_INIT(0);
 		if (atomic_inc_return(&p26n) <= 60)
-			pr_warn("mxfs: P26-REBUILD-BAIL ino=%llu reason=leafn magic=0x%x\n",
+			mxfs_probe("mxfs: P26-REBUILD-BAIL ino=%llu reason=leafn magic=0x%x\n",
 				(unsigned long long)dp->i_ino, leafhdr.magic);
 		xfs_trans_brelse(tp, lbp);
 		return 0;	/* LEAFN/node format: out of scope */
@@ -835,7 +835,7 @@ mxfs_dir_rebuild_leaf_from_data(
 	}
 
 	/*
-	 * sess21 union read: collect dirent hashes from BOTH the in-core data
+	 * union read: collect dirent hashes from BOTH the in-core data
 	 * block (this node's uncommitted adds; hook-refreshed when clean) AND a
 	 * COHERENT plain-bio snapshot of the same physical block (the peer's
 	 * durable adds — needed when the in-core block was undestaged-skipped at
@@ -905,7 +905,7 @@ mxfs_dir_rebuild_leaf_from_data(
 				 */
 				static atomic_t p26r = ATOMIC_INIT(0);
 				if (atomic_inc_return(&p26r) <= 60)
-					pr_warn("mxfs: P26-REBUILD-BAIL ino=%llu reason=dataread db=%d rc=%d (leaf not rebuilt, node stays up)\n",
+					mxfs_probe("mxfs: P26-REBUILD-BAIL ino=%llu reason=dataread db=%d rc=%d (leaf not rebuilt, node stays up)\n",
 						(unsigned long long)dp->i_ino, db, error);
 				kfree(snap);
 				kfree(kv);
@@ -925,7 +925,7 @@ mxfs_dir_rebuild_leaf_from_data(
 				goto overflow_bail;
 
 			/*
-			 * ccloop c7ee71c6 sess2 (instrumented, cache_coherency rv
+			 *  (instrumented, cache_coherency rv
 			 * "old gone" fail ×8 nodes, P26-REBUILD-OK comm=mv on
 			 * the rv dir): the on-disk union is DELETE-UNSAFE.  A
 			 * dirent our committed-but-undestaged removename just
@@ -1073,7 +1073,7 @@ overflow_bail:
 		if (missing || extra) {
 			static atomic_t p496d = ATOMIC_INIT(0);
 			if (atomic_inc_return(&p496d) <= 400)
-				pr_warn("mxfs: P496-ACQ-DIVERGE ino=%llu missing=%d extra=%d acquired=%d derived=%d stale=%d ndb=%d src=%s comm=%s — index and data disagreed at tenure start, before this node modified anything\n",
+				mxfs_probe("mxfs: P496-ACQ-DIVERGE ino=%llu missing=%d extra=%d acquired=%d derived=%d stale=%d ndb=%d src=%s comm=%s — index and data disagreed at tenure start, before this node modified anything\n",
 					(unsigned long long)dp->i_ino,
 					missing, extra, old_live, nent,
 					old_stale, ndb,
@@ -1083,7 +1083,7 @@ overflow_bail:
 		} else {
 			static atomic_t p496c = ATOMIC_INIT(0);
 			if (atomic_inc_return(&p496c) <= 400)
-				pr_warn("mxfs: P496-ACQ-CLEAN ino=%llu entries=%d ndb=%d src=%s — index and data agreed at tenure start\n",
+				mxfs_probe("mxfs: P496-ACQ-CLEAN ino=%llu entries=%d ndb=%d src=%s — index and data agreed at tenure start\n",
 					(unsigned long long)dp->i_ino, nent, ndb,
 					mxfs_dir_leaf_rebuild >= 2 ?
 						"incore+platter" : "incore");
@@ -1105,7 +1105,7 @@ overflow_bail:
 	{
 		static atomic_t p26ok = ATOMIC_INIT(0);
 		if (atomic_inc_return(&p26ok) <= 400)
-			pr_warn("mxfs: P26-REBUILD-OK ino=%llu nent=%d ndb=%d comm=%s\n",
+			mxfs_probe("mxfs: P26-REBUILD-OK ino=%llu nent=%d ndb=%d comm=%s\n",
 				(unsigned long long)dp->i_ino, nent, ndb,
 				current->comm);
 	}
@@ -1282,7 +1282,7 @@ xfs_dir2_leaf_addname(
 	if (error)
 		return error;
 
-	/* sess2(ccloop) ROOT FIX (leaf-HASH side): the data-block epoch refresh
+	/* ROOT FIX (leaf-HASH side): the data-block epoch refresh
 	 * (xfs_dir2_data.c) closed the intra-block free-slot double-alloc, but the
 	 * LEAF block (hash index) was still unprotected — a peer's leaf-hash insert
 	 * since this leaf's base loaded is invisible, so this node's insert RMWs a
@@ -1309,18 +1309,18 @@ xfs_dir2_leaf_addname(
 					&lbip->bli_item.li_flags);
 			uint32_t master_ep = mxfs_v5_dlm_inode_dir_epoch(
 					lmp->m_mxfs_dlm, dp->i_ino);
-			/* sess45: braces — unconditional incarn stamp (see the
+			/* braces — unconditional incarn stamp (see the
 			 * xfs_da_btree.c sibling fix). */
 			if (master_ep > dp->i_dlm_dir_valid_epoch) {
 				dp->i_dlm_dir_valid_epoch = master_ep;
-				dp->i_dlm_dir_valid_incarn = VFS_I(dp)->i_generation;	/* sess28: the baseline belongs to THIS incarnation */
+				dp->i_dlm_dir_valid_incarn = VFS_I(dp)->i_generation;	/* the baseline belongs to THIS incarnation */
 			}
 			if (master_ep != 0 && lbp->b_mxfs_dir_epoch != 0 &&
 			    lbp->b_mxfs_dir_epoch < dp->i_dlm_dir_valid_epoch &&
 			    !l_dirty && !xfs_buf_ispinned(lbp) &&
 			    !(lbp->b_flags & _XBF_DELWRI_Q) &&
 			    !(l_inail && mxfs_dir_buf_is_undestaged(lbp))) {
-				pr_warn_ratelimited("mxfs: P2-LEAFHASH-EPOCHSTALE ino=%llu b_ep=%u master_ep=%u — leaf-index epoch-stale; invalidate+reread before hash insert\n",
+				mxfs_probe_ratelimited("mxfs: P2-LEAFHASH-EPOCHSTALE ino=%llu b_ep=%u master_ep=%u — leaf-index epoch-stale; invalidate+reread before hash insert\n",
 					(unsigned long long)dp->i_ino,
 					lbp->b_mxfs_dir_epoch, master_ep);
 				lbp->b_flags &= ~(XBF_DONE | _XBF_FUA_FRESH);
@@ -1399,7 +1399,7 @@ xfs_dir2_leaf_addname(
 	 */
 	if (use_block != -1 && bestsp[use_block] == cpu_to_be16(NULLDATAOFF))
 		use_block = -1;
-	/* sess2 (a9a03929) P2U-LEAF-USEBLK: fires ONLY when the bests array
+	/* P2U-LEAF-USEBLK: fires ONLY when the bests array
 	 * steers this insert at a data block the dir's own size says cannot
 	 * exist (run49 MAP_HOLE root: a prior-incarnation leaf image consulted
 	 * under a same-incarnation dinode with disize=1 block).  Captures the
@@ -1410,7 +1410,7 @@ xfs_dir2_leaf_addname(
 							    dp->i_disk_size)) {
 		struct xfs_buf_log_item *p2bip = lbp->b_log_item;
 
-		pr_warn("mxfs: P2U-LEAF-USEBLK ino=%llu use_block=%d bestcount=%u disize=%lld bflags=0x%x ep=%u valid_ep=%u dirty=%d inail=%d pin=%d lsn=%llu comm=%s\n",
+		mxfs_probe("mxfs: P2U-LEAF-USEBLK ino=%llu use_block=%d bestcount=%u disize=%lld bflags=0x%x ep=%u valid_ep=%u dirty=%d inail=%d pin=%d lsn=%llu comm=%s\n",
 			(unsigned long long)dp->i_ino, (int)use_block,
 			be32_to_cpu(ltp->bestcount),
 			(long long)dp->i_disk_size,
@@ -1554,7 +1554,7 @@ xfs_dir2_leaf_addname(
 		bf = xfs_dir2_data_bestfree_p(dp->i_mount, hdr);
 		grown = 0;
 	}
-	/* sess28: read-side staleness fix — if the CLEAN existing data block is
+	/* read-side staleness fix — if the CLEAN existing data block is
 	 * stale vs the durable platter (grown=0 only; a freshly-grown block is
 	 * legitimately empty), invalidate + cold re-read it through the verifier so
 	 * bestfree reflects a peer's durable add and use_free does not overwrite
@@ -1602,7 +1602,7 @@ xfs_dir2_leaf_addname(
 	tagp = xfs_dir2_data_entry_tag_p(dp->i_mount, dep);
 	*tagp = cpu_to_be16((char *)dep - (char *)hdr);
 	/*
-	 * sess13run (instrumented): leaf-addname placement trace for the storm dir.
+	 * (instrumented): leaf-addname placement trace for the storm dir.
 	 * P13-COLLIDE proved entries land at off=64 (first slot) — i.e. the data
 	 * block's bestfree says it is near-EMPTY.  Distinguish a freshly-GROWN
 	 * block (grown=1, legitimately empty) from a REUSED existing block
@@ -1614,7 +1614,7 @@ xfs_dir2_leaf_addname(
 	    args->name[0] == 'n' && args->name[1] == 'o') {
 		uint32_t aoff = (uint32_t)((char *)dep - (char *)hdr);
 		uint32_t bf0 = be16_to_cpu(bf[0].length);
-		/* sess42(ccloop) instrumented: ALWAYS-ON leaf-format placement trace,
+		/* instrumented: ALWAYS-ON leaf-format placement trace,
 		 * the leaf-path twin of P13-NADD (node format).  PROVEN this run:
 		 * the insert-loss victim (node8_f14.md5) is added in LEAF format
 		 * (no P13-NADD), then dropped before its DATA block is durable.
@@ -1622,18 +1622,18 @@ xfs_dir2_leaf_addname(
 		 * its placement block and the release-drain coverage checked
 		 * against it.  Storm-dir scoped + node* names, ratelimited. */
 		{
-		/* sess43: capped (not ratelimited) — capture the full failing
+		/* capped (not ratelimited) — capture the full failing
 		 * round's create wave so the victim's placement block is logged. */
 		static atomic_t p13l = ATOMIC_INIT(0);
 		if (atomic_inc_return(&p13l) <= 60000)
-		pr_warn("mxfs: P13-LADD ino=%llu use_block=%d daddr=%lld aoff=%u grown=%d name=[%.*s] comm=%s realns=%llu\n",
+		mxfs_probe("mxfs: P13-LADD ino=%llu use_block=%d daddr=%lld aoff=%u grown=%d name=[%.*s] comm=%s realns=%llu\n",
 			(unsigned long long)dp->i_ino, use_block,
 			(long long)dbp->b_maps[0].bm_bn, aoff, grown,
 			(int)args->namelen, args->name, current->comm,
 			(unsigned long long)ktime_get_real_ns());
 		}
 		if (grown == 0 && bf0 >= (BBTOB(dbp->b_length) / 2))
-			pr_warn_ratelimited("mxfs: P13-STALEREAD ino=%llu use_block=%d daddr=%lld aoff=%u bf0len=%u name=[%.*s] comm=%s — REUSED data block read near-EMPTY (stale/reverted read of a should-be-full block)\n",
+			mxfs_probe_ratelimited("mxfs: P13-STALEREAD ino=%llu use_block=%d daddr=%lld aoff=%u bf0len=%u name=[%.*s] comm=%s — REUSED data block read near-EMPTY (stale/reverted read of a should-be-full block)\n",
 				(unsigned long long)dp->i_ino, use_block,
 				(long long)dbp->b_maps[0].bm_bn, aoff, bf0,
 				(int)args->namelen, args->name, current->comm);
@@ -1896,7 +1896,7 @@ xfs_dir3_leaf_log_header(
 			  (uint)((char *)&leaf->hdr - (char *)leaf),
 			  args->geo->leaf_hdr_size - 1);
 
-	/* sess16(ccloop): MODIFY-time coherent-tenure stamp on the LEAF block (see
+	/* MODIFY-time coherent-tenure stamp on the LEAF block (see
 	 * xfs_dir2_data_log_entry) — current-tenure leaf work carries the current
 	 * handoff epoch so the prior-tenure evict override never reverts it. */
 	if (args->dp)
@@ -1926,7 +1926,7 @@ xfs_dir3_leaf_log_tail(
 
 #ifdef __KERNEL__
 /*
- * sess22 (ccloop 8ddb16a2) AUTHORITATIVE DATA-SCAN LOOKUP FALLBACK.
+ * AUTHORITATIVE DATA-SCAN LOOKUP FALLBACK.
  *
  * The shared LEAF1 hash index is a DERIVED structure; the DATA blocks are the
  * authoritative dirent store and ARE coherent across nodes (readdir lists every
@@ -1948,7 +1948,7 @@ xfs_dir3_leaf_log_tail(
  * => -EEXIST when found (xfs_dir_lookup_args maps -EEXIST -> 0), -ENOENT if the
  * name is genuinely absent from the data blocks too.
  *
- * sess22(ccloop): non-static so xfs_dir2_node_lookup (node/BTREE-format dirs)
+ * non-static so xfs_dir2_node_lookup (node/BTREE-format dirs)
  * can also route its -ENOENT through this leaf-hash-hole heal.
  */
 int
@@ -1962,11 +1962,11 @@ mxfs_dir2_datascan_lookup(
 	struct xfs_buf		*dbp = NULL;
 	int			ndb, db, error;
 	int			ci_found = 0, ci_namelen = 0;
-	int			scanned = 0;	/* sess27: live dirents the scan saw */
+	int			scanned = 0;	/* live dirents the scan saw */
 	unsigned char		ci_name[256];
 
 	/*
-	 * sess29 (ccloop 8ddb16a2): reset args->cmpresult before scanning.  The
+	 * reset args->cmpresult before scanning.  The
 	 * FAILED leaf lookup (xfs_dir2_leaf_lookup_int) that routed us here can
 	 * leave args->cmpresult == XFS_CMP_EXACT (it sets it on a candidate
 	 * before returning -ENOENT).  The scan's match gate below is
@@ -1979,7 +1979,7 @@ mxfs_dir2_datascan_lookup(
 	args->cmpresult = XFS_CMP_DIFFERENT;
 
 	/*
-	 * sess22(ccloop): heal the leaf-hash hole for NODE/BTREE-format dirs too,
+	 * heal the leaf-hash hole for NODE/BTREE-format dirs too,
 	 * not just single-leaf EXTENTS.  A large multi-node churn dir (dir_reuse's
 	 * 800-entry shared dir) grows to BTREE format; its leaf-hash hole was left
 	 * UNHEALED because this scan bailed on any non-EXTENTS fork.  The scan body
@@ -1998,7 +1998,7 @@ mxfs_dir2_datascan_lookup(
 	}
 
 	/*
-	 * sess27 (ccloop 8ddb16a2): derive the data-block count from the in-core
+	 * derive the data-block count from the in-core
 	 * data-fork EXTENT MAP (the same blocks readdir enumerates), NOT
 	 * di_size/blksize.  A STALE/small di_size at lookup time under-scans and
 	 * misses a higher DATA block that readdir lists — leaving the leaf-hash
@@ -2029,7 +2029,7 @@ mxfs_dir2_datascan_lookup(
 	}
 	if (ndb <= 0)
 		return -ENOENT;
-	pr_warn_ratelimited("mxfs: P26-DSCAN ino=%llu ndb=%d size=%llu fmt=%u name=\"%.*s\"\n",
+	mxfs_probe_ratelimited("mxfs: P26-DSCAN ino=%llu ndb=%d size=%llu fmt=%u name=\"%.*s\"\n",
 			(unsigned long long)dp->i_ino, ndb,
 			(unsigned long long)dp->i_disk_size, dp->i_df.if_format,
 			args->namelen, args->name);
@@ -2038,7 +2038,7 @@ mxfs_dir2_datascan_lookup(
 		struct xfs_dir2_data_hdr *hdr;
 		unsigned int		offset, end;
 
-		/* sess5 (46efd8b6): HOLE_OK is load-bearing — a churned shared
+		/* HOLE_OK is load-bearing — a churned shared
 		 * dir is legally SPARSE (shrink frees middle data blocks), and
 		 * without the flag every hole this scan touches raises
 		 * xfs_corruption_error + marks the dir sick (PROVEN test4
@@ -2064,7 +2064,7 @@ mxfs_dir2_datascan_lookup(
 				offset += be16_to_cpu(dup->length);
 				continue;
 			}
-			scanned++;	/* sess27: a live dirent the scan visited */
+			scanned++;	/* a live dirent the scan visited */
 			cmp = xfs_dir2_compname(args, dep->name, dep->namelen);
 			if (cmp != XFS_CMP_DIFFERENT && cmp != args->cmpresult) {
 				args->cmpresult = cmp;
@@ -2075,7 +2075,7 @@ mxfs_dir2_datascan_lookup(
 					int rv = xfs_dir_cilookup_result(args,
 						dep->name, dep->namelen);
 
-					pr_warn_ratelimited("mxfs: P22-DATASCAN-HIT ino=%llu name=\"%.*s\" inum=%llu db=%d/%d (leaf-hash hole healed)\n",
+					mxfs_probe_ratelimited("mxfs: P22-DATASCAN-HIT ino=%llu name=\"%.*s\" inum=%llu db=%d/%d (leaf-hash hole healed)\n",
 							(unsigned long long)dp->i_ino,
 							args->namelen, args->name,
 							(unsigned long long)args->inumber,
@@ -2099,7 +2099,7 @@ mxfs_dir2_datascan_lookup(
 	if (ci_found && args->cmpresult == XFS_CMP_CASE)
 		return xfs_dir_cilookup_result(args, ci_name, ci_namelen);
 	/*
-	 * sess33 (ccloop 8ddb16a2) P33-DSCAN-ONDISK DECISIVE DISCRIMINATOR
+	 * P33-DSCAN-ONDISK DECISIVE DISCRIMINATOR
 	 * (instrumented): a leaf-referenced name is in NO data block this node's
 	 * in-core extent map covers (ndb too small).  Is the ON-DISK dinode
 	 * itself missing the higher data block (durability/checkpoint gap —
@@ -2136,7 +2136,7 @@ mxfs_dir2_datascan_lookup(
 				uint64_t disk_nx = (fl2 & XFS_DIFLAG2_NREXT64) ?
 					big_nx : nx32;
 
-				pr_warn("mxfs: P33-DSCAN-ONDISK ino=%llu name=\"%.*s\" incore_fmt=%u incore_nx=%llu incore_size=%lld incore_gen=%u ndb=%d || disk_magic=0x%04x disk_fmt=%u disk_nx=%llu disk_size=%lld disk_gen=%u sameincarn=%d — disk smaller=durability/torn-disk; incore bigger=read rebuilt larger than disk\n",
+				mxfs_probe("mxfs: P33-DSCAN-ONDISK ino=%llu name=\"%.*s\" incore_fmt=%u incore_nx=%llu incore_size=%lld incore_gen=%u ndb=%d || disk_magic=0x%04x disk_fmt=%u disk_nx=%llu disk_size=%lld disk_gen=%u sameincarn=%d — disk smaller=durability/torn-disk; incore bigger=read rebuilt larger than disk\n",
 					(unsigned long long)dp->i_ino,
 					args->namelen, args->name,
 					dp->i_df.if_format,
@@ -2150,7 +2150,7 @@ mxfs_dir2_datascan_lookup(
 					be32_to_cpu(ddi->di_gen),
 					be32_to_cpu(ddi->di_gen) == VFS_I(dp)->i_generation);
 			} else {
-				pr_warn("mxfs: P33-DSCAN-ONDISK-FAIL ino=%llu rrc=%d clen=%u im_len=%u im_blkno=%llu im_boffset=%u incore_fmt=%u incore_nx=%llu ndb=%d\n",
+				mxfs_probe("mxfs: P33-DSCAN-ONDISK-FAIL ino=%llu rrc=%d clen=%u im_len=%u im_blkno=%llu im_boffset=%u incore_fmt=%u incore_nx=%llu ndb=%d\n",
 					(unsigned long long)dp->i_ino, rrc, clen,
 					(unsigned)dp->i_imap.im_len,
 					(unsigned long long)dp->i_imap.im_blkno,
@@ -2163,11 +2163,11 @@ mxfs_dir2_datascan_lookup(
 				kfree(cb);
 		}
 	}
-	pr_warn_ratelimited("mxfs: P26-DSCAN-MISS ino=%llu ndb=%d scanned=%d name=\"%.*s\" (not in any data block; scanned=#live dirents seen — ~200=>match/encoding bug, <200=>under-read)\n",
+	mxfs_probe_ratelimited("mxfs: P26-DSCAN-MISS ino=%llu ndb=%d scanned=%d name=\"%.*s\" (not in any data block; scanned=#live dirents seen — ~200=>match/encoding bug, <200=>under-read)\n",
 			(unsigned long long)dp->i_ino, ndb, scanned,
 			args->namelen, args->name);
 	/*
-	 * sess1 (ccloop 46efd8b6) datascan gen-gate: this scan walked EVERY
+	 * datascan gen-gate: this scan walked EVERY
 	 * data block and found nothing the leaf missed — the hash index is
 	 * ENOENT-consistent at the current coherency state.  Record the state
 	 * key so further misses at this state skip the O(dir) scan (the gate
@@ -2179,7 +2179,7 @@ mxfs_dir2_datascan_lookup(
 }
 
 /*
- * sess5 (ccloop 46efd8b6) LEAFLESS REMOVE — the write-side twin of the
+ * LEAFLESS REMOVE — the write-side twin of the
  * datascan lookup heal above.  PROVEN uv-ghost chain (32/caw cache_coherency
  * run 084821Z + raw platter decode): the concurrent create wave loses leaf
  * hash entries (P21H-LEAFHOLE fires at create time for whole per-node file
@@ -2247,7 +2247,7 @@ mxfs_dir2_leafless_removename(
 		struct xfs_dir2_data_hdr *hdr;
 		unsigned int	offset, end;
 
-		/* sess5: HOLE_OK — the dir is legally sparse mid-churn; a bare
+		/* HOLE_OK — the dir is legally sparse mid-churn; a bare
 		 * hole read raises xfs_corruption_error (see datascan above). */
 		error = xfs_dir3_data_read(tp, dp, args->owner,
 					   xfs_dir2_db_to_da(geo, db),
@@ -2286,7 +2286,7 @@ mxfs_dir2_leafless_removename(
 				if (args->inumber != 0 &&
 				    be64_to_cpu(dep->inumber) !=
 				    args->inumber) {
-					pr_warn_ratelimited(
+					mxfs_probe_ratelimited(
 					    "mxfs: P73-LEAFLESS-RM-SKIP ino=%llu name=\"%.*s\" dep_ino=%llu arg_ino=%llu db=%d — name match, inode mismatch\n",
 					    (unsigned long long)dp->i_ino,
 					    args->namelen, args->name,
@@ -2309,7 +2309,7 @@ mxfs_dir2_leafless_removename(
 				if (needlog)
 					xfs_dir2_data_log_header(args, dbp);
 				xfs_dir3_data_check(dp, dbp);
-				pr_warn_ratelimited(
+				mxfs_probe_ratelimited(
 				    "mxfs: P73-LEAFLESS-RM ino=%llu name=\"%.*s\" inum=%llu db=%d/%d — expunged leafless ghost dirent (leaf-hash hole unlink heal)\n",
 				    (unsigned long long)dp->i_ino,
 				    args->namelen, args->name,
@@ -2355,14 +2355,14 @@ xfs_dir2_leaf_lookup(
 	if (error) {
 #ifdef __KERNEL__
 		/*
-		 * sess22: the hash index missed.  On a multi-node dir the
+		 * the hash index missed.  On a multi-node dir the
 		 * perpetually-pinned leaf can durably lose a peer's last hash
 		 * entry while the authoritative DATA block still holds the
 		 * dirent — heal the lookup from the coherent data blocks.
 		 * (lookup_int already released its buffers on the ENOENT path.)
 		 */
 		if (args->dp->i_mount->m_mxfs_dlm) {
-			pr_warn_ratelimited("mxfs: P26-LKERR ino=%llu err=%d single=%d name=\"%.*s\"\n",
+			mxfs_probe_ratelimited("mxfs: P26-LKERR ino=%llu err=%d single=%d name=\"%.*s\"\n",
 					(unsigned long long)args->dp->i_ino, error,
 					mxfs_v5_dlm_is_single_node(args->dp->i_mount->m_mxfs_dlm) ? 1 : 0,
 					args->namelen, args->name);
@@ -2371,7 +2371,7 @@ xfs_dir2_leaf_lookup(
 		    args->dp->i_mount->m_mxfs_dlm &&
 		    !mxfs_v5_dlm_is_single_node(args->dp->i_mount->m_mxfs_dlm)) {
 			/*
-			 * sess1 (ccloop 46efd8b6) datascan gen-gate: the scan
+			 * datascan gen-gate: the scan
 			 * exists to heal a leaf-hash HOLE left by a peer's
 			 * write.  If a prior scan already verified the leaf
 			 * ENOENT-consistent at the CURRENT coherency state (no
@@ -2547,7 +2547,7 @@ xfs_dir2_leaf_lookup_int(
 	ASSERT(cidb == -1);
 #ifdef __KERNEL__
 	/*
-	 * sess21 (ccloop 8ddb16a2) INSTRUMENTED DETECTOR for the dir_reuse_coherency
+	 * INSTRUMENTED DETECTOR for the dir_reuse_coherency
 	 * durable LEAF-HASH HOLE: readdir lists a name (its dirent is in a data
 	 * block) but lookup ENOENTs because the leaf hash index lacks a usable
 	 * entry for it.  Two opposite roots need opposite fixes, distinguished
@@ -2573,7 +2573,7 @@ xfs_dir2_leaf_lookup_int(
 				if (be32_to_cpu(leafhdr->ents[k].hashval) ==
 				    args->hashval)
 					hv_in_leaf++;
-			pr_warn("mxfs: P21H-LEAFHOLE dir_ino=%llu name=\"%.*s\" hashval=0x%x leaf_count=%u hv_in_leaf=%d nextents=%llu fmt=%d realns=%llu\n",
+			mxfs_probe("mxfs: P21H-LEAFHOLE dir_ino=%llu name=\"%.*s\" hashval=0x%x leaf_count=%u hv_in_leaf=%d nextents=%llu fmt=%d realns=%llu\n",
 				(unsigned long long)dp->i_ino,
 				args->namelen, args->name, args->hashval,
 				leafhdr->count, hv_in_leaf,
@@ -2624,7 +2624,7 @@ xfs_dir2_leaf_removename(
 	error = xfs_dir2_leaf_lookup_int(args, &lbp, &index, &dbp, &leafhdr);
 	if (error) {
 #ifdef __KERNEL__
-		/* sess5 (ccloop 46efd8b6): leaf-hash hole — the name has no
+		/* leaf-hash hole — the name has no
 		 * leaf entry but its dirent may still live in a data block
 		 * (the uv leafless-ghost chain).  Expunge it data-side so the
 		 * unlink transaction completes and the inode is reaped. */
@@ -2699,7 +2699,7 @@ xfs_dir2_leaf_removename(
 		extern int mxfs_dir_keep_middle_block;
 		ASSERT(db != geo->datablk);
 		/*
-		 * <ccloop sess3> UNIFIED torn-map FIX: do NOT free a NON-LAST
+		 * < > UNIFIED torn-map FIX: do NOT free a NON-LAST
 		 * (middle) dir data block under multi-node.  Freeing it removes
 		 * its extent but leaves di_size unchanged -> a GAP in the
 		 * data-region extent map; across a cross-node EX handoff a peer's

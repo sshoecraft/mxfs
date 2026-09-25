@@ -20,6 +20,15 @@
      nodes by design — prep_cluster after). -->
 
 **Owner files**: `xfs/` (331 files), `mxfs_clayer/` (4 files), top-level `mxfs.c`
+
+> **0.89.89: `xfs/xfs_mxfs_dlm.c` is 32 files.** The XFS-side DLM layer is
+> `xfs/xfs_mxfs_*.c` sharing `xfs/xfs_mxfs_dlm_priv.h`; which file holds what,
+> and the rules for adding code, are in `docs/xfs-dlm-layout.md`. Every
+> `xfs_mxfs_dlm.c:NNNN` reference below predates the split and names a line of
+> the old single file; find the function by name. Recorded sites
+> (`i_dlm_demoter_line`, `i_mxfs_auth_line`, `i_dlm_epoch_src`,
+> `b_mxfs_done_site`, the DLMTR/DEMEV rings, AG mutex sites) are now
+> `file-id:line` (`MXFS_SITE`); the ids are in that document.
 **Last updated**: 2026-07-30 (ccloop c7ee71c6 sess28, 0.11.239-245 — **THE DIR EPOCH IS A PROPERTY OF THE INODE NUMBER, NOT OF AN INCARNATION**: `caw_tombstone_slot`/`caw_claim_inherit_epoch` deliberately carry a slot's `dir_epoch` across an idle gap and `grant_meta` outlives the inode, so every `master_epoch > i_dlm_dir_valid_epoch` compare was cross-incarnation — permanently true for a dir created on a recycled inode number, and `P32E-DIREPOCH-FENCE` (ships 1) then skipped every flush of it. NEW FIELD `i_dlm_dir_valid_incarn` (stamped at all 11 baseline assignment sites) + NEW PREDICATE `mxfs_dir_epoch_superseded()` used by BOTH consumers. NEW MODULE PARAMS: `mxfs.dir_epoch_incarn_gate` (default 1, the fix), `mxfs.creator_baseline_stamp` (default 0, MEASURED NO-OP — the epoch is 0 at every publish site). REMOVED: `mxfs.create_baseline_trackers` (dead code + latent sleep-in-atomic). NEW PROBES: P210-CREATOR-BASELINE (unconditional exposure counter), P211-EPOCH-{REBASE,NOGRANT,FOREIGN}; `base_state=` added to P195. NOTE THE SHIPPED ASYMMETRY: the fence consumer ships enabled while its maintainer `mxfs.dir_epoch_adopt` ships disabled (sess49 AG double-free) — a fence with no maintainer eventually refuses everything. See the dated section at the end.); 2026-09-08 (sess559: untrusted-iget AG bracket bounded, never `-EAGAIN` to `xfs_iget` — D-0930, final section)
 
 > **sess58 (2/tcp criterion MET, build 60EFBE5E)** — two lock-coordination roots fixed in `xfs_inode.c`:

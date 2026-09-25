@@ -6,7 +6,7 @@
  * (lower-SLOT-initiates), per-link recv thread, per-link prioritized
  * egress worker (weighted deficit round-robin).  Fork of peer.c's
  * lifecycle discipline; the reconnect policy deliberately departs from
- * peer.c (sess40 keep-socket-up) because the retransmit ring owns
+ * peer.c (keep-socket-up) because the retransmit ring owns
  * delivery — a link event is a routing event, never node death.
  *
  * Copyright (c) 2026

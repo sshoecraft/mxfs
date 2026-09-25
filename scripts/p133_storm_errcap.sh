@@ -36,14 +36,14 @@ run() { timeout "${3:-120}" "$SSH" "$1" "$PASS" "$2" 2>&1 | grep -vE '^Warning|^
 for n in "${NODES[@]}"; do run "$n" "umount $MNT 2>/dev/null; rmmod mxfs 2>/dev/null; true" 40 >/dev/null; done
 out=$(run "$NODE0" "
   /src/mxfs/tools/prep_tcm_node_scst.sh >/tmp/p.log 2>&1; modprobe libcrc32c
-  insmod $MODULE 2>/dev/null
+  insmod $MODULE dyndbg=+p 2>/dev/null
   sg_persist --out --register-ignore --param-sark=0x5eed $DEV >/dev/null 2>&1
   sg_persist --out --clear --param-rk=0x5eed $DEV >/dev/null 2>&1
   echo y | /src/mxfs/tools/mkfs_mxfs $DEV >/tmp/m.log 2>&1 && echo MKFS_OK
   mount -t mxfs $DEV $MNT && echo MOUNT_OK" 150)
 echo "$out" | grep -q MOUNT_OK || { echo "form $NODE0 FAILED: $out"; exit 1; }
 for n in "${NODES[@]:1}"; do
-  ( run "$n" "/src/mxfs/tools/prep_tcm_node_scst.sh >/tmp/p.log 2>&1; modprobe libcrc32c; insmod $MODULE 2>/dev/null; mount -t mxfs $DEV $MNT && echo OK" 120 | grep -q OK || echo "join $n FAIL" ) &
+  ( run "$n" "/src/mxfs/tools/prep_tcm_node_scst.sh >/tmp/p.log 2>&1; modprobe libcrc32c; insmod $MODULE dyndbg=+p 2>/dev/null; mount -t mxfs $DEV $MNT && echo OK" 120 | grep -q OK || echo "join $n FAIL" ) &
 done
 wait
 

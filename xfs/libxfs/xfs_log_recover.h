@@ -108,14 +108,14 @@ struct xlog_recover_item {
 	struct kvec		*ri_buf;	/* ptr to regions buffer */
 	const struct xlog_recover_item_ops *ri_ops;
 	/*
-	 * MXFS (sess403): the untrusted-replay authority verdict for THIS
+	 * MXFS: the untrusted-replay authority verdict for THIS
 	 * item (MXFS_RI_VERDICT_*), set by mxfs_report_replay_authority and
 	 * honoured by the pass-2 item loop: an admitted transaction applies
 	 * its APPLY buffer images and silently skips its REDUNDANT ones.
 	 */
 	uint8_t			ri_mxfs_verdict;
 	/*
-	 * sess459 (D-0517): the authority-token class (MXFS_AUTH_CLASS_*) the
+	 * (D-0517): the authority-token class (MXFS_AUTH_CLASS_*) the
 	 * verdict was evaluated for, 0 when no token was parsed.  Pass 2 uses
 	 * it to bypass the upstream on-disk-LSN veto ONLY for an APPLY image
 	 * of a class whose tenure scope excludes any later writer (AG, INODE).
@@ -124,7 +124,7 @@ struct xlog_recover_item {
 };
 
 /*
- * MXFS (sess412, D-529): the untrusted-replay WHOLE-TRANSACTION verdict,
+ * MXFS (D-529): the untrusted-replay WHOLE-TRANSACTION verdict,
  * classified EXACTLY ONCE over the complete item queue at commit entry
  * (xlog_recover_commit_trans) and consumed by every pass-2 batch.  Before
  * this, the classification ran per 100-item batch inside
@@ -138,7 +138,7 @@ struct xlog_recover_item {
 #define MXFS_TXNV_ADMIT		3	/* enforcement: every image tokenized APPLY/REDUNDANT */
 #define MXFS_TXNV_SBCLEAN	4	/* counter-only SB txn: skip clean, whole txn */
 #define MXFS_TXNV_SKIP		5	/* ATOMIC-SKIP: refusal-grade, whole txn */
-#define MXFS_TXNV_PREINC	6	/* sess434: a PREVIOUS incarnation's txn in an
+#define MXFS_TXNV_PREINC	6	/* a PREVIOUS incarnation's txn in an
 					 * ADOPTED victim's slice — published by
 					 * construction; skip clean, whole txn (P310) */
 
@@ -151,7 +151,7 @@ struct xlog_recover {
 	struct list_head	r_itemq;	/* q for items */
 	uint8_t			r_mxfs_verdict;	/* MXFS_TXNV_* (kzalloc = UNSET) */
 	/*
-	 * sess476 (CANCEL authority tokens, pass-1 cancel table from admitted
+	 * (CANCEL authority tokens, pass-1 cancel table from admitted
 	 * transactions only): an untrusted-replay transaction carrying >= 1
 	 * XFS_BLF_CANCEL buffer item is NOT freed after its pass-1 commit —
 	 * it is parked on log->l_mxfs_cdefer until the pass-1 walk has
@@ -173,7 +173,7 @@ struct xlog_recover {
 void xlog_buf_readahead(struct xlog *log, xfs_daddr_t blkno, uint len,
 		const struct xfs_buf_ops *ops);
 bool xlog_is_buffer_cancelled(struct xlog *log, xfs_daddr_t blkno, uint len);
-/* sess476: the end-of-pass-1 CANCEL decision puts a refused txn's entries back out */
+/* the end-of-pass-1 CANCEL decision puts a refused txn's entries back out */
 bool xlog_put_buffer_cancelled(struct xlog *log, xfs_daddr_t blkno, uint len);
 
 int xlog_recover_iget(struct xfs_mount *mp, xfs_ino_t ino,

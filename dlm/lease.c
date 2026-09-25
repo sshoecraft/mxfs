@@ -27,15 +27,15 @@
  * Caller must hold ctx->lock.
  */
 static struct mxfs_node_lease *lease_find(struct mxfs_lease_ctx *ctx,
-                                           mxfs_node_id_t node_id)
+					   mxfs_node_id_t node_id)
 {
-    int i;
+	int i;
 
-    for (i = 0; i < ctx->node_count; i++) {
-        if (ctx->nodes[i].node_id == node_id)
-            return &ctx->nodes[i];
-    }
-    return NULL;
+	for (i = 0; i < ctx->node_count; i++) {
+		if (ctx->nodes[i].node_id == node_id)
+			return &ctx->nodes[i];
+	}
+	return NULL;
 }
 
 /*
@@ -46,84 +46,84 @@ static struct mxfs_node_lease *lease_find(struct mxfs_lease_ctx *ctx,
  */
 static void mxfs_lease_renew_fn(void *arg)
 {
-    struct mxfs_lease_ctx *ctx = arg;
-    struct mxfs_lease_udp_msg msg;
-    struct mxfs_node_lease *nl;
-    uint64_t start;
-    uint64_t elapsed;
-    uint32_t sleep_ms;
+	struct mxfs_lease_ctx *ctx = arg;
+	struct mxfs_lease_udp_msg msg;
+	struct mxfs_node_lease *nl;
+	uint64_t start;
+	uint64_t elapsed;
+	uint32_t sleep_ms;
 
-    mxfs_pal_log(MXFS_LOG_DEBUG, "lease: renew thread started (RT, "
-                 "interval=%llu ms, UDP multicast %s:%u)",
-                 (unsigned long long)ctx->renew_interval_ms,
-                 ctx->send_addr, ctx->udp_port);
+	mxfs_pal_log(MXFS_LOG_DEBUG, "lease: renew thread started (RT, "
+		     "interval=%llu ms, UDP multicast %s:%u)",
+		     (unsigned long long)ctx->renew_interval_ms,
+		     ctx->send_addr, ctx->udp_port);
 
-    while (ctx->running) {
-        start = mxfs_pal_time_ms();
+	while (ctx->running) {
+		start = mxfs_pal_time_ms();
 
-        /* Build UDP heartbeat packet */
-        memset(&msg, 0, sizeof(msg));
-        msg.magic = mxfs_cpu_to_le32(MXFS_LEASE_UDP_MAGIC);
-        msg.version = mxfs_cpu_to_le16(MXFS_LEASE_UDP_VERSION);
-        msg.node_id = ctx->local_node;
-        memcpy(msg.volume_uuid, ctx->volume_uuid, 16);
-        msg.lease_duration_ms = mxfs_cpu_to_le64(ctx->default_duration_ms);
-        /* v0.11.78 (D7): piggyback my DLM view signature so peers can
-         * prove membership convergence instead of riding out the
-         * wall-clock settle window. */
-        if (ctx->view_sig_cb) {
-            uint32_t vc = 0;
-            uint64_t vh = ctx->view_sig_cb(ctx->view_sig_cb_data, &vc);
+		/* Build UDP heartbeat packet */
+		memset(&msg, 0, sizeof(msg));
+		msg.magic = mxfs_cpu_to_le32(MXFS_LEASE_UDP_MAGIC);
+		msg.version = mxfs_cpu_to_le16(MXFS_LEASE_UDP_VERSION);
+		msg.node_id = ctx->local_node;
+		memcpy(msg.volume_uuid, ctx->volume_uuid, 16);
+		msg.lease_duration_ms = mxfs_cpu_to_le64(ctx->default_duration_ms);
+		/* v0.11.78 (D7): piggyback my DLM view signature so peers can
+		 * prove membership convergence instead of riding out the
+		 * wall-clock settle window. */
+		if (ctx->view_sig_cb) {
+			uint32_t vc = 0;
+			uint64_t vh = ctx->view_sig_cb(ctx->view_sig_cb_data, &vc);
 
-            msg.view_count = mxfs_cpu_to_le32(vc);
-            msg.view_hash = mxfs_cpu_to_le64(vh);
-        }
-        /* 0.89.68: say what this node IS.  A closed authority renews as
-         * WITHDRAWN so a peer keeps the entry (mastership) but reads no
-         * liveness from it; the incarnation lets the peer tell this mount
-         * from a previous one under the same node id. */
-        if (ctx->member_state_cb) {
-            uint64_t inc = 0;
-            uint16_t st = ctx->member_state_cb(ctx->member_state_cb_data, &inc);
+			msg.view_count = mxfs_cpu_to_le32(vc);
+			msg.view_hash = mxfs_cpu_to_le64(vh);
+		}
+		/* 0.89.68: say what this node IS.  A closed authority renews as
+		 * WITHDRAWN so a peer keeps the entry (mastership) but reads no
+		 * liveness from it; the incarnation lets the peer tell this mount
+		 * from a previous one under the same node id. */
+		if (ctx->member_state_cb) {
+			uint64_t inc = 0;
+			uint16_t st = ctx->member_state_cb(ctx->member_state_cb_data, &inc);
 
-            msg.state = mxfs_cpu_to_le16(st);
-            msg.incarnation = mxfs_cpu_to_le64(inc);
-        }
+			msg.state = mxfs_cpu_to_le16(st);
+			msg.incarnation = mxfs_cpu_to_le64(inc);
+		}
 
-        /* Update local node's lease timestamp */
-        mxfs_pal_mutex_lock(ctx->lock);
-        nl = lease_find(ctx, ctx->local_node);
-        if (nl) {
-            nl->last_renewal = mxfs_pal_time_ms();
-            nl->state = MXFS_NODE_ACTIVE;
-            nl->missed_renewals = 0;
-        }
-        mxfs_pal_mutex_unlock(ctx->lock);
+		/* Update local node's lease timestamp */
+		mxfs_pal_mutex_lock(ctx->lock);
+		nl = lease_find(ctx, ctx->local_node);
+		if (nl) {
+			nl->last_renewal = mxfs_pal_time_ms();
+			nl->state = MXFS_NODE_ACTIVE;
+			nl->missed_renewals = 0;
+		}
+		mxfs_pal_mutex_unlock(ctx->lock);
 
-        /* Single UDP multicast send — replaces N TCP unicast sends;
-         * plus one unicast send per peer= address, or only those under
-         * peers= */
-        if (ctx->udp_sock)
-            mxfs_static_peers_send(&ctx->peers, ctx->udp_sock, &msg,
-                                   sizeof(msg), ctx->send_addr,
-                                   ctx->udp_port);
+		/* Single UDP multicast send — replaces N TCP unicast sends;
+		 * plus one unicast send per peer= address, or only those under
+		 * peers= */
+		if (ctx->udp_sock)
+			mxfs_static_peers_send(&ctx->peers, ctx->udp_sock, &msg,
+					       sizeof(msg), ctx->send_addr,
+					       ctx->udp_port);
 
-        /* Sleep for the remainder of the renewal interval.
-         * Use condvar timed wait instead of sleep so that
-         * mxfs_lease_stop() can wake us immediately. */
-        elapsed = mxfs_pal_time_ms() - start;
-        if (elapsed < ctx->renew_interval_ms)
-            sleep_ms = (uint32_t)(ctx->renew_interval_ms - elapsed);
-        else
-            sleep_ms = 1;   /* yield but don't skip entirely */
-        mxfs_pal_mutex_lock(ctx->shutdown_lock);
-        if (ctx->running)
-            mxfs_pal_cond_timedwait(ctx->shutdown_cond,
-                                    ctx->shutdown_lock, sleep_ms);
-        mxfs_pal_mutex_unlock(ctx->shutdown_lock);
-    }
+		/* Sleep for the remainder of the renewal interval.
+		 * Use condvar timed wait instead of sleep so that
+		 * mxfs_lease_stop() can wake us immediately. */
+		elapsed = mxfs_pal_time_ms() - start;
+		if (elapsed < ctx->renew_interval_ms)
+			sleep_ms = (uint32_t)(ctx->renew_interval_ms - elapsed);
+		else
+			sleep_ms = 1;   /* yield but don't skip entirely */
+		mxfs_pal_mutex_lock(ctx->shutdown_lock);
+		if (ctx->running)
+			mxfs_pal_cond_timedwait(ctx->shutdown_cond,
+						ctx->shutdown_lock, sleep_ms);
+		mxfs_pal_mutex_unlock(ctx->shutdown_lock);
+	}
 
-    mxfs_pal_log(MXFS_LOG_DEBUG, "lease: renew thread exiting");
+	mxfs_pal_log(MXFS_LOG_DEBUG, "lease: renew thread exiting");
 }
 
 /*
@@ -133,87 +133,87 @@ static void mxfs_lease_renew_fn(void *arg)
  */
 static void mxfs_lease_udp_recv_fn(void *arg)
 {
-    struct mxfs_lease_ctx *ctx = arg;
-    struct mxfs_lease_udp_msg pkt;
-    char sender_host[64];
-    uint16_t sender_port;
-    int ret;
+	struct mxfs_lease_ctx *ctx = arg;
+	struct mxfs_lease_udp_msg pkt;
+	char sender_host[64];
+	uint16_t sender_port;
+	int ret;
 
-    mxfs_pal_log(MXFS_LOG_DEBUG, "lease: UDP recv thread started on %s:%u",
-                 ctx->use_broadcast ? "broadcast" : ctx->mcast_addr,
-                 ctx->udp_port);
+	mxfs_pal_log(MXFS_LOG_DEBUG, "lease: UDP recv thread started on %s:%u",
+		     ctx->use_broadcast ? "broadcast" : ctx->mcast_addr,
+		     ctx->udp_port);
 
-    while (ctx->running) {
-        memset(&pkt, 0, sizeof(pkt));
-        memset(sender_host, 0, sizeof(sender_host));
-        sender_port = 0;
+	while (ctx->running) {
+		memset(&pkt, 0, sizeof(pkt));
+		memset(sender_host, 0, sizeof(sender_host));
+		sender_port = 0;
 
-        ret = mxfs_pal_udp_recvfrom(ctx->udp_sock,
-                                     &pkt, sizeof(pkt),
-                                     sender_host, sizeof(sender_host),
-                                     &sender_port);
-        if (ret < 0) {
-            if (ret == -EAGAIN || ret == -ETIMEDOUT || ret == -EINTR)
-                continue;
-            if (!ctx->running)
-                break;
-            mxfs_pal_log(MXFS_LOG_WARN,
-                         "lease: UDP recvfrom failed: %d", ret);
-            continue;
-        }
-        if (ret == 0) {
-            if (!ctx->running)
-                break;
-            continue;
-        }
+		ret = mxfs_pal_udp_recvfrom(ctx->udp_sock,
+					     &pkt, sizeof(pkt),
+					     sender_host, sizeof(sender_host),
+					     &sender_port);
+		if (ret < 0) {
+			if (ret == -EAGAIN || ret == -ETIMEDOUT || ret == -EINTR)
+				continue;
+			if (!ctx->running)
+				break;
+			mxfs_pal_log(MXFS_LOG_WARN,
+				     "lease: UDP recvfrom failed: %d", ret);
+			continue;
+		}
+		if (ret == 0) {
+			if (!ctx->running)
+				break;
+			continue;
+		}
 
-        /* v0.11.78 (D7): accept the original (pre-view) packet length as a
-         * valid beacon; only a full-length packet carries a view report. */
-        if (ret < (int)MXFS_LEASE_UDP_MSG_V1_LEN)
-            continue;
+		/* v0.11.78 (D7): accept the original (pre-view) packet length as a
+		 * valid beacon; only a full-length packet carries a view report. */
+		if (ret < (int)MXFS_LEASE_UDP_MSG_V1_LEN)
+			continue;
 
-        /* peers= (exclusive): only the listed addresses are the cluster */
-        if (!mxfs_static_peers_admit(&ctx->peers, sender_host))
-            continue;
+		/* peers= (exclusive): only the listed addresses are the cluster */
+		if (!mxfs_static_peers_admit(&ctx->peers, sender_host))
+			continue;
 
-        /* Validate magic and version */
-        if (mxfs_le32_to_cpu(pkt.magic) != MXFS_LEASE_UDP_MAGIC)
-            continue;
-        if (mxfs_le16_to_cpu(pkt.version) != MXFS_LEASE_UDP_VERSION)
-            continue;
+		/* Validate magic and version */
+		if (mxfs_le32_to_cpu(pkt.magic) != MXFS_LEASE_UDP_MAGIC)
+			continue;
+		if (mxfs_le16_to_cpu(pkt.version) != MXFS_LEASE_UDP_VERSION)
+			continue;
 
-        /* Ignore our own heartbeats */
-        if (pkt.node_id == ctx->local_node)
-            continue;
+		/* Ignore our own heartbeats */
+		if (pkt.node_id == ctx->local_node)
+			continue;
 
-        /* Check volume UUID matches ours */
-        if (memcmp(pkt.volume_uuid, ctx->volume_uuid, 16) != 0)
-            continue;
+		/* Check volume UUID matches ours */
+		if (memcmp(pkt.volume_uuid, ctx->volume_uuid, 16) != 0)
+			continue;
 
-        /* Process the renewal.  0.89.68: the state word is in every
-         * packet (older senders wrote 0 there); the incarnation only in a
-         * full-length one. */
-        mxfs_lease_process_renewal(ctx, pkt.node_id, 0,
-                                   mxfs_le16_to_cpu(pkt.state),
-                                   ret >= (int)sizeof(pkt) ?
-                                       mxfs_le64_to_cpu(pkt.incarnation) : 0);
+		/* Process the renewal.  0.89.68: the state word is in every
+		 * packet (older senders wrote 0 there); the incarnation only in a
+		 * full-length one. */
+		mxfs_lease_process_renewal(ctx, pkt.node_id, 0,
+					   mxfs_le16_to_cpu(pkt.state),
+					   ret >= (int)sizeof(pkt) ?
+					       mxfs_le64_to_cpu(pkt.incarnation) : 0);
 
-        /* v0.11.78 (D7): forward the peer's view signature (if carried).
-         * 0.84.8 (D-...-0960, s592e): a ZERO signature is a report too —
-         * the peer has installed no multi-node view (it still counts
-         * itself alone), which for a joiner is the incumbent not yet
-         * admitting it.  Dropping it here left the settle gate with no
-         * evidence against the wall clock, so it opened after 20 s and
-         * the joiner's first acquires were deferred by the incumbent until
-         * their budgets were gone and the mount was refused. */
-        if (ret >= (int)MXFS_LEASE_UDP_MSG_VIEW_LEN && ctx->view_report_cb)
-            ctx->view_report_cb(ctx->view_report_cb_data,
-                                pkt.node_id,
-                                mxfs_le32_to_cpu(pkt.view_count),
-                                mxfs_le64_to_cpu(pkt.view_hash));
-    }
+		/* v0.11.78 (D7): forward the peer's view signature (if carried).
+		 * 0.84.8 (D-...-0960, s592e): a ZERO signature is a report too —
+		 * the peer has installed no multi-node view (it still counts
+		 * itself alone), which for a joiner is the incumbent not yet
+		 * admitting it.  Dropping it here left the settle gate with no
+		 * evidence against the wall clock, so it opened after 20 s and
+		 * the joiner's first acquires were deferred by the incumbent until
+		 * their budgets were gone and the mount was refused. */
+		if (ret >= (int)MXFS_LEASE_UDP_MSG_VIEW_LEN && ctx->view_report_cb)
+			ctx->view_report_cb(ctx->view_report_cb_data,
+					    pkt.node_id,
+					    mxfs_le32_to_cpu(pkt.view_count),
+					    mxfs_le64_to_cpu(pkt.view_hash));
+	}
 
-    mxfs_pal_log(MXFS_LOG_DEBUG, "lease: UDP recv thread exiting");
+	mxfs_pal_log(MXFS_LOG_DEBUG, "lease: UDP recv thread exiting");
 }
 
 /*
@@ -223,685 +223,685 @@ static void mxfs_lease_udp_recv_fn(void *arg)
  */
 static void mxfs_lease_monitor_fn(void *arg)
 {
-    struct mxfs_lease_ctx *ctx = arg;
-    struct mxfs_node_lease *nl;
-    mxfs_node_id_t dead_node;
-    uint64_t now;
-    uint64_t elapsed;
-    int i;
+	struct mxfs_lease_ctx *ctx = arg;
+	struct mxfs_node_lease *nl;
+	mxfs_node_id_t dead_node;
+	uint64_t now;
+	uint64_t elapsed;
+	int i;
 
-    mxfs_pal_log(MXFS_LOG_DEBUG, "lease: monitor thread started");
+	mxfs_pal_log(MXFS_LOG_DEBUG, "lease: monitor thread started");
 
-    while (ctx->running) {
-        now = mxfs_pal_time_ms();
+	while (ctx->running) {
+		now = mxfs_pal_time_ms();
 
-        mxfs_pal_mutex_lock(ctx->lock);
+		mxfs_pal_mutex_lock(ctx->lock);
 
-        for (i = 0; i < ctx->node_count; i++) {
-            nl = &ctx->nodes[i];
+		for (i = 0; i < ctx->node_count; i++) {
+			nl = &ctx->nodes[i];
 
-            /* Skip local node and already-dead/recovering nodes */
-            if (nl->node_id == ctx->local_node)
-                continue;
-            if (nl->state == MXFS_NODE_DEAD ||
-                nl->state == MXFS_NODE_RECOVERING)
-                continue;
+			/* Skip local node and already-dead/recovering nodes */
+			if (nl->node_id == ctx->local_node)
+				continue;
+			if (nl->state == MXFS_NODE_DEAD ||
+			    nl->state == MXFS_NODE_RECOVERING)
+				continue;
 
-            if (nl->last_renewal == 0)
-                continue;
+			if (nl->last_renewal == 0)
+				continue;
 
-            elapsed = now - nl->last_renewal;
+			elapsed = now - nl->last_renewal;
 
-            if ((nl->state == MXFS_NODE_ACTIVE ||
-                 nl->state == MXFS_NODE_JOINING) &&
-                elapsed > nl->duration_ms) {
-                /*
-                 * Missed a renewal window.  Under I/O load the
-                 * sending node's renewal thread (msleep-based) may
-                 * be delayed by scheduler pressure from block I/O
-                 * completions.  A single missed renewal is not
-                 * grounds for SUSPECT.  Only transition after
-                 * MXFS_LEASE_SUSPECT_MISSES consecutive misses.
-                 *
-                 * JOINING nodes are monitored identically to ACTIVE:
-                 * a node that was discovered but never sent a lease
-                 * renewal (or whose UDP heartbeat was lost) must
-                 * still be detected as dead rather than lingering
-                 * in JOINING forever.
-                 */
-                nl->missed_renewals++;
-                if (nl->missed_renewals >= MXFS_LEASE_SUSPECT_MISSES) {
-                    nl->state = MXFS_NODE_SUSPECT;
-                    mxfs_pal_log(MXFS_LOG_WARN,
-                                 "mxfs: node %u may be unreachable "
-                                 "(missed %d heartbeats, "
-                                 "%llu ms since last contact)",
-                                 nl->node_id,
-                                 nl->missed_renewals,
-                                 (unsigned long long)elapsed);
-                } else {
-                    mxfs_pal_log(MXFS_LOG_DEBUG,
-                                 "lease: node %u missed "
-                                 "renewal %d/%d "
-                                 "(elapsed %llu ms)",
-                                 nl->node_id,
-                                 nl->missed_renewals,
-                                 MXFS_LEASE_SUSPECT_MISSES,
-                                 (unsigned long long)elapsed);
-                }
-            } else if ((nl->state == MXFS_NODE_ACTIVE ||
-                        nl->state == MXFS_NODE_JOINING) &&
-                       elapsed <= nl->duration_ms) {
-                /* On-time renewal received — reset miss counter */
-                nl->missed_renewals = 0;
-            }
+			if ((nl->state == MXFS_NODE_ACTIVE ||
+			     nl->state == MXFS_NODE_JOINING) &&
+				elapsed > nl->duration_ms) {
+				/*
+				 * Missed a renewal window.  Under I/O load the
+				 * sending node's renewal thread (msleep-based) may
+				 * be delayed by scheduler pressure from block I/O
+				 * completions.  A single missed renewal is not
+				 * grounds for SUSPECT.  Only transition after
+				 * MXFS_LEASE_SUSPECT_MISSES consecutive misses.
+				 *
+				 * JOINING nodes are monitored identically to ACTIVE:
+				 * a node that was discovered but never sent a lease
+				 * renewal (or whose UDP heartbeat was lost) must
+				 * still be detected as dead rather than lingering
+				 * in JOINING forever.
+				 */
+				nl->missed_renewals++;
+				if (nl->missed_renewals >= MXFS_LEASE_SUSPECT_MISSES) {
+					nl->state = MXFS_NODE_SUSPECT;
+					mxfs_pal_log(MXFS_LOG_WARN,
+						     "mxfs: node %u may be unreachable "
+						     "(missed %d heartbeats, "
+						     "%llu ms since last contact)",
+						     nl->node_id,
+						     nl->missed_renewals,
+						     (unsigned long long)elapsed);
+				} else {
+					mxfs_pal_log(MXFS_LOG_DEBUG,
+						     "lease: node %u missed "
+						     "renewal %d/%d "
+						     "(elapsed %llu ms)",
+						     nl->node_id,
+						     nl->missed_renewals,
+						     MXFS_LEASE_SUSPECT_MISSES,
+						     (unsigned long long)elapsed);
+				}
+			} else if ((nl->state == MXFS_NODE_ACTIVE ||
+				    nl->state == MXFS_NODE_JOINING) &&
+					   elapsed <= nl->duration_ms) {
+				/* On-time renewal received — reset miss counter */
+				nl->missed_renewals = 0;
+			}
 
-            if (nl->state == MXFS_NODE_SUSPECT &&
-                elapsed > ctx->timeout_ms) {
-                /* Lease fully expired — node is dead */
-                mxfs_pal_log(MXFS_LOG_WARN,
-                             "mxfs: node %u has left the cluster "
-                             "(no heartbeat for %llu seconds)",
-                             nl->node_id,
-                             (unsigned long long)(elapsed / 1000));
+			if (nl->state == MXFS_NODE_SUSPECT &&
+			    elapsed > ctx->timeout_ms) {
+				/* Lease fully expired — node is dead */
+				mxfs_pal_log(MXFS_LOG_WARN,
+					     "mxfs: node %u has left the cluster "
+					     "(no heartbeat for %llu seconds)",
+					     nl->node_id,
+					     (unsigned long long)(elapsed / 1000));
 
-                nl->state = MXFS_NODE_DEAD;
-                nl->missed_renewals = 0;
-                dead_node = nl->node_id;
+				nl->state = MXFS_NODE_DEAD;
+				nl->missed_renewals = 0;
+				dead_node = nl->node_id;
 
-                /* Fire expire callback outside the lock */
-                mxfs_pal_mutex_unlock(ctx->lock);
+				/* Fire expire callback outside the lock */
+				mxfs_pal_mutex_unlock(ctx->lock);
 
-                if (ctx->expire_cb) {
-                    mxfs_pal_log(MXFS_LOG_DEBUG,
-                                 "lease: firing expire callback "
-                                 "for node %u", dead_node);
-                    ctx->expire_cb(ctx->expire_cb_data, dead_node);
-                }
+				if (ctx->expire_cb) {
+					mxfs_pal_log(MXFS_LOG_DEBUG,
+						     "lease: firing expire callback "
+						     "for node %u", dead_node);
+					ctx->expire_cb(ctx->expire_cb_data, dead_node);
+				}
 
-                mxfs_pal_mutex_lock(ctx->lock);
-            }
-        }
+				mxfs_pal_mutex_lock(ctx->lock);
+			}
+		}
 
-        mxfs_pal_mutex_unlock(ctx->lock);
+		mxfs_pal_mutex_unlock(ctx->lock);
 
-        /* Use condvar timed wait so mxfs_lease_stop() can wake us */
-        mxfs_pal_mutex_lock(ctx->shutdown_lock);
-        if (ctx->running)
-            mxfs_pal_cond_timedwait(ctx->shutdown_cond,
-                                    ctx->shutdown_lock,
-                                    MXFS_LEASE_MONITOR_INTERVAL_MS);
-        mxfs_pal_mutex_unlock(ctx->shutdown_lock);
-    }
+		/* Use condvar timed wait so mxfs_lease_stop() can wake us */
+		mxfs_pal_mutex_lock(ctx->shutdown_lock);
+		if (ctx->running)
+			mxfs_pal_cond_timedwait(ctx->shutdown_cond,
+						ctx->shutdown_lock,
+						MXFS_LEASE_MONITOR_INTERVAL_MS);
+		mxfs_pal_mutex_unlock(ctx->shutdown_lock);
+	}
 
-    mxfs_pal_log(MXFS_LOG_DEBUG, "lease: monitor thread exiting");
+	mxfs_pal_log(MXFS_LOG_DEBUG, "lease: monitor thread exiting");
 }
 
 struct mxfs_lease_ctx *mxfs_lease_create(mxfs_node_id_t local_node,
-                                          const uint8_t *volume_uuid,
-                                          const char *mcast_addr,
-                                          uint16_t lease_port,
-                                          bool use_broadcast,
-                                          const struct mxfs_static_peers *peers)
+					  const uint8_t *volume_uuid,
+					  const char *mcast_addr,
+					  uint16_t lease_port,
+					  bool use_broadcast,
+					  const struct mxfs_static_peers *peers)
 {
-    struct mxfs_lease_ctx *ctx;
-    struct mxfs_node_lease *nl;
-    int ret;
+	struct mxfs_lease_ctx *ctx;
+	struct mxfs_node_lease *nl;
+	int ret;
 
-    ctx = mxfs_pal_alloc(sizeof(*ctx));
-    if (!ctx)
-        return NULL;
+	ctx = mxfs_pal_alloc(sizeof(*ctx));
+	if (!ctx)
+		return NULL;
 
-    memset(ctx, 0, sizeof(*ctx));
-    ctx->local_node = local_node;
-    ctx->default_duration_ms = MXFS_LEASE_DURATION_DEFAULT_MS;
-    ctx->renew_interval_ms = MXFS_LEASE_RENEW_DEFAULT_MS;
-    ctx->timeout_ms = MXFS_LEASE_TIMEOUT_DEFAULT_MS;
-    ctx->node_count = 0;
-    ctx->running = false;
-    ctx->renew_thread = NULL;
-    ctx->monitor_thread = NULL;
-    ctx->udp_recv_thread = NULL;
-    ctx->udp_sock = NULL;
+	memset(ctx, 0, sizeof(*ctx));
+	ctx->local_node = local_node;
+	ctx->default_duration_ms = MXFS_LEASE_DURATION_DEFAULT_MS;
+	ctx->renew_interval_ms = MXFS_LEASE_RENEW_DEFAULT_MS;
+	ctx->timeout_ms = MXFS_LEASE_TIMEOUT_DEFAULT_MS;
+	ctx->node_count = 0;
+	ctx->running = false;
+	ctx->renew_thread = NULL;
+	ctx->monitor_thread = NULL;
+	ctx->udp_recv_thread = NULL;
+	ctx->udp_sock = NULL;
 
-    /* Store volume UUID for heartbeat validation */
-    if (volume_uuid)
-        memcpy(ctx->volume_uuid, volume_uuid, 16);
+	/* Store volume UUID for heartbeat validation */
+	if (volume_uuid)
+		memcpy(ctx->volume_uuid, volume_uuid, 16);
 
-    /* UDP multicast/broadcast configuration */
-    ctx->udp_port = lease_port > 0 ? lease_port : MXFS_LEASE_PORT;
-    ctx->use_broadcast = use_broadcast;
-    if (mxfs_static_peers_active(peers))
-        ctx->peers = *peers;
-    if (mxfs_static_peers_exclusive(peers))
-        ctx->use_broadcast = false;
+	/* UDP multicast/broadcast configuration */
+	ctx->udp_port = lease_port > 0 ? lease_port : MXFS_LEASE_PORT;
+	ctx->use_broadcast = use_broadcast;
+	if (mxfs_static_peers_active(peers))
+		ctx->peers = *peers;
+	if (mxfs_static_peers_exclusive(peers))
+		ctx->use_broadcast = false;
 
-    if (mcast_addr && mcast_addr[0] != '\0')
-        snprintf(ctx->mcast_addr, sizeof(ctx->mcast_addr), "%s", mcast_addr);
-    else
-        snprintf(ctx->mcast_addr, sizeof(ctx->mcast_addr), "%s",
-                 MXFS_LEASE_MCAST);
+	if (mcast_addr && mcast_addr[0] != '\0')
+		snprintf(ctx->mcast_addr, sizeof(ctx->mcast_addr), "%s", mcast_addr);
+	else
+		snprintf(ctx->mcast_addr, sizeof(ctx->mcast_addr), "%s",
+			 MXFS_LEASE_MCAST);
 
-    if (use_broadcast)
-        snprintf(ctx->send_addr, sizeof(ctx->send_addr), "255.255.255.255");
-    else
-        snprintf(ctx->send_addr, sizeof(ctx->send_addr), "%s",
-                 ctx->mcast_addr);
+	if (use_broadcast)
+		snprintf(ctx->send_addr, sizeof(ctx->send_addr), "255.255.255.255");
+	else
+		snprintf(ctx->send_addr, sizeof(ctx->send_addr), "%s",
+			 ctx->mcast_addr);
 
-    ctx->lock = mxfs_pal_mutex_create();
-    if (!ctx->lock) {
-        mxfs_pal_free(ctx);
-        return NULL;
-    }
+	ctx->lock = mxfs_pal_mutex_create();
+	if (!ctx->lock) {
+		mxfs_pal_free(ctx);
+		return NULL;
+	}
 
-    ctx->shutdown_lock = mxfs_pal_mutex_create();
-    if (!ctx->shutdown_lock) {
-        mxfs_pal_mutex_destroy(ctx->lock);
-        mxfs_pal_free(ctx);
-        return NULL;
-    }
+	ctx->shutdown_lock = mxfs_pal_mutex_create();
+	if (!ctx->shutdown_lock) {
+		mxfs_pal_mutex_destroy(ctx->lock);
+		mxfs_pal_free(ctx);
+		return NULL;
+	}
 
-    ctx->shutdown_cond = mxfs_pal_cond_create();
-    if (!ctx->shutdown_cond) {
-        mxfs_pal_mutex_destroy(ctx->shutdown_lock);
-        mxfs_pal_mutex_destroy(ctx->lock);
-        mxfs_pal_free(ctx);
-        return NULL;
-    }
+	ctx->shutdown_cond = mxfs_pal_cond_create();
+	if (!ctx->shutdown_cond) {
+		mxfs_pal_mutex_destroy(ctx->shutdown_lock);
+		mxfs_pal_mutex_destroy(ctx->lock);
+		mxfs_pal_free(ctx);
+		return NULL;
+	}
 
-    /* Open UDP socket for lease heartbeats */
-    ctx->udp_sock = mxfs_pal_udp_open(ctx->udp_port);
-    if (!ctx->udp_sock) {
-        mxfs_pal_log(MXFS_LOG_ERR,
-                     "lease: failed to open UDP socket on port %u",
-                     ctx->udp_port);
-        mxfs_pal_cond_destroy(ctx->shutdown_cond);
-        mxfs_pal_mutex_destroy(ctx->shutdown_lock);
-        mxfs_pal_mutex_destroy(ctx->lock);
-        mxfs_pal_free(ctx);
-        return NULL;
-    }
+	/* Open UDP socket for lease heartbeats */
+	ctx->udp_sock = mxfs_pal_udp_open(ctx->udp_port);
+	if (!ctx->udp_sock) {
+		mxfs_pal_log(MXFS_LOG_ERR,
+			     "lease: failed to open UDP socket on port %u",
+			     ctx->udp_port);
+		mxfs_pal_cond_destroy(ctx->shutdown_cond);
+		mxfs_pal_mutex_destroy(ctx->shutdown_lock);
+		mxfs_pal_mutex_destroy(ctx->lock);
+		mxfs_pal_free(ctx);
+		return NULL;
+	}
 
-    /* Set receive timeout for clean shutdown */
-    mxfs_pal_udp_set_recv_timeout(ctx->udp_sock, 500);
+	/* Set receive timeout for clean shutdown */
+	mxfs_pal_udp_set_recv_timeout(ctx->udp_sock, 500);
 
-    if (mxfs_static_peers_active(&ctx->peers))
-        mxfs_pal_log(MXFS_LOG_INFO,
-                     "lease: %s peer list, %u address(es), port %u",
-                     ctx->peers.exclusive ? "exclusive (peers=)" :
-                     "additive (peer=)", ctx->peers.count, ctx->udp_port);
+	if (mxfs_static_peers_active(&ctx->peers))
+		mxfs_pal_log(MXFS_LOG_INFO,
+			     "lease: %s peer list, %u address(es), port %u",
+			     ctx->peers.exclusive ? "exclusive (peers=)" :
+			     "additive (peer=)", ctx->peers.count, ctx->udp_port);
 
-    if (mxfs_static_peers_exclusive(&ctx->peers)) {
-        /* unicast only: no group membership, no broadcast */
-    } else if (ctx->use_broadcast) {
-        ret = mxfs_pal_udp_set_broadcast(ctx->udp_sock);
-        if (ret < 0) {
-            mxfs_pal_log(MXFS_LOG_ERR,
-                         "lease: SO_BROADCAST failed: %d", ret);
-            mxfs_pal_udp_close(ctx->udp_sock);
-            mxfs_pal_cond_destroy(ctx->shutdown_cond);
-            mxfs_pal_mutex_destroy(ctx->shutdown_lock);
-            mxfs_pal_mutex_destroy(ctx->lock);
-            mxfs_pal_free(ctx);
-            return NULL;
-        }
-        mxfs_pal_log(MXFS_LOG_DEBUG,
-                     "lease: broadcast mode, target %s:%u",
-                     ctx->send_addr, ctx->udp_port);
-    } else {
-        ret = mxfs_pal_udp_join_multicast(ctx->udp_sock, ctx->mcast_addr);
-        if (ret < 0) {
-            mxfs_pal_log(MXFS_LOG_ERR,
-                         "lease: multicast join failed: %d", ret);
-            mxfs_pal_udp_close(ctx->udp_sock);
-            mxfs_pal_cond_destroy(ctx->shutdown_cond);
-            mxfs_pal_mutex_destroy(ctx->shutdown_lock);
-            mxfs_pal_mutex_destroy(ctx->lock);
-            mxfs_pal_free(ctx);
-            return NULL;
-        }
-        mxfs_pal_log(MXFS_LOG_DEBUG,
-                     "lease: multicast mode, group %s:%u",
-                     ctx->mcast_addr, ctx->udp_port);
-    }
+	if (mxfs_static_peers_exclusive(&ctx->peers)) {
+		/* unicast only: no group membership, no broadcast */
+	} else if (ctx->use_broadcast) {
+		ret = mxfs_pal_udp_set_broadcast(ctx->udp_sock);
+		if (ret < 0) {
+			mxfs_pal_log(MXFS_LOG_ERR,
+				     "lease: SO_BROADCAST failed: %d", ret);
+			mxfs_pal_udp_close(ctx->udp_sock);
+			mxfs_pal_cond_destroy(ctx->shutdown_cond);
+			mxfs_pal_mutex_destroy(ctx->shutdown_lock);
+			mxfs_pal_mutex_destroy(ctx->lock);
+			mxfs_pal_free(ctx);
+			return NULL;
+		}
+		mxfs_pal_log(MXFS_LOG_DEBUG,
+			     "lease: broadcast mode, target %s:%u",
+			     ctx->send_addr, ctx->udp_port);
+	} else {
+		ret = mxfs_pal_udp_join_multicast(ctx->udp_sock, ctx->mcast_addr);
+		if (ret < 0) {
+			mxfs_pal_log(MXFS_LOG_ERR,
+				     "lease: multicast join failed: %d", ret);
+			mxfs_pal_udp_close(ctx->udp_sock);
+			mxfs_pal_cond_destroy(ctx->shutdown_cond);
+			mxfs_pal_mutex_destroy(ctx->shutdown_lock);
+			mxfs_pal_mutex_destroy(ctx->lock);
+			mxfs_pal_free(ctx);
+			return NULL;
+		}
+		mxfs_pal_log(MXFS_LOG_DEBUG,
+			     "lease: multicast mode, group %s:%u",
+			     ctx->mcast_addr, ctx->udp_port);
+	}
 
-    /* Register the local node as ACTIVE */
-    nl = &ctx->nodes[0];
-    nl->node_id = local_node;
-    nl->epoch = 0;
-    nl->granted_at = mxfs_pal_time_ms();
-    nl->duration_ms = ctx->default_duration_ms;
-    nl->last_renewal = mxfs_pal_time_ms();
-    nl->state = MXFS_NODE_ACTIVE;
-    nl->missed_renewals = 0;
-    ctx->node_count = 1;
+	/* Register the local node as ACTIVE */
+	nl = &ctx->nodes[0];
+	nl->node_id = local_node;
+	nl->epoch = 0;
+	nl->granted_at = mxfs_pal_time_ms();
+	nl->duration_ms = ctx->default_duration_ms;
+	nl->last_renewal = mxfs_pal_time_ms();
+	nl->state = MXFS_NODE_ACTIVE;
+	nl->missed_renewals = 0;
+	ctx->node_count = 1;
 
-    mxfs_pal_log(MXFS_LOG_DEBUG,
-                 "lease: initialized for node %u "
-                 "(duration=%llu ms, renew=%llu ms, timeout=%llu ms, "
-                 "UDP %s:%u)",
-                 local_node,
-                 (unsigned long long)ctx->default_duration_ms,
-                 (unsigned long long)ctx->renew_interval_ms,
-                 (unsigned long long)ctx->timeout_ms,
-                 mxfs_static_peers_exclusive(&ctx->peers) ? "peers" :
-                 ctx->use_broadcast ? "broadcast" : ctx->mcast_addr,
-                 ctx->udp_port);
+	mxfs_pal_log(MXFS_LOG_DEBUG,
+		     "lease: initialized for node %u "
+		     "(duration=%llu ms, renew=%llu ms, timeout=%llu ms, "
+		     "UDP %s:%u)",
+		     local_node,
+		     (unsigned long long)ctx->default_duration_ms,
+		     (unsigned long long)ctx->renew_interval_ms,
+		     (unsigned long long)ctx->timeout_ms,
+		     mxfs_static_peers_exclusive(&ctx->peers) ? "peers" :
+		     ctx->use_broadcast ? "broadcast" : ctx->mcast_addr,
+		     ctx->udp_port);
 
-    return ctx;
+	return ctx;
 }
 
 void mxfs_lease_destroy(struct mxfs_lease_ctx *ctx)
 {
-    if (!ctx)
-        return;
+	if (!ctx)
+		return;
 
-    mxfs_lease_stop(ctx);
+	mxfs_lease_stop(ctx);
 
-    if (ctx->udp_sock) {
-        mxfs_pal_udp_close(ctx->udp_sock);
-        ctx->udp_sock = NULL;
-    }
+	if (ctx->udp_sock) {
+		mxfs_pal_udp_close(ctx->udp_sock);
+		ctx->udp_sock = NULL;
+	}
 
-    if (ctx->shutdown_cond)
-        mxfs_pal_cond_destroy(ctx->shutdown_cond);
-    if (ctx->shutdown_lock)
-        mxfs_pal_mutex_destroy(ctx->shutdown_lock);
-    mxfs_pal_mutex_destroy(ctx->lock);
-    mxfs_pal_free(ctx);
+	if (ctx->shutdown_cond)
+		mxfs_pal_cond_destroy(ctx->shutdown_cond);
+	if (ctx->shutdown_lock)
+		mxfs_pal_mutex_destroy(ctx->shutdown_lock);
+	mxfs_pal_mutex_destroy(ctx->lock);
+	mxfs_pal_free(ctx);
 
-    mxfs_pal_log(MXFS_LOG_DEBUG, "lease: shutdown complete");
+	mxfs_pal_log(MXFS_LOG_DEBUG, "lease: shutdown complete");
 }
 
 int mxfs_lease_start(struct mxfs_lease_ctx *ctx)
 {
-    if (!ctx)
-        return -EINVAL;
+	if (!ctx)
+		return -EINVAL;
 
-    ctx->running = true;
+	ctx->running = true;
 
-    /*
-     * Create lease threads with real-time (low) priority.
-     * Under heavy iSCSI I/O, normal CFS threads get starved for
-     * 90-142 seconds by block I/O completions.  RT priority
-     * ensures lease renewals are sent even when the system is
-     * saturated with data I/O.
-     */
-    ctx->renew_thread = mxfs_pal_thread_create_rt(mxfs_lease_renew_fn, ctx);
-    if (!ctx->renew_thread) {
-        ctx->running = false;
-        mxfs_pal_log(MXFS_LOG_ERR,
-                     "lease: failed to start renew thread");
-        return -ENOMEM;
-    }
+	/*
+	 * Create lease threads with real-time (low) priority.
+	 * Under heavy iSCSI I/O, normal CFS threads get starved for
+	 * 90-142 seconds by block I/O completions.  RT priority
+	 * ensures lease renewals are sent even when the system is
+	 * saturated with data I/O.
+	 */
+	ctx->renew_thread = mxfs_pal_thread_create_rt(mxfs_lease_renew_fn, ctx);
+	if (!ctx->renew_thread) {
+		ctx->running = false;
+		mxfs_pal_log(MXFS_LOG_ERR,
+			     "lease: failed to start renew thread");
+		return -ENOMEM;
+	}
 
-    ctx->monitor_thread = mxfs_pal_thread_create_rt(mxfs_lease_monitor_fn, ctx);
-    if (!ctx->monitor_thread) {
-        ctx->running = false;
-        mxfs_pal_thread_join(ctx->renew_thread);
-        ctx->renew_thread = NULL;
-        mxfs_pal_log(MXFS_LOG_ERR,
-                     "lease: failed to start monitor thread");
-        return -ENOMEM;
-    }
+	ctx->monitor_thread = mxfs_pal_thread_create_rt(mxfs_lease_monitor_fn, ctx);
+	if (!ctx->monitor_thread) {
+		ctx->running = false;
+		mxfs_pal_thread_join(ctx->renew_thread);
+		ctx->renew_thread = NULL;
+		mxfs_pal_log(MXFS_LOG_ERR,
+			     "lease: failed to start monitor thread");
+		return -ENOMEM;
+	}
 
-    /* Start the UDP receiver thread for incoming heartbeats.
-     * Must be RT-priority like renew/monitor — under heavy metadata I/O,
-     * a normal CFS thread gets starved for 60+ seconds, causing buffered
-     * heartbeats to go unprocessed and triggering false SUSPECT. */
-    ctx->udp_recv_thread = mxfs_pal_thread_create_rt(mxfs_lease_udp_recv_fn, ctx);
-    if (!ctx->udp_recv_thread) {
-        ctx->running = false;
-        mxfs_pal_thread_join(ctx->renew_thread);
-        ctx->renew_thread = NULL;
-        mxfs_pal_thread_join(ctx->monitor_thread);
-        ctx->monitor_thread = NULL;
-        mxfs_pal_log(MXFS_LOG_ERR,
-                     "lease: failed to start UDP recv thread");
-        return -ENOMEM;
-    }
+	/* Start the UDP receiver thread for incoming heartbeats.
+	 * Must be RT-priority like renew/monitor — under heavy metadata I/O,
+	 * a normal CFS thread gets starved for 60+ seconds, causing buffered
+	 * heartbeats to go unprocessed and triggering false SUSPECT. */
+	ctx->udp_recv_thread = mxfs_pal_thread_create_rt(mxfs_lease_udp_recv_fn, ctx);
+	if (!ctx->udp_recv_thread) {
+		ctx->running = false;
+		mxfs_pal_thread_join(ctx->renew_thread);
+		ctx->renew_thread = NULL;
+		mxfs_pal_thread_join(ctx->monitor_thread);
+		ctx->monitor_thread = NULL;
+		mxfs_pal_log(MXFS_LOG_ERR,
+			     "lease: failed to start UDP recv thread");
+		return -ENOMEM;
+	}
 
-    mxfs_pal_log(MXFS_LOG_DEBUG,
-                 "lease: started renew, monitor, and UDP recv threads (all RT)");
-    return 0;
+	mxfs_pal_log(MXFS_LOG_DEBUG,
+		     "lease: started renew, monitor, and UDP recv threads (all RT)");
+	return 0;
 }
 
 void mxfs_lease_stop(struct mxfs_lease_ctx *ctx)
 {
-    if (!ctx || !ctx->running)
-        return;
+	if (!ctx || !ctx->running)
+		return;
 
-    ctx->running = false;
+	ctx->running = false;
 
-    /* Wake renew and monitor threads from their condvar timed waits */
-    mxfs_pal_mutex_lock(ctx->shutdown_lock);
-    mxfs_pal_cond_broadcast(ctx->shutdown_cond);
-    mxfs_pal_mutex_unlock(ctx->shutdown_lock);
+	/* Wake renew and monitor threads from their condvar timed waits */
+	mxfs_pal_mutex_lock(ctx->shutdown_lock);
+	mxfs_pal_cond_broadcast(ctx->shutdown_cond);
+	mxfs_pal_mutex_unlock(ctx->shutdown_lock);
 
-    /* Shut down the UDP socket to unblock the recv thread.
-     * Without this, the recv thread stays blocked in
-     * kernel_recvmsg until the 500ms timeout expires.
-     * With the shutdown, it wakes immediately with an error. */
-    if (ctx->udp_sock)
-        mxfs_pal_udp_shutdown(ctx->udp_sock);
+	/* Shut down the UDP socket to unblock the recv thread.
+	 * Without this, the recv thread stays blocked in
+	 * kernel_recvmsg until the 500ms timeout expires.
+	 * With the shutdown, it wakes immediately with an error. */
+	if (ctx->udp_sock)
+		mxfs_pal_udp_shutdown(ctx->udp_sock);
 
-    if (ctx->renew_thread) {
-        mxfs_pal_thread_join(ctx->renew_thread);
-        ctx->renew_thread = NULL;
-    }
+	if (ctx->renew_thread) {
+		mxfs_pal_thread_join(ctx->renew_thread);
+		ctx->renew_thread = NULL;
+	}
 
-    if (ctx->monitor_thread) {
-        mxfs_pal_thread_join(ctx->monitor_thread);
-        ctx->monitor_thread = NULL;
-    }
+	if (ctx->monitor_thread) {
+		mxfs_pal_thread_join(ctx->monitor_thread);
+		ctx->monitor_thread = NULL;
+	}
 
-    if (ctx->udp_recv_thread) {
-        mxfs_pal_thread_join(ctx->udp_recv_thread);
-        ctx->udp_recv_thread = NULL;
-    }
+	if (ctx->udp_recv_thread) {
+		mxfs_pal_thread_join(ctx->udp_recv_thread);
+		ctx->udp_recv_thread = NULL;
+	}
 
-    mxfs_pal_log(MXFS_LOG_DEBUG, "lease: stopped");
+	mxfs_pal_log(MXFS_LOG_DEBUG, "lease: stopped");
 }
 
 int mxfs_lease_register_node(struct mxfs_lease_ctx *ctx,
-                              mxfs_node_id_t node_id)
+			      mxfs_node_id_t node_id)
 {
-    struct mxfs_node_lease *nl;
+	struct mxfs_node_lease *nl;
 
-    if (!ctx)
-        return -EINVAL;
+	if (!ctx)
+		return -EINVAL;
 
-    mxfs_pal_mutex_lock(ctx->lock);
+	mxfs_pal_mutex_lock(ctx->lock);
 
-    /* Check for duplicate */
-    nl = lease_find(ctx, node_id);
-    if (nl) {
-        mxfs_pal_mutex_unlock(ctx->lock);
-        mxfs_pal_log(MXFS_LOG_DEBUG,
-                     "lease: node %u already registered", node_id);
-        return 0;
-    }
+	/* Check for duplicate */
+	nl = lease_find(ctx, node_id);
+	if (nl) {
+		mxfs_pal_mutex_unlock(ctx->lock);
+		mxfs_pal_log(MXFS_LOG_DEBUG,
+			     "lease: node %u already registered", node_id);
+		return 0;
+	}
 
-    if (ctx->node_count >= MXFS_MAX_NODES) {
-        mxfs_pal_mutex_unlock(ctx->lock);
-        mxfs_pal_log(MXFS_LOG_ERR,
-                     "lease: cannot register node %u, max nodes reached",
-                     node_id);
-        return -ENOSPC;
-    }
+	if (ctx->node_count >= MXFS_MAX_NODES) {
+		mxfs_pal_mutex_unlock(ctx->lock);
+		mxfs_pal_log(MXFS_LOG_ERR,
+			     "lease: cannot register node %u, max nodes reached",
+			     node_id);
+		return -ENOSPC;
+	}
 
-    nl = &ctx->nodes[ctx->node_count];
-    memset(nl, 0, sizeof(*nl));
-    nl->node_id = node_id;
-    nl->duration_ms = ctx->default_duration_ms;
-    nl->state = (node_id == ctx->local_node) ?
-        MXFS_NODE_ACTIVE : MXFS_NODE_JOINING;
-    nl->granted_at = mxfs_pal_time_ms();
-    nl->last_renewal = mxfs_pal_time_ms();
-    nl->epoch = 0;
-    nl->missed_renewals = 0;
+	nl = &ctx->nodes[ctx->node_count];
+	memset(nl, 0, sizeof(*nl));
+	nl->node_id = node_id;
+	nl->duration_ms = ctx->default_duration_ms;
+	nl->state = (node_id == ctx->local_node) ?
+	    MXFS_NODE_ACTIVE : MXFS_NODE_JOINING;
+	nl->granted_at = mxfs_pal_time_ms();
+	nl->last_renewal = mxfs_pal_time_ms();
+	nl->epoch = 0;
+	nl->missed_renewals = 0;
 
-    ctx->node_count++;
+	ctx->node_count++;
 
-    mxfs_pal_mutex_unlock(ctx->lock);
+	mxfs_pal_mutex_unlock(ctx->lock);
 
-    mxfs_pal_log(MXFS_LOG_DEBUG,
-                 "lease: registered node %u (state=%s)",
-                 node_id,
-                 node_id == ctx->local_node ? "ACTIVE" : "JOINING");
-    return 0;
+	mxfs_pal_log(MXFS_LOG_DEBUG,
+		     "lease: registered node %u (state=%s)",
+		     node_id,
+		     node_id == ctx->local_node ? "ACTIVE" : "JOINING");
+	return 0;
 }
 
 int mxfs_lease_unregister_node(struct mxfs_lease_ctx *ctx,
-                                mxfs_node_id_t node_id)
+				mxfs_node_id_t node_id)
 {
-    int i;
+	int i;
 
-    if (!ctx)
-        return -EINVAL;
+	if (!ctx)
+		return -EINVAL;
 
-    mxfs_pal_mutex_lock(ctx->lock);
+	mxfs_pal_mutex_lock(ctx->lock);
 
-    /*
-     * node_count never leaves 0..MXFS_MAX_NODES while the context is alive.
-     * Outside it the context has been freed under the caller (the slab's
-     * freelist pointer sits where node_count is), and the shift below would
-     * write that many entries past the array: 0.89.84 oopsed in this memmove
-     * with a length of ~35 GB.  Say so and write nothing.
-     */
-    if (ctx->node_count < 0 || ctx->node_count > MXFS_MAX_NODES) {
-        int bad = ctx->node_count;
+	/*
+	 * node_count never leaves 0..MXFS_MAX_NODES while the context is alive.
+	 * Outside it the context has been freed under the caller (the slab's
+	 * freelist pointer sits where node_count is), and the shift below would
+	 * write that many entries past the array: 0.89.84 oopsed in this memmove
+	 * with a length of ~35 GB.  Say so and write nothing.
+	 */
+	if (ctx->node_count < 0 || ctx->node_count > MXFS_MAX_NODES) {
+		int bad = ctx->node_count;
 
-        mxfs_pal_mutex_unlock(ctx->lock);
-        mxfs_pal_log(MXFS_LOG_ERR,
-                     "mxfs: P-LEASE-COUNT-INSANE ctx=%p node=%u node_count=%d — "
-                     "the lease context is not live (freed under its caller); "
-                     "unregister refused",
-                     ctx, node_id, bad);
-        return -EUCLEAN;
-    }
+		mxfs_pal_mutex_unlock(ctx->lock);
+		mxfs_pal_log(MXFS_LOG_ERR,
+			     "mxfs: P-LEASE-COUNT-INSANE ctx=%p node=%u node_count=%d — "
+			     "the lease context is not live (freed under its caller); "
+			     "unregister refused",
+			     ctx, node_id, bad);
+		return -EUCLEAN;
+	}
 
-    for (i = 0; i < ctx->node_count; i++) {
-        if (ctx->nodes[i].node_id == node_id) {
-            /* Shift remaining entries down */
-            if (i < ctx->node_count - 1)
-                memmove(&ctx->nodes[i], &ctx->nodes[i + 1],
-                        (ctx->node_count - i - 1) *
-                        sizeof(struct mxfs_node_lease));
-            ctx->node_count--;
-            mxfs_pal_mutex_unlock(ctx->lock);
-            mxfs_pal_log(MXFS_LOG_DEBUG,
-                         "lease: unregistered node %u", node_id);
-            return 0;
-        }
-    }
+	for (i = 0; i < ctx->node_count; i++) {
+		if (ctx->nodes[i].node_id == node_id) {
+			/* Shift remaining entries down */
+			if (i < ctx->node_count - 1)
+				memmove(&ctx->nodes[i], &ctx->nodes[i + 1],
+					(ctx->node_count - i - 1) *
+					sizeof(struct mxfs_node_lease));
+			ctx->node_count--;
+			mxfs_pal_mutex_unlock(ctx->lock);
+			mxfs_pal_log(MXFS_LOG_DEBUG,
+				     "lease: unregistered node %u", node_id);
+			return 0;
+		}
+	}
 
-    mxfs_pal_mutex_unlock(ctx->lock);
-    mxfs_pal_log(MXFS_LOG_WARN,
-                 "mxfs: node %u already removed from cluster "
-                 "(duplicate removal ignored)", node_id);
-    return -ENOENT;
+	mxfs_pal_mutex_unlock(ctx->lock);
+	mxfs_pal_log(MXFS_LOG_WARN,
+		     "mxfs: node %u already removed from cluster "
+		     "(duplicate removal ignored)", node_id);
+	return -ENOENT;
 }
 
 int mxfs_lease_process_renewal(struct mxfs_lease_ctx *ctx,
-                                mxfs_node_id_t node_id, mxfs_epoch_t epoch,
-                                uint16_t state, uint64_t incarnation)
+				mxfs_node_id_t node_id, mxfs_epoch_t epoch,
+				uint16_t state, uint64_t incarnation)
 {
-    struct mxfs_node_lease *nl;
+	struct mxfs_node_lease *nl;
 
-    if (!ctx)
-        return -EINVAL;
+	if (!ctx)
+		return -EINVAL;
 
-    mxfs_pal_mutex_lock(ctx->lock);
+	mxfs_pal_mutex_lock(ctx->lock);
 
-    nl = lease_find(ctx, node_id);
-    if (!nl) {
-        mxfs_pal_mutex_unlock(ctx->lock);
-        /* sess11: a withdrawn-but-still-mounted zombie keeps renewing
-         * every ~500ms after recovery unregistered it — ratelimit or
-         * this line floods every survivor until the corpse unmounts. */
-        pr_warn_ratelimited(
-            "mxfs: heartbeat received from unknown node %u "
-            "(may be joining or was recently removed)\n", node_id);
-        return -ENOENT;
-    }
+	nl = lease_find(ctx, node_id);
+	if (!nl) {
+		mxfs_pal_mutex_unlock(ctx->lock);
+		/* a withdrawn-but-still-mounted zombie keeps renewing
+		 * every ~500ms after recovery unregistered it — ratelimit or
+		 * this line floods every survivor until the corpse unmounts. */
+		pr_warn_ratelimited(
+		    "mxfs: heartbeat received from unknown node %u "
+		    "(may be joining or was recently removed)\n", node_id);
+		return -ENOENT;
+	}
 
-    /*
-     * 0.89.68: the entry belongs to ONE incarnation.  The first renewal
-     * that names one binds it; a later renewal naming another is a
-     * different mount of the same node id — a reboot the peer has not yet
-     * recovered — and stamping liveness for it would keep the old
-     * incarnation's entry ACTIVE while its slice is dirty.  Not liveness.
-     */
-    if (incarnation) {
-        if (!nl->incarnation) {
-            nl->incarnation = incarnation;
-            mxfs_pal_log(MXFS_LOG_INFO,
-                         "lease: P-LEASE-INCARNATION node %u renews as "
-                         "incarnation %llu (state=%u)",
-                         node_id, (unsigned long long)incarnation, state);
-        } else if (nl->incarnation != incarnation) {
-            uint64_t held = nl->incarnation;
+	/*
+	 * 0.89.68: the entry belongs to ONE incarnation.  The first renewal
+	 * that names one binds it; a later renewal naming another is a
+	 * different mount of the same node id — a reboot the peer has not yet
+	 * recovered — and stamping liveness for it would keep the old
+	 * incarnation's entry ACTIVE while its slice is dirty.  Not liveness.
+	 */
+	if (incarnation) {
+		if (!nl->incarnation) {
+			nl->incarnation = incarnation;
+			mxfs_pal_log(MXFS_LOG_DEBUG,
+				     "lease: P-LEASE-INCARNATION node %u renews as "
+				     "incarnation %llu (state=%u)",
+				     node_id, (unsigned long long)incarnation, state);
+		} else if (nl->incarnation != incarnation) {
+			uint64_t held = nl->incarnation;
 
-            mxfs_pal_mutex_unlock(ctx->lock);
-            pr_warn_ratelimited(
-                "mxfs: lease: P-LEASE-INCARNATION-MISMATCH node %u renews "
-                "as incarnation %llu but the entry holds %llu — not "
-                "liveness; the held incarnation must be recovered first\n",
-                node_id, (unsigned long long)incarnation,
-                (unsigned long long)held);
-            return -ESTALE;
-        }
-    }
+			mxfs_pal_mutex_unlock(ctx->lock);
+			pr_warn_ratelimited(
+			    "mxfs: lease: P-LEASE-INCARNATION-MISMATCH node %u renews "
+			    "as incarnation %llu but the entry holds %llu — not "
+			    "liveness; the held incarnation must be recovered first\n",
+			    node_id, (unsigned long long)incarnation,
+			    (unsigned long long)held);
+			return -ESTALE;
+		}
+	}
 
-    /*
-     * 0.89.68: a WITHDRAWN renewal is the sender saying "my authority is
-     * closed; I am renewing only so mastership stays with me until my
-     * slice is replayed".  The entry is kept for exactly that, and nothing
-     * else is taken from the packet: the liveness clock is not stamped, so
-     * the monitor ages the entry to SUSPECT and DEAD on its own schedule
-     * if no other detector recovers the node first, and a SUSPECT entry is
-     * never promoted back to ACTIVE by a corpse.
-     */
-    if (state == MXFS_LEASE_STATE_WITHDRAWN) {
-        if (nl->sender_state != MXFS_LEASE_STATE_WITHDRAWN)
-            mxfs_pal_log(MXFS_LOG_INFO,
-                         "lease: P-LEASE-WITHDRAWN-RENEWAL node %u renews "
-                         "withdrawn (entry %s, incarnation %llu): kept for "
-                         "mastership retention, no liveness stamped, no "
-                         "promotion",
-                         node_id,
-                         nl->state == MXFS_NODE_ACTIVE ? "ACTIVE" :
-                         nl->state == MXFS_NODE_SUSPECT ? "SUSPECT" :
-                         nl->state == MXFS_NODE_JOINING ? "JOINING" : "other",
-                         (unsigned long long)nl->incarnation);
-        nl->sender_state = state;
-        mxfs_pal_mutex_unlock(ctx->lock);
-        return 0;
-    }
-    nl->sender_state = state;
+	/*
+	 * 0.89.68: a WITHDRAWN renewal is the sender saying "my authority is
+	 * closed; I am renewing only so mastership stays with me until my
+	 * slice is replayed".  The entry is kept for exactly that, and nothing
+	 * else is taken from the packet: the liveness clock is not stamped, so
+	 * the monitor ages the entry to SUSPECT and DEAD on its own schedule
+	 * if no other detector recovers the node first, and a SUSPECT entry is
+	 * never promoted back to ACTIVE by a corpse.
+	 */
+	if (state == MXFS_LEASE_STATE_WITHDRAWN) {
+		if (nl->sender_state != MXFS_LEASE_STATE_WITHDRAWN)
+			mxfs_pal_log(MXFS_LOG_INFO,
+				     "lease: P-LEASE-WITHDRAWN-RENEWAL node %u renews "
+				     "withdrawn (entry %s, incarnation %llu): kept for "
+				     "mastership retention, no liveness stamped, no "
+				     "promotion",
+				     node_id,
+				     nl->state == MXFS_NODE_ACTIVE ? "ACTIVE" :
+				     nl->state == MXFS_NODE_SUSPECT ? "SUSPECT" :
+				     nl->state == MXFS_NODE_JOINING ? "JOINING" : "other",
+				     (unsigned long long)nl->incarnation);
+		nl->sender_state = state;
+		mxfs_pal_mutex_unlock(ctx->lock);
+		return 0;
+	}
+	nl->sender_state = state;
 
-    nl->last_renewal = mxfs_pal_time_ms();
-    nl->epoch = epoch;
-    nl->missed_renewals = 0;
+	nl->last_renewal = mxfs_pal_time_ms();
+	nl->epoch = epoch;
+	nl->missed_renewals = 0;
 
-    /* Transition to ACTIVE if was JOINING or SUSPECT */
-    if (nl->state == MXFS_NODE_JOINING ||
-        nl->state == MXFS_NODE_SUSPECT) {
-        mxfs_pal_log(MXFS_LOG_INFO,
-                     "lease: node %u transitioned to ACTIVE (was %s)",
-                     node_id,
-                     nl->state == MXFS_NODE_JOINING ? "JOINING" : "SUSPECT");
-        nl->state = MXFS_NODE_ACTIVE;
-    }
+	/* Transition to ACTIVE if was JOINING or SUSPECT */
+	if (nl->state == MXFS_NODE_JOINING ||
+	    nl->state == MXFS_NODE_SUSPECT) {
+		mxfs_pal_log(MXFS_LOG_INFO,
+			     "lease: node %u transitioned to ACTIVE (was %s)",
+			     node_id,
+			     nl->state == MXFS_NODE_JOINING ? "JOINING" : "SUSPECT");
+		nl->state = MXFS_NODE_ACTIVE;
+	}
 
-    mxfs_pal_mutex_unlock(ctx->lock);
-    return 0;
+	mxfs_pal_mutex_unlock(ctx->lock);
+	return 0;
 }
 
 bool mxfs_lease_has_node(struct mxfs_lease_ctx *ctx, mxfs_node_id_t node_id)
 {
-    bool found;
+	bool found;
 
-    if (!ctx)
-        return false;
+	if (!ctx)
+		return false;
 
-    mxfs_pal_mutex_lock(ctx->lock);
-    found = (lease_find(ctx, node_id) != NULL);
-    mxfs_pal_mutex_unlock(ctx->lock);
-    return found;
+	mxfs_pal_mutex_lock(ctx->lock);
+	found = (lease_find(ctx, node_id) != NULL);
+	mxfs_pal_mutex_unlock(ctx->lock);
+	return found;
 }
 
 bool mxfs_lease_is_valid(struct mxfs_lease_ctx *ctx, mxfs_node_id_t node_id)
 {
-    struct mxfs_node_lease *nl;
-    uint64_t elapsed;
-    bool valid;
+	struct mxfs_node_lease *nl;
+	uint64_t elapsed;
+	bool valid;
 
-    if (!ctx)
-        return false;
+	if (!ctx)
+		return false;
 
-    mxfs_pal_mutex_lock(ctx->lock);
+	mxfs_pal_mutex_lock(ctx->lock);
 
-    nl = lease_find(ctx, node_id);
-    if (!nl) {
-        mxfs_pal_mutex_unlock(ctx->lock);
-        return false;
-    }
+	nl = lease_find(ctx, node_id);
+	if (!nl) {
+		mxfs_pal_mutex_unlock(ctx->lock);
+		return false;
+	}
 
-    if (nl->state == MXFS_NODE_DEAD ||
-        nl->state == MXFS_NODE_RECOVERING) {
-        mxfs_pal_mutex_unlock(ctx->lock);
-        return false;
-    }
+	if (nl->state == MXFS_NODE_DEAD ||
+	    nl->state == MXFS_NODE_RECOVERING) {
+		mxfs_pal_mutex_unlock(ctx->lock);
+		return false;
+	}
 
-    if (nl->last_renewal == 0) {
-        mxfs_pal_mutex_unlock(ctx->lock);
-        return false;
-    }
+	if (nl->last_renewal == 0) {
+		mxfs_pal_mutex_unlock(ctx->lock);
+		return false;
+	}
 
-    elapsed = mxfs_pal_time_ms() - nl->last_renewal;
-    valid = elapsed < nl->duration_ms;
+	elapsed = mxfs_pal_time_ms() - nl->last_renewal;
+	valid = elapsed < nl->duration_ms;
 
-    mxfs_pal_mutex_unlock(ctx->lock);
-    return valid;
+	mxfs_pal_mutex_unlock(ctx->lock);
+	return valid;
 }
 
 int mxfs_lease_get_active_nodes(struct mxfs_lease_ctx *ctx,
-                                 mxfs_node_id_t *out, int max_count)
+				 mxfs_node_id_t *out, int max_count)
 {
-    int i, count = 0;
+	int i, count = 0;
 
-    if (!ctx || !out || max_count <= 0)
-        return 0;
+	if (!ctx || !out || max_count <= 0)
+		return 0;
 
-    mxfs_pal_mutex_lock(ctx->lock);
-    for (i = 0; i < ctx->node_count && count < max_count; i++) {
-        if (ctx->nodes[i].state == MXFS_NODE_ACTIVE ||
-            ctx->nodes[i].state == MXFS_NODE_JOINING)
-            out[count++] = ctx->nodes[i].node_id;
-    }
-    mxfs_pal_mutex_unlock(ctx->lock);
+	mxfs_pal_mutex_lock(ctx->lock);
+	for (i = 0; i < ctx->node_count && count < max_count; i++) {
+		if (ctx->nodes[i].state == MXFS_NODE_ACTIVE ||
+		    ctx->nodes[i].state == MXFS_NODE_JOINING)
+			out[count++] = ctx->nodes[i].node_id;
+	}
+	mxfs_pal_mutex_unlock(ctx->lock);
 
-    return count;
+	return count;
 }
 
 void mxfs_lease_set_expire_cb(struct mxfs_lease_ctx *ctx,
-                               mxfs_lease_expire_cb cb, void *data)
+			       mxfs_lease_expire_cb cb, void *data)
 {
-    if (!ctx)
-        return;
-    ctx->expire_cb = cb;
-    ctx->expire_cb_data = data;
+	if (!ctx)
+		return;
+	ctx->expire_cb = cb;
+	ctx->expire_cb_data = data;
 }
 
 void mxfs_lease_set_view_provider(struct mxfs_lease_ctx *ctx,
-                                  uint64_t (*cb)(void *data, uint32_t *count),
-                                  void *data)
+				  uint64_t (*cb)(void *data, uint32_t *count),
+				  void *data)
 {
-    if (!ctx)
-        return;
-    ctx->view_sig_cb = cb;
-    ctx->view_sig_cb_data = data;
+	if (!ctx)
+		return;
+	ctx->view_sig_cb = cb;
+	ctx->view_sig_cb_data = data;
 }
 
 void mxfs_lease_set_view_report_cb(struct mxfs_lease_ctx *ctx,
-                                   void (*cb)(void *data, mxfs_node_id_t node,
-                                              uint32_t count, uint64_t hash),
-                                   void *data)
+				   void (*cb)(void *data, mxfs_node_id_t node,
+					      uint32_t count, uint64_t hash),
+								   void *data)
 {
-    if (!ctx)
-        return;
-    ctx->view_report_cb = cb;
-    ctx->view_report_cb_data = data;
+	if (!ctx)
+		return;
+	ctx->view_report_cb = cb;
+	ctx->view_report_cb_data = data;
 }
 
 void mxfs_lease_set_member_state_provider(struct mxfs_lease_ctx *ctx,
-                                          uint16_t (*cb)(void *data, uint64_t *incarnation),
-                                          void *data)
+					  uint16_t (*cb)(void *data, uint64_t *incarnation),
+					  void *data)
 {
-    if (!ctx)
-        return;
-    ctx->member_state_cb = cb;
-    ctx->member_state_cb_data = data;
+	if (!ctx)
+		return;
+	ctx->member_state_cb = cb;
+	ctx->member_state_cb_data = data;
 }

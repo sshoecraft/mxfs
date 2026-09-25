@@ -57,7 +57,7 @@ xfs_leg() {   # -> echoes "<wall_ms> <filecount>"; leaves device unmounted
 mxfs_leg() {  # -> echoes "<wall_ms> <filecount>"; leaves node MOUNTED on fresh mxfs
     mountpoint -q "$MNT" && umount "$MNT"
     modprobe libcrc32c 2>/dev/null || true
-    lsmod | grep -q '^mxfs' || insmod "$MODULE" force_transport=1 || return 1
+    lsmod | grep -q '^mxfs' || insmod "$MODULE" dyndbg=+p force_transport=1 || return 1
     "$MKFS_MXFS" -f "$DEV" >/dev/null 2>&1 || return 1
     mount -t mxfs "$DEV" "$MNT" || return 1
     local ms; ms=$(timed_rsync m)

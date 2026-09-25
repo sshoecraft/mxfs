@@ -7,6 +7,7 @@
 #define _XFS_PLATFORM_H
 
 #include <linux/types.h>
+#include "../pal/mxfs_probe.h"	/* mxfs_probe*: diagnostic lines, dynamic debug */
 #include <linux/uuid.h>
 #include <linux/semaphore.h>
 #include <linux/mm.h>
@@ -152,7 +153,7 @@ static inline void mapping_set_folio_min_order(struct address_space *mapping,
 	 * also ENABLES large folios — and that side effect is load-
 	 * bearing: native 6.8 XFS calls mapping_set_large_folios() here,
 	 * and without it buffered writeback degrades to singleton 4KB
-	 * bios under concurrent dirtying (sess21 ccloop: 3254 scattered
+	 * bios under concurrent dirtying (: 3254 scattered
 	 * 4KB writes per 700MB dd = 2x wall vs native on iSCSI).
 	 * min_folio_order is 0 on 4K-block filesystems, so enabling
 	 * large folios is the entire remaining semantic.

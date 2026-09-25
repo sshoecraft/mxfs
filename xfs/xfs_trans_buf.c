@@ -310,8 +310,8 @@ xfs_trans_read_buf_map(
 		break;
 	default:
 		/*
-		 * sess435 (D-CREATE-METADATA-READ-EIO-NODE-SHUTDOWN-378 item 1):
-		 * name WHAT could not be read.  The sess378 shutdown logged only
+		 * (D-CREATE-METADATA-READ-EIO-NODE-SHUTDOWN-378 item 1):
+		 * name WHAT could not be read.  The shutdown logged only
 		 * 'metadata I/O error' from the shutdown path; the buffer is
 		 * released inside xfs_buf_read_map on failure, so record the map
 		 * and verifier here, before the transaction is killed.
@@ -558,7 +558,7 @@ xfs_trans_dirty_buf(
 	set_bit(XFS_LI_DIRTY, &bip->bli_item.li_flags);
 
 	/*
-	 * sess103 step 5.3 (sess102 design-consult ruling, P0/P1): capture the
+	 * step 5.3 (design-consult ruling, P0/P1): capture the
 	 * authority proof for this image HERE — the single seam every buffer
 	 * passes through to become dirty in a transaction, and the earliest
 	 * point at which the mutation is attributable to a tenure the
@@ -596,14 +596,14 @@ xfs_trans_log_buf(
 	xfs_buf_item_log(bip, first, last);
 
 	/*
-	 * sess35 run14d: node-local modification counter.  Paired with the
+	 * run14d: node-local modification counter.  Paired with the
 	 * b_mxfs_written_seq snapshot taken at write submit, this gives an
 	 * exact "does this buffer carry logged-but-not-yet-written LOCAL
 	 * mods" test (mxfs_dir_buf_is_undestaged) that does not depend on
 	 * payload LSNs, which peers stamp from their own journals.
 	 */
 	bp->b_mxfs_logged_seq++;
-	/* sess3(a9a03929) birth trace: the FIRST log of a dir buffer struct
+	/* birth trace: the FIRST log of a dir buffer struct
 	 * (lseq 0->1).  A fresh dir block prints once at creation; a REPEAT
 	 * birth for the same daddr means the struct was staled+replaced with
 	 * the seq pair reset — the blindness window for the undestaged
@@ -624,7 +624,7 @@ xfs_trans_log_buf(
 	     bp->b_ops == &xfs_da3_node_buf_ops)) {
 		static atomic_t p3l_n = ATOMIC_INIT(0);
 		if (atomic_inc_return(&p3l_n) <= 6000)
-			pr_warn("mxfs: P3L-DIRLOG-BIRTH daddr=%lld ops=%s comm=%s realns=%llu\n",
+			mxfs_probe("mxfs: P3L-DIRLOG-BIRTH daddr=%lld ops=%s comm=%s realns=%llu\n",
 				(long long)bp->b_maps[0].bm_bn,
 				bp->b_ops->name ? bp->b_ops->name : "?",
 				current->comm,
@@ -638,7 +638,7 @@ xfs_trans_log_buf(
 	 * lock is not handed to a peer until our changes have hit the
 	 * home block on disk.  Idempotent within a single dirty epoch.
 	 *
-	 * 0.41.0 (sess434, D-0354 candidate A): no single-node exemption.
+	 * 0.41.0 (D-0354 candidate A): no single-node exemption.
 	 * A lone node's AG/inode grants are now real on-disk grants that a
 	 * joining peer can BAST, so the deferred-release tracking and the
 	 * tenure-epoch stamps below must exist from the first dirtying —
@@ -650,7 +650,7 @@ xfs_trans_log_buf(
 		if (mp->m_mxfs_dlm && mxfs_buf_is_ag_metadata(bp))
 			mxfs_ag_meta_track(bp);
 		/*
-		 * sess66 (ccloop 14d31183): bmbt analogue — stamp a dir's
+		 * bmbt analogue — stamp a dir's
 		 * extent-map (bmbt) buffer with the owner dir's EX-tenure epoch
 		 * at MODIFY time, so xfsaild can drop a superseded prior-tenure
 		 * leaf rather than clobber a peer's durable image (the proven
@@ -659,7 +659,7 @@ xfs_trans_log_buf(
 		else if (mp->m_mxfs_dlm && bp->b_ops == &xfs_bmbt_buf_ops)
 			mxfs_dir_bmbt_track(bp);
 		/*
-		 * sess17 (ccloop): dirent analogue — stamp a dir's DATA/leaf/
+		 * dirent analogue — stamp a dir's DATA/leaf/
 		 * block/free/node buffer with the owner dir's EX-tenure epoch at
 		 * MODIFY time, so xfsaild can drop a superseded prior-tenure
 		 * dirent image rather than clobber a peer's durable block (the
@@ -731,7 +731,7 @@ xfs_trans_binval(
 	}
 
 	/*
-	 * sess476 (D-FOREIGN-SLICE-INTENTS-ABANDONED, proven by instrument on chain
+	 * (D-FOREIGN-SLICE-INTENTS-ABANDONED, proven by instrument on chain
 	 * 105 s475b: every one of the 208 untagged buffer items that
 	 * ATOMIC-SKIPPED the victim's rm transactions was a CANCEL item —
 	 * P227-UNTAGGED blft=0 flags=0x2 cancel=1).  The free of a metadata
@@ -747,7 +747,7 @@ xfs_trans_binval(
 	 * evaluates a CANCEL exactly like an image.
 	 */
 	mxfs_bli_auth_capture(tp, bp);
-	mxfs_dbg_cancel_token_forge_apply(bp);	/* sess476 negative arms */
+	mxfs_dbg_cancel_token_forge_apply(bp);	/* negative arms */
 
 	xfs_buf_stale(bp);
 
@@ -773,7 +773,7 @@ xfs_trans_binval(
 	if (bp->b_mxfs_logged_seq != bp->b_mxfs_written_seq) {
 		static atomic_t p3b_n = ATOMIC_INIT(0);
 		if (atomic_inc_return(&p3b_n) <= 2000)
-			pr_warn("mxfs: P3B-BINVAL-RETIRE daddr=%lld lseq=%u wseq=%u ops=%s comm=%s — freed block's undestaged debt retired\n",
+			mxfs_probe("mxfs: P3B-BINVAL-RETIRE daddr=%lld lseq=%u wseq=%u ops=%s comm=%s — freed block's undestaged debt retired\n",
 				(long long)bp->b_maps[0].bm_bn,
 				bp->b_mxfs_logged_seq,
 				bp->b_mxfs_written_seq,
@@ -924,7 +924,7 @@ xfs_trans_buf_set_type(
 	ASSERT(atomic_read(&bip->bli_refcount) > 0);
 
 	xfs_blft_to_flags(&bip->__bli_format, type);
-	/* sess445 D-0512 (ruling A′): a type change after the authority
+	/* D-0512 (ruling A′): a type change after the authority
 	 * capture must be re-proven at the next dirty, not voided at commit */
 	mxfs_bli_auth_note_retype(tp, bp, (uint16_t)type);
 }

@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
- * MXFS clean-release marker log item (sess403, design-consult ruling
+ * MXFS clean-release marker log item (design-consult ruling
  * docs/rulings/release-marker-log-item-redundant-clean.md).
  *
  * A node that cleanly releases an EX/PW tenure {class, resource, lineage,
@@ -40,7 +40,7 @@ extern struct kmem_cache	*xfs_relmark_cache;
 #define MXFS_RI_VERDICT_REFUSE		1
 #define MXFS_RI_VERDICT_APPLY		2	/* held at death: enforceable */
 #define MXFS_RI_VERDICT_REDUNDANT	3	/* cleanly released: skip silently */
-#define MXFS_RI_VERDICT_PREINC		4	/* sess434: another incarnation of an
+#define MXFS_RI_VERDICT_PREINC		4	/* another incarnation of an
 						 * ADOPTED victim's slot — published
 						 * by construction; whole txn skips */
 
@@ -60,7 +60,7 @@ void mxfs_relmark_counters(uint64_t *published, uint64_t *failed,
 void mxfs_relmark_site_counters(uint64_t *ino_marked, uint64_t *ino_failed,
 				uint64_t *ag_marked, uint64_t *ag_failed,
 				uint64_t *iclus_unmarked);
-/* sess448: cluster-class marker counters (mxfs_iclus_disk_release) */
+/* cluster-class marker counters (mxfs_iclus_disk_release) */
 void mxfs_relmark_iclus_counters(uint64_t *marked, uint64_t *failed,
 				 uint64_t *reinstall_refused);
 

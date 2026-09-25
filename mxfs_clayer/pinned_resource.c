@@ -74,7 +74,7 @@ mxfs_inode_unpin(
 		    ip->i_dlm_pr_holders == 0 &&
 		    ip->i_dlm_yield_remaining == 0) {
 			/*
-			 * sess1 (ccloop 46efd8b6) DIR-EX TENURE FLOOR: mirror
+			 * DIR-EX TENURE FLOOR: mirror
 			 * of the ilock_end floor — a mid-op BAST on a YOUNG
 			 * contended dir-EX tenure whose last quiescent
 			 * transition is this unpin must not hand off yet
@@ -97,8 +97,8 @@ mxfs_inode_unpin(
 		   ip->i_dlm_ex_holders == 0 &&
 		   ip->i_dlm_pr_holders == 0) {
 		/*
-		 * sess11(a9a03929): mirror of mxfs_dlm_ilock_end's sess9-v3
-		 * CACHED&&bast_pending arm (with the sess11 consume).  A
+		 * mirror of mxfs_dlm_ilock_end's sess9-v3
+		 * CACHED&&bast_pending arm (with the consume).  A
 		 * deferred BAST parked behind i_dlm_bast_pending (MHT
 		 * batch_arm / gen-moved abort) whose tenure's LAST quiescent
 		 * transition is an UNPIN — the common shape for create/mv/rm
@@ -111,14 +111,14 @@ mxfs_inode_unpin(
 		 * first genuinely quiescent unpin instead; consume the flag
 		 * (the release discharges the obligation).
 		 *
-		 * sess14(a9a03929) SF-DIR TENURE FLOOR: unless the tenure is
+		 * SF-DIR TENURE FLOOR: unless the tenure is
 		 * still younger than dir_sf_mht_ms on a shortform dir — then
 		 * keep the grant across this idle gap (the same node's next
 		 * round op re-enters in ~2-5ms) and let the MHT dwork serve
 		 * the peer at window expiry.  See
 		 * mxfs_dlm_sf_tenure_keep_delay().
 		 */
-		/* sess1 (ccloop 46efd8b6): generalized to every dir format —
+		/* generalized to every dir format —
 		 * see mxfs_dlm_dir_tenure_keep_delay (subsumes the sf floor). */
 		sf_keep_j = mxfs_dlm_dir_tenure_keep_delay(ip);
 		if (!sf_keep_j) {

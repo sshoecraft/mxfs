@@ -53,7 +53,7 @@ for N in "${STEPS[@]}"; do
 
   # NODE0 forms: mkfs + mount
   out=$(run "$NODE0" "
-    modprobe libcrc32c; insmod $MODULE $OPTS 2>/dev/null;
+    modprobe libcrc32c; insmod $MODULE dyndbg=+p $OPTS 2>/dev/null;
     echo y | /src/mxfs/tools/mkfs_mxfs $DEV >/tmp/mk.log 2>&1 && echo MKFS_OK || { echo MKFS_FAIL; tail -2 /tmp/mk.log; }
     mount -t mxfs $DEV $MNT && echo MOUNT_OK || echo MOUNT_FAIL" 120)
   # CRITICAL: abort if mkfs did not succeed.  Without this, a missing mkfs_mxfs
@@ -66,7 +66,7 @@ for N in "${STEPS[@]}"; do
 
   # joiners
   for n in "${NODES[@]:1}"; do
-    ( run "$n" "modprobe libcrc32c; insmod $MODULE $OPTS 2>/dev/null; mount -t mxfs $DEV $MNT && echo OK" 120 | grep -q OK || echo "  join $n FAIL" ) &
+    ( run "$n" "modprobe libcrc32c; insmod $MODULE dyndbg=+p $OPTS 2>/dev/null; mount -t mxfs $DEV $MNT && echo OK" 120 | grep -q OK || echo "  join $n FAIL" ) &
   done; wait
 
   # count actually-mounted

@@ -44,7 +44,7 @@
 
 struct kmem_cache		*xfs_bmap_intent_cache;
 
-/* sess34 (ccloop 14d31183) P34B probe support: true-multi-node check +
+/* P34B probe support: true-multi-node check +
  * direct SCSI READ(16) FUA + uncheckpointed-mods discriminator, all
  * defined elsewhere (dlm/, pal/, xfs_mxfs_dlm.c).  Decl-only here. */
 struct mxfs_v5_dlm;
@@ -1155,7 +1155,7 @@ xfs_iread_bmbt_block(
 	num_recs = xfs_btree_get_numrecs(block);
 
 	/*
-	 * sess34 (ccloop 14d31183) P34B DECISIVE PROBE (instrument step 2):
+	 * P34B DECISIVE PROBE (instrument step 2):
 	 * hypothesis — after a DLM reload of a BTREE-format dir, this
 	 * extent re-read is served a STALE CACHED bmbt child buffer (the
 	 * reload stales the inode cluster + dir DATA blocks, but nothing
@@ -1163,17 +1163,17 @@ xfs_iread_bmbt_block(
 	 * gen check in xfs_da_read_buf doesn't cover btree paths).  The
 	 * grower then works from an extent map missing the peer's newest
 	 * dir mapping → re-maps that dir offset to a fresh block →
-	 * the peer's committed block is ORPHANED (sess33 raw-disk
+	 * the peer's committed block is ORPHANED (raw-disk
 	 * forensics: valid XDD3 block absent from the on-disk bmbt).
 	 * Compare the consumed (possibly cached) block against a direct
 	 * SCSI READ(16) FUA of the same daddr.  A mismatch on a CLEAN
 	 * buffer (no uncheckpointed local mods) = proven stale serve.
 	 */
 	/*
-	 * sess68 (ccloop 14d31183) zero_silent_loss FIX — instrument step 2b,
+	 * zero_silent_loss FIX — instrument step 2b,
 	 * patch at the PROVEN cause.  The FUA read + compare here is no longer
 	 * a dirwr-gated probe: it RUNS ALWAYS for multi-node dir data-fork bmbt
-	 * consume, because sess67's P34B probe PROVED the harm is real and clean:
+	 * consume, because P34B probe PROVED the harm is real and clean:
 	 * after a DLM EX reload the cached bmbt LEAF served to this re-read is
 	 * STALE (cached_recs=14 < disk_recs=18) while the ON-DISK block is CORRECT
 	 * (disk_recs == di_nextents), and the buffer is CLEAN (bflags=0x20, no
@@ -1210,7 +1210,7 @@ xfs_iread_bmbt_block(
 				bool	stale = (p34_drecs != num_recs ||
 					memcmp(p34_buf, bp->b_addr, p34_len));
 				/*
-				 * sess6 (ccloop 46efd8b6) PROVEN BY INSTRUMENT (runs
+				 * PROVEN BY INSTRUMENT (runs
 				 * 120345Z + 122308Z): "ahead" must also cover
 				 * a leaf whose last WRITE completed into the
 				 * target's volatile write cache with no device
@@ -1245,7 +1245,7 @@ xfs_iread_bmbt_block(
 					if (atomic_inc_return(&p34n) <= 2000 ||
 					    mxfs_dirwr_enabled ||
 					    mxfs_instr_enabled)
-						pr_warn("mxfs: P34B-BMBT-%s ino=%llu daddr=%lld level=%d cached_recs=%u disk_recs=%u bflags=0x%x wr_fepoch=%llu cur_fepoch=%llu realns=%llu\n",
+						mxfs_probe("mxfs: P34B-BMBT-%s ino=%llu daddr=%lld level=%d cached_recs=%u disk_recs=%u bflags=0x%x wr_fepoch=%llu cur_fepoch=%llu realns=%llu\n",
 							ahead ? "AHEAD" : "STALEREAD",
 							(unsigned long long)ip->i_ino,
 							(long long)bp->b_maps[0].bm_bn,
@@ -1271,7 +1271,7 @@ xfs_iread_bmbt_block(
 					if (atomic_inc_return(&p68n) <= 2000 ||
 					    mxfs_dirwr_enabled ||
 					    mxfs_instr_enabled)
-						pr_warn("mxfs: P68-BMBT-REFRESH ino=%llu daddr=%lld new_recs=%u loaded=%llu if_nextents=%llu\n",
+						mxfs_probe("mxfs: P68-BMBT-REFRESH ino=%llu daddr=%lld new_recs=%u loaded=%llu if_nextents=%llu\n",
 							(unsigned long long)ip->i_ino,
 							(long long)bp->b_maps[0].bm_bn,
 							(unsigned)num_recs,
@@ -1331,7 +1331,7 @@ xfs_iread_bmbt_block(
 					    cpu_to_be16(XFS_DINODE_MAGIC) &&
 				    disk_nx >= ir->loaded + num_recs) {
 					if (mxfs_dirwr_enabled || mxfs_instr_enabled)
-						pr_warn("mxfs: P70-DINO-RECONCILE ino=%llu loaded=%llu num_recs=%u stale_if_nextents=%llu disk_nx=%llu — adopting fresh on-disk di_nextents\n",
+						mxfs_probe("mxfs: P70-DINO-RECONCILE ino=%llu loaded=%llu num_recs=%u stale_if_nextents=%llu disk_nx=%llu — adopting fresh on-disk di_nextents\n",
 							(unsigned long long)ip->i_ino,
 							(unsigned long long)ir->loaded,
 							(unsigned)num_recs,
@@ -1449,14 +1449,14 @@ xfs_iread_extents(
 		goto out;
 
 	if (ir.loaded != ifp->if_nextents) {
-		/* sess59 instrumented: quantify the dinode-vs-bmbt-leaf disk
+		/* instrumented: quantify the dinode-vs-bmbt-leaf disk
 		 * inconsistency that shuts the FS down under the 16-node
 		 * shared-dir storm.  ir.loaded = records walked from the
 		 * if_broot root through the (cold-read) child blocks;
 		 * if_nextents = di_nextents from the same dinode.  A small
 		 * delta == one stale/torn child block; a large delta == the
 		 * dinode root and di_nextents disagree wholesale. */
-		pr_warn(
+		mxfs_probe(
 			"mxfs: P59-IREAD-MISMATCH ino=%llu whichfork=%d loaded=%llu if_nextents=%llu broot_lvl=%u\n",
 			(unsigned long long)ip->i_ino, whichfork,
 			(unsigned long long)ir.loaded,
@@ -1470,13 +1470,13 @@ xfs_iread_extents(
 	}
 	ASSERT(ir.loaded == xfs_iext_count(ifp));
 
-	/* sess34 P34B timeline companion: one line per dir bmbt extent-map
+	/* P34B timeline companion: one line per dir bmbt extent-map
 	 * (re)load in multi-node mode so the cross-node merge shows WHEN each
 	 * node's in-core dir extent map was (re)built relative to grows. */
 	if (whichfork == XFS_DATA_FORK && S_ISDIR(VFS_I(ip)->i_mode) &&
 	    (mxfs_dirwr_enabled || mxfs_instr_enabled) &&
 	    mp->m_mxfs_dlm && !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm)) {
-		pr_warn("mxfs: P34B-IREAD ino=%llu loaded=%llu nextents=%llu size=%lld realns=%llu\n",
+		mxfs_probe("mxfs: P34B-IREAD ino=%llu loaded=%llu nextents=%llu size=%lld realns=%llu\n",
 			(unsigned long long)ip->i_ino,
 			(unsigned long long)ir.loaded,
 			(unsigned long long)ifp->if_nextents,
@@ -2979,12 +2979,12 @@ xfs_bmap_add_extent_hole_real(
 				goto done;
 			if (i != 1 && whichfork == XFS_DATA_FORK &&
 			    cur->bc_levels[0].bp && ip->i_df.if_broot) {
-				/* sess64 Face-2 probe: the LEFT_CONTIG merge can't
+				/* Face-2 probe: the LEFT_CONTIG merge can't
 				 * find `old` in the bmbt although it's in the iext
 				 * tree — the same in-core leaf-vs-iext desync as the
 				 * di/leaf tear, surfacing as an insert-time shutdown
 				 * (xfs_create -> trans_cancel). Dump the desync. */
-				pr_warn("mxfs: P64-LEFTCONTIG-DESYNC ino=%llu iext=%llu leaf_numrecs=%u broot_nrecs=%u old_off=%llu old_sb=%llu old_cnt=%llu daddr=%lld comm=%s\n",
+				mxfs_probe("mxfs: P64-LEFTCONTIG-DESYNC ino=%llu iext=%llu leaf_numrecs=%u broot_nrecs=%u old_off=%llu old_sb=%llu old_cnt=%llu daddr=%lld comm=%s\n",
 					(unsigned long long)ip->i_ino,
 					(unsigned long long)ip->i_df.if_nextents,
 					be16_to_cpu(XFS_BUF_TO_BLOCK(
@@ -3062,7 +3062,7 @@ xfs_bmap_add_extent_hole_real(
 				error = -EFSCORRUPTED;
 				goto done;
 			}
-			/* sess64: snapshot the leaf the lookup positioned us on,
+			/* snapshot the leaf the lookup positioned us on,
 			 * BEFORE the insert, so we can tell whether the desync
 			 * pre-exists (stale leaf already in cache) or is born in
 			 * xfs_btree_insert (record dropped / split mishandled). */
@@ -3083,7 +3083,7 @@ xfs_bmap_add_extent_hole_real(
 				goto done;
 			}
 			/*
-			 * sess63 (zero_silent_loss): NON-ratelimited detector for
+			 * (zero_silent_loss): NON-ratelimited detector for
 			 * the iext-vs-bmbt-leaf off-by-one that produces the on-disk
 			 * di_nextents=N / leaf=N-1 torn dir.  Fires ONLY on the bug
 			 * (single-leaf btree data fork where the leaf the cursor just
@@ -3092,7 +3092,7 @@ xfs_bmap_add_extent_hole_real(
 			 * insert path; if it never fires the desync is created later
 			 * (post-commit mutation / stale FUA re-read / reload).
 			 *
-			 * sess64: extended.  pre_* = leaf state the lookup placed us
+			 * extended.  pre_* = leaf state the lookup placed us
 			 * on (before insert); post_lnr = leaf after insert; bf =
 			 * buffer flags; dg = b_mxfs_dir_gen; sb = inserted startblock.
 			 * pre_lnr == if_nextents-1 && post_lnr == pre_lnr  => insert
@@ -3116,7 +3116,7 @@ xfs_bmap_add_extent_hole_real(
 				uint16_t lnr = be16_to_cpu(XFS_BUF_TO_BLOCK(
 					lbp)->bb_numrecs);
 				if ((unsigned long long)lnr != ifp->if_nextents)
-					pr_warn("mxfs: P63-INSERT-DESYNC ino=%llu if_nextents=%llu post_lnr=%u pre_lnr=%u pre_daddr=%lld daddr=%lld bf=0x%x dg=%u sb=%llu comm=%s\n",
+					mxfs_probe("mxfs: P63-INSERT-DESYNC ino=%llu if_nextents=%llu post_lnr=%u pre_lnr=%u pre_daddr=%lld daddr=%lld bf=0x%x dg=%u sb=%llu comm=%s\n",
 						(unsigned long long)ip->i_ino,
 						(unsigned long long)ifp->if_nextents,
 						lnr, pre_lnr, pre_daddr,
@@ -3975,7 +3975,7 @@ xfs_bmap_btalloc_best_length(
 		return error;
 
 	/*
-	 * MXFS sess6 (ccloop a16ec5f2): multi-node DIRECTORY grows allocate
+	 * MXFS multi-node DIRECTORY grows allocate
 	 * from THIS node's affine AG (node_slot % maxagi — the AG this node
 	 * already holds cached from its inode allocations), not from the
 	 * dir's home AG.  Under the 8-node same-dir create storm every
@@ -5376,7 +5376,7 @@ xfs_bmap_del_extent_real(
 		if (XFS_IS_CORRUPT(mp, i != 1)) {
 #ifdef __KERNEL__
 			/*
-			 * sess5 (ccloop 46efd8b6) P75 DECISIVE DISCRIMINATOR
+			 * P75 DECISIVE DISCRIMINATOR
 			 * (instrumented): the in-core iext record `got` is NOT in
 			 * the bmbt the cursor walked (the rename-storm dir
 			 * i!=1 → dirty trans_cancel → shutdown).  Which side
@@ -5411,7 +5411,7 @@ xfs_bmap_del_extent_real(
 				if (rrc == 0)
 					samelun = !memcmp(raw, lbp->b_addr,
 							  blen);
-				pr_warn("mxfs: P75-BMBT-DEL-MISMATCH ino=%llu got_off=%llu got_blk=%lld got_cnt=%llu leaf_daddr=%lld leaf_recs=%u leaf_lsn=0x%llx bflags=0x%x fua_fresh=%d samelun=%d rrc=%d dlm_mode=%u comm=%s — %s\n",
+				mxfs_probe("mxfs: P75-BMBT-DEL-MISMATCH ino=%llu got_off=%llu got_blk=%lld got_cnt=%llu leaf_daddr=%lld leaf_recs=%u leaf_lsn=0x%llx bflags=0x%x fua_fresh=%d samelun=%d rrc=%d dlm_mode=%u comm=%s — %s\n",
 					(unsigned long long)ip->i_ino,
 					(unsigned long long)got.br_startoff,
 					(long long)got.br_startblock,
@@ -5429,7 +5429,7 @@ xfs_bmap_del_extent_real(
 					samelun == 0 ?
 					"LUN!=cache ⇒ STALE CACHED bmbt leaf (evict miss)" :
 					"raw read failed");
-				/* sess5 P75b: absence vs RESHAPE — dump the
+				/* P75b: absence vs RESHAPE — dump the
 				 * leaf records overlapping/nearest got_off and
 				 * the iext neighbors, so a merged/split
 				 * neighbor (lookup_eq shape miss) is
@@ -5652,7 +5652,7 @@ xfs_bmap_del_extent_real(
 			if (isrt)
 				efi_flags |= XFS_FREE_EXTENT_REALTIME;
 
-			/* <ccloop sess3> bnobt DOUBLE-FREE queuer probe: log which
+			/* < > bnobt DOUBLE-FREE queuer probe: log which
 			 * inode (+ its in-core generation / DLM state) queues a
 			 * deferred free of an AG0 extent, so the P15-INSTR
 			 * FREE-AG-EXTENT-FAIL-LEFT bno can be correlated to the
@@ -5663,7 +5663,7 @@ xfs_bmap_del_extent_real(
 			    XFS_FSB_TO_AGNO(mp, del->br_startblock) == 0) {
 				static atomic_t p3ef = ATOMIC_INIT(0);
 				if (atomic_inc_return(&p3ef) <= 20000)
-					pr_warn("mxfs: P3-EFREE-Q ino=%llu gen=%u dlm_mode=%u stale=%d agbno=%u len=%u fork=%d comm=%s\n",
+					mxfs_probe("mxfs: P3-EFREE-Q ino=%llu gen=%u dlm_mode=%u stale=%d agbno=%u len=%u fork=%d comm=%s\n",
 						(unsigned long long)ip->i_ino,
 						VFS_I(ip)->i_generation,
 						ip->i_dlm_mode, ip->i_dlm_stale,
@@ -5748,7 +5748,7 @@ __xfs_bunmapi(
 		struct xfs_ifork *p29_ifp = xfs_ifork_ptr(ip,
 				xfs_bmapi_whichfork(flags));
 
-		pr_warn("mxfs: P29-INSTR bunmapi-entry ino=0x%llx start=%llu len=%llu fmt=%d nextents=%lld\n",
+		mxfs_probe("mxfs: P29-INSTR bunmapi-entry ino=0x%llx start=%llu len=%llu fmt=%d nextents=%lld\n",
 			(unsigned long long)ip->i_ino,
 			(unsigned long long)start,
 			(unsigned long long)len,
@@ -5758,7 +5758,7 @@ __xfs_bunmapi(
 						       &p29_icur, &p29_irec)) {
 			do {
 				if (p29_count++ < 6)
-					pr_warn("mxfs: P29-INSTR  ext[%d] off=%llu sb=0x%llx len=%llu\n",
+					mxfs_probe("mxfs: P29-INSTR  ext[%d] off=%llu sb=0x%llx len=%llu\n",
 						p29_count - 1,
 						(unsigned long long)p29_irec.br_startoff,
 						(unsigned long long)p29_irec.br_startblock,

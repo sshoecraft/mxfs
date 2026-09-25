@@ -116,35 +116,35 @@
 
 #pragma pack(push, 1)
 struct mxfs_lease_udp_msg {
-    uint32_t        magic;
-    uint16_t        version;
-    uint16_t        state;          /* MXFS_LEASE_STATE_* (was pad; older senders write 0) */
-    mxfs_node_id_t  node_id;
-    uint8_t         volume_uuid[16];
-    uint64_t        lease_duration_ms;
-    uint32_t        view_count;
-    uint32_t        pad2;
-    uint64_t        view_hash;
-    uint64_t        incarnation;    /* 0.89.68: the sender's mount incarnation (0 = unstated) */
+	uint32_t        magic;
+	uint16_t        version;
+	uint16_t        state;          /* MXFS_LEASE_STATE_* (was pad; older senders write 0) */
+	mxfs_node_id_t  node_id;
+	uint8_t         volume_uuid[16];
+	uint64_t        lease_duration_ms;
+	uint32_t        view_count;
+	uint32_t        pad2;
+	uint64_t        view_hash;
+	uint64_t        incarnation;    /* 0.89.68: the sender's mount incarnation (0 = unstated) */
 };
 #pragma pack(pop)
 #define MXFS_LEASE_UDP_MSG_V1_LEN \
-    (offsetof(struct mxfs_lease_udp_msg, view_count))
+	(offsetof(struct mxfs_lease_udp_msg, view_count))
 /* the full pre-0.89.68 packet: a complete view report, no incarnation */
 #define MXFS_LEASE_UDP_MSG_VIEW_LEN \
-    (offsetof(struct mxfs_lease_udp_msg, incarnation))
+	(offsetof(struct mxfs_lease_udp_msg, incarnation))
 
 /* Per-node lease state */
 struct mxfs_node_lease {
-    mxfs_node_id_t          node_id;
-    mxfs_epoch_t            epoch;
-    uint64_t                granted_at;     /* mxfs_pal_time_ms() */
-    uint64_t                duration_ms;
-    uint64_t                last_renewal;   /* mxfs_pal_time_ms() */
-    enum mxfs_node_state    state;
-    int                     missed_renewals;
-    uint64_t                incarnation;    /* 0.89.68: taken from the first renewal that names one; 0 = none yet */
-    uint16_t                sender_state;   /* 0.89.68: MXFS_LEASE_STATE_* from the last renewal read */
+	mxfs_node_id_t          node_id;
+	mxfs_epoch_t            epoch;
+	uint64_t                granted_at;     /* mxfs_pal_time_ms() */
+	uint64_t                duration_ms;
+	uint64_t                last_renewal;   /* mxfs_pal_time_ms() */
+	enum mxfs_node_state    state;
+	int                     missed_renewals;
+	uint64_t                incarnation;    /* 0.89.68: taken from the first renewal that names one; 0 = none yet */
+	uint16_t                sender_state;   /* 0.89.68: MXFS_LEASE_STATE_* from the last renewal read */
 };
 
 /* Callback fired when a node's lease expires (node declared dead) */
@@ -152,92 +152,92 @@ typedef void (*mxfs_lease_expire_cb)(void *data, mxfs_node_id_t dead_node);
 
 /* Per-mount lease context */
 struct mxfs_lease_ctx {
-    struct mxfs_node_lease  nodes[MXFS_MAX_NODES];
-    int                     node_count;
-    uint64_t                default_duration_ms;
-    uint64_t                renew_interval_ms;
-    uint64_t                timeout_ms;
-    mxfs_node_id_t          local_node;
+	struct mxfs_node_lease  nodes[MXFS_MAX_NODES];
+	int                     node_count;
+	uint64_t                default_duration_ms;
+	uint64_t                renew_interval_ms;
+	uint64_t                timeout_ms;
+	mxfs_node_id_t          local_node;
 
-    mxfs_thread_t           *renew_thread;
-    mxfs_thread_t           *monitor_thread;
-    mxfs_mutex_t            *lock;
-    volatile bool           running;
+	mxfs_thread_t           *renew_thread;
+	mxfs_thread_t           *monitor_thread;
+	mxfs_mutex_t            *lock;
+	volatile bool           running;
 
-    /* Shutdown signaling: condvar wakes sleeping threads */
-    mxfs_mutex_t            *shutdown_lock;
-    mxfs_cond_t             *shutdown_cond;
+	/* Shutdown signaling: condvar wakes sleeping threads */
+	mxfs_mutex_t            *shutdown_lock;
+	mxfs_cond_t             *shutdown_cond;
 
-    /* UDP multicast heartbeat (replaces TCP send_cb) */
-    mxfs_sock_t             *udp_sock;
-    mxfs_thread_t           *udp_recv_thread;
-    char                    mcast_addr[64];
-    char                    send_addr[64];
-    uint16_t                udp_port;
-    bool                    use_broadcast;
-    struct mxfs_static_peers peers;     /* count 0 = multicast/broadcast */
-    uint8_t                 volume_uuid[16];
+	/* UDP multicast heartbeat (replaces TCP send_cb) */
+	mxfs_sock_t             *udp_sock;
+	mxfs_thread_t           *udp_recv_thread;
+	char                    mcast_addr[64];
+	char                    send_addr[64];
+	uint16_t                udp_port;
+	bool                    use_broadcast;
+	struct mxfs_static_peers peers;     /* count 0 = multicast/broadcast */
+	uint8_t                 volume_uuid[16];
 
-    mxfs_lease_expire_cb    expire_cb;
-    void                    *expire_cb_data;
+	mxfs_lease_expire_cb    expire_cb;
+	void                    *expire_cb_data;
 
-    /* v0.11.78 (D7): view-signature piggyback.  view_sig_cb supplies the
-     * local DLM's {count,hash} for each outgoing beacon; view_report_cb
-     * delivers a peer's received signature (only called when the packet
-     * actually carried one). */
-    uint64_t (*view_sig_cb)(void *data, uint32_t *count);
-    void     *view_sig_cb_data;
-    void     (*view_report_cb)(void *data, mxfs_node_id_t node,
-                               uint32_t count, uint64_t hash);
-    void     *view_report_cb_data;
-    /* 0.89.68: what this node IS, for each outgoing beacon — its authority
-     * state (MXFS_LEASE_STATE_*) and its incarnation.  Unset: unstated, 0. */
-    uint16_t (*member_state_cb)(void *data, uint64_t *incarnation);
-    void     *member_state_cb_data;
+	/* v0.11.78 (D7): view-signature piggyback.  view_sig_cb supplies the
+	 * local DLM's {count,hash} for each outgoing beacon; view_report_cb
+	 * delivers a peer's received signature (only called when the packet
+	 * actually carried one). */
+	uint64_t (*view_sig_cb)(void *data, uint32_t *count);
+	void     *view_sig_cb_data;
+	void     (*view_report_cb)(void *data, mxfs_node_id_t node,
+				   uint32_t count, uint64_t hash);
+	void     *view_report_cb_data;
+	/* 0.89.68: what this node IS, for each outgoing beacon — its authority
+	 * state (MXFS_LEASE_STATE_*) and its incarnation.  Unset: unstated, 0. */
+	uint16_t (*member_state_cb)(void *data, uint64_t *incarnation);
+	void     *member_state_cb_data;
 };
 
 /* Lifecycle */
 struct mxfs_lease_ctx *mxfs_lease_create(mxfs_node_id_t local_node,
-                                          const uint8_t *volume_uuid,
-                                          const char *mcast_addr,
-                                          uint16_t lease_port,
-                                          bool use_broadcast,
-                                          const struct mxfs_static_peers *peers);
+					  const uint8_t *volume_uuid,
+					  const char *mcast_addr,
+					  uint16_t lease_port,
+					  bool use_broadcast,
+					  const struct mxfs_static_peers *peers);
 void mxfs_lease_destroy(struct mxfs_lease_ctx *ctx);
 int  mxfs_lease_start(struct mxfs_lease_ctx *ctx);
 void mxfs_lease_stop(struct mxfs_lease_ctx *ctx);
 
 /* Node management */
 int  mxfs_lease_register_node(struct mxfs_lease_ctx *ctx,
-                               mxfs_node_id_t node_id);
+			       mxfs_node_id_t node_id);
 int  mxfs_lease_unregister_node(struct mxfs_lease_ctx *ctx,
-                                 mxfs_node_id_t node_id);
+				 mxfs_node_id_t node_id);
 
 /* Renewal processing.  state is MXFS_LEASE_STATE_*, incarnation 0 = unstated. */
 int  mxfs_lease_process_renewal(struct mxfs_lease_ctx *ctx,
-                                 mxfs_node_id_t node_id, mxfs_epoch_t epoch,
-                                 uint16_t state, uint64_t incarnation);
+				 mxfs_node_id_t node_id, mxfs_epoch_t epoch,
+				 uint16_t state, uint64_t incarnation);
 
 /* Query */
 bool mxfs_lease_is_valid(struct mxfs_lease_ctx *ctx, mxfs_node_id_t node_id);
 bool mxfs_lease_has_node(struct mxfs_lease_ctx *ctx, mxfs_node_id_t node_id);
 int  mxfs_lease_get_active_nodes(struct mxfs_lease_ctx *ctx,
-                                  mxfs_node_id_t *out, int max_count);
+				  mxfs_node_id_t *out, int max_count);
 
 /* Callback registration */
 void mxfs_lease_set_expire_cb(struct mxfs_lease_ctx *ctx,
-                               mxfs_lease_expire_cb cb, void *data);
+			       mxfs_lease_expire_cb cb, void *data);
 
 /* v0.11.78 (D7): view-signature piggyback wiring */
 void mxfs_lease_set_view_provider(struct mxfs_lease_ctx *ctx,
-                                  uint64_t (*cb)(void *data, uint32_t *count),
-                                  void *data);
+				  uint64_t (*cb)(void *data, uint32_t *count),
+				  void *data);
 void mxfs_lease_set_member_state_provider(struct mxfs_lease_ctx *ctx,
-                                          uint16_t (*cb)(void *data, uint64_t *incarnation),
-                                          void *data);
+					  uint16_t (*cb)(void *data, uint64_t *incarnation),
+					  void *data);
 void mxfs_lease_set_view_report_cb(struct mxfs_lease_ctx *ctx,
-                                   void (*cb)(void *data, mxfs_node_id_t node,
-                                              uint32_t count, uint64_t hash),
-                                   void *data);
+				   void (*cb)(void *data, mxfs_node_id_t node,
+					      uint32_t count, uint64_t hash),
+								   void *data);
 
 #endif /* MXFS_LIBMXFS_LEASE_H */

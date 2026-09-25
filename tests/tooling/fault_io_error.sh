@@ -19,7 +19,7 @@ cleanup(){ mountpoint -q "$MP" 2>/dev/null && umount -l "$MP" 2>/dev/null
 trap cleanup EXIT
 command -v dmsetup >/dev/null 2>&1 || { emit SKIP no-dmsetup "dmsetup absent"; exit 0; }
 if [ "$FSTYPE" != xfs ]; then
-    modprobe libcrc32c 2>/dev/null || true; lsmod | grep -q '^mxfs' || insmod "$MODULE" force_transport=1 2>/dev/null
+    modprobe libcrc32c 2>/dev/null || true; lsmod | grep -q '^mxfs' || insmod "$MODULE" dyndbg=+p force_transport=1 2>/dev/null
 fi
 
 truncate -s 2G "$IMG"

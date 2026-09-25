@@ -104,7 +104,7 @@ for a in $(seq 1 24); do sleep 5; sshq 8 "$RM" "echo SSH_UP" | grep -q SSH_UP &&
 bringup "$RM" || { fail "$DEV / /src never came up on $RM"; echo "=== bootstrap_resume $LABEL: fails=$fails out=$OUT ==="; exit 1; }
 TM=$(date +%s)
 sshq $((ATTEMPT1_BOUND+60)) "$RM" "echo 3 > /proc/sys/vm/drop_caches; cp /src/mxfs/mxfs.ko /tmp/mxfs.ko; m=\$(md5sum /tmp/mxfs.ko | awk '{print \$1}'); [ \"\$m\" = '$KO_MD5' ] || { echo KO_MD5_MISMATCH \$m; exit 1; }
-    modprobe libcrc32c 2>/dev/null || true; insmod /tmp/mxfs.ko; cat /sys/module/mxfs/srcversion
+    modprobe libcrc32c 2>/dev/null || true; insmod /tmp/mxfs.ko dyndbg=+p; cat /sys/module/mxfs/srcversion
     echo 1 > /sys/module/mxfs/parameters/target_cache_protected; echo 1 > /sys/module/mxfs/parameters/foreign_replay_token_enforce
     echo $POINT > /sys/module/mxfs/parameters/bootstrap_inject
     echo BOOTRES-A1-$LABEL > /dev/kmsg; mkdir -p $MNT; timeout $ATTEMPT1_BOUND mount -t mxfs $DEV $MNT; echo MOUNT_RC=\$?; cat /sys/module/mxfs/parameters/bootstrap_inject" > "$OUT/attempt1.txt" 2>&1
@@ -182,7 +182,7 @@ for i in $(seq 1 "$N"); do
         [ $up -eq 1 ] || { echo "NO_SSH"; exit 1; }
         bringup "test$i" || { echo "NO_DEV"; exit 1; }
         sshq 120 "test$i" "cp /src/mxfs/mxfs.ko /tmp/mxfs.ko; m=\$(md5sum /tmp/mxfs.ko | awk '{print \$1}'); [ \"\$m\" = '$KO_MD5' ] || { echo KO_MD5_MISMATCH; exit 1; }
-            modprobe libcrc32c 2>/dev/null || true; insmod /tmp/mxfs.ko; echo 1 > /sys/module/mxfs/parameters/target_cache_protected; echo 1 > /sys/module/mxfs/parameters/foreign_replay_token_enforce
+            modprobe libcrc32c 2>/dev/null || true; insmod /tmp/mxfs.ko dyndbg=+p; echo 1 > /sys/module/mxfs/parameters/target_cache_protected; echo 1 > /sys/module/mxfs/parameters/foreign_replay_token_enforce
             mkdir -p $MNT; timeout 120 mount -t mxfs $DEV $MNT && echo MOUNT_OK; dmesg | grep -a 'P-BOOT-STATE\|P-BOOT-ADMISSION' | tail -2"
     ) > "$OUT/test$i.peer" 2>&1 &
 done; wait

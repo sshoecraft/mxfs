@@ -39,298 +39,298 @@
 /* ─── Block device ─── */
 
 struct mxfs_bdev {
-    int fd;
-    uint64_t base_offset;
-    bool is_clone;
-    char path[4096];
+	int fd;
+	uint64_t base_offset;
+	bool is_clone;
+	char path[4096];
 };
 
 mxfs_bdev_t *mxfs_pal_bdev_open(const char *path)
 {
-    mxfs_bdev_t *dev;
-    int fd;
+	mxfs_bdev_t *dev;
+	int fd;
 
-    if (!path)
-        return NULL;
+	if (!path)
+		return NULL;
 
-    fd = open(path, O_RDWR | O_DIRECT | O_SYNC);
-    if (fd < 0) {
-        /* Fall back to non-O_DIRECT if device doesn't support it */
-        fd = open(path, O_RDWR | O_SYNC);
-        if (fd < 0)
-            return NULL;
-    }
+	fd = open(path, O_RDWR | O_DIRECT | O_SYNC);
+	if (fd < 0) {
+		/* Fall back to non-O_DIRECT if device doesn't support it */
+		fd = open(path, O_RDWR | O_SYNC);
+		if (fd < 0)
+			return NULL;
+	}
 
-    dev = calloc(1, sizeof(*dev));
-    if (!dev) {
-        close(fd);
-        return NULL;
-    }
+	dev = calloc(1, sizeof(*dev));
+	if (!dev) {
+		close(fd);
+		return NULL;
+	}
 
-    dev->fd = fd;
-    strncpy(dev->path, path, sizeof(dev->path) - 1);
-    dev->path[sizeof(dev->path) - 1] = '\0';
+	dev->fd = fd;
+	strncpy(dev->path, path, sizeof(dev->path) - 1);
+	dev->path[sizeof(dev->path) - 1] = '\0';
 
-    return dev;
+	return dev;
 }
 
 void mxfs_pal_bdev_close(mxfs_bdev_t *dev)
 {
-    if (!dev)
-        return;
-    if (dev->fd >= 0 && !dev->is_clone)
-        close(dev->fd);
-    free(dev);
+	if (!dev)
+		return;
+	if (dev->fd >= 0 && !dev->is_clone)
+		close(dev->fd);
+	free(dev);
 }
 
 mxfs_bdev_t *mxfs_pal_bdev_clone_with_offset(mxfs_bdev_t *dev,
-                                               uint64_t base_offset)
+					       uint64_t base_offset)
 {
-    mxfs_bdev_t *clone;
+	mxfs_bdev_t *clone;
 
-    if (!dev)
-        return NULL;
+	if (!dev)
+		return NULL;
 
-    clone = calloc(1, sizeof(*clone));
-    if (!clone)
-        return NULL;
+	clone = calloc(1, sizeof(*clone));
+	if (!clone)
+		return NULL;
 
-    clone->fd = dev->fd;
-    clone->base_offset = base_offset;
-    clone->is_clone = true;
-    /* do NOT copy path — clone doesn't own the fd */
+	clone->fd = dev->fd;
+	clone->base_offset = base_offset;
+	clone->is_clone = true;
+	/* do NOT copy path — clone doesn't own the fd */
 
-    return clone;
+	return clone;
 }
 
 void mxfs_pal_bdev_close_clone(mxfs_bdev_t *dev)
 {
-    if (!dev)
-        return;
-    /* Don't close the fd — the original owns it */
-    free(dev);
+	if (!dev)
+		return;
+	/* Don't close the fd — the original owns it */
+	free(dev);
 }
 
 void mxfs_pal_bdev_get_write_stats(mxfs_bdev_t *dev,
-                                    uint64_t *writes, uint64_t *write_bytes,
-                                    uint64_t *writes_fua, uint64_t *write_fua_bytes,
-                                    uint64_t *flushes)
+				    uint64_t *writes, uint64_t *write_bytes,
+				    uint64_t *writes_fua, uint64_t *write_fua_bytes,
+				    uint64_t *flushes)
 {
-    (void)dev;
-    if (writes) *writes = 0;
-    if (write_bytes) *write_bytes = 0;
-    if (writes_fua) *writes_fua = 0;
-    if (write_fua_bytes) *write_fua_bytes = 0;
-    if (flushes) *flushes = 0;
+	(void)dev;
+	if (writes) *writes = 0;
+	if (write_bytes) *write_bytes = 0;
+	if (writes_fua) *writes_fua = 0;
+	if (write_fua_bytes) *write_fua_bytes = 0;
+	if (flushes) *flushes = 0;
 }
 
 int mxfs_pal_bdev_read(mxfs_bdev_t *dev, uint64_t offset,
-                       void *buf, uint32_t len)
+		       void *buf, uint32_t len)
 {
-    ssize_t total = 0;
-    ssize_t n;
+	ssize_t total = 0;
+	ssize_t n;
 
-    if (!dev || dev->fd < 0 || !buf)
-        return -EINVAL;
+	if (!dev || dev->fd < 0 || !buf)
+		return -EINVAL;
 
-    while ((uint32_t)total < len) {
-        n = pread(dev->fd, (char *)buf + total, len - total,
-                  (off_t)(offset + dev->base_offset + total));
-        if (n < 0) {
-            if (errno == EINTR)
-                continue;
-            return -errno;
-        }
-        if (n == 0)
-            return -EIO; /* unexpected EOF */
-        total += n;
-    }
-    return 0;
+	while ((uint32_t)total < len) {
+		n = pread(dev->fd, (char *)buf + total, len - total,
+			  (off_t)(offset + dev->base_offset + total));
+		if (n < 0) {
+			if (errno == EINTR)
+				continue;
+			return -errno;
+		}
+		if (n == 0)
+			return -EIO; /* unexpected EOF */
+		total += n;
+	}
+	return 0;
 }
 
 int mxfs_pal_bdev_read_prio(mxfs_bdev_t *dev, uint64_t offset,
-                             void *buf, uint32_t len)
+			     void *buf, uint32_t len)
 {
-    /* Userspace has no I/O priority concept — same as regular read */
-    return mxfs_pal_bdev_read(dev, offset, buf, len);
+	/* Userspace has no I/O priority concept — same as regular read */
+	return mxfs_pal_bdev_read(dev, offset, buf, len);
 }
 
 int mxfs_pal_bdev_write(mxfs_bdev_t *dev, uint64_t offset,
-                        const void *buf, uint32_t len)
+			const void *buf, uint32_t len)
 {
-    ssize_t total = 0;
-    ssize_t n;
+	ssize_t total = 0;
+	ssize_t n;
 
-    if (!dev || dev->fd < 0 || !buf)
-        return -EINVAL;
+	if (!dev || dev->fd < 0 || !buf)
+		return -EINVAL;
 
-    while ((uint32_t)total < len) {
-        n = pwrite(dev->fd, (const char *)buf + total, len - total,
-                   (off_t)(offset + dev->base_offset + total));
-        if (n < 0) {
-            if (errno == EINTR)
-                continue;
-            return -errno;
-        }
-        if (n == 0)
-            return -EIO;
-        total += n;
-    }
-    return 0;
+	while ((uint32_t)total < len) {
+		n = pwrite(dev->fd, (const char *)buf + total, len - total,
+			   (off_t)(offset + dev->base_offset + total));
+		if (n < 0) {
+			if (errno == EINTR)
+				continue;
+			return -errno;
+		}
+		if (n == 0)
+			return -EIO;
+		total += n;
+	}
+	return 0;
 }
 
 int mxfs_pal_bdev_write_fua(mxfs_bdev_t *dev, uint64_t offset,
-                             const void *buf, uint32_t len)
+			     const void *buf, uint32_t len)
 {
-    int ret = mxfs_pal_bdev_write(dev, offset, buf, len);
-    if (ret)
-        return ret;
-    return mxfs_pal_bdev_flush(dev);
+	int ret = mxfs_pal_bdev_write(dev, offset, buf, len);
+	if (ret)
+		return ret;
+	return mxfs_pal_bdev_flush(dev);
 }
 
 int mxfs_pal_bdev_write_async(mxfs_bdev_t *dev, uint64_t offset,
-                               const void *buf, uint32_t len)
+			       const void *buf, uint32_t len)
 {
-    /* Userspace: no bio pipelining, delegate to sync write */
-    return mxfs_pal_bdev_write(dev, offset, buf, len);
+	/* Userspace: no bio pipelining, delegate to sync write */
+	return mxfs_pal_bdev_write(dev, offset, buf, len);
 }
 
 int mxfs_pal_bdev_write_scatter(mxfs_bdev_t *dev,
-                                 const uint64_t *offsets,
-                                 void * const *bufs,
-                                 const uint32_t *lens,
-                                 int count)
+				 const uint64_t *offsets,
+				 void * const *bufs,
+				 const uint32_t *lens,
+				 int count)
 {
-    int i, ret = 0;
-    for (i = 0; i < count; i++) {
-        int r = mxfs_pal_bdev_write(dev, offsets[i], bufs[i], lens[i]);
-        if (r && !ret) ret = r;
-    }
-    return ret;
+	int i, ret = 0;
+	for (i = 0; i < count; i++) {
+		int r = mxfs_pal_bdev_write(dev, offsets[i], bufs[i], lens[i]);
+		if (r && !ret) ret = r;
+	}
+	return ret;
 }
 
 int mxfs_pal_bdev_read_async(mxfs_bdev_t *dev, uint64_t offset,
-                              void *buf, uint32_t len)
+			      void *buf, uint32_t len)
 {
-    /* Userspace: no bio pipelining, delegate to sync read */
-    return mxfs_pal_bdev_read(dev, offset, buf, len);
+	/* Userspace: no bio pipelining, delegate to sync read */
+	return mxfs_pal_bdev_read(dev, offset, buf, len);
 }
 
 int mxfs_pal_bdev_write_gather_fua(mxfs_bdev_t *dev, uint64_t offset,
-                                    void **bufs, int nbufs,
-                                    uint32_t blocksize)
+				    void **bufs, int nbufs,
+				    uint32_t blocksize)
 {
-    int i, ret;
+	int i, ret;
 
-    for (i = 0; i < nbufs; i++) {
-        ret = mxfs_pal_bdev_write(dev, offset + (uint64_t)i * blocksize,
-                                   bufs[i], blocksize);
-        if (ret)
-            return ret;
-    }
-    return mxfs_pal_bdev_flush(dev);
+	for (i = 0; i < nbufs; i++) {
+		ret = mxfs_pal_bdev_write(dev, offset + (uint64_t)i * blocksize,
+					   bufs[i], blocksize);
+		if (ret)
+			return ret;
+	}
+	return mxfs_pal_bdev_flush(dev);
 }
 
 int mxfs_pal_bdev_flush(mxfs_bdev_t *dev)
 {
-    if (!dev || dev->fd < 0)
-        return -EINVAL;
+	if (!dev || dev->fd < 0)
+		return -EINVAL;
 
-    if (fsync(dev->fd) < 0)
-        return -errno;
-    return 0;
+	if (fsync(dev->fd) < 0)
+		return -errno;
+	return 0;
 }
 
 int mxfs_pal_bdev_size(mxfs_bdev_t *dev, uint64_t *size_out)
 {
-    struct stat st;
+	struct stat st;
 
-    if (!dev || dev->fd < 0 || !size_out)
-        return -EINVAL;
+	if (!dev || dev->fd < 0 || !size_out)
+		return -EINVAL;
 
-    if (fstat(dev->fd, &st) < 0)
-        return -errno;
+	if (fstat(dev->fd, &st) < 0)
+		return -errno;
 
-    if (S_ISBLK(st.st_mode)) {
-        if (ioctl(dev->fd, BLKGETSIZE64, size_out) < 0)
-            return -errno;
-        return 0;
-    }
+	if (S_ISBLK(st.st_mode)) {
+		if (ioctl(dev->fd, BLKGETSIZE64, size_out) < 0)
+			return -errno;
+		return 0;
+	}
 
-    /* Regular file (for testing with loop devices) */
-    *size_out = (uint64_t)st.st_size;
-    return 0;
+	/* Regular file (for testing with loop devices) */
+	*size_out = (uint64_t)st.st_size;
+	return 0;
 }
 
 /* ─── Memory ─── */
 
 void *mxfs_pal_alloc(size_t size)
 {
-    if (size == 0)
-        return NULL;
-    return calloc(1, size);
+	if (size == 0)
+		return NULL;
+	return calloc(1, size);
 }
 
 void mxfs_pal_free(void *ptr)
 {
-    free(ptr);
+	free(ptr);
 }
 
 void *mxfs_pal_alloc_io(size_t size)
 {
-    if (size == 0)
-        return NULL;
-    return calloc(1, size);
+	if (size == 0)
+		return NULL;
+	return calloc(1, size);
 }
 
 void mxfs_pal_free_io(void *ptr)
 {
-    free(ptr);
+	free(ptr);
 }
 
 void *mxfs_pal_realloc(void *ptr, size_t new_size)
 {
-    return realloc(ptr, new_size);
+	return realloc(ptr, new_size);
 }
 
 /* ─── Threading ─── */
 
 struct mxfs_thread {
-    pthread_t tid;
-    void (*fn)(void *);
-    void *arg;
+	pthread_t tid;
+	void (*fn)(void *);
+	void *arg;
 };
 
 static void *thread_wrapper(void *arg)
 {
-    struct mxfs_thread *t = arg;
+	struct mxfs_thread *t = arg;
 
-    t->fn(t->arg);
-    return NULL;
+	t->fn(t->arg);
+	return NULL;
 }
 
 mxfs_thread_t *mxfs_pal_thread_create(void (*fn)(void *), void *arg)
 {
-    mxfs_thread_t *t;
-    int ret;
+	mxfs_thread_t *t;
+	int ret;
 
-    if (!fn)
-        return NULL;
+	if (!fn)
+		return NULL;
 
-    t = calloc(1, sizeof(*t));
-    if (!t)
-        return NULL;
+	t = calloc(1, sizeof(*t));
+	if (!t)
+		return NULL;
 
-    t->fn = fn;
-    t->arg = arg;
+	t->fn = fn;
+	t->arg = arg;
 
-    ret = pthread_create(&t->tid, NULL, thread_wrapper, t);
-    if (ret != 0) {
-        free(t);
-        return NULL;
-    }
+	ret = pthread_create(&t->tid, NULL, thread_wrapper, t);
+	if (ret != 0) {
+		free(t);
+		return NULL;
+	}
 
-    return t;
+	return t;
 }
 
 /*
@@ -341,66 +341,66 @@ mxfs_thread_t *mxfs_pal_thread_create(void (*fn)(void *), void *arg)
  */
 mxfs_thread_t *mxfs_pal_thread_create_rt(void (*fn)(void *), void *arg)
 {
-    mxfs_thread_t *t;
-    struct sched_param sp;
+	mxfs_thread_t *t;
+	struct sched_param sp;
 
-    t = mxfs_pal_thread_create(fn, arg);
-    if (!t)
-        return NULL;
+	t = mxfs_pal_thread_create(fn, arg);
+	if (!t)
+		return NULL;
 
-    memset(&sp, 0, sizeof(sp));
-    sp.sched_priority = sched_get_priority_min(SCHED_FIFO);
-    /* Best-effort: don't fail if unprivileged */
-    pthread_setschedparam(t->tid, SCHED_FIFO, &sp);
+	memset(&sp, 0, sizeof(sp));
+	sp.sched_priority = sched_get_priority_min(SCHED_FIFO);
+	/* Best-effort: don't fail if unprivileged */
+	pthread_setschedparam(t->tid, SCHED_FIFO, &sp);
 
-    return t;
+	return t;
 }
 
 void mxfs_pal_thread_join(mxfs_thread_t *t)
 {
-    if (!t)
-        return;
-    pthread_join(t->tid, NULL);
-    free(t);
+	if (!t)
+		return;
+	pthread_join(t->tid, NULL);
+	free(t);
 }
 
 int mxfs_pal_thread_join_timeout(mxfs_thread_t *t, uint32_t timeout_ms)
 {
-    struct timespec ts;
-    int ret;
+	struct timespec ts;
+	int ret;
 
-    if (!t)
-        return 0;
+	if (!t)
+		return 0;
 
-    clock_gettime(CLOCK_REALTIME, &ts);
-    ts.tv_sec += timeout_ms / 1000;
-    ts.tv_nsec += (timeout_ms % 1000) * 1000000;
-    if (ts.tv_nsec >= 1000000000) {
-        ts.tv_sec++;
-        ts.tv_nsec -= 1000000000;
-    }
+	clock_gettime(CLOCK_REALTIME, &ts);
+	ts.tv_sec += timeout_ms / 1000;
+	ts.tv_nsec += (timeout_ms % 1000) * 1000000;
+	if (ts.tv_nsec >= 1000000000) {
+		ts.tv_sec++;
+		ts.tv_nsec -= 1000000000;
+	}
 
-    ret = pthread_timedjoin_np(t->tid, NULL, &ts);
-    if (ret == ETIMEDOUT)
-        return -ETIMEDOUT;
+	ret = pthread_timedjoin_np(t->tid, NULL, &ts);
+	if (ret == ETIMEDOUT)
+		return -ETIMEDOUT;
 
-    free(t);
-    return 0;
+	free(t);
+	return 0;
 }
 
 /* No stable task id for a pthread; callers treat 0 as "unavailable". */
 int mxfs_pal_thread_pid(mxfs_thread_t *t)
 {
-    (void)t;
-    return 0;
+	(void)t;
+	return 0;
 }
 
 void mxfs_pal_dump_task_stack(int pid)
 {
-    (void)pid;
+	(void)pid;
 }
 
-/* sess422: the DLM engine builds in usermode (tests/tauth); a stack dump
+/* the DLM engine builds in usermode (tests/tauth); a stack dump
  * is a kernel diagnostic — no-op here. */
 void mxfs_pal_dump_stack(void)
 {
@@ -409,65 +409,65 @@ void mxfs_pal_dump_stack(void)
 /* ─── Mutex ─── */
 
 struct mxfs_mutex {
-    pthread_mutex_t mtx;
+	pthread_mutex_t mtx;
 };
 
 mxfs_mutex_t *mxfs_pal_mutex_create(void)
 {
-    mxfs_mutex_t *m = calloc(1, sizeof(*m));
+	mxfs_mutex_t *m = calloc(1, sizeof(*m));
 
-    if (!m)
-        return NULL;
+	if (!m)
+		return NULL;
 
-    if (pthread_mutex_init(&m->mtx, NULL) != 0) {
-        free(m);
-        return NULL;
-    }
+	if (pthread_mutex_init(&m->mtx, NULL) != 0) {
+		free(m);
+		return NULL;
+	}
 
-    return m;
+	return m;
 }
 
 void mxfs_pal_mutex_destroy(mxfs_mutex_t *m)
 {
-    if (!m)
-        return;
-    pthread_mutex_destroy(&m->mtx);
-    free(m);
+	if (!m)
+		return;
+	pthread_mutex_destroy(&m->mtx);
+	free(m);
 }
 
 void mxfs_pal_mutex_lock(mxfs_mutex_t *m)
 {
-    if (m)
-        pthread_mutex_lock(&m->mtx);
+	if (m)
+		pthread_mutex_lock(&m->mtx);
 }
 
 void mxfs_pal_mutex_unlock(mxfs_mutex_t *m)
 {
-    if (m)
-        pthread_mutex_unlock(&m->mtx);
+	if (m)
+		pthread_mutex_unlock(&m->mtx);
 }
 
-/* sess454 (0.61.0, D1/D8) */
+/* (0.61.0, D1/D8) */
 int mxfs_pal_mutex_trylock(mxfs_mutex_t *m)
 {
-    if (!m)
-        return 1;
-    return pthread_mutex_trylock(&m->mtx) == 0 ? 1 : 0;
+	if (!m)
+		return 1;
+	return pthread_mutex_trylock(&m->mtx) == 0 ? 1 : 0;
 }
 
 int mxfs_pal_current_pid(void)
 {
-    return (int)syscall(SYS_gettid);
+	return (int)syscall(SYS_gettid);
 }
 
 int mxfs_pal_fatal_signal_pending(void)
 {
-    return 0;
+	return 0;
 }
 
 bool mxfs_pal_module_pin(void)
 {
-    return true;
+	return true;
 }
 
 void mxfs_pal_module_unpin(void)
@@ -476,12 +476,12 @@ void mxfs_pal_module_unpin(void)
 
 int mxfs_pal_flag_get(const int *p)
 {
-    return __atomic_load_n(p, __ATOMIC_RELAXED);
+	return __atomic_load_n(p, __ATOMIC_RELAXED);
 }
 
 void mxfs_pal_flag_set(int *p, int v)
 {
-    __atomic_store_n(p, v, __ATOMIC_RELAXED);
+	__atomic_store_n(p, v, __ATOMIC_RELAXED);
 }
 
 /* ─── Spinlock — user-mode has no atomic-context restriction, a plain
@@ -490,703 +490,703 @@ void mxfs_pal_flag_set(int *p, int v)
  * looping) semantics. ─── */
 
 struct mxfs_spinlock {
-    pthread_mutex_t mtx;
+	pthread_mutex_t mtx;
 };
 
 mxfs_spinlock_t *mxfs_pal_spinlock_create(void)
 {
-    mxfs_spinlock_t *s = calloc(1, sizeof(*s));
+	mxfs_spinlock_t *s = calloc(1, sizeof(*s));
 
-    if (!s)
-        return NULL;
+	if (!s)
+		return NULL;
 
-    if (pthread_mutex_init(&s->mtx, NULL) != 0) {
-        free(s);
-        return NULL;
-    }
+	if (pthread_mutex_init(&s->mtx, NULL) != 0) {
+		free(s);
+		return NULL;
+	}
 
-    return s;
+	return s;
 }
 
 void mxfs_pal_spinlock_destroy(mxfs_spinlock_t *s)
 {
-    if (!s)
-        return;
-    pthread_mutex_destroy(&s->mtx);
-    free(s);
+	if (!s)
+		return;
+	pthread_mutex_destroy(&s->mtx);
+	free(s);
 }
 
 void mxfs_pal_spinlock_lock(mxfs_spinlock_t *s)
 {
-    if (s)
-        pthread_mutex_lock(&s->mtx);
+	if (s)
+		pthread_mutex_lock(&s->mtx);
 }
 
 void mxfs_pal_spinlock_unlock(mxfs_spinlock_t *s)
 {
-    if (s)
-        pthread_mutex_unlock(&s->mtx);
+	if (s)
+		pthread_mutex_unlock(&s->mtx);
 }
 
 /* ─── Read-Write Lock ─── */
 
 struct mxfs_rwlock {
-    pthread_rwlock_t rwl;
+	pthread_rwlock_t rwl;
 };
 
 mxfs_rwlock_t *mxfs_pal_rwlock_create(void)
 {
-    mxfs_rwlock_t *rw = calloc(1, sizeof(*rw));
+	mxfs_rwlock_t *rw = calloc(1, sizeof(*rw));
 
-    if (!rw)
-        return NULL;
+	if (!rw)
+		return NULL;
 
-    if (pthread_rwlock_init(&rw->rwl, NULL) != 0) {
-        free(rw);
-        return NULL;
-    }
+	if (pthread_rwlock_init(&rw->rwl, NULL) != 0) {
+		free(rw);
+		return NULL;
+	}
 
-    return rw;
+	return rw;
 }
 
 void mxfs_pal_rwlock_destroy(mxfs_rwlock_t *rw)
 {
-    if (!rw)
-        return;
-    pthread_rwlock_destroy(&rw->rwl);
-    free(rw);
+	if (!rw)
+		return;
+	pthread_rwlock_destroy(&rw->rwl);
+	free(rw);
 }
 
 void mxfs_pal_rwlock_rdlock(mxfs_rwlock_t *rw)
 {
-    if (rw)
-        pthread_rwlock_rdlock(&rw->rwl);
+	if (rw)
+		pthread_rwlock_rdlock(&rw->rwl);
 }
 
-/* ccloop c7ee71c6 sess21 — user mode can always sleep (see pal.h). */
+/*  — user mode can always sleep (see pal.h). */
 int mxfs_pal_may_sleep(void)
 {
-    return 1;
+	return 1;
 }
 
-/* ccloop c7ee71c6 sess21 — non-sleeping read acquire (see pal.h). */
+/*  — non-sleeping read acquire (see pal.h). */
 int mxfs_pal_rwlock_tryrdlock(mxfs_rwlock_t *rw)
 {
-    if (!rw)
-        return 0;
-    return pthread_rwlock_tryrdlock(&rw->rwl) == 0 ? 1 : 0;
+	if (!rw)
+		return 0;
+	return pthread_rwlock_tryrdlock(&rw->rwl) == 0 ? 1 : 0;
 }
 
 void mxfs_pal_rwlock_wrlock(mxfs_rwlock_t *rw)
 {
-    if (rw)
-        pthread_rwlock_wrlock(&rw->rwl);
+	if (rw)
+		pthread_rwlock_wrlock(&rw->rwl);
 }
 
 void mxfs_pal_rwlock_unlock(mxfs_rwlock_t *rw)
 {
-    if (rw)
-        pthread_rwlock_unlock(&rw->rwl);
+	if (rw)
+		pthread_rwlock_unlock(&rw->rwl);
 }
 
 /* ─── Condition Variable ─── */
 
 struct mxfs_cond {
-    pthread_cond_t cv;
+	pthread_cond_t cv;
 };
 
 mxfs_cond_t *mxfs_pal_cond_create(void)
 {
-    mxfs_cond_t *c = calloc(1, sizeof(*c));
+	mxfs_cond_t *c = calloc(1, sizeof(*c));
 
-    if (!c)
-        return NULL;
+	if (!c)
+		return NULL;
 
-    if (pthread_cond_init(&c->cv, NULL) != 0) {
-        free(c);
-        return NULL;
-    }
+	if (pthread_cond_init(&c->cv, NULL) != 0) {
+		free(c);
+		return NULL;
+	}
 
-    return c;
+	return c;
 }
 
 void mxfs_pal_cond_destroy(mxfs_cond_t *c)
 {
-    if (!c)
-        return;
-    pthread_cond_destroy(&c->cv);
-    free(c);
+	if (!c)
+		return;
+	pthread_cond_destroy(&c->cv);
+	free(c);
 }
 
 void mxfs_pal_cond_wait(mxfs_cond_t *c, mxfs_mutex_t *m)
 {
-    if (c && m)
-        pthread_cond_wait(&c->cv, &m->mtx);
+	if (c && m)
+		pthread_cond_wait(&c->cv, &m->mtx);
 }
 
 int mxfs_pal_cond_timedwait(mxfs_cond_t *c, mxfs_mutex_t *m,
-                            uint64_t timeout_ms)
+			    uint64_t timeout_ms)
 {
-    struct timespec ts;
-    int ret;
+	struct timespec ts;
+	int ret;
 
-    if (!c || !m)
-        return -EINVAL;
+	if (!c || !m)
+		return -EINVAL;
 
-    clock_gettime(CLOCK_REALTIME, &ts);
-    ts.tv_sec += (time_t)(timeout_ms / 1000);
-    ts.tv_nsec += (long)((timeout_ms % 1000) * 1000000);
-    if (ts.tv_nsec >= 1000000000L) {
-        ts.tv_sec++;
-        ts.tv_nsec -= 1000000000L;
-    }
+	clock_gettime(CLOCK_REALTIME, &ts);
+	ts.tv_sec += (time_t)(timeout_ms / 1000);
+	ts.tv_nsec += (long)((timeout_ms % 1000) * 1000000);
+	if (ts.tv_nsec >= 1000000000L) {
+		ts.tv_sec++;
+		ts.tv_nsec -= 1000000000L;
+	}
 
-    ret = pthread_cond_timedwait(&c->cv, &m->mtx, &ts);
-    if (ret == ETIMEDOUT)
-        return -ETIMEDOUT;
-    if (ret != 0)
-        return -ret;
-    return 0;
+	ret = pthread_cond_timedwait(&c->cv, &m->mtx, &ts);
+	if (ret == ETIMEDOUT)
+		return -ETIMEDOUT;
+	if (ret != 0)
+		return -ret;
+	return 0;
 }
 
 void mxfs_pal_cond_signal(mxfs_cond_t *c)
 {
-    if (c)
-        pthread_cond_signal(&c->cv);
+	if (c)
+		pthread_cond_signal(&c->cv);
 }
 
 void mxfs_pal_cond_broadcast(mxfs_cond_t *c)
 {
-    if (c)
-        pthread_cond_broadcast(&c->cv);
+	if (c)
+		pthread_cond_broadcast(&c->cv);
 }
 
 /* ─── TCP Networking ─── */
 
 struct mxfs_sock {
-    int fd;
-    int is_udp;
+	int fd;
+	int is_udp;
 };
 
 mxfs_sock_t *mxfs_pal_tcp_connect(const char *host, uint16_t port)
 {
-    mxfs_sock_t *s;
-    struct sockaddr_in addr;
-    int fd;
-    int ret;
+	mxfs_sock_t *s;
+	struct sockaddr_in addr;
+	int fd;
+	int ret;
 
-    if (!host)
-        return NULL;
+	if (!host)
+		return NULL;
 
-    fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (fd < 0)
-        return NULL;
+	fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if (fd < 0)
+		return NULL;
 
-    memset(&addr, 0, sizeof(addr));
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(port);
+	memset(&addr, 0, sizeof(addr));
+	addr.sin_family = AF_INET;
+	addr.sin_port = htons(port);
 
-    ret = inet_pton(AF_INET, host, &addr.sin_addr);
-    if (ret != 1) {
-        close(fd);
-        return NULL;
-    }
+	ret = inet_pton(AF_INET, host, &addr.sin_addr);
+	if (ret != 1) {
+		close(fd);
+		return NULL;
+	}
 
-    ret = connect(fd, (struct sockaddr *)&addr, sizeof(addr));
-    if (ret < 0) {
-        close(fd);
-        return NULL;
-    }
+	ret = connect(fd, (struct sockaddr *)&addr, sizeof(addr));
+	if (ret < 0) {
+		close(fd);
+		return NULL;
+	}
 
-    s = calloc(1, sizeof(*s));
-    if (!s) {
-        close(fd);
-        return NULL;
-    }
+	s = calloc(1, sizeof(*s));
+	if (!s) {
+		close(fd);
+		return NULL;
+	}
 
-    s->fd = fd;
-    s->is_udp = 0;
-    return s;
+	s->fd = fd;
+	s->is_udp = 0;
+	return s;
 }
 
 mxfs_sock_t *mxfs_pal_tcp_listen(uint16_t port)
 {
-    mxfs_sock_t *s;
-    struct sockaddr_in addr;
-    int fd;
-    int opt = 1;
-    int ret;
+	mxfs_sock_t *s;
+	struct sockaddr_in addr;
+	int fd;
+	int opt = 1;
+	int ret;
 
-    fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (fd < 0)
-        return NULL;
+	fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if (fd < 0)
+		return NULL;
 
-    setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+	setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 #ifdef SO_REUSEPORT
-    setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt));
+	setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt));
 #endif
 
-    memset(&addr, 0, sizeof(addr));
-    addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    addr.sin_port = htons(port);
+	memset(&addr, 0, sizeof(addr));
+	addr.sin_family = AF_INET;
+	addr.sin_addr.s_addr = htonl(INADDR_ANY);
+	addr.sin_port = htons(port);
 
-    ret = bind(fd, (struct sockaddr *)&addr, sizeof(addr));
-    if (ret < 0) {
-        close(fd);
-        return NULL;
-    }
+	ret = bind(fd, (struct sockaddr *)&addr, sizeof(addr));
+	if (ret < 0) {
+		close(fd);
+		return NULL;
+	}
 
-    ret = listen(fd, 16);
-    if (ret < 0) {
-        close(fd);
-        return NULL;
-    }
+	ret = listen(fd, 16);
+	if (ret < 0) {
+		close(fd);
+		return NULL;
+	}
 
-    s = calloc(1, sizeof(*s));
-    if (!s) {
-        close(fd);
-        return NULL;
-    }
+	s = calloc(1, sizeof(*s));
+	if (!s) {
+		close(fd);
+		return NULL;
+	}
 
-    s->fd = fd;
-    s->is_udp = 0;
-    return s;
+	s->fd = fd;
+	s->is_udp = 0;
+	return s;
 }
 
 mxfs_sock_t *mxfs_pal_tcp_accept(mxfs_sock_t *listener)
 {
-    mxfs_sock_t *s;
-    struct sockaddr_in addr;
-    socklen_t addrlen = sizeof(addr);
-    int fd;
+	mxfs_sock_t *s;
+	struct sockaddr_in addr;
+	socklen_t addrlen = sizeof(addr);
+	int fd;
 
-    if (!listener)
-        return NULL;
+	if (!listener)
+		return NULL;
 
-    fd = accept(listener->fd, (struct sockaddr *)&addr, &addrlen);
-    if (fd < 0)
-        return NULL;
+	fd = accept(listener->fd, (struct sockaddr *)&addr, &addrlen);
+	if (fd < 0)
+		return NULL;
 
-    s = calloc(1, sizeof(*s));
-    if (!s) {
-        close(fd);
-        return NULL;
-    }
+	s = calloc(1, sizeof(*s));
+	if (!s) {
+		close(fd);
+		return NULL;
+	}
 
-    s->fd = fd;
-    s->is_udp = 0;
-    return s;
+	s->fd = fd;
+	s->is_udp = 0;
+	return s;
 }
 
 int mxfs_pal_tcp_send(mxfs_sock_t *s, const void *buf, uint32_t len)
 {
-    size_t done = 0;
-    ssize_t n;
+	size_t done = 0;
+	ssize_t n;
 
-    if (!s || !buf)
-        return -EINVAL;
+	if (!s || !buf)
+		return -EINVAL;
 
-    while (done < len) {
-        n = send(s->fd, (const char *)buf + done, len - done,
-                 MSG_NOSIGNAL);
-        if (n < 0) {
-            if (errno == EINTR)
-                continue;
-            return -errno;
-        }
-        if (n == 0)
-            return -ECONNRESET;
-        done += (size_t)n;
-    }
-    return 0;
+	while (done < len) {
+		n = send(s->fd, (const char *)buf + done, len - done,
+			 MSG_NOSIGNAL);
+		if (n < 0) {
+			if (errno == EINTR)
+				continue;
+			return -errno;
+		}
+		if (n == 0)
+			return -ECONNRESET;
+		done += (size_t)n;
+	}
+	return 0;
 }
 
 int mxfs_pal_tcp_recv(mxfs_sock_t *s, void *buf, uint32_t len)
 {
-    size_t done = 0;
-    ssize_t n;
+	size_t done = 0;
+	ssize_t n;
 
-    if (!s || !buf)
-        return -EINVAL;
+	if (!s || !buf)
+		return -EINVAL;
 
-    while (done < len) {
-        n = recv(s->fd, (char *)buf + done, len - done, MSG_WAITALL);
-        if (n < 0) {
-            if (errno == EINTR)
-                continue;
-            return -errno;
-        }
-        if (n == 0)
-            return -ECONNRESET;
-        done += (size_t)n;
-    }
-    return 0;
+	while (done < len) {
+		n = recv(s->fd, (char *)buf + done, len - done, MSG_WAITALL);
+		if (n < 0) {
+			if (errno == EINTR)
+				continue;
+			return -errno;
+		}
+		if (n == 0)
+			return -ECONNRESET;
+		done += (size_t)n;
+	}
+	return 0;
 }
 
 void mxfs_pal_tcp_set_opts(mxfs_sock_t *s)
 {
-    int opt = 1;
-    unsigned int timeout = 120000;
+	int opt = 1;
+	unsigned int timeout = 120000;
 
-    if (!s)
-        return;
+	if (!s)
+		return;
 
-    /* Increase socket buffers for DLM traffic headroom */
-    {
-        int bufsize = 4 * 1024 * 1024;
-        setsockopt(s->fd, SOL_SOCKET, SO_RCVBUF, &bufsize, sizeof(bufsize));
-        setsockopt(s->fd, SOL_SOCKET, SO_SNDBUF, &bufsize, sizeof(bufsize));
-    }
+	/* Increase socket buffers for DLM traffic headroom */
+	{
+		int bufsize = 4 * 1024 * 1024;
+		setsockopt(s->fd, SOL_SOCKET, SO_RCVBUF, &bufsize, sizeof(bufsize));
+		setsockopt(s->fd, SOL_SOCKET, SO_SNDBUF, &bufsize, sizeof(bufsize));
+	}
 
-    setsockopt(s->fd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
-    setsockopt(s->fd, SOL_SOCKET, SO_KEEPALIVE, &opt, sizeof(opt));
-    /* Aggressive keepalive: detect dead peers in ~25 seconds
-     * (10s idle + 3 probes * 5s interval) instead of the
-     * Linux default of ~2+ hours. */
-    opt = 10;
-    setsockopt(s->fd, IPPROTO_TCP, TCP_KEEPIDLE, &opt, sizeof(opt));
-    opt = 5;
-    setsockopt(s->fd, IPPROTO_TCP, TCP_KEEPINTVL, &opt, sizeof(opt));
-    opt = 3;
-    setsockopt(s->fd, IPPROTO_TCP, TCP_KEEPCNT, &opt, sizeof(opt));
+	setsockopt(s->fd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
+	setsockopt(s->fd, SOL_SOCKET, SO_KEEPALIVE, &opt, sizeof(opt));
+	/* Aggressive keepalive: detect dead peers in ~25 seconds
+	 * (10s idle + 3 probes * 5s interval) instead of the
+	 * Linux default of ~2+ hours. */
+	opt = 10;
+	setsockopt(s->fd, IPPROTO_TCP, TCP_KEEPIDLE, &opt, sizeof(opt));
+	opt = 5;
+	setsockopt(s->fd, IPPROTO_TCP, TCP_KEEPINTVL, &opt, sizeof(opt));
+	opt = 3;
+	setsockopt(s->fd, IPPROTO_TCP, TCP_KEEPCNT, &opt, sizeof(opt));
 
-    /* TCP_USER_TIMEOUT: abort connection after 120s of unacked data
-     * or failed keepalive probes.  Required for reliable dead-peer
-     * detection when a node is hard-powered-off (no RST/FIN). */
-    setsockopt(s->fd, IPPROTO_TCP, TCP_USER_TIMEOUT,
-               &timeout, sizeof(timeout));
+	/* TCP_USER_TIMEOUT: abort connection after 120s of unacked data
+	 * or failed keepalive probes.  Required for reliable dead-peer
+	 * detection when a node is hard-powered-off (no RST/FIN). */
+	setsockopt(s->fd, IPPROTO_TCP, TCP_USER_TIMEOUT,
+		   &timeout, sizeof(timeout));
 }
 
 void mxfs_pal_tcp_shutdown(mxfs_sock_t *s)
 {
-    if (!s)
-        return;
-    shutdown(s->fd, SHUT_RDWR);
+	if (!s)
+		return;
+	shutdown(s->fd, SHUT_RDWR);
 }
 
 void mxfs_pal_tcp_close(mxfs_sock_t *s)
 {
-    if (!s)
-        return;
-    shutdown(s->fd, SHUT_RDWR);
-    close(s->fd);
-    free(s);
+	if (!s)
+		return;
+	shutdown(s->fd, SHUT_RDWR);
+	close(s->fd);
+	free(s);
 }
 
 int mxfs_pal_tcp_getpeername(mxfs_sock_t *s, char *buf, size_t buf_len)
 {
-    struct sockaddr_in addr;
-    socklen_t addrlen = sizeof(addr);
+	struct sockaddr_in addr;
+	socklen_t addrlen = sizeof(addr);
 
-    if (!s || !buf || buf_len < 16)
-        return -EINVAL;
+	if (!s || !buf || buf_len < 16)
+		return -EINVAL;
 
-    if (getpeername(s->fd, (struct sockaddr *)&addr, &addrlen) < 0)
-        return -errno;
+	if (getpeername(s->fd, (struct sockaddr *)&addr, &addrlen) < 0)
+		return -errno;
 
-    if (!inet_ntop(AF_INET, &addr.sin_addr, buf, (socklen_t)buf_len))
-        return -errno;
+	if (!inet_ntop(AF_INET, &addr.sin_addr, buf, (socklen_t)buf_len))
+		return -errno;
 
-    return 0;
+	return 0;
 }
 
 /* ─── UDP Networking ─── */
 
 mxfs_sock_t *mxfs_pal_udp_open(uint16_t port)
 {
-    mxfs_sock_t *s;
-    struct sockaddr_in addr;
-    int fd;
-    int opt = 1;
-    int ret;
+	mxfs_sock_t *s;
+	struct sockaddr_in addr;
+	int fd;
+	int opt = 1;
+	int ret;
 
-    fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-    if (fd < 0)
-        return NULL;
+	fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	if (fd < 0)
+		return NULL;
 
-    setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+	setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
-    memset(&addr, 0, sizeof(addr));
-    addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    addr.sin_port = htons(port);
+	memset(&addr, 0, sizeof(addr));
+	addr.sin_family = AF_INET;
+	addr.sin_addr.s_addr = htonl(INADDR_ANY);
+	addr.sin_port = htons(port);
 
-    ret = bind(fd, (struct sockaddr *)&addr, sizeof(addr));
-    if (ret < 0) {
-        close(fd);
-        return NULL;
-    }
+	ret = bind(fd, (struct sockaddr *)&addr, sizeof(addr));
+	if (ret < 0) {
+		close(fd);
+		return NULL;
+	}
 
-    s = calloc(1, sizeof(*s));
-    if (!s) {
-        close(fd);
-        return NULL;
-    }
+	s = calloc(1, sizeof(*s));
+	if (!s) {
+		close(fd);
+		return NULL;
+	}
 
-    s->fd = fd;
-    s->is_udp = 1;
-    return s;
+	s->fd = fd;
+	s->is_udp = 1;
+	return s;
 }
 
 void mxfs_pal_udp_shutdown(mxfs_sock_t *s)
 {
-    if (!s)
-        return;
-    shutdown(s->fd, SHUT_RDWR);
+	if (!s)
+		return;
+	shutdown(s->fd, SHUT_RDWR);
 }
 
 void mxfs_pal_udp_close(mxfs_sock_t *s)
 {
-    if (!s)
-        return;
-    close(s->fd);
-    free(s);
+	if (!s)
+		return;
+	close(s->fd);
+	free(s);
 }
 
 int mxfs_pal_udp_sendto(mxfs_sock_t *s, const void *buf, uint32_t len,
-                        const char *host, uint16_t port)
+			const char *host, uint16_t port)
 {
-    struct sockaddr_in dest;
-    ssize_t n;
+	struct sockaddr_in dest;
+	ssize_t n;
 
-    if (!s || !buf || !host)
-        return -EINVAL;
+	if (!s || !buf || !host)
+		return -EINVAL;
 
-    memset(&dest, 0, sizeof(dest));
-    dest.sin_family = AF_INET;
-    dest.sin_port = htons(port);
-    if (inet_pton(AF_INET, host, &dest.sin_addr) != 1)
-        return -EINVAL;
+	memset(&dest, 0, sizeof(dest));
+	dest.sin_family = AF_INET;
+	dest.sin_port = htons(port);
+	if (inet_pton(AF_INET, host, &dest.sin_addr) != 1)
+		return -EINVAL;
 
-    n = sendto(s->fd, buf, len, 0, (struct sockaddr *)&dest, sizeof(dest));
-    if (n < 0)
-        return -errno;
-    return 0;
+	n = sendto(s->fd, buf, len, 0, (struct sockaddr *)&dest, sizeof(dest));
+	if (n < 0)
+		return -errno;
+	return 0;
 }
 
 int mxfs_pal_udp_recvfrom(mxfs_sock_t *s, void *buf, uint32_t len,
-                          char *from_host, size_t host_len,
-                          uint16_t *from_port)
+			  char *from_host, size_t host_len,
+			  uint16_t *from_port)
 {
-    struct sockaddr_in sender;
-    socklen_t slen = sizeof(sender);
-    ssize_t n;
+	struct sockaddr_in sender;
+	socklen_t slen = sizeof(sender);
+	ssize_t n;
 
-    if (!s || !buf)
-        return -EINVAL;
+	if (!s || !buf)
+		return -EINVAL;
 
-    n = recvfrom(s->fd, buf, len, 0, (struct sockaddr *)&sender, &slen);
-    if (n < 0) {
-        if (errno == EAGAIN || errno == EWOULDBLOCK)
-            return -ETIMEDOUT;
-        return -errno;
-    }
+	n = recvfrom(s->fd, buf, len, 0, (struct sockaddr *)&sender, &slen);
+	if (n < 0) {
+		if (errno == EAGAIN || errno == EWOULDBLOCK)
+			return -ETIMEDOUT;
+		return -errno;
+	}
 
-    if (from_host && host_len > 0) {
-        inet_ntop(AF_INET, &sender.sin_addr, from_host, (socklen_t)host_len);
-    }
-    if (from_port)
-        *from_port = ntohs(sender.sin_port);
+	if (from_host && host_len > 0) {
+		inet_ntop(AF_INET, &sender.sin_addr, from_host, (socklen_t)host_len);
+	}
+	if (from_port)
+		*from_port = ntohs(sender.sin_port);
 
-    return (int)n;
+	return (int)n;
 }
 
 int mxfs_pal_udp_join_multicast(mxfs_sock_t *s, const char *group)
 {
-    struct ip_mreq mreq;
-    uint8_t ttl = 1;
-    uint8_t loop = 1;
-    int ret;
+	struct ip_mreq mreq;
+	uint8_t ttl = 1;
+	uint8_t loop = 1;
+	int ret;
 
-    if (!s || !group)
-        return -EINVAL;
+	if (!s || !group)
+		return -EINVAL;
 
-    memset(&mreq, 0, sizeof(mreq));
-    if (inet_pton(AF_INET, group, &mreq.imr_multiaddr) != 1)
-        return -EINVAL;
-    mreq.imr_interface.s_addr = htonl(INADDR_ANY);
+	memset(&mreq, 0, sizeof(mreq));
+	if (inet_pton(AF_INET, group, &mreq.imr_multiaddr) != 1)
+		return -EINVAL;
+	mreq.imr_interface.s_addr = htonl(INADDR_ANY);
 
-    ret = setsockopt(s->fd, IPPROTO_IP, IP_ADD_MEMBERSHIP,
-                     &mreq, sizeof(mreq));
-    if (ret < 0)
-        return -errno;
+	ret = setsockopt(s->fd, IPPROTO_IP, IP_ADD_MEMBERSHIP,
+			 &mreq, sizeof(mreq));
+	if (ret < 0)
+		return -errno;
 
-    setsockopt(s->fd, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl));
-    setsockopt(s->fd, IPPROTO_IP, IP_MULTICAST_LOOP, &loop, sizeof(loop));
+	setsockopt(s->fd, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl));
+	setsockopt(s->fd, IPPROTO_IP, IP_MULTICAST_LOOP, &loop, sizeof(loop));
 
-    return 0;
+	return 0;
 }
 
 int mxfs_pal_udp_set_broadcast(mxfs_sock_t *s)
 {
-    int opt = 1;
+	int opt = 1;
 
-    if (!s)
-        return -EINVAL;
+	if (!s)
+		return -EINVAL;
 
-    if (setsockopt(s->fd, SOL_SOCKET, SO_BROADCAST, &opt, sizeof(opt)) < 0)
-        return -errno;
-    return 0;
+	if (setsockopt(s->fd, SOL_SOCKET, SO_BROADCAST, &opt, sizeof(opt)) < 0)
+		return -errno;
+	return 0;
 }
 
 int mxfs_pal_udp_set_recv_timeout(mxfs_sock_t *s, uint32_t timeout_ms)
 {
-    struct timeval tv;
+	struct timeval tv;
 
-    if (!s)
-        return -EINVAL;
+	if (!s)
+		return -EINVAL;
 
-    tv.tv_sec = timeout_ms / 1000;
-    tv.tv_usec = (timeout_ms % 1000) * 1000;
+	tv.tv_sec = timeout_ms / 1000;
+	tv.tv_usec = (timeout_ms % 1000) * 1000;
 
-    if (setsockopt(s->fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0)
-        return -errno;
-    return 0;
+	if (setsockopt(s->fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0)
+		return -errno;
+	return 0;
 }
 
 /* ─── Time ─── */
 
 uint64_t mxfs_pal_time_ms(void)
 {
-    struct timespec ts;
+	struct timespec ts;
 
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (uint64_t)ts.tv_sec * 1000ULL + (uint64_t)ts.tv_nsec / 1000000ULL;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return (uint64_t)ts.tv_sec * 1000ULL + (uint64_t)ts.tv_nsec / 1000000ULL;
 }
 
 uint64_t mxfs_pal_time_real_ms(void)
 {
-    struct timespec ts;
+	struct timespec ts;
 
-    clock_gettime(CLOCK_REALTIME, &ts);
-    return (uint64_t)ts.tv_sec * 1000ULL + (uint64_t)ts.tv_nsec / 1000000ULL;
+	clock_gettime(CLOCK_REALTIME, &ts);
+	return (uint64_t)ts.tv_sec * 1000ULL + (uint64_t)ts.tv_nsec / 1000000ULL;
 }
 
 void mxfs_pal_sleep_ms(uint32_t ms)
 {
-    struct timespec ts;
+	struct timespec ts;
 
-    ts.tv_sec = ms / 1000;
-    ts.tv_nsec = (long)(ms % 1000) * 1000000L;
+	ts.tv_sec = ms / 1000;
+	ts.tv_nsec = (long)(ms % 1000) * 1000000L;
 
-    while (nanosleep(&ts, &ts) < 0 && errno == EINTR)
-        ; /* retry on signal */
+	while (nanosleep(&ts, &ts) < 0 && errno == EINTR)
+		; /* retry on signal */
 }
 
 /* User-mode has no TASK_UNINTERRUPTIBLE distinction; the kernel backend's
  * D-state hazard (see pal.h) does not exist here. */
 void mxfs_pal_sleep_ms_interruptible(uint32_t ms)
 {
-    mxfs_pal_sleep_ms(ms);
+	mxfs_pal_sleep_ms(ms);
 }
 
 void mxfs_pal_cond_resched(void)
 {
-    /* Userspace threads are preemptible — no-op */
+	/* Userspace threads are preemptible — no-op */
 }
 
 /* ─── Logging ─── */
 
 void mxfs_pal_log(int level, const char *fmt, ...)
 {
-    va_list ap;
-    const char *prefix;
-    FILE *out;
+	va_list ap;
+	const char *prefix;
+	FILE *out;
 
-    switch (level) {
-    case MXFS_LOG_DEBUG: prefix = "DEBUG"; out = stdout; break;
-    case MXFS_LOG_INFO:  prefix = "INFO";  out = stdout; break;
-    case MXFS_LOG_WARN:  prefix = "WARN";  out = stderr; break;
-    case MXFS_LOG_ERR:   prefix = "ERROR"; out = stderr; break;
-    default:             prefix = "???";   out = stderr; break;
-    }
+	switch (level) {
+	case MXFS_LOG_DEBUG: prefix = "DEBUG"; out = stdout; break;
+	case MXFS_LOG_INFO:  prefix = "INFO";  out = stdout; break;
+	case MXFS_LOG_WARN:  prefix = "WARN";  out = stderr; break;
+	case MXFS_LOG_ERR:   prefix = "ERROR"; out = stderr; break;
+	default:             prefix = "???";   out = stderr; break;
+	}
 
-    fprintf(out, "mxfs [%s]: ", prefix);
-    va_start(ap, fmt);
-    vfprintf(out, fmt, ap);
-    va_end(ap);
+	fprintf(out, "mxfs [%s]: ", prefix);
+	va_start(ap, fmt);
+	vfprintf(out, fmt, ap);
+	va_end(ap);
 
-    /* Ensure newline */
-    if (fmt[0] != '\0' && fmt[strlen(fmt) - 1] != '\n')
-        fprintf(out, "\n");
-    fflush(out);
+	/* Ensure newline */
+	if (fmt[0] != '\0' && fmt[strlen(fmt) - 1] != '\n')
+		fprintf(out, "\n");
+	fflush(out);
 }
 
 /* ─── Fail-stop ─── */
 
 /*
- * sess133: the user-build half of the fail-stop contract (see pal.h).  A tool
+ * the user-build half of the fail-stop contract (see pal.h).  A tool
  * has no shared-storage state to protect the way a mounted node does, but it
  * must not continue past an invariant it just proved it cannot uphold either —
  * so it aborts, which also leaves a core for the operator.
  */
 void mxfs_pal_failstop_fn(const char *fmt, ...)
 {
-    va_list ap;
+	va_list ap;
 
-    fprintf(stderr, "mxfs FAIL-STOP: ");
-    va_start(ap, fmt);
-    vfprintf(stderr, fmt, ap);
-    va_end(ap);
-    fprintf(stderr, "\n");
-    fflush(stderr);
-    abort();
+	fprintf(stderr, "mxfs FAIL-STOP: ");
+	va_start(ap, fmt);
+	vfprintf(stderr, fmt, ap);
+	va_end(ap);
+	fprintf(stderr, "\n");
+	fflush(stderr);
+	abort();
 }
 
 /* ─── Deferred one-shot call ─── */
 
 struct mxfs_defer_arg {
-    void (*fn)(void *);
-    void *arg;
+	void (*fn)(void *);
+	void *arg;
 };
 
 static void *mxfs_defer_thread(void *p)
 {
-    struct mxfs_defer_arg *d = p;
-    void (*fn)(void *) = d->fn;
-    void *arg = d->arg;
+	struct mxfs_defer_arg *d = p;
+	void (*fn)(void *) = d->fn;
+	void *arg = d->arg;
 
-    free(d);
-    fn(arg);
-    return NULL;
+	free(d);
+	fn(arg);
+	return NULL;
 }
 
 int mxfs_pal_defer(void (*fn)(void *), void *arg)
 {
-    struct mxfs_defer_arg *d;
-    pthread_attr_t attr;
-    pthread_t tid;
-    int ret;
+	struct mxfs_defer_arg *d;
+	pthread_attr_t attr;
+	pthread_t tid;
+	int ret;
 
-    if (!fn)
-        return -EINVAL;
+	if (!fn)
+		return -EINVAL;
 
-    d = calloc(1, sizeof(*d));
-    if (!d)
-        return -ENOMEM;
-    d->fn = fn;
-    d->arg = arg;
+	d = calloc(1, sizeof(*d));
+	if (!d)
+		return -ENOMEM;
+	d->fn = fn;
+	d->arg = arg;
 
-    /* Detached: nothing joins this, and the caller is told only whether the
-     * call was queued — exactly the kernel workqueue semantics. */
-    pthread_attr_init(&attr);
-    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
-    ret = pthread_create(&tid, &attr, mxfs_defer_thread, d);
-    pthread_attr_destroy(&attr);
-    if (ret != 0) {
-        free(d);
-        return -ret;
-    }
-    return 0;
+	/* Detached: nothing joins this, and the caller is told only whether the
+	 * call was queued — exactly the kernel workqueue semantics. */
+	pthread_attr_init(&attr);
+	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+	ret = pthread_create(&tid, &attr, mxfs_defer_thread, d);
+	pthread_attr_destroy(&attr);
+	if (ret != 0) {
+		free(d);
+		return -ret;
+	}
+	return 0;
 }
 
 /* ─── Sorting ─── */
 
 void mxfs_pal_sort(void *base, size_t nmemb, size_t size,
-                   int (*comp)(const void *, const void *))
+		   int (*comp)(const void *, const void *))
 {
-    qsort(base, nmemb, size, comp);
+	qsort(base, nmemb, size, comp);
 }
 
 /* ─── SCSI PR ───
@@ -1221,265 +1221,265 @@ void mxfs_pal_sort(void *base, size_t nmemb, size_t size,
 #define PR_TYPE_WR_EX_AR 0x07
 
 static int scsi_pr_out(int fd, uint8_t sa, uint64_t key,
-                       uint64_t sa_key, uint8_t type)
+		       uint64_t sa_key, uint8_t type)
 {
-    uint8_t cdb[10];
-    uint8_t param[24];
-    struct sg_io_hdr io;
-    uint8_t sense[32];
-    int ret;
+	uint8_t cdb[10];
+	uint8_t param[24];
+	struct sg_io_hdr io;
+	uint8_t sense[32];
+	int ret;
 
-    memset(cdb, 0, sizeof(cdb));
-    cdb[0] = PR_OUT_CMD;
-    cdb[1] = sa;
-    /* SPC PROUT CDB byte 2 = SCOPE (bits 7-4) | TYPE (bits 3-0).  LU_SCOPE
-     * is 0, so the type belongs in the LOW nibble.  sess381: this backend
-     * shifted it into the SCOPE field, which sent scope=<type>, type=0 on
-     * every PROUT — the kernel backend and upstream sd_pr_out_command()
-     * (`cmd[2] = type`) both put it low. */
-    cdb[2] = type & 0x0F;
-    /* Parameter list length = 24 */
-    cdb[7] = 0;
-    cdb[8] = 24;
+	memset(cdb, 0, sizeof(cdb));
+	cdb[0] = PR_OUT_CMD;
+	cdb[1] = sa;
+	/* SPC PROUT CDB byte 2 = SCOPE (bits 7-4) | TYPE (bits 3-0).  LU_SCOPE
+	 * is 0, so the type belongs in the LOW nibble.  this backend
+	 * shifted it into the SCOPE field, which sent scope=<type>, type=0 on
+	 * every PROUT — the kernel backend and upstream sd_pr_out_command()
+	 * (`cmd[2] = type`) both put it low. */
+	cdb[2] = type & 0x0F;
+	/* Parameter list length = 24 */
+	cdb[7] = 0;
+	cdb[8] = 24;
 
-    memset(param, 0, sizeof(param));
-    /* Reservation key (current) at offset 0, big-endian */
-    param[0] = (uint8_t)(key >> 56);
-    param[1] = (uint8_t)(key >> 48);
-    param[2] = (uint8_t)(key >> 40);
-    param[3] = (uint8_t)(key >> 32);
-    param[4] = (uint8_t)(key >> 24);
-    param[5] = (uint8_t)(key >> 16);
-    param[6] = (uint8_t)(key >> 8);
-    param[7] = (uint8_t)(key);
-    /* Service action reservation key at offset 8 */
-    param[8]  = (uint8_t)(sa_key >> 56);
-    param[9]  = (uint8_t)(sa_key >> 48);
-    param[10] = (uint8_t)(sa_key >> 40);
-    param[11] = (uint8_t)(sa_key >> 32);
-    param[12] = (uint8_t)(sa_key >> 24);
-    param[13] = (uint8_t)(sa_key >> 16);
-    param[14] = (uint8_t)(sa_key >> 8);
-    param[15] = (uint8_t)(sa_key);
+	memset(param, 0, sizeof(param));
+	/* Reservation key (current) at offset 0, big-endian */
+	param[0] = (uint8_t)(key >> 56);
+	param[1] = (uint8_t)(key >> 48);
+	param[2] = (uint8_t)(key >> 40);
+	param[3] = (uint8_t)(key >> 32);
+	param[4] = (uint8_t)(key >> 24);
+	param[5] = (uint8_t)(key >> 16);
+	param[6] = (uint8_t)(key >> 8);
+	param[7] = (uint8_t)(key);
+	/* Service action reservation key at offset 8 */
+	param[8]  = (uint8_t)(sa_key >> 56);
+	param[9]  = (uint8_t)(sa_key >> 48);
+	param[10] = (uint8_t)(sa_key >> 40);
+	param[11] = (uint8_t)(sa_key >> 32);
+	param[12] = (uint8_t)(sa_key >> 24);
+	param[13] = (uint8_t)(sa_key >> 16);
+	param[14] = (uint8_t)(sa_key >> 8);
+	param[15] = (uint8_t)(sa_key);
 
-    memset(&io, 0, sizeof(io));
-    io.interface_id = 'S';
-    io.dxfer_direction = SG_DXFER_TO_DEV;
-    io.cmd_len = sizeof(cdb);
-    io.cmdp = cdb;
-    io.dxfer_len = sizeof(param);
-    io.dxferp = param;
-    io.sbp = sense;
-    io.mx_sb_len = sizeof(sense);
-    io.timeout = 30000; /* 30 seconds */
+	memset(&io, 0, sizeof(io));
+	io.interface_id = 'S';
+	io.dxfer_direction = SG_DXFER_TO_DEV;
+	io.cmd_len = sizeof(cdb);
+	io.cmdp = cdb;
+	io.dxfer_len = sizeof(param);
+	io.dxferp = param;
+	io.sbp = sense;
+	io.mx_sb_len = sizeof(sense);
+	io.timeout = 30000; /* 30 seconds */
 
-    ret = ioctl(fd, SG_IO, &io);
-    if (ret < 0)
-        return -errno;
+	ret = ioctl(fd, SG_IO, &io);
+	if (ret < 0)
+		return -errno;
 
-    if (io.status != 0) {
-        /* Check for RESERVATION CONFLICT (status 0x18) */
-        if (io.status == 0x18 || io.masked_status == 0x0C)
-            return -EBUSY;
-        return -EIO;
-    }
+	if (io.status != 0) {
+		/* Check for RESERVATION CONFLICT (status 0x18) */
+		if (io.status == 0x18 || io.masked_status == 0x0C)
+			return -EBUSY;
+		return -EIO;
+	}
 
-    return 0;
+	return 0;
 }
 
 static int scsi_pr_in_read_keys(int fd, uint64_t *keys, int max_keys,
-                                int *count, uint32_t *generation, int *total)
+				int *count, uint32_t *generation, int *total)
 {
-    uint8_t cdb[10];
-    uint8_t *resp;
-    struct sg_io_hdr io;
-    uint8_t sense[32];
-    uint32_t resp_len;
-    uint32_t addl_len;
-    int nkeys;
-    int i;
-    int ret;
+	uint8_t cdb[10];
+	uint8_t *resp;
+	struct sg_io_hdr io;
+	uint8_t sense[32];
+	uint32_t resp_len;
+	uint32_t addl_len;
+	int nkeys;
+	int i;
+	int ret;
 
-    resp_len = 8 + (uint32_t)max_keys * 8;
-    resp = calloc(1, resp_len);
-    if (!resp)
-        return -ENOMEM;
+	resp_len = 8 + (uint32_t)max_keys * 8;
+	resp = calloc(1, resp_len);
+	if (!resp)
+		return -ENOMEM;
 
-    memset(cdb, 0, sizeof(cdb));
-    cdb[0] = PR_IN_CMD;
-    cdb[1] = PR_SA_READ_KEYS;
-    cdb[7] = (uint8_t)((resp_len >> 8) & 0xFF);
-    cdb[8] = (uint8_t)(resp_len & 0xFF);
+	memset(cdb, 0, sizeof(cdb));
+	cdb[0] = PR_IN_CMD;
+	cdb[1] = PR_SA_READ_KEYS;
+	cdb[7] = (uint8_t)((resp_len >> 8) & 0xFF);
+	cdb[8] = (uint8_t)(resp_len & 0xFF);
 
-    memset(&io, 0, sizeof(io));
-    io.interface_id = 'S';
-    io.dxfer_direction = SG_DXFER_FROM_DEV;
-    io.cmd_len = sizeof(cdb);
-    io.cmdp = cdb;
-    io.dxfer_len = resp_len;
-    io.dxferp = resp;
-    io.sbp = sense;
-    io.mx_sb_len = sizeof(sense);
-    io.timeout = 30000;
+	memset(&io, 0, sizeof(io));
+	io.interface_id = 'S';
+	io.dxfer_direction = SG_DXFER_FROM_DEV;
+	io.cmd_len = sizeof(cdb);
+	io.cmdp = cdb;
+	io.dxfer_len = resp_len;
+	io.dxferp = resp;
+	io.sbp = sense;
+	io.mx_sb_len = sizeof(sense);
+	io.timeout = 30000;
 
-    ret = ioctl(fd, SG_IO, &io);
-    if (ret < 0) {
-        free(resp);
-        return -errno;
-    }
+	ret = ioctl(fd, SG_IO, &io);
+	if (ret < 0) {
+		free(resp);
+		return -errno;
+	}
 
-    if (io.status != 0) {
-        free(resp);
-        return -EIO;
-    }
+	if (io.status != 0) {
+		free(resp);
+		return -EIO;
+	}
 
-    /* Parse response: 4-byte generation, 4-byte additional length, then keys */
-    if (generation)
-        *generation = ((uint32_t)resp[0] << 24) | ((uint32_t)resp[1] << 16) |
-                      ((uint32_t)resp[2] << 8) | (uint32_t)resp[3];
+	/* Parse response: 4-byte generation, 4-byte additional length, then keys */
+	if (generation)
+		*generation = ((uint32_t)resp[0] << 24) | ((uint32_t)resp[1] << 16) |
+			      ((uint32_t)resp[2] << 8) | (uint32_t)resp[3];
 
-    addl_len = ((uint32_t)resp[4] << 24) | ((uint32_t)resp[5] << 16) |
-               ((uint32_t)resp[6] << 8) | (uint32_t)resp[7];
+	addl_len = ((uint32_t)resp[4] << 24) | ((uint32_t)resp[5] << 16) |
+		   ((uint32_t)resp[6] << 8) | (uint32_t)resp[7];
 
-    /* ADDITIONAL LENGTH counts every descriptor the TARGET holds, not the
-     * number that fit in our allocation.  Report it so the caller can tell
-     * a complete view from a truncated one — see the contract in pal.h. */
-    if (total)
-        *total = (int)(addl_len / 8);
+	/* ADDITIONAL LENGTH counts every descriptor the TARGET holds, not the
+	 * number that fit in our allocation.  Report it so the caller can tell
+	 * a complete view from a truncated one — see the contract in pal.h. */
+	if (total)
+		*total = (int)(addl_len / 8);
 
-    nkeys = (int)(addl_len / 8);
-    if (nkeys > max_keys)
-        nkeys = max_keys;
+	nkeys = (int)(addl_len / 8);
+	if (nkeys > max_keys)
+		nkeys = max_keys;
 
-    for (i = 0; i < nkeys; i++) {
-        int off = 8 + i * 8;
+	for (i = 0; i < nkeys; i++) {
+		int off = 8 + i * 8;
 
-        keys[i] = ((uint64_t)resp[off] << 56) |
-                  ((uint64_t)resp[off + 1] << 48) |
-                  ((uint64_t)resp[off + 2] << 40) |
-                  ((uint64_t)resp[off + 3] << 32) |
-                  ((uint64_t)resp[off + 4] << 24) |
-                  ((uint64_t)resp[off + 5] << 16) |
-                  ((uint64_t)resp[off + 6] << 8) |
-                  (uint64_t)resp[off + 7];
-    }
+		keys[i] = ((uint64_t)resp[off] << 56) |
+			  ((uint64_t)resp[off + 1] << 48) |
+			  ((uint64_t)resp[off + 2] << 40) |
+			  ((uint64_t)resp[off + 3] << 32) |
+			  ((uint64_t)resp[off + 4] << 24) |
+			  ((uint64_t)resp[off + 5] << 16) |
+			  ((uint64_t)resp[off + 6] << 8) |
+			  (uint64_t)resp[off + 7];
+	}
 
-    *count = nkeys;
-    free(resp);
-    return 0;
+	*count = nkeys;
+	free(resp);
+	return 0;
 }
 
 int mxfs_pal_scsi_pr_register(mxfs_bdev_t *dev, uint64_t key)
 {
-    if (!dev)
-        return -EINVAL;
-    /* sess433: PLAIN REGISTER (SA 0x00), reservation key 0.  A nexus that
-     * already holds a registration answers RESERVATION CONFLICT (-EBUSY
-     * from scsi_pr_out) and nothing changes — that is a predecessor
-     * incarnation's retained fence target; see pal.h. */
-    int ret = scsi_pr_out(dev->fd, PR_SA_REGISTER, 0, key, 0);
+	if (!dev)
+		return -EINVAL;
+	/* PLAIN REGISTER (SA 0x00), reservation key 0.  A nexus that
+	 * already holds a registration answers RESERVATION CONFLICT (-EBUSY
+	 * from scsi_pr_out) and nothing changes — that is a predecessor
+	 * incarnation's retained fence target; see pal.h. */
+	int ret = scsi_pr_out(dev->fd, PR_SA_REGISTER, 0, key, 0);
 
-    if (ret == -EBUSY)
-        return -EEXIST;
-    return ret;
+	if (ret == -EBUSY)
+		return -EEXIST;
+	return ret;
 }
 
 int mxfs_pal_scsi_pr_register_replace(mxfs_bdev_t *dev, uint64_t key)
 {
-    if (!dev)
-        return -EINVAL;
-    /* REGISTER AND IGNORE EXISTING KEY: old_key=0, new_key=key */
-    return scsi_pr_out(dev->fd, PR_SA_REG_IGNORE, 0, key, 0);
+	if (!dev)
+		return -EINVAL;
+	/* REGISTER AND IGNORE EXISTING KEY: old_key=0, new_key=key */
+	return scsi_pr_out(dev->fd, PR_SA_REG_IGNORE, 0, key, 0);
 }
 
 int mxfs_pal_scsi_pr_register_swap(mxfs_bdev_t *dev, uint64_t old_key,
-                                   uint64_t new_key)
+				   uint64_t new_key)
 {
-    int ret;
+	int ret;
 
-    if (!dev || !old_key)
-        return -EINVAL;
-    /* sess439: REGISTER rk=old_key sark=new_key — executed only if this
-     * nexus holds old_key; RESERVATION CONFLICT (-EBUSY from scsi_pr_out)
-     * means it does not and nothing changed. */
-    ret = scsi_pr_out(dev->fd, PR_SA_REGISTER, old_key, new_key, 0);
-    return ret == -EBUSY ? -ENOKEY : ret;
+	if (!dev || !old_key)
+		return -EINVAL;
+	/* REGISTER rk=old_key sark=new_key — executed only if this
+	 * nexus holds old_key; RESERVATION CONFLICT (-EBUSY from scsi_pr_out)
+	 * means it does not and nothing changed. */
+	ret = scsi_pr_out(dev->fd, PR_SA_REGISTER, old_key, new_key, 0);
+	return ret == -EBUSY ? -ENOKEY : ret;
 }
 
 int mxfs_pal_scsi_pr_reserve(mxfs_bdev_t *dev, uint64_t key, uint32_t type)
 {
-    if (!dev)
-        return -EINVAL;
-    if (type != PR_TYPE_WR_EX_RO && type != PR_TYPE_WR_EX_AR)
-        return -EINVAL;
+	if (!dev)
+		return -EINVAL;
+	if (type != PR_TYPE_WR_EX_RO && type != PR_TYPE_WR_EX_AR)
+		return -EINVAL;
 
-    /* sess381: RESERVATION CONFLICT is returned VERBATIM as -EBUSY, not
-     * folded into 0.  See the contract in pal.h — under an all-registrants
-     * type a conflict from a registered requester is abnormal and means the
-     * reservation in force has the wrong type/scope, or our registration is
-     * gone.  Only the caller can read back and classify that. */
-    return scsi_pr_out(dev->fd, PR_SA_RESERVE, key, 0, (uint8_t)type);
+	/* RESERVATION CONFLICT is returned VERBATIM as -EBUSY, not
+	 * folded into 0.  See the contract in pal.h — under an all-registrants
+	 * type a conflict from a registered requester is abnormal and means the
+	 * reservation in force has the wrong type/scope, or our registration is
+	 * gone.  Only the caller can read back and classify that. */
+	return scsi_pr_out(dev->fd, PR_SA_RESERVE, key, 0, (uint8_t)type);
 }
 
 int mxfs_pal_scsi_pr_report_capabilities(mxfs_bdev_t *dev,
-                                         struct mxfs_pal_pr_caps *out)
+					 struct mxfs_pal_pr_caps *out)
 {
-    uint8_t cdb[10];
-    uint8_t resp[8];
-    struct sg_io_hdr io;
-    uint8_t sense[32];
-    int ret;
+	uint8_t cdb[10];
+	uint8_t resp[8];
+	struct sg_io_hdr io;
+	uint8_t sense[32];
+	int ret;
 
-    if (!dev || !out)
-        return -EINVAL;
+	if (!dev || !out)
+		return -EINVAL;
 
-    memset(out, 0, sizeof(*out));
-    /* User-mode talks to the device node directly, so if we can issue the
-     * CDB at all we can issue PREEMPT AND ABORT too. */
-    out->abort_capable = true;
+	memset(out, 0, sizeof(*out));
+	/* User-mode talks to the device node directly, so if we can issue the
+	 * CDB at all we can issue PREEMPT AND ABORT too. */
+	out->abort_capable = true;
 
-    memset(cdb, 0, sizeof(cdb));
-    memset(resp, 0, sizeof(resp));
-    cdb[0] = PR_IN_CMD;
-    cdb[1] = 0x02;                      /* REPORT CAPABILITIES */
-    cdb[7] = (uint8_t)((sizeof(resp) >> 8) & 0xFF);
-    cdb[8] = (uint8_t)(sizeof(resp) & 0xFF);
+	memset(cdb, 0, sizeof(cdb));
+	memset(resp, 0, sizeof(resp));
+	cdb[0] = PR_IN_CMD;
+	cdb[1] = 0x02;                      /* REPORT CAPABILITIES */
+	cdb[7] = (uint8_t)((sizeof(resp) >> 8) & 0xFF);
+	cdb[8] = (uint8_t)(sizeof(resp) & 0xFF);
 
-    memset(&io, 0, sizeof(io));
-    memset(sense, 0, sizeof(sense));
-    io.interface_id = 'S';
-    io.dxfer_direction = SG_DXFER_FROM_DEV;
-    io.cmd_len = sizeof(cdb);
-    io.cmdp = cdb;
-    io.dxfer_len = sizeof(resp);
-    io.dxferp = resp;
-    io.sbp = sense;
-    io.mx_sb_len = sizeof(sense);
-    io.timeout = 30000;
+	memset(&io, 0, sizeof(io));
+	memset(sense, 0, sizeof(sense));
+	io.interface_id = 'S';
+	io.dxfer_direction = SG_DXFER_FROM_DEV;
+	io.cmd_len = sizeof(cdb);
+	io.cmdp = cdb;
+	io.dxfer_len = sizeof(resp);
+	io.dxferp = resp;
+	io.sbp = sense;
+	io.mx_sb_len = sizeof(sense);
+	io.timeout = 30000;
 
-    if (ioctl(dev->fd, SG_IO, &io) < 0)
-        return -errno;
-    if (io.status == 0x02 /* CHECK CONDITION */) {
-        /* ILLEGAL REQUEST -> the target does not implement SA 0x02. */
-        if (io.sb_len_wr > 2 && (sense[2] & 0x0F) == 0x05)
-            return -EOPNOTSUPP;
-        return -EIO;
-    }
-    if (io.status != 0)
-        return -EIO;
+	if (ioctl(dev->fd, SG_IO, &io) < 0)
+		return -errno;
+	if (io.status == 0x02 /* CHECK CONDITION */) {
+		/* ILLEGAL REQUEST -> the target does not implement SA 0x02. */
+		if (io.sb_len_wr > 2 && (sense[2] & 0x0F) == 0x05)
+			return -EOPNOTSUPP;
+		return -EIO;
+	}
+	if (io.status != 0)
+		return -EIO;
 
-    out->ptpl_c    = !!(resp[2] & 0x01);
-    out->atp_c     = !!(resp[2] & 0x04);
-    out->sip_c     = !!(resp[2] & 0x08);
-    out->crh       = !!(resp[2] & 0x10);
-    out->ptpl_a    = !!(resp[3] & 0x01);
-    out->tmv       = !!(resp[3] & 0x80);
-    out->type_mask = ((uint16_t)resp[4] << 8) | (uint16_t)resp[5];
-    out->we_ro     = out->tmv && !!(resp[4] & 0x20);
-    /* WR_EX_AR is type 7h == byte 4 bit 7 (sess381). */
-    out->we_ar     = out->tmv && !!(resp[4] & 0x80);
-    (void)ret;
-    return 0;
+	out->ptpl_c    = !!(resp[2] & 0x01);
+	out->atp_c     = !!(resp[2] & 0x04);
+	out->sip_c     = !!(resp[2] & 0x08);
+	out->crh       = !!(resp[2] & 0x10);
+	out->ptpl_a    = !!(resp[3] & 0x01);
+	out->tmv       = !!(resp[3] & 0x80);
+	out->type_mask = ((uint16_t)resp[4] << 8) | (uint16_t)resp[5];
+	out->we_ro     = out->tmv && !!(resp[4] & 0x20);
+	/* WR_EX_AR is type 7h == byte 4 bit 7. */
+	out->we_ar     = out->tmv && !!(resp[4] & 0x80);
+	(void)ret;
+	return 0;
 }
 
 /*
@@ -1494,101 +1494,101 @@ int mxfs_pal_scsi_pr_report_capabilities(mxfs_bdev_t *dev,
  */
 static uint8_t inquiry_designator_prio(const uint8_t *d)
 {
-    if (d[1] & 0x30)            /* not associated with the logical unit */
-        return 0;
-    if (d[3] == 0)              /* invalid length */
-        return 0;
+	if (d[1] & 0x30)            /* not associated with the logical unit */
+		return 0;
+	if (d[3] == 0)              /* invalid length */
+		return 0;
 
-    switch (d[1] & 0x0f) {
-    case 8:                                     /* SCSI name string       */
-        return 9;
-    case 3:                                     /* NAA                    */
-        switch (d[4] >> 4) {
-        case 6: return 8;                       /* registered extended    */
-        case 5: return 5;                       /* registered             */
-        case 4: return 4;                       /* extended               */
-        case 3: return 1;                       /* locally assigned       */
-        default: break;
-        }
-        break;
-    case 2:                                     /* EUI-64                 */
-        switch (d[3]) {
-        case 16: return 7;
-        case 12: return 6;
-        case 8:  return 3;
-        default: break;
-        }
-        break;
-    case 1:                                     /* T10 vendor ID          */
-        return 1;
-    default:
-        break;
-    }
-    return 0;
+	switch (d[1] & 0x0f) {
+	case 8:                                     /* SCSI name string       */
+		return 9;
+	case 3:                                     /* NAA                    */
+		switch (d[4] >> 4) {
+		case 6: return 8;                       /* registered extended    */
+		case 5: return 5;                       /* registered             */
+		case 4: return 4;                       /* extended               */
+		case 3: return 1;                       /* locally assigned       */
+		default: break;
+		}
+		break;
+	case 2:                                     /* EUI-64                 */
+		switch (d[3]) {
+		case 16: return 7;
+		case 12: return 6;
+		case 8:  return 3;
+		default: break;
+		}
+		break;
+	case 1:                                     /* T10 vendor ID          */
+		return 1;
+	default:
+		break;
+	}
+	return 0;
 }
 
 static int inquiry_hexcat(char *out, size_t outsz, const char *prefix,
-                          const uint8_t *src, size_t len)
+			  const uint8_t *src, size_t len)
 {
-    size_t need = strlen(prefix) + len * 2 + 1;
-    size_t i;
+	size_t need = strlen(prefix) + len * 2 + 1;
+	size_t i;
 
-    if (need > outsz)
-        return -ENAMETOOLONG;
-    strcpy(out, prefix);
-    for (i = 0; i < len; i++)
-        sprintf(out + strlen(prefix) + i * 2, "%02x", src[i]);
-    return 0;
+	if (need > outsz)
+		return -ENAMETOOLONG;
+	strcpy(out, prefix);
+	for (i = 0; i < len; i++)
+		sprintf(out + strlen(prefix) + i * 2, "%02x", src[i]);
+	return 0;
 }
 
 static int scsi_inquiry(int fd, int evpd, uint8_t page, uint8_t *resp,
-                        uint32_t resp_len)
+			uint32_t resp_len)
 {
-    uint8_t cdb[6];
-    struct sg_io_hdr io;
-    uint8_t sense[32];
+	uint8_t cdb[6];
+	struct sg_io_hdr io;
+	uint8_t sense[32];
 
-    memset(cdb, 0, sizeof(cdb));
-    cdb[0] = 0x12;                      /* INQUIRY */
-    cdb[1] = evpd ? 0x01 : 0x00;
-    cdb[2] = evpd ? page : 0x00;
-    cdb[3] = (uint8_t)(resp_len >> 8);
-    cdb[4] = (uint8_t)resp_len;
+	memset(cdb, 0, sizeof(cdb));
+	cdb[0] = 0x12;                      /* INQUIRY */
+	cdb[1] = evpd ? 0x01 : 0x00;
+	cdb[2] = evpd ? page : 0x00;
+	cdb[3] = (uint8_t)(resp_len >> 8);
+	cdb[4] = (uint8_t)resp_len;
 
-    memset(resp, 0, resp_len);
-    memset(&io, 0, sizeof(io));
-    io.interface_id = 'S';
-    io.dxfer_direction = SG_DXFER_FROM_DEV;
-    io.cmd_len = sizeof(cdb);
-    io.cmdp = cdb;
-    io.dxfer_len = resp_len;
-    io.dxferp = resp;
-    io.sbp = sense;
-    io.mx_sb_len = sizeof(sense);
-    io.timeout = 30000;
+	memset(resp, 0, resp_len);
+	memset(&io, 0, sizeof(io));
+	io.interface_id = 'S';
+	io.dxfer_direction = SG_DXFER_FROM_DEV;
+	io.cmd_len = sizeof(cdb);
+	io.cmdp = cdb;
+	io.dxfer_len = resp_len;
+	io.dxferp = resp;
+	io.sbp = sense;
+	io.mx_sb_len = sizeof(sense);
+	io.timeout = 30000;
 
-    if (ioctl(fd, SG_IO, &io) < 0)
-        return -errno;
-    if (io.status != 0)
-        return -EIO;
-    return 0;
+	if (ioctl(fd, SG_IO, &io) < 0)
+		return -errno;
+	if (io.status != 0)
+		return -EIO;
+	return 0;
 }
 
 static void inquiry_field(char *out, size_t outsz, const uint8_t *src,
-                          size_t srclen)
+			  size_t srclen)
 {
-    size_t n;
+	size_t n;
 
-    if (!out || outsz == 0)
-        return;
-    out[0] = '\0';
-    if (srclen > outsz - 1)
-        srclen = outsz - 1;
-    memcpy(out, src, srclen);
-    out[srclen] = '\0';
-    n = srclen;
-    while (n > 0 && (out[n - 1] == ' ' || out[n - 1] == '\t'))
-        out[--n] = '\0';
+	if (!out || outsz == 0)
+		return;
+	out[0] = '\0';
+	if (srclen > outsz - 1)
+		srclen = outsz - 1;
+	memcpy(out, src, srclen);
+	out[srclen] = '\0';
+	n = srclen;
+	while (n > 0 && (out[n - 1] == ' ' || out[n - 1] == '\t'))
+		out[--n] = '\0';
 }
 
 /*
@@ -1604,57 +1604,57 @@ static void inquiry_field(char *out, size_t outsz, const uint8_t *src,
  */
 const char *mxfs_pal_lu_reset_verdict_name(int v)
 {
-    switch (v) {
-    case MXFS_PAL_LURESET_REFUSED:       return "REFUSED";
-    case MXFS_PAL_LURESET_WITNESSED:     return "WITNESSED";
-    case MXFS_PAL_LURESET_INDETERMINATE: return "INDETERMINATE";
-    default:                             return "NOT_RUN";
-    }
+	switch (v) {
+	case MXFS_PAL_LURESET_REFUSED:       return "REFUSED";
+	case MXFS_PAL_LURESET_WITNESSED:     return "WITNESSED";
+	case MXFS_PAL_LURESET_INDETERMINATE: return "INDETERMINATE";
+	default:                             return "NOT_RUN";
+	}
 }
 
 /* 0.89.33 — see pal.h.  The buffer is static and written once: callers hold
  * the pointer and compare against it, and no user-mode caller can free it. */
 const char *mxfs_pal_kernel_release(void)
 {
-    static char rel[68];
-    struct utsname u;
+	static char rel[68];
+	struct utsname u;
 
-    if (rel[0])
-        return rel;
-    if (uname(&u) == 0)
-        snprintf(rel, sizeof(rel), "%s", u.release);
-    else
-        snprintf(rel, sizeof(rel), "unknown");
-    return rel;
+	if (rel[0])
+		return rel;
+	if (uname(&u) == 0)
+		snprintf(rel, sizeof(rel), "%s", u.release);
+	else
+		snprintf(rel, sizeof(rel), "unknown");
+	return rel;
 }
 
 /* 0.89.80 — see pal.h.  A user-mode build has no build kernel and no libiscsi
  * headers of its own, so nothing here can be admitted by fingerprint. */
 const char *mxfs_pal_kernel_build_release(void)
 {
-    return "";
+	return "";
 }
 
 const char *mxfs_pal_libiscsi_fingerprint(void)
 {
-    return "absent:user-mode";
+	return "absent:user-mode";
 }
 
 int mxfs_pal_lu_reset_witness(const struct mxfs_pal_lu_reset_req *req,
-                              struct mxfs_pal_lu_reset_result *out)
+			      struct mxfs_pal_lu_reset_result *out)
 {
-    (void)req;
-    if (!out)
-        return -EINVAL;
-    memset(out, 0, sizeof(*out));
-    out->verdict = MXFS_PAL_LURESET_NOT_RUN;
-    snprintf(out->reason, sizeof(out->reason), "no-user-mode-lu-reset-witness");
-    return -EOPNOTSUPP;
+	(void)req;
+	if (!out)
+		return -EINVAL;
+	memset(out, 0, sizeof(*out));
+	out->verdict = MXFS_PAL_LURESET_NOT_RUN;
+	snprintf(out->reason, sizeof(out->reason), "no-user-mode-lu-reset-witness");
+	return -EOPNOTSUPP;
 }
 
 int mxfs_pal_lu_reset_init(void)
 {
-    return 0;
+	return 0;
 }
 
 void mxfs_pal_lu_reset_exit(void)
@@ -1663,134 +1663,134 @@ void mxfs_pal_lu_reset_exit(void)
 
 int mxfs_pal_scsi_target_id(mxfs_bdev_t *dev, struct mxfs_pal_target_id *out)
 {
-    uint8_t std[96];
-    uint8_t vpd[512];
-    uint32_t page_len;
-    uint32_t off;
-    uint8_t best = 0;
-    int rc;
+	uint8_t std[96];
+	uint8_t vpd[512];
+	uint32_t page_len;
+	uint32_t off;
+	uint8_t best = 0;
+	int rc;
 
-    if (!dev || !out)
-        return -EINVAL;
+	if (!dev || !out)
+		return -EINVAL;
 
-    memset(out, 0, sizeof(*out));
+	memset(out, 0, sizeof(*out));
 
-    rc = scsi_inquiry(dev->fd, 0, 0x00, std, sizeof(std));
-    if (rc)
-        return rc;
-    inquiry_field(out->vendor, sizeof(out->vendor), std + 8, 8);
-    inquiry_field(out->model, sizeof(out->model), std + 16, 16);
-    inquiry_field(out->rev, sizeof(out->rev), std + 32, 4);
+	rc = scsi_inquiry(dev->fd, 0, 0x00, std, sizeof(std));
+	if (rc)
+		return rc;
+	inquiry_field(out->vendor, sizeof(out->vendor), std + 8, 8);
+	inquiry_field(out->model, sizeof(out->model), std + 16, 16);
+	inquiry_field(out->rev, sizeof(out->rev), std + 32, 4);
 
-    rc = scsi_inquiry(dev->fd, 1, 0x83, vpd, sizeof(vpd));
-    if (rc) {
-        memset(out, 0, sizeof(*out));
-        return rc;
-    }
-    page_len = ((uint32_t)vpd[2] << 8) | (uint32_t)vpd[3];
-    if (page_len + 4 > sizeof(vpd))
-        page_len = sizeof(vpd) - 4;
+	rc = scsi_inquiry(dev->fd, 1, 0x83, vpd, sizeof(vpd));
+	if (rc) {
+		memset(out, 0, sizeof(*out));
+		return rc;
+	}
+	page_len = ((uint32_t)vpd[2] << 8) | (uint32_t)vpd[3];
+	if (page_len + 4 > sizeof(vpd))
+		page_len = sizeof(vpd) - 4;
 
-    for (off = 4; off + 4 <= page_len + 4; ) {
-        const uint8_t *d = vpd + off;
-        uint8_t dlen = d[3];
-        uint8_t prio;
+	for (off = 4; off + 4 <= page_len + 4; ) {
+		const uint8_t *d = vpd + off;
+		uint8_t dlen = d[3];
+		uint8_t prio;
 
-        if (off + 4 + dlen > page_len + 4)
-            break;
-        prio = inquiry_designator_prio(d);
-        if (prio == 0 || prio < best) {
-            off += dlen + 4;
-            continue;
-        }
-        switch (d[1] & 0x0f) {
-        case 0x1:
-            if (inquiry_hexcat(out->lun_id, sizeof(out->lun_id), "t10.",
-                               d + 4, dlen) == 0)
-                best = prio;
-            break;
-        case 0x2:
-            if ((dlen == 8 || dlen == 12 || dlen == 16) &&
-                inquiry_hexcat(out->lun_id, sizeof(out->lun_id), "eui.",
-                               d + 4, dlen) == 0)
-                best = prio;
-            break;
-        case 0x3:
-            if ((dlen == 8 || dlen == 16) &&
-                inquiry_hexcat(out->lun_id, sizeof(out->lun_id), "naa.",
-                               d + 4, dlen) == 0)
-                best = prio;
-            break;
-        case 0x8:
-            if (dlen < sizeof(out->lun_id)) {
-                memcpy(out->lun_id, d + 4, dlen);
-                out->lun_id[dlen] = '\0';
-                best = prio;
-            }
-            break;
-        default:
-            break;
-        }
-        off += dlen + 4;
-    }
+		if (off + 4 + dlen > page_len + 4)
+			break;
+		prio = inquiry_designator_prio(d);
+		if (prio == 0 || prio < best) {
+			off += dlen + 4;
+			continue;
+		}
+		switch (d[1] & 0x0f) {
+		case 0x1:
+			if (inquiry_hexcat(out->lun_id, sizeof(out->lun_id), "t10.",
+					   d + 4, dlen) == 0)
+				best = prio;
+			break;
+		case 0x2:
+			if ((dlen == 8 || dlen == 12 || dlen == 16) &&
+			    inquiry_hexcat(out->lun_id, sizeof(out->lun_id), "eui.",
+					   d + 4, dlen) == 0)
+				best = prio;
+			break;
+		case 0x3:
+			if ((dlen == 8 || dlen == 16) &&
+			    inquiry_hexcat(out->lun_id, sizeof(out->lun_id), "naa.",
+					   d + 4, dlen) == 0)
+				best = prio;
+			break;
+		case 0x8:
+			if (dlen < sizeof(out->lun_id)) {
+				memcpy(out->lun_id, d + 4, dlen);
+				out->lun_id[dlen] = '\0';
+				best = prio;
+			}
+			break;
+		default:
+			break;
+		}
+		off += dlen + 4;
+	}
 
-    if (out->lun_id[0] == '\0') {
-        memset(out, 0, sizeof(*out));
-        return -ENXIO;
-    }
-    return 0;
+	if (out->lun_id[0] == '\0') {
+		memset(out, 0, sizeof(*out));
+		return -ENXIO;
+	}
+	return 0;
 }
 
 int mxfs_pal_scsi_pr_preempt(mxfs_bdev_t *dev, uint64_t my_key,
-                             uint64_t victim_key, bool abort, uint32_t type)
+			     uint64_t victim_key, bool abort, uint32_t type)
 {
-    if (!dev)
-        return -EINVAL;
-    /* Same contract as the kernel PAL: the single-holder WRITE EXCLUSIVE is
-     * accepted only as PREEMPT AND ABORT with a zero service-action key (the
-     * sole-survivor gate); see pal/linux/kern.c. */
-    if (type == MXFS_PAL_PR_TYPE_WR_EX) {
-        if (!abort || victim_key != 0)
-            return -EINVAL;
-    } else if (type != PR_TYPE_WR_EX_RO && type != PR_TYPE_WR_EX_AR) {
-        return -EINVAL;
-    }
+	if (!dev)
+		return -EINVAL;
+	/* Same contract as the kernel PAL: the single-holder WRITE EXCLUSIVE is
+	 * accepted only as PREEMPT AND ABORT with a zero service-action key (the
+	 * sole-survivor gate); see pal/linux/kern.c. */
+	if (type == MXFS_PAL_PR_TYPE_WR_EX) {
+		if (!abort || victim_key != 0)
+			return -EINVAL;
+	} else if (type != PR_TYPE_WR_EX_RO && type != PR_TYPE_WR_EX_AR) {
+		return -EINVAL;
+	}
 
-    /*
-     * RESERVATION CONFLICT comes back as -EBUSY and is returned VERBATIM:
-     * our command performed nothing, so it is not a fence.  See the
-     * contract in pal.h — collapsing it to 0 was the sess71 defect.
-     */
-    return scsi_pr_out(dev->fd, abort ? PR_SA_PREEMPT_ABORT : PR_SA_PREEMPT,
-                       my_key, victim_key, (uint8_t)type);
+	/*
+	 * RESERVATION CONFLICT comes back as -EBUSY and is returned VERBATIM:
+	 * our command performed nothing, so it is not a fence.  See the
+	 * contract in pal.h — collapsing it to 0 was the defect.
+	 */
+	return scsi_pr_out(dev->fd, abort ? PR_SA_PREEMPT_ABORT : PR_SA_PREEMPT,
+			   my_key, victim_key, (uint8_t)type);
 }
 
 int mxfs_pal_scsi_pr_unregister(mxfs_bdev_t *dev, uint64_t key)
 {
-    int ret;
+	int ret;
 
-    if (!dev)
-        return -EINVAL;
+	if (!dev)
+		return -EINVAL;
 
-    /* Unregister: old_key=key, new_key=0 */
-    ret = scsi_pr_out(dev->fd, PR_SA_REGISTER, key, 0, 0);
+	/* Unregister: old_key=key, new_key=0 */
+	ret = scsi_pr_out(dev->fd, PR_SA_REGISTER, key, 0, 0);
 
-    /* RESERVATION CONFLICT: key already gone (preempted or
-     * previously unregistered). Desired outcome. */
-    if (ret == -EBUSY)
-        return 0;
+	/* RESERVATION CONFLICT: key already gone (preempted or
+	 * previously unregistered). Desired outcome. */
+	if (ret == -EBUSY)
+		return 0;
 
-    return ret;
+	return ret;
 }
 
 int mxfs_pal_scsi_pr_read_keys(mxfs_bdev_t *dev, uint64_t *keys,
-                               int max_keys, int *count, uint32_t *generation,
-                               int *total)
+			       int max_keys, int *count, uint32_t *generation,
+			       int *total)
 {
-    if (!dev || !keys || !count)
-        return -EINVAL;
-    return scsi_pr_in_read_keys(dev->fd, keys, max_keys, count, generation,
-                                total);
+	if (!dev || !keys || !count)
+		return -EINVAL;
+	return scsi_pr_in_read_keys(dev->fd, keys, max_keys, count, generation,
+				    total);
 }
 
 /*
@@ -1802,129 +1802,129 @@ int mxfs_pal_scsi_pr_read_keys(mxfs_bdev_t *dev, uint64_t *keys,
  * ADDITIONAL LENGTH of 0 means the LUN is NOT reserved, which is a
  * successful read reporting "none held", not an error.
  */
-/* sess452: debug bracket failure is a kernel module param; never in user mode. */
+/* debug bracket failure is a kernel module param; never in user mode. */
 bool mxfs_pal_dbg_pr_bracket_fail_take(void)
 {
-    return false;
+	return false;
 }
 
 uint32_t mxfs_pal_dbg_pr_own_proof_brackets(void)
 {
-    return 4;
+	return 4;
 }
 
-/* sess454: settle/probe injectors are kernel module params only. */
+/* settle/probe injectors are kernel module params only. */
 uint32_t mxfs_pal_dbg_settle_pause_ms(void)
 {
-    return 0;
+	return 0;
 }
 
 bool mxfs_pal_dbg_settle_inval_after_mint_take(void)
 {
-    return false;
+	return false;
 }
 
 bool mxfs_pal_dbg_settle_double_consume_take(void)
 {
-    return false;
+	return false;
 }
 
 uint32_t mxfs_pal_dbg_probe_hang_take(void)
 {
-    return 0;
+	return 0;
 }
 
 uint32_t mxfs_pal_dbg_depart_late_token_take(void)
 {
-    return 0;
+	return 0;
 }
 
 int mxfs_pal_dbg_depart_inject_take(void)
 {
-    return 0;
+	return 0;
 }
 
-/* sess460: crash-cut / worker-hang / CAS-nocaw injectors are kernel-only. */
+/* crash-cut / worker-hang / CAS-nocaw injectors are kernel-only. */
 int mxfs_pal_dbg_depart_crash_cut_take(void)
 {
-    return 0;
+	return 0;
 }
 
 uint32_t mxfs_pal_dbg_depart_crash_hold_ms(void)
 {
-    return 0;
+	return 0;
 }
 
 uint32_t mxfs_pal_dbg_retire_hang_take(void)
 {
-    return 0;
+	return 0;
 }
 
 bool mxfs_pal_dbg_cas_nocaw(unsigned int opbit, const char *what)
 {
-    (void)opbit;
-    (void)what;
-    return false;
+	(void)opbit;
+	(void)what;
+	return false;
 }
 
 int mxfs_pal_scsi_pr_read_reservation(mxfs_bdev_t *dev,
-                                      struct mxfs_pal_pr_reservation *out)
+				      struct mxfs_pal_pr_reservation *out)
 {
-    uint8_t cdb[10];
-    uint8_t resp[24];
-    struct sg_io_hdr io;
-    uint8_t sense[32];
-    uint32_t addl_len;
-    int ret;
+	uint8_t cdb[10];
+	uint8_t resp[24];
+	struct sg_io_hdr io;
+	uint8_t sense[32];
+	uint32_t addl_len;
+	int ret;
 
-    if (!dev || !out)
-        return -EINVAL;
+	if (!dev || !out)
+		return -EINVAL;
 
-    memset(out, 0, sizeof(*out));
-    memset(resp, 0, sizeof(resp));
+	memset(out, 0, sizeof(*out));
+	memset(resp, 0, sizeof(resp));
 
-    memset(cdb, 0, sizeof(cdb));
-    cdb[0] = PR_IN_CMD;
-    cdb[1] = PR_SA_READ_RESV;
-    cdb[7] = (uint8_t)((sizeof(resp) >> 8) & 0xFF);
-    cdb[8] = (uint8_t)(sizeof(resp) & 0xFF);
+	memset(cdb, 0, sizeof(cdb));
+	cdb[0] = PR_IN_CMD;
+	cdb[1] = PR_SA_READ_RESV;
+	cdb[7] = (uint8_t)((sizeof(resp) >> 8) & 0xFF);
+	cdb[8] = (uint8_t)(sizeof(resp) & 0xFF);
 
-    memset(&io, 0, sizeof(io));
-    io.interface_id = 'S';
-    io.dxfer_direction = SG_DXFER_FROM_DEV;
-    io.cmd_len = sizeof(cdb);
-    io.cmdp = cdb;
-    io.dxfer_len = sizeof(resp);
-    io.dxferp = resp;
-    io.sbp = sense;
-    io.mx_sb_len = sizeof(sense);
-    io.timeout = 30000;
+	memset(&io, 0, sizeof(io));
+	io.interface_id = 'S';
+	io.dxfer_direction = SG_DXFER_FROM_DEV;
+	io.cmd_len = sizeof(cdb);
+	io.cmdp = cdb;
+	io.dxfer_len = sizeof(resp);
+	io.dxferp = resp;
+	io.sbp = sense;
+	io.mx_sb_len = sizeof(sense);
+	io.timeout = 30000;
 
-    ret = ioctl(dev->fd, SG_IO, &io);
-    if (ret < 0)
-        return -errno;
-    if (io.status != 0)
-        return -EIO;
+	ret = ioctl(dev->fd, SG_IO, &io);
+	if (ret < 0)
+		return -errno;
+	if (io.status != 0)
+		return -EIO;
 
-    out->generation = ((uint32_t)resp[0] << 24) | ((uint32_t)resp[1] << 16) |
-                      ((uint32_t)resp[2] << 8) | (uint32_t)resp[3];
+	out->generation = ((uint32_t)resp[0] << 24) | ((uint32_t)resp[1] << 16) |
+			  ((uint32_t)resp[2] << 8) | (uint32_t)resp[3];
 
-    addl_len = ((uint32_t)resp[4] << 24) | ((uint32_t)resp[5] << 16) |
-               ((uint32_t)resp[6] << 8) | (uint32_t)resp[7];
-    if (addl_len < 16)
-        return 0;                       /* no reservation held */
+	addl_len = ((uint32_t)resp[4] << 24) | ((uint32_t)resp[5] << 16) |
+		   ((uint32_t)resp[6] << 8) | (uint32_t)resp[7];
+	if (addl_len < 16)
+		return 0;                       /* no reservation held */
 
-    out->key = ((uint64_t)resp[8] << 56) | ((uint64_t)resp[9] << 48) |
-               ((uint64_t)resp[10] << 40) | ((uint64_t)resp[11] << 32) |
-               ((uint64_t)resp[12] << 24) | ((uint64_t)resp[13] << 16) |
-               ((uint64_t)resp[14] << 8) | (uint64_t)resp[15];
-    /* Response byte 21 low nibble is TYPE — already the SCSI WIRE value,
-     * which is the space the PAL contract exposes.  (The kernel backend
-     * has to translate; this one does not.) */
-    out->type = (uint32_t)(resp[21] & 0x0F);
-    out->held = true;
+	out->key = ((uint64_t)resp[8] << 56) | ((uint64_t)resp[9] << 48) |
+		   ((uint64_t)resp[10] << 40) | ((uint64_t)resp[11] << 32) |
+		   ((uint64_t)resp[12] << 24) | ((uint64_t)resp[13] << 16) |
+		   ((uint64_t)resp[14] << 8) | (uint64_t)resp[15];
+	/* Response byte 21 low nibble is TYPE — already the SCSI WIRE value,
+	 * which is the space the PAL contract exposes.  (The kernel backend
+	 * has to translate; this one does not.) */
+	out->type = (uint32_t)(resp[21] & 0x0F);
+	out->held = true;
 
-    return 0;
+	return 0;
 }
 
 /*
@@ -1934,102 +1934,102 @@ int mxfs_pal_scsi_pr_read_reservation(mxfs_bdev_t *dev,
  * ADDITIONAL DESCRIPTOR LENGTH (bytes 20-23) of TransportID each.
  */
 int mxfs_pal_scsi_pr_read_full_status(mxfs_bdev_t *dev, uint64_t key,
-                                      int *present, uint32_t *generation)
+				      int *present, uint32_t *generation)
 {
-    uint8_t cdb[10];
-    uint8_t *resp;
-    size_t resp_len = 4096;
-    struct sg_io_hdr io;
-    uint8_t sense[32];
-    uint32_t addl_len;
-    size_t off, end;
-    int resized = 0;
-    int ret;
+	uint8_t cdb[10];
+	uint8_t *resp;
+	size_t resp_len = 4096;
+	struct sg_io_hdr io;
+	uint8_t sense[32];
+	uint32_t addl_len;
+	size_t off, end;
+	int resized = 0;
+	int ret;
 
-    if (!dev || dev->fd < 0 || !present)
-        return -EINVAL;
+	if (!dev || dev->fd < 0 || !present)
+		return -EINVAL;
 
-    *present = 0;
-    if (generation)
-        *generation = 0;
+	*present = 0;
+	if (generation)
+		*generation = 0;
 
 resize:
-    resp = calloc(1, resp_len);
-    if (!resp)
-        return -ENOMEM;
+	resp = calloc(1, resp_len);
+	if (!resp)
+		return -ENOMEM;
 
-    memset(cdb, 0, sizeof(cdb));
-    cdb[0] = PR_IN_CMD;
-    cdb[1] = PR_SA_READ_FULL_STATUS;
-    cdb[7] = (uint8_t)((resp_len >> 8) & 0xFF);
-    cdb[8] = (uint8_t)(resp_len & 0xFF);
+	memset(cdb, 0, sizeof(cdb));
+	cdb[0] = PR_IN_CMD;
+	cdb[1] = PR_SA_READ_FULL_STATUS;
+	cdb[7] = (uint8_t)((resp_len >> 8) & 0xFF);
+	cdb[8] = (uint8_t)(resp_len & 0xFF);
 
-    memset(&io, 0, sizeof(io));
-    io.interface_id = 'S';
-    io.dxfer_direction = SG_DXFER_FROM_DEV;
-    io.cmd_len = sizeof(cdb);
-    io.cmdp = cdb;
-    io.dxfer_len = (unsigned int)resp_len;
-    io.dxferp = resp;
-    io.sbp = sense;
-    io.mx_sb_len = sizeof(sense);
-    io.timeout = 30000;
+	memset(&io, 0, sizeof(io));
+	io.interface_id = 'S';
+	io.dxfer_direction = SG_DXFER_FROM_DEV;
+	io.cmd_len = sizeof(cdb);
+	io.cmdp = cdb;
+	io.dxfer_len = (unsigned int)resp_len;
+	io.dxferp = resp;
+	io.sbp = sense;
+	io.mx_sb_len = sizeof(sense);
+	io.timeout = 30000;
 
-    ret = ioctl(dev->fd, SG_IO, &io);
-    if (ret < 0) {
-        free(resp);
-        return -errno;
-    }
-    if (io.status != 0) {
-        /* ILLEGAL REQUEST sense → target lacks SA 0x03; caller falls
-         * back to READ KEYS. */
-        free(resp);
-        if (io.status == 0x02 && (sense[2] & 0x0F) == 0x05)
-            return -EOPNOTSUPP;
-        return -EIO;
-    }
+	ret = ioctl(dev->fd, SG_IO, &io);
+	if (ret < 0) {
+		free(resp);
+		return -errno;
+	}
+	if (io.status != 0) {
+		/* ILLEGAL REQUEST sense → target lacks SA 0x03; caller falls
+		 * back to READ KEYS. */
+		free(resp);
+		if (io.status == 0x02 && (sense[2] & 0x0F) == 0x05)
+			return -EOPNOTSUPP;
+		return -EIO;
+	}
 
-    if (generation)
-        *generation = ((uint32_t)resp[0] << 24) | ((uint32_t)resp[1] << 16) |
-                      ((uint32_t)resp[2] << 8) | (uint32_t)resp[3];
-    addl_len = ((uint32_t)resp[4] << 24) | ((uint32_t)resp[5] << 16) |
-               ((uint32_t)resp[6] << 8) | (uint32_t)resp[7];
+	if (generation)
+		*generation = ((uint32_t)resp[0] << 24) | ((uint32_t)resp[1] << 16) |
+			      ((uint32_t)resp[2] << 8) | (uint32_t)resp[3];
+	addl_len = ((uint32_t)resp[4] << 24) | ((uint32_t)resp[5] << 16) |
+		   ((uint32_t)resp[6] << 8) | (uint32_t)resp[7];
 
-    /* Truncated view proves nothing about absence — resize once to the
-     * reported length and reissue. */
-    if (8 + (size_t)addl_len > resp_len) {
-        free(resp);
-        if (resized++ || addl_len > (1u << 20))
-            return -EPROTO;
-        resp_len = ((8 + (size_t)addl_len) + 511) & ~(size_t)511;
-        goto resize;
-    }
+	/* Truncated view proves nothing about absence — resize once to the
+	 * reported length and reissue. */
+	if (8 + (size_t)addl_len > resp_len) {
+		free(resp);
+		if (resized++ || addl_len > (1u << 20))
+			return -EPROTO;
+		resp_len = ((8 + (size_t)addl_len) + 511) & ~(size_t)511;
+		goto resize;
+	}
 
-    off = 8;
-    end = 8 + (size_t)addl_len;
-    while (off + 24 <= end) {
-        uint64_t dkey =
-            ((uint64_t)resp[off]     << 56) | ((uint64_t)resp[off + 1] << 48) |
-            ((uint64_t)resp[off + 2] << 40) | ((uint64_t)resp[off + 3] << 32) |
-            ((uint64_t)resp[off + 4] << 24) | ((uint64_t)resp[off + 5] << 16) |
-            ((uint64_t)resp[off + 6] << 8)  |  (uint64_t)resp[off + 7];
-        uint32_t tid_len =
-            ((uint32_t)resp[off + 20] << 24) | ((uint32_t)resp[off + 21] << 16) |
-            ((uint32_t)resp[off + 22] << 8)  |  (uint32_t)resp[off + 23];
+	off = 8;
+	end = 8 + (size_t)addl_len;
+	while (off + 24 <= end) {
+		uint64_t dkey =
+		    ((uint64_t)resp[off]     << 56) | ((uint64_t)resp[off + 1] << 48) |
+		    ((uint64_t)resp[off + 2] << 40) | ((uint64_t)resp[off + 3] << 32) |
+		    ((uint64_t)resp[off + 4] << 24) | ((uint64_t)resp[off + 5] << 16) |
+		    ((uint64_t)resp[off + 6] << 8)  |  (uint64_t)resp[off + 7];
+		uint32_t tid_len =
+		    ((uint32_t)resp[off + 20] << 24) | ((uint32_t)resp[off + 21] << 16) |
+		    ((uint32_t)resp[off + 22] << 8)  |  (uint32_t)resp[off + 23];
 
-        if (dkey == key) {
-            *present = 1;
-            break;
-        }
-        if (off + 24 + (size_t)tid_len > end) {
-            free(resp);
-            return -EPROTO;         /* descriptor overruns payload */
-        }
-        off += 24 + tid_len;
-    }
+		if (dkey == key) {
+			*present = 1;
+			break;
+		}
+		if (off + 24 + (size_t)tid_len > end) {
+			free(resp);
+			return -EPROTO;         /* descriptor overruns payload */
+		}
+		off += 24 + tid_len;
+	}
 
-    free(resp);
-    return 0;
+	free(resp);
+	return 0;
 }
 
 /* ─── SCSI COMPARE AND WRITE ───
@@ -2047,169 +2047,169 @@ void mxfs_pal_sdev_cache_release(void)
 }
 
 int mxfs_pal_bdev_compare_and_write(mxfs_bdev_t *dev, uint64_t offset,
-                                     const void *compare_buf,
-                                     const void *write_buf)
+				     const void *compare_buf,
+				     const void *write_buf)
 {
-    uint8_t cdb[16];
-    uint8_t data[1024];
-    struct sg_io_hdr io;
-    uint8_t sense[32];
-    uint64_t lba;
-    int ret;
+	uint8_t cdb[16];
+	uint8_t data[1024];
+	struct sg_io_hdr io;
+	uint8_t sense[32];
+	uint64_t lba;
+	int ret;
 
-    if (!dev || dev->fd < 0 || !compare_buf || !write_buf)
-        return -EINVAL;
+	if (!dev || dev->fd < 0 || !compare_buf || !write_buf)
+		return -EINVAL;
 
-    /* sess426 (D-0347): a REGULAR FILE backs the usermode tests — emulate
-     * the sector CAW under one process-wide lock (atomic for every thread
-     * of the harness; the kernel PAL issues the real SCSI command). */
-    {
-        struct stat st;
+	/* (D-0347): a REGULAR FILE backs the usermode tests — emulate
+	 * the sector CAW under one process-wide lock (atomic for every thread
+	 * of the harness; the kernel PAL issues the real SCSI command). */
+	{
+		struct stat st;
 
-        if (fstat(dev->fd, &st) == 0 && S_ISREG(st.st_mode)) {
-            static pthread_mutex_t caw_lock = PTHREAD_MUTEX_INITIALIZER;
-            uint8_t cur[512];
-            off_t o = (off_t)(offset + dev->base_offset);
-            ssize_t n;
-            int rc = 0;
+		if (fstat(dev->fd, &st) == 0 && S_ISREG(st.st_mode)) {
+			static pthread_mutex_t caw_lock = PTHREAD_MUTEX_INITIALIZER;
+			uint8_t cur[512];
+			off_t o = (off_t)(offset + dev->base_offset);
+			ssize_t n;
+			int rc = 0;
 
-            pthread_mutex_lock(&caw_lock);
-            n = pread(dev->fd, cur, 512, o);
-            if (n != 512)
-                rc = n < 0 ? -errno : -EIO;
-            else if (memcmp(cur, compare_buf, 512) != 0)
-                rc = -EAGAIN;
-            else if (pwrite(dev->fd, write_buf, 512, o) != 512)
-                rc = -EIO;
-            else if (fdatasync(dev->fd) != 0)
-                rc = -errno;
-            pthread_mutex_unlock(&caw_lock);
-            return rc;
-        }
-    }
+			pthread_mutex_lock(&caw_lock);
+			n = pread(dev->fd, cur, 512, o);
+			if (n != 512)
+				rc = n < 0 ? -errno : -EIO;
+			else if (memcmp(cur, compare_buf, 512) != 0)
+				rc = -EAGAIN;
+			else if (pwrite(dev->fd, write_buf, 512, o) != 512)
+				rc = -EIO;
+			else if (fdatasync(dev->fd) != 0)
+				rc = -errno;
+			pthread_mutex_unlock(&caw_lock);
+			return rc;
+		}
+	}
 
-    lba = (offset + dev->base_offset) / 512;
+	lba = (offset + dev->base_offset) / 512;
 
-    /* Build COMPARE AND WRITE CDB (16 bytes) */
-    memset(cdb, 0, sizeof(cdb));
-    cdb[0]  = 0x89;                     /* COMPARE AND WRITE opcode */
-    cdb[1]  = 0x08;                     /* FUA bit set */
-    cdb[2]  = (uint8_t)(lba >> 56);     /* LBA bytes 2-9 (big-endian) */
-    cdb[3]  = (uint8_t)(lba >> 48);
-    cdb[4]  = (uint8_t)(lba >> 40);
-    cdb[5]  = (uint8_t)(lba >> 32);
-    cdb[6]  = (uint8_t)(lba >> 24);
-    cdb[7]  = (uint8_t)(lba >> 16);
-    cdb[8]  = (uint8_t)(lba >> 8);
-    cdb[9]  = (uint8_t)(lba);
-    cdb[13] = 0x01;                     /* number of logical blocks = 1 */
+	/* Build COMPARE AND WRITE CDB (16 bytes) */
+	memset(cdb, 0, sizeof(cdb));
+	cdb[0]  = 0x89;                     /* COMPARE AND WRITE opcode */
+	cdb[1]  = 0x08;                     /* FUA bit set */
+	cdb[2]  = (uint8_t)(lba >> 56);     /* LBA bytes 2-9 (big-endian) */
+	cdb[3]  = (uint8_t)(lba >> 48);
+	cdb[4]  = (uint8_t)(lba >> 40);
+	cdb[5]  = (uint8_t)(lba >> 32);
+	cdb[6]  = (uint8_t)(lba >> 24);
+	cdb[7]  = (uint8_t)(lba >> 16);
+	cdb[8]  = (uint8_t)(lba >> 8);
+	cdb[9]  = (uint8_t)(lba);
+	cdb[13] = 0x01;                     /* number of logical blocks = 1 */
 
-    /* Data buffer: compare_buf (512) followed by write_buf (512) */
-    memcpy(data, compare_buf, 512);
-    memcpy(data + 512, write_buf, 512);
+	/* Data buffer: compare_buf (512) followed by write_buf (512) */
+	memcpy(data, compare_buf, 512);
+	memcpy(data + 512, write_buf, 512);
 
-    memset(&io, 0, sizeof(io));
-    io.interface_id = 'S';
-    io.dxfer_direction = SG_DXFER_TO_DEV;
-    io.cmd_len = sizeof(cdb);
-    io.cmdp = cdb;
-    io.dxfer_len = sizeof(data);
-    io.dxferp = data;
-    io.sbp = sense;
-    io.mx_sb_len = sizeof(sense);
-    io.timeout = 30000; /* 30 seconds */
+	memset(&io, 0, sizeof(io));
+	io.interface_id = 'S';
+	io.dxfer_direction = SG_DXFER_TO_DEV;
+	io.cmd_len = sizeof(cdb);
+	io.cmdp = cdb;
+	io.dxfer_len = sizeof(data);
+	io.dxferp = data;
+	io.sbp = sense;
+	io.mx_sb_len = sizeof(sense);
+	io.timeout = 30000; /* 30 seconds */
 
-    ret = ioctl(dev->fd, SG_IO, &io);
-    if (ret < 0)
-        return -errno;
+	ret = ioctl(dev->fd, SG_IO, &io);
+	if (ret < 0)
+		return -errno;
 
-    if (io.status != 0) {
-        /* Parse sense data for MISCOMPARE */
-        if (io.sb_len_wr > 0) {
-            uint8_t sense_key = 0;
+	if (io.status != 0) {
+		/* Parse sense data for MISCOMPARE */
+		if (io.sb_len_wr > 0) {
+			uint8_t sense_key = 0;
 
-            if ((sense[0] & 0x7F) == 0x70 || (sense[0] & 0x7F) == 0x71) {
-                /* Fixed format sense data */
-                sense_key = sense[2] & 0x0F;
-            } else if ((sense[0] & 0x7F) == 0x72 ||
-                       (sense[0] & 0x7F) == 0x73) {
-                /* Descriptor format sense data */
-                sense_key = sense[1] & 0x0F;
-            }
+			if ((sense[0] & 0x7F) == 0x70 || (sense[0] & 0x7F) == 0x71) {
+				/* Fixed format sense data */
+				sense_key = sense[2] & 0x0F;
+			} else if ((sense[0] & 0x7F) == 0x72 ||
+				   (sense[0] & 0x7F) == 0x73) {
+				/* Descriptor format sense data */
+				sense_key = sense[1] & 0x0F;
+			}
 
-            if (sense_key == 0x0E) /* MISCOMPARE */
-                return -EAGAIN;
-        }
-        return -EIO;
-    }
+			if (sense_key == 0x0E) /* MISCOMPARE */
+				return -EAGAIN;
+		}
+		return -EIO;
+	}
 
-    return 0;
+	return 0;
 }
 
 /* ─── Hostname ─── */
 
 int mxfs_pal_get_hostname(char *buf, size_t len)
 {
-    if (!buf || len == 0)
-        return -EINVAL;
-    if (gethostname(buf, len) < 0)
-        return -errno;
-    buf[len - 1] = '\0';
-    return 0;
+	if (!buf || len == 0)
+		return -EINVAL;
+	if (gethostname(buf, len) < 0)
+		return -errno;
+	buf[len - 1] = '\0';
+	return 0;
 }
 
 int mxfs_pal_read_file(const char *path, void *buf, size_t buf_size)
 {
-    FILE *f;
-    size_t nread;
+	FILE *f;
+	size_t nread;
 
-    if (!path || !buf || buf_size == 0)
-        return -EINVAL;
+	if (!path || !buf || buf_size == 0)
+		return -EINVAL;
 
-    f = fopen(path, "rb");
-    if (!f)
-        return -errno;
+	f = fopen(path, "rb");
+	if (!f)
+		return -errno;
 
-    nread = fread(buf, 1, buf_size, f);
-    fclose(f);
+	nread = fread(buf, 1, buf_size, f);
+	fclose(f);
 
-    if (nread == 0)
-        return -EIO;
+	if (nread == 0)
+		return -EIO;
 
-    return (int)nread;
+	return (int)nread;
 }
 
 /* ─── Random bytes ─── */
 
 void mxfs_pal_get_random_bytes(void *buf, size_t len)
 {
-    int fd;
-    size_t done = 0;
-    ssize_t n;
+	int fd;
+	size_t done = 0;
+	ssize_t n;
 
-    if (!buf || len == 0)
-        return;
+	if (!buf || len == 0)
+		return;
 
-    fd = open("/dev/urandom", O_RDONLY);
-    if (fd < 0) {
-        /* Last resort: zero-fill (should never happen on Linux) */
-        memset(buf, 0, len);
-        return;
-    }
+	fd = open("/dev/urandom", O_RDONLY);
+	if (fd < 0) {
+		/* Last resort: zero-fill (should never happen on Linux) */
+		memset(buf, 0, len);
+		return;
+	}
 
-    while (done < len) {
-        n = read(fd, (char *)buf + done, len - done);
-        if (n < 0) {
-            if (errno == EINTR)
-                continue;
-            break;
-        }
-        if (n == 0)
-            break;
-        done += (size_t)n;
-    }
+	while (done < len) {
+		n = read(fd, (char *)buf + done, len - done);
+		if (n < 0) {
+			if (errno == EINTR)
+				continue;
+			break;
+		}
+		if (n == 0)
+			break;
+		done += (size_t)n;
+	}
 
-    close(fd);
+	close(fd);
 }
 
 /* ─── CRC32C (Castagnoli) ─── */
@@ -2224,22 +2224,22 @@ static pthread_once_t crc32c_once = PTHREAD_ONCE_INIT;
 
 static void crc32c_table_init(void)
 {
-    uint32_t i, j, c;
+	uint32_t i, j, c;
 
-    for (i = 0; i < 256; i++) {
-        c = i;
-        for (j = 0; j < 8; j++)
-            c = (c & 1) ? (c >> 1) ^ 0x82F63B78u : c >> 1;
-        crc32c_table[i] = c;
-    }
+	for (i = 0; i < 256; i++) {
+		c = i;
+		for (j = 0; j < 8; j++)
+			c = (c & 1) ? (c >> 1) ^ 0x82F63B78u : c >> 1;
+		crc32c_table[i] = c;
+	}
 }
 
 uint32_t mxfs_pal_crc32c(uint32_t crc, const void *data, size_t len)
 {
-    const uint8_t *p = data;
+	const uint8_t *p = data;
 
-    pthread_once(&crc32c_once, crc32c_table_init);
-    while (len--)
-        crc = (crc >> 8) ^ crc32c_table[(crc & 0xFF) ^ *p++];
-    return crc;
+	pthread_once(&crc32c_once, crc32c_table_init);
+	while (len--)
+		crc = (crc >> 8) ^ crc32c_table[(crc & 0xFF) ^ *p++];
+	return crc;
 }

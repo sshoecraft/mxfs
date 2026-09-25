@@ -201,7 +201,7 @@ BOOTID_BEFORE=$(rs 25 "$B" 'cat /proc/sys/kernel/random/boot_id 2>/dev/null')
 echo "STAGE boot-id before join $B=$BOOTID_BEFORE"
 join() {
     echo "MARK=$RMARK" > "$OUT/$2_join.txt"
-    rsx $((JOIN_BOUND + 60)) "$1" "lsmod | grep -q '^mxfs ' || insmod $KO $MODARGS; echo INSMOD_RC=\$?; T0=\$(date +%s%N); mountpoint -q $MNT || timeout $JOIN_BOUND mount -t mxfs $MXFS_DEV $MNT; echo MOUNT_RC=\$?; echo WALL_MS=\$(( (\$(date +%s%N) - T0) / 1000000 )); mountpoint -q $MNT && echo MOUNTED || echo NOT_MOUNTED" >> "$OUT/$2_join.txt"
+    rsx $((JOIN_BOUND + 60)) "$1" "lsmod | grep -q '^mxfs ' || insmod $KO dyndbg=+p $MODARGS; echo INSMOD_RC=\$?; T0=\$(date +%s%N); mountpoint -q $MNT || timeout $JOIN_BOUND mount -t mxfs $MXFS_DEV $MNT; echo MOUNT_RC=\$?; echo WALL_MS=\$(( (\$(date +%s%N) - T0) / 1000000 )); mountpoint -q $MNT && echo MOUNTED || echo NOT_MOUNTED" >> "$OUT/$2_join.txt"
 }
 if [ "$SOLO" = 1 ]; then
     # Only the victim comes back, and it mounts alone.  A lone mount after a

@@ -16,7 +16,7 @@ rmmod mxfs 2>/dev/null; umount /mnt/mxfs 2>/dev/null
 dd if=/dev/zero of=/tmp/t.img bs=1M count=500 2>/dev/null
 losetup -d /dev/loop0 2>/dev/null; losetup /dev/loop0 /tmp/t.img
 echo y | /src/mxfs/tools/mkfs_mxfs /dev/loop0 2>&1 | tail -1
-insmod /src/mxfs/mxfs.ko && mkdir -p /mnt/mxfs && mount -t mxfs /dev/loop0 /mnt/mxfs
+insmod /src/mxfs/mxfs.ko dyndbg=+p && mkdir -p /mnt/mxfs && mount -t mxfs /dev/loop0 /mnt/mxfs
 P=0; F=0; T=0
 r() { T=\\\$((T+1)); if eval \"\\\$2\" >/dev/null 2>&1; then P=\\\$((P+1)); else echo \"FAIL: \\\$1\"; F=\\\$((F+1)); fi; }
 r 'create+read' 'echo hi > /mnt/mxfs/f && test \"\\\$(cat /mnt/mxfs/f)\" = hi'

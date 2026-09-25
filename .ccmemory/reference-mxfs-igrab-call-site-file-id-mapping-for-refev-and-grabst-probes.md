@@ -1,45 +1,41 @@
 ---
 name: reference-mxfs-igrab-call-site-file-id-mapping-for-refev-and-grabst-probes
-description: Decoder for the `site=fileN:lineM` form printed by MXFS reference probes: 1=xfs_mxfs_dlm.c 2=xfs_icache.c 3=pal/linux/xfs_iops.c 4=xfs_filestream.c.
+description: Decode `site=fileN:lineM` / `file:line` sites: 1-4 = xfs_mxfs_dlm.c, xfs_icache.c, xfs_iops.c, xfs_filestream.c; 5-35 = the xfs_mxfs_*.c split (0.89.…
 metadata:
   type: reference
-tags: [reference, instrumentation, igrab, refcount, probes]
+tags: [reference, instrumentation, igrab, probes, layout]
 ---
 
-# Decoding `site=fileN:lineM` in MXFS reference probes
+# Decoding MXFS call-site ids
 
-MXFS wraps `igrab()`/`iput()` per translation unit with a numeric file id, so every
-reference event carries its call site. `MXFS_REFEV_SITE(file, line)` packs it as
-`(file << 32) | line`, and the probes print it as `site=fileN:lineM`.
+MXFS wraps `igrab()`/`iput()` per translation unit with a numeric file id, and since
+0.89.89 the forensic "where did this happen" fields of the XFS-side DLM layer record
+the same id: `MXFS_SITE = (MXFS_TU_ID << 16) | __LINE__`, printed as `file:line`
+(`MXFS_SITE_FMT`/`MXFS_SITE_ARGS` in `xfs/xfs_mxfs_dlm.h`). Fields that carry it:
+`i_dlm_demoter_line`, `i_dlm_demoter2_line`, `i_dlm_clobber_victim_line`,
+`i_dlm_nl_line`, `i_mxfs_auth_line`, `i_mxfs_auth_try_line`, `i_dlm_epoch_src`,
+`b_mxfs_done_site`, the DLMTR ring (`P12-DLMTR ... L<file>:<line>`), the DEMEV ring,
+and the AG mutex sites (`P-AGMUTEX-WAIT/HOLD`).
 
-**The mapping (from the per-file `#define igrab(vi)` lines):**
+**The table** (authoritative copy: `docs/xfs-dlm-layout.md`):
 
 | id | file |
 |---|---|
-| 1 | `xfs/xfs_mxfs_dlm.c` |
+| 1 | `xfs/xfs_mxfs_dlm.c` (the core file; before 0.89.89 the whole 65K-line layer) |
 | 2 | `xfs/xfs_icache.c` |
 | 3 | `pal/linux/xfs_iops.c` |
 | 4 | `xfs/xfs_filestream.c` |
+| 5-35 | `xfs/xfs_mxfs_{authority,iget,durable,dir_bmbt,sb,debug,dir_data,dir_evict,dir_modify,fallible,obligation,relbar,bast,noino,reload,dir_sf,ilock,publish,evict,pubob,ag_meta,disk,coherency,ag_lock,open,ag_unlock,buf,join,recovery,mount,iclus}.c` in that order |
 
-A reference taken anywhere else (upstream XFS, the VFS) is NOT wrapped and shows as a raw
-return address printed with `%pS` instead — `kind < 2` in the ring means exactly that.
+A log or evidence file from BEFORE 0.89.89 prints bare line numbers of the single
+65,664-line `xfs_mxfs_dlm.c`; those lines no longer exist in the tree.
 
-## Where the data lives
+## Reference-ring data (unchanged)
 
-Per `struct xfs_inode` (`xfs/xfs_inode.h`):
-
-- `i_mxfs_refev_ip/kind/cnt/head` — a 10-entry ring of grab/release events.
-  `kind`: 0=rele 1=grab(ip) 2=grab(file:line) 3=rele(file:line).
-- `i_mxfs_grabst[16]` / `i_mxfs_grabst_kind[16]` — the OUTSTANDING-grab stack, scoped to
-  the current tenure (reset by `mxfs_inode_tenure_reset` from `xfs_fs_drop_inode`, i.e. at
-  the `i_count`→0 transition). With `i_count == 1`, slot 1 IS the outstanding reference.
-- `i_mxfs_tgrabs` / `i_mxfs_tputs` — running totals; `i_mxfs_grab_file`/`_line` — last grab.
-
-## Consumers
-
-- `xfs/xfs_icache.c` ~375-407 — the unmount leaked-inode probe (`P203-LEVEL`, `P202-REFEV`).
-- `xfs/xfs_inode.c` — the D-0941 poison-retirement failure dump (`P566-GRABST`,
-  `P566-REFEV`, `P566-GRABST-SUMMARY`), added sess566.
-
-This machinery existed for the unmount-busy-inode work long before anything else consulted
-it. If a probe reports a reference count and not a holder, this is the thing to reach for.
+Per `struct xfs_inode` (`xfs/xfs_inode.h`): `i_mxfs_refev_*` 10-entry ring of
+grab/release events (kind 0=rele 1=grab(ip) 2=grab(file:line) 3=rele(file:line));
+`i_mxfs_grabst[16]` outstanding-grab stack for the current tenure;
+`i_mxfs_tgrabs`/`i_mxfs_tputs` totals; `i_mxfs_grab_file`/`_line` last grab.
+Consumers: `xfs/xfs_icache.c` unmount leaked-inode probe (`P203-LEVEL`, `P202-REFEV`),
+`xfs/xfs_inode.c` poison-retirement dump (`P566-GRABST`, `P566-REFEV`).
+A reference taken outside wrapped files shows as a raw `%pS` return address (kind < 2).

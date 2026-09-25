@@ -1,3 +1,105 @@
+## 2026-09-25 — 0.89.89 — the 65,664-line DLM file is 32 files; the kernel log is quiet by default
+
+### `xfs/xfs_mxfs_dlm.c` split into 32 files
+
+The XFS-side DLM layer is now `xfs/xfs_mxfs_*.c` (32 files, the largest 7,683
+lines) sharing a private header, `xfs/xfs_mxfs_dlm_priv.h`; which file holds
+what, and how to add code, is in `docs/xfs-dlm-layout.md`.
+
+- **How it was done.** `scripts/c_toplevel_map.py` maps every top-level item
+  of a C file (557 functions, 680 variables, 870 module-parameter and export
+  lines, macros and types); `scripts/split_c_file.py` moves whole items to the
+  file their subject belongs in, puts macros, types and one declaration of
+  each of the 424 cross-file symbols in the header, and keeps every module
+  parameter and export beside what it names. No function body changed except
+  where it recorded `__LINE__`.
+- **Checked.** Every function and every global of the old object exists in the
+  new ones, the 639 module parameters are identical, the two
+  truncated-line assembler warnings are gone (the file had outgrown the
+  kernel bug table's 16-bit line), and the single-node guard census pairs all
+  59 guards of the old file one-to-one with their new homes
+  (`tests/criteria/sole_survivor_sites.json` re-keyed, no classification
+  changed).
+- **Forensic sites carry their file.** Fields that recorded a bare
+  `__LINE__` (`i_dlm_demoter_line`, `i_mxfs_auth_line`, `i_dlm_epoch_src`,
+  `b_mxfs_done_site`, the DLMTR/DEMEV rings, the AG mutex sites) now store
+  `(file id << 16) | line` and print as `file:line`; `i_dlm_epoch_src` and
+  `b_mxfs_done_site` widened to 32 bits to hold it. Two harnesses that parsed
+  these values accept the new form.
+
+### The kernel log is for operators; probes are dynamic debug
+
+One 2-node suite run printed 76,541 kernel lines on one node, 98.2% of them
+diagnostic probes (`P-AGIFC-MOD` alone 9,214). Probes are now `pr_debug`
+through `mxfs_probe*` (`pal/mxfs_probe.h`) and print nothing unless enabled
+(`insmod mxfs.ko dyndbg=+p`, or `/proc/dynamic_debug/control`);
+`docs/log-levels.md` gives the policy.
+
+- **Which moved.** `scripts/log_probe_levels.py` rewrote 1,755 probe prints
+  from the measured count of every tag in both nodes' logs (a suite run and a
+  workload run). A probe stays at its level when its text names something an
+  operator must see (a loss, corruption, shutdown, fence, death, refusal,
+  recovery, ...) and it is rare; anything that fired routinely moved,
+  whatever its wording or level.
+- **What a probe did beyond printing is gated with it.** 49 `dump_stack()` /
+  `sched_show_task()` calls that follow a probe, and the explicit rate limits
+  in front of probes (which printed "callbacks suppressed" for lines that no
+  longer print), now run only when probes are on (`mxfs_probe_on()`).
+- **By hand:** the per-unmount cache statistics, `EVICT-RING-DIRMOD`,
+  `DIR-STALE-SKIP` and lock-request retries are debug; "DLM inode lock
+  failed" is debug for `-EAGAIN` and `-EDEADLK` (the caller retries both) and
+  still a warning for anything else.
+- **The rig still sees everything.** `tests/setup/prep_node.sh` and every
+  harness that loads the module pass `dyndbg=+p`.
+
+### The last four compiler warnings are gone
+
+Four stack frames of 1.0-1.3 KB: the publish drain's deferred-inode array
+moved into its heap-allocated worker, the LRU sweep's batch to file scope
+(one work item never runs concurrently with itself), and the two disklock
+heartbeat scans' per-slot arrays into their existing record allocation. A
+clean build against 6.8 now prints no warning at all.
+
+### Process bookkeeping out of the source
+
+Comments had carried 8,498 session tags, 1,284 agent-run ids and about 500
+names of the models consulted for design reviews; `scripts/strip_process_notes.py`
+removed most of them from comment text (a consult is now "design review"),
+leaving the tokens that are names of stored notes so those pointers still
+resolve. It is not finished: 616 session tags remain. About 100 of them
+are inside a stored note's name, and the rest are bare tags the tool did not
+match (`/* sess462: ...`, and several inside `static_assert` messages,
+which are compiled strings). 173 `ccloop` and 74 `GPT` tokens also remain,
+all inside note names that comments cite.
+The 33 files written with 4-space indentation (`dlm/`, `pal/linux/user.c`,
+`include/mxfs/`) are tab-indented (`scripts/reindent_tabs.py`). Both changes
+were verified the same way: the tree built before and after at one path,
+every object's code, read-only data and data identical, the only differences
+being DWARF columns and, for the reindent, the column field of UBSAN's
+source-location records.
+
+### Verification
+
+Build `527AE4F85E10AD282E89D35` (`tests/evidence/full_verify_0.89.89.log`):
+
+- **Clean build** from a fresh copy of the tree: 161 objects compiled, no
+  compiler warning (only kbuild's notice that the compiler differs from the
+  kernel's), same srcversion as the in-tree module the suite loaded.
+- **User space:** the tools build with no warning, the user-mode DLM tests
+  report 0 failures, and `scripts/extern_decl_audit.py` exits clean.
+- **2-node TCP suite:** 30 of 30 PASS.
+- **Platform builds** (`scripts/release.sh`, no publish): Proxmox 6.17.2-1-pve
+  and 7.0.14-19-pve, AlmaLinux 9 and Rocky 9 (5.14.0-687.49.1.el9_8).
+- **Packaged rounds:** the built packages, installed through DKMS, PASS on
+  Ubuntu 24.04 (6.8.0-101-generic), Proxmox VE 9 (6.17.2-1-pve and
+  7.0.14-19-pve) and RHEL 9.8 (5.14.0-687.49.1.el9_8). On RHEL, the hung-node
+  test declared the frozen node dead at +61 s (budget 120 s), the survivor
+  wrote at +72 s (budget 180 s), and the SELinux sVirt test passed.
+- **Default kernel log** (probes off, 5-test workload,
+  `tests/evidence/quietlog3_0.89.89_*`): 376 and 373 lines on the two nodes.
+  About 345 of each are the tests' own markers and about 30 are module lines,
+  some of them probe-style lines that still print by default.
+
 ## 2026-09-24 — 0.89.88 — the module builds without compiler warnings; four latent bugs they hid are fixed
 
 A clean build against Ubuntu's 6.8 headers printed 236 warnings (145

@@ -4,7 +4,7 @@
  * journal slice, made durable so the recovery owner (or a takeover
  * successor) can complete them without ever re-reading the slice.
  *
- * sess462 — D-FOREIGN-SLICE-INTENTS-ABANDONED item 5, increment 2.
+ * — D-FOREIGN-SLICE-INTENTS-ABANDONED item 5, increment 2.
  * Design-consult rulings: ccmemory ccloop-c7ee71c6-sess461-GPT-ruling-intents-item5-
  * efi-completion-design (the design) and ccloop-c7ee71c6-sess462-GPT-ruling-
  * item5-inc2-obligation-record-plumbing-only (this increment's shape).
@@ -93,24 +93,24 @@
  * mxfs_disklock_recovery_advance_obl_done, never by the list writer. */
 #define MXFS_RECOV_OBL_F_DONE       (1u << 3)
 #define MXFS_RECOV_OBL_F_ALL        (MXFS_RECOV_OBL_F_TERMINAL | \
-                                     MXFS_RECOV_OBL_F_FSWIDE | \
-                                     MXFS_RECOV_OBL_F_LIST | \
-                                     MXFS_RECOV_OBL_F_DONE)
+									 MXFS_RECOV_OBL_F_FSWIDE | \
+									 MXFS_RECOV_OBL_F_LIST | \
+									 MXFS_RECOV_OBL_F_DONE)
 
 struct mxfs_recov_obl {
-    uint32_t    magic;          /*  0: MXFS_RECOV_OBL_MAGIC */
-    uint16_t    version;        /*  4: MXFS_RECOV_OBL_VERSION */
-    uint16_t    flags;          /*  6: MXFS_RECOV_OBL_F_* */
-    uint64_t    obl_ag_mask;    /*  8: bit n = AG n carries an obligation
-                                 *     (0 iff count == 0 or FSWIDE) */
-    uint32_t    count;          /* 16: RECOVER extents in the list */
-    uint32_t    list_crc32c;    /* 20: crc32c over the canonical entry bytes
-                                 *     (count * 16), ~0 seed; 0 when count==0 */
-    uint64_t    census_digest;  /* 24: crc32c of the slice image at census
-                                 *     time (the replay's forensic digest) */
-    uint32_t    pub_seq;        /* 32: the list header's seq this record
-                                 *     publishes (0 when count == 0) */
-    uint32_t    crc32c;         /* 36: over bytes 0..35 + victim identity */
+	uint32_t    magic;          /*  0: MXFS_RECOV_OBL_MAGIC */
+	uint16_t    version;        /*  4: MXFS_RECOV_OBL_VERSION */
+	uint16_t    flags;          /*  6: MXFS_RECOV_OBL_F_* */
+	uint64_t    obl_ag_mask;    /*  8: bit n = AG n carries an obligation
+								 *     (0 iff count == 0 or FSWIDE) */
+	uint32_t    count;          /* 16: RECOVER extents in the list */
+	uint32_t    list_crc32c;    /* 20: crc32c over the canonical entry bytes
+								 *     (count * 16), ~0 seed; 0 when count==0 */
+	uint64_t    census_digest;  /* 24: crc32c of the slice image at census
+								 *     time (the replay's forensic digest) */
+	uint32_t    pub_seq;        /* 32: the list header's seq this record
+								 *     publishes (0 when count == 0) */
+	uint32_t    crc32c;         /* 36: over bytes 0..35 + victim identity */
 };                              /* 40 */
 
 /* An OPEN case: a record naming obligations that are neither terminal
@@ -118,8 +118,8 @@ struct mxfs_recov_obl {
  * exactly this predicate; everything else is "nothing owed here". */
 static inline bool mxfs_recov_obl_is_open(const struct mxfs_recov_obl *rec)
 {
-    return rec && rec->count > 0 &&
-           !(rec->flags & (MXFS_RECOV_OBL_F_TERMINAL | MXFS_RECOV_OBL_F_DONE));
+	return rec && rec->count > 0 &&
+	       !(rec->flags & (MXFS_RECOV_OBL_F_TERMINAL | MXFS_RECOV_OBL_F_DONE));
 }
 
 /* ── the list in the recovery-manifest slot ───────────────────────────── */
@@ -127,53 +127,53 @@ static inline bool mxfs_recov_obl_is_open(const struct mxfs_recov_obl *rec)
 #define MXFS_RMAN_OBL_HDR_BYTES     4096u
 #define MXFS_RMAN_OBL_ENTRIES_OFF   8192u   /* entries, slot-relative */
 #define MXFS_RECOV_OBL_MAX_EXTENTS  3072u   /* 3072 x 16 B = 48 KiB -> ends at
-                                             * 56 KiB, under the 64 KiB manifest
-                                             * entry area; more => QUARANTINE */
+											 * 56 KiB, under the 64 KiB manifest
+											 * entry area; more => QUARANTINE */
 #define MXFS_RMAN_OBL_MAGIC         0x424F584Du  /* "MXOB" LE */
 #define MXFS_RMAN_OBL_VERSION       1
 
 struct mxfs_recov_obl_ext {
-    uint64_t    fsbno;          /*  0: (agno << agblklog) | agbno */
-    uint32_t    agno;           /*  8 */
-    uint32_t    len;            /* 12: blocks, > 0 */
+	uint64_t    fsbno;          /*  0: (agno << agblklog) | agbno */
+	uint32_t    agno;           /*  8 */
+	uint32_t    len;            /* 12: blocks, > 0 */
 };                              /* 16 */
 
 struct mxfs_rman_obl_hdr {
-    uint32_t    magic;          /*  0: MXFS_RMAN_OBL_MAGIC */
-    uint16_t    version;        /*  4: MXFS_RMAN_OBL_VERSION */
-    uint16_t    flags;          /*  6: MXFS_RECOV_OBL_F_* */
-    uint64_t    seq;            /*  8: publication sequence — strictly greater
-                                 *     than any sealed header this slot/victim
-                                 *     carried before; the record's pub_seq */
-    uint64_t    recovery_gen;   /* 16: identity of the recovery transaction
-                                 *     (constant across takeover) */
-    uint64_t    victim_epoch;   /* 24 */
-    uint32_t    victim_node;    /* 32 */
-    uint32_t    victim_fs_gen;  /* 36 */
-    uint16_t    victim_slot;    /* 40 */
-    uint16_t    slice_idx;      /* 42: the victim's journal slice */
-    uint16_t    slice_count;    /* 44 */
-    uint16_t    entry_bytes;    /* 46: sizeof(struct mxfs_recov_obl_ext) */
-    uint32_t    count;          /* 48 */
-    uint32_t    byte_len;       /* 52: count * entry_bytes, exact */
-    uint32_t    entries_crc32c; /* 56: crc32c over byte_len entry bytes */
-    uint32_t    publisher_node; /* 60: DIAGNOSTIC ONLY */
-    uint64_t    publisher_epoch;/* 64: DIAGNOSTIC ONLY */
-    uint32_t    publisher_term; /* 72: DIAGNOSTIC ONLY (owner_term) */
-    uint32_t    agcount;        /* 76: geometry the list was validated against */
-    uint64_t    census_digest;  /* 80 */
-    uint64_t    obl_ag_mask;    /* 88 */
-    uint64_t    stamp_ms;       /* 96: publisher clock */
-    uint32_t    agblocks;       /*104 */
-    uint32_t    hdr_crc32c;     /*108: over bytes 0..107 and 112..4095 */
-    uint8_t     pad[MXFS_RMAN_OBL_HDR_BYTES - 112];   /* must be zero */
+	uint32_t    magic;          /*  0: MXFS_RMAN_OBL_MAGIC */
+	uint16_t    version;        /*  4: MXFS_RMAN_OBL_VERSION */
+	uint16_t    flags;          /*  6: MXFS_RECOV_OBL_F_* */
+	uint64_t    seq;            /*  8: publication sequence — strictly greater
+								 *     than any sealed header this slot/victim
+								 *     carried before; the record's pub_seq */
+	uint64_t    recovery_gen;   /* 16: identity of the recovery transaction
+								 *     (constant across takeover) */
+	uint64_t    victim_epoch;   /* 24 */
+	uint32_t    victim_node;    /* 32 */
+	uint32_t    victim_fs_gen;  /* 36 */
+	uint16_t    victim_slot;    /* 40 */
+	uint16_t    slice_idx;      /* 42: the victim's journal slice */
+	uint16_t    slice_count;    /* 44 */
+	uint16_t    entry_bytes;    /* 46: sizeof(struct mxfs_recov_obl_ext) */
+	uint32_t    count;          /* 48 */
+	uint32_t    byte_len;       /* 52: count * entry_bytes, exact */
+	uint32_t    entries_crc32c; /* 56: crc32c over byte_len entry bytes */
+	uint32_t    publisher_node; /* 60: DIAGNOSTIC ONLY */
+	uint64_t    publisher_epoch;/* 64: DIAGNOSTIC ONLY */
+	uint32_t    publisher_term; /* 72: DIAGNOSTIC ONLY (owner_term) */
+	uint32_t    agcount;        /* 76: geometry the list was validated against */
+	uint64_t    census_digest;  /* 80 */
+	uint64_t    obl_ag_mask;    /* 88 */
+	uint64_t    stamp_ms;       /* 96: publisher clock */
+	uint32_t    agblocks;       /*104 */
+	uint32_t    hdr_crc32c;     /*108: over bytes 0..107 and 112..4095 */
+	uint8_t     pad[MXFS_RMAN_OBL_HDR_BYTES - 112];   /* must be zero */
 };
 
 /* The geometry a list is validated against (from the XFS superblock). */
 struct mxfs_recov_obl_geom {
-    uint32_t    agcount;
-    uint32_t    agblocks;
-    uint8_t     agblklog;
+	uint32_t    agcount;
+	uint32_t    agblocks;
+	uint8_t     agblklog;
 };
 
 /*
@@ -186,12 +186,12 @@ struct mxfs_recov_obl_geom {
  * MXFS_RECOV_OBL_MAX_EXTENTS.  A non-zero return means QUARANTINE.
  */
 int mxfs_recov_obl_canonicalize(struct mxfs_recov_obl_ext *ext, uint32_t n,
-                                const struct mxfs_recov_obl_geom *geom,
-                                uint64_t *ag_mask, bool *fswide);
+				const struct mxfs_recov_obl_geom *geom,
+				uint64_t *ag_mask, bool *fswide);
 
 /* crc32c (~0 seed, no inversion) over the canonical entry bytes; 0 for n==0 */
 uint32_t mxfs_recov_obl_list_crc(const struct mxfs_recov_obl_ext *ext,
-                                 uint32_t n);
+				 uint32_t n);
 
 /*
  * The identity binding shared by every sub-record of a heartbeat sector:
@@ -201,8 +201,8 @@ uint32_t mxfs_recov_obl_list_crc(const struct mxfs_recov_obl_ext *ext,
  * in chk_mxfs.c — reproduced exactly, never approximated.
  */
 uint32_t mxfs_recov_obl_rec_crc(uint32_t fs_gen, uint32_t node_id,
-                                uint64_t epoch,
-                                const struct mxfs_recov_obl *rec);
+				uint64_t epoch,
+				const struct mxfs_recov_obl *rec);
 
 /* header crc over bytes 0..107 and 112..4095 */
 uint32_t mxfs_rman_obl_hdr_crc(const struct mxfs_rman_obl_hdr *h);
@@ -214,8 +214,8 @@ uint32_t mxfs_rman_obl_hdr_crc(const struct mxfs_rman_obl_hdr *h);
  * otherwise.  Does NOT read the list.
  */
 int mxfs_recov_obl_rec_check(const struct mxfs_recov_obl *rec,
-                             uint32_t fs_gen, uint32_t node_id,
-                             uint64_t epoch, const char **why);
+			     uint32_t fs_gen, uint32_t node_id,
+			     uint64_t epoch, const char **why);
 
 /*
  * Validation of a list header against the record that publishes it and the
@@ -226,10 +226,10 @@ int mxfs_recov_obl_rec_check(const struct mxfs_recov_obl *rec,
  * (mxfs_recov_obl_list_check).
  */
 int mxfs_rman_obl_hdr_check(const struct mxfs_rman_obl_hdr *h,
-                            const struct mxfs_recov_obl *rec,
-                            uint32_t victim_node, uint64_t victim_epoch,
-                            uint32_t victim_fs_gen, uint16_t victim_slot,
-                            uint64_t recovery_gen, const char **why);
+			    const struct mxfs_recov_obl *rec,
+			    uint32_t victim_node, uint64_t victim_epoch,
+			    uint32_t victim_fs_gen, uint16_t victim_slot,
+			    uint64_t recovery_gen, const char **why);
 
 /*
  * Validation of the entries read back for a checked header: crc, canonical
@@ -239,8 +239,8 @@ int mxfs_rman_obl_hdr_check(const struct mxfs_rman_obl_hdr *h,
  * -EPROTO with *why.
  */
 int mxfs_recov_obl_list_check(struct mxfs_recov_obl_ext *ext, uint32_t n,
-                              const struct mxfs_rman_obl_hdr *h,
-                              const struct mxfs_recov_obl *rec,
-                              const char **why);
+			      const struct mxfs_rman_obl_hdr *h,
+			      const struct mxfs_recov_obl *rec,
+			      const char **why);
 
 #endif /* MXFS_LIBMXFS_RECOV_OBL_H */

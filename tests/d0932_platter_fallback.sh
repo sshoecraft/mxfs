@@ -201,7 +201,7 @@ fi
 # ---- 3. THE STAGING MOUNT: proves A1 revoked, declines the takeover, publishes
 # A1, aborts.  The knob is a count; 1000 covers every replay round of the bound.
 SMARK=$(date +%s)
-rsx $((STAGE_BOUND + 60)) "$B" "lsmod | grep -q '^mxfs ' || insmod $KO $MODARGS; echo INSMOD_RC=\$?; echo 1000 > $DECLP; echo DECLINE=\$(cat $DECLP); T0=\$(date +%s%N); timeout $STAGE_BOUND mount -t mxfs $MXFS_DEV $MNT; echo MOUNT_RC=\$?; echo WALL_MS=\$(( (\$(date +%s%N) - T0) / 1000000 )); mountpoint -q $MNT && echo MOUNTED || echo NOT_MOUNTED; echo DECLINE_LEFT=\$(cat $DECLP)" > "$OUT/B_stage.txt"
+rsx $((STAGE_BOUND + 60)) "$B" "lsmod | grep -q '^mxfs ' || insmod $KO dyndbg=+p $MODARGS; echo INSMOD_RC=\$?; echo 1000 > $DECLP; echo DECLINE=\$(cat $DECLP); T0=\$(date +%s%N); timeout $STAGE_BOUND mount -t mxfs $MXFS_DEV $MNT; echo MOUNT_RC=\$?; echo WALL_MS=\$(( (\$(date +%s%N) - T0) / 1000000 )); mountpoint -q $MNT && echo MOUNTED || echo NOT_MOUNTED; echo DECLINE_LEFT=\$(cat $DECLP)" > "$OUT/B_stage.txt"
 mountcap "$OUT/B_stage.txt" "the staging mount on $B"
 echo "STAGE staging mount rc=$(field "$OUT/B_stage.txt" MOUNT_RC) wall=$(field "$OUT/B_stage.txt" WALL_MS)ms $(grep -ao '^MOUNTED\|^NOT_MOUNTED' "$OUT/B_stage.txt") decline_left=$(field "$OUT/B_stage.txt" DECLINE_LEFT) at +$(el)s"
 if grep -aq '^MOUNTED' "$OUT/B_stage.txt"; then
@@ -268,7 +268,7 @@ $VIRSH start "$A" > /dev/null 2>&1
 waitboot "$A"
 deploy_ko "$A"
 RMARK=$(date +%s)
-rsx $((JOIN_BOUND + 60)) "$A" "lsmod | grep -q '^mxfs ' || insmod $KO $MODARGS; echo INSMOD_RC=\$?; T0=\$(date +%s%N); timeout $JOIN_BOUND mount -t mxfs $MXFS_DEV $MNT; echo MOUNT_RC=\$?; echo WALL_MS=\$(( (\$(date +%s%N) - T0) / 1000000 )); mountpoint -q $MNT && echo MOUNTED || echo NOT_MOUNTED" > "$OUT/A_join.txt"
+rsx $((JOIN_BOUND + 60)) "$A" "lsmod | grep -q '^mxfs ' || insmod $KO dyndbg=+p $MODARGS; echo INSMOD_RC=\$?; T0=\$(date +%s%N); timeout $JOIN_BOUND mount -t mxfs $MXFS_DEV $MNT; echo MOUNT_RC=\$?; echo WALL_MS=\$(( (\$(date +%s%N) - T0) / 1000000 )); mountpoint -q $MNT && echo MOUNTED || echo NOT_MOUNTED" > "$OUT/A_join.txt"
 mountcap "$OUT/A_join.txt" "the rejoin of $A"
 echo "STAGE A join rc=$(field "$OUT/A_join.txt" MOUNT_RC) wall=$(field "$OUT/A_join.txt" WALL_MS)ms $(grep -ao '^MOUNTED\|^NOT_MOUNTED' "$OUT/A_join.txt") at +$(el)s"
 rsx 60 "$A" "journalctl -k --since @$RMARK --no-pager | cut -c1-600" > "$OUT/A_join_journal.txt"

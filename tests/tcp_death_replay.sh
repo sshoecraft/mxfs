@@ -1420,7 +1420,7 @@ if [ "${TDR_REJOIN:-0}" = 1 ] && [ "$up" = 1 ]; then
     echo "  INFO rejoin arm: $V remounts $MXFS_DEV in the same generation at $(date -u +%T)"
     RJ0=$(date +%s)
     timeout 12 $SSH "$W" "echo 'TDR-REJOIN-$LABEL' > /dev/kmsg" >/dev/null 2>&1
-    probe "$V" 90 "$OUT/rejoin_$V.txt" '^MOUNT_RC=[0-9]+ WALL=' "the rejoin mount on $V" "M=\$(date +%s); modprobe libcrc32c 2>/dev/null; insmod /root/mxfs.ko.prep force_transport=1 target_cache_protected=1; echo INSMOD_RC=\$?; T0=\$(date +%s); timeout 30 mount -t mxfs $MXFS_DEV $MNT; echo MOUNT_RC=\$? WALL=\$(( \$(date +%s) - T0 )); mountpoint -q $MNT && { echo REJOIN_$LABEL > $MNT/rejoin_$LABEL.txt; sync -f $MNT/rejoin_$LABEL.txt; md5sum $MNT/rejoin_$LABEL.txt | cut -c1-32; }; journalctl -k --since @\$M --no-pager 2>/dev/null | grep -a 'DLM init: node_id=\|claimed heartbeat slot\|lock request failed\|unrecoverable\|Shutting down' | cut -c1-200; true"
+    probe "$V" 90 "$OUT/rejoin_$V.txt" '^MOUNT_RC=[0-9]+ WALL=' "the rejoin mount on $V" "M=\$(date +%s); modprobe libcrc32c 2>/dev/null; insmod /root/mxfs.ko.prep dyndbg=+p force_transport=1 target_cache_protected=1; echo INSMOD_RC=\$?; T0=\$(date +%s); timeout 30 mount -t mxfs $MXFS_DEV $MNT; echo MOUNT_RC=\$? WALL=\$(( \$(date +%s) - T0 )); mountpoint -q $MNT && { echo REJOIN_$LABEL > $MNT/rejoin_$LABEL.txt; sync -f $MNT/rejoin_$LABEL.txt; md5sum $MNT/rejoin_$LABEL.txt | cut -c1-32; }; journalctl -k --since @\$M --no-pager 2>/dev/null | grep -a 'DLM init: node_id=\|claimed heartbeat slot\|lock request failed\|unrecoverable\|Shutting down' | cut -c1-200; true"
     rjo=$(cat "$OUT/rejoin_$V.txt")
     rjrc=$(echo "$rjo" | grep -ao '^MOUNT_RC=[0-9]*' | cut -d= -f2)
     rjw=$(echo "$rjo" | grep -ao 'WALL=[0-9]*' | head -1 | cut -d= -f2)

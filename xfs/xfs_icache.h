@@ -58,7 +58,7 @@ long xfs_reclaim_inodes_nr(struct xfs_mount *mp, unsigned long nr_to_scan);
 void xfs_inode_mark_reclaimable(struct xfs_inode *ip);
 
 /*
- * ccloop 703f15c3 sess1: spin_lock(&pag->pag_ici_lock) equivalent that stamps
+ *  spin_lock(&pag->pag_ici_lock) equivalent that stamps
  * the holder's pid/comm/jiffies (xfs_ag.h pag_ici_holder_* fields) and prints
  * a rate-limited diagnostic if a waiter is stuck >5s.  Same locking semantics
  * as spin_lock() (cpu_relax busy-wait, no scheduling) — diagnostic-only, safe
@@ -67,7 +67,7 @@ void xfs_inode_mark_reclaimable(struct xfs_inode *ip);
  * bare spin_lock(&pag->pag_ici_lock) at every acquire site so the holder
  * fields are trustworthy no matter which caller is actually holding the lock
  * when a hang is observed (chasing a soft lockup first seen at
- * fence_during_write@8/caw, ccloopff21 sess1 / xfs_icache.c P-DBLRECLAIM).
+ * fence_during_write@8/caw, ccloopff21 / xfs_icache.c P-DBLRECLAIM).
  */
 void mxfs_ici_lock(struct xfs_perag *pag);
 
@@ -92,11 +92,11 @@ void xfs_inodegc_worker(struct work_struct *work);
 void xfs_inodegc_push(struct xfs_mount *mp);
 
 /*
- * sess390 (ccloop c7ee71c6): reference-free in-core LIFECYCLE probe for the
+ * reference-free in-core LIFECYCLE probe for the
  * no-inode BAST path.  xfs_iget(XFS_IGET_INCORE) says -EAGAIN/-ENOENT for
  * INEW / IRECLAIM / INACTIVATING / NEED_INACTIVE / IRECLAIMABLE / VFS teardown
  * alike, but only IRECLAIMABLE means "no local owner"; the others are a local
- * lifecycle op still running under the grant (design-consult sess390 ruling item 1).
+ * lifecycle op still running under the grant (design-consult ruling item 1).
  */
 enum xfs_ino_lifecycle {
 	XFS_ILC_ABSENT = 0,

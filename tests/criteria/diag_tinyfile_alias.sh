@@ -334,7 +334,7 @@ if [ "$RUN_C" = "1" ]; then
         done
         $MXFS_PREP >/tmp/prep.log 2>&1
         modprobe libcrc32c
-        insmod $MXFS_MODULE 2>/dev/null
+        insmod $MXFS_MODULE dyndbg=+p 2>/dev/null
         mount -t mxfs -o dlm_transport=tcp $MXFS_DEV $MXFS_MOUNT && echo MOUNTED_N2
     " 2>&1 | tee -a "$LOG"
     if ! rssh "$N2" "mount | grep -q ' on $MXFS_MOUNT type mxfs'" >/dev/null 2>&1; then

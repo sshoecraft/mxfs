@@ -70,9 +70,9 @@ MODULE_PARM_DESC(caw_gen_verify,
                  "success; mismatch returns -EAGAIN.");
 
 /*
- * sess380 instrumentation for D-HOT-SLOT-CAW-SERIALIZES-LUN-PER-LBA-379.
+ * instrumentation for D-HOT-SLOT-CAW-SERIALIZES-LUN-PER-LBA-379.
  *
- * sess379 PROVED the serialization is per-LBA (direct READ(16)+FUA to the root
+ * PROVED the serialization is per-LBA (direct READ(16)+FUA to the root
  * inode's slot vs a cold LBA on the same nexus: worst 40,272ms vs 39ms).  What
  * it did NOT establish is WHY that one LBA is 1,000x slower, and there are two
  * very different answers with two very different fixes:
@@ -102,7 +102,7 @@ MODULE_PARM_DESC(caw_gen_verify,
  * Every counter is therefore a LOWER BOUND.
  */
 /*
- * sess380: the P139-LOCKTOTAL whole-acquire census floor, in ms.  Default 800,
+ * the P139-LOCKTOTAL whole-acquire census floor, in ms.  Default 800,
  * which is what it has always been — but see the probe site: at that floor it
  * cannot see a 32-node shared-directory create tail whose p95 is ~424ms, and
  * neither can the per-wait P138 probe, because the acquire is many sub-5ms
@@ -111,7 +111,7 @@ MODULE_PARM_DESC(caw_gen_verify,
  * separates claim-race churn from a genuinely long holder.
  */
 /*
- * sess380 POLL-CADENCE KNOBS (D-32NODE-SHARED-DIR-CREATE-PACE).
+ * POLL-CADENCE KNOBS (D-32NODE-SHARED-DIR-CREATE-PACE).
  *
  * MEASURED, counting every SCSI command the whole cluster issued to the ONE
  * CAW slot of a shared directory while 32 nodes did 256 creates into it:
@@ -174,7 +174,7 @@ MODULE_PARM_DESC(caw_locktotal_ms,
                  "800. Lower it to census the create tail.");
 
 /*
- * sess380 UNLOCK FAST-RETRY (D-32NODE-SHARED-DIR-CREATE-PACE).
+ * UNLOCK FAST-RETRY (D-32NODE-SHARED-DIR-CREATE-PACE).
  *
  * MEASURED: on a 32-node shared-directory create workload the holder's unlock
  * of the contended directory inode costs 27.9 ms mean (max 77 ms), of which
@@ -191,7 +191,7 @@ MODULE_PARM_DESC(caw_locktotal_ms,
  * 1-15 ms to "desync" against it is paying the anti-storm insurance premium on
  * a collision that is not a storm.
  *
- * The sess380 design-consult review approved this, NARROWED, with conditions that are
+ * The design-consult review approved this, NARROWED, with conditions that are
  * all implemented here:
  *   - Classify an exact recognized TRANSITION, not a field whitelist.  The
  *     classifier reconstructs byte-for-byte the only image a pure registration
@@ -213,7 +213,7 @@ MODULE_PARM_DESC(caw_locktotal_ms,
  * benign=/contended= fields can be read off a run with the knob OFF and the
  * A/B is a single flag.
  *
- * WHAT THIS MUST NOT REGRESS: before sess5 the unlock tight-looped on
+ * WHAT THIS MUST NOT REGRESS: before the unlock tight-looped on
  * MISCOMPARE with no backoff, lost 100 retries under a 16-node storm, returned
  * -EIO with the lock still HELD on disk, and the resulting endless BAST re-fire
  * spawned 1000+ blocked workers and wedged the host at load 870.  The bounded
@@ -297,7 +297,7 @@ MODULE_PARM_DESC(caw_watch_err,
                  "that was neither success nor MISCOMPARE");
 
 /*
- * sess2(ccloop 26c41354) FAIR HANDOFF — anti-starvation for the 16-node
+ * FAIR HANDOFF — anti-starvation for the 16-node
  * inode-EX contention.  DEFAULT 0.  When 1: on an INODE-lock release with EX
  * waiters, the releaser sets yield_to to ONE round-robin-chosen next EX waiter
  * (first waiter after the releaser's node bit, wrapping) instead of ALL
@@ -308,9 +308,9 @@ MODULE_PARM_DESC(caw_watch_err,
  * killing the 16-node victim-node data loss (a starved writer misses the
  * coherency barrier; P131-WAITLONG / SESS50-STARVE).  Deadlock-safe: a dead
  * chosen node is skipped by the existing 5s yield_to stale-clear.  Upgraders
- * (conversion priority, sess130) are exempt; AG locks are untouched.
+ * (conversion priority) are exempt; AG locks are untouched.
  */
-/* sess6 (ccloop 72513a13): DEFAULT ON.  A/B at 32/cawd, fresh cluster,
+/* DEFAULT ON.  A/B at 32/cawd, fresh cluster,
  * 32-node one-shot create storm in ONE shared dir: fair=0 free-for-all
  * left 16/32 nodes' creates HUNG >90s (victim-node starvation is fatal at
  * this scale, not just slow); fair=1 completed all 32 in <=2.5s
@@ -319,7 +319,7 @@ MODULE_PARM_DESC(caw_watch_err,
  * waiter bits — the 5s stale-ticket clears dominated; on clean state the
  * rotation is sound. */
 /*
- * sess37 (GPT-ruled design) DIRECT GRANT HANDOFF.  Fresh 32-node anatomy on
+ * (review-ruled design) DIRECT GRANT HANDOFF.  Fresh 32-node anatomy on
  * 0.11.313: 86.6% of 81.9s total grant wait was "grantable-but-unclaimed" —
  * readers dozing behind an EX ticket while the chosen winner is slow to
  * claim (nudge + poll + its own claim-CAW storm: miscompares mean 7.65 per
@@ -350,7 +350,7 @@ MODULE_PARM_DESC(caw_fair_handoff,
                  "of the self-promote free-for-all; 0=off, 1=on (default)");
 
 /*
- * ccloop c7ee71c6 sess24 — SHARED-CLASS TICKET BYPASS.
+ *  — SHARED-CLASS TICKET BYPASS.
  *
  * The fair-handoff ticket (yield_to) exists for exactly one purpose, stated in
  * its own comment at the release site: stop a stream of self-promoting waiters
@@ -405,7 +405,7 @@ MODULE_PARM_DESC(caw_pr_batch_nodefer,
                  "0=off (default, measured never to engage), 1=on");
 
 /*
- * ccloop c7ee71c6 sess24 — BOUNDED SHARED-CLASS PATIENCE.
+ *  — BOUNDED SHARED-CLASS PATIENCE.
  *
  * The nodefer bypass above was written on the hypothesis that the tickets these
  * PR waiters defer to guard no EX waiter.  P204-YT-DEFER REFUTED that: the slot
@@ -483,7 +483,7 @@ MODULE_PARM_DESC(caw_pr_defer_max_ms,
                  "0=unbounded (pre-sess24 behaviour), default 50");
 
 /*
- * ccloop c7ee71c6 sess24 — FAIR-HANDOFF EPISODE CLOCK (a real bug; design-consult GPT
+ *  — FAIR-HANDOFF EPISODE CLOCK (a real bug; design-consult design review
  * consult confirmed the shape of the fix).
  *
  * yield_to carries a 5s staleness bound (MXFS_CAW_YIELD_TIMEOUT_MS) whose stated
@@ -518,9 +518,9 @@ MODULE_PARM_DESC(caw_yield_episode_clock,
                  "5s bound unreachable); 0=off (pre-sess24), 1=on (default)");
 
 /*
- * sess2(ccloop 26c41354) UNLOCK ANTI-STORM — the CAW UNLOCK retry loop
+ * UNLOCK ANTI-STORM — the CAW UNLOCK retry loop
  * (mxfs_dlm_caw_unlock) tight-loops on -EAGAIN with NO backoff, unlike the
- * acquire path (sess39 desync).  Under a 16-node hot-inode CAS storm (all
+ * acquire path (desync).  Under a 16-node hot-inode CAS storm (all
  * nodes create+unlink in ONE shared dir, e.g. dir_reuse) the unlock can never
  * win 100 tight retries -> returns -EIO -> the lock stays HELD -> BAST re-fires
  * forever -> the mxfs-ino-bast workqueue spawns 1000+ blocked workers -> load
@@ -531,7 +531,7 @@ MODULE_PARM_DESC(caw_yield_episode_clock,
  * -EIO, because a FAILED unlock wedges the cluster and an unlock MUST complete.
  * AG locks unaffected.
  */
-int mxfs_caw_unlock_backoff = 1;	/* sess5 (ccloop 72513a13): DEFAULT ON.
+int mxfs_caw_unlock_backoff = 1;	/* DEFAULT ON.
 				 * Measured with it off: dir 8388739's holder
 				 * completed its in-core release (P70-BP
 				 * EXIT=full on every node) yet its slot bit
@@ -558,7 +558,7 @@ MODULE_PARM_DESC(caw_unlock_backoff,
  * slowing the hot slot's CAS traffic at the target.
  */
 /*
- * sess134 (GPT sess133 ruling B2): the ONE final grace after a blocking
+ * (design-consult ruling B2): the ONE final grace after a blocking
  * teardown phase has already blown MXFS_CAW_QUIESCE_MS.  Configurable because
  * the right value depends on the storage stack; clamped on read to
  * [MIN,MAX] because the ruling forbids an infinite setting on a shared-write
@@ -580,13 +580,13 @@ MODULE_PARM_DESC(caw_inode_fastpoll,
                  "from the first sleep");
 
 /*
- * ccloop cc87fed3 sess7/sess8: dlm_scaling@32 op-rate collapse fix -- clear a
+ *  /dlm_scaling@32 op-rate collapse fix -- clear a
  * freed inode's CAW slot dir_epoch/last_ex_slot so a REUSED ino doesn't
  * inherit a stale cross-node-handoff signal from its predecessor incarnation.
- * sess8: implemented as the is_free parameter to mxfs_dlm_caw_unlock_gen,
+ * implemented as the is_free parameter to mxfs_dlm_caw_unlock_gen,
  * piggybacking the clear onto the tombstone CAS the unlock already performs
  * (zero extra I/O) -- see that function's own comment for why a separate
- * post-hoc find+read+CAS (the sess7 attempt) both silently never fired AND,
+ * post-hoc find+read+CAS (the attempt) both silently never fired AND,
  * once fixed to actually fire, measurably regressed the test by adding a
  * synchronous extra round-trip to the free hot path.  Default ON: the write
  * is guarded to only ever touch an idle tombstone for the EXACT resource
@@ -604,8 +604,8 @@ MODULE_PARM_DESC(caw_epoch_free_reset,
                  "(default), 0=off (pre-sess7 behavior, for A/B)");
 
 /*
- * sess154 (D-RELEASEALL-LREQ-RETIRE-MISSING, 0.11.455): deterministic fault
- * injection for the teardown tenure-retire machinery.  The GPT ruling on the
+ * (D-RELEASEALL-LREQ-RETIRE-MISSING, 0.11.455): deterministic fault
+ * injection for the teardown tenure-retire machinery.  The design-consult ruling on the
  * P248 fix requires POSITIVE observation of every branch — an all-quiet fleet
  * run cannot distinguish "the retire worked" from "nothing ever reached it",
  * because the in-line release_all retry (fix B) may eliminate the natural
@@ -632,7 +632,7 @@ MODULE_PARM_DESC(caw_inject_dow_casfail,
                  "with -EIO before issuing I/O (consumable; 0=off)");
 
 /*
- * sess470 (D-AGLOCK-ORPHAN-EX-TRACKING-LOSS-LIVELOCK-488, design-consult disposition
+ * (D-AGLOCK-ORPHAN-EX-TRACKING-LOSS-LIVELOCK-488, design-consult disposition
  * ruling): the board's ag_strand_repair criterion manufactures the stranded
  * POSTCONDITION (skip the wire unlock); it never executes the three unlock
  * exits that the D-488 tri-state rework (0.11.496-498) classifies.  These
@@ -678,7 +678,7 @@ MODULE_PARM_DESC(caw_inject_pubfreeze_bump,
                  "(consumable; 0=off)");
 
 /*
- * sess374 (sess363 ruling, Hazards section 7): the CAW-side half of the
+ * (ruling, Hazards section 7): the CAW-side half of the
  * closure fault matrix.  Same consumable-count discipline as the knobs above.
  */
 static int mxfs_caw_inject_closure_cas;
@@ -709,7 +709,7 @@ MODULE_PARM_DESC(caw_inject_closure_gate_skip,
                  "0=off)");
 
 /*
- * sess375 (sess363 ruling Hazards section 7, tombstone/slot-reuse race).
+ * (ruling Hazards section 7, tombstone/slot-reuse race).
  * These perturb TIMING ONLY — they never write a forged image.  Widening the
  * window at one of the two boundaries lets REAL concurrent code (a survivor's
  * demand scrub emptying the slot, then a fresh acquire re-binding it to a
@@ -744,11 +744,11 @@ MODULE_PARM_DESC(caw_inject_closure_pause_slot,
                  "candidate");
 
 /*
- * sess376: WHICH caller of caw_closure_strip_one the pause applies to.  The
+ * WHICH caller of caw_closure_strip_one the pause applies to.  The
  * pause countdown is a single global, and BOTH the publisher's purge scan and
  * a blocked waiter's demand scrub pass through the same site, so an unfiltered
  * injection stalls whichever thread arrives first.  That is exactly what
- * misread as "the demand scrub never fired" in sess375: the scrub fired
+ * misread as "the demand scrub never fired" in the scrub fired
  * immediately and then slept inside the injected pause.
  *   0 = any caller (previous behavior), 1 = publisher purge scan only,
  *   2 = survivor demand scrub only.
@@ -776,8 +776,8 @@ MODULE_PARM_DESC(caw_inject_wait_expire,
                  "(own waiter bit registered) as expired, forcing the "
                  "timeout give-up path (consumable; 0=off)");
 
-/* sess449 same-node exerciser barrier hooks (scenarios B and C of the
- * sess113 design; design-consult review sess449).  One-shot: the armed value is the
+/* same-node exerciser barrier hooks (scenarios B and C of the
+ * design; design-consult review).  One-shot: the armed value is the
  * pause in ms, consumed to 0 by the first hit.  0 = off (production). */
 static int mxfs_caw_inject_dow_pause_ms;
 module_param_named(caw_inject_dow_pause_ms, mxfs_caw_inject_dow_pause_ms,
@@ -815,12 +815,12 @@ static inline bool caw_inject_take(int *knob)
 	return false;
 }
 /*
- * sess40: gate the per-op P13-INSTR GRANT-WAIT/POLL diagnostics behind
+ * gate the per-op P13-INSTR GRANT-WAIT/POLL diagnostics behind
  * mxfs.instr.  They fire on EVERY contended inode-DLM acquire (and the
  * POLL variant once per slot-state change inside the wait spin); under
  * 4-node shared-dir contention that is thousands of printk/sec on the
  * lock hot path, which made cache_coherency ~100x slower and timed out
- * the criterion (the same class of slowdown sess36 gated for the xfs
+ * the criterion (the same class of slowdown gated for the xfs
  * overlay).  Pure logging, no side effects.  mxfs_instr_enabled lives in
  * the xfs overlay (xfs_mxfs_dlm.c) and is linked into mxfs.ko alongside
  * this file; user-mode dlm builds (no overlay) compile it out.
@@ -832,13 +832,13 @@ extern int mxfs_instr_enabled;
 #define caw_instr_on() (0)
 #define mxfs_caw_failstop_grace_ms MXFS_CAW_FAILSTOP_GRACE_MS
 /*
- * sess154: injection is kernel-only.  The function-like macro drops its
+ * injection is kernel-only.  The function-like macro drops its
  * argument, so the knob symbols are never referenced in user-mode builds
  * and must not be defined here.
  */
 #define caw_inject_take(k) (false)
 #define mxfs_caw_drain_budget_ms 0
-/* sess380: the per-LBA watch is kernel-only; -1 makes caw_watch_armed()
+/* the per-LBA watch is kernel-only; -1 makes caw_watch_armed
  * constant-false so the whole instrumentation folds away in user builds. */
 #define mxfs_caw_watch_slot (-1)
 #define mxfs_caw_locktotal_ms 800
@@ -851,7 +851,7 @@ extern int mxfs_instr_enabled;
 #endif
 
 /*
- * sess380 — see the caw_watch_slot block above.  Split into an "armed?" test
+ * — see the caw_watch_slot block above.  Split into an "armed?" test
  * and a "note the result" sink so the hot path pays only one integer compare
  * when the watch is off (the default), and takes no clock reads at all.
  */
@@ -906,7 +906,7 @@ static void caw_watch_span_note(void) { }
 #endif
 
 /*
- * sess134: the clamp the ruling requires.  A grace of 0, a negative, or an
+ * the clamp the ruling requires.  A grace of 0, a negative, or an
  * absurd value must not become "wait forever" — the unbounded wait is the
  * defect this deadline exists to remove, and a tunable that can reintroduce it
  * is the same defect with an extra step.
@@ -1023,7 +1023,7 @@ static inline void caw_revoke_consume(struct mxfs_caw_lock_slot *new_slot,
 static uint8_t recompute_waiter_mode(const struct mxfs_caw_lock_slot *slot)
 {
 	/*
-	 * sess50 (run14d): derive waiter_mode from the waiter bitmaps so it
+	 * (run14d): derive waiter_mode from the waiter bitmaps so it
 	 * can be DOWNGRADED when the exclusive waiter departs.  The old code
 	 * preserved the existing waiter_mode whenever any waiter bit was set,
 	 * so a leaked-or-departed EX waiter left waiter_mode stuck at EX while
@@ -1042,7 +1042,7 @@ static uint8_t recompute_waiter_mode(const struct mxfs_caw_lock_slot *slot)
 }
 
 /*
- * sess380 — see the mxfs_caw_unlock_fastretry block comment.
+ * — see the mxfs_caw_unlock_fastretry block comment.
  *
  * Did the ONE successful write that beat our unlock CAS consist of nothing but
  * a peer REGISTERING INTEREST?
@@ -1060,7 +1060,7 @@ static uint8_t recompute_waiter_mode(const struct mxfs_caw_lock_slot *slot)
  * `scratch` is caller-owned so this stays off the stack; the slot is 512 B.
  */
 /*
- * sess380: why a miscompare was NOT a pure registration.  MEASURED arm A
+ * why a miscompare was NOT a pure registration.  MEASURED arm A
  * (classify-only, 32 nodes, create ladder): 458 of 460 miscompares were
  * CONTENDED and only 2 were benign registrations -- so the fast-retry idea is
  * refuted and the interesting question became "then what IS beating the
@@ -1218,7 +1218,7 @@ static int caw_repair_slot(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_index,
 	uint64_t pm = ctx->protected_mask;
 	int rc;
 
-	/* sess407 (D-RMAN-WRITER-GUARD-MONITOR-LAG-407 residual audit): this is
+	/* (D-RMAN-WRITER-GUARD-MONITOR-LAG-407 residual audit): this is
 	 * the ONE CAS in the file that does not go through caw_slot_ex, so the
 	 * writer guard never saw it — and a repair zeroes EX/PW bitmaps that
 	 * fail popcount, which would clear a fenced victim's fence-time
@@ -1261,8 +1261,8 @@ static int caw_repair_slot(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_index,
 	 * a base stamped under the pre-corruption history. */
 	repaired.dir_epoch = corrupt->dir_epoch + 1;
 	repaired.last_ex_slot = MXFS_CAW_EX_SLOT_NONE;
-	/* sess407: the repair predates the tenure epoch (sess48) and the binding
-	 * lineage (sess175/176) and silently reset both to 0 — a repaired live
+	/* the repair predates the tenure epoch and the binding
+	 * lineage (/176) and silently reset both to 0 — a repaired live
 	 * binding then carried lineage 0 for the rest of its life (every v3
 	 * token minted under it -> nolineage/wlineage at replay) and a retained
 	 * single EX holder lost the epoch its authority certificate names.
@@ -1290,7 +1290,7 @@ static int caw_repair_slot(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_index,
 	    mxfs_pal_popcount64(corrupt->holders_pw) <= 1) {
 		repaired.holders_pr = corrupt->holders_pr;
 	}
-	/* sess46 (iclus open-tracking, GPT retention invariant): open_holders
+	/* (iclus open-tracking, design review retention invariant): open_holders
 	 * survives repair UNCONDITIONALLY.  It is a protection bitmap, not a
 	 * lock-consistency field — no popcount constraint applies, a garbage
 	 * value only DEFERS peers' reaps (fail-safe direction, converged by
@@ -1359,7 +1359,7 @@ static int read_slot(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_index,
 						     out, MXFS_CAW_SLOT_SIZE);
 			caw_watch_note(false, mxfs_pal_time_ms() - t0, rc);
 			/*
-			 * sess380 P383-SLOTREAD.  Reads are 93% of ALL SCSI
+			 * P383-SLOTREAD.  Reads are 93% of ALL SCSI
 			 * traffic on a contended directory's slot (23-27 per
 			 * create against 1.8 CAWs), and four hypotheses about
 			 * where they come from have now been refuted by
@@ -1371,7 +1371,7 @@ static int read_slot(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_index,
 			 * when caw_watch_slot points at this exact slot, so
 			 * this costs nothing on any other resource.
 			 */
-			pr_warn("mxfs: P383-SLOTREAD slot=%u rc=%d caller=%pS\n",
+			mxfs_probe("mxfs: P383-SLOTREAD slot=%u rc=%d caller=%pS\n",
 				slot_index, rc, __builtin_return_address(0));
 		} else {
 			rc = mxfs_pal_bdev_read_prio(ctx->dev,
@@ -1406,7 +1406,7 @@ static int read_slot(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_index,
 }
 
 /*
- * ccloop 72513a13 sess3 (PROVEN BY INSTRUMENT): probe-chain walks dominated per-op
+ *  (PROVEN BY INSTRUMENT): probe-chain walks dominated per-op
  * latency — 9.2 FUA slot reads per file CREATE (kprobe count over a 20-create
  * burst), because every open-addressing probe was its own synchronous 512B
  * SCSI READ(16)+FUA (~0.3-0.5ms each) and tombstone churn keeps chains long.
@@ -1420,7 +1420,7 @@ static int read_slot(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_index,
 #define MXFS_CAW_PROBE_SPAN	16
 
 /*
- * sess40 (D-CAW-SPAN-READ-SHORT): the multi-slot probe read is PROVEN to
+ * (D-CAW-SPAN-READ-SHORT): the multi-slot probe read is PROVEN to
  * return data that disagrees with a per-slot read of the same LBA taken
  * microseconds later — P94-SPAN-DISAGREE captured it 41-91 times per node
  * per 32-way run, ALWAYS at span_base+1 (the second slot of the window) and
@@ -1438,7 +1438,7 @@ static int read_slot(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_index,
  * slot shifted by exactly 8 bytes.  Filed, fixed and closed as
  * D-CAW-CLAIM-RETRY-EXHAUSTION-SHUTDOWN (critical, 2026-08-01); its
  * verification recorded zero P94-SPAN-DISAGREE fleet-wide against 41-91 per
- * node per run before.  Re-checked sess481 on 0.64.37: zero occurrences
+ * node per run before.  Re-checked on 0.64.37: zero occurrences
  * across all 32 nodes of a full crash_consistency row.  Spanning is
  * therefore ON (see the trade-off note below) and the probe walk really
  * does cost one READ(16) per 16 slots, not one per slot.  The text that
@@ -1457,7 +1457,7 @@ static int read_slot(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_index,
  * 1 = re-enable spanning (A/B control / post-fix validation).
  */
 /*
- * MEASURED TRADE-OFF (sess40): defaulting this OFF costs dir_reuse_coherency
+ * MEASURED TRADE-OFF: defaulting this OFF costs dir_reuse_coherency
  * a round (7 vs >=8 bar, 115s/120s) because probes then issue per-slot reads,
  * while the 0.11.337 re-read guard already contained the observed harm — the
  * full 32-node board is green with spanning ON.  So spanning stays ON and
@@ -1509,12 +1509,12 @@ void mxfs_dlm_caw_set_protected_mask(struct mxfs_dlm_caw_ctx *ctx,
 }
 
 /*
- * sess405 writer guard (see protected_mask in dlm_caw.h).  Returns true when
+ * writer guard (see protected_mask in dlm_caw.h).  Returns true when
  * the CAS must be refused.  Pure function of the two images and the mask; the
  * refusal is logged (rate-limited) and counted by the caller.
  */
 /*
- * Allowed-delta matrix (GPT review sess405 items 5/6).  While the compare image
+ * Allowed-delta matrix (design review items 5/6).  While the compare image
  * holds ANY protected node's EX or PW bit:
  *   - non-purge callers may change NOTHING in holders_ex / holders_pw, the
  *     grant epoch, the lineage, the resource binding or the slot validity
@@ -1535,7 +1535,7 @@ static bool caw_guard_refuses(struct mxfs_dlm_caw_ctx *ctx,
 	uint64_t old_auth, new_auth, prot_old, prot_new;
 
 	/*
-	 * sess407 (design-consult ruling Q4): nobody may ADD a protected node's EX/PW
+	 * (design-consult ruling Q4): nobody may ADD a protected node's EX/PW
 	 * bit either — a direct handoff to a yield_to nominee that is a fenced,
 	 * not-yet-purged victim would mint it a post-seal grant absent from the
 	 * sealed manifest (waiters block behind an owner that cannot run; the
@@ -1642,7 +1642,7 @@ static int caw_slot_ex(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_index,
 	int attempt;
 	int rc;
 
-	/* sess405 writer guard — BEFORE the platter is touched. */
+	/* writer guard — BEFORE the platter is touched. */
 	{
 		uint64_t pm = ctx->protected_mask;
 		const char *why = "?";
@@ -1650,11 +1650,11 @@ static int caw_slot_ex(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_index,
 		bool refuse = false;
 
 		/*
-		 * sess407 STRUCTURAL rule (design-consult ruling Q3), independent of
+		 * STRUCTURAL rule (design-consult ruling Q3), independent of
 		 * protected_mask: a non-PURGE CAS may NEVER clear ANOTHER node's
 		 * EX/PW bit.  The only legitimate foreign clears are the recovery
 		 * owner's purge and the closure strip, both flagged with the exact
-		 * victim mask (audit sess407: 29 call sites, no other path).  This
+		 * victim mask (audit 29 call sites, no other path).  This
 		 * closes the monitor-lag window (a survivor that has not yet
 		 * published a victim's bit) without any heartbeat read: the
 		 * dangerous delta is refused on its own shape.
@@ -1742,7 +1742,7 @@ static int caw_slot_ex(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_index,
 							  sizeof(verify_slot));
 			if (vrc != 0) {
 				/*
-				 * sess119 (sess118 ruling item 3): the CAW itself
+				 * (ruling item 3): the CAW itself
 				 * ALREADY SUCCEEDED — only the persistence check
 				 * failed to read back.  Retrying the CAS here was
 				 * wrong twice over: the compare image is stale
@@ -1754,7 +1754,7 @@ static int caw_slot_ex(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_index,
 				 * AMBIGUOUS result, which is what this outcome
 				 * actually is.
 				 */
-				mxfs_pal_log(MXFS_LOG_WARN,
+				mxfs_pal_log(MXFS_LOG_DEBUG,
 					"mxfs: P250-CAW-VERIFY-IO slot=%u vrc=%d gen=%u — CAW succeeded but the persistence read failed; reporting ambiguous",
 					slot_index, vrc, write->generation);
 				return vrc;
@@ -1765,7 +1765,7 @@ static int caw_slot_ex(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_index,
 			 * fine for the caller's intent of "I made my change").
 			 * Lower generation means our write didn't persist. */
 			if (verify_slot.generation < write->generation) {
-				mxfs_pal_log(MXFS_LOG_WARN,
+				mxfs_pal_log(MXFS_LOG_DEBUG,
 					"mxfs: P72-INSTR caw gen-verify mismatch "
 					"slot=%u expected_gen>=%u got_gen=%u — "
 					"non-persist (sess30 root cause)",
@@ -1775,7 +1775,7 @@ static int caw_slot_ex(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_index,
 			}
 		}
 		/*
-		 * sess135 (ccloop 14d31183) P135-SLOTWR — instrumentation
+		 * P135-SLOTWR — instrumentation
 		 * for the P108 "on-disk slot lost" producer.  A live holder's
 		 * bit vanished from the hot shared-dir inode slot within 6ms of
 		 * an EX grant (test12 t=58.830→58.836), forcing a reload that
@@ -1793,7 +1793,7 @@ static int caw_slot_ex(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_index,
 				write->magic == MXFS_CAW_MAGIC ?
 				&write->resource : &compare->resource;
 
-			/* daf50d34 sess2: drop the ino<=256 gate — the mkdir-storm
+			/* daf50d34 drop the ino<=256 gate — the mkdir-storm
 			 * parents are high inos and BOTH storm forensics were blind
 			 * exactly here (no claim-side write history, no foreign-strip
 			 * attribution).  caw_instr_on() still gates the volume. */
@@ -1813,7 +1813,7 @@ static int caw_slot_ex(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_index,
 					p135_cheld & ~p135_wheld &
 					~ctx->node_bit;
 
-				mxfs_pal_log(MXFS_LOG_WARN,
+				mxfs_pal_log(MXFS_LOG_DEBUG,
 				    "mxfs: P135-SLOTWR ino=%llu slot=%u "
 				    "gen=%u->%u wmagic=%x "
 				    "hex=%llx->%llx hpr=%llx->%llx "
@@ -1858,7 +1858,7 @@ static int caw_slot_ex(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_index,
 }
 
 /*
- * sess119 (sess118 design-consult ruling item 3 — AMBIGUOUS CAW RESULT).
+ * (design-consult ruling item 3 — AMBIGUOUS CAW RESULT).
  *
  * Classify a caw_slot() return for the ONE question a destructive clear has to
  * answer before it closes its clear window: "could this node's bit have been
@@ -1927,11 +1927,11 @@ static bool slot_hint_get(struct mxfs_dlm_caw_ctx *ctx,
 /* ─── v0.6.0 cross-node EX-handoff epoch (see dir_epoch in dlm_caw.h) ─── */
 
 /*
- * sess108 (design-consult ruling, blocker 7): mint the next write-authority token for
+ * (design-consult ruling, blocker 7): mint the next write-authority token for
  * this resource.  A DURABLE PER-RESOURCE 64-BIT SEQUENCE, carried in the slot
  * and advanced only by a CAS that grants an EX-class tenure.
  *
- * It replaces `s->generation` (sess48), which was NOT a 64-bit epoch: the slot
+ * It replaces `s->generation`, which was NOT a 64-bit epoch: the slot
  * generation is a uint32 zero-extended into a uint64 field, so (a) a token
  * REPEATS after 2^32 slot CASes — and generation advances on EVERY CAS, waiter
  * registration included, so a hot resource wraps far sooner than a count of
@@ -1957,15 +1957,15 @@ static uint64_t caw_next_grant_epoch(uint64_t prev)
  * an earlier grant of this resource may be stale.  Call on every grant image
  * (any mode); only EX-class grants take over last_ex_slot.
  *
- * sess108: the grantee is now an EXPLICIT parameter, never `ctx->node_slot`.
- * The direct-handoff arm of the unlock CAS (sess37) grants EX to a DIFFERENT
+ * the grantee is now an EXPLICIT parameter, never `ctx->node_slot`.
+ * The direct-handoff arm of the unlock CAS grants EX to a DIFFERENT
  * node — it hand-rolled the dir_epoch/last_ex_slot bookkeeping and silently
  * omitted the mint, so every directly-handed-off tenure inherited the RELEASING
- * node's token (measured: 1502 handoffs on one node in one board lap; sess106).
+ * node's token (measured: 1502 handoffs on one node in one board lap).
  * A third-party grant path that cannot name its grantee will repeat that bug,
  * so the signature makes it impossible to express.
  *
- * sess169 (D-EX-GRANT-EPOCH-NOT-UNIQUE-TENURE-ID, design-consult ruled): the token
+ * (D-EX-GRANT-EPOCH-NOT-UNIQUE-TENURE-ID, design-consult ruled): the token
  * mint is EDGE-TRIGGERED, not per-grant.  ex_grant_epoch names a write
  * TENURE — the maximal continuous interval of one node holding a
  * write-capable mode — so it changes exactly when such an interval STARTS:
@@ -2051,7 +2051,7 @@ static bool caw_grant_epoch_update(struct mxfs_caw_lock_slot *s,
 }
 
 /*
- * sess97 step 5.3(b) — capture the provenance of one grant from the exact
+ * step 5.3(b) — capture the provenance of one grant from the exact
  * slot image that carries it (see struct mxfs_grant_result).
  *
  * `held` is the mode THIS NODE holds in THAT image — the mode a granting CAS
@@ -2059,7 +2059,7 @@ static bool caw_grant_epoch_update(struct mxfs_caw_lock_slot *s,
  * requested mode: an acquire may request PR while already holding EX, and the
  * epoch belongs to the EX tenure, not to the request.
  *
- * A zero ex_grant_epoch is never valid.  Since sess108 the tombstone/claim path
+ * A zero ex_grant_epoch is never valid.  Since the tombstone/claim path
  * CARRIES the sequence, so a same-resource idle gap no longer restarts the
  * namespace and every EX/PW grant mints — which leaves exactly three ways to
  * observe zero here, all of them fail-closed cases and none of them benign:
@@ -2081,18 +2081,18 @@ static void caw_grant_result_fill(struct mxfs_grant_result *gres,
 	gres->kind = resource->type;
 	gres->mode = held;
 	gres->reaffirm = reaffirm ? 1 : 0;
-	/* sess176: binding identity from the SAME image as the epoch.  Copied
+	/* binding identity from the SAME image as the epoch.  Copied
 	 * unconditionally — it describes the binding, not the tenure; the
 	 * status classification below governs whether the pair proves write
 	 * authority. */
 	gres->resource_lineage = s->resource_lineage;
 
 	/*
-	 * sess105: classify HERE, where `held` and `ex_grant_epoch` come from
+	 * classify HERE, where `held` and `ex_grant_epoch` come from
 	 * ONE coherent slot image.  A single `valid=0` downstream cannot
 	 * distinguish "we held a read grant" (benign) from "we held a writing
 	 * grant with no epoch" (a real publication/restart gap) — and the
-	 * sess104 measurement drowned in exactly that conflation.
+	 * measurement drowned in exactly that conflation.
 	 */
 	if (!mxfs_mode_can_write(held)) {
 		gres->grant_epoch = 0;
@@ -2117,7 +2117,7 @@ static void caw_grant_result_fill(struct mxfs_grant_result *gres,
  * path inherits these fields when it recycles a tombstone whose resource
  * matches; a different resource ignores them (fresh init).
  *
- * sess108: ex_grant_epoch joins that carry set, and it is REQUIRED, not an
+ * ex_grant_epoch joins that carry set, and it is REQUIRED, not an
  * optimisation.  The write-authority token is now a per-resource +1 sequence
  * (caw_next_grant_epoch); a tombstone that zeroed it would RESTART the sequence
  * at 1 on the next same-resource claim, so a durable image stamped with epoch 1
@@ -2142,11 +2142,11 @@ static void caw_tombstone_slot(struct mxfs_caw_lock_slot *s)
 	s->dir_epoch = saved_epoch;
 	s->last_ex_slot = saved_lex;
 	s->ex_grant_epoch = saved_gep;
-	/* sess176: the lineage identifies the BINDING, and a tombstone is the
+	/* the lineage identifies the BINDING, and a tombstone is the
 	 * binding surviving an idle gap — carry it with the resource identity
-	 * (sess175 ruling: preserve in tombstone + frozen manifest). */
+	 * (ruling: preserve in tombstone + frozen manifest). */
 	s->resource_lineage = saved_lineage;
-	/* sess40: open-unlinked protection must survive grant-idle gaps —
+	/* open-unlinked protection must survive grant-idle gaps —
 	 * the tombstone carries open_holders with the resource identity. */
 	s->open_holders = saved_open;
 	s->last_modified_ms = mxfs_pal_time_ms();
@@ -2167,18 +2167,18 @@ static void caw_claim_inherit_epoch(struct mxfs_caw_lock_slot *fresh,
 	    memcmp(&prev->resource, resource, sizeof(*resource)) == 0) {
 		fresh->dir_epoch = prev->dir_epoch;
 		fresh->last_ex_slot = prev->last_ex_slot;
-		/* sess108: carry the write-authority sequence too, so a
+		/* carry the write-authority sequence too, so a
 		 * same-resource re-claim CONTINUES the namespace instead of
 		 * restarting it at 1 (see caw_tombstone_slot). */
 		fresh->ex_grant_epoch = prev->ex_grant_epoch;
-		/* sess176: same-resource recycle CONTINUES the binding, so the
+		/* same-resource recycle CONTINUES the binding, so the
 		 * lineage rides with it.  A zero here (legacy tombstone from a
 		 * pre-lineage build) is left zero — the claim site upgrades it
 		 * with a fresh mint, which cannot invalidate anything: records
 		 * stamped under a zero-lineage tenure are lineage-less and
 		 * already outside the enforceable set. */
 		fresh->resource_lineage = prev->resource_lineage;
-		/* sess46: complete the sess40 tombstone-carry contract — the
+		/* complete the tombstone-carry contract — the
 		 * tombstone preserves open_holders but this inherit never
 		 * restored them, so a same-resource re-claim silently dropped
 		 * idle-gap open bits.  Unreachable-with-bits today (every
@@ -2189,7 +2189,7 @@ static void caw_claim_inherit_epoch(struct mxfs_caw_lock_slot *fresh,
 }
 
 /*
- * sess176 (lineage discriminator, sess175 design-consult ruling): mint the random
+ * (lineage discriminator, design-consult ruling): mint the random
  * nonzero 64-bit lineage id for a FRESH resource binding.  Same fail-closed
  * draw discipline as disklock.c's hb_draw_incarnation:
  * mxfs_pal_get_random_bytes returns void and cannot report failure — its
@@ -2246,7 +2246,7 @@ static void caw_grant_meta_store(struct mxfs_dlm_caw_ctx *ctx,
 }
 
 /*
- * sess37 direct-handoff adopt support: report the dir_epoch this node
+ * direct-handoff adopt support: report the dir_epoch this node
  * recorded at its LAST grant of `resource` (any mode).  The adopter compares
  * it against the slot's current dir_epoch to decide whether a foreign
  * EX-class tenure intervened since our last coherent load — the exact
@@ -2313,7 +2313,7 @@ static bool caw_grant_meta_store_unless_releasing(struct mxfs_dlm_caw_ctx *ctx,
 		return false;
 	}
 	/*
-	 * sess4 (ccloop 46efd8b6): NEVER claim a bucket out from under a
+	 * NEVER claim a bucket out from under a
 	 * FOREIGN resource's in-flight release.  grant_meta is a no-chain
 	 * hash table; the old claim path wiped the collided entry INCLUDING
 	 * its `releasing` mark and its grant_seq — evaporating both v0.6.2
@@ -2366,7 +2366,7 @@ static void caw_grant_seq_prebump(struct mxfs_dlm_caw_ctx *ctx,
 	if (!ctx->grant_meta)
 		return;
 	/*
-	 * sess4 (ccloop 46efd8b6): a colliding FOREIGN resource mid-release
+	 * a colliding FOREIGN resource mid-release
 	 * owns this bucket; claiming it would wipe its `releasing` mark and
 	 * grant_seq — the v0.6.2 protections — mid-CAS.  Wait it out
 	 * (bounded; a release CAS is ms-scale) before claiming.  On timeout
@@ -2450,7 +2450,7 @@ static void caw_release_mark(struct mxfs_dlm_caw_ctx *ctx,
 
 	if (!ctx->grant_meta)
 		return;
-	/* sess4 (ccloop 46efd8b6): as in caw_grant_seq_prebump — never claim
+	/* as in caw_grant_seq_prebump — never claim
 	 * a bucket from a colliding FOREIGN resource mid-release (wiping its
 	 * releasing mark + grant_seq kills the v0.6.2 protections).  Two
 	 * concurrent unlocks colliding on one bucket serialize here. */
@@ -2523,7 +2523,7 @@ uint32_t mxfs_dlm_caw_grant_dir_epoch(struct mxfs_dlm_caw_ctx *ctx,
 	return epoch;
 }
 
-/* ccloop(3e02e7dd) sess3: canonical dir block0 query — see the
+/* (3e02e7dd) canonical dir block0 query — see the
  * dir_block0_fsb comment in struct mxfs_caw_lock_slot. */
 bool mxfs_dlm_caw_grant_dir_block0(struct mxfs_dlm_caw_ctx *ctx,
 				   const struct mxfs_resource_id *resource,
@@ -2644,7 +2644,7 @@ void mxfs_dlm_caw_orphan_clock_set(struct mxfs_dlm_caw_ctx *ctx,
 	mxfs_pal_spinlock_unlock(ctx->orphan_clock_lock);
 }
 
-/* ─── sess112: LOCAL REQUEST REGISTRY (per node, per resource) ─── */
+/* ─── LOCAL REQUEST REGISTRY (per node, per resource) ─── */
 
 /*
  * See the long comment on ctx->lreq in dlm_caw.h for WHY this exists.  In one
@@ -2720,7 +2720,7 @@ struct mxfs_caw_lreq {
 	bool			 owed_waiters_ex;
 	bool			 owed_busy;	/* the worker owns it right now */
 	/*
-	 * sess129 (GPT sess126 ruling, blocker 4): owed-ready queue links.  See
+	 * (design-consult ruling, blocker 4): owed-ready queue links.  See
 	 * ctx->owed_q_head in dlm_caw.h for the invariant they maintain and why
 	 * it is load-bearing for memory safety.  DOUBLY linked because a
 	 * retraction dequeues an arbitrary entry and must not walk to find it —
@@ -2735,7 +2735,7 @@ struct mxfs_caw_lreq {
 	uint32_t		 owed_fails;
 	uint64_t		 owed_next_ms;	/* backoff floor */
 	/*
-	 * sess130 (GPT sess126 ruling, blocker 3): the EPISODE clock, and the
+	 * (design-consult ruling, blocker 3): the EPISODE clock, and the
 	 * exact claim it supports.
 	 *
 	 * owed_since_ms is stamped on the not-pending → pending transition in
@@ -2745,7 +2745,7 @@ struct mxfs_caw_lreq {
 	 *
 	 *   "this resource has had continuously outstanding cleanup for X"
 	 *
-	 * NOT "these bits are X old".  GPT sess130 named the attribution
+	 * NOT "these bits are X old".  design review named the attribution
 	 * problem: obligation A ages, B is merged onto the same entry, A is
 	 * retracted, the entry never goes non-pending, and B inherits A's age.
 	 * Per-constituent ages would fix the attribution and are strictly more
@@ -2761,7 +2761,7 @@ struct mxfs_caw_lreq {
 	uint64_t		 owed_since_ms;	/* episode start, 0 = not owing */
 	int			 owed_last_rc;
 	/*
-	 * sess117 CLEAR-WINDOW LINEARIZATION (sess115 ruling, blocker 1's
+	 * CLEAR-WINDOW LINEARIZATION (ruling, blocker 1's
 	 * surviving half + blocker 2 "adoption must be PROVISIONAL").
 	 *
 	 * clr_active — destructive clear windows open on this resource right
@@ -2806,14 +2806,14 @@ struct mxfs_caw_clear_plan {
 	bool	waiters_ex;
 	bool	holder;
 	/*
-	 * sess122: the holder clear was refused because a COMMITTED LOCAL TENURE
+	 * the holder clear was refused because a COMMITTED LOCAL TENURE
 	 * holds this exact mode.  That bit is authorised, not dirt, and its
 	 * owner's unlock clears it — so the obligation must DISCHARGE rather
 	 * than stay owed.  Without this exception the worker would retry forever
 	 * on a bit that can never become clearable while the tenure lives, which
 	 * is a livelock, not a safety property.
 	 *
-	 * sess157: MID-RUN ONLY.  In the frozen teardown world
+	 * MID-RUN ONLY.  In the frozen teardown world
 	 * (lreq_world_frozen) the owner's unlock will never run — lreq_plan
 	 * then permits a real clear instead, and lreq_owed_retract refuses a
 	 * moot verdict on a tenured mode (P270).  See
@@ -2823,7 +2823,7 @@ struct mxfs_caw_clear_plan {
 };
 
 /*
- * sess122: one obligation, as published by whoever created it.  `slot_hint` is
+ * one obligation, as published by whoever created it.  `slot_hint` is
  * diagnostic (UINT32_MAX = none); the worker resolves the resource canonically.
  */
 struct mxfs_caw_owed_intent {
@@ -2857,7 +2857,7 @@ static bool lreq_owed_pending(const struct mxfs_caw_lreq *e)
 }
 
 /*
- * ─── sess129 (GPT sess126 ruling, blocker 4): the OWED-READY QUEUE ───
+ * ─── (design-consult ruling, blocker 4): the OWED-READY QUEUE ───
  *
  * Caller holds ctx->lreq_lock for all four helpers.  ctx->owed_q_head in
  * dlm_caw.h carries the invariant and the argument for why it is a memory
@@ -2954,7 +2954,7 @@ static void lreq_owed_merge(struct mxfs_dlm_caw_ctx *ctx,
 		(in->waiters && !e->owed_waiters) ||
 		(in->waiters_ex && !e->owed_waiters_ex);
 
-	/* sess130 (blocker 3): start the episode clock on the not-pending →
+	/* (blocker 3): start the episode clock on the not-pending →
 	 * pending edge ONLY.  A merge onto an entry that already owes something
 	 * extends the same episode and must not restart it — restarting is
 	 * exactly how continuous publication would suppress the wall-clock
@@ -2972,13 +2972,13 @@ static void lreq_owed_merge(struct mxfs_dlm_caw_ctx *ctx,
 	e->owed_gen++;
 	e->owed_next_ms = 0;
 	/*
-	 * sess129 (blocker 4): the not-owed → owed transition is one of the four
+	 * (blocker 4): the not-owed → owed transition is one of the four
 	 * queue edges.  A merge onto an entry the collector has already CLAIMED
 	 * must NOT enqueue — owed_busy is the other half of the invariant, and
 	 * caw_owed_release will put it back when it hands the claim over.
 	 */
 	lreq_oq_sync(ctx, e);
-	/* sess127 (blocker 6): the wake edge, recorded under the lock the worker
+	/* (blocker 6): the wake edge, recorded under the lock the worker
 	 * parks on.  The broadcast that follows this call is outside the lock and
 	 * can therefore be lost; this cannot. */
 	ctx->lreq_owed_work_seq++;
@@ -2987,7 +2987,7 @@ static void lreq_owed_merge(struct mxfs_dlm_caw_ctx *ctx,
 }
 
 /*
- * ─── sess120: the destructive-clear entry reserve (GPT sess118 ruling item 5)
+ * ─── the destructive-clear entry reserve (design-consult ruling item 5)
  *
  * See ctx->lreq_reserve in dlm_caw.h for WHY a destructive clear may not call
  * the allocator.  These three helpers are the whole mechanism.
@@ -3068,7 +3068,7 @@ static void lreq_reserve_fill(struct mxfs_dlm_caw_ctx *ctx, uint32_t target)
  * cleanup running.  Keeping a quiescent entry would be harmless for correctness
  * but would turn the table into an unbounded leak across a mount.
  *
- * sess120: the unlinked entry goes back to the destructive-clear reserve rather
+ * the unlinked entry goes back to the destructive-clear reserve rather
  * than to the allocator whenever the reserve is below target.  That is what
  * makes the reserve self-sustaining: an entry a clear window created returns
  * the instant that window closes, so the steady-state draw is zero.
@@ -3079,7 +3079,7 @@ static void lreq_gc(struct mxfs_dlm_caw_ctx *ctx, struct mxfs_caw_lreq *e)
 	int m;
 
 	/*
-	 * sess129 (blocker 4): oq_queued is REDUNDANT under the owed-ready queue
+	 * (blocker 4): oq_queued is REDUNDANT under the owed-ready queue
 	 * invariant — queued implies pending, which is already a refusal — and it
 	 * is listed anyway on purpose.  It is the only barrier between a future
 	 * weakening of that invariant and a use-after-free through the queue, and
@@ -3113,7 +3113,7 @@ static void lreq_gc(struct mxfs_dlm_caw_ctx *ctx, struct mxfs_caw_lreq *e)
  * caller MUST refuse the acquisition in that case: proceeding would mean a
  * later reconcile reads "no other local attempt is live" from a table that
  * simply failed to record one, which is the unsound view this whole mechanism
- * exists to prevent (GPT sess111 ruling item 6 — never "overflowed and
+ * exists to prevent (design-consult ruling item 6 — never "overflowed and
  * continue").  Refusing costs an -ENOMEM to a caller that retries; continuing
  * costs an unfenced writer.
  */
@@ -3147,7 +3147,7 @@ static struct mxfs_caw_lreq *lreq_join(struct mxfs_dlm_caw_ctx *ctx,
 	e->attempts++;
 	if (mxfs_mode_can_write(mode))
 		e->writers++;
-	/* sess120: we lost the race and hold a spare.  Donate it to the
+	/* we lost the race and hold a spare.  Donate it to the
 	 * destructive-clear reserve instead of freeing it — this is the cheapest
 	 * restock there is, and it happens exactly when the resource is
 	 * contended, which is when a clear is most likely to need one. */
@@ -3158,7 +3158,7 @@ static struct mxfs_caw_lreq *lreq_join(struct mxfs_dlm_caw_ctx *ctx,
 	mxfs_pal_free(fresh);
 
 	/*
-	 * sess120: top the reserve up from HERE, an acquire path.  This is the
+	 * top the reserve up from HERE, an acquire path.  This is the
 	 * allocation-safe context the reserve exists to move the allocation
 	 * into: an acquire that fails on -ENOMEM costs one caller a retry,
 	 * whereas an unlock that fails leaves the lock held and stalls every
@@ -3170,7 +3170,7 @@ static struct mxfs_caw_lreq *lreq_join(struct mxfs_dlm_caw_ctx *ctx,
 }
 
 /*
- * sess157 (D-TEARDOWN-DRAIN-MOOT-TENURED-HOLDER-LEAK, GPT sess157 ruling):
+ * (D-TEARDOWN-DRAIN-MOOT-TENURED-HOLDER-LEAK, design-consult ruling):
  * the world is FROZEN once stop() has closed admission (phase 1), every
  * publication-capable producer is quiesced and joined (phases 2+3), the
  * release_all traversal has FINISHED (phase 4 sets release_all_done at its
@@ -3198,7 +3198,7 @@ static bool lreq_world_frozen(const struct mxfs_dlm_caw_ctx *ctx)
  * so `attempts` includes us and `others` is the number of local threads that
  * would be harmed by an over-broad clear.
  *
- * sess122 (GPT sess121 ruling item 2): THIS FUNCTION IS PURE.  It used to
+ * (design-consult ruling item 2): THIS FUNCTION IS PURE.  It used to
  * record what it refused as OWED, which made a plan evaluation — something the
  * CAS loop does on EVERY iteration, purely to decide what to write — also a
  * publication.  That conflated deciding with owing: a refusal recorded on an
@@ -3225,7 +3225,7 @@ static void lreq_plan(struct mxfs_dlm_caw_ctx *ctx, struct mxfs_caw_lreq *e,
 
 	mxfs_pal_mutex_lock(ctx->lreq_lock);
 	/*
-	 * sess117: `others` is "local attempts that are NOT this caller".  The
+	 * `others` is "local attempts that are NOT this caller".  The
 	 * deferred (owed) pass runs AFTER its attempt already left, so it must
 	 * NOT subtract itself — doing so read one live attempt as zero and let
 	 * the deferred clear strip a bit that attempt was still relying on.
@@ -3250,7 +3250,7 @@ static void lreq_plan(struct mxfs_dlm_caw_ctx *ctx, struct mxfs_caw_lreq *e,
 				 * never becomes owed — it is legitimately set
 				 * and its owner's unlock will clear it.  This
 				 * is the corruption-class save.  MID-RUN ONLY
-				 * (sess157): in the frozen world the owner is
+				 * in the frozen world the owner is
 				 * the departing node itself and its unlock
 				 * will never run.
 				 */
@@ -3259,7 +3259,7 @@ static void lreq_plan(struct mxfs_dlm_caw_ctx *ctx, struct mxfs_caw_lreq *e,
 				ctx->lreq_guard_hits++;
 			} else if (others) {
 				/*
-				 * sess157: the frozen world promises zero live
+				 * the frozen world promises zero live
 				 * attempts, yet one exists.  Fail closed:
 				 * DEFER, never moot — the obligation stays
 				 * owed, the drain retries, and P254 reports it
@@ -3282,7 +3282,7 @@ static void lreq_plan(struct mxfs_dlm_caw_ctx *ctx, struct mxfs_caw_lreq *e,
 				plan->holder = false;
 			}
 			/*
-			 * else — frozen world, no live attempt (sess157,
+			 * else — frozen world, no live attempt (
 			 * D-TEARDOWN-DRAIN-MOOT-TENURED-HOLDER-LEAK): PERMIT
 			 * the clear.  plan->holder stays true so the teardown
 			 * drain CASes the bit off the LUN; a bit the image
@@ -3309,7 +3309,7 @@ static void lreq_plan(struct mxfs_dlm_caw_ctx *ctx, struct mxfs_caw_lreq *e,
 }
 
 /*
- * ─── sess122: RETRACTION (GPT sess121 ruling items 4 + 5) ───
+ * ─── RETRACTION (design-consult ruling items 4 + 5) ───
  *
  * Discharge only what this pass PROVED, and only if no newer intent arrived.
  *
@@ -3332,7 +3332,7 @@ static void lreq_plan(struct mxfs_dlm_caw_ctx *ctx, struct mxfs_caw_lreq *e,
  * (`others != 0`) needs no exception: it terminates naturally when the last
  * local attempt leaves and a later pass finds the plan permissive.
  *
- * sess157 (D-TEARDOWN-DRAIN-MOOT-TENURED-HOLDER-LEAK): the moot exception is
+ * (D-TEARDOWN-DRAIN-MOOT-TENURED-HOLDER-LEAK): the moot exception is
  * MID-RUN ONLY.  Once the world is frozen (lreq_world_frozen) a tenured mode
  * is planned as a real clear, and a moot verdict arriving at retraction in
  * the frozen world is refused (P270) — accepting it would erase the
@@ -3374,7 +3374,7 @@ static void lreq_owed_retract(struct mxfs_dlm_caw_ctx *ctx,
 			if (e->tenure[giveup_mode] &&
 			    lreq_world_frozen(ctx)) {
 				/*
-				 * sess157 (GPT ruling, retraction-time
+				 * (design-consult ruling, retraction-time
 				 * provenance guard): a moot verdict reached
 				 * retraction in the frozen world while the
 				 * mode is still tenured — the plan predates
@@ -3408,14 +3408,14 @@ static void lreq_owed_retract(struct mxfs_dlm_caw_ctx *ctx,
 			    giveup_mode < MXFS_LOCK_MODE_COUNT) {
 				e->owed_holder_mask &= ~(1u << giveup_mode);
 				/*
-				 * sess157: the POSITIVE per-mode observation
+				 * the POSITIVE per-mode observation
 				 * for the teardown drain — this holder mode
 				 * was discharged on PROOF (CAS landed or image
 				 * showed it absent), not mooted.  Frozen-world
 				 * only, so mid-run churn stays silent.
 				 */
 				if (lreq_world_frozen(ctx))
-					pr_warn_ratelimited("mxfs: P271-OWED-DISCHARGE type=%c id=%llu mode=%u tenure=%u — teardown drain discharged this holder mode on proof (CAS landed or bit already absent)\n",
+					mxfs_probe_ratelimited("mxfs: P271-OWED-DISCHARGE type=%c id=%llu mode=%u tenure=%u — teardown drain discharged this holder mode on proof (CAS landed or bit already absent)\n",
 						e->resource.type == MXFS_LTYPE_INODE ? 'I' :
 						e->resource.type == MXFS_LTYPE_AG ? 'A' : 'O',
 						(unsigned long long)(e->resource.type ==
@@ -3429,7 +3429,7 @@ static void lreq_owed_retract(struct mxfs_dlm_caw_ctx *ctx,
 	if (!lreq_owed_pending(e)) {
 		e->owed_fails = 0;
 		e->owed_next_ms = 0;
-		/* sess130 (blocker 3): the episode ENDED — cleanup on this resource
+		/* (blocker 3): the episode ENDED — cleanup on this resource
 		 * came clean.  Clearing the clock here, in the one place that already
 		 * owns the per-episode reset, is what makes owed_since_ms mean
 		 * "continuously outstanding" and not "first ever seen". */
@@ -3437,7 +3437,7 @@ static void lreq_owed_retract(struct mxfs_dlm_caw_ctx *ctx,
 		e->owed_last_rc = 0;
 		ctx->lreq_owed_done++;
 	}
-	/* sess129 (blocker 4): the owed → not-owed transition.  It runs on both
+	/* (blocker 4): the owed → not-owed transition.  It runs on both
 	 * the collector's own retractions (where the entry is claimed, hence not
 	 * queued, and this is a no-op) and on give-up paths retracting an entry
 	 * the collector has never touched — that one IS queued, and leaving it
@@ -3447,9 +3447,9 @@ static void lreq_owed_retract(struct mxfs_dlm_caw_ctx *ctx,
 }
 
 /*
- * ─── sess117: the clear window ───
+ * ─── the clear window ───
  *
- * WHY (sess115 design-consult ruling): "a destructive disk transition may occur only
+ * WHY (design-consult ruling): "a destructive disk transition may occur only
  * after the authoritative resource state has stopped new dependent activity
  * and established that all previously admitted dependent activity is
  * quiescent, or after a DLM-level protocol has provided an equivalent
@@ -3498,8 +3498,8 @@ static void lreq_owed_retract(struct mxfs_dlm_caw_ctx *ctx,
  * racing in mid-window would find no entry, snapshot a freshly created one
  * with clr_active == 0, and publish straight through the clear.
  *
- * sess120 (GPT sess118 ruling item 5) — this is FIND-FIRST and ALLOCATION-FREE.
- * Two changes from the sess117 shape, both required:
+ * (design-consult ruling item 5) — this is FIND-FIRST and ALLOCATION-FREE.
+ * Two changes from the shape, both required:
  *
  *   1. The lookup happens before any allocation, so the overwhelmingly common
  *      case — a clear on a resource this node holds a grant on — never touches
@@ -3516,7 +3516,7 @@ static void lreq_owed_retract(struct mxfs_dlm_caw_ctx *ctx,
  * CLOSED — a destructive clear that proceeds without registry coverage is
  * exactly the unlinearized clear this whole mechanism exists to prevent.
  *
- * sess124 (GPT sess121 ruling item 1): opening the window is ALSO the
+ * (design-consult ruling item 1): opening the window is ALSO the
  * publication point for the obligation the clear is about to take on.  `intent`
  * (NULL for a window that owes nothing) is merged and `*gen0` returns the
  * post-merge generation, all inside the SAME lreq_lock section that claims the
@@ -3620,7 +3620,7 @@ static int lreq_clr_begin_wait(struct mxfs_dlm_caw_ctx *ctx,
 }
 
 /*
- * ─── sess127: the COLLECTOR's clear window (GPT sess126 ruling, blocker 5) ───
+ * ─── the COLLECTOR's clear window (design-consult ruling, blocker 5) ───
  *
  * Open a destructive-clear window on an entry whose obligation the caller
  * ALREADY OWNS.  Same exclusion as lreq_clr_begin — clr_active is raised, so a
@@ -3677,7 +3677,7 @@ static void lreq_clr_end(struct mxfs_dlm_caw_ctx *ctx, struct mxfs_caw_lreq *e,
 		e->clr_active--;
 	if (e->pin)
 		e->pin--;
-	/* sess127 (blocker 6): the sweep SKIPS an entry with a window open on it,
+	/* (blocker 6): the sweep SKIPS an entry with a window open on it,
 	 * so closing one is a wake edge — the entry may be dispatchable now and
 	 * nothing else will say so. */
 	ctx->lreq_owed_work_seq++;
@@ -3692,7 +3692,7 @@ static void lreq_clr_end(struct mxfs_dlm_caw_ctx *ctx, struct mxfs_caw_lreq *e,
  * Must be paired with lreq_clr_still_good BEFORE the grant becomes usable by
  * XFS.
  *
- * ORDERING (sess118 correction to the sess116 design note, which said "after
+ * ORDERING (correction to the design note, which said "after
  * the read"): the snapshot MUST be taken BEFORE the read, never after.  Taken
  * after, a clear that both BEGINS and COMMITS inside the read→snap gap is
  * invisible — clr_active is back to 0 and clr_seq is already at its new value,
@@ -3750,7 +3750,7 @@ static bool lreq_clr_still_good(struct mxfs_dlm_caw_ctx *ctx,
 	mxfs_pal_mutex_lock(ctx->lreq_lock);
 	e = lreq_find(ctx, resource);
 	/*
-	 * sess118 ruling item 4 (registry ABA): a MISSING entry is a validation
+	 * ruling item 4 (registry ABA): a MISSING entry is a validation
 	 * FAILURE, not a pass.  clr_seq is monotone only over one entry's
 	 * lifetime, so "entry absent ⇒ nothing cleared" is only sound if
 	 * disappearance is provably impossible — and while that is believed
@@ -3765,10 +3765,10 @@ static bool lreq_clr_still_good(struct mxfs_dlm_caw_ctx *ctx,
 }
 
 /*
- * sess120 (GPT sess118 ruling item (i): "no destructive path bypasses
+ * (design-consult ruling item (i): "no destructive path bypasses
  * begin/end").  Wrap ONE destructive CAS in a clear window.
  *
- * The sess119 audit classified every `&= ~ctx->node_bit` site in this file and
+ * The audit classified every `&= ~ctx->node_bit` site in this file and
  * found three that strip this node's AUTHORITY with no window at all — both
  * divergence arms of mxfs_dlm_caw_lock and the downgrade arm of
  * mxfs_dlm_caw_convert.  All three are memory-invisible to a concurrent
@@ -3788,7 +3788,7 @@ static bool lreq_clr_still_good(struct mxfs_dlm_caw_ctx *ctx,
  * its own bounded retry: an acquire that cannot clear its provably-stale bit
  * must keep retrying and eventually fail, never return success on it.
  *
- * sess124: `owed_mode` names the holder bit this CAS is trying to strip, or
+ * `owed_mode` names the holder bit this CAS is trying to strip, or
  * MXFS_LOCK_NL for a clear that owes nothing.  Why the two divergence arms owe
  * and the downgrade arm does not:
  *
@@ -3858,7 +3858,7 @@ static int caw_slot_clearing(struct mxfs_dlm_caw_ctx *ctx,
 /* ─── Find slot for resource (hash + linear probe) ─── */
 
 /*
- * sess128 (GPT sess126 ruling, blocker 1): `deadline` is an ABSOLUTE
+ * (design-consult ruling, blocker 1): `deadline` is an ABSOLUTE
  * mxfs_pal_time_ms() value, or 0 for "unbounded" — which is what every acquire/
  * release caller passes, because their bound is the caller's own lock timeout
  * and a probe walk cut short there would be a correctness regression, not a
@@ -3868,7 +3868,7 @@ static int caw_slot_clearing(struct mxfs_dlm_caw_ctx *ctx,
  * -ENOENT: caw_owed_resolve's terminal proof requires a COMPLETE walk.
  */
 /*
- * sess460 (D-32NODE-SHARED-DIR-CREATE-PACE step 1): name the CALLER of every
+ * (D-32NODE-SHARED-DIR-CREATE-PACE step 1): name the CALLER of every
  * slot RESOLUTION of the watched resource — P383-SLOTREAD names the reader
  * (find_slot_skip itself); this names who asked for the walk, so the ~25
  * resolutions per shared-directory create can be attributed to acquire /
@@ -3880,7 +3880,7 @@ static inline void caw_resolve_note(uint32_t base, const char *via, int rc,
 				    uint32_t idx, const void *who)
 {
 	if (caw_watch_armed(base))
-		pr_warn("mxfs: P383-RESOLVE base=%u idx=%u via=%s rc=%d who=%pS\n",
+		mxfs_probe("mxfs: P383-RESOLVE base=%u idx=%u via=%s rc=%d who=%pS\n",
 			base, idx, via, rc, who);
 }
 
@@ -3957,7 +3957,7 @@ static int find_slot_skip(struct mxfs_dlm_caw_ctx *ctx,
 		uint32_t idx = (base + i) % MXFS_CAW_MAX_SLOTS;
 
 		/*
-		 * sess128: before every slot read, span refill included.  A full
+		 * before every slot read, span refill included.  A full
 		 * walk is 65536 slots; at one span read per MXFS_CAW_PROBE_SPAN
 		 * that is still hundreds of I/Os, which is precisely why the
 		 * teardown drain could outrun its budget inside a single
@@ -4021,7 +4021,7 @@ static int find_slot_skip(struct mxfs_dlm_caw_ctx *ctx,
 				return 0; /* Found */
 			}
 			/*
-			 * sess131: a live entry whose resource belongs to a
+			 * a live entry whose resource belongs to a
 			 * DIFFERENT volume is a pre-mkfs ghost record (an
 			 * old-generation node wrote it after the mkfs zero
 			 * pass).  Nothing in this generation will ever look
@@ -4049,7 +4049,7 @@ static int find_slot_skip(struct mxfs_dlm_caw_ctx *ctx,
 		}
 
 		/*
-		 * sess40 (same root as the claim-compare fix above): only a
+		 * (same root as the claim-compare fix above): only a
 		 * ZERO magic is "truly empty / never used".  Any OTHER
 		 * unrecognised magic is UNKNOWN — a stale-disk sector or a
 		 * bad/torn read — and must not be trusted, because trusting
@@ -4079,7 +4079,7 @@ static int find_slot_skip(struct mxfs_dlm_caw_ctx *ctx,
 				mxfs_pal_free(rr);
 			}
 			/*
-			 * sess40 forensic: a SPAN-sourced image whose magic is
+			 * forensic: a SPAN-sourced image whose magic is
 			 * unrecognised while a per-slot read of the same LBA
 			 * returns a perfectly valid slot means the multi-slot
 			 * read path is serving data that disagrees with the
@@ -4103,7 +4103,7 @@ static int find_slot_skip(struct mxfs_dlm_caw_ctx *ctx,
 					 * non-zero offset), the transfer is
 					 * misaligned for the window tail and
 					 * that names the mechanism outright. */
-					mxfs_pal_log(MXFS_LOG_WARN,
+					mxfs_pal_log(MXFS_LOG_DEBUG,
 					    "mxfs: P94-SPAN-DISAGREE idx=%u span_magic=%x fresh_magic=%x span_base=%u span_n=%u span16=%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x fresh16=%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
 					    idx, span_magic, data_out->magic,
 					    span_base, span_n,
@@ -4133,7 +4133,7 @@ static int find_slot_skip(struct mxfs_dlm_caw_ctx *ctx,
 				static int p93_n;
 
 				if (p93_n++ < 100)
-					mxfs_pal_log(MXFS_LOG_WARN,
+					mxfs_pal_log(MXFS_LOG_DEBUG,
 					    "mxfs: P93-SLOT-GARBAGE idx=%u magic=%x — unrecognised on fresh read; recyclable but not terminating the probe",
 					    idx, data_out->magic);
 				if (*empty_out == UINT32_MAX &&
@@ -4184,7 +4184,7 @@ static int find_slot_deadline(struct mxfs_dlm_caw_ctx *ctx,
 }
 
 /*
- * sess19 (ccloop 4eef1f39): read the current on-disk generation (ABA counter)
+ * read the current on-disk generation (ABA counter)
  * for a resource's lock slot.  Used as a SHARED cross-node epoch for AG
  * free-space coherency — see pag_dlm_disk_gen_seen in xfs_ag.h.  The caller
  * (AG fresh-acquire path) holds EX when it calls this, so the value is stable
@@ -4215,8 +4215,8 @@ int mxfs_dlm_caw_read_generation(struct mxfs_dlm_caw_ctx *ctx,
 }
 
 /*
- * sess48's mxfs_dlm_caw_read_ex_grant_epoch() lived here and was DELETED in
- * sess110 (step 5.3 ruling blocker 5) along with its only caller.  Reading
+ * mxfs_dlm_caw_read_ex_grant_epoch lived here and was DELETED in
+ * (step 5.3 ruling blocker 5) along with its only caller.  Reading
  * ex_grant_epoch out of band — in a second slot I/O after an acquire already
  * returned — produces an epoch with NO proven relationship to the grant the
  * caller holds: release+regrant in the window (our own bast drain, or a peer
@@ -4227,7 +4227,7 @@ int mxfs_dlm_caw_read_generation(struct mxfs_dlm_caw_ctx *ctx,
  */
 
 /*
- * sess165 (foreign-replay step 5, shadow evaluator) — the CONSUMER-side
+ * (foreign-replay step 5, shadow evaluator) — the CONSUMER-side
  * counterpart the comment above must not be read as banning.  See the
  * contract comment in dlm_caw.h: this reads a FENCED victim's frozen
  * held-at-death manifest for log-replay evaluation, is stable because the
@@ -4235,7 +4235,7 @@ int mxfs_dlm_caw_read_generation(struct mxfs_dlm_caw_ctx *ctx,
  * result must never reach a producer-side path.  Deliberately takes the
  * victim slot EXPLICITLY — it answers "does the VICTIM hold EX here", never
  * "who holds EX", so a caller cannot repurpose it to fish an epoch for its
- * own writes (the sess110 misuse shape).
+ * own writes (the misuse shape).
  */
 int mxfs_dlm_caw_victim_manifest_read(struct mxfs_dlm_caw_ctx *ctx,
                                       const struct mxfs_resource_id *resource,
@@ -4281,7 +4281,7 @@ int mxfs_dlm_caw_victim_manifest_read_ex(struct mxfs_dlm_caw_ctx *ctx,
 
         *out_holds_ex = !!((slot->holders_ex | slot->holders_pw) & vb);
         *out_ex_grant_epoch = slot->ex_grant_epoch;
-        /* same slot image as the fields above — sess175 Q-C, no reread */
+        /* same slot image as the fields above — Q-C, no reread */
         *out_lineage = slot->resource_lineage;
         if (out_mode)
             *out_mode = ((slot->holders_ex & vb) ? MXFS_RMAN_MODE_EX : 0) |
@@ -4290,7 +4290,7 @@ int mxfs_dlm_caw_victim_manifest_read_ex(struct mxfs_dlm_caw_ctx *ctx,
             *out_slot_idx = slot_idx;
     }
     /*
-     * sess402 (D-TMPFILE-CHURN-KILL-FOREIGN-REPLAY-EFSCORRUPTED-402, instrumented
+     * (D-TMPFILE-CHURN-KILL-FOREIGN-REPLAY-EFSCORRUPTED-402, instrumented
      * step 2): kill2 refused both victim slices with the evaluator saying
      * not_held for the victims' two-owner AGs (5/6) while a co-owner was
      * blocked on the SAME AG as peer-held — the slot image at replay time is
@@ -4317,7 +4317,7 @@ int mxfs_dlm_caw_victim_manifest_read_ex(struct mxfs_dlm_caw_ctx *ctx,
                     (unsigned long long)slot->resource_lineage,
                     (unsigned long long)slot->generation);
             else
-                mxfs_pal_log(MXFS_LOG_WARN,
+                mxfs_pal_log(MXFS_LOG_DEBUG,
                     "mxfs: P-VMAN-NOTHELD kind=%u res=%llu victim_slot=%u rc=%d — manifest slot lookup failed (counted not_held when -ENOENT)",
                     (unsigned int)resource->type,
                     (unsigned long long)(resource->type == MXFS_LTYPE_AG ?
@@ -4330,7 +4330,7 @@ int mxfs_dlm_caw_victim_manifest_read_ex(struct mxfs_dlm_caw_ctx *ctx,
 }
 
 /*
- * ccloop(3e02e7dd) sess3: WRITE-ONCE publish of the canonical dir block0 for
+ * (3e02e7dd) WRITE-ONCE publish of the canonical dir block0 for
  * incarnation `gen` — see the dir_block0_fsb comment in struct
  * mxfs_caw_lock_slot.  Caller holds EX on the inode (the sf->block converter,
  * right after allocating the new block0); the resource's lock-grant state
@@ -4372,7 +4372,7 @@ void mxfs_dlm_caw_set_dir_block0(struct mxfs_dlm_caw_ctx *ctx,
 		if (rc == -EAGAIN)
 			continue;
 		if (rc == 0)
-			pr_warn_ratelimited(
+			mxfs_probe_ratelimited(
 			    "mxfs: P-BLOCK0-PUBLISH ino=%llu fsb=%llu gen=%u — canonical dir block0 published\n",
 			    (unsigned long long)resource->ino,
 			    (unsigned long long)fsb, gen);
@@ -4384,7 +4384,7 @@ out:
 }
 
 /*
- * sess47: CLAIM-RACE detector (instrumented diagnostic for the bnobt stale-pristine
+ * CLAIM-RACE detector (instrumented diagnostic for the bnobt stale-pristine
  * clobber).  Scan the ENTIRE probe chain (hash base -> first truly-empty slot,
  * tombstones DON'T terminate) and count LIVE slots whose resource matches
  * `resource`.  The find_slot invariant is exactly-one; >1 means two nodes each
@@ -4453,7 +4453,7 @@ static int caw_count_resource_slots(struct mxfs_dlm_caw_ctx *ctx,
 		break;
 	}
 	if (capped)
-		mxfs_pal_log(MXFS_LOG_WARN,
+		mxfs_pal_log(MXFS_LOG_DEBUG,
 			"mxfs: CAW-CLAIMRACE-SCAN capped at %d probes "
 			"(type=%u ag=%u ino=%llu) — chain longer than scan cap",
 			MXFS_CAW_CLAIMRACE_SCAN_MAX, resource->type,
@@ -4468,7 +4468,7 @@ static int caw_count_resource_slots(struct mxfs_dlm_caw_ctx *ctx,
 /*
  * Record slot_index as a lock this mount actively holds.
  *
- * sess53: returns false if the table was full, i.e. the grant could NOT
+ * returns false if the table was full, i.e. the grant could NOT
  * be recorded.  Callers used to ignore that (it only warned), which is
  * safe for the lock itself — the authority is the on-disk bit, not this
  * table — but NOT safe for the settle purge, whose entire discriminator
@@ -4509,7 +4509,7 @@ static bool track_held(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_index)
 }
 
 /*
- * sess52 (D-FOREIGN-REPLAY step 4a): is this slot index one WE are
+ * (D-FOREIGN-REPLAY step 4a): is this slot index one WE are
  * actively holding?  "Tracked" is the discriminator the post-recovery
  * settle uses to tell a live hold (adopted or freshly granted) from a
  * dead incarnation's leftover bit.  In steady state ctx->held mirrors
@@ -4535,7 +4535,7 @@ static bool is_tracked_held(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_index)
 }
 
 /*
- * sess53 (D-FOREIGN-REPLAY step 4a) — ADOPT A RETAINED HOLDER BIT.
+ * (D-FOREIGN-REPLAY step 4a) — ADOPT A RETAINED HOLDER BIT.
  *
  * Called from the two mxfs_dlm_caw_lock fast paths, i.e. the paths that
  * observe our own bit already set on disk and return success WITHOUT
@@ -4565,7 +4565,7 @@ static bool is_tracked_held(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_index)
  *
  * ex_grant_epoch is deliberately NOT restamped: adoption inherits the
  * previous incarnation's authority rather than minting new authority
- * (GPT sess52 ruling item 8).  Restamping here would forge a grant that
+ * (design-consult ruling item 8).  Restamping here would forge a grant that
  * never happened and defeat the whole point of the token.
  *
  * Returns 0 to proceed with the fast path (adopted, or nothing to do),
@@ -4601,7 +4601,7 @@ static int caw_adopt_retained(struct mxfs_dlm_caw_ctx *ctx,
 
 	if (adopt_logged < 64) {
 		adopt_logged++;
-		mxfs_pal_log(MXFS_LOG_WARN,
+		mxfs_pal_log(MXFS_LOG_DEBUG,
 			     "mxfs: P225-ADOPT-RETAINED type=%u ag=%u "
 			     "ino=%llu slot=%u our_mode=%u gen=%llu "
 			     "ex_epoch=%llu (inherited, not restamped)",
@@ -4657,12 +4657,12 @@ static void caw_send_bast_mcast(struct mxfs_dlm_caw_ctx *ctx,
 			       MXFS_CAW_BAST_PORT);
 }
 
-/* ccloop 72513a13 sess3: GRANT NUDGE send — fired after a successful slot
+/*  GRANT NUDGE send — fired after a successful slot
  * CAW that a blocked peer is waiting on (release, tombstone, handoff or a
  * self-grant that leaves other waiters grantable).  Wakes their poll sleep
  * immediately; the disk poll remains the lossless backstop.
  *
- * sess35 NUDGE v2 (see dlm_caw.h): wake_mask = the node bits that can act
+ * NUDGE v2 (see dlm_caw.h): wake_mask = the node bits that can act
  * on this slot change.  Receivers outside the mask skip their re-read and
  * keep sleeping, collapsing the ~28-reader herd per release (the measured
  * 21.6ms/handoff of the 32-node create convoy) to one read + one CAS. */
@@ -4705,7 +4705,7 @@ static uint64_t caw_nudge_prepare(struct mxfs_dlm_caw_ctx *ctx)
 }
 
 /*
- * sess35 NUDGE v2: does any nudge in (from_seq, nudge_seq] want THIS waiter
+ * NUDGE v2: does any nudge in (from_seq, nudge_seq] want THIS waiter
  * awake?  Called under nudge_lock.  Conservative in every uncertain case
  * (missed/overwritten entries, v1 senders): returns true, which just costs
  * one slot read — the pre-v2 behavior.
@@ -4739,7 +4739,7 @@ static bool caw_nudge_ring_wants_wake(struct mxfs_dlm_caw_ctx *ctx,
 	return false;
 }
 
-/* P297 (sess296, D-503 ruling step 1): returns true iff the wait ended
+/* P297 (D-503 ruling step 1): returns true iff the wait ended
  * because a relevant nudge arrived (wake attribution for the handoff
  * timeline); false = poll-interval backstop (or no nudge machinery). */
 static bool caw_nudge_wait(struct mxfs_dlm_caw_ctx *ctx, uint64_t seen_seq,
@@ -4810,7 +4810,7 @@ static bool caw_nudge_check(struct mxfs_dlm_caw_ctx *ctx, uint64_t from_seq,
 	return w;
 }
 
-/* sess39: forward decl — defined just before mxfs_dlm_caw_lock. */
+/* forward decl — defined just before mxfs_dlm_caw_lock. */
 static void caw_check_exclusion(struct mxfs_dlm_caw_ctx *ctx,
 				const struct mxfs_resource_id *resource,
 				const struct mxfs_caw_lock_slot *slot,
@@ -4820,7 +4820,7 @@ static void caw_verify_grant_persisted(struct mxfs_dlm_caw_ctx *ctx,
 				       uint32_t slot_idx, uint8_t mode);
 
 /*
- * sess48 (ccloop 14d31183) PROVEN ROOT FIX — phantom EX-waiter leak.
+ * PROVEN ROOT FIX — phantom EX-waiter leak.
  *
  * When a waiter GIVES UP (grant timeout, retry exhaustion) it MUST drop its
  * own bit from slot->waiters.  Otherwise a stale EX-waiter bit makes every
@@ -4841,7 +4841,7 @@ static void caw_verify_grant_persisted(struct mxfs_dlm_caw_ctx *ctx,
  * slot is gone).  The common case exits immediately (bit already clear or CAS
  * wins on the first try).
  *
- * sess128 (GPT sess126 ruling, blocker 1): the retry policy is a WALL-CLOCK
+ * (design-consult ruling, blocker 1): the retry policy is a WALL-CLOCK
  * BUDGET, never again an attempt count — see the budget block in dlm_caw.h.
  * `deadline` is absolute; 0 means "derive one", which is what every caller but
  * the collector passes, because the right budget depends on something only this
@@ -4872,12 +4872,12 @@ static int caw_drop_own_waiter(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_idx,
 	uint32_t backoff = 1;
 
 	/*
-	 * sess122 (GPT sess121 ruling item 1): PUBLISH THE OBLIGATION FIRST,
+	 * (design-consult ruling item 1): PUBLISH THE OBLIGATION FIRST,
 	 * before any of the I/O that could discharge it, and publish the MAXIMAL
 	 * one — everything this give-up could possibly leave behind.  Retraction
 	 * below gives back only what the pass proves clear.
 	 *
-	 * The ordering is the whole point.  Under the sess112 shape the record
+	 * The ordering is the whole point.  Under the shape the record
 	 * was written when a plan REFUSED something, i.e. after the decision and
 	 * often after the I/O, so every way the caller could leave early — the
 	 * "nothing permitted" return, an allocation failure, a read error, a
@@ -4886,11 +4886,11 @@ static int caw_drop_own_waiter(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_idx,
 	 * over-broad record costs only a worker pass that finds the bit already
 	 * clear and discharges it.
 	 *
-	 * sess127 (GPT sess126 ruling, blocker 5): `collector` inverts that.  The
+	 * (design-consult ruling, blocker 5): `collector` inverts that.  The
 	 * owed worker is not taking on an obligation, it is DISCHARGING one it
 	 * already owns, so it publishes nothing at all — see
 	 * lreq_clr_begin_existing for why re-publishing is not merely redundant
-	 * but breaks concurrent retractions.  (The sess124 shape had the worker
+	 * but breaks concurrent retractions.  (The shape had the worker
 	 * pass down the intent it was collecting, which kept the record from
 	 * re-inflating to maximal but still bumped owed_gen once per mode.)
 	 */
@@ -4907,14 +4907,14 @@ static int caw_drop_own_waiter(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_idx,
 	new_slot = mxfs_pal_alloc(sizeof(*new_slot));
 
 	/*
-	 * sess117: declare the clear window BEFORE the first slot read, so a
+	 * declare the clear window BEFORE the first slot read, so a
 	 * concurrent memory-only publication (already-held shortcut, adopt) can
 	 * see that its image may be about to be invalidated.  If the registry
 	 * is present but the window cannot be opened, REFUSE the clear and owe
 	 * it: an unlinearized destructive clear is exactly the corruption this
 	 * mechanism exists to prevent, and the owed record loses nothing.
 	 *
-	 * sess124: this is ALSO where the obligation is published, and it is
+	 * this is ALSO where the obligation is published, and it is
 	 * opened BEFORE the plan is evaluated rather than after.  Both changes
 	 * are required, for the same reason: publication has to precede every
 	 * exit that can leave a bit behind, and the plan's "nothing permitted"
@@ -4928,7 +4928,7 @@ static int caw_drop_own_waiter(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_idx,
 	 */
 	if (collector) {
 		/*
-		 * sess127: the collector's entry is already live and pinned by
+		 * the collector's entry is already live and pinned by
 		 * the sweep claim, so the window cannot fail to open and the
 		 * reserve is never touched.  `e` IS the entry the obligation
 		 * lives on.
@@ -4963,7 +4963,7 @@ static int caw_drop_own_waiter(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_idx,
 	owed = clr ? clr : e;
 
 	/*
-	 * sess128 (blocker 1): derive the budget now that we know whether the
+	 * (blocker 1): derive the budget now that we know whether the
 	 * obligation is RECORDED.  `owed` plus a live registry means the worker
 	 * will come back for whatever this pass fails to prove clear, so this
 	 * thread leaves quickly.  With neither, nothing else will ever try —
@@ -4984,13 +4984,13 @@ static int caw_drop_own_waiter(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_idx,
 	}
 
 	/*
-	 * sess112: ASK THE REGISTRY FIRST.  ctx->node_bit alone cannot say
+	 * ASK THE REGISTRY FIRST.  ctx->node_bit alone cannot say
 	 * whether these bits are ours to drop — several local threads share it
 	 * (see the registry comment in dlm_caw.h).  The plan is fail-closed:
 	 * anything it refuses stays owed and is re-collected by the owed worker,
 	 * so a refusal never becomes a permanent leak.
 	 *
-	 * sess117: this first evaluation only answers "is there any work at
+	 * this first evaluation only answers "is there any work at
 	 * all?".  The plan the CAS uses is re-derived on every iteration below,
 	 * because the loop drops all locks across a slot read and a CAS: a
 	 * tenure published in that gap was invisible to a once-evaluated plan,
@@ -5014,7 +5014,7 @@ static int caw_drop_own_waiter(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_idx,
 		bool do_w, do_wx, do_h;
 
 		/*
-		 * sess128 (blocker 1): the budget check sits BEFORE the slot
+		 * (blocker 1): the budget check sits BEFORE the slot
 		 * read, so an expired deadline costs no I/O at all.  It is also
 		 * the loop's only exit-by-exhaustion — there is no attempt cap
 		 * any more, because a count says nothing about elapsed time and
@@ -5029,7 +5029,7 @@ static int caw_drop_own_waiter(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_idx,
 		if (rc)
 			break;	/* slot read error — give up */
 		if (cur_slot->magic != MXFS_CAW_MAGIC) {
-			/* sess122: a tombstone took the whole slot record with
+			/* a tombstone took the whole slot record with
 			 * it, bitmaps included, so every bit of ours that lived
 			 * here is provably gone.  TERMINAL — discharge all. */
 			rc = 0;
@@ -5037,7 +5037,7 @@ static int caw_drop_own_waiter(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_idx,
 			break;
 		}
 		/*
-		 * sess112: the slot index reaching here is a REMEMBERED one —
+		 * the slot index reaching here is a REMEMBERED one —
 		 * the last slot this acquire probed, captured up to a full
 		 * acquire timeout ago, and the claim-exhaustion caller may
 		 * never have registered on it at all.  A slot that was
@@ -5052,7 +5052,7 @@ static int caw_drop_own_waiter(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_idx,
 			/*
 			 * Slot recycled — these bits are not ours.  TERMINAL
 			 * too, and the ABA argument is the one that makes it
-			 * sound (GPT sess121 ruling item B): a recycle passed
+			 * sound (design-consult ruling item B): a recycle passed
 			 * through a tombstone, which erased our bits; a fresh
 			 * slot for this resource can only carry our bit if a
 			 * NEW local attempt set it, and that attempt is exactly
@@ -5065,12 +5065,12 @@ static int caw_drop_own_waiter(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_idx,
 			break;
 		}
 		/*
-		 * sess37 ABORT RECONCILE (GPT ruling, direct-handoff design):
+		 * ABORT RECONCILE (design-consult ruling, direct-handoff design):
 		 * a give-up must also look for a GRANT that landed for the
 		 * very acquire it is abandoning — either a releaser's direct
 		 * handoff CAS that raced this cleanup, or this acquire's own
 		 * promote CAW whose completion was ambiguous (reported
-		 * miscompare but actually landed: the sess34 SIGKILL wedge
+		 * miscompare but actually landed: the SIGKILL wedge
 		 * shape, wire EX with no in-core tenure, 350s cluster
 		 * starvation).  giveup_mode names the mode the abandoned
 		 * acquire wanted; clear our bit there in the SAME CAS as the
@@ -5082,7 +5082,7 @@ static int caw_drop_own_waiter(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_idx,
 			holders_for_mode(cur_slot, giveup_mode) : NULL;
 
 		/*
-		 * sess117: re-derive the plan HERE — against the image we are
+		 * re-derive the plan HERE — against the image we are
 		 * about to CAS on, as late as possible before the CAS.  The
 		 * clear window is open, so no memory-only publication (shortcut
 		 * / adopt) can slip into the plan→CAS gap; a slow-path grant
@@ -5093,7 +5093,7 @@ static int caw_drop_own_waiter(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_idx,
 		 */
 		lreq_plan(ctx, e, giveup_mode, self_joined, &plan);
 
-		/* sess449 hook B: widen the plan->CAS gap on demand so a second
+		/* hook B: widen the plan->CAS gap on demand so a second
 		 * local attempt can join/register inside it.  The CAS below then
 		 * compares against the image read BEFORE the pause. */
 		if (unlikely(READ_ONCE(mxfs_caw_inject_dow_pause_ms) > 0)) {
@@ -5102,7 +5102,7 @@ static int caw_drop_own_waiter(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_idx,
 			WRITE_ONCE(mxfs_caw_inject_dow_pause_ms, 0);
 
 			if (pause > 0) {
-				pr_warn("mxfs: P276-INJECT-DOW-PAUSE slot=%u mode=%u ms=%d attempts_seen=%u plan_w=%d plan_wx=%d plan_h=%d\n",
+				mxfs_probe("mxfs: P276-INJECT-DOW-PAUSE slot=%u mode=%u ms=%d attempts_seen=%u plan_w=%d plan_wx=%d plan_h=%d\n",
 					slot_idx, giveup_mode, pause,
 					e ? e->attempts : 0, plan.waiters ? 1 : 0,
 					plan.waiters_ex ? 1 : 0, plan.holder ? 1 : 0);
@@ -5117,7 +5117,7 @@ static int caw_drop_own_waiter(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_idx,
 		do_h  = plan.holder && ghp && (*ghp & ctx->node_bit);
 
 		if (!do_w && !do_wx && !do_h) {
-			/* sess122 proof (b): no permitted bit is set in this
+			/* proof (b): no permitted bit is set in this
 			 * image, so the plan's whole permitted set is clear. */
 			rc = 0;
 			proven = true;
@@ -5133,8 +5133,8 @@ static int caw_drop_own_waiter(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_idx,
 		if (do_w)
 			new_slot->waiters &= ~ctx->node_bit;
 		if (do_wx)
-			new_slot->waiters_ex &= ~ctx->node_bit;	/* sess50: drop our exclusive-waiter bit too */
-		/* sess299: a sticky reservation (ruling item 8) dies ONLY on
+			new_slot->waiters_ex &= ~ctx->node_bit;	/* drop our exclusive-waiter bit too */
+		/* a sticky reservation (ruling item 8) dies ONLY on
 		 * deregister/cancel/fence/purge — this is the cancel leg, so
 		 * retire any ticket naming us in the same CAS that drops our
 		 * waiter registration, rather than leaving a dead reservation
@@ -5154,15 +5154,15 @@ static int caw_drop_own_waiter(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_idx,
 		new_slot->last_modified_ms = mxfs_pal_time_ms();
 
 		if (caw_inject_take(&mxfs_caw_inject_dow_casfail))
-			rc = -EIO;	/* sess154 K5: transient discharge fail */
+			rc = -EIO;	/* K5: transient discharge fail */
 		else
 			rc = caw_slot(ctx, slot_idx, cur_slot, new_slot);
 		/*
-		 * sess117: a destructive clear COMMITTED.  Any local publication
+		 * a destructive clear COMMITTED.  Any local publication
 		 * that snapshotted before this must now refuse and retry from a
 		 * fresh image.
 		 *
-		 * sess119 (ruling item 3): "committed" means MAY-HAVE-CHANGED,
+		 * (ruling item 3): "committed" means MAY-HAVE-CHANGED,
 		 * not DEFINITELY-CHANGED.  An I/O error is not evidence that the
 		 * CAW failed to reach the target, so it too closes the window as
 		 * committed — otherwise a clear that actually landed is invisible
@@ -5171,7 +5171,7 @@ static int caw_drop_own_waiter(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_idx,
 		if (caw_may_have_written(rc))
 			committed = true;
 		if (rc == 0) {
-			/* sess122 proof (a): the CAS landed on an image in
+			/* proof (a): the CAS landed on an image in
 			 * which every permitted bit was either clear already or
 			 * cleared by this write. */
 			proven = true;
@@ -5185,7 +5185,7 @@ static int caw_drop_own_waiter(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_idx,
 		 * and re-read.  We keep trying: leaving our bit set is a
 		 * cluster-wide liveness bug, not a best-effort nicety.
 		 *
-		 * sess128: the nap is CLAMPED to what is left of the budget.  An
+		 * the nap is CLAMPED to what is left of the budget.  An
 		 * unclamped 8ms sleep on a 200ms budget overshoots by up to 4%
 		 * per attempt, and on the teardown drain's shared deadline the
 		 * overshoot is what the deadline exists to prevent.
@@ -5205,7 +5205,7 @@ static int caw_drop_own_waiter(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_idx,
 	}
 
 	/*
-	 * sess112 (D-RECONCILE-EXHAUSTION-SILENT): this used to return void.
+	 * (D-RECONCILE-EXHAUSTION-SILENT): this used to return void.
 	 * A cleanup that ran out of attempts left a live EX-waiter bit behind
 	 * and the caller walked back into normal service knowing nothing — and
 	 * a leaked EX-waiter bit is precisely what wedged 16 nodes for >600s
@@ -5214,14 +5214,14 @@ static int caw_drop_own_waiter(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_idx,
 	 * OWED: the bit is re-queued on the registry entry so the last local
 	 * attempt to leave this resource tries again with a fresh plan.
 	 *
-	 * sess122: the requeue is no longer done HERE — the obligation was
+	 * the requeue is no longer done HERE — the obligation was
 	 * published before the first read and has simply never been retracted,
 	 * which is strictly stronger (it also covers the exits above that never
 	 * reach this point).  What remains here is the observability half.
 	 */
 	if (rc) {
 		ctx->lreq_exhausted++;
-		pr_warn_ratelimited("mxfs: P245-RECONCILE-EXHAUST type=%c id=%llu slot=%u mode=%u attempts=%d rc=%d w=%d wx=%d h=%d — give-up cleanup never confirmed clear (rc=-110 is the sess128 wall-clock budget, not an attempt cap); obligation stands\n",
+		mxfs_probe_ratelimited("mxfs: P245-RECONCILE-EXHAUST type=%c id=%llu slot=%u mode=%u attempts=%d rc=%d w=%d wx=%d h=%d — give-up cleanup never confirmed clear (rc=-110 is the sess128 wall-clock budget, not an attempt cap); obligation stands\n",
 			resource->type == MXFS_LTYPE_INODE ? 'I' :
 			resource->type == MXFS_LTYPE_AG ? 'A' : 'O',
 			(unsigned long long)(resource->type == MXFS_LTYPE_INODE ?
@@ -5231,9 +5231,9 @@ static int caw_drop_own_waiter(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_idx,
 	}
 
 	/*
-	 * sess122: give back exactly what was proved, gen-guarded.  Runs BEFORE
+	 * give back exactly what was proved, gen-guarded.  Runs BEFORE
 	 * the window closes so a publication released by that close cannot
-	 * observe a half-retracted entry — the same ordering the sess117 owed
+	 * observe a half-retracted entry — the same ordering the owed
 	 * re-record had, for the same reason.
 	 */
 	lreq_owed_retract(ctx, owed, gen0, &plan, giveup_mode, proven, terminal);
@@ -5247,7 +5247,7 @@ static int caw_drop_own_waiter(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_idx,
 
 /*
  * ══════════════════════════════════════════════════════════════════════════
- *  sess125: THE OWED-CLEANUP WORKER  (GPT sess121 ruling on blocker 2)
+ *  THE OWED-CLEANUP WORKER (design-consult ruling on blocker 2)
  * ══════════════════════════════════════════════════════════════════════════
  *
  * The collector half of the obligation state machine.  Publication (sess122-124)
@@ -5287,7 +5287,7 @@ static int caw_drop_own_waiter(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_idx,
  *                no slot anywhere holds this resource.  Our bits live only in a
  *                slot whose resource field matches, so there is nowhere left
  *                for one to be set: the obligation is discharged, not deferred.
- * -ETIMEDOUT   — sess128: the walk ran out of budget.  Proves NOTHING, and in
+ * -ETIMEDOUT — the walk ran out of budget.  Proves NOTHING, and in
  *                particular is not the terminal proof: a truncated walk cannot
  *                distinguish "absent" from "not reached".  Kept distinct from
  *                -ENOENT for exactly that reason.
@@ -5323,7 +5323,7 @@ static int caw_owed_resolve(struct mxfs_dlm_caw_ctx *ctx,
  * The record is re-read under the lock rather than trusted from the claim,
  * because a publication may have merged into it since.
  *
- * sess127 (GPT sess126 ruling, blocker 5): the pass publishes NOTHING.  It used
+ * (design-consult ruling, blocker 5): the pass publishes NOTHING.  It used
  * to hand the flags it had just read back down as an intent, which kept the
  * record from re-inflating to the maximal give-up intent but still merged (and
  * so bumped owed_gen) once per mode; see lreq_clr_begin_existing for why that
@@ -5334,7 +5334,7 @@ static int caw_owed_resolve(struct mxfs_dlm_caw_ctx *ctx,
  * stops immediately rather than doing I/O for every remaining bit of a snapshot
  * that no longer describes anything.
  *
- * sess128 (GPT sess126 ruling, blocker 1): `deadline` is an ABSOLUTE wall-clock
+ * (design-consult ruling, blocker 1): `deadline` is an ABSOLUTE wall-clock
  * budget for this whole pass, checked before the resolve and again before each
  * mode, and handed down into both the resolve walk and every CAS loop.  In the
  * running worker it is a per-entry budget; during teardown it is the drain's
@@ -5356,7 +5356,7 @@ static bool caw_owed_dispatch(struct mxfs_dlm_caw_ctx *ctx,
 	bool w, wx;
 	int m, rc;
 
-	/* sess449 hook C: hold the worker BEFORE this pass looks at anything,
+	/* hook C: hold the worker BEFORE this pass looks at anything,
 	 * so a local attempt can join between the give-up's finish and the
 	 * deferred pass.  The pass budget usually expires across the pause;
 	 * the entry is then declined (no charge) and the NEXT pass — which
@@ -5367,7 +5367,7 @@ static bool caw_owed_dispatch(struct mxfs_dlm_caw_ctx *ctx,
 		WRITE_ONCE(mxfs_caw_inject_owed_pause_ms, 0);
 
 		if (pause > 0) {
-			pr_warn("mxfs: P276-INJECT-OWED-PAUSE type=%c id=%llu ms=%d attempts=%u\n",
+			mxfs_probe("mxfs: P276-INJECT-OWED-PAUSE type=%c id=%llu ms=%d attempts=%u\n",
 				e->resource.type == MXFS_LTYPE_INODE ? 'I' : 'O',
 				(unsigned long long)e->resource.ino, pause,
 				e->attempts);
@@ -5400,7 +5400,7 @@ static bool caw_owed_dispatch(struct mxfs_dlm_caw_ctx *ctx,
 	 * deliberately not used to select what gets written.
 	 */
 	rc = caw_owed_resolve(ctx, &resource, &slot_idx, deadline);
-	/* sess154 K2: force the terminal path — the resource resolved, but the
+	/* K2: force the terminal path — the resource resolved, but the
 	 * test wants the retract-everything disposition exercised on demand. */
 	if (rc == 0 && caw_inject_take(&mxfs_caw_inject_owed_enoent))
 		rc = -ENOENT;
@@ -5414,7 +5414,7 @@ static bool caw_owed_dispatch(struct mxfs_dlm_caw_ctx *ctx,
 		return true;
 	}
 	if (rc) {
-		pr_warn_ratelimited("mxfs: P252-OWED-RESOLVE type=%c id=%llu hint=%u rc=%d — cannot resolve an owed resource to its slot (rc=-110 is the sess128 budget expiring mid-walk, NOT an I/O error and NOT proof of absence); obligation stands\n",
+		mxfs_probe_ratelimited("mxfs: P252-OWED-RESOLVE type=%c id=%llu hint=%u rc=%d — cannot resolve an owed resource to its slot (rc=-110 is the sess128 budget expiring mid-walk, NOT an I/O error and NOT proof of absence); obligation stands\n",
 			resource.type == MXFS_LTYPE_INODE ? 'I' :
 			resource.type == MXFS_LTYPE_AG ? 'A' : 'O',
 			(unsigned long long)(resource.type == MXFS_LTYPE_INODE ?
@@ -5435,7 +5435,7 @@ static bool caw_owed_dispatch(struct mxfs_dlm_caw_ctx *ctx,
 	 * self_joined = false: the worker never joined an attempt, so it must
 	 * not subtract itself from the live-attempt count — doing so would read
 	 * one live local attempt as zero and authorise stripping a bit that
-	 * attempt is still relying on (the sess117 correction, same shape).
+	 * attempt is still relying on (the correction, same shape).
 	 */
 	if (mask) {
 		for (m = MXFS_LOCK_CR; m < MXFS_LOCK_MODE_COUNT; m++) {
@@ -5444,7 +5444,7 @@ static bool caw_owed_dispatch(struct mxfs_dlm_caw_ctx *ctx,
 			if (!(mask & (1u << m)))
 				continue;
 
-			/* sess127 (blocker 5): re-read under the lock before
+			/* (blocker 5): re-read under the lock before
 			 * every mode.  Three things can have changed since the
 			 * snapshot — a concurrent local clear proved a mode
 			 * clear, the previous mode's pass went terminal and
@@ -5461,7 +5461,7 @@ static bool caw_owed_dispatch(struct mxfs_dlm_caw_ctx *ctx,
 			if (!(fresh & (1u << m)))
 				continue;	/* this mode discharged already */
 
-			/* sess128 (blocker 1): and again before each mode —
+			/* (blocker 1): and again before each mode —
 			 * the previous mode's CAS loop can have consumed the
 			 * whole remaining budget by itself. */
 			if (mxfs_pal_time_ms() >= deadline)
@@ -5476,7 +5476,7 @@ static bool caw_owed_dispatch(struct mxfs_dlm_caw_ctx *ctx,
 			 * may still make progress, and the obligation stands
 			 * either way.  Anything else is either a hard I/O or
 			 * memory failure that every remaining mode would hit
-			 * too, or (sess128) -ETIMEDOUT, which says the budget
+			 * too, or -ETIMEDOUT, which says the budget
 			 * for this whole pass is gone.  Both mean stop burning
 			 * the LUN and let the backoff space the retry out.
 			 */
@@ -5499,13 +5499,13 @@ static bool caw_owed_dispatch(struct mxfs_dlm_caw_ctx *ctx,
  * lreq_gc CAN FREE `e` — every field the log needs is captured into locals
  * before that call, and `e` is not touched after it.
  *
- * sess127 (GPT sess126 ruling, blocker 6): returns the wall-clock time this
+ * (design-consult ruling, blocker 6): returns the wall-clock time this
  * entry next becomes eligible, or 0 if it owes nothing any more.  The worker's
  * park interval is derived from these — the release happens AFTER the sweep's
  * locked walk, so an entry re-armed here is invisible to that walk and would
  * otherwise be slept past.
  *
- * sess128 (GPT sess126 ruling, blocker 1): `attempted` is false when the sweep
+ * (design-consult ruling, blocker 1): `attempted` is false when the sweep
  * claimed the entry but the deadline expired before anything was tried.  Such
  * an entry gets its claim handed straight back — no failure count, no backoff —
  * because charging a retry to work that never ran walks a perfectly healthy
@@ -5578,7 +5578,7 @@ static uint64_t caw_owed_release(struct mxfs_dlm_caw_ctx *ctx,
 					any = true;
 			if (any) {
 				ctx->lreq_teardown_retired++;
-				pr_warn_ratelimited("mxfs: P263-OWED-TEARDOWN-RETIRE type=%c id=%llu tenure=%u/%u/%u/%u/%u/%u pub_seq=%llu — teardown obligation completed with no attempt or publication possible; local tenure record retired\n",
+				mxfs_probe_ratelimited("mxfs: P263-OWED-TEARDOWN-RETIRE type=%c id=%llu tenure=%u/%u/%u/%u/%u/%u pub_seq=%llu — teardown obligation completed with no attempt or publication possible; local tenure record retired\n",
 					resource.type == MXFS_LTYPE_INODE ? 'I' :
 					resource.type == MXFS_LTYPE_AG ? 'A' : 'O',
 					(unsigned long long)(resource.type ==
@@ -5617,7 +5617,7 @@ static uint64_t caw_owed_release(struct mxfs_dlm_caw_ctx *ctx,
 			ctx->lreq_owed_stuck++;
 		stuck = (fails >= MXFS_CAW_OWED_ESCALATE);
 	}
-	/* sess129 (blocker 4): the claim goes back on the queue — at the TAIL, so
+	/* (blocker 4): the claim goes back on the queue — at the TAIL, so
 	 * an entry that keeps failing cannot re-occupy the head and starve the
 	 * ones behind it.  Must precede lreq_gc, whose oq_queued refusal then
 	 * correctly declines to free a re-enqueued entry. */
@@ -5637,7 +5637,7 @@ static uint64_t caw_owed_release(struct mxfs_dlm_caw_ctx *ctx,
 
 /* How many entries still owe something?  Teardown reporting only. */
 /*
- * Caller holds lreq_lock.  This is the AUTHORITATIVE form (GPT sess130 ruling
+ * Caller holds lreq_lock.  This is the AUTHORITATIVE form (design-consult ruling
  * item 9): teardown's final residue census must read registry state inside the
  * same critical section it makes its clean/dirty decision in, or the answer is
  * a sample.  Queue emptiness is NOT a substitute — an entry can be off the
@@ -5688,7 +5688,7 @@ static uint32_t caw_owed_count(struct mxfs_dlm_caw_ctx *ctx)
  * loop, which has its own overall budget and would otherwise sit out a 500ms
  * backoff it has no reason to honour.
  *
- * ─── sess128 (GPT sess126 ruling, blocker 1): THE DEADLINE ───
+ * ─── (design-consult ruling, blocker 1): THE DEADLINE ───
  *
  * `deadline` is an absolute wall-clock ms value, or 0 for the running worker,
  * which instead gives EACH entry its own MXFS_CAW_OWED_PASS_MS budget.  A
@@ -5698,7 +5698,7 @@ static uint32_t caw_owed_count(struct mxfs_dlm_caw_ctx *ctx)
  * check — don't claim 16 with 2s left".  An entry claimed and then declined for
  * want of budget is released as NOT attempted, so it keeps its failure count.
  *
- * ─── sess127 (GPT sess126 ruling, blocker 6): the SCHEDULING out-params ───
+ * ─── (design-consult ruling, blocker 6): the SCHEDULING out-params ───
  *
  * `seq0` returns ctx->lreq_owed_work_seq as read INSIDE the same locked walk
  * that chose the claim set.  The worker refuses to park if it has moved since,
@@ -5718,7 +5718,7 @@ static uint32_t caw_owed_count(struct mxfs_dlm_caw_ctx *ctx)
  * go, so they are covered by the seq predicate rather than by a timer that
  * would spin for the whole duration of somebody else's CAS loop.
  *
- * ─── sess129 (GPT sess126 ruling, blocker 4): THE QUEUE ───
+ * ─── (design-consult ruling, blocker 4): THE QUEUE ───
  *
  * The claim set is taken off ctx->owed_q_head (see dlm_caw.h), NOT by walking
  * the hash table from a rotating bucket cursor.  The cursor could not be fair:
@@ -5811,7 +5811,7 @@ static uint32_t caw_owed_sweep(struct mxfs_dlm_caw_ctx *ctx, bool drain,
 		bool attempted;
 
 		/*
-		 * sess128: the drain's shared deadline, or a fresh per-entry
+		 * the drain's shared deadline, or a fresh per-entry
 		 * budget for the running worker.  Either way every dispatch
 		 * below this point has an absolute one to check against, so no
 		 * CAS loop and no probe walk can outlast the sweep.
@@ -5839,7 +5839,7 @@ static uint32_t caw_owed_sweep(struct mxfs_dlm_caw_ctx *ctx, bool drain,
  * local attempt leaves (which is what makes a deferred plan permissive), and
  * teardown.
  *
- * sess127 (GPT sess126 ruling, blocker 6): the park is now PREDICATED and
+ * (design-consult ruling, blocker 6): the park is now PREDICATED and
  * SCHEDULED, not an unconditional fixed-interval wait.
  *
  *   PREDICATED — every broadcast is issued outside lreq_lock, so a publication
@@ -5861,7 +5861,7 @@ static uint32_t caw_owed_sweep(struct mxfs_dlm_caw_ctx *ctx, bool drain,
  * membership withdrawal makes them reclaimable by peers, and an operator
  * needs to know that happened.
  *
- * sess128 (GPT sess126 ruling, blocker 1): DRAIN_MS is now an ABSOLUTE deadline
+ * (design-consult ruling, blocker 1): DRAIN_MS is now an ABSOLUTE deadline
  * handed down through sweep → dispatch → resolve/drop_own_waiter → find_slot,
  * and the drain claims ONE entry per sweep so it is re-checked between every
  * bounded operation.  Before this it was tested only BETWEEN sweeps, and a
@@ -5908,7 +5908,7 @@ static void caw_owed_worker_fn(void *data)
 	}
 
 	/*
-	 * sess131 (GPT sess130 ruling): the drain does not start when the main
+	 * (design-consult ruling): the drain does not start when the main
 	 * loop ends.  It starts when TEARDOWN says so — after the admission gate
 	 * has closed, the in-flight operations have left, and the exclusive
 	 * release_all has run and published everything it could not clear.
@@ -5916,9 +5916,9 @@ static void caw_owed_worker_fn(void *data)
 	 * had not yet contributed to, and the residue check that followed was
 	 * therefore a census of the wrong thing.
 	 *
-	 * ─── sess132 (GPT sess132 ruling, part 1c): THE WAIT IS UNCONDITIONAL ───
+	 * ─── (design-consult ruling, part 1c): THE WAIT IS UNCONDITIONAL ───
 	 *
-	 * sess131 bounded this wait at QUIESCE_MS + DRAIN_MS and drained anyway on
+	 * bounded this wait at QUIESCE_MS + DRAIN_MS and drained anyway on
 	 * expiry, "which is exactly the pre-sess131 behaviour and strictly safer
 	 * than not draining."  Both halves of that were wrong, and the safety net
 	 * reintroduced the exact defect the restructure exists to remove.
@@ -5944,7 +5944,7 @@ static void caw_owed_worker_fn(void *data)
 		while (!ctx->drain_armed)
 			mxfs_pal_cond_timedwait(ctx->lreq_cond, ctx->lreq_lock,
 						MXFS_CAW_QUIESCE_POLL_MS);
-		/* sess154 K4: simulate a publication landing after the
+		/* K4: simulate a publication landing after the
 		 * phase-4 freeze — the retire tripwire must then refuse every
 		 * completion in this drain, fail closed, and the entries must
 		 * survive to the P248 destroy report. */
@@ -5953,7 +5953,7 @@ static void caw_owed_worker_fn(void *data)
 		mxfs_pal_mutex_unlock(ctx->lreq_lock);
 	}
 
-	/* sess154 K3: operator/test override of the drain budget. */
+	/* K3: operator/test override of the drain budget. */
 	budget_ms = mxfs_caw_drain_budget_ms > 0 ?
 		(uint32_t)mxfs_caw_drain_budget_ms : MXFS_CAW_OWED_DRAIN_MS;
 	deadline = mxfs_pal_time_ms() + budget_ms;
@@ -5997,17 +5997,17 @@ static void caw_owed_worker_fn(void *data)
 			(unsigned long long)ctx->lreq_owed_disp,
 			(unsigned long long)ctx->lreq_owed_stuck);
 	}
-	/* sess154 (P248 fix A): the POSITIVE observation the verification
+	/* (P248 fix A): the POSITIVE observation the verification
 	 * requires — retires that actually ran this teardown, printed whether
 	 * or not anything was left over. */
 	if (ctx->lreq_teardown_retired)
-		pr_warn("mxfs: P267-RETIRE-SUM node=%u retired=%llu — teardown obligations whose completion retired the local tenure record\n",
+		mxfs_probe("mxfs: P267-RETIRE-SUM node=%u retired=%llu — teardown obligations whose completion retired the local tenure record\n",
 			ctx->local_node,
 			(unsigned long long)ctx->lreq_teardown_retired);
 }
 
 /*
- * sess112: end one local attempt on `resource`.
+ * end one local attempt on `resource`.
  *
  * `held_mode` is the mode actually granted (MXFS_LOCK_NL when the attempt
  * failed).  Publication of the tenure and departure of the attempt happen in
@@ -6015,7 +6015,7 @@ static void caw_owed_worker_fn(void *data)
  * thread has a durable grant" and "the registry knows about it" — that gap was
  * the observe-to-track window the first design died on.
  *
- * sess125: THIS NO LONGER COLLECTS ANYTHING.  Two things used to happen here
+ * THIS NO LONGER COLLECTS ANYTHING.  Two things used to happen here
  * and both are now the owed worker's job (caw_owed_worker_fn above):
  *
  *   THE CLRWAIT PARK — the last attempt out held its departure up while a clear
@@ -6025,7 +6025,7 @@ static void caw_owed_worker_fn(void *data)
  *   was pure latency on a lock-release path (and P249 was its own timeout).
  *
  *   THE INLINE OWED RUN — the last attempt out ran the deferred clears itself.
- *   That was the sess116 corruption path: it cleared the record under the lock
+ *   That was the corruption path: it cleared the record under the lock
  *   and then ran the passes unlocked, so a failure lost the obligation outright,
  *   and it charged an unbounded contended CAS loop to an XFS thread.  Worse, on
  *   a resource whose attempts had ALL already left there was no "last attempt"
@@ -6049,7 +6049,7 @@ static void lreq_finish(struct mxfs_dlm_caw_ctx *ctx,
 	mxfs_pal_mutex_lock(ctx->lreq_lock);
 	if (held_mode != MXFS_LOCK_NL && held_mode < MXFS_LOCK_MODE_COUNT) {
 		/*
-		 * sess118 ruling item 6: SATURATE, never wrap.  tenure[] is not
+		 * ruling item 6: SATURATE, never wrap.  tenure[] is not
 		 * a reference count — there is no per-acquire release in the
 		 * cached-grant model, so nothing ever decrements it and a
 		 * shortcut-heavy workload increments without bound.  A wrap to
@@ -6058,11 +6058,11 @@ static void lreq_finish(struct mxfs_dlm_caw_ctx *ctx,
 		 */
 		if (e->tenure[held_mode] != UINT32_MAX)
 			e->tenure[held_mode]++;
-		/* sess117: a tenure publication.  lreq_release_all compares
+		/* a tenure publication.  lreq_release_all compares
 		 * this across a release window so a blanket tenure retire
 		 * cannot eat a tenure published after that release began. */
 		e->pub_seq++;
-		/* sess154 (P248 fix A tripwire): the CONTEXT-WIDE publication
+		/* (P248 fix A tripwire): the CONTEXT-WIDE publication
 		 * generation.  stop() snapshots it in phase 4 immediately
 		 * before release_all; a teardown retire whose entry completed
 		 * after ANY later publication — on any entry, including one
@@ -6080,7 +6080,7 @@ static void lreq_finish(struct mxfs_dlm_caw_ctx *ctx,
 	/* Read BEFORE lreq_gc — which refuses to free an entry that still owes
 	 * anything, but may free this one, so `e` is dead after it. */
 	owed = lreq_owed_pending(e);
-	/* sess127 (blocker 6): a departure can turn a refused plan permissive, so
+	/* (blocker 6): a departure can turn a refused plan permissive, so
 	 * it is a wake edge and must be recorded under the lock. */
 	if (owed)
 		ctx->lreq_owed_work_seq++;
@@ -6092,7 +6092,7 @@ static void lreq_finish(struct mxfs_dlm_caw_ctx *ctx,
 }
 
 /*
- * ─── sess131 (GPT sess126 ruling blocker 2; sess130 design): THE ADMISSION
+ * ─── (design-consult ruling blocker 2; design): THE ADMISSION
  *     GATE ───
  *
  * WHAT IT PROVES.  Once teardown has observed `ops_active == 0` while holding
@@ -6109,7 +6109,7 @@ static void lreq_finish(struct mxfs_dlm_caw_ctx *ctx,
  * to keep correct as the bodies change.  A leaked count would wedge teardown
  * forever, so the property is worth buying structurally.
  *
- * WHAT IS GATED (verified sess131, not inherited):
+ * WHAT IS GATED (verified, not inherited):
  *   lock, convert, unlock_gen, force_release_self, open_set, open_clear,
  *   flush_held_to_disk, purge_dead_nodes_ex
  * — i.e. exactly the public entry points that write a slot on disk or touch
@@ -6123,7 +6123,7 @@ static void lreq_finish(struct mxfs_dlm_caw_ctx *ctx,
  * granted_mode, open_holders, open_probe, footprint_scan, self_held_scan,
  * grant_dir_epoch, grant_dir_block0, grant_seq32, grant_handoff,
  * orphan_clock_get.  None writes a slot, none publishes, none can race
- * release_all.  (sess130's note listed grant_handoff as a writer; it is not —
+ * release_all.  (note listed grant_handoff as a writer; it is not —
  * caw_grant_meta_get only reads ctx->grant_meta under grant_meta_lock.)
  * Their lifetime against ctx teardown is the caller's problem and is
  * unchanged by this mechanism.
@@ -6132,7 +6132,7 @@ static void lreq_finish(struct mxfs_dlm_caw_ctx *ctx,
  * its pre-gate behaviour.
  */
 /*
- * ─── sess131 (GPT sess130 ruling blocker 3): THE FAILURE LATCH ───
+ * ─── (design-consult ruling blocker 3): THE FAILURE LATCH ───
  *
  * The DLM's OWN record that this mount cannot account for its bits on disk.
  * It is deliberately not the callback: ruling item 5 is that the callback must
@@ -6184,7 +6184,7 @@ static void caw_owed_fail_notify(struct mxfs_dlm_caw_ctx *ctx)
 }
 
 /*
- * ─── sess134 (GPT sess133 ruling B3): THE ASYNCHRONOUS ESCALATION ───
+ * ─── (design-consult ruling B3): THE ASYNCHRONOUS ESCALATION ───
  *
  * The quiesce loop RECORDS AND QUEUES; it never invokes the upper handler.
  *
@@ -6247,7 +6247,7 @@ static void caw_teardown_escalate_queue(struct mxfs_dlm_caw_ctx *ctx)
 }
 
 /*
- * ─── sess134 (GPT sess133 ruling B1): THE BOUNDED TEARDOWN JOIN ───
+ * ─── (design-consult ruling B1): THE BOUNDED TEARDOWN JOIN ───
  *
  * Every teardown join whose target can touch storage or mount-owned state gets
  * this shape, and NOT a plain blocking join.  `esc_at_ms` is the absolute
@@ -6329,7 +6329,7 @@ static bool caw_op_enter(struct mxfs_dlm_caw_ctx *ctx)
 
 	mxfs_pal_mutex_lock(ctx->lreq_lock);
 	/*
-	 * sess134 (ruling A1): admission is a LIFECYCLE decision, so it reads
+	 * (ruling A1): admission is a LIFECYCLE decision, so it reads
 	 * the lifecycle.  Admitted before teardown owns the context and before a
 	 * failed start has torn its threads down — NOT in START_FAILED, where
 	 * `ops_closed` alone used to keep admitting into a context with no BAST
@@ -6382,7 +6382,7 @@ static void caw_op_leave(struct mxfs_dlm_caw_ctx *ctx)
 }
 
 /*
- * sess112: the local tenure(s) on `resource` are gone — the unlock CAS cleared
+ * the local tenure(s) on `resource` are gone — the unlock CAS cleared
  * our bit in EVERY mode bitmap, or a force-release/teardown did.  Drop the
  * whole tenure vector so a later give-up on this resource is once again free
  * to reconcile stale bits.
@@ -6404,7 +6404,7 @@ static void lreq_release_all(struct mxfs_dlm_caw_ctx *ctx,
 	e = lreq_find(ctx, resource);
 	if (e) {
 		/*
-		 * sess117 (sess115 ruling blocker 1): a BLANKET retire is only
+		 * (ruling blocker 1): a BLANKET retire is only
 		 * valid for the tenures that existed when this release began.
 		 * pub_seq counts tenure publications; if one landed inside the
 		 * release window it is a REAL grant belonging to a different
@@ -6419,7 +6419,7 @@ static void lreq_release_all(struct mxfs_dlm_caw_ctx *ctx,
 			memset(e->tenure, 0, sizeof(e->tenure));
 		} else {
 			ctx->lreq_rel_kept++;
-			pr_warn_ratelimited("mxfs: P248-LREQ-REL-KEPT type=%c id=%llu pub0=%llu pub=%llu — tenure published inside the release window; not retiring it\n",
+			mxfs_probe_ratelimited("mxfs: P248-LREQ-REL-KEPT type=%c id=%llu pub0=%llu pub=%llu — tenure published inside the release window; not retiring it\n",
 				resource->type == MXFS_LTYPE_INODE ? 'I' :
 				resource->type == MXFS_LTYPE_AG ? 'A' : 'O',
 				(unsigned long long)(resource->type == MXFS_LTYPE_INODE ?
@@ -6433,7 +6433,7 @@ static void lreq_release_all(struct mxfs_dlm_caw_ctx *ctx,
 }
 
 /*
- * sess151 (D-RELEASEALL-LREQ-RETIRE-MISSING): release_all's read of the
+ * (D-RELEASEALL-LREQ-RETIRE-MISSING): release_all's read of the
  * pub_seq anchor lreq_release_all guards on.  A bare peek — no clear window
  * (lreq_clr_begin) — is the ruled shape for the unmount path: release_all
  * runs after XFS quiesce, so there is no competing destructive clear to
@@ -6461,7 +6461,7 @@ static uint64_t lreq_pub_seq_peek(struct mxfs_dlm_caw_ctx *ctx,
 }
 
 /*
- * sess2(ccloop 26c41354) FAIR HANDOFF — pick ONE round-robin next EX waiter.
+ * FAIR HANDOFF — pick ONE round-robin next EX waiter.
  * Returns the bit of the first EX waiter strictly after the releaser's own
  * node bit (cyclic over 64 positions), so successive releases rotate through
  * all EX waiters and no node is starved by the self-promote free-for-all in
@@ -6469,7 +6469,7 @@ static uint64_t lreq_pub_seq_peek(struct mxfs_dlm_caw_ctx *ctx,
  * 0 if there are no EX waiters.
  */
 /*
- * sess24: episode-preserving stamp for the fair-handoff ticket.  Returns the
+ * episode-preserving stamp for the fair-handoff ticket.  Returns the
  * yield_set_ms the new slot image should carry.  See
  * mxfs_caw_yield_episode_clock for why re-stamping on every rotation is a bug.
  */
@@ -6513,12 +6513,12 @@ static uint64_t caw_pick_next_ex_waiter(uint64_t ex_waiters, uint64_t self_bit)
 }
 
 /*
- * sess299 (D-32NODE-SHARED-DIR-CREATE-PACE, design-consult sess298 ruling): the
+ * (D-32NODE-SHARED-DIR-CREATE-PACE, design-consult ruling): the
  * standing EX reservation.  A single-bit yield_to naming a live REGISTERED
  * EX-class waiter is a RESERVATION, not a hint: ordinary releasers must
  * carry it forward unchanged, PR drains and streak-yield batches may delay
  * but never overwrite it, and the direct-handoff arm consumes exactly this
- * ticket.  The sess298 census proved the old behavior — every intermediate
+ * ticket.  The census proved the old behavior — every intermediate
  * releaser re-running nomination relative to its OWN slot — re-pointed the
  * ticket away from a slow waiter 2.5x per wait (only 44% of slow waiters
  * ever saw themselves named; max 23.8s), which was the whole p99 tail.
@@ -6540,7 +6540,7 @@ static uint64_t caw_standing_ex_resv(const struct mxfs_caw_lock_slot *s)
 }
 
 /*
- * sess299: round-robin base for a FRESH nomination — the last committed
+ * round-robin base for a FRESH nomination — the last committed
  * EX-class grantee's bit, so every releaser computes the SAME next nominee
  * from the same slot image (state-relative), instead of one relative to its
  * own slot (releaser-relative, memoryless — the proven D-503 root).
@@ -6554,7 +6554,7 @@ static uint64_t caw_last_ex_bit(const struct mxfs_caw_lock_slot *s)
 }
 
 /*
- * sess108 (design-consult ruling, ordering item): validate the nominated waiter BEFORE
+ * (design-consult ruling, ordering item): validate the nominated waiter BEFORE
  * a direct EX handoff installs it as holder.  The handoff mints a durable write
  * tenure for another node in one CAS, so the nomination must be provably a
  * single eligible EX-class waiter — not "whatever bits happen to be in
@@ -6585,7 +6585,7 @@ static bool caw_handoff_nominee_ok(const struct mxfs_caw_lock_slot *cur,
 }
 
 /*
- * sess285 (D-DLMFAIRNESS-32CAW-HOTDIR-EX-STARVATION-501) instrumented probe: one
+ * (D-DLMFAIRNESS-32CAW-HOTDIR-EX-STARVATION-501) instrumented probe: one
  * uniform line per successful exclusive-class INODE grant, emitted from
  * EVERY grant path (promote/adopt/cold/claim/convert, plus the releaser's
  * direct-handoff mint and its un-minted nomination).  Aggregating all
@@ -6607,7 +6607,7 @@ static void caw_exwin_log(const struct mxfs_resource_id *resource,
 		return;
 	if (p291_n++ >= 20000)
 		return;
-	pr_warn("mxfs: P291-EXWIN ino=%llu path=%s mode=%u slot=%d waited_ms=%llu yt=%llx wex=%llx realms=%llu\n",
+	mxfs_probe("mxfs: P291-EXWIN ino=%llu path=%s mode=%u slot=%d waited_ms=%llu yt=%llx wex=%llx realms=%llu\n",
 		(unsigned long long)resource->ino, path, mode, slotno,
 		(unsigned long long)waited_ms,
 		(unsigned long long)yt, (unsigned long long)wex,
@@ -6622,7 +6622,7 @@ static void caw_exwin_log(const struct mxfs_resource_id *resource,
  * going free (measured 42-46ms/unlink, 32-node dir_reuse rm).  Beyond the
  * window, exponential backoff exactly as before.
  */
-/* P297 wake-attribution flags (sess296, D-503 ruling step 1). */
+/* P297 wake-attribution flags (D-503 ruling step 1). */
 #define MXFS_CAW_WAKE_NUDGE	1	/* sleep ended by a relevant nudge */
 #define MXFS_CAW_WAKE_MISS	2	/* a nudge for us landed in the slot-read→
 					 * prepare window: the sleep below cannot
@@ -6634,7 +6634,7 @@ static int caw_acquire_poll_sleep(struct mxfs_dlm_caw_ctx *ctx,
 				   uint32_t hopeless_ms, uint64_t pre_read_seq)
 {
 	extern int mxfs_caw_inode_fastpoll;
-	/* ccloop 72513a13 sess3: sleep interruptibly on the GRANT-NUDGE
+	/*  sleep interruptibly on the GRANT-NUDGE
 	 * cond so a releaser's multicast wakes us NOW instead of after the
 	 * poll interval (kprobe-proven 4.6s/6.0s of an 8-node create phase
 	 * was this sleep).  A nudge racing in between the caller's slot
@@ -6649,7 +6649,7 @@ static int caw_acquire_poll_sleep(struct mxfs_dlm_caw_ctx *ctx,
 	    !caw_nudge_check(ctx, seq, resource))
 		fl |= MXFS_CAW_WAKE_MISS;
 
-	/* sess35 NUDGE v2: the caller's slot read proved no grant can land
+	/* NUDGE v2: the caller's slot read proved no grant can land
 	 * until another node's release (foreign EX holder / foreign ticket).
 	 * Fast cadence buys nothing but target-queue pressure — sleep long;
 	 * the targeted nudge ends the sleep the moment we can act, and the
@@ -6684,7 +6684,7 @@ static int caw_acquire_poll_sleep(struct mxfs_dlm_caw_ctx *ctx,
 
 /*
  * `reg_epoch` is the slot's ex_grant_epoch as it stood in the image our waiter
- * registration CAS-ed in (sess109, ruling blocker 3).  It is the ONLY thing
+ * registration CAS-ed in (ruling blocker 3).  It is the ONLY thing
  * that lets the adopt arm tell a grant that was MINTED for us from a holder bit
  * a releaser set without minting: the epoch is a per-resource +1 sequence, so a
  * write-capable tenure granted after our registration must carry an epoch
@@ -6693,7 +6693,7 @@ static int caw_acquire_poll_sleep(struct mxfs_dlm_caw_ctx *ctx,
  * node's value — equal to reg_epoch when no other tenure intervened — and that
  * is precisely the "confidently wrong token" the ruling forbids adopting.
  */
-/* sess374: demand-triggered out-of-closure scrub — defined with the closure
+/* demand-triggered out-of-closure scrub — defined with the closure
  * purge family below, called from the two demand chokepoints above it. */
 static uint64_t caw_victim_state_mask(const struct mxfs_caw_lock_slot *s,
 				      uint64_t mask);
@@ -6735,12 +6735,12 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 	bool first_iter = true;
 	bool wait_handoff = false;	/* v0.6.0 EX-handoff epoch observation */
 	uint64_t last_stuck_dump_ms = 0;	/* v0.10.43 P-ACQ-STUCK throttle */
-	uint64_t last_scrub_ms = 0;	/* sess374 out-of-closure scrub throttle */
-	bool quar_skip_lap = false;	/* sess374: one lap owed to ADOPT after a
+	uint64_t last_scrub_ms = 0;	/* out-of-closure scrub throttle */
+	bool quar_skip_lap = false;	/* one lap owed to ADOPT after a
 					 * cancel raced a direct handoff */
-	/* sess280 part D: last/max poll-read service time (see read site). */
+	/* part D: last/max poll-read service time (see read site). */
 	uint64_t acq_read_t0 = 0, acq_read_ms = 0, acq_read_max_ms = 0;
-	/* sess481: acq_read_ms above is ASSIGNED per poll (the LAST read's
+	/* acq_read_ms above is ASSIGNED per poll (the LAST read's
 	 * duration), which is what P-ACQ-STUCK wants but makes it impossible to
 	 * total the read time of a wait -- dividing sum(read_ms) by sum(reads)
 	 * across samples mixes a last-value with a cumulative count and gives a
@@ -6749,7 +6749,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 	 * be stated instead of inferred.  The sleep total already existed as
 	 * sleep_tot_ms; it simply was not printed. */
 	uint64_t acq_read_sum_ms = 0;
-	/* P297 (sess296, D-503 ruling step 1) — nominee-side handoff timeline.
+	/* P297 (D-503 ruling step 1) — nominee-side handoff timeline.
 	 * pre_read_seq: nudge snapshot taken BEFORE each slot read, so a nudge
 	 * landing during the read/processing window (invisible to the sleep's
 	 * own prepare) is detectable.  last_wake attributes the wake that
@@ -6759,7 +6759,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 	int last_wake = 0, p297_miss = 0;
 	bool p297_tkt_logged = false;
 	/*
-	 * sess118: clear-window snapshot for the direct-handoff ADOPT arm.
+	 * clear-window snapshot for the direct-handoff ADOPT arm.
 	 * Re-armed BEFORE every read_slot in the wait loop, because that read
 	 * produces the image the adoption publishes on.  This arm is the one
 	 * with no prior defence of any kind: it does not go through
@@ -6778,7 +6778,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 	}
 
 	if (resource->type == MXFS_LTYPE_INODE && caw_instr_on()) {
-		mxfs_pal_log(MXFS_LOG_WARN,
+		mxfs_pal_log(MXFS_LOG_DEBUG,
 			"mxfs: P13-INSTR GRANT-WAIT-START ino=%llu slot=%u "
 			"want_mode=%u t_ms=%llu",
 			(unsigned long long)resource->ino, slot_idx, mode,
@@ -6787,7 +6787,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 
 	bool slot_seen = false;
 	uint64_t ext_last_log_ms = 0;
-	/* sess8 (ccloop 72513a13) T1 dead-time anatomy: stamp the FIRST
+	/* T1 dead-time anatomy: stamp the FIRST
 	 * re-read where the slot was already grantable for `mode`, and count
 	 * fair-handoff ticket deferrals taken while grantable.  At grant,
 	 * P138-WAIT reports ffw_ms (grantable->grant claim-side latency) and
@@ -6796,7 +6796,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 	uint64_t first_compat_ms = 0;
 	int yt_defer = 0;
 	/*
-	 * ccloop c7ee71c6 sess24 (design-consult GPT consult) — CAW ATTEMPT CENSUS.
+	 *  (design-consult design review consult) — CAW ATTEMPT CENSUS.
 	 *
 	 * The measured "95% of grant wait is spent after the slot first read
 	 * COMPATIBLE" does NOT by itself implicate CAS contention: mode-compatible
@@ -6814,13 +6814,13 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 	 * here lets no retry path escape the count.
 	 */
 	int caw_try = 0, caw_miss = 0, caw_err = 0, slot_reads = 0;
-	/* sess376: how many times THIS wait actually entered the demand-scrub
+	/* how many times THIS wait actually entered the demand-scrub
 	 * chokepoint, reported in P-ACQ-STUCK next to the live candidate mask.
 	 * "hook never entered" and "hook entered, oracle refused" are otherwise
 	 * indistinguishable from dmesg — the ambiguity D-...-375 was filed on. */
 	int scrub_hits = 0;
 	uint64_t caw_svc_ms = 0, caw_t0;
-	/* sess38 P139 TAIL CENSUS (unconditional, >800ms waits only): the
+	/* P139 TAIL CENSUS (unconditional, >800ms waits only): the
 	 * dir_reuse round wall is set by ONE rotating multi-second outlier
 	 * (measured 4.7s EX wait on an otherwise-instant wave).  These
 	 * counters discriminate the tail's mechanism from a single line:
@@ -6835,7 +6835,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 	 */
 	int p139_bit_lost = 0, p139_chosen = 0, p139_foreign = 0;
 	int p139_free_defer = 0, p139_doze250 = 0;
-	/* P298 (sess298, D-503): the slow handoffs all end in ADOPT, and the
+	/* P298 (D-503): the slow handoffs all end in ADOPT, and the
 	 * adopt exit skips the P138/P139 census entirely, so the 1.8s median
 	 * sighting->adopt window has NO sub-step attribution.  Classify every
 	 * read by what blocked promotion in that image and split wall time
@@ -6854,7 +6854,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 		uint64_t wait_el = mxfs_pal_time_ms() - start;
 
 		/*
-		 * sess158 K6: force the timeout give-up path for a wait whose
+		 * K6: force the timeout give-up path for a wait whose
 		 * own waiter bit is provably registered on the slot.  The
 		 * give-up publishes a maximal owed obligation via
 		 * caw_drop_own_waiter, which is the only deterministic mid-run
@@ -6876,7 +6876,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 		}
 
 		if (wait_el >= MXFS_CAW_WAIT_TIMEOUT_MS) {
-			/* ccloop 72513a13 sess2 LIVENESS EXTENSION (see
+			/*  LIVENESS EXTENSION (see
 			 * MXFS_CAW_WAIT_HARDCAP_MS in dlm_caw.h): past the
 			 * base timeout, keep waiting ONLY while every
 			 * blocking holder is provably heartbeating.  Dead
@@ -6900,7 +6900,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 				break;
 			if (mxfs_pal_time_ms() - ext_last_log_ms > 10000) {
 				ext_last_log_ms = mxfs_pal_time_ms();
-				mxfs_pal_log(MXFS_LOG_WARN,
+				mxfs_pal_log(MXFS_LOG_DEBUG,
 				    "mxfs: P-WAIT-EXTEND type=%u ino=%llu ag=%u want=%u el_ms=%llu blockers=%llx — holders alive; extending past base timeout",
 				    resource->type,
 				    (unsigned long long)resource->ino,
@@ -6916,11 +6916,11 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 		}
 
 		slot_reads++;
-		/* sess118: arm before the read the adopt arm publishes on. */
+		/* arm before the read the adopt arm publishes on. */
 		lreq_clr_snap(ctx, resource, &wsnap);
 		/* P297: nudge snapshot BEFORE the read — see the locals. */
 		pre_read_seq = caw_nudge_prepare(ctx);
-		/* sess280 (sess276 ruling, part D): time every wait-loop poll
+		/* (ruling, part D): time every wait-loop poll
 		 * read.  The D-482 frozen-grant stalls showed gen pinned for
 		 * >120s and nothing said whether those were reads that never
 		 * completed or fast reads returning stale data — read_ms in
@@ -6935,7 +6935,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 			goto out;
 		slot_seen = true;
 
-		/* sess38 P139 tail-census accumulation (cheap bit tests on the
+		/* P139 tail-census accumulation (cheap bit tests on the
 		 * read we already did; emitted only for >800ms waits). */
 		if (!(cur_slot->waiters & ctx->node_bit))
 			p139_bit_lost++;
@@ -6960,7 +6960,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 		    !(cur_slot->yield_to & ctx->node_bit))
 			p298_tkt_lost++;
 
-		/* P297-TKT (sess296, D-503 ruling step 1): first sighting of a
+		/* P297-TKT (D-503 ruling step 1): first sighting of a
 		 * ticket naming US.  Paired by realms with the releaser's
 		 * exwin "nom" line (unlock CAS commit) and this waiter's later
 		 * "promote" exwin line (grant), this decomposes the nom
@@ -6976,7 +6976,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 
 			p297_tkt_logged = true;
 			if (p297_n++ < 20000)
-				pr_warn("mxfs: P297-TKT ino=%llu mode=%u el_ms=%llu wake=%d slept_ms=%llu read_ms=%llu read_sum_ms=%llu sleep_sum_ms=%llu miss=%d reads=%d gen=%llu yt=%llx realms=%llu\n",
+				mxfs_probe("mxfs: P297-TKT ino=%llu mode=%u el_ms=%llu wake=%d slept_ms=%llu read_ms=%llu read_sum_ms=%llu sleep_sum_ms=%llu miss=%d reads=%d gen=%llu yt=%llx realms=%llu\n",
 					(unsigned long long)resource->ino,
 					mode,
 					(unsigned long long)(mxfs_pal_time_ms() - start),
@@ -7000,10 +7000,10 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 			uint64_t el = mxfs_pal_time_ms() - start;
 			if (el > 15000 &&
 			    mxfs_pal_time_ms() - last_stuck_dump_ms > 8000) {
-				/* sess34: myslot names OUR disklock slot so a
+				/* myslot names OUR disklock slot so a
 				 * fleet-wide P-ACQ-STUCK merge maps every
 				 * holder bit to a node (slots are CLAIMED at
-				 * join, not rank-ordered — the sess34 orphan
+				 * join, not rank-ordered — the orphan
 				 * capture could not identify slot 16's owner). */
 				uint64_t sod_h;
 				int sod_myslot = -1;
@@ -7037,11 +7037,11 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 				    (unsigned long long)acq_read_max_ms,
 				    (unsigned long long)ctx->closure_cand_mask,
 				    scrub_hits, slot_reads);
-				/* sess34 SELF-ORPHAN detector: the sole wire
+				/* SELF-ORPHAN detector: the sole wire
 				 * holder is THIS NODE while this waiter is
 				 * still pre-CAS — a grant with no in-core
 				 * consumer (the orphan family; reap design
-				 * per Gemini pends this capture proving the
+				 * per design review pends this capture proving the
 				 * shape + naming the birth path). */
 				sod_h = cur_slot->holders_ex |
 					cur_slot->holders_pw |
@@ -7061,7 +7061,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 		}
 
 		/* v0.5.3: periodic UDP BAST re-send while blocked (see above).
-		 * sess8: DO NOT shorten this cadence.  Flat 25ms and a
+		 * DO NOT shorten this cadence.  Flat 25ms and a
 		 * 4x25ms leading burst both regressed cc@32 (60s -> 84-91s):
 		 * most waits are <100ms, so any leading burst multiplies the
 		 * whole cluster's hint volume, and the hint flood shares the
@@ -7080,7 +7080,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 		     cur_slot->holders_ex != prev_hex ||
 		     cur_slot->holders_pr != prev_hpr ||
 		     cur_slot->granted_mode != prev_granted)) {
-			mxfs_pal_log(MXFS_LOG_WARN,
+			mxfs_pal_log(MXFS_LOG_DEBUG,
 				"mxfs: P13-INSTR GRANT-POLL ino=%llu slot=%u "
 				"magic=%x gen=%llu hex=%llx hpr=%llx "
 				"granted=%u want=%u t_ms=%llu",
@@ -7106,7 +7106,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 		}
 
 		/*
-		 * sess374 (sess357 ruling part 1) — CANCEL A WAIT THE VERDICT
+		 * (ruling part 1) — CANCEL A WAIT THE VERDICT
 		 * HAS OVERTAKEN.
 		 *
 		 * A resource INSIDE a quarantined victim domain is meant to
@@ -7114,7 +7114,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 		 * on it.  But this waiter passed that gate BEFORE the verdict
 		 * imported, and nothing here ever re-asked — so it sat out the
 		 * full DLM timeout against a grant that can never be released
-		 * (measured sess374: verdict at t=171s, this waiter reached
+		 * (measured verdict at t=171s, this waiter reached
 		 * the refusal gate at t=467s).  Ask every lap instead.  The
 		 * oracle is a lockless read of a monotonic in-memory map, so
 		 * this costs two loads on a healthy cluster — cheaper than the
@@ -7158,7 +7158,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 				 * Leave the slot exactly as the TIMEOUT give-up
 				 * would.  Returning straight to `out` would
 				 * strand our waiter bit on disk with nobody
-				 * behind it — the sess48 phantom-waiter wedge —
+				 * behind it — the phantom-waiter wedge —
 				 * and a quarantined slot is the last place that
 				 * should accumulate one, because nothing will
 				 * ever release the grant that would otherwise
@@ -7167,7 +7167,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 				caw_drop_own_waiter(ctx, slot_idx, resource,
 						    lreq, true, mode, false, 0);
 				/*
-				 * DIRECT-HANDOFF RACE (sess374 design-consult review
+				 * DIRECT-HANDOFF RACE (design-consult review
 				 * item c).  A peer's release CAS can transfer
 				 * the grant to us — setting our holder bit and
 				 * clearing our waiter bit in one CAS — either
@@ -7263,19 +7263,19 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 		}
 
 		/*
-		 * sess37 DIRECT-HANDOFF ADOPT.  A releaser's unlock CAS can
+		 * DIRECT-HANDOFF ADOPT.  A releaser's unlock CAS can
 		 * transfer ownership to us outright (mxfs_caw_direct_handoff):
 		 * it sets our holder bit, CLEARS our waiter bits, zeroes the
 		 * ticket and does epoch/streak bookkeeping for us.  Adopt on
 		 * sight — no claim CAW.  Ownership-incarnation conditions
-		 * (GPT ruling): our registration for THIS acquire committed at
+		 * (design-consult ruling): our registration for THIS acquire committed at
 		 * generation reg_gen; adopt only when the slot moved PAST that
 		 * write (gen > reg_gen), our waiter bit is GONE (the handoff
 		 * clears it; a stale pre-registration self-bit coexists with a
 		 * live waiter bit and cannot show this state), and our holder
 		 * bit is set in the REQUESTED mode's bitmap.  Also heals an
 		 * AMBIGUOUS own promote CAW (reported miscompare but landed) —
-		 * previously an untracked wire grant (the sess34 SIGKILL wedge
+		 * previously an untracked wire grant (the SIGKILL wedge
 		 * family) or a P-SELF-STALE-EDEADLK bounce.
 		 */
 		if (reg_gen && cur_slot->generation > reg_gen &&
@@ -7294,7 +7294,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 				const char *ad_reject = NULL;
 
 				/*
-				 * sess109 ruling blocker 3 — VALIDATE BEFORE
+				 * ruling blocker 3 — VALIDATE BEFORE
 				 * ADOPTING.  Adoption is RECOGNITION of a durable
 				 * grant, never creation of authority, so a
 				 * write-capable adopted grant must carry its own
@@ -7307,7 +7307,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 				 *    tenure was ever minted on this resource").
 				 *  - the epoch ADVANCED past what our registration
 				 *    saw.  The sequence only ever increases within
-				 *    one resource lineage (sess108 tombstone
+				 *    one resource lineage (tombstone
 				 *    carry), so `> reg_epoch` is exactly "a new
 				 *    tenure was minted since we queued".  EQUAL
 				 *    means a releaser installed our holder bit
@@ -7356,8 +7356,8 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 				} else if (!lreq_clr_still_good(ctx, resource,
 								&wsnap)) {
 					/*
-					 * sess118 CLEAR-WINDOW VALIDATION — the
-					 * sess115 ruling's "adoption stays
+					 * CLEAR-WINDOW VALIDATION — the
+					 * ruling's "adoption stays
 					 * PROVISIONAL and retries after".
 					 *
 					 * This arm publishes a grant it never
@@ -7409,7 +7409,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 						static int p6h_n;
 
 						if (p6h_n++ < 2000)
-							pr_warn("mxfs: P6H-ADOPT ino=%llu mode=%u held=%u elapsed_ms=%llu gen=%llu reg_gen=%llu handoff=%d reads=%d gep=%llu reg_gep=%llu st=%u realms=%llu\n",
+							mxfs_probe("mxfs: P6H-ADOPT ino=%llu mode=%u held=%u elapsed_ms=%llu gen=%llu reg_gen=%llu handoff=%d reads=%d gep=%llu reg_gep=%llu st=%u realms=%llu\n",
 								(unsigned long long)resource->ino,
 								mode, ad_held,
 								(unsigned long long)(mxfs_pal_time_ms() - start),
@@ -7427,7 +7427,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 						      mxfs_pal_time_ms() - start,
 						      cur_slot->yield_to,
 						      cur_slot->waiters_ex);
-					/* P298 (sess298, D-503): sub-step
+					/* P298 (D-503): sub-step
 					 * attribution for the slow-adopt tail
 					 * — the adopt exit skips the P138/P139
 					 * census, so this is the only line
@@ -7484,7 +7484,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 		if (node_held_mode(cur_slot, ctx->node_bit) != MXFS_LOCK_NL &&
 		    !is_compatible(cur_slot, mode)) {
 			if (resource->type == MXFS_LTYPE_INODE)
-				pr_warn_ratelimited(
+				mxfs_probe_ratelimited(
 				    "mxfs: P-SELF-STALE-EDEADLK ino=%llu slot=%u want=%u held=%u hex=%llx hpr=%llx w=%llx — self-hold blocks own acquire; -EDEADLK to clear\n",
 				    (unsigned long long)resource->ino, slot_idx,
 				    mode,
@@ -7500,11 +7500,11 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 			if (!first_compat_ms)
 				first_compat_ms = mxfs_pal_time_ms();
 			/*
-			 * sess2(ccloop 26c41354) FAIR HANDOFF: honor the
+			 * FAIR HANDOFF: honor the
 			 * round-robin EX ticket the releaser set in yield_to.
 			 * If a DIFFERENT node is the chosen next (yield_to set,
 			 * our bit absent) and we are a FRESH waiter (we hold NL
-			 * — an upgrader keeps conversion priority, sess130), do
+			 * — an upgrader keeps conversion priority), do
 			 * NOT self-promote: let the chosen EX waiter go first.
 			 * This replaces the free-for-all where an unlucky node's
 			 * poll cadence never wins (16-node victim-node loss).  A
@@ -7512,7 +7512,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 			 * here so no waiter deadlocks.  Inode locks only.
 			 */
 			/*
-			 * ccloop c7ee71c6 sess24 SHARED-CLASS BYPASS (see the
+			 *  SHARED-CLASS BYPASS (see the
 			 * measurement in mxfs_caw_pr_batch_nodefer's comment).
 			 * yt_guards_ex is deliberately BROADER than "the ticket
 			 * names an EX waiter": a batch ticket snapshotted while
@@ -7525,7 +7525,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 				(cur_slot->waiters & cur_slot->waiters_ex);
 			bool shared_req = (mode == MXFS_LOCK_PR ||
 					   mode == MXFS_LOCK_CR);
-			/* sess24 BOUNDED PATIENCE: our OWN wait, not yt_age --
+			/* BOUNDED PATIENCE: our OWN wait, not yt_age --
 			 * the ticket's clock is re-armed on every EX handoff
 			 * (measured: age_ms=0..8 while this waiter's ytd hit
 			 * 86), so it can never bound anything. */
@@ -7537,7 +7537,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 					   shared_req && !yt_guards_ex) ||
 					  pr_impatient;
 
-			/* ccloop c7ee71c6 sess24: capped, NOT caw_instr_on()-
+			/*  capped, NOT caw_instr_on-
 			 * gated.  mxfs.instr defaults to 0 and its own comment
 			 * says enabling it is "thousands of printk/sec on the
 			 * lock hot path ... ~100x slower" — so gating a pace
@@ -7552,7 +7552,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 				static int p203_n;
 
 				if (p203_n++ < 200)
-					pr_warn(
+					mxfs_probe(
 					    "mxfs: P203-PR-NODEFER ino=%llu mode=%u why=%s yt=%llx w=%llx wex=%llx waited_ms=%llu ytd=%d\n",
 					    (unsigned long long)resource->ino, mode,
 					    pr_impatient ? "patience" : "no-ex-waiter",
@@ -7574,7 +7574,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 				uint64_t yt_age = (yt_now > cur_slot->yield_set_ms) ?
 						  (yt_now - cur_slot->yield_set_ms) : 0;
 				/*
-				 * sess299 (ruling item 8): the ticket is a
+				 * (ruling item 8): the ticket is a
 				 * RESERVATION while any named node is still a
 				 * registered waiter.  Age alone never clears
 				 * it — a live nominee that has waited >5s is
@@ -7592,8 +7592,8 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 				    yt_live) {
 					/* not our turn — keep waiting */
 					yt_defer++;
-					/* ccloop c7ee71c6 sess24 instrumented: the
-					 * sess24 shared-class bypass measured
+					/*  instrumented: the
+					 * shared-class bypass measured
 					 * ZERO engagements (P203 never fired)
 					 * while this site still took 6140
 					 * deferrals on a mode=PR wait, so
@@ -7608,7 +7608,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 						static int p204_n;
 
 						if (p204_n++ < 200)
-							pr_warn(
+							mxfs_probe(
 							    "mxfs: P204-YT-DEFER ino=%llu req_mode=%u yt=%llx w=%llx wex=%llx hpr=%llx hex=%llx nb=%llx age_ms=%llu ytd=%d\n",
 							    (unsigned long long)resource->ino,
 							    mode,
@@ -7621,7 +7621,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 							    (unsigned long long)yt_age,
 							    yt_defer);
 					}
-					/* sess35: the ticket names another node
+					/* the ticket names another node
 					 * — only its promote/release can
 					 * change our situation, and that CAW
 					 * sends a targeted nudge.  Long-doze
@@ -7654,7 +7654,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 				 * + retry.  This is the safety valve that breaks
 				 * the EX-starvation deadlock. */
 				if (resource->type == MXFS_LTYPE_INODE)
-					pr_warn_ratelimited(
+					mxfs_probe_ratelimited(
 					    "mxfs: P-YT-STALECLR ino=%llu yt=%llx age_ms=%llu req_mode=%u\n",
 					    (unsigned long long)resource->ino,
 					    (unsigned long long)cur_slot->yield_to,
@@ -7674,7 +7674,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 			/* Try to promote from waiter to holder */
 			*new_slot = *cur_slot;
 			new_slot->waiters &= ~ctx->node_bit;
-			new_slot->waiters_ex &= ~ctx->node_bit;	/* sess50: no longer an exclusive waiter */
+			new_slot->waiters_ex &= ~ctx->node_bit;	/* no longer an exclusive waiter */
 
 			/* Clear our bit from yield_to — we were yielded to and are taking our turn */
 			if (new_slot->yield_to & ctx->node_bit)
@@ -7686,7 +7686,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 					*hp |= ctx->node_bit;
 			}
 			/*
-			 * sess38 BATCH-COMPLETION-ON-CLAIM (P139 census root):
+			 * BATCH-COMPLETION-ON-CLAIM (P139 census root):
 			 * when a streak-yield PR batch ticket names N readers,
 			 * the release-side P6H-PRBATCH arm admits them only if
 			 * the releaser was the LAST holder; otherwise all N
@@ -7695,7 +7695,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 			 * simultaneous PR admission storms (each success
 			 * invalidating the other 8's compare base), one per
 			 * round, setting the dir_reuse round wall.  Fix per
-			 * the design-consult GPT ruling ("any node may CAS the next
+			 * the design-consult design-consult ruling ("any node may CAS the next
 			 * state transition"): the FIRST member whose claim CAS
 			 * wins admits EVERY still-registered shared-class
 			 * sibling of the ticket in the SAME write.  Siblings
@@ -7721,7 +7721,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 						static int p6h_pcb_n;
 
 						if (p6h_pcb_n++ < 2000)
-							pr_warn("mxfs: P6H-PRCLAIMBATCH ino=%llu mask=%llx n=%d realms=%llu\n",
+							mxfs_probe("mxfs: P6H-PRCLAIMBATCH ino=%llu mask=%llx n=%d realms=%llu\n",
 								(unsigned long long)resource->ino,
 								(unsigned long long)sibs,
 								mxfs_pal_popcount64(sibs),
@@ -7759,7 +7759,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 			caw_check_exclusion(ctx, resource, new_slot, mode);
 			caw_verify_grant_persisted(ctx, resource, slot_idx, mode);
 			track_held(ctx, slot_idx);
-			/* sess97 step 5.3(b): provenance from the image that
+			/* step 5.3(b): provenance from the image that
 			 * just CAS-ed successfully, before anything else can
 			 * touch this slot. */
 			caw_grant_result_fill(gres, resource, new_slot, mode,
@@ -7769,12 +7769,12 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 					     wait_handoff,
 					     new_slot->dir_block0_fsb,
 					     new_slot->dir_block0_gen);
-			/* ccloop 72513a13 sess3: our grant CAW just changed
+			/*  our grant CAW just changed
 			 * the slot; other queued waiters (e.g. the rest of a
 			 * PR class joining a shared grant) should re-read now
 			 * rather than after their poll interval.
 			 *
-			 * sess35 NUDGE v2: an EX grant makes NOBODY grantable
+			 * NUDGE v2: an EX grant makes NOBODY grantable
 			 * — waking the queue is a pure herd (each wake = one
 			 * FUA read at the shared target).  Skip it; waiters
 			 * learn at the next release nudge.  A shared grant
@@ -7795,12 +7795,12 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 				      mxfs_pal_time_ms() - start,
 				      cur_slot->yield_to, cur_slot->waiters_ex);
 			rc = 0; /* Granted */
-			/* sess131 P131-WAITLONG: always-on starvation probe —
+			/* P131-WAITLONG: always-on starvation probe —
 			 * any grant that waited >1s is a fairness defect
 			 * (zero_silent_loss 16-node storm tail analysis). */
 			if (caw_instr_on() &&
 			    mxfs_pal_time_ms() - start > 1000)
-				mxfs_pal_log(MXFS_LOG_WARN,
+				mxfs_pal_log(MXFS_LOG_DEBUG,
 				    "mxfs: P131-WAITLONG type=%u ino=%llu ag=%u "
 				    "mode=%u elapsed_ms=%llu",
 				    resource->type,
@@ -7808,7 +7808,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 				    resource->ag_number, mode,
 				    (unsigned long long)(mxfs_pal_time_ms() - start));
 			if (resource->type == MXFS_LTYPE_INODE && caw_instr_on()) {
-				mxfs_pal_log(MXFS_LOG_WARN,
+				mxfs_pal_log(MXFS_LOG_DEBUG,
 					"mxfs: P13-INSTR GRANT-WAIT-OK ino=%llu "
 					"slot=%u mode=%u elapsed_ms=%llu",
 					(unsigned long long)resource->ino,
@@ -7824,7 +7824,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 			 */
 			if (resource->type == MXFS_LTYPE_INODE &&
 			    mxfs_pal_time_ms() - start > 5) {
-				/* sess8: capped (not ratelimited — storm runs
+				/* capped (not ratelimited — storm runs
 				 * lost most lines) + T1 anatomy fields.
 				 * ffw_ms = grantable->grant claim latency;
 				 * ytd = ticket deferrals while grantable;
@@ -7833,7 +7833,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 				static int p138_n;
 				uint64_t now_ms = mxfs_pal_time_ms();
 
-				/* sess38 P139 tail census: the rotating multi-
+				/* P139 tail census: the rotating multi-
 				 * second outlier that sets every dir_reuse
 				 * round wall.  Unconditional (tail events are
 				 * rare by definition); discriminates queue-
@@ -7857,7 +7857,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 						    (unsigned long long)mxfs_pal_time_real_ms());
 				}
 				if (p138_n++ < 4000)
-					pr_warn(
+					mxfs_probe(
 					    "mxfs: P138-WAIT ino=%llu mode=%u elapsed_ms=%llu ffw_ms=%llu ytd=%d poll=%u caw_try=%d caw_miss=%d caw_err=%d caw_svc_ms=%llu reads=%d realms=%llu\n",
 						(unsigned long long)resource->ino,
 						mode,
@@ -7870,7 +7870,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 						(unsigned long long)mxfs_pal_time_real_ms());
 			}
 			/*
-			 * sess435 (D-32NODE-SHARED-DIR-CREATE-PACE): the AG-class
+			 * (D-32NODE-SHARED-DIR-CREATE-PACE): the AG-class
 			 * twin of P138-WAIT.  A 32-node crash_consistency create
 			 * storm produced exactly TWO P138-WAIT lines fleet-wide
 			 * while the stack profile put 26.5% of all blocked ticks in
@@ -7886,7 +7886,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 				uint64_t now_ag_ms = mxfs_pal_time_ms();
 
 				if (p138ag_n++ < 4000)
-					pr_warn(
+					mxfs_probe(
 					    "mxfs: P138-AGWAIT ag=%u mode=%u elapsed_ms=%llu ffw_ms=%llu ytd=%d poll=%u caw_try=%d caw_miss=%d caw_err=%d caw_svc_ms=%llu reads=%d realms=%llu\n",
 						resource->ag_number, mode,
 						(unsigned long long)(now_ag_ms - start),
@@ -7900,7 +7900,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 			goto out;
 		}
 
-		/* sess35 NUDGE v2: a foreign EX holder excludes every grant
+		/* NUDGE v2: a foreign EX holder excludes every grant
 		 * until its release, and that release's CAW sends a targeted
 		 * nudge — long-doze instead of herd-polling the slot.  Any
 		 * other shape (free slot raced away, PR class forming, CAS
@@ -7908,7 +7908,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 		if (cur_slot->holders_ex & ~ctx->node_bit)
 			p139_doze250++;
 		/*
-		 * sess386 (design-consult ruling, bounded-reserve fix for the 474
+		 * (design-consult ruling, bounded-reserve fix for the 474
 		 * AGI-hold leg): caller-supplied ABSOLUTE deadline.  Checked
 		 * HERE — after this lap's read and every grant-attempt arm —
 		 * so a grant seen on the final read wins over the deadline
@@ -7966,14 +7966,14 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 		     (unsigned long long)(mxfs_pal_time_ms() - start),
 		     MXFS_CAW_WAIT_TIMEOUT_MS, MXFS_CAW_WAIT_HARDCAP_MS);
 	if (resource->type == MXFS_LTYPE_INODE && caw_instr_on()) {
-		mxfs_pal_log(MXFS_LOG_WARN,
+		mxfs_pal_log(MXFS_LOG_DEBUG,
 			"mxfs: P13-INSTR GRANT-WAIT-TIMEOUT ino=%llu slot=%u "
 			"want_mode=%u t_ms=%llu",
 			(unsigned long long)resource->ino, slot_idx, mode,
 			(unsigned long long)mxfs_pal_time_ms());
 	}
 
-	/* sess48: robust cleanup — the old bounded 10-retry CAS loop here could
+	/* robust cleanup — the old bounded 10-retry CAS loop here could
 	 * lose every attempt under a 16-node hot-slot CAS storm, leaking our
 	 * EX-waiter bit permanently (phantom-waiter wedge).  Retry until our bit
 	 * is confirmed clear. */
@@ -7984,13 +7984,13 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 
 out:
 	/*
-	 * sess109 structural defense (ruling item B): make "rc == 0 implies a
+	 * structural defense (ruling item B): make "rc == 0 implies a
 	 * fully-initialised grant result" an ENFORCED invariant rather than a
 	 * convention that each new success arm has to remember.  Every success
 	 * path in this function fills gres from the exact image it granted on;
 	 * an UNSET status escaping here means a NEW arm was added that grants
 	 * without recording provenance — the exact defect class blocker 3 was
-	 * (sess106 measured it as st_unset on all 32 nodes).  Report it loudly
+	 * (measured it as st_unset on all 32 nodes).  Report it loudly
 	 * and name the resource, so the gap is found in a log rather than by
 	 * the replayer trusting a zeroed token.
 	 */
@@ -7998,7 +7998,7 @@ out:
 		static int p_unset_n;
 
 		if (p_unset_n++ < 200)
-			pr_warn("mxfs: P242-GRANT-UNSET-WAIT type=%c id=%llu slot=%u mode=%u — success with no provenance (grant arm did not fill the result)\n",
+			mxfs_probe("mxfs: P242-GRANT-UNSET-WAIT type=%c id=%llu slot=%u mode=%u — success with no provenance (grant arm did not fill the result)\n",
 				resource->type == MXFS_LTYPE_INODE ? 'I' :
 				resource->type == MXFS_LTYPE_AG ? 'A' : 'O',
 				(unsigned long long)(resource->type == MXFS_LTYPE_INODE ?
@@ -8060,7 +8060,7 @@ static void mem_lock_untrack(struct mxfs_dlm_caw_ctx *ctx,
 }
 
 /*
- * sess39: desync the compare-and-write storm on a hot INODE lock slot.
+ * desync the compare-and-write storm on a hot INODE lock slot.
  *
  * Under N-node concurrent same-directory rename, every node read-modify-CAS
  * the SAME inode lock slot in lockstep.  Each MISCOMPARE returns -EAGAIN and
@@ -8119,7 +8119,7 @@ static void caw_inode_backoff(struct mxfs_dlm_caw_ctx *ctx,
 }
 
 /*
- * sess39: ALWAYS-ON exclusive-grant invariant check.  After we record a
+ * ALWAYS-ON exclusive-grant invariant check.  After we record a
  * grant in `slot`, verify the slot's holder bitmaps obey DLM exclusion:
  *  - if WE hold EX/PW, NO other node may hold ANY mode;
  *  - if WE hold PR/CR/CW, NO node may hold EX/PW.
@@ -8166,11 +8166,11 @@ static void caw_check_exclusion(struct mxfs_dlm_caw_ctx *ctx,
 }
 
 /*
- * sess44 P87: decisive DLM-split test.  After an EX/PW grant CAS reports
+ * P87: decisive DLM-split test.  After an EX/PW grant CAS reports
  * SUCCESS, re-read the slot straight from disk and verify our bit is the
  * ONLY EX holder.  caw_check_exclusion() above only inspects the in-core
  * new_slot we constructed, so it cannot detect a CAS that "succeeded" but
- * did not persist exclusively (the documented sess26 failure: SCSI CAW
+ * did not persist exclusively (the documented failure: SCSI CAW
  * reports CAS-success without durably persisting).  If our bit is MISSING
  * from the on-disk holders_ex, or another node's bit is also set, two nodes
  * believe they hold the AG EX => concurrent same-AG metadata modify =>
@@ -8183,8 +8183,8 @@ static void caw_verify_grant_persisted(struct mxfs_dlm_caw_ctx *ctx,
 				       uint32_t slot_idx, uint8_t mode)
 {
 	struct mxfs_caw_lock_slot *vs;
-	/* ccloop 72513a13 sess3: this read-back was 1 FUA read per EX grant
-	 * — ~1 op per created/unlinked file cluster-wide.  The sess26 target
+	/*  this read-back was 1 FUA read per EX grant
+	 * — ~1 op per created/unlinked file cluster-wide.  The target
 	 * misbehavior it detects (CAS reports success but does not persist)
 	 * is not per-resource: SAMPLE inode grants 1/64 and keep AG grants
 	 * (free-space lost-update blast radius) at every-grant.  The counter
@@ -8217,7 +8217,7 @@ static void caw_verify_grant_persisted(struct mxfs_dlm_caw_ctx *ctx,
 /* ─── mxfs_dlm_caw_lock ─── */
 
 /*
- * sess404 telemetry for the bounded-courtesy ticket override (design-consult ruling
+ * telemetry for the bounded-courtesy ticket override (design-consult ruling
  * item iii: "add counters for bounded overrides ... otherwise this failure mode
  * will again be difficult to diagnose").  Module-lifetime counters, printed
  * on every P221-YIELD-BOUND-AG / P-CAWEXH-AG line.
@@ -8236,7 +8236,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 		        uint64_t deadline_ms);
 
 /*
- * sess435 (D-32NODE-SHARED-DIR-CREATE-PACE): ACQUIRE-level accounting.
+ * (D-32NODE-SHARED-DIR-CREATE-PACE): ACQUIRE-level accounting.
  * P138-WAIT / P138-AGWAIT time one entry into the grant-wait loop; a whole
  * acquire retries that loop (re-resolve, CAS, miscompare, back off) and the
  * 32-node crash_consistency storm showed the two of them summing to under
@@ -8276,14 +8276,14 @@ static int caw_lock_body(struct mxfs_dlm_caw_ctx *ctx,
 		static atomic_t p138acq_n = ATOMIC_INIT(0);
 
 		if (atomic_inc_return(&p138acq_n) <= 4000)
-			pr_warn("mxfs: P138-ACQ type=%u ino=%llu ag=%u mode=%u elapsed_ms=%llu rc=%d realms=%llu\n",
+			mxfs_probe("mxfs: P138-ACQ type=%u ino=%llu ag=%u mode=%u elapsed_ms=%llu rc=%d realms=%llu\n",
 				ty, resource ? (unsigned long long)resource->ino : 0ULL,
 				resource ? resource->ag_number : 0, mode,
 				(unsigned long long)el, rc,
 				(unsigned long long)mxfs_pal_time_real_ms());
 	}
 	if ((n % 500) == 0)
-		pr_warn("mxfs: P138-ACQSUM type=%u n=%llu sum_ms=%llu gt5=%llu realms=%llu\n",
+		mxfs_probe("mxfs: P138-ACQSUM type=%u n=%llu sum_ms=%llu gt5=%llu realms=%llu\n",
 			ty, (unsigned long long)n, (unsigned long long)ms,
 			(unsigned long long)gt5,
 			(unsigned long long)mxfs_pal_time_real_ms());
@@ -8306,12 +8306,12 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 	uint8_t our_mode;
 	int retry;
 	int rc;
-	/* ccloop instrumented: prove the hot-slot CAS-storm exhaustion mechanism for
+	/*  instrumented: prove the hot-slot CAS-storm exhaustion mechanism for
 	 * INODE EX-acquire — count CAS -EAGAIN losses per site, dump on
 	 * MXFS_CAW_MAX_RETRIES exhaustion (the path that force-shuts-down). */
 	int ea_claim = 0, ea_compat = 0, ea_regwait = 0;
 	/*
-	 * sess40 (D-CAW-CLAIM-RETRY-EXHAUSTION-SHUTDOWN).  MEASURED: at 32-way
+	 * (D-CAW-CLAIM-RETRY-EXHAUSTION-SHUTDOWN).  MEASURED: at 32-way
 	 * cold-read storms an acquire can lose the claim/recycle race for the
 	 * SAME resource 100 times in ~1.3-1.8s, hit the bare
 	 * MXFS_CAW_MAX_RETRIES count, return -ETIMEDOUT, and be escalated by
@@ -8332,23 +8332,23 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 	 */
 	uint64_t claim_deadline = 0;
 	int div_lo = 0, div_hi = 0, yield_bo = 0, yield_stale = 0, wait_enoent = 0;
-	int ea_adopt = 0;	/* sess53: adopt-CAS lost to a concurrent settle */
-	/* sess38 P139: whole-acquire clock — a tail event can span SEVERAL
+	int ea_adopt = 0;	/* adopt-CAS lost to a concurrent settle */
+	/* P139: whole-acquire clock — a tail event can span SEVERAL
 	 * wait_for_grant invocations (each outer retry re-registers), so the
 	 * per-wait census under-reports; LOCKTOTAL at `out` catches it. */
 	uint64_t p139_lock_start = mxfs_pal_time_ms();
-	/* sess31 (ccloop c7ee71c6) D-CAW-YIELD-STARVATION-SHUTDOWN state:
+	/* D-CAW-YIELD-STARVATION-SHUTDOWN state:
 	 * fresh_yreg  — we CAS-registered our waiter bit from the compatible-
 	 *               yield path (fix A), so releases include us in the
 	 *               yield_to ticket they snapshot from `waiters`;
 	 * yield_consec — consecutive compatible-yield deferrals; monotonic for
-	 *               the life of this acquire on purpose (GPT condition:
+	 *               the life of this acquire on purpose (design review condition:
 	 *               a ticket restamp or a lost claim CAS must NOT reset
 	 *               it, or continuous restamping reproduces the
 	 *               starvation);
 	 * ybypass     — times fix B stopped deferring and took the claim. */
 	bool fresh_yreg = false;
-	/* sess404 (ruling property 4: no waiter footprint on any exit):
+	/* (ruling property 4: no waiter footprint on any exit):
 	 * yreg_live — the fix-A registration is on the platter and nothing
 	 *             has cleared it yet (the claim CAS clears it atomically;
 	 *             the incompatible register-waiter path takes ownership
@@ -8360,16 +8360,16 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 	int last_our_mode = -1;
 	uint8_t last_wmode = 0;
 	uint64_t last_hex = 0, last_hpr = 0;
-	/* sess404: last-seen ticket/waiter image for the AG exhaustion dump
+	/* last-seen ticket/waiter image for the AG exhaustion dump
 	 * (P-CAWEXH-AG) — the inode dump never needed them because fix A/B
 	 * below bounds the inode yield deferral; AG has no such bound yet. */
 	uint64_t last_yt = 0, last_waiters = 0, last_yt_age = 0;
 	bool grant_handoff = false;	/* v0.6.0 EX-handoff epoch observation */
 	bool claim_handoff = false;	/* claim-empty via same-res tombstone */
-	struct mxfs_caw_lreq *lreq = NULL;	/* sess112 local request registry */
+	struct mxfs_caw_lreq *lreq = NULL;	/* local request registry */
 	uint8_t held_mode = MXFS_LOCK_NL;	/* what we ended up holding */
 	/*
-	 * sess118: clear-window snapshot for the two memory-only "already
+	 * clear-window snapshot for the two memory-only "already
 	 * held" shortcuts.  Re-armed at the TOP of every retry iteration,
 	 * BEFORE the slot read it protects — see the ordering argument above
 	 * lreq_clr_snap.  A snapshot taken after the read cannot see a clear
@@ -8377,7 +8377,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 	 */
 	struct mxfs_caw_clr_snap csnap = { 0, true, false };
 
-	/* sess97: no grant proven yet.  Every early return below therefore
+	/* no grant proven yet.  Every early return below therefore
 	 * leaves the caller with a non-proving result, which is the required
 	 * fail-closed default. */
 	mxfs_grant_result_init(gres);
@@ -8392,14 +8392,14 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 	}
 
 	/* Single-node fast path: no peers, grant in-memory only.
-	 * sess432 (D-0353): say so in the grant result.  Returning the UNSET
+	 * (D-0353): say so in the grant result.  Returning the UNSET
 	 * init value made the XFS side publish epoch 0 and then drop the
-	 * cached hint on EVERY re-acquire (sess291 P243 guard), forcing a
+	 * cached hint on EVERY re-acquire (P243 guard), forcing a
 	 * false-fresh acquire whose AG-meta invalidation discarded the
 	 * previous transaction's pinned AGI/inobt/finobt update — the lone-
 	 * mount double allocation.  SINGLE_NODE is non-proving (no epoch). */
 	/*
-	 * sess433 (D-0354, design-consult ruling ccloop-c7ee71c6-sess433-GPT-ruling-
+	 * (D-0354, design-consult ruling ccloop-c7ee71c6-sess433-GPT-ruling-
 	 * d0354-mint-durable-epoch-single-node): the memory-only single-node
 	 * grant is GONE.  A lone node's images carried epoch 0 and were
 	 * refused by every foreign replayer (measured: a lone node's fsync'd
@@ -8412,10 +8412,10 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 	 * CAS per resource per tenure, cached by the XFS side exactly as in
 	 * multi-node mode — and `single_node` is left meaning only "no peer
 	 * can be waiting" (the poll thread skips its disk scan).  No separate
-	 * single-node promotion exists (the sess25 OR-bug class).
+	 * single-node promotion exists (the OR-bug class).
 	 */
 
-	/* sess78 DIAGNOSTIC: measure the perf ceiling without per-inode disk
+	/* DIAGNOSTIC: measure the perf ceiling without per-inode disk
 	 * CAW.  Grant INODE-type locks in-memory only (UNSAFE; diag param). */
 	{
 		extern int mxfs_inode_caw_local;
@@ -8439,7 +8439,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 	}
 
 	/*
-	 * sess112: JOIN THE LOCAL REQUEST REGISTRY before registering anything
+	 * JOIN THE LOCAL REQUEST REGISTRY before registering anything
 	 * on disk.  From here on this attempt is visible to every other local
 	 * thread on this resource, so none of them can cancel the waiter or
 	 * holder bit we are about to depend on (dlm_caw.h, ctx->lreq).
@@ -8484,7 +8484,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 		 * underlying coordination races, not the root issue — slowing
 		 * the retries just trades one failure for another.
 		 *
-		 * sess39: that revert was correct for AG locks; re-introduce a
+		 * that revert was correct for AG locks; re-introduce a
 		 * node-phased jittered backoff scoped to INODE locks only, to
 		 * desync the same-slot CAS storm that otherwise -ETIMEDOUTs and
 		 * shuts the FS down under concurrent same-dir rename.
@@ -8497,7 +8497,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 		 * about to claim (the common no-tombstone case) instead of
 		 * re-reading it (was 1 serialized FUA read per create). */
 		last_read_idx = UINT32_MAX;
-		/* sess118: arm the clear-window snapshot BEFORE the read whose
+		/* arm the clear-window snapshot BEFORE the read whose
 		 * image the already-held shortcuts publish on. */
 		lreq_clr_snap(ctx, resource, &csnap);
 		rc = find_slot_skip(ctx, resource, &slot_idx, cur_slot,
@@ -8507,10 +8507,10 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 		/* P15-INSTR: AG-only CAW traffic logging — v0.5.3: gated behind
 		 * mxfs.instr (was UNGATED: one pr_warn per AG CAW iteration, 1410
 		 * lines in one 2-node rsync, printed while holding the lock path —
-		 * a measurable slice of the multi-node penalty; sess36 policy). */
+		 * a measurable slice of the multi-node penalty; policy). */
 		if (resource->type == MXFS_LTYPE_AG && caw_instr_on()) {
 			if (rc == 0) {
-				mxfs_pal_log(MXFS_LOG_WARN,
+				mxfs_pal_log(MXFS_LOG_DEBUG,
 				    "P15-INSTR caw-iter ag=%u mode=%u retry=%d "
 				    "find=found slot=%u gen=%u gm=%u "
 				    "h_ex=%llx h_pw=%llx h_pr=%llx "
@@ -8526,7 +8526,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 				    (unsigned long long)cur_slot->yield_to,
 				    (unsigned long long)cur_slot->yield_set_ms);
 			} else {
-				mxfs_pal_log(MXFS_LOG_WARN,
+				mxfs_pal_log(MXFS_LOG_DEBUG,
 				    "P15-INSTR caw-iter ag=%u mode=%u retry=%d "
 				    "find=rc%d empty_idx=%u",
 				    resource->ag_number, mode, retry,
@@ -8555,7 +8555,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 			 * insertion point is an earlier tombstone/ghost slot
 			 * (probe read past it, clobbering cur_slot). */
 			/*
-			 * sess40 ROOT FIX (D-CAW-CLAIM-RETRY-EXHAUSTION-
+			 * ROOT FIX (D-CAW-CLAIM-RETRY-EXHAUSTION-
 			 * SHUTDOWN), PROVEN by P92-CLAIMCAS: the old
 			 * `last_read_idx != empty_idx` skip assumed the
 			 * probe's final read was a fresh per-slot read.  It
@@ -8578,7 +8578,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 			rc = read_slot(ctx, empty_idx, cur_slot);
 			if (rc)
 				goto out;
-			/* daf50d34 sess2 ROOT FIX (mkdir-storm dirent loss, instrumented
+			/* daf50d34 ROOT FIX (mkdir-storm dirent loss, instrumented
 			 * PROVEN by P135-FOREIGN-STRIP caller=mxfs_dlm_caw_lock+0x459
 			 * ×3 in one 5-round storm): the re-read above is a TOCTOU
 			 * LAUNDERER.  Between the probe classifying empty_idx as
@@ -8618,7 +8618,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 				mxfs_pal_sleep_ms(1);
 				continue;
 			}
-			/* sess46 (GPT retention invariant): a DIFFERENT-resource
+			/* (design review retention invariant): a DIFFERENT-resource
 			 * tombstone carrying open_holders must never be recycled
 			 * — the fresh init would wipe another file's open-unlink
 			 * protection.  Provably unreachable (every tombstone
@@ -8660,7 +8660,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 			new_slot->resource = *resource;
 			new_slot->last_ex_slot = MXFS_CAW_EX_SLOT_NONE;
 			caw_claim_inherit_epoch(new_slot, cur_slot, resource);
-			/* sess176: fresh binding (or legacy zero-lineage
+			/* fresh binding (or legacy zero-lineage
 			 * recycle) — mint the lineage inside the claim image
 			 * so it is durable in the same CAS that binds the
 			 * resource.  Mint failure fails the claim (ruling:
@@ -8696,7 +8696,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 			caw_grant_seq_prebump(ctx, resource);	/* v0.6.4 */
 			rc = caw_slot(ctx, empty_idx, cur_slot, new_slot);
 			if (resource->type == MXFS_LTYPE_AG && caw_instr_on())
-				mxfs_pal_log(MXFS_LOG_WARN,
+				mxfs_pal_log(MXFS_LOG_DEBUG,
 				    "P15-INSTR caw-act ag=%u retry=%d "
 				    "action=claim-empty slot=%u cas_rc=%d",
 				    resource->ag_number, retry, empty_idx, rc);
@@ -8707,7 +8707,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 					claim_deadline = mxfs_pal_time_ms() +
 						MXFS_CAW_UNLOCK_DEADLINE_MS;
 				/*
-				 * sess40 instrumented: a claim that miscompares
+				 * instrumented: a claim that miscompares
 				 * hundreds of times against a slot whose
 				 * on-disk generation is NOT advancing (P91
 				 * captured tgt gen=2 stable across 6s) is not
@@ -8744,7 +8744,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 									break;
 								}
 						}
-						pr_warn("mxfs: P92-CLAIMCAS ino=%llu idx=%u n=%d rd_rc=%d first_diff=%d cmp[magic=%x gen=%u] disk[magic=%x gen=%u] fresh_read_skipped=%d\n",
+						mxfs_probe("mxfs: P92-CLAIMCAS ino=%llu idx=%u n=%d rd_rc=%d first_diff=%d cmp[magic=%x gen=%u] disk[magic=%x gen=%u] fresh_read_skipped=%d\n",
 							(unsigned long long)resource->ino,
 							empty_idx, ea_claim, frc,
 							diff, cur_slot->magic,
@@ -8760,11 +8760,11 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 				goto out;
 
 			/*
-			 * P49-INSTR (sess26 diagnostic): post-CAS verify-read.
+			 * P49-INSTR (diagnostic): post-CAS verify-read.
 			 * v0.3.108 final: extra SCSI read per CAS-success
 			 * doubles the SCSI command count in caw_lock claim
 			 * path.  Disabling P49 to reduce SCSI-queue pressure;
-			 * the divergence info is preserved in sess26 docs.
+			 * the divergence info is preserved in docs.
 			 * Set MXFS_P49_ENABLE=1 to re-enable for diagnosis.
 			 */
 			if (0 && resource->type == MXFS_LTYPE_AG) {
@@ -8781,7 +8781,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 					const uint8_t *vb = (const uint8_t *)&verify_slot;
 					const uint8_t *nb = (const uint8_t *)new_slot;
 					const uint8_t *cb = (const uint8_t *)cur_slot;
-					mxfs_pal_log(MXFS_LOG_WARN,
+					mxfs_pal_log(MXFS_LOG_DEBUG,
 					    "P49-INSTR cur-slot-bytes 0..31 (compare-buf for CAS): "
 					    "%02x%02x%02x%02x %02x%02x%02x%02x "
 					    "%02x%02x%02x%02x %02x%02x%02x%02x "
@@ -8795,7 +8795,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 					    cb[20],cb[21],cb[22],cb[23],
 					    cb[24],cb[25],cb[26],cb[27],
 					    cb[28],cb[29],cb[30],cb[31]);
-					mxfs_pal_log(MXFS_LOG_WARN,
+					mxfs_pal_log(MXFS_LOG_DEBUG,
 					    "P49-INSTR claim-empty-diverged "
 					    "ag=%u slot=%u v_rc=%d "
 					    "v_magic=0x%x v_gen=%u "
@@ -8817,7 +8817,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 					    new_slot->holders_ex,
 					    (unsigned long long)
 					    ctx->node_bit);
-					mxfs_pal_log(MXFS_LOG_WARN,
+					mxfs_pal_log(MXFS_LOG_DEBUG,
 					    "P49-INSTR diverged-bytes 0..31: "
 					    "%02x%02x%02x%02x %02x%02x%02x%02x "
 					    "%02x%02x%02x%02x %02x%02x%02x%02x "
@@ -8831,7 +8831,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 					    vb[20],vb[21],vb[22],vb[23],
 					    vb[24],vb[25],vb[26],vb[27],
 					    vb[28],vb[29],vb[30],vb[31]);
-					mxfs_pal_log(MXFS_LOG_WARN,
+					mxfs_pal_log(MXFS_LOG_DEBUG,
 					    "P49-INSTR we-wrote-bytes 0..31: "
 					    "%02x%02x%02x%02x %02x%02x%02x%02x "
 					    "%02x%02x%02x%02x %02x%02x%02x%02x "
@@ -8849,7 +8849,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 			}
 
 			/*
-			 * sess47 CLAIM-RACE detector: right after claiming a
+			 * CLAIM-RACE detector: right after claiming a
 			 * fresh slot, verify the resource lives in EXACTLY ONE
 			 * live slot.  >1 => another node concurrently claimed a
 			 * different empty slot for the same resource (the
@@ -8857,14 +8857,14 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 			 * Detection only this build — proves/refutes before any
 			 * fix.  Always-on (fires only on the bug), ratelimited.
 			 */
-			/* sess84: extended to INODE locks (was AG-only).  The
+			/* extended to INODE locks (was AG-only).  The
 			 * shortform-dir lost-update (node1.txt durably vanishes
 			 * from a shared dir) shows ZERO CAW-EXCL-VIOLATION — that
 			 * detector reads ONE slot, so it cannot see a claim-race
 			 * where the SAME inode resource lands in TWO live slots
 			 * (each with a single, non-conflicting EX holder) →
 			 * concurrent EX on the dir inode via different slots. */
-			/* v0.5.3 (ccloop 14d31183 scaling_curve): skip the
+			/* v0.5.3 ( scaling_curve): skip the
 			 * post-claim chain re-scan when we claimed AT THE HASH
 			 * BASE slot.  A racing peer's probe for the same
 			 * resource starts at the same base: pre-our-CAW it
@@ -8876,7 +8876,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 			 * existence, so the scan can only ever return 1 here.
 			 * Off-base claims (chain had live/tombstone slots
 			 * before our insertion point) keep the full detector —
-			 * that is where the sess47/sess84 dup-slot race lives.
+			 * that is where the /dup-slot race lives.
 			 * Measured: the re-scan was 1441 of 6120 slot reads in
 			 * a 705-create rsync (~2 serialized FUA reads per
 			 * create), nearly all base-claims. */
@@ -8905,7 +8905,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 
 			track_held(ctx, empty_idx);
 			slot_hint_store(ctx, resource, empty_idx);
-			/* sess97 step 5.3(b): provenance from the claim CAS. */
+			/* step 5.3(b): provenance from the claim CAS. */
 			caw_grant_result_fill(gres, resource, new_slot, mode,
 					      false);
 			caw_grant_meta_store(ctx, resource,
@@ -8928,7 +8928,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 		our_mode = node_held_mode(cur_slot, ctx->node_bit);
 		if (our_mode == mode) {
 			/*
-			 * v0.3.85 (sess25): divergence detection. The "we hold
+			 * v0.3.85: divergence detection. The "we hold
 			 * the requested mode" check returns success without
 			 * verifying that no PEER also holds a conflicting mode.
 			 * Sess24 P35 captured both T1 and T2 with their bits set
@@ -8962,14 +8962,14 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 				new_slot->generation++;
 				new_slot->last_modified_ms =
 					mxfs_pal_time_ms();
-				/* sess120 audit site 1 of 3 — see
+				/* audit site 1 of 3 — see
 				 * caw_slot_clearing.  Strips our holder bit
 				 * because a peer holds an incompatible mode. */
 				rc = caw_slot_clearing(ctx, resource, slot_idx,
 						       cur_slot, new_slot,
 						       "diverg-lo", our_mode);
 				if (resource->type == MXFS_LTYPE_AG)
-					mxfs_pal_log(MXFS_LOG_WARN,
+					mxfs_pal_log(MXFS_LOG_DEBUG,
 					    "P37-INSTR caw-divergence "
 					    "ag=%u retry=%d our_mode=%u "
 					    "peer-incompat cas_rc=%d "
@@ -8996,7 +8996,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 				if (caw_instr_on() ||
 				    (resource->type == MXFS_LTYPE_INODE &&
 				     caw_diverg_logged++ < 50))
-					mxfs_pal_log(MXFS_LOG_WARN,
+					mxfs_pal_log(MXFS_LOG_DEBUG,
 					    "mxfs: P109-CLR-DIVERG-LO type=%s "
 					    "id=%llu our_mode=%u req=%u "
 					    "cas_rc=%d slot=%u",
@@ -9021,7 +9021,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 				goto out;
 			}
 
-			/* sess53: claim a retained bit from our previous
+			/* claim a retained bit from our previous
 			 * incarnation before returning success on it, so the
 			 * settle purge cannot strip it out from under us. */
 			rc = caw_adopt_retained(ctx, resource, slot_idx,
@@ -9047,7 +9047,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 
 				if (relwait_logged < 20) {
 					relwait_logged++;
-					mxfs_pal_log(MXFS_LOG_WARN,
+					mxfs_pal_log(MXFS_LOG_DEBUG,
 					    "mxfs: P-SHORTCUT-RELWAIT type=%u "
 					    "ino=%llu retry=%d",
 					    resource->type,
@@ -9058,7 +9058,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 				continue;
 			}
 			/*
-			 * sess118 CLEAR-WINDOW VALIDATION (sess115 ruling
+			 * CLEAR-WINDOW VALIDATION (ruling
 			 * blocker 2: a memory-only publication stays
 			 * PROVISIONAL until it can prove no destructive local
 			 * clear ran under the image it is publishing on).
@@ -9090,7 +9090,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 				continue;
 			}
 			/*
-			 * sess290 (D-488 legs 7 ruling, sess289): REAFFIRM
+			 * (D-488 legs 7 ruling): REAFFIRM
 			 * GUARD + forced READOPT mint.  An ATTESTED caller
 			 * passes the write-authority epoch it currently has
 			 * PUBLISHED in core for this resource.  Reaffirming
@@ -9150,7 +9150,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 				}
 				if (!is_tracked_held(ctx, slot_idx))
 					track_held(ctx, slot_idx);
-				mxfs_pal_log(MXFS_LOG_WARN,
+				mxfs_pal_log(MXFS_LOG_DEBUG,
 				    "mxfs: P294-READOPT-MINT type=%u ag=%u ino=%llu Eold=%llu Enew=%llu gen=%u — stranded own bit readopted under a fresh minted epoch",
 				    resource->type, resource->ag_number,
 				    (unsigned long long)resource->ino,
@@ -9166,11 +9166,11 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 			}
 
 			if (resource->type == MXFS_LTYPE_AG && caw_instr_on())
-				mxfs_pal_log(MXFS_LOG_WARN,
+				mxfs_pal_log(MXFS_LOG_DEBUG,
 				    "P15-INSTR caw-act ag=%u retry=%d "
 				    "action=already-held our_mode=%u",
 				    resource->ag_number, retry, our_mode);
-			/* sess97 step 5.3(b): no CAS ran, but THIS image is
+			/* step 5.3(b): no CAS ran, but THIS image is
 			 * first-hand evidence — it shows our holder bit and
 			 * the epoch of the tenure that set it, read together.
 			 * Marked reaffirm so the consumer can tell it from a
@@ -9186,7 +9186,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 		/* Check if we hold a higher mode that subsumes the request */
 		if (our_mode != MXFS_LOCK_NL && our_mode >= mode) {
 			/*
-			 * v0.3.85 (sess25): same divergence check as above for
+			 * v0.3.85: same divergence check as above for
 			 * the higher-mode-subsumes case.
 			 */
 			if (!compatible_excluding_self(cur_slot, our_mode,
@@ -9203,13 +9203,13 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 				new_slot->generation++;
 				new_slot->last_modified_ms =
 					mxfs_pal_time_ms();
-				/* sess120 audit site 2 of 3 — see
+				/* audit site 2 of 3 — see
 				 * caw_slot_clearing. */
 				rc = caw_slot_clearing(ctx, resource, slot_idx,
 						       cur_slot, new_slot,
 						       "diverg-hi", our_mode);
 				if (resource->type == MXFS_LTYPE_AG)
-					mxfs_pal_log(MXFS_LOG_WARN,
+					mxfs_pal_log(MXFS_LOG_DEBUG,
 					    "P37-INSTR caw-divergence-higher "
 					    "ag=%u retry=%d our_mode=%u "
 					    "peer-incompat cas_rc=%d",
@@ -9222,7 +9222,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 				if (caw_instr_on() ||
 				    (resource->type == MXFS_LTYPE_INODE &&
 				     caw_diverg_logged++ < 50))
-					mxfs_pal_log(MXFS_LOG_WARN,
+					mxfs_pal_log(MXFS_LOG_DEBUG,
 					    "mxfs: P109-CLR-DIVERG-HI type=%s "
 					    "id=%llu our_mode=%u req=%u "
 					    "cas_rc=%d slot=%u",
@@ -9247,7 +9247,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 				goto out;
 			}
 
-			/* sess53: see the adopt gate above — same hazard on
+			/* see the adopt gate above — same hazard on
 			 * the higher-mode-subsumes fast path. */
 			rc = caw_adopt_retained(ctx, resource, slot_idx,
 						cur_slot, new_slot, our_mode);
@@ -9267,7 +9267,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 
 				if (relwait_hi_logged < 20) {
 					relwait_hi_logged++;
-					mxfs_pal_log(MXFS_LOG_WARN,
+					mxfs_pal_log(MXFS_LOG_DEBUG,
 					    "mxfs: P-SHORTCUT-RELWAIT-HI type=%u "
 					    "ino=%llu retry=%d",
 					    resource->type,
@@ -9277,7 +9277,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 				mxfs_pal_sleep_ms(1);
 				continue;
 			}
-			/* sess118: see the clear-window validation on the
+			/* see the clear-window validation on the
 			 * exact-mode arm above — same hazard, same remedy. */
 			if (!lreq_clr_still_good(ctx, resource, &csnap)) {
 				ctx->lreq_clr_refuse++;
@@ -9290,7 +9290,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 				mxfs_pal_sleep_ms(1);
 				continue;
 			}
-			/* sess290: same reaffirm guard as the exact-mode arm.
+			/* same reaffirm guard as the exact-mode arm.
 			 * Unreachable for the attested AG caller (AG locks
 			 * are EX-only, so subsumption cannot fire), but the
 			 * invariant — an attested caller never receives an
@@ -9312,11 +9312,11 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 				goto out;
 			}
 			if (resource->type == MXFS_LTYPE_AG && caw_instr_on())
-				mxfs_pal_log(MXFS_LOG_WARN,
+				mxfs_pal_log(MXFS_LOG_DEBUG,
 				    "P15-INSTR caw-act ag=%u retry=%d "
 				    "action=already-held-higher our_mode=%u",
 				    resource->ag_number, retry, our_mode);
-			/* sess97 step 5.3(b): as above — our_mode, not the
+			/* step 5.3(b): as above — our_mode, not the
 			 * (lower) requested mode, is what this image proves. */
 			caw_grant_result_fill(gres, resource, cur_slot,
 					      our_mode, true);
@@ -9327,7 +9327,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 		}
 
 		/*
-		 * sess50 anti-starvation (PROVEN root of the ~60-120s barrier
+		 * anti-starvation (PROVEN root of the ~60-120s barrier
 		 * dir-visibility stall): continuous PR readers across nodes were
 		 * re-granting PR among themselves (slot generation churned ~1650x
 		 * over a 69s stall) while a peer's EX request waited forever —
@@ -9377,7 +9377,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 					(yield_now > cur_slot->yield_set_ms) ?
 					(yield_now - cur_slot->yield_set_ms) : 0;
 
-				/* sess299 (ruling item 8): a ticket naming a
+				/* (ruling item 8): a ticket naming a
 				 * still-registered waiter is a live
 				 * reservation — never age-cleared.  Only a
 				 * ticket with no registered waiter left
@@ -9389,7 +9389,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 				    (cur_slot->yield_to &
 				     cur_slot->waiters)) {
 					/*
-					 * sess130 conversion-priority (PROVEN
+					 * conversion-priority (PROVEN
 					 * livelock, P-CAWEXH yield_bo=100):
 					 * an UPGRADER (our_mode != NL, e.g.
 					 * PR→EX for unlink) that passed the
@@ -9420,7 +9420,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 					 * PR-compatible, the PR waiters do NOT
 					 * block on our held mode (PR+PR share) —
 					 * so deferring lets them batch-promote with
-					 * NO sess130 livelock, and their PR grant
+					 * NO livelock, and their PR grant
 					 * resets the streak so we upgrade right
 					 * after they drain.  This stops PR-reader
 					 * (stat/readdir) 360s starvation behind
@@ -9525,7 +9525,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 								mxfs_atomic32_inc(
 								    &caw_stat_ticket_demand_override);
 								if (resource->type == MXFS_LTYPE_AG)
-									pr_warn_ratelimited(
+									mxfs_probe_ratelimited(
 									    "mxfs: P-CAW-TICKET-DEMAND-OVERRIDE ag=%u req=%u yt=%llx waiters=%llx age_ms=%llu comm=%s — DEMAND trylock on a holderless slot overrides the courtesy ticket\n",
 									    resource->ag_number, mode,
 									    (unsigned long long)cur_slot->yield_to,
@@ -9577,14 +9577,14 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 							    mxfs_caw_fresh_yield_bound) {
 								ybound_go = true;
 								ybypass++;
-								/* sess404 telemetry (ruling
+								/* telemetry (ruling
 								 * item iii): overrides by
 								 * class + elapsed since the
 								 * registration landed. */
 								if (resource->type == MXFS_LTYPE_AG) {
 									mxfs_atomic32_inc(
 									    &caw_stat_ybound_ag);
-									pr_warn_ratelimited(
+									mxfs_probe_ratelimited(
 									    "mxfs: P221-YIELD-BOUND-AG ag=%u req=%u consec=%d reg_ms=%llu yt=%llx waiters=%llx wex=%llx yt_age_ms=%llu comm=%s — registered fresh AG acquire stops deferring; taking the compatible claim\n",
 									    resource->ag_number,
 									    mode, yield_consec,
@@ -9597,7 +9597,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 								} else {
 									mxfs_atomic32_inc(
 									    &caw_stat_ybound_ino);
-									pr_warn_ratelimited(
+									mxfs_probe_ratelimited(
 									    "mxfs: P221-YIELD-BOUND ino=%llu req=%u consec=%d yt=%llx wex=%llx hpr=%llx — registered fresh acquire stops deferring; taking the compatible claim\n",
 									    (unsigned long long)resource->ino,
 									    mode, yield_consec,
@@ -9616,7 +9616,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 						if (our_mode != MXFS_LOCK_NL &&
 						    resource->type ==
 						    MXFS_LTYPE_INODE)
-							pr_warn_ratelimited(
+							mxfs_probe_ratelimited(
 							    "mxfs: P-UPG-PRYIELD ino=%llu our_mode=%u req=%u yt=%llx wex=%llx\n",
 							    (unsigned long long)resource->ino,
 							    our_mode, mode,
@@ -9626,7 +9626,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 						    MXFS_LTYPE_AG &&
 						    caw_instr_on())
 							mxfs_pal_log(
-							    MXFS_LOG_WARN,
+							    MXFS_LOG_DEBUG,
 							    "P15-INSTR caw-act "
 							    "ag=%u retry=%d "
 							    "action=yield-backoff "
@@ -9660,7 +9660,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 					      ctx->node_bit) &&
 					    resource->type == MXFS_LTYPE_INODE &&
 					    caw_instr_on())
-						pr_warn_ratelimited(
+						mxfs_probe_ratelimited(
 						    "mxfs: P130-YIELD-UPG-BYPASS ino=%llu our_mode=%u req=%u yt=%llx h_pr=%llx h_ex=%llx\n",
 						    (unsigned long long)resource->ino,
 						    our_mode, mode,
@@ -9682,7 +9682,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 						      cur_slot, new_slot);
 					if (resource->type == MXFS_LTYPE_AG &&
 					    caw_instr_on())
-						mxfs_pal_log(MXFS_LOG_WARN,
+						mxfs_pal_log(MXFS_LOG_DEBUG,
 						    "P15-INSTR caw-act ag=%u "
 						    "retry=%d "
 						    "action=yield-stale-clear "
@@ -9703,7 +9703,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 			if (new_slot->yield_to & ctx->node_bit)
 				new_slot->yield_to &= ~ctx->node_bit;
 
-			/* sess31 D-CAW-YIELD-STARVATION-SHUTDOWN fix A: a fresh
+			/* D-CAW-YIELD-STARVATION-SHUTDOWN fix A: a fresh
 			 * acquire may have registered as a waiter from the
 			 * compatible-yield path.  The grant IS the claim — leave
 			 * neither our waiter bit nor a stale raised waiter_mode
@@ -9730,7 +9730,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 				 * hazard than UPGRADE-DDL below; instrument
 				 * anyway for completeness. */
 				if (caw_instr_on())
-					mxfs_pal_log(MXFS_LOG_WARN,
+					mxfs_pal_log(MXFS_LOG_DEBUG,
 					    "mxfs: P109-CLR-UPGRADE type=%s "
 					    "id=%llu old_mode=%u new_mode=%u "
 					    "slot=%u",
@@ -9764,7 +9764,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 			caw_grant_seq_prebump(ctx, resource);	/* v0.6.4 */
 			rc = caw_slot(ctx, slot_idx, cur_slot, new_slot);
 			if (resource->type == MXFS_LTYPE_AG && caw_instr_on())
-				mxfs_pal_log(MXFS_LOG_WARN,
+				mxfs_pal_log(MXFS_LOG_DEBUG,
 				    "P15-INSTR caw-act ag=%u retry=%d "
 				    "action=compat-add slot=%u our_mode=%u "
 				    "new_gm=%u cas_rc=%d",
@@ -9776,14 +9776,14 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 			}
 			if (rc)
 				goto out;
-			/* sess404: the grant CAS above cleared our fix-A waiter
+			/* the grant CAS above cleared our fix-A waiter
 			 * bit atomically — nothing left to drop on exit. */
 			yreg_live = false;
 
 			caw_check_exclusion(ctx, resource, new_slot, mode);
 			caw_verify_grant_persisted(ctx, resource, slot_idx, mode);
 			track_held(ctx, slot_idx);
-			/* sess97 step 5.3(b): provenance from the compat-add
+			/* step 5.3(b): provenance from the compat-add
 			 * CAS (this is also the PR->EX upgrade path). */
 			caw_grant_result_fill(gres, resource, new_slot, mode,
 					      false);
@@ -9792,7 +9792,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 					     grant_handoff,
 					     new_slot->dir_block0_fsb,
 					     new_slot->dir_block0_gen);
-			/* sess8 (ccloop 72513a13) T1 anatomy: a CONTENDED slot
+			/* T1 anatomy: a CONTENDED slot
 			 * (ticket installed or EX waiters queued) claimed here
 			 * without entering caw_wait_for_grant means the winner
 			 * ARRIVED after the release (late-arrival hop) — the
@@ -9804,7 +9804,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 				static int p139_n;
 
 				if (p139_n++ < 4000)
-					pr_warn(
+					mxfs_probe(
 					    "mxfs: P139-COLDCLAIM ino=%llu mode=%u yt=%llx ytself=%d wex=%llx realms=%llu\n",
 					    (unsigned long long)resource->ino,
 					    mode,
@@ -9825,7 +9825,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 		/* Incompatible — check flags */
 		if (flags & MXFS_LKF_NOQUEUE) {
 			/*
-			 * D-AGLOCK-...-LIVELOCK-488 (sess243 design-consult ruling):
+			 * D-AGLOCK-...-LIVELOCK-488 (design-consult ruling):
 			 * a plain NOQUEUE loser leaves NO trace — it exits
 			 * here, before waiter registration and before the
 			 * BAST multicast below.  Against a lazily-CACHED
@@ -9862,7 +9862,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 			if (flags & MXFS_LKF_DEMAND)
 				caw_send_bast_mcast(ctx, resource, mode);
 			/*
-			 * sess374 (sess363 ruling item B / G1): the SECOND
+			 * (ruling item B / G1): the SECOND
 			 * demand chokepoint.  A NOQUEUE contender never enters
 			 * caw_wait_for_grant, so the scrub above would never
 			 * see it — and the AG sweep that livelocked in
@@ -9934,7 +9934,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 		 */
 		if (our_mode != MXFS_LOCK_NL) {
 			/*
-			 * NEWARCH Phase 1.3 (Gemini chokepoint design):
+			 * NEWARCH Phase 1.3 (design review chokepoint design):
 			 *
 			 * REMOVED the in-caw_lock release-and-wait.  The old
 			 * code cleared our holder bit on disk and registered
@@ -9961,14 +9961,14 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 			 * applied to caw_lock itself.
 			 */
 			if (resource->type == MXFS_LTYPE_AG && caw_instr_on())
-				mxfs_pal_log(MXFS_LOG_WARN,
+				mxfs_pal_log(MXFS_LOG_DEBUG,
 				    "P15-INSTR caw-act ag=%u retry=%d "
 				    "action=upgrade-deadlk-return our_mode=%u "
 				    "req=%u (caller orchestrates release)",
 				    resource->ag_number, retry,
 				    our_mode, mode);
 			if (caw_instr_on())
-				mxfs_pal_log(MXFS_LOG_WARN,
+				mxfs_pal_log(MXFS_LOG_DEBUG,
 				    "mxfs: P109-CAW-EDEADLK type=%s id=%llu "
 				    "our_mode=%u req=%u slot=%u "
 				    "(returning -EDEADLK; caller drops through BAST)",
@@ -9987,7 +9987,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 
 		/* Register as waiter.
 		 *
-		 * sess114: the exclusive-waiter predicate is mxfs_mode_can_write()
+		 * the exclusive-waiter predicate is mxfs_mode_can_write
 		 * and nothing else.  The registry's `writers` counter authorizes
 		 * the waiters_ex DOWNGRADE on the same predicate, so an
 		 * open-coded copy here could drift and hand the reconciler a
@@ -10003,7 +10003,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 		*new_slot = *cur_slot;
 		new_slot->waiters |= ctx->node_bit;
 		if (mxfs_mode_can_write(mode))
-			new_slot->waiters_ex |= ctx->node_bit;   /* sess50: track exclusive waiter */
+			new_slot->waiters_ex |= ctx->node_bit;   /* track exclusive waiter */
 		new_slot->waiter_mode = recompute_waiter_mode(new_slot);
 		new_slot->generation++;
 
@@ -10014,7 +10014,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 
 		rc = caw_slot(ctx, slot_idx, cur_slot, new_slot);
 		if (resource->type == MXFS_LTYPE_AG && caw_instr_on())
-			mxfs_pal_log(MXFS_LOG_WARN,
+			mxfs_pal_log(MXFS_LOG_DEBUG,
 			    "P15-INSTR caw-act ag=%u retry=%d "
 			    "action=register-waiter slot=%u cas_rc=%d",
 			    resource->ag_number, retry, slot_idx, rc);
@@ -10024,7 +10024,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 		}
 		if (rc)
 			goto out;
-		/* sess404: from here the registered waiter bit belongs to the
+		/* from here the registered waiter bit belongs to the
 		 * wait_for_grant / exhaustion cancel discipline (which drops
 		 * it on every failure exit); the fix-A bookkeeping must not
 		 * drop it a second time. */
@@ -10039,7 +10039,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 					new_slot->ex_grant_epoch, lreq, gres,
 					deadline_ms);
 		if (resource->type == MXFS_LTYPE_AG && caw_instr_on())
-			mxfs_pal_log(MXFS_LOG_WARN,
+			mxfs_pal_log(MXFS_LOG_DEBUG,
 			    "P15-INSTR caw-act ag=%u retry=%d "
 			    "action=wait-for-grant-done slot=%u rc=%d",
 			    resource->ag_number, retry, slot_idx, rc);
@@ -10070,11 +10070,11 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 		     MXFS_CAW_MAX_RETRIES,
 		     (unsigned long long)resource->ino,
 		     resource->type);
-	/* ccloop instrumented: dump WHICH CAS site exhausted the retry budget so we
+	/*  instrumented: dump WHICH CAS site exhausted the retry budget so we
 	 * know whether the hot-slot storm is on claim/compat-add/register-waiter,
 	 * and the final holder/waiter picture at the moment we give up. */
 	if (resource->type == MXFS_LTYPE_INODE)
-		pr_warn("mxfs: P-CAWEXH ino=%llu req=%u our_mode=%d ea_claim=%d ea_compat=%d ea_regwait=%d div=%d div_hi=%d ea_adopt=%d yield_bo=%d yield_stale=%d wait_enoent=%d yreg=%d ybypass=%d last_hex=%llx last_hpr=%llx\n",
+		mxfs_probe("mxfs: P-CAWEXH ino=%llu req=%u our_mode=%d ea_claim=%d ea_compat=%d ea_regwait=%d div=%d div_hi=%d ea_adopt=%d yield_bo=%d yield_stale=%d wait_enoent=%d yreg=%d ybypass=%d last_hex=%llx last_hpr=%llx\n",
 			(unsigned long long)resource->ino, mode, last_our_mode,
 			ea_claim, ea_compat, ea_regwait, div_lo, div_hi,
 			ea_adopt, yield_bo,
@@ -10083,7 +10083,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 			(unsigned long long)last_hex,
 			(unsigned long long)last_hpr);
 	/*
-	 * sess404 (kill5c co-owner -110): the AG exhaustion had NO census —
+	 * (kill5c co-owner -110): the AG exhaustion had NO census —
 	 * 56 "lock exhausted 100 retries for ino=0 type=3" lines on the
 	 * surviving AG co-owner during a dead peer's death->replay window and
 	 * nothing to say WHICH site burned the budget.  Same census as the
@@ -10092,7 +10092,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 	 * ticket that names a registered-but-DEAD waiter.
 	 */
 	if (resource->type == MXFS_LTYPE_AG)
-		pr_warn("mxfs: P-CAWEXH-AG ag=%u req=%u our_mode=%d ea_claim=%d ea_compat=%d ea_regwait=%d div=%d div_hi=%d ea_adopt=%d yield_bo=%d yield_stale=%d wait_enoent=%d yreg=%d ybypass=%d last_hex=%llx last_hpr=%llx last_waiters=%llx last_yt=%llx last_yt_age_ms=%llu wmode=%u flags=%x comm=%s [ybound_ag=%d ybound_ino=%d noq_eagain=%d demand_override=%d]\n",
+		mxfs_probe("mxfs: P-CAWEXH-AG ag=%u req=%u our_mode=%d ea_claim=%d ea_compat=%d ea_regwait=%d div=%d div_hi=%d ea_adopt=%d yield_bo=%d yield_stale=%d wait_enoent=%d yreg=%d ybypass=%d last_hex=%llx last_hpr=%llx last_waiters=%llx last_yt=%llx last_yt_age_ms=%llu wmode=%u flags=%x comm=%s [ybound_ag=%d ybound_ino=%d noq_eagain=%d demand_override=%d]\n",
 			resource->ag_number, mode, last_our_mode,
 			ea_claim, ea_compat, ea_regwait, div_lo, div_hi,
 			ea_adopt, yield_bo, yield_stale, wait_enoent,
@@ -10108,7 +10108,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 			mxfs_atomic32_get(&caw_stat_ticket_noq_eagain),
 			mxfs_atomic32_get(&caw_stat_ticket_demand_override));
 	/*
-	 * sess40 (D-CAW-CLAIM-RETRY-EXHAUSTION-SHUTDOWN, the measurement the
+	 * (D-CAW-CLAIM-RETRY-EXHAUSTION-SHUTDOWN, the measurement the
 	 * ledger entry prescribes).  A claim-dominated exhaustion is the
 	 * signature that cascades the cluster: every retry is ea_claim, the
 	 * requester never registers as a waiter, and the acquire escalates to
@@ -10168,7 +10168,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 			}
 			mxfs_pal_free(dbg);
 		}
-		pr_warn("mxfs: P91-CLAIMEXH ino=%llu req=%u base=%u empty_idx=%u slot_idx=%u tgt[magic=%x gen=%u ino=%llu vol=%llx hex=%llx] scan_idx=%d verdict=%s\n",
+		mxfs_probe("mxfs: P91-CLAIMEXH ino=%llu req=%u base=%u empty_idx=%u slot_idx=%u tgt[magic=%x gen=%u ino=%llu vol=%llx hex=%llx] scan_idx=%d verdict=%s\n",
 			(unsigned long long)resource->ino, mode, dbg_base,
 			empty_idx, slot_idx, tgt_magic, tgt_gen,
 			(unsigned long long)tgt_ino,
@@ -10178,17 +10178,17 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 			scan_idx == UINT32_MAX ? "no-live-slot(contention)" :
 				"LIVE-SLOT-EXISTS(probe-chain-broken)");
 	}
-	/* sess48: we may have registered a waiter bit on the last slot before
+	/* we may have registered a waiter bit on the last slot before
 	 * exhausting retries — drop it so a stale EX waiter can't starve peer
 	 * readers via defer_for_waiter. */
 	caw_drop_own_waiter(ctx, slot_idx, resource, lreq, true, mode, false,
 			    0);
-	yreg_live = false;	/* sess404: dropped above */
+	yreg_live = false;	/* dropped above */
 	rc = -ETIMEDOUT;
 
 out:
 	/*
-	 * sess404 (ruling property 4): a fix-A registration that was neither
+	 * (ruling property 4): a fix-A registration that was neither
 	 * claimed (grant CAS) nor handed to the wait path must not survive an
 	 * error exit — e.g. a hard CAS error on the very next round.  Only
 	 * real failures reach here with yreg_live set; the NOQUEUE -EAGAIN
@@ -10199,10 +10199,10 @@ out:
 				    false, 0);
 		yreg_live = false;
 	}
-	/* sess38 P139-LOCKTOTAL: whole-acquire tail census (multi-retry
+	/* P139-LOCKTOTAL: whole-acquire tail census (multi-retry
 	 * shape).  Unconditional; tail events are rare by definition.
 	 *
-	 * sess380: the 800ms floor made this probe BLIND to the workload it
+	 * the 800ms floor made this probe BLIND to the workload it
 	 * exists to explain.  32-node shared-directory creates cost p95 424ms
 	 * / max 471ms per create — every one of them under the floor — while
 	 * the per-wait P138 probe (>5ms per wait_for_grant call) fired only 4
@@ -10217,7 +10217,7 @@ out:
 		static int p139t_n;
 
 		if (p139t_n++ < 20000)
-			pr_warn("mxfs: P139-LOCKTOTAL ino=%llu req=%u rc=%d total_ms=%llu retries=%d ea_claim=%d ea_compat=%d ea_regwait=%d yield_bo=%d yield_stale=%d realms=%llu\n",
+			mxfs_probe("mxfs: P139-LOCKTOTAL ino=%llu req=%u rc=%d total_ms=%llu retries=%d ea_claim=%d ea_compat=%d ea_regwait=%d yield_bo=%d yield_stale=%d realms=%llu\n",
 				(unsigned long long)resource->ino, mode, rc,
 				(unsigned long long)(mxfs_pal_time_ms() -
 						     p139_lock_start),
@@ -10226,7 +10226,7 @@ out:
 				(unsigned long long)mxfs_pal_time_real_ms());
 	}
 	/*
-	 * sess109 structural defense (ruling item B), outer half.  Every arm
+	 * structural defense (ruling item B), outer half.  Every arm
 	 * that reaches this label with rc == 0 acquired a DURABLE grant and
 	 * must have recorded which slot image authorised it.  (The in-memory
 	 * fast paths — single_node and the mxfs_inode_caw_local/_skip
@@ -10237,7 +10237,7 @@ out:
 		static int p_unset_n;
 
 		if (p_unset_n++ < 200)
-			pr_warn("mxfs: P242-GRANT-UNSET-LOCK type=%c id=%llu slot=%u mode=%u retry=%d — durable grant with no provenance\n",
+			mxfs_probe("mxfs: P242-GRANT-UNSET-LOCK type=%c id=%llu slot=%u mode=%u retry=%d — durable grant with no provenance\n",
 				resource->type == MXFS_LTYPE_INODE ? 'I' :
 				resource->type == MXFS_LTYPE_AG ? 'A' : 'O',
 				(unsigned long long)(resource->type == MXFS_LTYPE_INODE ?
@@ -10245,7 +10245,7 @@ out:
 				slot_idx, mode, retry);
 	}
 	/*
-	 * sess112: publish the tenure and leave the registry in ONE critical
+	 * publish the tenure and leave the registry in ONE critical
 	 * section.  Prefer the mode the granting IMAGE showed us holding
 	 * (gres->mode) over the mode we asked for: an acquire may request PR
 	 * and find its own EX bit already up, and it is the EX holder bit a
@@ -10290,7 +10290,7 @@ int mxfs_dlm_caw_lock(struct mxfs_dlm_caw_ctx *ctx,
 }
 
 /*
- * sess386 (design-consult ruling, D-NOINO-RELFENCE-AIL-FREEZE-474 leg A): acquire with
+ * (design-consult ruling, D-NOINO-RELFENCE-AIL-FREEZE-474 leg A): acquire with
  * an ABSOLUTE wall-clock deadline (mxfs_pal_time_ms domain; 0 = unbounded).
  * On expiry the waiter is cancelled through the same robust
  * caw_drop_own_waiter path as the base timeout (grant-wins: a grant seen on
@@ -10319,7 +10319,7 @@ int mxfs_dlm_caw_lock_deadline(struct mxfs_dlm_caw_ctx *ctx,
 }
 
 /*
- * sess290 (D-488 leg 7, sess289 ruling): acquire with an ATTESTED local
+ * (D-488 leg 7, ruling): acquire with an ATTESTED local
  * published epoch.  `local_epoch` is the write-authority epoch the caller
  * currently has PUBLISHED in core for this resource (0 = none — either no
  * tenure or a surrendered one).  The attestation is what lets the
@@ -10366,7 +10366,7 @@ int mxfs_dlm_caw_unlock(struct mxfs_dlm_caw_ctx *ctx,
  * the entry-time snapshot (unconditional release semantics preserved for
  * eviction/unmount/purge callers).
  *
- * ccloop cc87fed3 sess8: is_free -- when true, this unlock corresponds to a
+ *  is_free -- when true, this unlock corresponds to a
  * genuinely FREED inode (caller has already verified nlink==0 and is doing
  * destructive inactivation), not an idle-gap release of a still-live inode.
  * If the release ends up writing a tombstone (no other holders/waiters),
@@ -10401,12 +10401,12 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 	uint32_t empty_idx = UINT32_MAX;
 	uint64_t rel_seq0;
 	uint64_t unlock_deadline = 0;
-	uint64_t p6h_handoff_bit = 0;	/* sess37: nudge target when this release hands off */
-	struct mxfs_caw_lreq *unlk_clr = NULL;	/* sess117 clear window */
+	uint64_t p6h_handoff_bit = 0;	/* nudge target when this release hands off */
+	struct mxfs_caw_lreq *unlk_clr = NULL;	/* clear window */
 	uint64_t pub_seq0 = 0;
 	bool clr_committed = false;
 	/*
-	 * D-488 (sess273 ruling): tri-state outcome.  UNKNOWN until a path
+	 * D-488 (ruling): tri-state outcome.  UNKNOWN until a path
 	 * proves otherwise; every exit below must classify.  UNKNOWN means
 	 * the release CAW may have committed without our knowing (find_slot
 	 * I/O error, CAS hard error after possible write) — the caller must
@@ -10414,9 +10414,9 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 	 */
 	enum mxfs_unlock_state ustate = MXFS_UNLOCK_UNKNOWN;
 	int retry;
-	/* sess380 P381-UNLK-CONTEND: unlock-CAS race accounting. */
+	/* P381-UNLK-CONTEND: unlock-CAS race accounting. */
 	uint32_t p381_miss = 0, p381_sleep_ms = 0;
-	/* sess481: close the P381 accounting.  Harvested over one 32-node
+	/* close the P381 accounting.  Harvested over one 32-node
 	 * crash_consistency row (17558 contended unlocks) the probe reported
 	 * mean wall 35.1 ms against mean sleep 9.3 ms, and the direct
 	 * service-time probes on the same run put a slot round trip at
@@ -10431,7 +10431,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 	 * anyone changes either. */
 	uint32_t p381_find_ms = 0, p381_backoff_ms = 0;
 	uint64_t p381_t0 = 0, p381_ts = 0, p381_tf = 0;
-	/* sess380 fast-retry classification state; see
+	/* fast-retry classification state; see
 	 * caw_unlk_delta_classify and the mxfs_caw_unlock_fastretry
 	 * block comment. */
 	struct mxfs_caw_lock_slot *prev_slot = NULL, *scratch_slot = NULL;
@@ -10448,10 +10448,10 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 	if (!ctx || !resource)
 		return -EINVAL;
 
-	/* sess433 (D-0354): no single-node memory-only path — every grant
+	/* (D-0354): no single-node memory-only path — every grant
 	 * is on disk, so every release is the on-disk release. */
 
-	/* sess78 DIAGNOSTIC: matches the in-memory-only INODE grant above. */
+	/* DIAGNOSTIC: matches the in-memory-only INODE grant above. */
 	{
 		extern int mxfs_inode_caw_local;
 		if (mxfs_inode_caw_local &&
@@ -10465,7 +10465,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 
 	cur_slot = mxfs_pal_alloc(sizeof(*cur_slot));
 	new_slot = mxfs_pal_alloc(sizeof(*new_slot));
-	/* sess380: the two extra images the miscompare classifier needs — the
+	/* the two extra images the miscompare classifier needs — the
 	 * one we last CAW'd against, and a scratch to reconstruct into. */
 	prev_slot = mxfs_pal_alloc(sizeof(*prev_slot));
 	scratch_slot = mxfs_pal_alloc(sizeof(*scratch_slot));
@@ -10486,7 +10486,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 	caw_release_mark(ctx, resource, true);
 
 	/*
-	 * sess3(ccloop 26c41354): under a 16-node hot-shared-dir CAS storm the
+	 * under a 16-node hot-shared-dir CAS storm the
 	 * INODE unlock CAS keeps miscomparing (peers mutate the slot between our
 	 * read and our compare-and-write).  With the fixed 100-retry cap it can
 	 * exhaust -> -EIO -> the caller leaves the lock HELD -> the waiting peer
@@ -10498,7 +10498,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 	 * INODE-unlock retry by a generous wall clock instead of a tight count:
 	 * the lock ALWAYS eventually releases, breaking the re-BAST amplification.
 	 *
-	 * sess6 (ccloop 72513a13): ICLUSTER unlocks get the same wall-clock
+	 * ICLUSTER unlocks get the same wall-clock
 	 * bound.  PROVEN at 32/cawd (cc NO_TERMINAL wedge): the type=6 unlock
 	 * kept the tight 100-retry cap, exhausted against 32-node waiter-bit
 	 * churn, and the swallowed failure left a stale on-disk cluster EX
@@ -10507,12 +10507,12 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 	 * retry-to-deadline is exactly as safe here as for inodes: we still
 	 * hold the grant, releasing later is never a double-grant.
 	 *
-	 * sess120: derived BEFORE the clear window opens, because the window's
+	 * derived BEFORE the clear window opens, because the window's
 	 * own bounded wait shares this deadline and so can never extend the
 	 * unlock budget beyond what it already was.
 	 */
 	/*
-	 * D-488 (sess273 ruling, leg 5): the INODE/ICLUSTER type gate is
+	 * D-488 (ruling, leg 5): the INODE/ICLUSTER type gate is
 	 * REMOVED — AG unlocks get the same wall-clock deadline.  The AG
 	 * type previously had only the tight 100-retry cap; exhausting it
 	 * against 32-node waiter-bit churn silently stranded the on-disk
@@ -10524,7 +10524,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 		unlock_deadline = mxfs_pal_time_ms() + MXFS_CAW_UNLOCK_DEADLINE_MS;
 
 	/*
-	 * sess117: the release is a destructive clear of THIS node's bits, so
+	 * the release is a destructive clear of THIS node's bits, so
 	 * it declares a clear window alongside the legacy releasing mark.  Two
 	 * things the mark cannot do on its own: grant_meta is a NO-CHAIN hash,
 	 * so a colliding foreign resource can evict the mark and expose the
@@ -10534,7 +10534,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 	 * by the resource, and clr_seq is a count rather than a flag, so
 	 * neither hole survives.
 	 *
-	 * sess120 FAIL CLOSED (GPT sess118 ruling item 5).  This used to
+	 * FAIL CLOSED (design-consult ruling item 5).  This used to
 	 * proceed under the legacy mark alone, on the argument that stranding
 	 * the lock held is worse than the residual aliasing hole.  That trade
 	 * is not available: the ruling is that "an ENOMEM fallback that
@@ -10552,7 +10552,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 	 * this unlock's own deadline.
 	 */
 	/*
-	 * sess124: NO obligation is published here, deliberately.  A release
+	 * NO obligation is published here, deliberately.  A release
 	 * that cannot complete leaves the lock HELD — local tenure[] still
 	 * covers the bit, so it is authorised rather than stale, and the
 	 * collector is this node's next unlock (the peer re-BASTs).  Owing it
@@ -10594,7 +10594,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 		return -ESTALE;
 	}
 
-	/* sess380 P381-UNLK-CONTEND accounting; see the probe below. */
+	/* P381-UNLK-CONTEND accounting; see the probe below. */
 	p381_t0 = mxfs_pal_time_ms();
 	for (retry = 0;
 	     retry < MXFS_CAW_MAX_RETRIES ||
@@ -10603,12 +10603,12 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 		if (caw_grant_meta_seq(ctx, resource) != rel_seq0)
 			goto regrant_abort;
 		p381_ts = mxfs_pal_time_ms();
-		caw_inode_backoff(ctx, resource, retry);	/* sess39 */
+		caw_inode_backoff(ctx, resource, retry);	/* */
 		p381_tf = mxfs_pal_time_ms();
 		p381_backoff_ms += (uint32_t)(p381_tf - p381_ts);
 		rc = find_slot(ctx, resource, &slot_idx, cur_slot, &empty_idx);
 		p381_find_ms += (uint32_t)(mxfs_pal_time_ms() - p381_tf);
-		/* sess470 D-488 exit arms (see the knob block): AG only, consumable */
+		/* D-488 exit arms (see the knob block): AG only, consumable */
 		if (unlikely(rc == 0 && resource->type == MXFS_LTYPE_AG &&
 			     (mxfs_caw_inject_unlk_noslot > 0 ||
 			      mxfs_caw_inject_unlk_findslot_eio > 0))) {
@@ -10619,7 +10619,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 				mxfs_caw_inject_unlk_findslot_eio--;
 				rc = -EIO;
 			}
-			mxfs_pal_log(MXFS_LOG_WARN,
+			mxfs_pal_log(MXFS_LOG_DEBUG,
 				"mxfs: P470-UNLK-INJECT ag=%u site=find_slot forced_rc=%d slot=%u retry=%d — D-488 exit arm",
 				resource->ag_number, rc, slot_idx, retry);
 		}
@@ -10635,7 +10635,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 			 * vanish-under-tenure is attributable, never silent.
 			 */
 			if (resource->type == MXFS_LTYPE_AG)
-				pr_warn_ratelimited(
+				mxfs_probe_ratelimited(
 				    "mxfs: P274-AGUNLK-NOSLOT ag=%u — unlock found no live slot for an AG we believed held (treated RELEASED)\n",
 				    resource->ag_number);
 			ustate = MXFS_UNLOCK_RELEASED;
@@ -10649,7 +10649,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 			 * caller must verify by read-back before trusting
 			 * either direction.
 			 */
-			pr_warn_ratelimited(
+			mxfs_probe_ratelimited(
 			    "mxfs: P274-UNLK-FINDSLOT-ERR type=%u id=%llu rc=%d retry=%d — unlock outcome UNKNOWN\n",
 			    resource->type,
 			    (unsigned long long)(resource->type ==
@@ -10661,7 +10661,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 		}
 
 		/*
-		 * sess380: classify the PREVIOUS iteration's MISCOMPARE now
+		 * classify the PREVIOUS iteration's MISCOMPARE now
 		 * that we hold a fresh image, and — only when
 		 * mxfs_caw_unlock_fastretry is on — decide here whether that
 		 * miscompare earns the jittered backoff.
@@ -10724,7 +10724,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 					 * is already resolved. */
 					rc = read_slot(ctx, slot_idx, cur_slot);
 					if (rc) {
-						pr_warn_ratelimited(
+						mxfs_probe_ratelimited(
 						    "mxfs: P274-UNLK-REREAD-ERR type=%u id=%llu rc=%d retry=%d — unlock outcome UNKNOWN\n",
 						    resource->type,
 						    (unsigned long long)(resource->type ==
@@ -10747,7 +10747,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 		}
 
 		/*
-		 * sess135 (ccloop 14d31183) P108 root-cause hardening: if our
+		 * P108 root-cause hardening: if our
 		 * bit is in NO holder bitmap and NOT in waiters, there is
 		 * nothing to unlock — return WITHOUT a CAS.  The prior
 		 * unconditional clear+CAS made every stale-BAST cleanup
@@ -10762,7 +10762,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 		    !(cur_slot->waiters & ctx->node_bit) &&
 		    !(cur_slot->yield_to & ctx->node_bit)) {
 			untrack_held(ctx, slot_idx);
-			/* sess112: the slot already shows us holding nothing,
+			/* the slot already shows us holding nothing,
 			 * so no local tenure can still be relying on a bit
 			 * here — retire the registry's view with it. */
 			lreq_release_all(ctx, resource, pub_seq0);
@@ -10773,7 +10773,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 		}
 
 		*new_slot = *cur_slot;
-		p6h_handoff_bit = 0;	/* sess37: fresh image, fresh decision */
+		p6h_handoff_bit = 0;	/* fresh image, fresh decision */
 
 		/* Clear our bit from ALL holder bitmaps */
 		new_slot->holders_ex &= ~ctx->node_bit;
@@ -10801,7 +10801,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 		 * stale-EX hunt can identify whether unlock was called for
 		 * a slot already showing our bit clear. */
 		if (caw_instr_on())
-			mxfs_pal_log(MXFS_LOG_WARN,
+			mxfs_pal_log(MXFS_LOG_DEBUG,
 			    "mxfs: P109-CLR-UNLOCK type=%s id=%llu "
 			    "cur_gm=%u cur_h_ex=%llx cur_h_pr=%llx slot=%u",
 			    resource->type == MXFS_LTYPE_INODE ? "I" :
@@ -10830,7 +10830,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 			if (mxfs_caw_fair_handoff &&
 			    resource->type == MXFS_LTYPE_INODE && ex_w) {
 				/*
-				 * sess2(ccloop 26c41354) FAIR HANDOFF: among EX
+				 * FAIR HANDOFF: among EX
 				 * waiters hand off to ONE round-robin next (first
 				 * after our node bit, wrapping) instead of all.
 				 * The chosen node clears yield_to on promote and
@@ -10881,7 +10881,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 							caw_last_ex_bit(
 								cur_slot));
 				/*
-				 * sess37 DIRECT GRANT HANDOFF (see the
+				 * DIRECT GRANT HANDOFF (see the
 				 * mxfs_caw_direct_handoff param comment for
 				 * the measured case).  When we are the LAST
 				 * holder leaving and fair-handoff picked EX
@@ -10897,7 +10897,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 				 * a winner that claimed and then died.
 				 */
 				/*
-				 * sess37 addendum — PR-CLASS BATCH GRANT on
+				 * addendum — PR-CLASS BATCH GRANT on
 				 * the streak-yield arm.  Measured on 314 with
 				 * EX handoff alone: 823 streak yields vs 310
 				 * EX handoffs per anatomy run — the dominant
@@ -10912,7 +10912,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 				 * resets the EX streak exactly as the first
 				 * PR promote would have (v0.10.42 contract).
 				 */
-				/* sess38 (P139 census): the last-holder guard
+				/* (P139 census): the last-holder guard
 				 * was stricter than PR admission needs — PR
 				 * coexists with PR/CR, so batch-admit while
 				 * sibling shared holders remain; only an
@@ -10929,7 +10929,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 
 					new_slot->holders_pr |= prbits;
 					new_slot->waiters &= ~prbits;
-					/* sess299: the PR batch DELAYS a
+					/* the PR batch DELAYS a
 					 * standing EX reservation, never
 					 * consumes it — keep the ticket so
 					 * the nominee is granted when the
@@ -10947,7 +10947,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 						static int p6h_prb_n;
 
 						if (p6h_prb_n++ < 2000)
-							pr_warn("mxfs: P6H-PRBATCH ino=%llu mask=%llx n=%d gen=%llu realms=%llu\n",
+							mxfs_probe("mxfs: P6H-PRBATCH ino=%llu mask=%llx n=%d gen=%llu realms=%llu\n",
 								(unsigned long long)resource->ino,
 								(unsigned long long)prbits,
 								mxfs_pal_popcount64(prbits),
@@ -10956,7 +10956,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 					}
 				}
 				/*
-				 * sess299 DEADLOCK GUARD (ruling item 6): a
+				 * DEADLOCK GUARD (ruling item 6): a
 				 * sticky reservation naming an UPGRADER —
 				 * the sole remaining PR holder waiting for
 				 * EX — can never see the slot holderless
@@ -10984,7 +10984,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 					new_slot->waiters_ex &= ~wbit;
 					new_slot->yield_to = 0;
 					/*
-					 * sess108 (ruling blockers 1+2): THIS
+					 * (ruling blockers 1+2): THIS
 					 * CAS is the transition from "no
 					 * write-capable holder" to "W holds EX",
 					 * so it is where W's tenure token is
@@ -10997,7 +10997,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 					 * and left ex_grant_epoch naming the
 					 * RELEASER's ended tenure, so every
 					 * adopted grant had nothing true to
-					 * install (sess106 P241: st_unset on all
+					 * install (P241: st_unset on all
 					 * 32 nodes).  Same helper as every
 					 * self-promote — no second policy.
 					 */
@@ -11018,7 +11018,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 						static int p6h_ho_n;
 
 						if (p6h_ho_n++ < 2000)
-							pr_warn("mxfs: P6H-HANDOFF ino=%llu to_slot=%d gen=%llu epoch=%u gep=%llu handoff=%d realms=%llu\n",
+							mxfs_probe("mxfs: P6H-HANDOFF ino=%llu to_slot=%d gen=%llu epoch=%u gep=%llu handoff=%d realms=%llu\n",
 								(unsigned long long)resource->ino,
 								w_slotno,
 								(unsigned long long)new_slot->generation,
@@ -11045,7 +11045,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 				 * lingers) MUST age out so the acquire-path 5s
 				 * stale-clear can break the deadlock — otherwise
 				 * every peer release refreshes yield_set_ms and
-				 * the hint never goes stale (sess130 livelock,
+				 * the hint never goes stale (livelock,
 				 * re-opened for fresh EX waiters by the v0.10.39
 				 * streak yield: 32-node dir_reuse r3, 20 nodes
 				 * EX-starved 360s -> rc=-110 shutdown). */
@@ -11053,7 +11053,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 					caw_yield_stamp(cur_slot,
 						new_slot->yield_to);
 				if (streak_yield)
-					pr_warn_ratelimited(
+					mxfs_probe_ratelimited(
 					    "mxfs: P-STREAK-YIELD ino=%llu streak=%u pr_w=%llx ex_w=%llx yt=%llx armed=%d\n",
 					    (unsigned long long)resource->ino,
 					    cur_slot->ex_grant_streak,
@@ -11078,7 +11078,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 		 * -- clear it in this same CAS (see this function's own
 		 * comment for the full mechanism + why it must be here and
 		 * not a separate follow-up call). */
-		/* sess41 (GPT audit C1): publication inseparable from release —
+		/* (design review audit C1): publication inseparable from release —
 		 * the open-holder bit change rides the SAME CAS that removes
 		 * this node's holder bits.  The old two-CAS shape (best-effort
 		 * open_set, then unlock) had a silent-failure window: the set
@@ -11088,12 +11088,12 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 			new_slot->open_holders |= ctx->node_bit;
 		else if (open_op < 0)
 			new_slot->open_holders &= ~ctx->node_bit;
-		/* sess40: a genuinely freed inode ends all open protection —
+		/* a genuinely freed inode ends all open protection —
 		 * the defer guard upstream prevents free while peers hold
 		 * opens, so bits here are a dead incarnation's residue. */
 		if (is_free)
 			new_slot->open_holders = 0;
-		/* sess40: a slot with live open-holder bits must stay LIVE —
+		/* a slot with live open-holder bits must stay LIVE —
 		 * tombstones are recyclable by DIFFERENT resources, which
 		 * would destroy an open-unlinked file's protection.  The
 		 * open_clear CAS tombstones once the last bit drops. */
@@ -11104,14 +11104,14 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 			    new_slot->last_ex_slot != MXFS_CAW_EX_SLOT_NONE)) {
 				new_slot->dir_epoch = 0;
 				new_slot->last_ex_slot = MXFS_CAW_EX_SLOT_NONE;
-				pr_warn_ratelimited(
+				mxfs_probe_ratelimited(
 				    "mxfs: P144-EPOCH-FREE-RESET ino=%llu slot=%u — cleared stale dir_epoch/last_ex_slot at inode free (unlock piggyback)\n",
 				    (unsigned long long)resource->ino, slot_idx);
 			}
 		}
 
 		if (resource->type == MXFS_LTYPE_INODE && caw_instr_on()) {
-			mxfs_pal_log(MXFS_LOG_WARN,
+			mxfs_pal_log(MXFS_LOG_DEBUG,
 				"mxfs: P13-INSTR CAW-UNLOCK ino=%llu slot=%u "
 				"cur_hex=%llx cur_hpr=%llx cur_gen=%llu "
 				"new_hex=%llx new_hpr=%llx new_gen=%llu "
@@ -11135,7 +11135,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 		 * gives the shortcut's store ample time to land. */
 		if (caw_grant_meta_seq(ctx, resource) != rel_seq0)
 			goto regrant_abort;
-		/* sess470 D-488 exit arm: the clear CAS reports a hard error */
+		/* D-488 exit arm: the clear CAS reports a hard error */
 		if (unlikely(resource->type == MXFS_LTYPE_AG &&
 			     mxfs_caw_inject_unlk_cas_eio > 0)) {
 			int mode = mxfs_caw_inject_unlk_cas_eio;
@@ -11145,7 +11145,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 				rc = caw_slot(ctx, slot_idx, cur_slot, new_slot);
 			else
 				rc = 0;
-			mxfs_pal_log(MXFS_LOG_WARN,
+			mxfs_pal_log(MXFS_LOG_DEBUG,
 				"mxfs: P470-UNLK-INJECT ag=%u site=cas mode=%d real_rc=%d forced_rc=%d slot=%u retry=%d — D-488 exit arm",
 				resource->ag_number, mode, rc, -EIO, slot_idx,
 				retry);
@@ -11155,7 +11155,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 		}
 
 		if (resource->type == MXFS_LTYPE_INODE && caw_instr_on()) {
-			mxfs_pal_log(MXFS_LOG_WARN,
+			mxfs_pal_log(MXFS_LOG_DEBUG,
 				"mxfs: P13-INSTR CAW-UNLOCK-RESULT ino=%llu "
 				"slot=%u rc=%d t_ms=%llu",
 				(unsigned long long)resource->ino, slot_idx,
@@ -11164,18 +11164,18 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 
 		if (rc == -EAGAIN) {
 			/*
-			 * sess2(ccloop 26c41354): jittered backoff on the
+			 * jittered backoff on the
 			 * INODE unlock CAS miscompare (mxfs_caw_unlock_backoff)
 			 * to desync the 16-node hot-slot CAS storm so the
 			 * unlock wins instead of tight-looping to exhaustion ->
 			 * -EIO -> stuck-lock BAST-storm WEDGE (dir_reuse: load
 			 * 870, 1000+ mxfs-ino-bast kworkers).  The acquire path
-			 * already desyncs (sess39); the unlock lacked it.
+			 * already desyncs; the unlock lacked it.
 			 * Node-phased + retry-escalating so contenders spread.
 			 */
 			p381_miss++;
 			/*
-			 * sess380: keep the image we just CAW'd against so the
+			 * keep the image we just CAW'd against so the
 			 * next iteration can classify what beat us.  This runs
 			 * in BOTH arms — the classification telemetry is
 			 * collected even with the optimisation off.
@@ -11195,7 +11195,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 		}
 		if (rc) {
 			/*
-			 * sess119 (ruling item 3): the CAS did not report
+			 * (ruling item 3): the CAS did not report
 			 * success, but neither did it report a miscompare — the
 			 * release CAW may have reached the target and stripped
 			 * our bit.  Close the clear window as COMMITTED so a
@@ -11217,7 +11217,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 			 * error means we did not read back a proof).  Caller
 			 * verifies by read-back.
 			 */
-			pr_warn_ratelimited(
+			mxfs_probe_ratelimited(
 			    "mxfs: P274-UNLK-CAS-ERR type=%u id=%llu rc=%d may_have_written=%d retry=%d — unlock outcome UNKNOWN\n",
 			    resource->type,
 			    (unsigned long long)(resource->type ==
@@ -11243,7 +11243,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 			static int p141_n;
 
 			if (p141_n++ < 500)
-				mxfs_pal_log(MXFS_LOG_WARN,
+				mxfs_pal_log(MXFS_LOG_DEBUG,
 				    "mxfs: P141-UNLK-EXCLR ino=%llu expected=%u rel_seq0=%llu seq_now=%llu retry=%d gen=%llu",
 				    (unsigned long long)resource->ino,
 				    expected_gen32,
@@ -11253,7 +11253,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 				    (unsigned long long)cur_slot->generation);
 		}
 		/*
-		 * sess380 P381-UNLK-CONTEND (D-32NODE-SHARED-DIR-CREATE-PACE).
+		 * P381-UNLK-CONTEND (D-32NODE-SHARED-DIR-CREATE-PACE).
 		 *
 		 * The holder-side release of a contended directory inode was
 		 * measured at 26-48 ms, of which P138-BAST's `sx` field says
@@ -11278,7 +11278,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 			static int p381_n;
 
 			if (p381_n++ < 20000)
-				pr_warn("mxfs: P381-UNLK-CONTEND ino=%llu retries=%d miscmp=%u sleep_ms=%u find_ms=%u backoff_ms=%u wall_ms=%llu backoff=%d benign=%u contended=%u fast=%u fr=%d ident=%u multigen=%u selfbits=%u removed=%u noreg=%u holders=%u yieldto=%u control=%u\n",
+				mxfs_probe("mxfs: P381-UNLK-CONTEND ino=%llu retries=%d miscmp=%u sleep_ms=%u find_ms=%u backoff_ms=%u wall_ms=%llu backoff=%d benign=%u contended=%u fast=%u fr=%d ident=%u multigen=%u selfbits=%u removed=%u noreg=%u holders=%u yieldto=%u control=%u\n",
 					(unsigned long long)resource->ino,
 					retry, p381_miss, p381_sleep_ms,
 					p381_find_ms, p381_backoff_ms,
@@ -11297,22 +11297,22 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 					p381_why[CAW_UNLKD_CONTROL]);
 		}
 		untrack_held(ctx, slot_idx);
-		/* sess112: the unlock CAS just committed and it cleared our bit
+		/* the unlock CAS just committed and it cleared our bit
 		 * in EVERY mode bitmap, so every local tenure on this resource
 		 * is gone.  Retiring them here (and only here — on a CONFIRMED
 		 * clear) re-arms the give-up reconcile for the next acquire. */
 		clr_committed = true;
 		lreq_release_all(ctx, resource, pub_seq0);
-		/* ccloop 72513a13 sess3: our clear just committed and peers
+		/*  our clear just committed and peers
 		 * were waiting on this slot — nudge them awake instead of
 		 * letting them ride out the poll interval.
 		 *
-		 * sess35 NUDGE v2: target the wake.  If the release armed a
+		 * NUDGE v2: target the wake.  If the release armed a
 		 * handoff ticket (single EX waiter or the PR class), only
 		 * those nodes can act; everyone else would read-and-defer.
 		 * No ticket (slot went free / batch arm) = wake the field. */
 		/*
-		 * sess380 P382-WAKE (D-32NODE-SHARED-DIR-CREATE-PACE).
+		 * P382-WAKE (D-32NODE-SHARED-DIR-CREATE-PACE).
 		 *
 		 * MEASURED on 256 creates into ONE directory from 32 nodes,
 		 * counting every command this cluster issued to that
@@ -11345,7 +11345,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 					     new_slot->yield_to : p382_field);
 
 			if (p382_field && p382_n++ < 20000)
-				pr_warn("mxfs: P382-WAKE ino=%llu kind=%s woken=%u waiters=%u waiters_ex=%u gm=%u->%u\n",
+				mxfs_probe("mxfs: P382-WAKE ino=%llu kind=%s woken=%u waiters=%u waiters_ex=%u gm=%u->%u\n",
 					(unsigned long long)resource->ino,
 					p6h_handoff_bit ? "mint" :
 					  (new_slot->yield_to ? "ticket" : "field"),
@@ -11364,7 +11364,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 					     new_slot->yield_to :
 					     (cur_slot->waiters &
 					      ~ctx->node_bit));
-		/* sess285 D-501 probe: CAS-committed release-side view.  A
+		/* D-501 probe: CAS-committed release-side view.  A
 		 * single-bit EX handoff (mint) or un-minted single-bit ticket
 		 * (nom) names the releaser's chosen winner; both are logged
 		 * with the pre-release EX-waiter field so the nomination
@@ -11425,7 +11425,7 @@ regrant_abort:
 	ustate = MXFS_UNLOCK_STILL_HELD;
 
 out:
-	/* sess117: close the clear window BEFORE dropping the legacy mark, so
+	/* close the clear window BEFORE dropping the legacy mark, so
 	 * the two exclusions never both read "open" for an instant. */
 	lreq_clr_end(ctx, unlk_clr, clr_committed);
 	caw_release_mark(ctx, resource, false);
@@ -11462,7 +11462,7 @@ int mxfs_dlm_caw_unlock_gen(struct mxfs_dlm_caw_ctx *ctx,
 }
 
 /*
- * D-488 (sess273 ruling): unlock with a tri-state outcome the caller can
+ * D-488 (ruling): unlock with a tri-state outcome the caller can
  * act on.  Same gate and body as mxfs_dlm_caw_unlock_gen; the out-param
  * reports RELEASED / STILL_HELD / UNKNOWN as proven by the body's own
  * reads and CAS results.  On -ESHUTDOWN nothing was attempted (teardown's
@@ -11488,7 +11488,7 @@ int mxfs_dlm_caw_unlock_state(struct mxfs_dlm_caw_ctx *ctx,
 	return rc;
 }
 
-/* ─── mxfs_dlm_caw_held (sess39 read-only diagnostic) ─── */
+/* ─── mxfs_dlm_caw_held (read-only diagnostic) ─── */
 /* Returns 1 if THIS node currently holds the resource on disk, 0 if not,
  * <0 on I/O error.  One slot read; no modification. */
 int mxfs_dlm_caw_held(struct mxfs_dlm_caw_ctx *ctx,
@@ -11507,10 +11507,10 @@ int mxfs_dlm_caw_held(struct mxfs_dlm_caw_ctx *ctx,
 		return -ENOMEM;
 	rc = find_slot(ctx, resource, &slot_idx, slot, &empty_idx);
 	if (rc) {
-		/* sess135 P135: a held() miss on a low inode is the P108
+		/* P135: a held miss on a low inode is the P108
 		 * trigger — log whether the slot is GONE vs an I/O error. */
 		if (resource->type == MXFS_LTYPE_INODE && caw_instr_on())
-			mxfs_pal_log(MXFS_LOG_WARN,
+			mxfs_pal_log(MXFS_LOG_DEBUG,
 			    "mxfs: P135-HELD-MISS ino=%llu rc=%d "
 			    "(no live slot found) self=%llx",
 			    (unsigned long long)resource->ino, rc,
@@ -11522,7 +11522,7 @@ int mxfs_dlm_caw_held(struct mxfs_dlm_caw_ctx *ctx,
 	if (our_mode == MXFS_LOCK_NL &&
 	    resource->type == MXFS_LTYPE_INODE &&
 	    caw_instr_on())
-		mxfs_pal_log(MXFS_LOG_WARN,
+		mxfs_pal_log(MXFS_LOG_DEBUG,
 		    "mxfs: P135-HELD-MISS ino=%llu slot=%u gen=%u "
 		    "hex=%llx hpr=%llx hpw=%llx w=%llx gm=%u yt=%llx "
 		    "self=%llx (bit absent from live slot)",
@@ -11540,7 +11540,7 @@ int mxfs_dlm_caw_held(struct mxfs_dlm_caw_ctx *ctx,
 }
 
 /*
- * ccloop cc87fed3 sess3 (PROVEN BY INSTRUMENT — fence_during_write@8/caw D-state
+ *  (PROVEN BY INSTRUMENT — fence_during_write@8/caw D-state
  * deadlock): mxfs_dlm_caw_held() above collapses the real per-node mode to a
  * boolean, which is unsafe for a caller (mxfs_v5_dlm_inode_granted_mode ->
  * mxfs_ilock_admit_ioend / P79-NESTADMIT) that upgrades ip->i_dlm_mode to
@@ -11575,7 +11575,7 @@ uint8_t mxfs_dlm_caw_granted_mode(struct mxfs_dlm_caw_ctx *ctx,
 	return our_mode;
 }
 
-/* ─── sess449: same-node reconcile exerciser observation helpers ───
+/* ─── same-node reconcile exerciser observation helpers ───
  * (declared in dlm_caw.h; see mxfs_v5_dlm_caw_samenode_selftest.)  Pure
  * observation — a find_slot read and a locked registry lookup — so the
  * exerciser's assertions never perturb the sequencing they measure. */
@@ -11668,7 +11668,7 @@ int mxfs_dlm_caw_test_knob_left(enum mxfs_caw_test_knob which)
 }
 
 /*
- * sess40 (D-CROSSNODE-OPEN-UNLINK): read the open-holder bitmap for an inode
+ * (D-CROSSNODE-OPEN-UNLINK): read the open-holder bitmap for an inode
  * resource.  VALIDITY CONTRACT: meaningful only while the caller holds a
  * grant on the resource (post-acquire) — an idle slot's bits ride the live
  * slot the caller's own claim just (re)established via the same-resource
@@ -11694,7 +11694,7 @@ int mxfs_dlm_caw_open_holders(struct mxfs_dlm_caw_ctx *ctx,
 		return -EINVAL;
 	slot = mxfs_pal_alloc(sizeof(*slot));
 	if (!slot)
-		return -ENOMEM;	/* sess41 C5: OOM must DEFER, not read "empty" */
+		return -ENOMEM;	/* C5: OOM must DEFER, not read "empty" */
 	rc = find_slot(ctx, resource, &slot_idx, slot, &empty_idx);
 	if (rc) {
 		/* The B6 caller holds the inode EX, so a live slot MUST
@@ -11708,20 +11708,20 @@ int mxfs_dlm_caw_open_holders(struct mxfs_dlm_caw_ctx *ctx,
 	return 0;
 }
 
-/* sess41 C1: mxfs_dlm_caw_open_set removed — publication now rides the
+/* C1: mxfs_dlm_caw_open_set removed — publication now rides the
  * release CAS (open_op in mxfs_dlm_caw_unlock_gen); a standalone pre-release
  * set had an unfixable silent-failure window.
  *
- * sess46: REINTRODUCED for ICLUSTER-routed inodes as mxfs_dlm_caw_open_set
+ * REINTRODUCED for ICLUSTER-routed inodes as mxfs_dlm_caw_open_set
  * below — with a DIFFERENT contract that closes the C1 window.  The C1
  * hazard was an UNGATED pair (set could exhaust retries while the release
  * still landed).  The iclus caller GATES the cluster-resource release on
  * this call's success (failure → grant retained, release retried), which is
- * the GPT C9 ordering contract: publication-before-release, ordering
+ * the design review C9 ordering contract: publication-before-release, ordering
  * replaces the CAS fold.  The per-inode path keeps the C1 fold unchanged. */
 
 /*
- * sess46: durable standalone SET of THIS node's open-holder bit for a
+ * durable standalone SET of THIS node's open-holder bit for a
  * resource that may have NO slot (ICLUSTER-routed files never per-inode
  * lock, so no claim ever created one).  Semantics:
  *   - live slot found        → CAS the bit in.
@@ -11737,7 +11737,7 @@ int mxfs_dlm_caw_open_holders(struct mxfs_dlm_caw_ctx *ctx,
  *     record (first in probe order — deterministic and identical on every
  *     node) and tombstone the loser.  Duplicate live slots are harmless to
  *     locking while routing is on (routed files never per-inode lock) but
- *     would be the sess47 two-EX-holders corruption after a knob=0 reboot.
+ *     would be the two-EX-holders corruption after a knob=0 reboot.
  * Returns 0 only when the bit is durably on disk; any failure must gate
  * the caller's cluster release (fail closed).
  */
@@ -11803,7 +11803,7 @@ static int caw_open_set_dedup(struct mxfs_dlm_caw_ctx *ctx,
 			continue;
 		}
 		if (rc == 0)
-			mxfs_pal_log(MXFS_LOG_WARN,
+			mxfs_pal_log(MXFS_LOG_DEBUG,
 			    "mxfs: P-OPENSET-DEDUP ino=%llu merged mine=%u into canon=%u",
 			    (unsigned long long)resource->ino, mine_idx,
 			    canon_idx);
@@ -11848,7 +11848,7 @@ static int caw_open_set_body(struct mxfs_dlm_caw_ctx *ctx,
 			rc = -ENOSPC;			/* table full: fail closed */
 			break;
 		}
-		/* Fresh compare read — Bug 93 + the sess40/daf50d34 TOCTOU
+		/* Fresh compare read — Bug 93 + the /daf50d34 TOCTOU
 		 * discipline, verbatim from the lock claim path. */
 		rc = read_slot(ctx, empty_idx, cur);
 		if (rc)
@@ -11881,7 +11881,7 @@ static int caw_open_set_body(struct mxfs_dlm_caw_ctx *ctx,
 		new_slot->resource = *resource;
 		new_slot->last_ex_slot = MXFS_CAW_EX_SLOT_NONE;
 		caw_claim_inherit_epoch(new_slot, cur, resource);
-		/* sess176: same mint-or-fail discipline as the lock claim
+		/* same mint-or-fail discipline as the lock claim
 		 * path — an open_set that binds the resource fresh is a
 		 * binding creation and needs a lineage. */
 		if (!new_slot->resource_lineage) {
@@ -11908,7 +11908,7 @@ static int caw_open_set_body(struct mxfs_dlm_caw_ctx *ctx,
 		if (rc)
 			break;
 		slot_hint_store(ctx, resource, empty_idx);
-		/* Off-base fresh claim → dup window (sess47 family).  Resolve
+		/* Off-base fresh claim → dup window (family).  Resolve
 		 * rather than merely detect: routed resources are re-claimed
 		 * by open_set on OTHER nodes concurrently, and a standing dup
 		 * becomes two-EX-holders corruption after a knob=0 reboot. */
@@ -11939,7 +11939,7 @@ int mxfs_dlm_caw_open_set(struct mxfs_dlm_caw_ctx *ctx,
 }
 
 /*
- * sess46: B6 open-bit read for a caller that holds NO per-inode claim (the
+ * B6 open-bit read for a caller that holds NO per-inode claim (the
  * ICLUSTER-routed freer holds the CLUSTER EX instead; linearization comes
  * from publication-before-release on the publisher side).  The per-inode
  * mxfs_dlm_caw_open_holders contract ("no slot under held EX = probe failure
@@ -11999,7 +11999,7 @@ int mxfs_dlm_caw_open_probe(struct mxfs_dlm_caw_ctx *ctx,
 
 
 /*
- * sess40: clear THIS node's open-holder bit (lazy-clear consumer: evict of
+ * clear THIS node's open-holder bit (lazy-clear consumer: evict of
  * an inode with no remaining local protected activity, or a reap-driven
  * revalidation).  Also clears on tombstoned slots (idle-gap carriers), and
  * tombstones a live slot the clear leaves fully empty.  Best-effort: bounded
@@ -12019,7 +12019,7 @@ static void caw_open_clear_body(struct mxfs_dlm_caw_ctx *ctx,
 	if (!cur)
 		return;
 	new_slot = cur + 1;
-	/* sess46 note: single-record clear via find_slot is CORRECT because
+	/* note: single-record clear via find_slot is CORRECT because
 	 * bits always live on the canonical LIVE record (see the
 	 * open_probe comment: tombstone sites gate on bits==0, dedup merges
 	 * before tombstoning, claim-inherit restores the carried case).  A
@@ -12079,12 +12079,12 @@ void mxfs_dlm_caw_dump_slot(struct mxfs_dlm_caw_ctx *ctx,
 	slot_hint_get(ctx, resource, &hint);
 	rc = find_slot(ctx, resource, &slot_idx, slot, &empty_idx);
 	if (rc) {
-		mxfs_pal_log(MXFS_LOG_WARN,
+		mxfs_pal_log(MXFS_LOG_DEBUG,
 		    "mxfs: P142-STALE-IMG ino=%llu NO-SLOT rc=%d hint=%u empty=%u self=%llx",
 		    (unsigned long long)resource->ino, rc, hint, empty_idx,
 		    (unsigned long long)ctx->node_bit);
 	} else {
-		mxfs_pal_log(MXFS_LOG_WARN,
+		mxfs_pal_log(MXFS_LOG_DEBUG,
 		    "mxfs: P142-STALE-IMG ino=%llu slot=%u hint=%u gen=%u hex=%llx hpw=%llx hpr=%llx w=%llx yt=%llx gm=%u epoch=%u lastex=%u self=%llx",
 		    (unsigned long long)resource->ino, slot_idx, hint,
 		    slot->generation,
@@ -12099,7 +12099,7 @@ void mxfs_dlm_caw_dump_slot(struct mxfs_dlm_caw_ctx *ctx,
 	mxfs_pal_free(slot);
 }
 
-/* ─── mxfs_dlm_caw_ex_count (sess52 instrumented concurrent-EX detector) ─────────
+/* ─── mxfs_dlm_caw_ex_count (instrumented concurrent-EX detector) ─────────
  * The never-run measurement specified at xfs_alloc.c:2201 / state.md:
  * read the ENTIRE probe chain for `resource` RAW (via caw_count_resource_slots,
  * which does NOT trigger slot_appears_corrupt's popcount>1 auto-repair across
@@ -12107,7 +12107,7 @@ void mxfs_dlm_caw_dump_slot(struct mxfs_dlm_caw_ctx *ctx,
  * popcount>1 == two distinct nodes hold EX on the same AG simultaneously ==
  * the transient concurrent-EX that produces the gen-current-but-disk-stale
  * bnobt write (P88 disk_differs=1 ag_held=1 buf_gen==pag_gen).  *nslots_out
- * receives the live-slot count (>1 == sess47 claim-race: two slots same
+ * receives the live-slot count (>1 == claim-race: two slots same
  * resource).  Read-only; no slot modification.  Returns the EX popcount, or
  * <0 on error. */
 int mxfs_dlm_caw_ex_count(struct mxfs_dlm_caw_ctx *ctx,
@@ -12131,7 +12131,7 @@ int mxfs_dlm_caw_ex_count(struct mxfs_dlm_caw_ctx *ctx,
 	return (int)mxfs_pal_popcount64(holders_ex_or);
 }
 
-/* ─── mxfs_dlm_caw_self_held_scan (ccloop a864 sess3, instrumented orphan probe) ───
+/* ─── mxfs_dlm_caw_self_held_scan ( a864, instrumented orphan probe) ───
  * Duplicate-immune "does THIS node hold `resource` EX on disk" check.  Walks
  * the ENTIRE probe chain (via caw_count_resource_slots) instead of the hinted
  * find_slot, so it stays correct even when the resource lives in >1 live slot
@@ -12191,7 +12191,7 @@ int mxfs_dlm_caw_resource_holders_live(struct mxfs_dlm_caw_ctx *ctx,
 	return ctx->holders_alive_fn(ctx->holders_alive_data, blockers) ? 1 : 0;
 }
 
-/* ─── mxfs_dlm_caw_force_release_self (ccloop a864 sess3 orphan reclaim) ───
+/* ─── mxfs_dlm_caw_force_release_self ( a864 orphan reclaim) ───
  * UNCONDITIONAL scan-based self-release: walk the WHOLE probe chain and CAS-clear
  * our node_bit from EVERY live slot matching `resource`, in EVERY holder/waiter/
  * yield bitmap.  Unlike mxfs_dlm_caw_unlock_gen this does NOT consult the local
@@ -12207,7 +12207,7 @@ int mxfs_dlm_caw_resource_holders_live(struct mxfs_dlm_caw_ctx *ctx,
  * bit, so clearing it is safe.  Returns #slots cleared, or <0 on error. */
 
 /*
- * sess121 (GPT sess118 ruling item 7).  The caller's attestation that dependent
+ * (design-consult ruling item 7).  The caller's attestation that dependent
  * activity on this resource has stopped — see struct mxfs_forcerel_attest in
  * dlm_caw.h for why this is a parameter and not a comment.
  *
@@ -12255,17 +12255,17 @@ static int caw_force_release_self_body(struct mxfs_dlm_caw_ctx *ctx,
 {
 	struct mxfs_caw_lock_slot *cur;
 	struct mxfs_caw_lock_slot *new;
-	struct mxfs_caw_lreq *clr = NULL;	/* sess117 clear window */
+	struct mxfs_caw_lreq *clr = NULL;	/* clear window */
 	uint64_t pub_seq0 = 0;
 	uint32_t base;
 	uint32_t i;
 	int cleared = 0;
-	bool may_have_cleared = false;		/* sess119 ruling items 3 + 8 */
+	bool may_have_cleared = false;		/* ruling items 3 + 8 */
 
 	if (!ctx || !resource)
 		return -EINVAL;
 	/*
-	 * sess121: the precondition is checked BEFORE the single_node early
+	 * the precondition is checked BEFORE the single_node early
 	 * return, so an attestation-less caller is named even on a mount where
 	 * this happens to be a no-op today.  The whole point is that the defect
 	 * surfaces at the call site rather than on the one rig configuration
@@ -12281,7 +12281,7 @@ static int caw_force_release_self_body(struct mxfs_dlm_caw_ctx *ctx,
 		return -ENOMEM;
 	}
 	/*
-	 * sess117: this is the most destructive clear in the file — it strips
+	 * this is the most destructive clear in the file — it strips
 	 * our bit from EVERY bitmap in EVERY matching slot, waiters and yield
 	 * included, with no per-attempt plan at all.  The caller's serialization
 	 * is an XFS-layer one (in-core mode NL + state DEMOTING), which says
@@ -12289,7 +12289,7 @@ static int caw_force_release_self_body(struct mxfs_dlm_caw_ctx *ctx,
 	 * takes the same window every other destructive path takes.
 	 */
 	/*
-	 * sess120 FAIL CLOSED (GPT sess118 ruling item 5).  This used to log and
+	 * FAIL CLOSED (design-consult ruling item 5).  This used to log and
 	 * proceed "unlinearized", which is the worst place in the file to do it:
 	 * this function strips our bit from EVERY bitmap in EVERY matching slot
 	 * with no per-attempt plan, so an unlinearized run can cancel a local
@@ -12361,7 +12361,7 @@ static int caw_force_release_self_body(struct mxfs_dlm_caw_ctx *ctx,
 			new->last_modified_ms = mxfs_pal_time_ms();
 			rc = caw_slot(ctx, idx, cur, new);
 			/*
-			 * sess119 (ruling item 8, MULTI-STEP CLEARS): this walks
+			 * (ruling item 8, MULTI-STEP CLEARS): this walks
 			 * up to CLAIMRACE_SCAN_MAX slots and issues an
 			 * independent CAS in each, so "did this window strip a
 			 * bit?" is the OR over every sub-operation, not the
@@ -12429,16 +12429,16 @@ static int caw_convert_body(struct mxfs_dlm_caw_ctx *ctx,
 	uint8_t old_mode;
 	int retry;
 	int rc;
-	struct mxfs_caw_lreq *lreq = NULL;	/* sess112 local request registry */
+	struct mxfs_caw_lreq *lreq = NULL;	/* local request registry */
 	uint8_t conv_from = MXFS_LOCK_NL;	/* tenure this convert consumed */
 
-	mxfs_grant_result_init(gres);	/* sess97: fail closed on every exit */
+	mxfs_grant_result_init(gres);	/* fail closed on every exit */
 
 	if (!ctx || !resource)
 		return -EINVAL;
 
 	/*
-	 * sess131: caw_unlock_gen_body, NOT the public mxfs_dlm_caw_unlock —
+	 * caw_unlock_gen_body, NOT the public mxfs_dlm_caw_unlock —
 	 * this call is already inside the admission gate, and re-entering it
 	 * would both double-count and let a gate that closed mid-convert refuse
 	 * an operation that was already admitted.
@@ -12446,10 +12446,10 @@ static int caw_convert_body(struct mxfs_dlm_caw_ctx *ctx,
 	if (new_mode == MXFS_LOCK_NL)
 		return caw_unlock_gen_body(ctx, resource, 0, false, 0, NULL);
 
-	/* sess433 (D-0354): converts take the on-disk path in single-node
+	/* (D-0354): converts take the on-disk path in single-node
 	 * mode too (the grant being converted is on disk). */
 
-	/* sess112: a convert registers an on-disk waiter for new_mode exactly
+	/* a convert registers an on-disk waiter for new_mode exactly
 	 * like an acquire does, so it must be visible in the registry for the
 	 * whole of that request — and refused outright if it cannot be. */
 	lreq = lreq_join(ctx, resource, new_mode);
@@ -12474,7 +12474,7 @@ static int caw_convert_body(struct mxfs_dlm_caw_ctx *ctx,
 	}
 
 	for (retry = 0; retry < MXFS_CAW_MAX_RETRIES; retry++) {
-		caw_inode_backoff(ctx, resource, retry);	/* sess39 */
+		caw_inode_backoff(ctx, resource, retry);	/* */
 		rc = find_slot(ctx, resource, &slot_idx, cur_slot, &empty_idx);
 		if (rc == -ENOENT) {
 			rc = -ENOENT; /* Can't convert a lock we don't hold */
@@ -12495,7 +12495,7 @@ static int caw_convert_body(struct mxfs_dlm_caw_ctx *ctx,
 			rc = -EINVAL;
 			goto out;
 		}
-		/* sess112: remember what we are converting AWAY from — the
+		/* remember what we are converting AWAY from — the
 		 * success arm below clears this mode's holder bit, so its
 		 * registry tenure has to be retired at `out`. */
 		conv_from = old_mode;
@@ -12529,7 +12529,7 @@ static int caw_convert_body(struct mxfs_dlm_caw_ctx *ctx,
 
 			caw_grant_seq_prebump(ctx, resource);	/* v0.6.4 */
 			/*
-			 * sess120 audit site 3 of 3 — see caw_slot_clearing.
+			 * audit site 3 of 3 — see caw_slot_clearing.
 			 * This one is the least obvious of the three and the
 			 * most consequential: the CAS sets the new LOWER mode
 			 * bit but strips the old HIGHER one, so a local thread
@@ -12586,7 +12586,7 @@ static int caw_convert_body(struct mxfs_dlm_caw_ctx *ctx,
 			if (rc == -EAGAIN)
 				continue;
 			if (rc == 0) {
-				/* sess97 step 5.3(b): provenance from the
+				/* step 5.3(b): provenance from the
 				 * convert CAS (the PR->EX upgrade). */
 				caw_grant_result_fill(gres, resource, new_slot,
 						      new_mode, false);
@@ -12604,12 +12604,12 @@ static int caw_convert_body(struct mxfs_dlm_caw_ctx *ctx,
 		}
 
 		/* Upgrade not compatible — register as waiter for upgrade.
-		 * sess114: same predicate and same derivation as the acquire
+		 * same predicate and same derivation as the acquire
 		 * registration above; see the comment there. */
 		*new_slot = *cur_slot;
 		new_slot->waiters |= ctx->node_bit;
 		if (mxfs_mode_can_write(new_mode))
-			new_slot->waiters_ex |= ctx->node_bit;   /* sess50: track exclusive waiter */
+			new_slot->waiters_ex |= ctx->node_bit;   /* track exclusive waiter */
 		new_slot->waiter_mode = recompute_waiter_mode(new_slot);
 		new_slot->generation++;
 
@@ -12664,21 +12664,21 @@ static int caw_convert_body(struct mxfs_dlm_caw_ctx *ctx,
 		     MXFS_CAW_MAX_RETRIES,
 		     (unsigned long long)resource->ino,
 		     resource->type);
-	/* sess48: drop any waiter bit registered for the upgrade before giving
+	/* drop any waiter bit registered for the upgrade before giving
 	 * up, else it lingers as a phantom EX waiter starving peer readers. */
 	caw_drop_own_waiter(ctx, slot_idx, resource, lreq, true,
 			    new_mode, false, 0);
 	rc = -ETIMEDOUT;
 
 out:
-	/* sess109 structural defense (ruling item B): a converted mode is a
+	/* structural defense (ruling item B): a converted mode is a
 	 * new tenure whenever it becomes write-capable, so success here must
 	 * carry provenance exactly as an acquire does. */
 	if (rc == 0 && gres && gres->status == MXFS_GAUTH_UNSET) {
 		static int p_unset_n;
 
 		if (p_unset_n++ < 200)
-			pr_warn("mxfs: P242-GRANT-UNSET-CONV type=%c id=%llu slot=%u new_mode=%u — converted grant with no provenance\n",
+			mxfs_probe("mxfs: P242-GRANT-UNSET-CONV type=%c id=%llu slot=%u new_mode=%u — converted grant with no provenance\n",
 				resource->type == MXFS_LTYPE_INODE ? 'I' :
 				resource->type == MXFS_LTYPE_AG ? 'A' : 'O',
 				(unsigned long long)(resource->type == MXFS_LTYPE_INODE ?
@@ -12686,7 +12686,7 @@ out:
 				slot_idx, new_mode);
 	}
 	/*
-	 * sess112: a successful convert MOVES the local tenure — the old
+	 * a successful convert MOVES the local tenure — the old
 	 * mode's holder bit was cleared by the same operation, so its tenure
 	 * must be retired here or a later give-up on that mode would be
 	 * refused forever by a count that no longer describes anything.
@@ -12734,13 +12734,13 @@ int mxfs_dlm_caw_convert(struct mxfs_dlm_caw_ctx *ctx,
 /* ─── mxfs_dlm_caw_release_all ─── */
 
 /*
- * sess131 (GPT sess130 ruling, step 3): publish the residue of a release_all
+ * (design-consult ruling, step 3): publish the residue of a release_all
  * slot that did NOT confirm clear.
  *
  * Before this, release_all's three failure exits — a read error, a bad magic,
  * and 20 exhausted CAS retries — each did `break; untrack_held()`, i.e. dropped
  * the slot from local tracking with this node's bits still on disk and NOTHING
- * anywhere that remembered them.  That is the same shape sess122 fixed in
+ * anywhere that remembered them.  That is the same shape fixed in
  * caw_drop_own_waiter and it is worse here, because release_all is the LAST
  * sweep: after it there is no acquire path left to notice.
  *
@@ -12750,7 +12750,7 @@ int mxfs_dlm_caw_convert(struct mxfs_dlm_caw_ctx *ctx,
  * cost of one slot read; under-publishing loses a bit permanently.
  *
  * This is only reachable now that the exclusive release_all runs BEFORE the
- * teardown drain (the sess130 lifecycle order).  Under the old order the
+ * teardown drain (the lifecycle order).  Under the old order the
  * publication would have landed after the worker had already joined and could
  * never have been collected.
  *
@@ -12801,7 +12801,7 @@ static bool caw_owe_residue(struct mxfs_dlm_caw_ctx *ctx,
 	return e != NULL;
 }
 
-/* ─── sess309 step-6 F1: WEDGED-release pins ─── */
+/* ─── step-6 F1: WEDGED-release pins ─── */
 
 int mxfs_dlm_caw_pin_resource(struct mxfs_dlm_caw_ctx *ctx,
 			      const struct mxfs_resource_id *res)
@@ -12890,9 +12890,9 @@ static void caw_release_all_body(struct mxfs_dlm_caw_ctx *ctx,
 	new_slot = mxfs_pal_alloc(sizeof(*new_slot));
 	if (!local_slots || !cur_slot || !new_slot) {
 		/*
-		 * sess131 (GPT sess130 ruling, step 3): this releases NOTHING
+		 * (design-consult ruling, step 3): this releases NOTHING
 		 * and, unlike a per-slot failure, cannot even name the slots it
-		 * failed on.  Every tracked slot is residue.  GPT was explicit
+		 * failed on.  Every tracked slot is residue.  design review was explicit
 		 * that an allocation failure preventing publication must
 		 * ESCALATE rather than log and continue — the caller turns a
 		 * nonzero `lost` into a refused clean departure.
@@ -12931,7 +12931,7 @@ static void caw_release_all_body(struct mxfs_dlm_caw_ctx *ctx,
 		for (i = 0; i < local_count; i++) {
 			int retry;
 			/*
-			 * sess131: the clear is CONFIRMED only by a CAS that
+			 * the clear is CONFIRMED only by a CAS that
 			 * returned 0.  Every other way out of this loop leaves
 			 * bits on disk, and `res_known` says whether the slot
 			 * read far enough to name the resource an obligation
@@ -12939,7 +12939,7 @@ static void caw_release_all_body(struct mxfs_dlm_caw_ctx *ctx,
 			 */
 			bool cleared = false;
 			bool res_known = false;
-			bool pinned = false;	/* sess309 wedged-release pin */
+			bool pinned = false;	/* wedged-release pin */
 			int last_rc = 0;
 			/*
 			 * Captured from the LAST GOOD read, not read back off
@@ -12951,7 +12951,7 @@ static void caw_release_all_body(struct mxfs_dlm_caw_ctx *ctx,
 			 */
 			struct mxfs_resource_id res;
 			/*
-			 * sess151 (D-RELEASEALL-LREQ-RETIRE-MISSING): the
+			 * (D-RELEASEALL-LREQ-RETIRE-MISSING): the
 			 * registry anchor for the post-clear retire.  Sampled
 			 * ONCE at the slot's first known resource identity,
 			 * BEFORE the first CAS that could strip our bits —
@@ -12963,7 +12963,7 @@ static void caw_release_all_body(struct mxfs_dlm_caw_ctx *ctx,
 			bool seq_sampled = false;
 			bool seq_churned = false;
 			/*
-			 * sess154 (P248 fix B): one in-line CAS re-issue per
+			 * (P248 fix B): one in-line CAS re-issue per
 			 * slot on -ESHUTDOWN.  The observed natural failure is
 			 * a transport UNIT ATTENTION surfacing here as
 			 * -ESHUTDOWN (caw_slot's !running check swallows the
@@ -12993,7 +12993,7 @@ static void caw_release_all_body(struct mxfs_dlm_caw_ctx *ctx,
 				res = cur_slot->resource;
 				res_known = true;
 
-				/* sess309: a WEDGED-release pin refuses the
+				/* a WEDGED-release pin refuses the
 				 * clear outright — no CAS, no obligation.
 				 * The bits stay on the slot so peers fence
 				 * this node and recover the resource with
@@ -13005,7 +13005,7 @@ static void caw_release_all_body(struct mxfs_dlm_caw_ctx *ctx,
 				}
 
 				/*
-				 * sess151: first identity → sample the anchor.
+				 * first identity → sample the anchor.
 				 * Identity CHURN across retries (the slot was
 				 * reused for a different resource mid-loop)
 				 * means the anchor no longer names what a
@@ -13033,7 +13033,7 @@ static void caw_release_all_body(struct mxfs_dlm_caw_ctx *ctx,
 				new_slot->holders_cw &= ~ctx->node_bit;
 				new_slot->holders_cr &= ~ctx->node_bit;
 				new_slot->waiters &= ~ctx->node_bit;
-				new_slot->waiters_ex &= ~ctx->node_bit;	/* sess50 */
+				new_slot->waiters_ex &= ~ctx->node_bit;	/* */
 				new_slot->yield_to &= ~ctx->node_bit;
 				new_slot->granted_mode =
 					recompute_granted_mode(new_slot);
@@ -13043,7 +13043,7 @@ static void caw_release_all_body(struct mxfs_dlm_caw_ctx *ctx,
 				new_slot->last_modified_ms =
 					mxfs_pal_time_ms();
 
-				/* sess40: unmount ends this node's protected
+				/* unmount ends this node's protected
 				 * activity; peers' open bits keep the slot
 				 * live. */
 				new_slot->open_holders &= ~ctx->node_bit;
@@ -13053,7 +13053,7 @@ static void caw_release_all_body(struct mxfs_dlm_caw_ctx *ctx,
 					caw_tombstone_slot(new_slot);
 
 				if (caw_inject_take(&mxfs_caw_inject_ra_casfail))
-					rc = -ESHUTDOWN;	/* sess154 K1 */
+					rc = -ESHUTDOWN;	/* K1 */
 				else
 					rc = caw_slot(ctx, local_slots[i],
 						      cur_slot, new_slot);
@@ -13067,7 +13067,7 @@ static void caw_release_all_body(struct mxfs_dlm_caw_ctx *ctx,
 				static int p141_ra_n;
 				if ((caw_instr_on() || p141_ra_n++ < 200) &&
 				    retry == 0)
-					mxfs_pal_log(MXFS_LOG_WARN,
+					mxfs_pal_log(MXFS_LOG_DEBUG,
 					    "mxfs: P109-CLR-RELEASE-ALL type=%s "
 					    "id=%llu cur_gm=%u slot=%u cas_rc=%d",
 					    cur_slot->resource.type ==
@@ -13086,7 +13086,7 @@ static void caw_release_all_body(struct mxfs_dlm_caw_ctx *ctx,
 				last_rc = rc;
 				if (rc == 0)
 					cleared = true;
-				/* sess154 (P248 fix B): see io_retry above. */
+				/* (P248 fix B): see io_retry above. */
 				if (rc == -ESHUTDOWN && io_retry < 1) {
 					io_retry++;
 					ctx->lreq_rel_ioretry++;
@@ -13097,7 +13097,7 @@ static void caw_release_all_body(struct mxfs_dlm_caw_ctx *ctx,
 			}
 
 			/*
-			 * sess380 (D-HOT-SLOT-CAW-SERIALIZES-LUN-PER-LBA-379):
+			 * (D-HOT-SLOT-CAW-SERIALIZES-LUN-PER-LBA-379):
 			 * this loop is the suspected O(N^2) amplifier of the
 			 * mass-unmount hot-LBA storm — N departing nodes each
 			 * re-read and re-CAS the SAME shared slot with no
@@ -13109,12 +13109,12 @@ static void caw_release_all_body(struct mxfs_dlm_caw_ctx *ctx,
 			 * happened, so an uncontended departure prints nothing.
 			 */
 			if (retry > 0)
-				pr_warn("mxfs: P380-RA-CASRETRY node=%u slot=%u attempts=%d cleared=%d last_rc=%d\n",
+				mxfs_probe("mxfs: P380-RA-CASRETRY node=%u slot=%u attempts=%d cleared=%d last_rc=%d\n",
 					ctx->local_node, local_slots[i],
 					retry + 1, cleared ? 1 : 0, last_rc);
 
 			/*
-			 * sess131 (GPT sess130 ruling, step 3): a failed clear
+			 * (design-consult ruling, step 3): a failed clear
 			 * becomes an OBLIGATION, not a dropped slot.  The
 			 * untrack below is unconditional and always was — the
 			 * held list is torn down here regardless — so without
@@ -13142,7 +13142,7 @@ static void caw_release_all_body(struct mxfs_dlm_caw_ctx *ctx,
 
 			untrack_held(ctx, local_slots[i]);
 			/*
-			 * sess151 (D-RELEASEALL-LREQ-RETIRE-MISSING): mirror
+			 * (D-RELEASEALL-LREQ-RETIRE-MISSING): mirror
 			 * the single-resource unlock path — on a CONFIRMED
 			 * clear every local tenure on this resource is gone,
 			 * so retire the registry entry, guarded by the anchor
@@ -13165,7 +13165,7 @@ static void caw_release_all_body(struct mxfs_dlm_caw_ctx *ctx,
 	mxfs_pal_free(new_slot);
 
 	/*
-	 * sess134 (GPT sess133 ruling A3): the traversal FINISHED.  Set only
+	 * (design-consult ruling A3): the traversal FINISHED.  Set only
 	 * here, at the single exit that has actually walked the whole held list
 	 * — the NULL-ctx and allocation-failure exits above return without it,
 	 * and stop()'s verdict treats a false as fatal to the clean-departure
@@ -13187,7 +13187,7 @@ static void caw_release_all_body(struct mxfs_dlm_caw_ctx *ctx,
 			     "dlm_caw: all locks released for node %u",
 			     ctx->local_node);
 
-	/* sess154 (P248 fix B): positive observation that the in-line retry
+	/* (P248 fix B): positive observation that the in-line retry
 	 * ran.  Context-cumulative, so a second release_all pass reprints the
 	 * running total rather than losing the first pass's count. */
 	if (ctx->lreq_rel_ioretry)
@@ -13224,7 +13224,7 @@ int mxfs_dlm_caw_purge_node(struct mxfs_dlm_caw_ctx *ctx,
 	}
 
 	/*
-	 * sess70 (ccloop 14d31183) zero_silent_loss FIX — eviction-cascade
+	 * zero_silent_loss FIX — eviction-cascade
 	 * amplifier (instrument step 2b, PROVEN by the test1 stack:
 	 * disklock_hb_fn -> v5_lease_expire_cb -> mxfs_dlm_caw_purge_node ->
 	 * read_slot -> blk_execute_rq, D-state for tens of seconds while peers
@@ -13244,7 +13244,7 @@ int mxfs_dlm_caw_purge_node(struct mxfs_dlm_caw_ctx *ctx,
 	 */
 	dead_mask = 1ULL << dead_slot;
 
-	mxfs_pal_log(MXFS_LOG_WARN,
+	mxfs_pal_log(MXFS_LOG_DEBUG,
 		     "mxfs: P-H22-PURGE-NODE ENTRY dead_slot=%u (batched)",
 		     dead_slot);
 
@@ -13254,7 +13254,7 @@ int mxfs_dlm_caw_purge_node(struct mxfs_dlm_caw_ctx *ctx,
 /* ─── mxfs_dlm_caw_purge_dead_nodes ─── */
 
 /*
- * sess374 (sess363 design-consult ruling item A: "REUSE the full-purge mutation
+ * (design-consult ruling item A: "REUSE the full-purge mutation
  * discipline — do not fork the strip logic").  The exact field list, mode
  * recomputation, generation bump and stamp caw_purge_dead_nodes_body has
  * always applied, lifted verbatim so the selective closure purge and the
@@ -13272,7 +13272,7 @@ static bool caw_strip_node_state(struct mxfs_caw_lock_slot *ns, uint64_t mask,
 {
 	bool retained = false;
 
-	/* sess52 (step 4a): under KEEP_EX the EX/PW bits ARE the authority
+	/* (step 4a): under KEEP_EX the EX/PW bits ARE the authority
 	 * manifest — leave them (and ex_grant_epoch) untouched. */
 	if (!keep_ex) {
 		ns->holders_ex &= ~mask;
@@ -13284,9 +13284,9 @@ static bool caw_strip_node_state(struct mxfs_caw_lock_slot *ns, uint64_t mask,
 	ns->holders_cw &= ~mask;
 	ns->holders_cr &= ~mask;
 	ns->waiters &= ~mask;
-	ns->waiters_ex &= ~mask;	/* sess50 */
+	ns->waiters_ex &= ~mask;	/* */
 	ns->yield_to &= ~mask;
-	/* sess40: a fenced node can have no protected activity — strip its
+	/* a fenced node can have no protected activity — strip its
 	 * open-holder bits so deferred reaps of its opens converge. */
 	ns->open_holders &= ~mask;
 	ns->granted_mode = recompute_granted_mode(ns);
@@ -13297,7 +13297,7 @@ static bool caw_strip_node_state(struct mxfs_caw_lock_slot *ns, uint64_t mask,
 }
 
 /*
- * sess374: the FULL footprint of one node on a slot — every field
+ * the FULL footprint of one node on a slot — every field
  * caw_strip_node_state clears.  caw_purge_candidate below is deliberately
  * narrower (it is a full-purge cost optimization and predates waiters_ex /
  * yield_to), so the selective paths must NOT reuse it: a slot whose only
@@ -13313,7 +13313,7 @@ static uint64_t caw_victim_state_mask(const struct mxfs_caw_lock_slot *s,
 }
 
 /*
- * sess375: WHICH of the nine fields carried the victim on this image.  The
+ * WHICH of the nine fields carried the victim on this image.  The
  * strip logs it so a test can assert the SHAPE that was cleared, not merely
  * that something was: the ruling's waiter-only and open-holder-only hazards
  * are indistinguishable from an EX strip in the old log line.  Derived from
@@ -13350,7 +13350,7 @@ static uint32_t caw_victim_footprint(const struct mxfs_caw_lock_slot *s,
 }
 
 /*
- * sess375: per-attempt observation record for one closure strip.  It exists so
+ * per-attempt observation record for one closure strip.  It exists so
  * a reuse-race run can be reported as "the hazard was exercised" or "the
  * hazard never fired" rather than as an undifferentiated pass — a run that
  * survives a race it never actually hit proves nothing.
@@ -13379,7 +13379,7 @@ static bool caw_resource_same(const struct mxfs_resource_id *a,
 }
 
 /*
- * sess52: does this slot carry anything the purge would strip?
+ * does this slot carry anything the purge would strip?
  *
  * Under keep_ex the EX/PW holder bits are being RETAINED, so on their
  * own they are not a reason to touch the slot — only the modes and
@@ -13434,7 +13434,7 @@ static int caw_purge_dead_nodes_body(struct mxfs_dlm_caw_ctx *ctx,
 	uint32_t slot;
 	int purged = 0;
 	/*
-	 * sess59 (GPT sess57 review item 6D): completeness accounting.
+	 * (design review item 6D): completeness accounting.
 	 *
 	 * Every per-slot failure below used to be a silent `continue` or
 	 * `break`, and the function still returned a success-shaped count.
@@ -13456,7 +13456,7 @@ static int caw_purge_dead_nodes_body(struct mxfs_dlm_caw_ctx *ctx,
 		return 0;
 
 	/*
-	 * sess53: SKIP_TRACKED's whole safety argument is that ctx->held is a
+	 * SKIP_TRACKED's whole safety argument is that ctx->held is a
 	 * COMPLETE record of what this mount holds.  If any grant ever failed
 	 * to record itself, it is not, and an untracked bit may be a live
 	 * hold — purging it would strip authority from under a holder.
@@ -13489,7 +13489,7 @@ static int caw_purge_dead_nodes_body(struct mxfs_dlm_caw_ctx *ctx,
 	mxfs_pal_log(MXFS_LOG_DEBUG,
 		     "dlm_caw: mount-time purge for dead_mask 0x%llx",
 		     (unsigned long long)dead_mask);
-	mxfs_pal_log(MXFS_LOG_WARN,
+	mxfs_pal_log(MXFS_LOG_DEBUG,
 		     "mxfs: P-H22-PURGE-MASK ENTRY dead_mask=0x%llx",
 		     (unsigned long long)dead_mask);
 
@@ -13520,11 +13520,11 @@ static int caw_purge_dead_nodes_body(struct mxfs_dlm_caw_ctx *ctx,
 
 				if (cand->magic != MXFS_CAW_MAGIC)
 					continue;
-				/* sess52: never strip a slot this mount is
+				/* never strip a slot this mount is
 				 * actively holding (settle sweep). */
 				if (skip_tracked && is_tracked_held(ctx, sidx))
 					continue;
-				/* sess41 (PROVEN opener_death): a dead node
+				/* (PROVEN opener_death): a dead node
 				 * whose only footprint is an OPEN-HOLDER bit
 				 * (publish-then-release is the NORMAL open-
 				 * unlink shape) was skipped here, so the
@@ -13581,7 +13581,7 @@ static int caw_purge_dead_nodes_body(struct mxfs_dlm_caw_ctx *ctx,
 				/* Re-confirm on the authoritative copy — a
 				 * concurrent purge may have cleared the bits.
 				 *
-				 * sess52: also re-test tracking here.  The
+				 * also re-test tracking here.  The
 				 * settle sweep races an in-flight adopt, which
 				 * CASes the slot and calls track_held; if it
 				 * won that race between our candidacy test and
@@ -13593,7 +13593,7 @@ static int caw_purge_dead_nodes_body(struct mxfs_dlm_caw_ctx *ctx,
 							 keep_ex))
 					break;
 
-				mxfs_pal_log(MXFS_LOG_WARN,
+				mxfs_pal_log(MXFS_LOG_DEBUG,
 					"mxfs: P-H22-PURGE-MASK SLOT slot=%u "
 					"res_type=%u res_ino=%llu res_ag=%u"
 					"dead_mask=0x%llx cur_hex=%llx",
@@ -13609,9 +13609,9 @@ static int caw_purge_dead_nodes_body(struct mxfs_dlm_caw_ctx *ctx,
 					retained++;
 
 				/* Tombstone the slot if completely empty
-				 * (sess40: live peers' open bits keep it).
+				 * (live peers' open bits keep it).
 				 *
-				 * sess52: NEVER under KEEP_EX.  A retained
+				 * NEVER under KEEP_EX.  A retained
 				 * EX/PW bit keeps slot_has_holders() true so
 				 * this cannot fire for the slots we care
 				 * about, but the guard is explicit because
@@ -13619,7 +13619,7 @@ static int caw_purge_dead_nodes_body(struct mxfs_dlm_caw_ctx *ctx,
 				 * no-holder image, and the retained EX/PW bit
 				 * IS the foreign-replay authority manifest
 				 * this whole mode exists to preserve.
-				 * (sess108: the tombstone now CARRIES
+				 * (the tombstone now CARRIES
 				 * ex_grant_epoch, so the token itself survives,
 				 * but the holder bits do not — the guard stands
 				 * unchanged.) */
@@ -13689,13 +13689,13 @@ static int caw_purge_dead_nodes_body(struct mxfs_dlm_caw_ctx *ctx,
 		     "dlm_caw: mount-time purge complete: %d stale lock slots cleared",
 		     purged);
 	if (flags)
-		mxfs_pal_log(MXFS_LOG_WARN,
+		mxfs_pal_log(MXFS_LOG_DEBUG,
 			     "mxfs: P-H22-PURGE-MASK DONE mask=0x%llx flags=0x%x "
 			     "purged=%d retained_ex=%d",
 			     (unsigned long long)dead_mask, flags,
 			     purged, retained);
 
-	/* sess59 item 6D: an incomplete purge is not a purge.  Report it so
+	/* item 6D: an incomplete purge is not a purge.  Report it so
 	 * no caller publishes recovery on the strength of leftover bits. */
 	if (unread || wfail) {
 		mxfs_pal_log(MXFS_LOG_ERR,
@@ -13732,13 +13732,13 @@ int mxfs_dlm_caw_purge_dead_nodes_ex(struct mxfs_dlm_caw_ctx *ctx,
 /* ─── selective out-of-closure purge + survivor-side scrub ─── */
 
 /*
- * sess374 (D-REFUSAL-GRANT-FREEZE-OUT-OF-CLOSURE-356, sess363 design-consult ruling).
+ * (D-REFUSAL-GRANT-FREEZE-OUT-OF-CLOSURE-356, design-consult ruling).
  *
  * When a foreign-slice replay is REFUSED, the victim's domain is quarantined
  * cluster-wide and its grants stay frozen ON PURPOSE — that is what the
  * quarantine is.  But the victim also holds grants on resources the refusal
  * says nothing about (the root inode's EX from an AG-scoped refusal is the
- * measured case, sess356: every clean umount then took -110 and the cluster
+ * measured case, every clean umount then took -110 and the cluster
  * shut down).  Those are provably OUT of the closure and must be revoked, or
  * a bounded, correctly-scoped refusal keeps costing the whole fleet.
  *
@@ -13781,13 +13781,13 @@ int mxfs_dlm_caw_purge_dead_nodes_ex(struct mxfs_dlm_caw_ctx *ctx,
  * before any mutation.  Returns 1 if a CAS landed, 0 if the slot needed
  * nothing (or the classifier kept it), <0 on error/abort.
  */
-/* sess376: which chokepoint drove this strip — see
+/* which chokepoint drove this strip — see
  * mxfs_caw_inject_closure_pause_who and the P299-SCRUB-TRY census. */
 #define MXFS_CAW_STRIP_WHO_SCAN		1
 #define MXFS_CAW_STRIP_WHO_SCRUB	2
 
 /*
- * sess376 (design-consult review): every strip attempt gets an id.  The injected pause
+ * (design-consult review): every strip attempt gets an id.  The injected pause
  * and the per-attempt outcome lines are otherwise correlated only by slot and
  * caller, which is inferential once two callers can be inside the same slot at
  * once — exactly the interleaving these tests construct.
@@ -13818,7 +13818,7 @@ static int caw_closure_strip_one(struct mxfs_dlm_caw_ctx *ctx,
 		int cls;
 		int rc;
 
-		/* sess375 hazard hook: widen the hint -> authoritative-read
+		/* hazard hook: widen the hint -> authoritative-read
 		 * window so real concurrent code can tombstone and re-bind the
 		 * slot inside it.  Timing only; no image is written here. */
 		if (retry == 0 && mxfs_caw_inject_closure_pause_where == 1 &&
@@ -13827,7 +13827,7 @@ static int caw_closure_strip_one(struct mxfs_dlm_caw_ctx *ctx,
 		    (mxfs_caw_inject_closure_pause_who == 0 ||
 		     mxfs_caw_inject_closure_pause_who == who) &&
 		    caw_inject_take(&mxfs_caw_inject_closure_pause_n)) {
-			mxfs_pal_log(MXFS_LOG_WARN,
+			mxfs_pal_log(MXFS_LOG_DEBUG,
 			    "mxfs: P299-INJECT-PAUSE slot=%u inv=%u who=%d "
 			    "where=1 ms=%d — hint->authoritative-read window "
 			    "widened for this caller",
@@ -13848,7 +13848,7 @@ static int caw_closure_strip_one(struct mxfs_dlm_caw_ctx *ctx,
 		    !caw_resource_same(hint, &cur->resource)) {
 			obs->hint_res_moved++;
 			/*
-			 * sess376: the aggregate counter is accumulated over a
+			 * the aggregate counter is accumulated over a
 			 * WHOLE 65536-slot scan, so "moved=1" on the summary
 			 * line names no slot and no resource.  This names both,
 			 * plus the identity fields a reuse claim rests on
@@ -13856,7 +13856,7 @@ static int caw_closure_strip_one(struct mxfs_dlm_caw_ctx *ctx,
 			 * a fresh random 64-bit id for a fresh binding and is
 			 * inherited only by a same-resource tombstone recycle).
 			 */
-			mxfs_pal_log(MXFS_LOG_WARN,
+			mxfs_pal_log(MXFS_LOG_DEBUG,
 			    "mxfs: P299-HINT-MOVED slot=%u inv=%u who=%d "
 			    "hint_type=%u hint_ino=%llu found_type=%u "
 			    "found_ino=%llu gen=%u lineage=0x%llx "
@@ -13892,7 +13892,7 @@ static int caw_closure_strip_one(struct mxfs_dlm_caw_ctx *ctx,
 			if (obs && hint &&
 			    !caw_resource_same(hint, &cur->resource)) {
 				obs->class_flipped++;
-				mxfs_pal_log(MXFS_LOG_WARN,
+				mxfs_pal_log(MXFS_LOG_DEBUG,
 				    "mxfs: P299-HINT-FLIPPED slot=%u inv=%u "
 				    "who=%d hint_ino=%llu found_ino=%llu "
 				    "gen=%u lineage=0x%llx — reused slot "
@@ -13928,7 +13928,7 @@ static int caw_closure_strip_one(struct mxfs_dlm_caw_ctx *ctx,
 		    !new->open_holders)
 			caw_tombstone_slot(new);
 
-		/* sess375 hazard hook: widen the gate -> CAS window.  The CAS
+		/* hazard hook: widen the gate -> CAS window.  The CAS
 		 * compares the WHOLE image, so anything that lands here must
 		 * miscompare and force a re-read + re-classify. */
 		if (mxfs_caw_inject_closure_pause_where == 2 &&
@@ -13937,7 +13937,7 @@ static int caw_closure_strip_one(struct mxfs_dlm_caw_ctx *ctx,
 		    (mxfs_caw_inject_closure_pause_who == 0 ||
 		     mxfs_caw_inject_closure_pause_who == who) &&
 		    caw_inject_take(&mxfs_caw_inject_closure_pause_n)) {
-			mxfs_pal_log(MXFS_LOG_WARN,
+			mxfs_pal_log(MXFS_LOG_DEBUG,
 			    "mxfs: P299-INJECT-PAUSE slot=%u inv=%u who=%d "
 			    "where=2 ms=%d — gate->CAS window widened for this "
 			    "caller", slot_idx, inv, who,
@@ -13958,14 +13958,14 @@ static int caw_closure_strip_one(struct mxfs_dlm_caw_ctx *ctx,
 			if (obs)
 				obs->cas_miscompare++;
 			/*
-			 * sess376 ABA evidence: the CAS compares the WHOLE
+			 * ABA evidence: the CAS compares the WHOLE
 			 * image, so a miscompare means the slot moved between
 			 * our authoritative read and the write.  Log the image
 			 * we expected — the retry re-reads and re-classifies,
 			 * and the pair of lines is what shows a stale expected
 			 * image can never be re-satisfied by a rebind.
 			 */
-			mxfs_pal_log(MXFS_LOG_WARN,
+			mxfs_pal_log(MXFS_LOG_DEBUG,
 			    "mxfs: P299-STRIP-CASMISS slot=%u inv=%u who=%d "
 			    "retry=%d expect_ino=%llu expect_gen=%u "
 			    "expect_lineage=0x%llx expect_vfoot=0x%x",
@@ -14039,7 +14039,7 @@ static int caw_purge_victim_selective_body(struct mxfs_dlm_caw_ctx *ctx,
 	}
 	batch = mxfs_pal_alloc((size_t)BATCH_SLOTS * MXFS_CAW_SLOT_SIZE);
 
-	mxfs_pal_log(MXFS_LOG_WARN,
+	mxfs_pal_log(MXFS_LOG_DEBUG,
 		     "mxfs: P299-CLOSURE-SCAN ENTRY victim_slot=%u bit=0x%llx",
 		     victim_slot, (unsigned long long)victim_bit);
 
@@ -14069,7 +14069,7 @@ static int caw_purge_victim_selective_body(struct mxfs_dlm_caw_ctx *ctx,
 							   victim_bit))
 					continue;
 				/* Copy it out: `batch` is reused per chunk and
-				 * the strip may sleep at the sess375 hook. */
+				 * the strip may sleep at the hook. */
 				hint_res = batch[i].resource;
 				hint = &hint_res;
 			} else {
@@ -14104,7 +14104,7 @@ static int caw_purge_victim_selective_body(struct mxfs_dlm_caw_ctx *ctx,
 					vf_waiter_only++;
 				if (obs.vfoot == MXFS_CAW_VFOOT_OPEN)
 					vf_open_only++;
-				mxfs_pal_log(MXFS_LOG_WARN,
+				mxfs_pal_log(MXFS_LOG_DEBUG,
 				    "mxfs: P299-CLOSURE-STRIP slot=%u type=%u "
 				    "ino=%llu ag=%u victim_slot=%u vfoot=0x%x",
 				    sidx, cur_slot->resource.type,
@@ -14155,12 +14155,12 @@ static int caw_purge_victim_selective_body(struct mxfs_dlm_caw_ctx *ctx,
 	    victim_slot, purged, kept, unread, wfail, abort_rc);
 
 	/*
-	 * sess375: what SHAPES were cleared, and whether the reuse hazard was
+	 * what SHAPES were cleared, and whether the reuse hazard was
 	 * actually exercised.  A reuse-race run that shows moved=0 flipped=0
 	 * vanished=0 did NOT hit the hazard and must be reported as such, not
 	 * as a pass — surviving a race you never ran is not evidence.
 	 */
-	mxfs_pal_log(MXFS_LOG_WARN,
+	mxfs_pal_log(MXFS_LOG_DEBUG,
 	    "mxfs: P299-CLOSURE-SHAPES victim_slot=%u waiter_only=%u "
 	    "open_only=%u | hint vanished=%u bit_gone=%u moved=%u flipped=%u "
 	    "cas_miscompare=%u",
@@ -14266,12 +14266,12 @@ static int caw_closure_scrub_slot(struct mxfs_dlm_caw_ctx *ctx,
 	int bit;
 	struct caw_closure_obs obs = { 0 };
 	/*
-	 * sess376 (D-CLOSURE-DEMAND-SCRUB-NOT-FIRING-FOR-BLOCKED-WAITER-375,
+	 * (D-CLOSURE-DEMAND-SCRUB-NOT-FIRING-FOR-BLOCKED-WAITER-375,
 	 * instrument step 1).  A demand scrub that strips nothing is SILENT: every
 	 * "keep", "already clean" and "slot moved" answer returns 0 with no
 	 * log, so a waiter that ran to its timeout could not be distinguished
 	 * from one whose hook was never entered at all.  That ambiguity is
-	 * what made sess375 record an unproven mechanism.  This census fires
+	 * what made record an unproven mechanism.  This census fires
 	 * once per scrub ATTEMPT — i.e. only while a terminal refusal verdict
 	 * for a node blocking THIS slot has actually been imported, so it is
 	 * silent on a healthy cluster — and names the chokepoint, the wait's
@@ -14336,7 +14336,7 @@ static int caw_closure_scrub_slot(struct mxfs_dlm_caw_ctx *ctx,
 					   MXFS_CAW_STRIP_WHO_SCRUB);
 		if (rc == 1) {
 			stripped++;
-			mxfs_pal_log(MXFS_LOG_WARN,
+			mxfs_pal_log(MXFS_LOG_DEBUG,
 			    "mxfs: P299-SCRUB-STRIP slot=%u victim_slot=%d "
 			    "type=%u ino=%llu ag=%u vfoot=0x%x — blocking "
 			    "out-of-closure state force-revoked on demand",
@@ -14366,7 +14366,7 @@ static int caw_closure_scrub_slot(struct mxfs_dlm_caw_ctx *ctx,
 		static int scrub_try_n;
 
 		if (scrub_try_n++ < 20000)
-			mxfs_pal_log(MXFS_LOG_WARN,
+			mxfs_pal_log(MXFS_LOG_DEBUG,
 			    "mxfs: P299-SCRUB-TRY site=%s slot=%u type=%u "
 			    "ino=%llu el_ms=%llu cand=0x%llx stripped=%d "
 			    "kept=%u vanished=%u bit_gone=%u res_moved=%u "
@@ -14386,7 +14386,7 @@ static int caw_closure_scrub_slot(struct mxfs_dlm_caw_ctx *ctx,
 }
 
 /*
- * sess58 (D-FOREIGN-REPLAY step 4a, GPT review item 6A) — read-only census
+ * (D-FOREIGN-REPLAY step 4a, design review item 6A) — read-only census
  * of what a set of node slots still owns in the shared table.
  *
  * The mount recovery barrier needs to know whether a node it has confirmed
@@ -14481,14 +14481,14 @@ int mxfs_dlm_caw_footprint_scan(struct mxfs_dlm_caw_ctx *ctx,
 
 	if (out_ex)
 		*out_ex = nex;
-	mxfs_pal_log(MXFS_LOG_WARN,
+	mxfs_pal_log(MXFS_LOG_DEBUG,
 		     "mxfs: P227-FOOTPRINT mask=0x%llx slots=%d of_which_ex_pw=%d",
 		     (unsigned long long)node_mask, nfound, nex);
 	return nfound;
 }
 
 /*
- * sess405 — see dlm_caw.h.  Bulk read in 128-slot (64 KiB) chunks through a
+ * — see dlm_caw.h.  Bulk read in 128-slot (64 KiB) chunks through a
  * kmalloc bounce buffer (the prio read path issues a SCSI READ(16) on the
  * buffer, so no vmalloc memory); per-slot fallback on a chunk failure, and
  * ANY unread slot fails the whole collection closed.
@@ -14507,7 +14507,7 @@ int mxfs_dlm_caw_manifest_collect(struct mxfs_dlm_caw_ctx *ctx,
 }
 
 /*
- * sess442: the collector proper, on a bare device + lock-region offset.  The
+ * the collector proper, on a bare device + lock-region offset.  The
  * whole-cluster bootstrap OWNER fences every victim BEFORE it has a CAW
  * engine (no slot, no grants, no monitor — §6.4), and 0.47.0 sealed its
  * fence-time manifests as NO_CAW_TABLE: the replay evaluator then answered
@@ -14624,7 +14624,7 @@ int mxfs_dlm_caw_manifest_collect_dev(mxfs_bdev_t *dev,
 	*out_count = n;
 	if (out_scanned)
 		*out_scanned = nscanned;
-	mxfs_pal_log(MXFS_LOG_WARN,
+	mxfs_pal_log(MXFS_LOG_DEBUG,
 		     "mxfs: P-RMAN-COLLECT victim_slot=%u scanned=%u entries=%u "
 		     "ex=%u pw=%u",
 		     victim_slot, nscanned, n, ex_n, pw_n);
@@ -14681,7 +14681,7 @@ int mxfs_dlm_caw_test_mutate_protected(struct mxfs_dlm_caw_ctx *ctx,
 	return rc;
 }
 
-/* ─── sess128 BAST dispatch queue ─── */
+/* ─── BAST dispatch queue ─── */
 
 /*
  * The CONSERVATIVE JOIN of two requested modes.
@@ -14909,7 +14909,7 @@ static void caw_bast_submit(struct mxfs_dlm_caw_ctx *ctx,
 		ctx->bq.fastpoll_until_ms = mxfs_pal_time_ms() +
 					    MXFS_CAW_BASTQ_FASTPOLL_MS;
 		mxfs_pal_mutex_unlock(ctx->bq.lock);
-		pr_warn_ratelimited(
+		mxfs_probe_ratelimited(
 		    "mxfs: P264-BASTQ-FULL ino=%llu type=%u mode=%u — BAST dispatch queue exhausted (%u entries), hint dropped; disk poll pinned FAST for %ums\n",
 			(unsigned long long)resource->ino, resource->type,
 			requested_mode, (unsigned)MXFS_CAW_BASTQ_ENTRIES,
@@ -15109,7 +15109,7 @@ static void bast_poll_fn(void *data)
 		}
 
 		/*
-		 * 0.41.1 (sess434, D-0354 candidate A stop-ship 3 — design-consult
+		 * 0.41.1 (D-0354 candidate A stop-ship 3 — design-consult
 		 * ruling: poll UNCONDITIONALLY).  The former `if (single_node)
 		 * continue;` made a lone node blind to revokes until its
 		 * discovery callback had heard a joiner: a joiner's conflicting
@@ -15166,7 +15166,7 @@ static void bast_poll_fn(void *data)
 			our_mode = node_held_mode(&slot, ctx->node_bit);
 
 			/*
-			 * sess50 detector: catch an incompatible CO-HOLD that no
+			 * detector: catch an incompatible CO-HOLD that no
 			 * waiter exists for.  The waiter-driven BAST below cannot
 			 * resolve a state where a peer already HOLDS a mode
 			 * incompatible with ours (e.g. we cache PR, a peer holds
@@ -15237,7 +15237,7 @@ static void bast_poll_fn(void *data)
 			 */
 			if (slot.revoke && our_mode != MXFS_LOCK_NL &&
 			    !lock_compat[our_mode][MXFS_LOCK_EX]) {
-				pr_warn_ratelimited("mxfs: P280-REVOKE-RX type=%u ag=%u ino=%llu our_mode=%u h_ex=%llx waiters=%llx gen=%llu — sticky revoke; demoting\n",
+				mxfs_probe_ratelimited("mxfs: P280-REVOKE-RX type=%u ag=%u ino=%llu our_mode=%u h_ex=%llx waiters=%llx gen=%llu — sticky revoke; demoting\n",
 					slot.resource.type,
 					slot.resource.ag_number,
 					(unsigned long long)slot.resource.ino,
@@ -15262,7 +15262,7 @@ static void bast_poll_fn(void *data)
 			if (our_mode == MXFS_LOCK_NL)
 				continue;
 
-			/* sess50 starvation probe (no extra I/O — uses the slot
+			/* starvation probe (no extra I/O — uses the slot
 			 * already read above): we hold a mode and a peer is
 			 * waiting for an incompatible one.  If this fires
 			 * repeatedly for the SAME inode during a barrier stall,
@@ -15270,7 +15270,7 @@ static void bast_poll_fn(void *data)
 			 * continuous compatible re-grants. */
 			if (slot.resource.type == MXFS_LTYPE_INODE &&
 			    !lock_compat[our_mode][slot.waiter_mode])
-				pr_warn_ratelimited("mxfs: SESS50-STARVE ino=%llu our_mode=%u waiter_mode=%u waiters=%llx waiters_ex=%llx h_ex=%llx h_pr=%llx gen=%llu\n",
+				mxfs_probe_ratelimited("mxfs: SESS50-STARVE ino=%llu our_mode=%u waiter_mode=%u waiters=%llx waiters_ex=%llx h_ex=%llx h_pr=%llx gen=%llu\n",
 					(unsigned long long)slot.resource.ino,
 					our_mode, slot.waiter_mode,
 					(unsigned long long)slot.waiters,
@@ -15281,7 +15281,7 @@ static void bast_poll_fn(void *data)
 
 			if (!lock_compat[our_mode][slot.waiter_mode]) {
 				/*
-				 * Conflict.  sess128: SUBMIT, do not call.
+				 * Conflict.  SUBMIT, do not call.
 				 * Before this the poll thread ran the callback
 				 * inline, which (a) let it race the UDP recv
 				 * thread's callback for the SAME resource with
@@ -15305,7 +15305,7 @@ static void bast_poll_fn(void *data)
 		 * 200 ms cadence in that case.
 		 */
 		/*
-		 * sess128: an overflowed dispatch queue means a hint was
+		 * an overflowed dispatch queue means a hint was
 		 * DROPPED, and this poll is the channel that has to find the
 		 * conflict instead.  Relaxing to 4000ms right after losing a
 		 * hint is the opposite of what the loss calls for, so hold
@@ -15379,15 +15379,15 @@ static void bast_recv_fn(void *data)
 		if (!mxfs_static_peers_admit(&ctx->bast_peers, sender_host))
 			continue;
 
-		/* sess35 NUDGE v2: accept the v1-sized prefix too — the
+		/* NUDGE v2: accept the v1-sized prefix too — the
 		 * wake_mask tail is optional (validated below before use),
 		 * so a v1 sender's packet still parses. */
 		if (len < (int)offsetof(struct mxfs_caw_bast_notify,
 					wake_mask))
 			continue;
-		/* ccloop 72513a13 sess3: GRANT NUDGE — wake every blocked
+		/*  GRANT NUDGE — wake every blocked
 		 * acquirer on this node so they re-read their slot NOW.
-		 * sess35: v2 nudges carry wake_mask so only nodes that can
+		 * v2 nudges carry wake_mask so only nodes that can
 		 * act re-read; see caw_nudge_ring_wants_wake. */
 		if (msg.magic == MXFS_GRANT_MAGIC) {
 			if (msg.requester == ctx->local_node)
@@ -15399,7 +15399,7 @@ static void bast_recv_fn(void *data)
 
 				mxfs_pal_mutex_lock(ctx->nudge_lock);
 				ctx->nudge_seq++;
-				/* sess35 NUDGE v2: record what this nudge is
+				/* NUDGE v2: record what this nudge is
 				 * about so woken waiters can judge relevance
 				 * without a disk read.  v1 senders (or short
 				 * packets) get version=1 = wake-all. */
@@ -15430,7 +15430,7 @@ static void bast_recv_fn(void *data)
 		/*
 		 * A remote node wants a lock on this resource.
 		 *
-		 * sess128: SUBMIT, do not call.  This used to invoke
+		 * SUBMIT, do not call.  This used to invoke
 		 * ctx->bast_cb inline, and that callback reaches a shared-LUN
 		 * SCSI read (and on the no-inode path a whole release
 		 * pipeline).  On one thread, against ~19 waiters x 32 nodes
@@ -15450,7 +15450,7 @@ static void bast_recv_fn(void *data)
 /* ─── Lifecycle ─── */
 
 /*
- * sess135: ONE unwind for every mxfs_dlm_caw_create() failure path.
+ * ONE unwind for every mxfs_dlm_caw_create failure path.
  *
  * The context is memset to zero the instant it is allocated, so every pointer
  * this touches is either live or NULL, and every PAL destructor is NULL-safe
@@ -15528,7 +15528,7 @@ struct mxfs_dlm_caw_ctx *mxfs_dlm_caw_create(mxfs_bdev_t *dev,
 	}
 
 	/*
-	 * v5 sess33: clamp max_held.  0 = use compile-time default;
+	 * v5 clamp max_held.  0 = use compile-time default;
 	 * MXFS_CAW_MAX_SLOTS is the on-disk ceiling and the absolute
 	 * upper bound for any value.
 	 */
@@ -15595,7 +15595,7 @@ struct mxfs_dlm_caw_ctx *mxfs_dlm_caw_create(mxfs_bdev_t *dev,
 	ctx->mem_lock_count = 0;
 	ctx->single_node = false;
 
-	/* sess128 BAST dispatch queue.  Optional like the caches below: a
+	/* BAST dispatch queue.  Optional like the caches below: a
 	 * failed allocation degrades caw_bast_submit() to the pre-sess128
 	 * inline callback on the producer thread (counted in bq.inline_cb),
 	 * it does not fail create. */
@@ -15652,7 +15652,7 @@ struct mxfs_dlm_caw_ctx *mxfs_dlm_caw_create(mxfs_bdev_t *dev,
 	}
 
 	/*
-	 * sess112 local request registry.  Unlike the caches above, this table
+	 * local request registry.  Unlike the caches above, this table
 	 * is NOT optional-degradable at use time: lreq_join returns NULL when
 	 * it is absent and every acquire path then refuses with -ENOMEM rather
 	 * than run on an unsound "nobody else is here" reading.  Allocation is
@@ -15667,7 +15667,7 @@ struct mxfs_dlm_caw_ctx *mxfs_dlm_caw_create(mxfs_bdev_t *dev,
 		ctx->lreq_lock = mxfs_pal_mutex_create();
 		ctx->lreq_cond = mxfs_pal_cond_create();
 		if (ctx->lreq_lock && ctx->lreq_cond)
-			/* sess120: prime the destructive-clear reserve HERE,
+			/* prime the destructive-clear reserve HERE,
 			 * the one context in which allocating for it is
 			 * unambiguously safe.  See ctx->lreq_reserve. */
 			lreq_reserve_fill(ctx, MXFS_CAW_LREQ_RESERVE);
@@ -15682,7 +15682,7 @@ struct mxfs_dlm_caw_ctx *mxfs_dlm_caw_create(mxfs_bdev_t *dev,
 	}
 	if (!ctx->lreq) {
 		/*
-		 * sess114 (GPT ruling item 10): FAIL THE MOUNT.  This used to
+		 * (design-consult ruling item 10): FAIL THE MOUNT.  This used to
 		 * log and continue, which produced a mounted filesystem in
 		 * which every single disk-lock acquisition returns -ENOMEM —
 		 * not a designed degraded mode, just an unusable mount that
@@ -15705,7 +15705,7 @@ struct mxfs_dlm_caw_ctx *mxfs_dlm_caw_create(mxfs_bdev_t *dev,
 		goto err;
 	}
 
-	/* ccloop 72513a13 sess3: grant-nudge condvar.  Allocation failure is
+	/*  grant-nudge condvar.  Allocation failure is
 	 * non-fatal — caw_nudge_wait falls back to plain sleep_ms. */
 	ctx->nudge_lock = mxfs_pal_mutex_create();
 	ctx->nudge_cond = mxfs_pal_cond_create();
@@ -15734,7 +15734,7 @@ err:
 }
 
 /*
- * sess134 (GPT sess133 ruling A3): the lifecycle transitions live here, and a
+ * (design-consult ruling A3): the lifecycle transitions live here, and a
  * failed start lands in MXFS_CAW_LC_START_FAILED rather than back in NEW.
  *
  * The distinction is not cosmetic.  A start that unwound may have left
@@ -15766,7 +15766,7 @@ int mxfs_dlm_caw_start(struct mxfs_dlm_caw_ctx *ctx)
 	ctx->running = true;
 
 	/*
-	 * sess128: the BAST dispatchers come up FIRST, before either producer,
+	 * the BAST dispatchers come up FIRST, before either producer,
 	 * so no submission can land on a queue with nobody draining it.  The
 	 * ordering is the mirror image of teardown (producers die first, then
 	 * the workers that consume what they left).
@@ -15813,7 +15813,7 @@ int mxfs_dlm_caw_start(struct mxfs_dlm_caw_ctx *ctx)
 	}
 
 	/*
-	 * sess125: the owed-cleanup worker.  FAILING THE START IS DELIBERATE.
+	 * the owed-cleanup worker.  FAILING THE START IS DELIBERATE.
 	 * It is the only collector of obligations to clear this node's slot
 	 * bits, and an obligation that is never collected leaves an EX-waiter
 	 * bit behind that makes every peer defer fresh readers behind a request
@@ -15835,7 +15835,7 @@ int mxfs_dlm_caw_start(struct mxfs_dlm_caw_ctx *ctx)
 			 * runs on against a ctx the caller is about to tear
 			 * down.
 			 *
-			 * sess134 (ruling A1's second hole): BOUNDED.  A
+			 * (ruling A1's second hole): BOUNDED.  A
 			 * failed-start unwind that blocks forever on a wedged
 			 * transient thread makes every later waiter for
 			 * `lc != STARTING` unbounded too, and that thread holds
@@ -15931,7 +15931,7 @@ bool mxfs_dlm_caw_departed_clean(struct mxfs_dlm_caw_ctx *ctx)
 	if (!ctx->lreq_lock)
 		return ctx->departed_clean;
 
-	/* sess134 (ruling A1): the owner's STORED verdict, under the lock that
+	/* (ruling A1): the owner's STORED verdict, under the lock that
 	 * publishes it together with MXFS_CAW_LC_STOPPED. */
 	mxfs_pal_mutex_lock(ctx->lreq_lock);
 	v = ctx->departed_clean;
@@ -15940,7 +15940,7 @@ bool mxfs_dlm_caw_departed_clean(struct mxfs_dlm_caw_ctx *ctx)
 }
 
 /*
- * sess132 (GPT sess130 ruling, step 5).  Both setters take lreq_lock: the
+ * (design-consult ruling, step 5).  Both setters take lreq_lock: the
  * escalation paths read these fields under it, and the membership setter is
  * called from the v5 membership callback, which is a different thread entirely.
  * A ctx with no registry has no escalation machinery, so there is nothing to
@@ -15994,7 +15994,7 @@ bool mxfs_dlm_caw_unsafe_to_free(struct mxfs_dlm_caw_ctx *ctx)
 }
 
 /*
- * ─── sess131 (GPT sess130 ruling, blockers 2 + 3): TEARDOWN ───
+ * ─── (design-consult ruling, blockers 2 + 3): TEARDOWN ───
  *
  * WHAT THIS FUNCTION HAS TO PROVE, and why the order is not negotiable.
  *
@@ -16007,7 +16007,7 @@ bool mxfs_dlm_caw_unsafe_to_free(struct mxfs_dlm_caw_ctx *ctx)
  * the instant the worker's main loop ended, i.e. before release_all had
  * contributed to the obligation set it was draining.
  *
- * GPT's ruling identified the race that makes the ordering mandatory, and it
+ * design review's ruling identified the race that makes the ordering mandatory, and it
  * exists in the pre-sess131 code:
  *
  *      release_all clears every holder bit
@@ -16034,7 +16034,7 @@ bool mxfs_dlm_caw_unsafe_to_free(struct mxfs_dlm_caw_ctx *ctx)
  * and destroy the very claim the census makes, and freeing the ctx under an
  * operation still inside it is a use-after-free.
  *
- * ─── sess134 (GPT sess133 ruling B): AND IT DOES NOT WAIT FOREVER EITHER ───
+ * ─── (design-consult ruling B): AND IT DOES NOT WAIT FOREVER EITHER ───
  *
  * The pre-sess134 answer to that was "escalate loudly and keep waiting", which
  * is a permanent kernel hang wearing a diagnostic.  The bound is now explicit
@@ -16070,7 +16070,7 @@ void mxfs_dlm_caw_stop(struct mxfs_dlm_caw_ctx *ctx)
 		return;
 
 	/*
-	 * ─── sess134 (GPT sess133 ruling A1): ELECT THE TEARDOWN OWNER ───
+	 * ─── (design-consult ruling A1): ELECT THE TEARDOWN OWNER ───
 	 *
 	 * Exactly one caller runs the phases below.  Every other caller waits
 	 * for the owner to publish MXFS_CAW_LC_STOPPED and then returns, leaving
@@ -16136,7 +16136,7 @@ void mxfs_dlm_caw_stop(struct mxfs_dlm_caw_ctx *ctx)
 	/*
 	 * PHASE 1 — admission is already closed and the thread loops already
 	 * ended, both published INSIDE lreq_lock by the election above with the
-	 * work sequence bumped in the same section (sess127, blocker 6): the
+	 * work sequence bumped in the same section (blocker 6): the
 	 * owed worker's park predicate re-reads them under that lock, so a
 	 * worker preempted between its test and its park cannot sleep through
 	 * this.  It is also the release/acquire pairing that `volatile` alone
@@ -16174,7 +16174,7 @@ void mxfs_dlm_caw_stop(struct mxfs_dlm_caw_ctx *ctx)
 			uint64_t now = mxfs_pal_time_ms();
 
 			/*
-			 * sess134 (ruling B2): the FIRST expiry is the fault
+			 * (ruling B2): the FIRST expiry is the fault
 			 * detection point.  It latches — permanently — that this
 			 * departure cannot be clean, queues the force-shutdown
 			 * request, and arms the one final grace.  It does NOT
@@ -16253,7 +16253,7 @@ void mxfs_dlm_caw_stop(struct mxfs_dlm_caw_ctx *ctx)
 	 * consumer, it has parked on `drain_armed`, and it is the last thing to
 	 * leave.
 	 *
-	 * sess134 (ruling B1): BOUNDED joins.  These two threads are precisely
+	 * (ruling B1): BOUNDED joins.  These two threads are precisely
 	 * the ones that make an abandoning return unsafe — they call
 	 * ctx->bast_cb, which reaches into the XFS mount the VFS is about to
 	 * free — so their deadline is the same absolute one phase 2 uses and its
@@ -16266,7 +16266,7 @@ void mxfs_dlm_caw_stop(struct mxfs_dlm_caw_ctx *ctx)
 	caw_join_bounded(ctx, &ctx->bast_poll_thread, "bast_poll", esc_at);
 
 	/*
-	 * sess128: and only NOW the dispatchers.  Both producers are joined
+	 * and only NOW the dispatchers.  Both producers are joined
 	 * above, so nothing can submit any more; whatever is still queued is
 	 * abandoned deliberately, because a BAST callback issued after this
 	 * point would drive a release that publishes — the very thing phase 3
@@ -16292,7 +16292,7 @@ void mxfs_dlm_caw_stop(struct mxfs_dlm_caw_ctx *ctx)
 	 */
 	if (release_now) {
 		/*
-		 * sess154 (P248 fix A): the phase-4 PUBLICATION FREEZE
+		 * (P248 fix A): the phase-4 PUBLICATION FREEZE
 		 * snapshot.  Taken here — after phases 2+3 joined every
 		 * publication-capable producer, immediately before the
 		 * release — NOT at phase-2 exit: the BAST threads phase 3
@@ -16316,7 +16316,7 @@ void mxfs_dlm_caw_stop(struct mxfs_dlm_caw_ctx *ctx)
 	}
 
 	/*
-	 * sess134 (ruling A3): the no-release verdict term needs the held-list
+	 * (ruling A3): the no-release verdict term needs the held-list
 	 * depth, and held.lock must be taken BEFORE lreq_lock — never nested the
 	 * other way, which is the order every acquire path uses.  Snapshot it
 	 * here, outside both, and let phase 6 read the snapshot.
@@ -16345,7 +16345,7 @@ void mxfs_dlm_caw_stop(struct mxfs_dlm_caw_ctx *ctx)
 		if (ctx->lreq_cond)
 			mxfs_pal_cond_broadcast(ctx->lreq_cond);
 		/*
-		 * sess134 (ruling B1): bounded, like the BAST joins.  The owed
+		 * (ruling B1): bounded, like the BAST joins.  The owed
 		 * worker issues CAW writes to the shared LUN, so a wedged one is
 		 * exactly a thread that must not outlive this mount's belief
 		 * that it has departed.
@@ -16392,7 +16392,7 @@ void mxfs_dlm_caw_stop(struct mxfs_dlm_caw_ctx *ctx)
 		if (left || rel_lost)
 			(void)caw_owed_fail_latch(ctx);
 		/*
-		 * ─── sess134 (GPT sess133 ruling A3): THE RELEASE TERM ───
+		 * ─── (design-consult ruling A3): THE RELEASE TERM ───
 		 *
 		 * The two arms are different claims and neither implies the
 		 * other:
@@ -16424,7 +16424,7 @@ void mxfs_dlm_caw_stop(struct mxfs_dlm_caw_ctx *ctx)
 		ctx->owed_stuck_fn = NULL;
 		ctx->owed_stuck_data = NULL;
 		/*
-		 * sess134 (ruling A2): the COMPLETE verdict is stored BEFORE the
+		 * (ruling A2): the COMPLETE verdict is stored BEFORE the
 		 * state is published, both in this one critical section, and the
 		 * broadcast comes after both.  A waiter that sees STOPPED
 		 * therefore sees the finished verdict and never an intermediate.
@@ -16458,7 +16458,7 @@ void mxfs_dlm_caw_destroy(struct mxfs_dlm_caw_ctx *ctx)
 	mxfs_dlm_caw_stop(ctx);
 
 	/*
-	 * sess131 (GPT sess130 ruling): destroy no longer releases.
+	 * (design-consult ruling): destroy no longer releases.
 	 *
 	 * The release_all that used to live here ran AFTER stop() had joined the
 	 * owed worker, so any obligation it published had no collector left and
@@ -16482,7 +16482,7 @@ void mxfs_dlm_caw_destroy(struct mxfs_dlm_caw_ctx *ctx)
 	 * corrupting whatever the stuck thread touches next.
 	 */
 	/*
-	 * sess134 (ruling A2): inspected under the SAME synchronization that
+	 * (ruling A2): inspected under the SAME synchronization that
 	 * publishes it, and after stop() above has run to MXFS_CAW_LC_STOPPED —
 	 * so this reads a finished verdict whether this thread owned teardown or
 	 * waited for the thread that did.
@@ -16520,7 +16520,7 @@ void mxfs_dlm_caw_destroy(struct mxfs_dlm_caw_ctx *ctx)
 		mxfs_pal_mutex_destroy(ctx->nudge_lock);
 		ctx->nudge_lock = NULL;
 	}
-	/* sess128: safe here and only here — stop() above joined every
+	/* safe here and only here — stop above joined every
 	 * dispatcher in phase 3, and the unsafe_to_free gate above already
 	 * refused to free anything if an admitted operation never left. */
 	caw_bastq_free(ctx);
@@ -16556,7 +16556,7 @@ void mxfs_dlm_caw_destroy(struct mxfs_dlm_caw_ctx *ctx)
 		mxfs_pal_spinlock_destroy(ctx->orphan_clock_lock);
 		ctx->orphan_clock_lock = NULL;
 	}
-	/* sess112: drain the local request registry.  Any entry still chained
+	/* drain the local request registry.  Any entry still chained
 	 * here at destroy time outlived its resource — report it rather than
 	 * free it silently, because a surviving tenure count means some
 	 * release path never told the registry its bits were gone. */
@@ -16571,7 +16571,7 @@ void mxfs_dlm_caw_destroy(struct mxfs_dlm_caw_ctx *ctx)
 				struct mxfs_caw_lreq *next = e->next;
 
 				/*
-				 * sess151: name the survivors (first 8 — the
+				 * name the survivors (first 8 — the
 				 * cap bounds log volume on a mass leak).  The
 				 * aggregate count below says THAT entries
 				 * leaked; this says WHICH resource and in
@@ -16604,7 +16604,7 @@ void mxfs_dlm_caw_destroy(struct mxfs_dlm_caw_ctx *ctx)
 			}
 			ctx->lreq[b] = NULL;
 		}
-		/* sess129 (blocker 4): the owed-ready queue indexes the very
+		/* (blocker 4): the owed-ready queue indexes the very
 		 * entries just freed.  Drop it wholesale HERE rather than
 		 * unlinking per entry above — this runs after the collector has
 		 * been joined, so there is nobody left to schedule. */
@@ -16623,7 +16623,7 @@ void mxfs_dlm_caw_destroy(struct mxfs_dlm_caw_ctx *ctx)
 		mxfs_pal_free(ctx->lreq);
 		ctx->lreq = NULL;
 	}
-	/* sess120: the destructive-clear reserve.  Report a nonzero dry count —
+	/* the destructive-clear reserve.  Report a nonzero dry count —
 	 * it means some clear on this mount failed closed for want of a spare
 	 * registry entry, which is a sizing signal, not a normal event. */
 	if (ctx->lreq_reserve_dry)
@@ -16647,7 +16647,7 @@ void mxfs_dlm_caw_destroy(struct mxfs_dlm_caw_ctx *ctx)
 		ctx->lreq_lock = NULL;
 	}
 
-	/* v5 sess33: free heap-allocated arrays */
+	/* v5 free heap-allocated arrays */
 	if (ctx->held.slots) {
 		mxfs_pal_free(ctx->held.slots);
 		ctx->held.slots = NULL;
@@ -16717,7 +16717,7 @@ static int caw_flush_held_body(struct mxfs_dlm_caw_ctx *ctx)
 /*
  * The v0.3.x single->multi disk-promotion flush (each in-memory
  * single_node hold written to disk on transition) was disabled by
- * sess25/v0.3.86 for the OR-bug described above; its dead body was
+ * /v0.3.86 for the OR-bug described above; its dead body was
  * removed in 0.11.461 when caw_grant_epoch_update grew a compare-image
  * argument.  Git history (pre-0.11.461) has the original.
  */
@@ -16742,7 +16742,7 @@ void mxfs_dlm_caw_set_single_node(struct mxfs_dlm_caw_ctx *ctx, bool single)
 
 	if (ctx->single_node && !single) {
 		/*
-		 * Transitioning single→multi.  0.41.0 (sess434, D-0354
+		 * Transitioning single→multi.  0.41.0 (D-0354
 		 * candidate A): a lone node's grants are already REAL on-disk
 		 * grants with real epochs (every memory-only shortcut is
 		 * gone), so there is nothing to promote and nothing to drop —
@@ -16785,7 +16785,7 @@ void mxfs_dlm_caw_set_holders_alive_fn(struct mxfs_dlm_caw_ctx *ctx,
 	ctx->holders_alive_data = data;
 }
 
-/* sess374 (sess357 ruling part 1): wait-cancellation oracle — see dlm_caw.h. */
+/* (ruling part 1): wait-cancellation oracle — see dlm_caw.h. */
 void mxfs_dlm_caw_set_wait_refuse_fn(struct mxfs_dlm_caw_ctx *ctx,
 				     int (*fn)(void *data,
 					       const struct mxfs_resource_id *res),
@@ -16797,7 +16797,7 @@ void mxfs_dlm_caw_set_wait_refuse_fn(struct mxfs_dlm_caw_ctx *ctx,
 	ctx->wait_refuse_data = data;
 }
 
-/* sess374 (sess363 ruling item B): survivor-side out-of-closure scrub oracle
+/* (ruling item B): survivor-side out-of-closure scrub oracle
  * — see dlm_caw.h. */
 void mxfs_dlm_caw_set_closure_scrub_fn(struct mxfs_dlm_caw_ctx *ctx,
 				       int (*fn)(void *data,
@@ -16811,7 +16811,7 @@ void mxfs_dlm_caw_set_closure_scrub_fn(struct mxfs_dlm_caw_ctx *ctx,
 	ctx->closure_scrub_data = data;
 }
 
-/* sess374 (design-consult review items 2+3): skip-only candidate hint — see
+/* (design-consult review items 2+3): skip-only candidate hint — see
  * dlm_caw.h.  Never consulted for authority. */
 void mxfs_dlm_caw_set_closure_cand_mask(struct mxfs_dlm_caw_ctx *ctx,
 					uint64_t mask)

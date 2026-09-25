@@ -78,7 +78,7 @@ boot_node() {   # boot_node <host> -> 0 when ssh + DEV + /src are up
 }
 load_module() {  # load_module <host> <extra sysfs writes>
     sshq 120 "$1" "echo 3 > /proc/sys/vm/drop_caches; cp /src/mxfs/mxfs.ko /tmp/mxfs.ko; m=\$(md5sum /tmp/mxfs.ko | awk '{print \$1}'); [ \"\$m\" = '$KO_MD5' ] || { echo KO_MD5_MISMATCH \$m; exit 1; }
-        modprobe libcrc32c 2>/dev/null || true; insmod /tmp/mxfs.ko; cat /sys/module/mxfs/srcversion
+        modprobe libcrc32c 2>/dev/null || true; insmod /tmp/mxfs.ko dyndbg=+p; cat /sys/module/mxfs/srcversion
         echo 1 > /sys/module/mxfs/parameters/target_cache_protected; echo 1 > /sys/module/mxfs/parameters/foreign_replay_token_enforce; $2"
 }
 case "$POINT" in
@@ -261,7 +261,7 @@ for i in $(seq 1 "$N"); do
         [ $up -eq 1 ] || { echo "NO_SSH"; exit 1; }
         bringup "test$i" || { echo "NO_DEV"; exit 1; }
         sshq 120 "test$i" "cp /src/mxfs/mxfs.ko /tmp/mxfs.ko; m=\$(md5sum /tmp/mxfs.ko | awk '{print \$1}'); [ \"\$m\" = '$KO_MD5' ] || { echo KO_MD5_MISMATCH; exit 1; }
-            modprobe libcrc32c 2>/dev/null || true; insmod /tmp/mxfs.ko; echo 1 > /sys/module/mxfs/parameters/target_cache_protected; echo 1 > /sys/module/mxfs/parameters/foreign_replay_token_enforce
+            modprobe libcrc32c 2>/dev/null || true; insmod /tmp/mxfs.ko dyndbg=+p; echo 1 > /sys/module/mxfs/parameters/target_cache_protected; echo 1 > /sys/module/mxfs/parameters/foreign_replay_token_enforce
             mkdir -p $MNT; timeout 120 mount -t mxfs $DEV $MNT && echo MOUNT_OK || echo MOUNT_RC=\$?; dmesg | grep -a 'P-BOOT-STATE\|P-BOOT-ADMISSION\|P305\|P302' | tail -2"
         # sess445: a failed peer's reason died with its volatile journal
         # (point 14: test20 30/31, only the P305 + RECOVERY_COMPLETE tail

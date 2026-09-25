@@ -542,7 +542,7 @@ value_now_into bmd5 "$B" 200 "$OUT/B_md5.txt" '^[0-9a-f]{32}$' "the module copy 
     "for try in 1 2 3 4 5 6; do mountpoint -q /src && break; mkdir -p /src; timeout 12 mount -t nfs 192.168.1.4:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; sleep 4; done; cp /src/mxfs/mxfs.ko $KO && md5sum $KO | cut -c1-32"
 ck "B holds the tree build (md5)" "$bmd5" "$(md5sum mxfs.ko | cut -c1-32)"
 measure "$B" "$JOIN_BOUND" "$OUT/B_join.txt" '^MOUNT_RC=[0-9]+$' "B's return mount" \
-    "rmmod mxfs 2>/dev/null; insmod $KO ${MXFS_MODARGS:-$(mxfs_rig_modargs)} 2>&1; mkdir -p $MNT; timeout 300 mount -t mxfs $MXFS_DEV $MNT; echo MOUNT_RC=\$?"
+    "rmmod mxfs 2>/dev/null; insmod $KO dyndbg=+p ${MXFS_MODARGS:-$(mxfs_rig_modargs)} 2>&1; mkdir -p $MNT; timeout 300 mount -t mxfs $MXFS_DEV $MNT; echo MOUNT_RC=\$?"
 ck "B returned and mounted" "$(field "$OUT/B_join.txt" MOUNT_RC)" "0"
 # The liveness the ruling says IS owed, and only from here.  Across the boot
 # boundary a drain-independent proof exists, so somebody must take it: the

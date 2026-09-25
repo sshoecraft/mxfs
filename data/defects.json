@@ -1451,18 +1451,6 @@
       "impact": "noblock",
       "impact_why": "Pace only: in every run, failed or passed, fio completed its I/O on both nodes, the suite continued, and no node crashed, hung, shut down or logged a BUG/Oops; no data check failed.",
       "updated": "2026-09-24"
-    },
-    {
-      "id": "D-WARN-SITES-PAST-LINE-65535-OF-XFS-MXFS-DLM-C-REPORT-A-TRUNCATED-LINE",
-      "severity": "minor",
-      "nodes": 1,
-      "dlm": "any",
-      "opened": "2026-09-24",
-      "summary": "xfs/xfs_mxfs_dlm.c is longer than 65,535 lines and the kernel's bug table stores a WARN/BUG site's line in 16 bits, so every WARN_ON_ONCE past that line reports a wrong line number (the assembler truncates it).",
-      "evidence": "0.89.88 build on 6.8.0-101: 'xfs/xfs_mxfs_dlm.c:65638: Warning: value 0x10062 truncated to 0x62' and ':65664: Warning: value 0x1007c truncated to 0x7c' (the two WARN_ON_ONCE in the iclus teardown loop); present in 0.89.87 as well at 65704/65730. Any warning those sites fire names line 98 / 124 of the file.",
-      "next": "Split xfs/xfs_mxfs_dlm.c so no compilation unit exceeds 65,535 lines (the file is 65,700 lines; the split is already wanted for readability), then confirm a clean build prints no 'truncated' assembler warning.",
-      "impact": "noblock",
-      "impact_why": "Diagnostic only: the WARN still fires and prints its stack; only the reported line number is wrong. No data path reads it."
     }
   ]
 }

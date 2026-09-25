@@ -21,8 +21,8 @@
 #include "xfs_trace.h"
 #include "xfs_log.h"
 #include "xfs_health.h"
-#include "../../dlm/v5_mount.h"	/* sess56: mxfs_v5_dlm_is_single_node + pal log */
-#include "xfs_mxfs_dlm.h"	/* sess56: MXFS_IF_DIR_RELOAD */
+#include "../../dlm/v5_mount.h"	/* mxfs_v5_dlm_is_single_node + pal log */
+#include "xfs_mxfs_dlm.h"	/* MXFS_IF_DIR_RELOAD */
 
 /*
  * Local function prototypes.
@@ -82,11 +82,11 @@ xfs_dir3_block_read_verify(
 		 * owner image is still on disk (the sf->block double-alloc). */
 		if (mp->m_mxfs_dlm && !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm)) {
 			struct xfs_dir3_blk_hdr *h3 = bp->b_addr;
-			pr_warn("mxfs: P-BLKRV-CRC daddr=%lld blkno=%llu owner=%llu — dir3 block CRC fail on read (multinode)\n",
+			mxfs_probe("mxfs: P-BLKRV-CRC daddr=%lld blkno=%llu owner=%llu — dir3 block CRC fail on read (multinode)\n",
 				(long long)xfs_buf_daddr(bp),
 				(unsigned long long)be64_to_cpu(h3->blkno),
 				(unsigned long long)be64_to_cpu(h3->owner));
-			dump_stack();
+			mxfs_probe_stack();
 		}
 		xfs_verifier_error(bp, -EFSBADCRC, __this_address);
 	} else {
@@ -98,11 +98,11 @@ xfs_dir3_block_read_verify(
 			if (mp->m_mxfs_dlm &&
 			    !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm)) {
 				struct xfs_dir3_blk_hdr *h3 = bp->b_addr;
-				pr_warn("mxfs: P-BLKRV-STRUCT daddr=%lld blkno=%llu owner=%llu fa=%pS — dir3 block struct-verify fail on read (multinode)\n",
+				mxfs_probe("mxfs: P-BLKRV-STRUCT daddr=%lld blkno=%llu owner=%llu fa=%pS — dir3 block struct-verify fail on read (multinode)\n",
 					(long long)xfs_buf_daddr(bp),
 					(unsigned long long)be64_to_cpu(h3->blkno),
 					(unsigned long long)be64_to_cpu(h3->owner), fa);
-				dump_stack();
+				mxfs_probe_stack();
 			}
 			xfs_verifier_error(bp, -EFSCORRUPTED, fa);
 		}
@@ -128,7 +128,7 @@ xfs_dir3_block_write_verify(
 	 * multinode so we can confirm whether the failing daddr (block0) is ever
 	 * written to disk at all (lost-write) vs written-but-read-elsewhere. */
 	if (mp->m_mxfs_dlm && !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm))
-		pr_warn_ratelimited("mxfs: P-BLKWR daddr=%lld owner=%llu — writing block-fmt dir block to disk\n",
+		mxfs_probe_ratelimited("mxfs: P-BLKWR daddr=%lld owner=%llu — writing block-fmt dir block to disk\n",
 			(long long)xfs_buf_daddr(bp),
 			(unsigned long long)be64_to_cpu(hdr3->owner));
 
@@ -187,7 +187,7 @@ xfs_dir3_block_read(
 		return err;
 
 	/*
-	 * sess56 (ccloop 14d31183) P56-BLKREAD — capture the stale-inode read.
+	 * P56-BLKREAD — capture the stale-inode read.
 	 * We are reading dir block 0 with BLOCK-format ops because the caller
 	 * decided FMT_BLOCK (in-core nextents==1).  If the buffer's on-disk
 	 * magic is XDD3 (0x58444433 = dir3 DATA) rather than XDB3 (block), the
@@ -212,7 +212,7 @@ xfs_dir3_block_read(
 				static atomic_t p56b_n = ATOMIC_INIT(0);
 
 				if (atomic_inc_return(&p56b_n) <= 400)
-					mxfs_pal_log(MXFS_LOG_WARN,
+					mxfs_pal_log(MXFS_LOG_DEBUG,
 						"mxfs: P56-BLKREAD ino=%llu magic=%02x%02x%02x%02x nextents=%llu fmt=%d size=%lld dir_gen=%llu loaded_gen=%u reload_flag=%d dlm_mode=%d comm=%s realns=%llu",
 						(unsigned long long)dp->i_ino,
 						m[0], m[1], m[2], m[3],
@@ -471,7 +471,7 @@ xfs_dir2_block_addname(
 
 	len = xfs_dir2_data_entsize(dp->i_mount, args->namelen);
 
-	/* sess28: read-side staleness fix — if the CLEAN block-format dir block is
+	/* read-side staleness fix — if the CLEAN block-format dir block is
 	 * stale vs the durable platter, invalidate + cold re-read it through the
 	 * verifier so bestfree reflects a peer's durable add and use_free does not
 	 * overwrite it. */
@@ -802,7 +802,7 @@ xfs_dir2_block_lookup_int(
 	if (dp->i_mount->m_mxfs_dlm &&
 	    !mxfs_v5_dlm_is_single_node(dp->i_mount->m_mxfs_dlm) &&
 	    S_ISDIR(VFS_I(dp)->i_mode)) {
-		pr_warn_ratelimited(
+		mxfs_probe_ratelimited(
 			"mxfs: P-BLKLK ino=%llu owner=%llu incore_gen=%u fmt=%u nx=%llu dlm_mode=%u dir_gen=%u loaded_gen=%u self=%d reused=%d stale=%d comm=%s — about to block-read for lookup\n",
 			(unsigned long long)dp->i_ino,
 			(unsigned long long)args->owner,
@@ -1077,7 +1077,7 @@ xfs_dir2_leaf_to_block(
 		extern unsigned long long mxfs_watch_ino;
 
 		if (unlikely(mxfs_watch_ino) && dp->i_ino == mxfs_watch_ino)
-			pr_warn("mxfs: PW-LEAF2BLOCK ino=%llu nx=%llu size=%lld pin=%d comm=%s realns=%llu\n",
+			mxfs_probe("mxfs: PW-LEAF2BLOCK ino=%llu nx=%llu size=%lld pin=%d comm=%s realns=%llu\n",
 				(unsigned long long)dp->i_ino,
 				(unsigned long long)dp->i_df.if_nextents,
 				(long long)dp->i_disk_size,
@@ -1122,7 +1122,7 @@ xfs_dir2_leaf_to_block(
 	       hdr->magic == cpu_to_be32(XFS_DIR3_DATA_MAGIC));
 
 	/*
-	 * sess69 INSTRUMENTED PROBE (always-on, ratelimited): the leaf->block reshape
+	 * INSTRUMENTED PROBE (always-on, ratelimited): the leaf->block reshape
 	 * consolidates the dir into ONE block; the resulting active-entry set is
 	 * leafhdr.count-leafhdr.stale, copied verbatim from the LEAF buffer (lbp).
 	 * If lbp is a STALE cached image (gen lags i_dlm_dir_gen, or it was
@@ -1134,7 +1134,7 @@ xfs_dir2_leaf_to_block(
 	{
 		struct xfs_buf_log_item	*l_bip = lbp ? lbp->b_log_item : NULL;
 		struct xfs_buf_log_item	*d_bip = dbp ? dbp->b_log_item : NULL;
-		pr_warn_ratelimited(
+		mxfs_probe_ratelimited(
 		    "mxfs: P69-L2B ino=%llu dlm_gen=%llu active=%d "
 		    "LEAF daddr=%llu gen=%u in_ail=%d pin=%d "
 		    "DATA daddr=%llu gen=%u in_ail=%d pin=%d\n",
@@ -1260,7 +1260,7 @@ xfs_dir2_sf_to_block(
 
 	trace_xfs_dir2_sf_to_block(args);
 
-	/* sess62 (instrumented): UNGATED — is sf->block conversion even being called?
+	/* (instrumented): UNGATED — is sf->block conversion even being called?
 	 * P42-SFCONV logged 0x in a full failing run while the dir was block
 	 * format (3 data blocks) and node1_f1 (first dirent) was durably lost
 	 * every round.  This fires with NO multinode gate to settle whether the
@@ -1268,7 +1268,7 @@ xfs_dir2_sf_to_block(
 	{
 		static atomic_t p62sc = ATOMIC_INIT(0);
 		if (atomic_inc_return(&p62sc) <= 300000) {
-			/* sess63: dump the in-core shortform NAMES being frozen into
+			/* dump the in-core shortform NAMES being frozen into
 			 * block0 — decisive on whether node1_f1 (the inaugural dirent)
 			 * is in the converting base.  Present => loss is a post-convert
 			 * block0 overwrite; absent => the converter froze a stale base
@@ -1287,7 +1287,7 @@ xfs_dir2_sf_to_block(
 				p62e = (void *)p62e +
 				       xfs_dir2_sf_entsize(mp, oldsfp, p62e->namelen);
 			}
-			pr_warn("mxfs: P62-SF2BLK-CALLED ino=%llu single=%d sf_count=%u i_gen=%u dlm_mode=%u add=\"%.*s\" comm=%s names=[%s]\n",
+			mxfs_probe("mxfs: P62-SF2BLK-CALLED ino=%llu single=%d sf_count=%u i_gen=%u dlm_mode=%u add=\"%.*s\" comm=%s names=[%s]\n",
 				(unsigned long long)dp->i_ino,
 				(mp->m_mxfs_dlm ?
 				 mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm) : -1),
@@ -1298,7 +1298,7 @@ xfs_dir2_sf_to_block(
 	}
 
 	/*
-	 * sess42 (ccloop 8ddb16a2) P42-SFCONV (ALWAYS-ON, capped, NO I/O):
+	 * P42-SFCONV (ALWAYS-ON, capped, NO I/O):
 	 * the PROVEN dir_reuse_coherency root is a cross-node split of the dir's
 	 * LOGICAL block 0 (node1 -> fsb=15, node2 -> fsb=14) because BOTH nodes
 	 * convert shortform->block for the SAME incarnation from their own
@@ -1317,7 +1317,7 @@ xfs_dir2_sf_to_block(
 		memcpy(p42_nm, args->name, p42_l);
 		p42_nm[p42_l] = '\0';
 		if (atomic_inc_return(&p42sc) <= 300000)
-			pr_warn("mxfs: P42-SFCONV ino=%llu sf_size=%lld sf_count=%u dir_gen=%u loaded_gen=%u dlm_mode=%u i_gen=%u addname=\"%s\" comm=%s\n",
+			mxfs_probe("mxfs: P42-SFCONV ino=%llu sf_size=%lld sf_count=%u dir_gen=%u loaded_gen=%u dlm_mode=%u i_gen=%u addname=\"%s\" comm=%s\n",
 				(unsigned long long)dp->i_ino,
 				(long long)dp->i_disk_size,
 				oldsfp ? oldsfp->count : 0,
@@ -1328,7 +1328,7 @@ xfs_dir2_sf_to_block(
 	}
 
 	/*
-	 * sess60 DECISIVE non-perturbing probe (in-core scan, NO disk I/O): is
+	 * DECISIVE non-perturbing probe (in-core scan, NO disk I/O): is
 	 * node1_f1 (the durably-lost first dirent) PRESENT in the shortform base
 	 * being frozen into block0?  ABSENT => the converter (test2) adopted a
 	 * STALE shortform base missing rank1's committed first entry, and the
@@ -1353,7 +1353,7 @@ xfs_dir2_sf_to_block(
 				}
 				se = xfs_dir2_sf_nextentry(mp, oldsfp, se);
 			}
-			pr_warn("mxfs: P60-SFCONV-BASE ino=%llu i_gen=%u sf_count=%u node1f_cnt=%d has_node1_f1=%d add=\"%.*s\" comm=%s\n",
+			mxfs_probe("mxfs: P60-SFCONV-BASE ino=%llu i_gen=%u sf_count=%u node1f_cnt=%d has_node1_f1=%d add=\"%.*s\" comm=%s\n",
 				(unsigned long long)dp->i_ino,
 				VFS_I(dp)->i_generation,
 				oldsfp->count, n1cnt, has_n1f1,
@@ -1361,18 +1361,18 @@ xfs_dir2_sf_to_block(
 		}
 	}
 
-	/* sess34 P-H14-INSTR: log every LOCAL→BLOCK format transition.  This
+	/* P-H14-INSTR: log every LOCAL→BLOCK format transition.  This
 	 * is the suspected leak point for test_concurrent_mkdir's lost first
 	 * entry from peer's view.
 	 *
-	 * sess15 (instrumented, GPT-confirmed #1 hypothesis): dump the FULL in-core
+	 * (instrumented, GPT-confirmed #1 hypothesis): dump the FULL in-core
 	 * shortform NAME LIST being frozen into block0.  Cross-reference with
 	 * P-SFREL (release-side raw on-disk SF names): if a peer's durably-
 	 * committed dirent (on-disk via P-SFREL) is ABSENT from this in-core SF
 	 * at conversion, the cross-node reload/3-way-merge failed to adopt it and
 	 * xfs_dir2_sf_to_block permanently drops it into the new block format. */
 	{
-		extern int mxfs_instr_enabled;  /* sess36: gate diagnostic */
+		extern int mxfs_instr_enabled;  /* gate diagnostic */
 		extern int mxfs_dirwr_enabled;
 		if (unlikely(mxfs_instr_enabled || mxfs_dirwr_enabled)) {
 			struct xfs_dir2_sf_hdr *p14_sfp = (struct xfs_dir2_sf_hdr *)ifp->if_data;
@@ -1396,7 +1396,7 @@ xfs_dir2_sf_to_block(
 						xfs_dir2_sf_entsize(mp, p14_sfp, p14_e->namelen);
 				}
 			}
-			pr_warn("mxfs: P-H14-INSTR sf_to_block START ino=%llu sf_count=%u sf_size=%u adding=\"%s\" incore_names=[%s]",
+			mxfs_probe("mxfs: P-H14-INSTR sf_to_block START ino=%llu sf_count=%u sf_size=%u adding=\"%s\" incore_names=[%s]",
 				(unsigned long long)dp->i_ino,
 				p14_sfp ? p14_sfp->count : 0,
 				(unsigned int)ifp->if_bytes,
@@ -1404,7 +1404,7 @@ xfs_dir2_sf_to_block(
 		}
 	}
 
-	/* ccloop c7ee71c6 sess20 (P185): the conversion is irreversible — audit
+	/*  (P185): the conversion is irreversible — audit
 	 * the in-core shortform base against the platter image RIGHT HERE, so a
 	 * peer name that is durable on disk but absent from the set we are about
 	 * to freeze is named at the instant it is lost.  One sector read per
@@ -1438,7 +1438,7 @@ xfs_dir2_sf_to_block(
 		goto out_free;
 
 	/*
-	 * ccloop(3e02e7dd) sess3: publish the canonical block0 for this
+	 * (3e02e7dd) publish the canonical block0 for this
 	 * incarnation NOW that xfs_dir2_grow_inode has committed the extent
 	 * mapping logical block0 to a physical fsb — see
 	 * docs/canonical_block0_fix_plan.md and the dir_block0_fsb comment in
@@ -1579,8 +1579,8 @@ xfs_dir2_sf_to_block(
 		xfs_dir2_data_put_ftype(mp, dep,
 				xfs_dir2_sf_get_ftype(mp, sfep));
 		memcpy(dep->name, sfep->name, dep->namelen);
-		/* sess34 P-H14b: log each entry copied from inline to block.
-		 * sess36: gated — this fires PER-DIRENT in the hot path. */
+		/* P-H14b: log each entry copied from inline to block.
+		 * gated — this fires PER-DIRENT in the hot path. */
 		{
 			extern int mxfs_instr_enabled;
 			if (unlikely(mxfs_instr_enabled)) {
@@ -1588,7 +1588,7 @@ xfs_dir2_sf_to_block(
 				int p14b_len = min_t(int, sfep->namelen, 31);
 				memcpy(p14b_name, sfep->name, p14b_len);
 				p14b_name[p14b_len] = '\0';
-				pr_warn("mxfs: P-H14b-INSTR sf_to_block COPY ino=%llu i=%d/%u name=\"%s\" namelen=%u offset=%d",
+				mxfs_probe("mxfs: P-H14b-INSTR sf_to_block COPY ino=%llu i=%d/%u name=\"%s\" namelen=%u offset=%d",
 					(unsigned long long)dp->i_ino,
 					i, sfp->count, p14b_name,
 					(unsigned int)sfep->namelen, newoffset);

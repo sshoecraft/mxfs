@@ -1,4 +1,13 @@
 # tests (Test harnesses, benches, scripts, packaging)
+
+> **0.89.89: probes are dynamic debug.** Every `P...`/`PW-...` instrumentation
+> line is `pr_debug` (`mxfs_probe*`, `pal/mxfs_probe.h`) and prints nothing
+> unless enabled. `tests/setup/prep_node.sh` and every harness that loads the
+> module pass `dyndbg=+p`; a NEW harness that loads the module itself must do
+> the same, or its probe greps find nothing (and read as "absent", not as an
+> error). On a packaged node loaded by modprobe: `echo 'module mxfs +p' >
+> /proc/dynamic_debug/control`. Policy and which messages stay visible:
+> `docs/log-levels.md`.
 <!-- 2026-09-04: (1) tests/setup/prep_node.sh — the tcp transport branch now
      carries target_cache_protected=1 like the caw branch; the declaration
      describes the TARGET's cache, not the lock transport, and without it the

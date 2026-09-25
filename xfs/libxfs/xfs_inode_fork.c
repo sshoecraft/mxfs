@@ -696,13 +696,13 @@ xfs_ifork_verify_local_data(
 		struct xfs_ifork	*ifp = xfs_ifork_ptr(ip, XFS_DATA_FORK);
 		struct xfs_dir2_sf_hdr	*sfp = ifp->if_data;
 
-		/* mxfs sess13(c7ee71c6): NULL sfp = the torn-fork window
+		/* NULL sfp = the torn-fork window
 		 * (idestroy→repopulate swap visible to this ILOCK_SHARED-
 		 * holding verify — an EXCL-mutation invariant breach).  Name
 		 * the last ILOCK lockers: the wr_last stamp is the mutator's
 		 * identity.  sf_verify now refuses NULL (no panic). */
 		if (unlikely(!sfp))
-			pr_warn("mxfs: P171-SFNULL ino=%llu if_bytes=%d comm=%s wr_last=%pS/%d/%s rd_last=%pS/%d/%s rd_held=%d un_last=%pS\n",
+			mxfs_probe("mxfs: P171-SFNULL ino=%llu if_bytes=%d comm=%s wr_last=%pS/%d/%s rd_last=%pS/%d/%s rd_held=%d un_last=%pS\n",
 				(unsigned long long)ip->i_ino,
 				(int)ifp->if_bytes, current->comm,
 				(void *)ip->i_mxfs_ilk_wr_ret,

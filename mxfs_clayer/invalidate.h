@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
- * mxfs_clayer/invalidate.h — v6a invalidation primitives (sess35 sketch)
+ * mxfs_clayer/invalidate.h — v6a invalidation primitives (sketch)
  *
  * STATUS: SKETCH ONLY. Not wired into anything yet. Sess36+ task is to
  * implement these and integrate them at the bast_process / ilock_begin
@@ -46,7 +46,7 @@ struct xfs_perag;
  * Returns 0 on success or -errno on failure.
  *
  * Implementation note: the existing v5 code at
- * xfs/xfs_mxfs_dlm.c:2480-2716 (sess25 v0.3.84/.99/.105) walks
+ * xfs/xfs_mxfs_dlm.c:2480-2716 (v0.3.84/.99/.105) walks
  * pag_bcache.bc_hash via rhashtable. v6a should consolidate that
  * into this primitive and remove the per-callsite scatter.
  */

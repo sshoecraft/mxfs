@@ -28,7 +28,7 @@
 #include "xfs_inode.h"
 #include "xfs_dir2.h"
 #include "xfs_mxfs_dlm.h"
-#include "xfs_mxfs_dirshard.h"	/* sess466: revalidate through the shard resolver */
+#include "xfs_mxfs_dirshard.h"	/* revalidate through the shard resolver */
 #include "xfs_trace.h"
 
 #include <linux/dcache.h>
@@ -85,19 +85,19 @@ mxfs_drevalidate(struct inode *dir, const struct qstr *name,
 	 * name to verify the cached dentry still matches the parent.
 	 */
 	xfs_ilock(dp, XFS_ILOCK_SHARED);
-	if (mxfs_is_dirshard_parent(dp))	/* sess466: pin + resolver + one shard */
+	if (mxfs_is_dirshard_parent(dp))	/* pin + resolver + one shard */
 		error = mxfs_dirshard_lookup_ino(dp, &xname, &actual_ino);
 	else
 		error = xfs_dir_lookup(NULL, dp, &xname, &actual_ino, NULL, NULL);
 	xfs_iunlock(dp, XFS_ILOCK_SHARED);
 
-	pr_warn_once("mxfs: H37-MXFS-DREVALIDATE active\n");
+	mxfs_probe_once("mxfs: H37-MXFS-DREVALIDATE active\n");
 
 	if (!d_really_is_positive(dentry)) {
 		/*
 		 * NEGATIVE dentry.  This is the cross-node create-race loser
 		 * case: our cached "name does not exist" is stale because a
-		 * peer created it (sess38).  If the coordinated lookup now
+		 * peer created it.  If the coordinated lookup now
 		 * finds the name, invalidate so the VFS re-resolves to the
 		 * peer's inode; otherwise the negative is still valid.
 		 */
@@ -116,7 +116,7 @@ mxfs_drevalidate(struct inode *dir, const struct qstr *name,
 	}
 
 	/*
-	 * ccloop cc87fed3 sess5 (instrumented — BUG3 hunt): this dentry is about to
+	 *  (instrumented — BUG3 hunt): this dentry is about to
 	 * be approved as VALID based on inode NUMBER match only — actual_ino
 	 * came from a fresh on-disk xfs_dir_lookup, but "valid" here only means
 	 * "this cached ip is still the right number", never "this cached ip is
@@ -125,7 +125,7 @@ mxfs_drevalidate(struct inode *dir, const struct qstr *name,
 	 * eviction (bast/reclaim path already tearing it down), a caller like
 	 * filename_unlinkat will be handed a dying inode moments before its own
 	 * ihold()/iput() pair — this is the exact mechanism suspected for BUG3
-	 * (sess4's do_unlinkat/filename_unlinkat ihold-WARN-before-vfs_unlink
+	 * (do_unlinkat/filename_unlinkat ihold-WARN-before-vfs_unlink
 	 * breakthrough: i_count already <=0 at the caller's own protective
 	 * ihold). Diagnostic only — verdict unchanged either way.
 	 */
@@ -139,7 +139,7 @@ mxfs_drevalidate(struct inode *dir, const struct qstr *name,
 			static atomic_t p133_n = ATOMIC_INIT(0);
 
 			if (atomic_inc_return(&p133_n) <= 4000)
-				pr_warn("mxfs: P133-DREVAL-DYING ino=%llu i_count=%d i_state=0x%lx dlm_mode=%u pid=%d comm=%s — d_revalidate about to approve a dying cached inode\n",
+				mxfs_probe("mxfs: P133-DREVAL-DYING ino=%llu i_count=%d i_state=0x%lx dlm_mode=%u pid=%d comm=%s — d_revalidate about to approve a dying cached inode\n",
 					(unsigned long long)ip->i_ino, icount,
 					istate, (unsigned)ip->i_dlm_mode,
 					current->pid, current->comm);

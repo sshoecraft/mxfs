@@ -20,11 +20,11 @@
 #include "xfs_errortag.h"
 #include "xfs_error.h"
 #include "xfs_mxfs_dlm.h"
-#include "../../dlm/v5_mount.h"	/* sess406: resv-conflict note */
+#include "../../dlm/v5_mount.h"	/* resv-conflict note */
 #include <mxfs/mxfs_dlm.h>	/* FIX-26/P26PRE: MXFS_LOCK_* modes */
 #include <linux/hashtable.h>	/* FIX-26 writepages task registry */
 
-/* sess45: declared locally (as in xfs_da_btree.c) — not exported via a header. */
+/* declared locally (as in xfs_da_btree.c) — not exported via a header. */
 extern bool mxfs_v5_dlm_is_single_node(struct mxfs_v5_dlm *ctx);
 
 struct xfs_writepage_ctx {
@@ -68,7 +68,7 @@ xfs_setfilesize(
 
 	xfs_ilock(ip, XFS_ILOCK_EXCL);
 	isize = xfs_new_eof(ip, offset + size);
-	/* P-SFS (sess10 ccloop 72513a13, instrumented for the drc size=0 loss):
+	/* P-SFS (instrumented for the drc size=0 loss):
 	 * xfs_new_eof clamps to VFS i_size — if a reload/evict reset the
 	 * in-core size to 0 while this ioend was pending, the append
 	 * setfilesize silently no-ops and di_size=0 becomes durable.
@@ -78,7 +78,7 @@ xfs_setfilesize(
 		static atomic_t p_sfs_n = ATOMIC_INIT(0);
 
 		if (atomic_inc_return(&p_sfs_n) <= 1500)
-			pr_warn("mxfs: P-SFS ino=%llu end=%llu isize=%llu vfs=%llu disk=%llu dlm_state=%u comm=%s\n",
+			mxfs_probe("mxfs: P-SFS ino=%llu end=%llu isize=%llu vfs=%llu disk=%llu dlm_state=%u comm=%s\n",
 				(unsigned long long)ip->i_ino,
 				(unsigned long long)(offset + size),
 				(unsigned long long)isize,
@@ -158,7 +158,7 @@ xfs_end_ioend(
 	 */
 	error = blk_status_to_errno(mxfs_ioend_bi_status(ioend));
 	if (unlikely(error)) {
-		/* sess406 (D-498): a DATA write bounced with SCSI RESERVATION
+		/* (D-498): a DATA write bounced with SCSI RESERVATION
 		 * CONFLICT = this node is fenced; tell the DLM (flag only, the
 		 * PR worker runs the inspection) so a data-only writer withdraws
 		 * as promptly as a metadata writer. */
@@ -168,7 +168,7 @@ xfs_end_ioend(
 			if (v5)
 				mxfs_v5_dlm_note_resv_conflict(v5);
 			/*
-			 * sess436 (D-RSYNC-OVERWRITE-LAP-USERSPACE-FAIL-ERRNO-
+			 * (D-RSYNC-OVERWRITE-LAP-USERSPACE-FAIL-ERRNO-
 			 * UNKNOWN item 2): iomap_finish_ioends() below feeds
 			 * this errno to the mapping's errseq, i.e. straight to
 			 * fsync(2)/write(2) — a raw SCSI RESERVATION CONFLICT
@@ -199,14 +199,14 @@ xfs_end_ioend(
 	if (!error && xfs_ioend_is_append(ioend))
 		error = xfs_setfilesize(ip, ioend->io_offset, ioend->io_size);
 done:
-	/* P-IOEND-ERR (sess10): an errored ioend ends page writeback WITHOUT
+	/* P-IOEND-ERR: an errored ioend ends page writeback WITHOUT
 	 * setfilesize — sync(2) swallows it and the durable size stays short.
 	 * Make every such swallow loud. */
 	if (unlikely(error)) {
 		static atomic_t p_ioerr_n = ATOMIC_INIT(0);
 
 		if (atomic_inc_return(&p_ioerr_n) <= 300)
-			pr_warn("mxfs: P-IOEND-ERR ino=%llu off=%llu sz=%zu unwritten=%d shared=%d err=%d vfs=%llu disk=%llu\n",
+			mxfs_probe("mxfs: P-IOEND-ERR ino=%llu off=%llu sz=%zu unwritten=%d shared=%d err=%d vfs=%llu disk=%llu\n",
 				(unsigned long long)ip->i_ino,
 				(unsigned long long)offset, size,
 				!!mxfs_ioend_unwritten(ioend),
@@ -257,7 +257,7 @@ xfs_end_io(
 }
 
 /*
- * FIX-25 (sess8 a9a03929): is the current task the xfs-conv ioend completion
+ * FIX-25 (a9a03929): is the current task the xfs-conv ioend completion
  * worker?  mxfs_dlm_ilock_begin admits this context to a nested EX during a
  * BAST/DEMOTING drain while the DLM mirror still holds EX — the drain's
  * filemap_write_and_wait cannot complete without it (folio-writeback →
@@ -273,7 +273,7 @@ xfs_task_in_ioend(void)
 }
 
 /*
- * FIX-26 (ccloop c7ee71c6 sess6): registry of tasks currently inside
+ * FIX-26: registry of tasks currently inside
  * xfs_vm_writepages.  Writeback SUBMISSION (bdi flusher, sync, fsync) holds
  * the folio lock across ->map_blocks, whose delalloc conversion takes
  * xfs_ilock(EX) -> mxfs_dlm_ilock_begin.  If the inode is mid-BAST, the
@@ -334,7 +334,7 @@ MODULE_PARM_DESC(fix26_delay_ms,
 	"DEBUG: widen the writeback folio-locked->ilock window by N ms so a peer BAST can be deterministically collided with the FIX-26 admit (0=off)");
 
 /*
- * FIX-27 verification injection (ccloop c7ee71c6 sess24) — see xfs_map_blocks.
+ * FIX-27 verification injection — see xfs_map_blocks.
  *
  * fix26_delay_ms is placed in xfs_convert_blocks, i.e. the DELALLOC CONVERSION
  * path, which asks for xfs_ilock(EX).  That exercises the EX admit.  It cannot
@@ -356,7 +356,7 @@ MODULE_PARM_DESC(fix27_delay_ms,
 	"DEBUG: widen the writeback folio-locked->ILOCK_SHARED window in xfs_map_blocks by N ms so a peer BAST is deterministically collided with the FIX-27 shared-class admit (0=off)");
 
 /*
- * sess25 D-UNMOUNT-BUSY-INODES A/B gate.  mxfs_dlm_evict cancels the two BAST
+ * D-UNMOUNT-BUSY-INODES A/B gate.  mxfs_dlm_evict cancels the two BAST
  * arms, each of which was armed holding an igrab; a cancel that actually
  * cancels QUEUED work means the work function never ran, so that reference is
  * released by nobody.  0 = reproduce the leak (historical behaviour),
@@ -364,7 +364,7 @@ MODULE_PARM_DESC(fix27_delay_ms,
  * the paired measurement proves the mechanism, by instrument.
  */
 /*
- * sess25 A/B gate for D-BAST-IRELE-INACTIVE-SELF-WEDGE and its suspected
+ * A/B gate for D-BAST-IRELE-INACTIVE-SELF-WEDGE and its suspected
  * downstream D-UNMOUNT-BUSY-INODES.  1 restores the pre-fix i_dlm_demoter
  * behaviour (an unconditional store that overwrites a live foreign claim and
  * an unconditional clear), so the wedge can be re-armed on ONE build and the
@@ -376,7 +376,7 @@ MODULE_PARM_DESC(demoter_legacy_clobber,
 	"A/B ONLY: restore the pre-sess25 unqualified i_dlm_demoter claim (reproduces D-BAST-IRELE-INACTIVE-SELF-WEDGE); 0=fixed (default), 1=broken");
 
 /*
- * sess26 TEST-ONLY wedge injector.  Makes mxfs_dlm_bast_work_fn drop its own
+ * TEST-ONLY wedge injector.  Makes mxfs_dlm_bast_work_fn drop its own
  * demoter claim immediately before its trailing xfs_irele — the exact state a
  * stolen claim leaves it in.  The theft and the wedge have different rates (a
  * legacy-clobber arm measured 30 live-claim steals with wedge_precond=0,
@@ -386,7 +386,7 @@ MODULE_PARM_DESC(demoter_legacy_clobber,
  * observable by luck.  NEVER ship on.
  */
 /*
- * sess26 A/B lever for D-SILENT-MKDIR-LOSS.  1 = current behaviour (a dir
+ * A/B lever for D-SILENT-MKDIR-LOSS.  1 = current behaviour (a dir
  * dirtied under the current EX tenure skips its reload); 0 = always reload.
  * Nominated by a token-frequency differential: the node that lost 8 dirents
  * emitted P6-MIDTENURE-RELOAD-SKIP 661 times against a peer median of 37
@@ -394,7 +394,7 @@ MODULE_PARM_DESC(demoter_legacy_clobber,
  * mxfs_dlm_reload_inode.
  */
 /*
- * sess26 FIX for D-SILENT-MKDIR-LOSS — bitmask of i_dlm_stale_src values that
+ * FIX for D-SILENT-MKDIR-LOSS — bitmask of i_dlm_stale_src values that
  * the P6 mid-tenure reload skip must NOT swallow.  Bit N set => staleness from
  * source N forces a real reload.
  *
@@ -456,7 +456,7 @@ MODULE_PARM_DESC(bast_qfalse_inject,
 	"TEST-ONLY: bast_work_fn self-requeues at entry (own donated ref) so queue_work collisions hit the false branch deterministically — exercises the P226 extra-ref drop (sess36 D-UNMOUNT-BUSY-INODES verification); 0=off (default), 1=inject");
 
 /*
- * sess385 P85: gate the inode-drain skip census + the FUA home-dinode compare
+ * P85: gate the inode-drain skip census + the FUA home-dinode compare
  * on skipped dirty inode-cluster buffers (D-AGI-UNLINKED-CROSSNODE-RECOVERY-
  * SHUTDOWN / #361 split-transition probe).  Read-only diagnostic.
  */
@@ -495,13 +495,13 @@ module_param_named(rel_stale_inject, mxfs_rel_stale_inject, int, 0644);
 MODULE_PARM_DESC(rel_stale_inject,
 	"TEST-ONLY: force the stranded (-ESTALE) verdict on inode DLM releases while shutdown/unmounting is set — drives the P6G teardown-era dwork-arm decision deterministically (D-DWORK-TEARDOWN-LASTREF-LEAK A/B); 0=off (default), 1=inject");
 
-/* sess38 A/B (32/caw dir_reuse, same build 0.11.319): knob-on = 6 rounds,
+/* A/B (32/caw dir_reuse, same build 0.11.319): knob-on = 6 rounds,
  * knob-off = 7 — CREATEINT moves refresh+evict+FUA-reread INSIDE the
  * serialized dir-EX critical section (~19ms/create cluster-wide vs ~15ms),
  * while the EDEADLK self-demote it avoids is already drain-free
  * (dir_pr_release_fast=1) and burst batching is provided by
  * dir_ex_tenure_floor + dir_ex_batch_grace_ms either way.  Net loss at
- * high contention -> default OFF.  Mechanism kept correct (sess38 leak
+ * high contention -> default OFF.  Mechanism kept correct (leak
  * A/B/C fixes) for low-contention/future use. */
 int mxfs_create_intent_ex = 0;
 module_param_named(create_intent_ex, mxfs_create_intent_ex, int, 0644);
@@ -529,9 +529,9 @@ MODULE_PARM_DESC(fix28_drain_stall_ms,
  * Exists so the fix can be verified against its own negative control on ONE
  * build, rather than across two builds with a re-prep in between. */
 /*
- * DEFAULT 1 = ON as of v0.11.206 (ccloop c7ee71c6 sess25).
+ * DEFAULT 1 = ON as of v0.11.206.
  *
- * sess24 shipped this OFF on the grounds that it was "measured never to
+ * shipped this OFF on the grounds that it was "measured never to
  * engage": a P47-FILEBLOCK census under a healthy 32-node workload recorded
  * 4380 demote-wait blocks, 99.7% of them SHARED requests, and turning the
  * admit on produced ZERO admits across 3613 of them.  That measurement was
@@ -543,7 +543,7 @@ MODULE_PARM_DESC(fix28_drain_stall_ms,
  *
  * The reason it can now ship on is that the cycle is no longer rare-and-
  * unreproducible.  tests/abba_wedge_ab.sh builds it deterministically and
- * A/B's it on ONE build (see that file for why sess24's exerciser could not:
+ * A/B's it on ONE build (see that file for why exerciser could not:
  * it collided with drain site 1, where the nest-admit fast path grants the
  * request outright, instead of site 2 where mode==NL is what parks it):
  *
@@ -766,7 +766,7 @@ xfs_convert_blocks(
 	int			error;
 	unsigned		*seq;
 
-	/* FIX-26 verification injection (ccloop c7ee71c6 sess6): hold the
+	/* FIX-26 verification injection: hold the
 	 * conversion — folio locked, xfs_ilock(EX) imminent — for up to N ms
 	 * OR until a peer BAST lands on this inode, whichever first.  This
 	 * turns every armed conversion into a near-certain BAST collision so
@@ -785,7 +785,7 @@ xfs_convert_blocks(
 		       ip->i_dlm_state == MXFS_DLM_ISTATE_CACHED)
 			msleep(1);
 		if (atomic_inc_return(&p26dbg) <= 40)
-			pr_warn("mxfs: P26DBG-INJ ino=%llu st0=%u md0=%u st1=%u md1=%u waited_ms=%d wp=%d comm=%s\n",
+			mxfs_probe("mxfs: P26DBG-INJ ino=%llu st0=%u md0=%u st1=%u md1=%u waited_ms=%d wp=%d comm=%s\n",
 				(unsigned long long)ip->i_ino,
 				fix26_st0, fix26_md0,
 				ip->i_dlm_state, ip->i_dlm_mode,
@@ -794,7 +794,7 @@ xfs_convert_blocks(
 				current->comm);
 	}
 
-	/* P26PRE-DELALLOC-SUBEX (ccloop c7ee71c6 sess6) — PRECURSOR PROBE for
+	/* P26PRE-DELALLOC-SUBEX — PRECURSOR PROBE for
 	 * the test8 live wedge.  Writeback found delalloc to convert while
 	 * i_dlm_mode < EX.  Under the drain invariant (bast_process flushes +
 	 * invalidates ALL dirty data BEFORE any downconvert) this state should
@@ -818,7 +818,7 @@ xfs_convert_blocks(
 		 * — the FIX-26 wedge population; each such event should be
 		 * followed by a P25 src=writepages admit, never a P73. */
 		if (atomic_inc_return(&p26pre) <= 200)
-			pr_warn("mxfs: P26PRE-DELALLOC-SUBEX ino=%llu mode=%u state=%u relflush=%d stale=%d demoter=%d dem_cur=%d exh=%u prh=%u pin=%u wp=%d comm=%s\n",
+			mxfs_probe("mxfs: P26PRE-DELALLOC-SUBEX ino=%llu mode=%u state=%u relflush=%d stale=%d demoter=%d dem_cur=%d exh=%u prh=%u pin=%u wp=%d comm=%s\n",
 				(unsigned long long)ip->i_ino,
 				ip->i_dlm_mode, ip->i_dlm_state,
 				xfs_iflags_test(ip, MXFS_IF_DLM_RELFLUSH) ? 1 : 0,
@@ -876,10 +876,10 @@ xfs_map_blocks(
 	XFS_ERRORTAG_DELAY(mp, XFS_ERRTAG_WB_DELAY_MS);
 
 	/*
-	 * FIX-28 verification injection (ccloop c7ee71c6 sess25) — the DRAIN
+	 * FIX-28 verification injection — the DRAIN
 	 * half of D-BAST-WRITEBACK-ABBA-DEADLOCK.
 	 *
-	 * sess24's exerciser drove 200/200 submitter-side collisions and still
+	 * exerciser drove 200/200 submitter-side collisions and still
 	 * produced ZERO demote-wait entries.  The reason is now proven from the
 	 * code rather than guessed: mxfs_dlm_bast_process flushes TWICE, and the
 	 * submitter-side injection broke out of its window as soon as the state
@@ -890,7 +890,7 @@ xfs_map_blocks(
 	 * can park a submitter, and that is where the live capture was.
 	 *
 	 * Closing the cycle deterministically needs BOTH halves synchronised,
-	 * which is what sess24's handoff named as the missing piece.  This is
+	 * which is what handoff named as the missing piece.  This is
 	 * the drain half: stall the drain ONCE, mid-batch, after it has fetched
 	 * a dirty-tagged folio batch and locked its first folio.  A submitter
 	 * arriving during the stall locks a LATER folio of that same batch,
@@ -957,7 +957,7 @@ retry:
 		 * demote-wait entries (P47/P73 both 0 in both A/B arms).
 		 *
 		 * v2 broke on state==BAST||DEMOTING, and STILL produced 0 P47
-		 * over 200/200 "collisions".  Root (sess25, read off the code):
+		 * over 200/200 "collisions".  Root (read off the code):
 		 * the state goes BAST/DEMOTING at the TOP of the drain, i.e. at
 		 * drain site 1, where `ip->i_dlm_mode` is still the granted mode.
 		 * mxfs_dlm_ilock_begin then satisfies a shared request from the
@@ -981,7 +981,7 @@ retry:
 			static atomic_t p27dbg = ATOMIC_INIT(0);
 
 			if (atomic_inc_return(&p27dbg) <= 200)
-				pr_warn("mxfs: P27-INJECT ino=%llu st0=%u st1=%u mode=%u dsite=%u waited_ms=%d collided=%d\n",
+				mxfs_probe("mxfs: P27-INJECT ino=%llu st0=%u st1=%u mode=%u dsite=%u waited_ms=%d collided=%d\n",
 					(unsigned long long)ip->i_ino, f27_st0,
 					ip->i_dlm_state, ip->i_dlm_mode,
 					ip->i_dlm_drain_site,
@@ -1307,7 +1307,7 @@ xfs_vm_writepages(
 	if (WARN_ON_ONCE(current->journal_info))
 		return 0;
 
-	/* sess414 (D-512 ruling, dirty-G1 sanitation): NEVER submit a
+	/* (D-512 ruling, dirty-G1 sanitation): NEVER submit a
 	 * poisoned dead incarnation's pages — its bmap's blocks may already
 	 * belong to another live file.  Leave them dirty; the poison-time
 	 * revocation worker (mxfs_incarn_revoke_work_fn) discards them. */
@@ -1341,7 +1341,7 @@ xfs_dax_writepages(
 {
 	struct xfs_inode	*ip = XFS_I(mapping->host);
 
-	/* sess414 (D-512): same dead-incarnation writeback gate as
+	/* (D-512): same dead-incarnation writeback gate as
 	 * xfs_vm_writepages above */
 	if (unlikely(ip->i_mount->m_mxfs_dlm &&
 		     xfs_iflags_test(ip, MXFS_IF_INCARN_STALE)))

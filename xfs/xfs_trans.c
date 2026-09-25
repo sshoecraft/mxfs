@@ -184,7 +184,7 @@ xfs_trans_dup(
 	xfs_defer_move(ntp, tp);
 
 	/*
-	 * v0.3.106 (sess26 root-cause fix): migrate MXFS deferred AG-DLM and
+	 * v0.3.106 (root-cause fix): migrate MXFS deferred AG-DLM and
 	 * inode-DLM unlock pendings across the trans roll.  If left on the
 	 * old tp, xfs_trans_free of the old tp drains them — releasing the
 	 * AG-DLM grants mid-defer-chain.  Peer can then ACQ-FRESH, mutate
@@ -205,7 +205,7 @@ xfs_trans_dup(
 	 * indefinitely → peer ETIMEDOUT (-110) on first remount-time
 	 * ilock(ino=128, EX) — observed in v0.3.106 attempt-1.
 	 *
-	 * FIX-21 (sess8 a9a03929): the migration is now SELECTIVE — only
+	 * FIX-21 (a9a03929): the migration is now SELECTIVE — only
 	 * grants for AGs still referenced by pending defer work items move
 	 * to ntp (that subset is what the corruption guard above actually
 	 * needs).  Grants with no remaining defer work stay here and
@@ -367,14 +367,14 @@ retry:
 	tp = __xfs_trans_alloc(mp, flags);
 	WARN_ON(mp->m_super->s_writers.frozen == SB_FREEZE_COMPLETE);
 	/*
-	 * sess475 (D-0133 seal probe): after put_super's locked final SB
+	 * (D-0133 seal probe): after put_super's locked final SB
 	 * summary sync nothing may log any more — a transaction here is an
 	 * invariant violation; the late quiesce reads the count and refuses
 	 * the clean departure (see xfs_mount.h m_mxfs_sb_sealed).
 	 */
 	if (unlikely(READ_ONCE(mp->m_mxfs_sb_sealed))) {
 		atomic_inc(&mp->m_mxfs_seal_trans);
-		pr_warn("mxfs: P-SB-SEAL-TRANS slot=%u logres=%u comm=%s caller=%pS — transaction allocated after the SB summary seal\n",
+		mxfs_probe("mxfs: P-SB-SEAL-TRANS slot=%u logres=%u comm=%s caller=%pS — transaction allocated after the SB summary seal\n",
 			mp->m_mxfs_node_slot, resp->tr_logres, current->comm,
 			(void *)_RET_IP_);
 	}
@@ -1222,7 +1222,7 @@ retry:
 		return error;
 
 	xfs_ilock(ip, XFS_ILOCK_EXCL);
-	/* sess446 D-0515 backstop: the DLM entry hook may have REFUSED this
+	/* D-0515 backstop: the DLM entry hook may have REFUSED this
 	 * acquire (quarantined victim domain); the transaction is still clean
 	 * here, so fail the op instead of committing without a grant. */
 	error = mxfs_quar_gate_locked(ip, "trans_alloc_inode");
@@ -1414,7 +1414,7 @@ retry:
 		return error;
 
 	xfs_ilock(ip, XFS_ILOCK_EXCL);
-	/* sess446 D-0515 backstop (see xfs_trans_alloc_inode); the join below
+	/* D-0515 backstop (see xfs_trans_alloc_inode); the join below
 	 * would hand the unlock to the transaction, so unlock here ourselves. */
 	error = mxfs_quar_gate_locked(ip, "trans_alloc_ichange");
 	if (unlikely(error)) {
@@ -1580,7 +1580,7 @@ retry:
 		xfs_lock_two_inodes(dp, XFS_ILOCK_EXCL, ip, XFS_ILOCK_EXCL);
 	}
 
-	/* sess446 D-0515 backstop (see xfs_trans_alloc_inode). */
+	/* D-0515 backstop (see xfs_trans_alloc_inode). */
 	error = mxfs_quar_gate_locked(dp, "trans_alloc_dir");
 	if (!error)
 		error = mxfs_quar_gate_locked(ip, "trans_alloc_dir");

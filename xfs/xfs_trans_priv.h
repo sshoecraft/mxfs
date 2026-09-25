@@ -15,7 +15,7 @@ struct xfs_log_vec;
 
 
 /*
- * sess129 instrumented probe: set (latched) by the P128-AILSTUCK dump in
+ * instrumented probe: set (latched) by the P128-AILSTUCK dump in
  * xfs_ail_push_all_sync after ~30s of a non-advancing AIL.  While set,
  * xfs_inode_item_push and xfs_iflush_cluster emit ratelimited branch-
  * outcome logs so we can see WHY the head item never flushes.  Zero
@@ -169,7 +169,7 @@ void			xfs_ail_push_all_sync(struct xfs_ail *ailp);
 void			xfs_ail_push_all_sync_bounded(struct xfs_ail *ailp,
 						      unsigned int max_ms);
 /*
- * sess6(ccloop a9a03929) FIX-12: LSN-targeted bounded whole-AIL sync push.
+ * FIX-12: LSN-targeted bounded whole-AIL sync push.
  * Snapshots the AIL max LSN at entry and waits (≤max_ms) until every item at
  * or below it has been written — i.e. everything committed BEFORE the call is
  * on disk, without being livelocked by later commits.  Returns false if the
@@ -190,14 +190,14 @@ xfs_lsn_t		xfs_ail_max_lsn(struct xfs_ail *ailp);
  * way; the on-disk metadata they target is reflected in BUF items,
  * which we DO drain.  See architecture spec §11.3.
  *
- * Replaces sess27's xfs_ail_push_all_sync_timed (bounded-time variant
+ * Replaces xfs_ail_push_all_sync_timed (bounded-time variant
  * which broke correctness — partial drain releases lock with dirty
  * data).  Filtering is by AG, not by time.
  */
 void			xfs_ail_push_ag_sync(struct xfs_ail *ailp,
 					     xfs_agnumber_t agno);
 /*
- * v0.3.147 sess33: bounded variant.  Returns 0 on full drain,
+ * v0.3.147 bounded variant.  Returns 0 on full drain,
  * -EAGAIN if no-progress detected (stall_iters consecutive iterations
  * without items leaving target AG, after iter > min_iters).  Caller
  * must not release the AG-DLM grant on -EAGAIN.  stall_iters=0 ⇒

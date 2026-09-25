@@ -29,23 +29,23 @@
 #include "xfs_ag.h"
 #include "xfs_quota.h"
 #include "xfs_reflink.h"
-#include "xfs_relmark_item.h"	/* sess403: clean-release markers -> REDUNDANT_CLEAN */
-#include "xfs_mxfs_icensus.h"	/* sess421: intent/done census -> INTENTS_UNDISCHARGED */
-#include "../dlm/v5_mount.h"	/* sess40: mxfs_v5_dlm_is_single_node (iunlink recovery scoping) */
-#include "../dlm/disklock.h"	/* sess166: MXFS_RECOV_STAGE_* (shadow evaluator capability check) */
-#include <linux/hash.h>		/* sess167: hash_64 (shadow evaluator manifest cache) */
+#include "xfs_relmark_item.h"	/* clean-release markers -> REDUNDANT_CLEAN */
+#include "xfs_mxfs_icensus.h"	/* intent/done census -> INTENTS_UNDISCHARGED */
+#include "../dlm/v5_mount.h"	/* mxfs_v5_dlm_is_single_node (iunlink recovery scoping) */
+#include "../dlm/disklock.h"	/* MXFS_RECOV_STAGE_* (shadow evaluator capability check) */
+#include <linux/hash.h>		/* hash_64 (shadow evaluator manifest cache) */
 
-/* sess32: D-FOREIGN-REPLAY-UNGATED-IMAGES containment knob (xfs_mxfs_dlm.c) */
+/* D-FOREIGN-REPLAY-UNGATED-IMAGES containment knob (xfs_mxfs_dlm.c) */
 extern int mxfs_foreign_replay_untagged_apply;
-/* sess413: D-529 whole-txn verdict fault injection (xfs_mxfs_dlm.c) */
+/* D-529 whole-txn verdict fault injection (xfs_mxfs_dlm.c) */
 extern int mxfs_dbg_fr_taint_items_over;
-/* sess358 (#1, sess357 ruling): token-enforcement knob + its use-time
+/* (#1, ruling): token-enforcement knob + its use-time
  * domain/proof predicates (all defined in xfs_mxfs_dlm.c) */
 extern int mxfs_foreign_replay_token_enforce;
 extern int mxfs_fua_disable;
 extern int mxfs_target_cache_protected;
 extern int mxfs_release_proof_enforce;
-/* sess359 (GPT review Q5): serializes the enforce/F2-param setters with
+/* (design review Q5): serializes the enforce/F2-param setters with
  * the preflight's configuration sample */
 extern struct mutex mxfs_fr_cfg_lock;
 /* 0.89.18: the partial-replay cut's knobs (xfs_mxfs_dlm.c) — see
@@ -165,7 +165,7 @@ xlog_do_io(
 	ASSERT(nbblks > 0);
 
 	/*
-	 * sess411 (D-527): when a foreign-replay shadow xlog carries a
+	 * (D-527): when a foreign-replay shadow xlog carries a
 	 * stabilized slice snapshot, every recovery READ is served from it
 	 * and every WRITE is mirrored into it before writing through, so
 	 * the whole recovery (head/tail scan, both passes) sees ONE
@@ -240,7 +240,7 @@ xlog_bwrite(
 }
 
 /*
- * sess411 (D-FOREIGN-REPLAY-UNSTABLE-SLICE-READ-FALSE-TORN-527, design-consult
+ * (D-FOREIGN-REPLAY-UNSTABLE-SLICE-READ-FALSE-TORN-527, design-consult
  * ruling): capture the victim's whole log slice into one immutable
  * in-memory snapshot, accepting it only after the slice PROVES STABLE —
  * mxfs_fr_stab_passes consecutive full-slice re-reads with zero differing
@@ -265,7 +265,7 @@ int mxfs_fr_stab_interval_ms = 2000;
 int mxfs_fr_stab_passes = 2;
 int mxfs_fr_stab_deadline_ms = 45000;
 /*
- * sess444 (design-consult ruling ccmemory ccloop-c7ee71c6-sess444-GPT-ruling-frstab-
+ * (design-consult ruling ccmemory ccloop-c7ee71c6-sess444-GPT-ruling-frstab-
  * pipeline-across-slices, option A): the whole-cluster bootstrap replays 31
  * slices serially and each pays the two 2 s stability intervals (4.4 s of
  * a 4.5 s per-slice cost, 136 s of the mount).  The barrier now PREFETCHES
@@ -279,7 +279,7 @@ int mxfs_fr_stab_deadline_ms = 45000;
  * to live reads.  0 disables (inline only).
  */
 /*
- * sess445 (chain 36 on 0.52.0): the single-entry prefetch never engaged — the
+ * (chain 36 on 0.52.0): the single-entry prefetch never engaged — the
  * barrier arms slot k+1 BEFORE it replays slot k, and arming dropped the
  * entry for k, so 30 of 31 proofs ran inline (mount wall 298 s, 143 s of it
  * the serial 4.6 s/slice proofs).  The knob is now the pipeline DEPTH: up to
@@ -1780,7 +1780,7 @@ xlog_find_tail(
 		xfs_set_clean(log->l_mp);
 
 	/*
-	 * sess434 (D-0354 lap 2 diagnostics): the replay window geometry this
+	 * (D-0354 lap 2 diagnostics): the replay window geometry this
 	 * mount / foreign replay will use.  tail_blk comes from the head
 	 * record's own h_tail_lsn (or the block after an unmount record when
 	 * the log is clean); a tail at or before a PREVIOUS incarnation's last
@@ -2282,7 +2282,7 @@ static const struct xlog_recover_item_ops *xlog_recover_item_ops[] = {
 	&xlog_rtrud_item_ops,
 	&xlog_rtcui_item_ops,
 	&xlog_rtcud_item_ops,
-	&xlog_mxfs_relmark_item_ops,	/* sess403: clean-release marker */
+	&xlog_mxfs_relmark_item_ops,	/* clean-release marker */
 };
 
 static const struct xlog_recover_item_ops *
@@ -2460,10 +2460,10 @@ xlog_recover_intent_item(
 }
 
 /*
- * sess48 step 3b (D-FOREIGN-REPLAY-UNGATED-IMAGES, authority tokens):
+ * step 3b (D-FOREIGN-REPLAY-UNGATED-IMAGES, authority tokens):
  * decode the authority trailer of a recovered BUFFER log item.
  *
- * sess94 step 5.2: decodes BOTH wire versions into one normalized view, and
+ * step 5.2: decodes BOTH wire versions into one normalized view, and
  * returns WHICH of four things happened — NOT_BUF / UNTAGGED / MALFORMED /
  * OK.  v1 conflated the last three into a NULL return, which made
  * "this producer emitted nothing" indistinguishable from "this trailer is
@@ -2563,7 +2563,7 @@ mxfs_blf_parse_authority(
 		if (st >= MXFS_AUTH_ST_MAX)
 			return MXFS_AUTH_PARSE_MALFORMED;
 		/*
-		 * sess95: the CLASS names the resource TYPE that mba_resource's
+		 * the CLASS names the resource TYPE that mba_resource's
 		 * id belongs to, so an unrecognized class makes the resource
 		 * uninterpretable — not merely unproven.  Reject rather than
 		 * decode, for the same reason the reserved bits are rejected.
@@ -2580,7 +2580,7 @@ mxfs_blf_parse_authority(
 		out->av_owner_node = be32_to_cpu(t2->mba_owner_node);
 
 		/*
-		 * sess177: v3 = v2 + the resource lineage of the authorizing
+		 * v3 = v2 + the resource lineage of the authorizing
 		 * binding.  A v2 record leaves av_lineage 0, and a v3 record
 		 * MAY carry 0 (grant predates the lineage-minting build);
 		 * the evaluator distinguishes those by av_version, so 0 is
@@ -2595,7 +2595,7 @@ mxfs_blf_parse_authority(
 	}
 
 	/*
-	 * sess468 (D-FOREIGN-SLICE-INTENTS-ABANDONED fix shape B, ruling Q2):
+	 * (D-FOREIGN-SLICE-INTENTS-ABANDONED fix shape B, ruling Q2):
 	 * the AG grant vouches for an inode-cluster image ONLY in its iunlink
 	 * form — XFS_BLF_INODE_BUF, whose replay (xlog_recover_do_inode_buffer)
 	 * applies nothing but di_next_unlinked.  A class-AG DINODE image
@@ -2604,7 +2604,7 @@ mxfs_blf_parse_authority(
 	 * on the wire it is a corrupt or forged token and is refused as such
 	 * (MALFORMED fails closed exactly like a reserved bit).
 	 *
-	 * sess99 (design consult, same ruling that removed the sticky
+	 * (design consult, same ruling that removed the sticky
 	 * XFS_BLI_INODE_ALLOC_BUF term from the producer): XFS_BLF_CANCEL is the
 	 * other way an image can carry inode-buffer typing and still not be the
 	 * di_next_unlinked-only form.  A staled inode cluster emits a
@@ -2635,11 +2635,11 @@ mxfs_blf_parse_authority(
 }
 
 /*
- * sess352 (#94 D-IDLE-SLICE-WSKIP-REFUSAL-AG-QUARANTINE-0130): lazily build
+ * (#94 D-IDLE-SLICE-WSKIP-REFUSAL-AG-QUARANTINE-0130): lazily build
  * the masked-compare baseline for the counter-only SB classifier — the
  * REPLAYER's own m_sb serialized to disk format.  Under the blanket
  * ATOMIC-SKIP nothing is ever applied, so the effective SB state at every
- * replay point IS this snapshot (sess351 ruling2 Q3); a victim-side growfs
+ * replay point IS this snapshot (ruling2 Q3); a victim-side growfs
  * image then mismatches the baseline and stays refused (false refusal is
  * acceptable, false clean-skip is not).  Snapshotted ONCE per replay: the
  * only fields that drift on the live replayer are the lazy counters, and
@@ -2724,7 +2724,7 @@ mxfs_dsb_counter_only_diff(
 }
 
 /*
- * sess352 (#94, sess351 rulings): counter-only SB clean-skip classifier for
+ * (#94, rulings): counter-only SB clean-skip classifier for
  * the blanket ATOMIC-SKIP.  A skipped foreign transaction is refusal-grade
  * ONLY if skipping it can omit NON-RECONSTRUCTIBLE state; routine lazy
  * SB-counter logging (xfs_log_sb from the percpu-counter sync path) is
@@ -2747,7 +2747,7 @@ mxfs_dsb_counter_only_diff(
  *     image differs ONLY in the whitelisted counter/derived fields.
  * Anything else — mixed transactions, secondary SBs, growfs/feature/
  * geometry deltas, unparseable tokens, allocation failure — stays on the
- * existing refusal path.  Returns a VERDICT CODE, not a bool (sess352 GPT
+ * existing refusal path.  Returns a VERDICT CODE, not a bool (design review
  * review item 3/4): 0 = eligible, nonzero = the FIRST reason the txn was
  * not — printed by both the refusal notice and the P227-TOKENSUM sample so
  * a systematic false-mismatch (which would silently restore the old
@@ -2789,7 +2789,7 @@ mxfs_sb_counter_only_txn(
 		if (av.av_class != MXFS_AUTH_CLASS_SB)
 			return MXFS_SBCLEAN_CLASS;
 		/*
-		 * sess352 GPT review item 2: the producer stamps SB images
+		 * design review item 2: the producer stamps SB images
 		 * UNPROVEN and nothing else — a parsed CLASS_SB token with
 		 * any OTHER status (including VALID) is not the shape this
 		 * carve-out reasoned about and must not ride it.
@@ -2810,7 +2810,7 @@ mxfs_sb_counter_only_txn(
 				       XFS_BLF_GDQUOT_BUF))
 			return MXFS_SBCLEAN_NOTSB;
 		/*
-		 * sess352 GPT review item 1: require the EXACT producer
+		 * design review item 1: require the EXACT producer
 		 * framing, not merely a compatible prefix.  xfs_log_sb
 		 * dirties bytes [0, sizeof(dsb)) of the SB buffer — one
 		 * contiguous chunk run from bit 0 of exactly the chunks
@@ -2853,7 +2853,7 @@ mxfs_sb_counter_only_txn(
 }
 
 /*
- * sess166 (foreign-replay step 5): SHADOW authority evaluator.  For every
+ * (foreign-replay step 5): SHADOW authority evaluator.  For every
  * authority token seen by untrusted replay, compute the verdict the real
  * apply/skip gate WOULD reach — v2-only, owner-slot and (when a fence
  * descriptor proves the incarnation) owner-epoch bound, checked against the
@@ -2871,7 +2871,7 @@ mxfs_sb_counter_only_txn(
  * of concurrent epoch churn because ex_grant_epoch is only meaningful under a
  * set holder bit.  Pass-2 replay is single-threaded, so no locking here.
  *
- * How to read the counters (sess167 design-consult review):
+ * How to read the counters (design-consult review):
  *  - Per-token counters are FIRST-FAILURE terminals.  A token lands in the
  *    counter of the FIRST layer that rejects it; later layers never see it.
  *    Ordering therefore masks depth — a v1 token with a wrong owner slot
@@ -2895,13 +2895,13 @@ struct mxfs_shadow_eval {
 	uint32_t	desc_victim_node;
 	bool		capable;	/* rc==0 && stage==FENCED: manifest is
 					 * frozen AND victim incarnation known */
-	/* sess434: the victim's record carried MXFS_HB_FEAT_ADOPTED (pass-2
+	/* the victim's record carried MXFS_HB_FEAT_ADOPTED (pass-2
 	 * fresh claim) — captured as MXFS_RECOV_F_VICTIM_ADOPTED.  With
 	 * `capable` (incarnation proven) a token naming ANOTHER incarnation
 	 * of this slot is a published predecessor's record: PREINC, the
 	 * whole transaction skips silently instead of refusing the slice. */
 	bool		victim_adopted;
-	/* sess358 (#1), reshaped sess359 (GPT review Q3): enforcement state
+	/* (#1), reshaped (design review Q3): enforcement state
 	 * INHERITED from the attempt-local l_mxfs_fr_enforce_mode that only
 	 * the preflight ever sets — never resampled from the global knob, so
 	 * a knob or domain-param flip after the preflight point can neither
@@ -2924,7 +2924,7 @@ struct mxfs_shadow_eval {
 		uint64_t	lineage;
 		int		rc;
 		uint8_t		kind;	/* MXFS_AUTH_CLASS_AG or _INODE */
-		uint8_t		pidx;	/* sess443: 0 = current pair, 1.. = lineage */
+		uint8_t		pidx;	/* 0 = current pair, 1.. = lineage */
 		bool		holds;
 	}		*tbl;
 	unsigned int	tbl_n;
@@ -2949,7 +2949,7 @@ struct mxfs_shadow_eval {
 	uint64_t	v2_no_lineage;
 	uint64_t	enforceable_would_apply;
 	/*
-	 * sess403 (design-consult ruling): the token names a tenure the victim
+	 * (design-consult ruling): the token names a tenure the victim
 	 * CLEANLY RELEASED — a durable XFS_LI_MXFS_RELMARK with the complete
 	 * identity {class, resource, lineage, grant epoch, owner slot, owner
 	 * incarnation} was collected from the same slice in pass 1.  The
@@ -2960,11 +2960,11 @@ struct mxfs_shadow_eval {
 	 * under the same capability/lineage rules as the enforceable terminal.
 	 */
 	uint64_t	redundant_clean;
-	/* sess434: terminal, in csum — a published predecessor incarnation's
+	/* terminal, in csum — a published predecessor incarnation's
 	 * image on an ADOPTED, incarnation-proven victim (see victim_adopted). */
 	uint64_t	preincarnation;
 	/*
-	 * sess177 (sess175 ruling Q-C): the pre-lineage gate's verdict, kept
+	 * (ruling Q-C): the pre-lineage gate's verdict, kept
 	 * with UNCHANGED semantics so the P273 samples 1-3 stay comparable.
 	 * NOT a terminal — a token counted here continues to its terminal
 	 * (wrong_lineage / v2_no_lineage / enforceable_would_apply), so this
@@ -2979,23 +2979,23 @@ struct mxfs_shadow_eval {
 	uint64_t	txn_mixed;
 	uint64_t	txn_none;
 	uint64_t	txn_nonbuf_taint;
-	/* sess358 (#1): all_apply txns actually ADMITTED by the enforcement
+	/* (#1): all_apply txns actually ADMITTED by the enforcement
 	 * arm — always <= txn_all_apply; 0 whenever enforcement is off or a
 	 * use-time predicate (foreign/capable/proto/domain/proof) failed. */
 	uint64_t	txn_enforce_admitted;
-	/* sess403: admissible txns that contained >= 1 REDUNDANT_CLEAN image
+	/* admissible txns that contained >= 1 REDUNDANT_CLEAN image
 	 * (subset of txn_all_apply) and buffer images skipped as redundant
 	 * inside ADMITTED txns. */
 	uint64_t	txn_with_redundant;
 	uint64_t	redundant_skipped;
-	/* sess434: whole transactions skipped clean as a published
+	/* whole transactions skipped clean as a published
 	 * predecessor incarnation's (MXFS_TXNV_PREINC, P310). */
 	uint64_t	txn_preinc;
 
 	uint64_t	uncached_reads;
 
 	/*
-	 * sess405 (docs/recovery-manifest.md): the FENCE-TIME MANIFEST.  Loaded
+	 * (docs/recovery-manifest.md): the FENCE-TIME MANIFEST.  Loaded
 	 * once at evaluator creation from the envelope's rman region and
 	 * validated against the FENCED descriptor's pointer; every "held
 	 * {lineage, epoch} at death" answer comes from it.  The live CAW slot
@@ -3017,10 +3017,10 @@ struct mxfs_shadow_eval {
 	uint64_t	live_check_err;
 	uint64_t	postseal_mutations;
 	uint64_t	man_seq;
-	/* sess444: ICREATE verdicts (P-ICREATE-AUTH) */
+	/* ICREATE verdicts (P-ICREATE-AUTH) */
 	uint64_t	icreate_apply, icreate_redundant, icreate_refused;
 	/*
-	 * sess443 (docs/whole-cluster-restart.md §6.8.5, design-consult review ruling):
+	 * (docs/whole-cluster-restart.md §6.8.5, design-consult review ruling):
 	 * the adopted K's EARLIER incarnations.  A taken-over K holds, under
 	 * its current certificate (victim = the fenced old owner), the log of
 	 * every previous hop — the original victim and each old owner that
@@ -3131,7 +3131,7 @@ mxfs_shadow_eval_get(
 	se->enforce_cfg = (log->l_mxfs_fr_enforce_mode != 0);
 
 	/*
-	 * sess405: load the sealed fence-time manifest.  Only a FENCED
+	 * load the sealed fence-time manifest.  Only a FENCED
 	 * descriptor carries a pointer (the seal CAS publishes both), so on an
 	 * adopted slice / unproven descriptor there is nothing to load and the
 	 * evaluator keeps answering from the live table in report-only form.
@@ -3156,7 +3156,7 @@ mxfs_shadow_eval_get(
 			   (unsigned long long)se->man_seq,
 			   se->manifest_no_caw ? 1 : 0);
 		/*
-		 * sess443 (§6.8.5): a taken-over K — load every earlier
+		 * (§6.8.5): a taken-over K — load every earlier
 		 * incarnation's pair from the lineage.  Own-log (adopted) replay
 		 * only; a foreign replay judges one victim.
 		 */
@@ -3217,7 +3217,7 @@ mxfs_shadow_manifest_lookup(
 	struct xlog			*log,
 	struct xfs_mount		*mp,
 	struct mxfs_shadow_eval		*se,
-	const struct mxfs_shadow_lin	*lp,	/* sess443: NULL = current pair */
+	const struct mxfs_shadow_lin	*lp,	/* NULL = current pair */
 	uint32_t			victim_slot,
 	uint8_t				kind,
 	uint64_t			resource,
@@ -3265,7 +3265,7 @@ mxfs_shadow_manifest_lookup(
 	*lineage = 0;
 	if (man_rc == 0) {
 		/*
-		 * sess405: the fence-time manifest is the verdict source.
+		 * the fence-time manifest is the verdict source.
 		 * Absent entry == the victim held no EX/PW on this resource at
 		 * fence time == definitive not-held (-ENOENT, same terminal the
 		 * live "no slot" answer reached).  NO_CAW manifest == -ENODEV,
@@ -3310,7 +3310,7 @@ mxfs_shadow_manifest_lookup(
 				 * epoch.  Anything else means the frozen authority
 				 * was mutated after the seal — a broken recovery
 				 * invariant, and the attempt aborts as a whole.
-				 * sess443: for an EARLIER incarnation's pair the
+				 * for an EARLIER incarnation's pair the
 				 * check is skipped by ruling — a proven later
 				 * incarnation was allowed to overwrite those bits.
 				 */
@@ -3395,7 +3395,7 @@ mxfs_shadow_manifest_lookup(
 /*
  * Classify one parsed token exactly as an enforcing gate would.  Returns the
  * MXFS_RI_VERDICT_* disposition: APPLY iff the image would be APPLIED under
- * the exact-match rule, REDUNDANT (sess403) iff the victim cleanly released
+ * the exact-match rule, REDUNDANT iff the victim cleanly released
  * the tenure that produced it, REFUSE otherwise; every token lands in exactly
  * one counter.  Order matters: evidence-quality rejections (v1/class/status)
  * come before binding rejections (owner slot/incarnation) before manifest
@@ -3409,13 +3409,13 @@ mxfs_shadow_eval_token(
 	const struct mxfs_auth_view	*av)
 {
 	struct xfs_mount		*mp = log->l_mp;
-	const struct mxfs_shadow_lin	*lp = NULL;	/* sess443: earlier pair */
+	const struct mxfs_shadow_lin	*lp = NULL;	/* earlier pair */
 	bool				holds, lineage_bearing, held_match;
 	uint64_t			epoch, man_lineage;
 	int				rc;
 
 	if (av->av_version == MXFS_BLF_AUTHORITY_V1) {
-		/* sess82 design-consult ruling: v1 is NEVER authority evidence */
+		/* design-consult ruling: v1 is NEVER authority evidence */
 		se->v1_not_evidence++;
 		return MXFS_RI_VERDICT_REFUSE;
 	}
@@ -3462,7 +3462,7 @@ mxfs_shadow_eval_token(
 		unsigned int li;
 
 		/*
-		 * sess443 (§6.8.5): on a taken-over K the token may name an
+		 * (§6.8.5): on a taken-over K the token may name an
 		 * EARLIER incarnation of the slice — the original victim, or
 		 * an old owner that adopted K under a term the lineage ended
 		 * with K adopted.  That pair's sealed manifest + certificate
@@ -3477,7 +3477,7 @@ mxfs_shadow_eval_token(
 	}
 	if (!lp && se->capable && av->av_owner_epoch != se->desc_victim_epoch) {
 		/*
-		 * sess434 (D-0354 lap 2, design-consult ruling): the victim durably
+		 * (D-0354 lap 2, design-consult ruling): the victim durably
 		 * classified its claim as a pass-2 FRESH claim, so every record
 		 * of another incarnation of this slot (the owner-slot equality
 		 * above already holds) was published before the victim could
@@ -3502,7 +3502,7 @@ mxfs_shadow_eval_token(
 	lineage_bearing = av->av_version >= MXFS_BLF_AUTHORITY_V3 &&
 			  av->av_lineage != 0;
 	/*
-	 * sess403 (design-consult ruling precedence): (1) the frozen manifest says
+	 * (design-consult ruling precedence): (1) the frozen manifest says
 	 * the victim HELD this exact {lineage, epoch} at death -> the
 	 * held-at-death chain below decides APPLY; (2) otherwise an exact
 	 * clean-release marker from the victim's own slice -> REDUNDANT_CLEAN;
@@ -3535,7 +3535,7 @@ mxfs_shadow_eval_token(
 	}
 
 	/*
-	 * sess177 compatibility series (sess175 ruling Q-C): the verdict the
+	 * compatibility series (ruling Q-C): the verdict the
 	 * PRE-LINEAGE gate reaches, with unchanged semantics, so P273 samples
 	 * 1-3 stay comparable.  Non-terminal by design — the token continues.
 	 */
@@ -3543,7 +3543,7 @@ mxfs_shadow_eval_token(
 		se->legacy_would_apply++;
 
 	/*
-	 * LINEAGE EQUALITY BEFORE THE HOLD CHECK (sess175 ruling Q-C).  A
+	 * LINEAGE EQUALITY BEFORE THE HOLD CHECK (ruling Q-C).  A
 	 * lineage mismatch means the manifest slot describes a DIFFERENT
 	 * binding of this resource name than the one that issued the grant
 	 * the token records — its hold bitmap and epoch are inapplicable to
@@ -3585,7 +3585,7 @@ mxfs_shadow_eval_token(
 		return MXFS_RI_VERDICT_REFUSE;
 	}
 	/*
-	 * sess175 ruling Q-C: a lineage-less full match is NOT
+	 * ruling Q-C: a lineage-less full match is NOT
 	 * enforcement-ready — the future gate requires v3 lineage equality,
 	 * so counting it in the enforceable series would overstate readiness.
 	 */
@@ -3598,12 +3598,12 @@ mxfs_shadow_eval_token(
 }
 
 /*
- * sess48 step 3b: REPORT-ONLY authority decode for untrusted (foreign or
+ * step 3b: REPORT-ONLY authority decode for untrusted (foreign or
  * adopted) replay.  This changes NO apply/skip decision — it proves the token
  * captured at CIL format time (step 3a) survives the log round-trip and
  * arrives at recovery with the right class/resource/epoch.
  *
- * sess82 step 5.0 — VERSION 1 IS REPORT-ONLY, PERMANENTLY.  The original
+ * step 5.0 — VERSION 1 IS REPORT-ONLY, PERMANENTLY.  The original
  * plan was for step 5 to swap the blanket untagged-skip for an exact
  * {class, resource, epoch} match here.  A design-consult ruling REFUTED that scope:
  * doing it on v1 tokens introduces a false APPLY, which is strictly worse
@@ -3614,7 +3614,7 @@ mxfs_shadow_eval_token(
  *
  * A future exact gate must key on a v2 token (be64 resource, bound to the
  * victim slot AND incarnation) and must never accept version=1 as evidence,
- * no matter how much the producer side is improved.  sess82's step-5.1
+ * no matter how much the producer side is improved.  step-5.1
  * producer fix (grant-state lifecycle + b_ops/BLFT conjunction) makes v1's
  * class=AG *honest*, but honest is not the same as sufficient.
  *
@@ -3622,7 +3622,7 @@ mxfs_shadow_eval_token(
  * foreign_replay_ab.sh A/B arms are directly comparable.
  */
 /*
- * sess165 (foreign-replay step 5): teardown for the shadow authority
+ * (foreign-replay step 5): teardown for the shadow authority
  * evaluator state hung on l_mxfs_shadow_eval.  EXACTLY ONE P273-SHADOW-EVAL
  * line is emitted per untrusted log, always: a full summary when the
  * evaluator ran, a state line when it never allocated (distinguishing "no
@@ -3679,7 +3679,7 @@ mxfs_shadow_eval_finish(
 
 	/*
 	 * WOULD_APPLY keeps the pre-lineage semantics (compatibility series,
-	 * sess175 ruling Q-C) and is NON-TERMINAL, hence outside csum.  The
+	 * ruling Q-C) and is NON-TERMINAL, hence outside csum.  The
 	 * enforceable series — the only one that may ever justify turning
 	 * enforcement on — is ENFORCEABLE_WOULD_APPLY; nolineage counts full
 	 * matches that lack the v3 lineage the future gate requires.
@@ -3758,7 +3758,7 @@ mxfs_shadow_eval_finish(
 }
 
 /*
- * sess358 (#1, sess357 ruling): the per-transaction verdict feeds the
+ * (#1, ruling): the per-transaction verdict feeds the
  * enforcement arm in xlog_recover_items_pass2.  Returns true iff THIS
  * transaction is admissible under the whole-txn rule: an evaluator exists,
  * every buffer image individually reached the enforceable terminal, and no
@@ -3779,7 +3779,7 @@ mxfs_report_replay_authority(
 	static atomic_t			mxfs_tokdet_n = ATOMIC_INIT(0);
 	static atomic_t			mxfs_toksum_n = ATOMIC_INIT(0);
 	/*
-	 * sess476: publish=false is the PURE decision (end-of-pass-1 CANCEL
+	 * publish=false is the PURE decision (end-of-pass-1 CANCEL
 	 * table decision, mxfs_cdefer_resolve): same evaluator inputs, same
 	 * verdict, but every counter lands in a scratch copy of the evaluator
 	 * and no telemetry line prints — pass 2 publishes exactly once.  The
@@ -3798,13 +3798,13 @@ mxfs_report_replay_authority(
 	int				n_inode = 0, n_iclus = 0;
 	int				n_v1 = 0, n_v2 = 0, n_v3 = 0;
 	int				n_untag = 0, n_malf = 0;
-	int				n_untag_cancel = 0;	/* sess475: untagged CANCEL items */
+	int				n_untag_cancel = 0;	/* untagged CANCEL items */
 	int				n_wapply = 0, n_redund = 0;
 	int				n_icreate = 0;
 	bool				nonbuf_taint = false;
 	bool				admissible = false;
 	int				n_st[MXFS_AUTH_ST_MAX];
-	/* sess467: classless images by BLFT — attributes an ATOMIC-SKIP */
+	/* classless images by BLFT — attributes an ATOMIC-SKIP */
 	int				n_none_blft[XFS_BLFT_MAX_BUF];
 	int				i;
 
@@ -3835,7 +3835,7 @@ mxfs_report_replay_authority(
 			unsigned short t = ITEM_TYPE(item);
 
 			/*
-			 * sess359 (GPT review Q6): STRICT ALLOWLIST for the
+			 * (design review Q6): STRICT ALLOWLIST for the
 			 * admissibility verdict.  The only non-buf items that
 			 * do NOT taint are the ones with a proven-safe pass-2
 			 * disposition of their own: XFS_LI_INODE (independent
@@ -3850,14 +3850,14 @@ mxfs_report_replay_authority(
 			 * admission by being absent from a blacklist.
 			 */
 			/*
-			 * sess403: XFS_LI_MXFS_RELMARK is a clean-release
+			 * XFS_LI_MXFS_RELMARK is a clean-release
 			 * marker — recovery metadata whose pass-2 disposition
 			 * is a validated no-op (xlog_recover_relmark_commit_
 			 * pass2).  It authorizes nothing and modifies nothing,
 			 * so it cannot taint the transaction it rides in.
 			 */
 			/*
-			 * sess444 (design-consult ruling, D-ICREATE-REPLAY-REINIT-
+			 * (design-consult ruling, D-ICREATE-REPLAY-REINIT-
 			 * CLOBBERS-PEER-INODES): XFS_LI_ICREATE is judged AFTER
 			 * this loop from its AG-class buffer siblings (the very
 			 * allocation's AGF/AGFL/AGI/inobt images) and its
@@ -3886,7 +3886,7 @@ mxfs_report_replay_authority(
 		pr = mxfs_blf_parse_authority(item, &av);
 		if (pr == MXFS_AUTH_PARSE_UNTAGGED) {
 			/*
-			 * sess475 (D-FOREIGN-SLICE-INTENTS-ABANDONED, chain 105
+			 * (D-FOREIGN-SLICE-INTENTS-ABANDONED, chain 105
 			 * s475a): with fix A's certificates installed the burst
 			 * arm's rm transactions were still ATOMIC-SKIPPED on ONE
 			 * untagged buffer item each (buf_items=6 tokened=5
@@ -3930,7 +3930,7 @@ mxfs_report_replay_authority(
 			int v = mxfs_shadow_eval_token(log, se, blfp, &av);
 
 			item->ri_mxfs_verdict = (uint8_t)v;
-			item->ri_mxfs_class = (uint8_t)av.av_class;	/* sess459 */
+			item->ri_mxfs_class = (uint8_t)av.av_class;	/* */
 			if (v == MXFS_RI_VERDICT_APPLY)
 				n_wapply++;
 			else if (v == MXFS_RI_VERDICT_REDUNDANT)
@@ -4002,7 +4002,7 @@ mxfs_report_replay_authority(
 	}
 
 	/*
-	 * sess444: ICREATE authority.  The chunk was carved from icl_ag under
+	 * ICREATE authority.  The chunk was carved from icl_ag under
 	 * the AG EX grant the sibling AG-class images record; the record's
 	 * SYNCINIT trailer proves every cluster was on the platter before the
 	 * record existed, so pass 2 performs NO write for it (verify-and-skip,
@@ -4116,11 +4116,11 @@ mxfs_report_replay_authority(
 	 * mixed + none.
 	 */
 	/*
-	 * sess403: a REDUNDANT_CLEAN image counts as AUTHORIZED for the
+	 * a REDUNDANT_CLEAN image counts as AUTHORIZED for the
 	 * whole-txn rule — its disposition (silent skip) is as decided as an
 	 * APPLY's.  A txn whose every buffer image is APPLY or REDUNDANT is
 	 * admissible; the pass-2 loop applies the former and skips the latter
-	 * per item (the torn hazard of sess41 was skipping images NOT on the
+	 * per item (the torn hazard of was skipping images NOT on the
 	 * platter; these are certified on it).
 	 */
 	if (se && (n_buf || nonbuf_taint)) {
@@ -4159,7 +4159,7 @@ mxfs_report_replay_authority(
 		int n_dino_none = 0, n_dino_agsib = 0;
 
 		/*
-		 * sess467 (design-consult ruling, fix shape B pre-code census): for
+		 * (design-consult ruling, fix shape B pre-code census): for
 		 * every classless DINODE_BUF image (the iunlink di_next_
 		 * unlinked update), is there an AG-class sibling image in
 		 * this same transaction naming the AG the cluster lands in?
@@ -4247,7 +4247,7 @@ mxfs_report_replay_authority(
  * before a pass-2 claim).  The explicit foreign check is a belt in case a
  * future caller sets the mode on a non-foreign log.
  */
-/* sess405: did the evaluator detect a post-seal authority mutation under
+/* did the evaluator detect a post-seal authority mutation under
  * enforcement?  Report-only replay never applies tokenized images, so a
  * mutation seen there is telemetry (counted, logged) and not a verdict. */
 bool
@@ -4266,7 +4266,7 @@ mxfs_fr_enforcement_active(
 
 	if (!se || !se->enforce_cfg || !se->capable)
 		return false;
-	/* sess442: the bootstrap owner's adopted slot K is an own log whose
+	/* the bootstrap owner's adopted slot K is an own log whose
 	 * replay is ENFORCED by the escrowed certificate (5d ruling: FULL,
 	 * authority-evaluated); enforcement-off there refused every
 	 * buffer-carrying transaction of a dirty K (chain 28 s442a) */
@@ -4277,18 +4277,18 @@ mxfs_fr_enforcement_active(
 }
 
 /*
- * sess358 (#1, sess357 ruling; reshaped sess359 per the GPT review):
+ * (#1, ruling; reshaped per the design review):
  * enforcement preflight at elected-recovery entry, called by
  * mxfs_xlog_recover_foreign_slice BEFORE xlog_recover so an abort has
  * ZERO replay side effects.  This is the ONLY place the attempt-local
  * l_mxfs_fr_enforce_mode is ever set — the whole attempt then runs under
  * this one verdict and no global-knob flip after this point can change it
- * (GPT review Q3: no OFF->ARMED transition after the preflight point).
+ * (design review Q3: no OFF->ARMED transition after the preflight point).
  *
  * With the knob armed, the outcome is one of:
  *   - config invalid (an F2 domain param raced the setter's validation):
  *     ABORT retryably and LOUDLY — an armed knob must never silently
- *     degrade to enforcement-off blanket refusal (GPT review Q5);
+ *     degrade to enforcement-off blanket refusal (design review Q5);
  *   - proto not admitted (mixed-version fleet): explicit logged DEMOTE to
  *     the old blanket-refusal behavior for this attempt — fail closed and
  *     attributable, chosen over an abort that could never terminate on a
@@ -4317,7 +4317,7 @@ mxfs_fr_enforce_preflight(
 	if (!xlog_is_mxfs_foreign_replay(log) &&
 	    !xlog_is_mxfs_bootstrap_adopted(log))
 		return 0;
-	/* sess442: on the adopted slot K enforcement is not a knob — the
+	/* on the adopted slot K enforcement is not a knob — the
 	 * ruling's own-log replay is authority-evaluated or it does not run */
 	if (!READ_ONCE(mxfs_foreign_replay_token_enforce) &&
 	    !xlog_is_mxfs_bootstrap_adopted(log))
@@ -4357,7 +4357,7 @@ mxfs_fr_enforce_preflight(
 		return -EIO;
 	}
 	/*
-	 * sess405: under enforcement the verdict source is the sealed
+	 * under enforcement the verdict source is the sealed
 	 * fence-time manifest and nothing else.  A manifest that did not load
 	 * (unsealed, corrupt, pointer mismatch, unreadable) leaves no sound
 	 * source — never fall back to live authority; abort retryably with the
@@ -4379,7 +4379,7 @@ mxfs_fr_enforce_preflight(
 		return -EIO;
 	}
 	/*
-	 * sess408 (D-RMAN-MUTATED-SLICE-REPLAYED-BEFORE-VERIFY-408): verify the
+	 * (D-RMAN-MUTATED-SLICE-REPLAYED-BEFORE-VERIFY-408): verify the
 	 * WHOLE sealed manifest against the live table BEFORE a single record
 	 * is applied.  The per-record current-safety check only covers the
 	 * entries the replayed records happen to reference, and the pre-purge
@@ -4460,7 +4460,7 @@ mxfs_fr_enforce_preflight(
 }
 
 /*
- * sess323 (sess320 ruling, D-513): map a REFUSED log item to the AG it would
+ * (ruling, D-513): map a REFUSED log item to the AG it would
  * have modified, accumulating the quarantine domain for the terminal outcome
  * record.  Anything that cannot be mapped confidently — unmappable item
  * type, malformed format, agno beyond the 64-bit mask — widens the domain to
@@ -4527,7 +4527,7 @@ mxfs_refused_item_domain(
 }
 
 /*
- * sess412 (D-529): classify the WHOLE untrusted transaction exactly once,
+ * (D-529): classify the WHOLE untrusted transaction exactly once,
  * over the COMPLETE assembled item queue, at commit entry — before any
  * pass-2 batch is drained.  The former in-batch classification saw only
  * the current 100-item batch (XLOG_RECOVER_COMMIT_QUEUE_MAX), so the
@@ -4566,7 +4566,7 @@ mxfs_classify_untrusted_txn(
 	}
 
 	/*
-	 * sess413 (D-529 verification): simulate an unauthorized image in a
+	 * (D-529 verification): simulate an unauthorized image in a
 	 * LATER batch of a large transaction.  Pre-fix, batch 1 of this txn
 	 * earned ADMIT and applied while a later batch earned ATOMIC-SKIP —
 	 * a partial apply.  With the whole-txn verdict the ENTIRE transaction
@@ -4591,7 +4591,7 @@ mxfs_classify_untrusted_txn(
 		return MXFS_TXNV_UNTAINTED;
 
 	/*
-	 * sess434 (D-0354 lap 2): a PREVIOUS incarnation's transaction in an
+	 * (D-0354 lap 2): a PREVIOUS incarnation's transaction in an
 	 * ADOPTED victim's slice.  A transaction is written by exactly one
 	 * incarnation, so one PREINC token classifies it; every other buffer
 	 * image must then be PREINC or untagged (a tagged current-incarnation
@@ -4631,7 +4631,7 @@ mxfs_classify_untrusted_txn(
 	}
 
 	/*
-	 * sess187 (sess184 ruling): the kind-17 + victim-snlocal conjunction
+	 * (ruling): the kind-17 + victim-snlocal conjunction
 	 * authorizes untagged images on THIS shadow xlog — the victim durably
 	 * classified its log single-node-local at write time, so no
 	 * cross-node authority question exists and the tear the atomic skip
@@ -4651,7 +4651,7 @@ mxfs_classify_untrusted_txn(
 	}
 
 	/*
-	 * sess358 (#1, sess357 ruling): ENFORCEMENT ADMIT.  Every buffer
+	 * (#1, ruling): ENFORCEMENT ADMIT.  Every buffer
 	 * image in this transaction individually reached the enforceable
 	 * terminal (v3 lineage + FENCED-proven incarnation + held manifest
 	 * grant + epoch match) and no unauthorizable non-buf image rides
@@ -4677,7 +4677,7 @@ mxfs_classify_untrusted_txn(
 	}
 
 	/*
-	 * sess352 (#94): counter-only SB transaction — skip it CLEAN.  Lazy
+	 * (#94): counter-only SB transaction — skip it CLEAN.  Lazy
 	 * SB counters are reconstructible (mxfs mounts recompute them from
 	 * AGF/AGI unconditionally): NOT a refusal, no torn-verdict arming,
 	 * nothing added to the quarantine domain.
@@ -4706,7 +4706,7 @@ refuse:
 		int n = atomic_inc_return(&mxfs_fratomic_n);
 
 		log->l_mxfs_untagged_skips++;
-		/* sess323: every item of the refused transaction is work that
+		/* every item of the refused transaction is work that
 		 * will never be applied — fold each into the quarantine
 		 * domain. */
 		list_for_each_entry(item, &trans->r_itemq, ri_list)
@@ -4723,7 +4723,7 @@ refuse:
 }
 
 /*
- * sess476 (D-FOREIGN-SLICE-INTENTS-ABANDONED, CANCEL authority tokens —
+ * (D-FOREIGN-SLICE-INTENTS-ABANDONED, CANCEL authority tokens —
  * Design-consult ruling ccmemory ccloop-c7ee71c6-sess476-GPT-ruling-cancel-item-
  * untagged-fixA-tokenize-binval-pass1-verdict-aware, part 4): the pass-1
  * buffer cancel table is built from ADMITTED transactions only.
@@ -4955,7 +4955,7 @@ xlog_recover_items_pass2(
 	bool				mxfs_txn_admitted = false;
 
 	/*
-	 * sess41 (GPT-approved containment; PROVEN tear: unlinker_death
+	 * (GPT-approved containment; PROVEN tear: unlinker_death
 	 * reproducer, D-FOREIGN-REPLAY-UNGATED-IMAGES): TRANSACTION-ATOMIC
 	 * SKIP for untrusted (foreign/adopted) replay.  The old per-item
 	 * policy applied a transaction's INODE items while skipping its
@@ -4971,14 +4971,14 @@ xlog_recover_items_pass2(
 	 * authority protocol remains the real fix.
 	 */
 	/*
-	 * sess405: a broken recovery invariant seen by the evaluator
+	 * a broken recovery invariant seen by the evaluator
 	 * (post-seal mutation of the victim's frozen authority, or a failed
 	 * current-safety read) aborts the WHOLE attempt under enforcement —
 	 * retryable errno, verdict reason stays NONE so no terminal outcome
 	 * publishes and nothing is purged.
 	 */
 	/*
-	 * sess407 (design-consult ruling Q5): a replayer that already holds a lease
+	 * (design-consult ruling Q5): a replayer that already holds a lease
 	 * rechecks the FS-wide terminal state at every transaction boundary
 	 * and stops safely — between committed transactions the slice is
 	 * restartable exactly like a crash during recovery.  Retryable errno,
@@ -5002,7 +5002,7 @@ xlog_recover_items_pass2(
 		return -EIO;
 	}
 	/*
-	 * sess412 (D-529): the whole-transaction verdict was classified
+	 * (D-529): the whole-transaction verdict was classified
 	 * EXACTLY ONCE over the COMPLETE item queue at commit entry
 	 * (mxfs_classify_untrusted_txn) and cached on the trans; every batch
 	 * of this transaction consumes the same verdict, so a >100-item
@@ -5047,7 +5047,7 @@ xlog_recover_items_pass2(
 		switch (trans->r_mxfs_verdict) {
 		case MXFS_TXNV_SBCLEAN:
 		case MXFS_TXNV_SKIP:
-		case MXFS_TXNV_PREINC:	/* sess434: published predecessor */
+		case MXFS_TXNV_PREINC:	/* published predecessor */
 			return 0;	/* every batch of the txn skips */
 		case MXFS_TXNV_ADMIT:
 			mxfs_txn_admitted = true;
@@ -5081,13 +5081,13 @@ xlog_recover_items_pass2(
 			     (t >= XFS_LI_RUI && t <= XFS_LI_CUD_RT)) &&
 			    !xlog_is_mxfs_bootstrap_adopted(log)) {
 				/*
-				 * sess441: a BOOTSTRAP_ADOPTED log is the real
+				 * a BOOTSTRAP_ADOPTED log is the real
 				 * mount log — its intents ARE processed (the
 				 * ruling's reason for shape B); they fall
 				 * through to commit_pass2 below.
 				 */
 				/*
-				 * sess421 (sess420 barrier ruling, stop-ship 1):
+				 * (barrier ruling, stop-ship 1):
 				 * NOT applied, but no longer dropped silently —
 				 * the census records every intent by id and
 				 * retires it on its done.  A foreign replay
@@ -5101,12 +5101,12 @@ xlog_recover_items_pass2(
 				 * false: that claimer is an adopted-slice mount
 				 * and took this same branch.
 				 */
-				/* sess436: already noted by the pre-verdict
+				/* already noted by the pre-verdict
 				 * census pass above. */
 				continue;
 			}
 			/*
-			 * sess32 D-FOREIGN-REPLAY-UNGATED-IMAGES containment:
+			 * D-FOREIGN-REPLAY-UNGATED-IMAGES containment:
 			 * buffer/dquot/quotaoff/icreate records carry no
 			 * authority token and their only replay gate is a
 			 * cross-slice LSN compare, which is meaningless
@@ -5122,7 +5122,7 @@ xlog_recover_items_pass2(
 			 * is node-independent and correct.
 			 */
 			/*
-			 * sess403 (design-consult ruling): inside an ADMITTED
+			 * (design-consult ruling): inside an ADMITTED
 			 * transaction a buffer image whose token names a
 			 * tenure the victim CLEANLY RELEASED (durable
 			 * XFS_LI_MXFS_RELMARK collected in pass 1) is
@@ -5131,11 +5131,11 @@ xlog_recover_items_pass2(
 			 * successor.  Skip it SILENTLY: no untagged_skips, no
 			 * quarantine domain, no torn-verdict arming.
 			 */
-			/* sess444: a REDUNDANT ICREATE is suppressed the same way
+			/* a REDUNDANT ICREATE is suppressed the same way
 			 * — the successor may have reused the extent, so not even
 			 * its verify read runs (see P-ICREATE-AUTH). */
 			/*
-			 * sess476: a REDUNDANT CANCEL record is NOT skipped
+			 * a REDUNDANT CANCEL record is NOT skipped
 			 * here — it writes nothing anyway, and commit_pass2
 			 * must still perform its cancel-table put so the
 			 * pass-1 adds stay balanced (the ruling's part 4).
@@ -5172,7 +5172,7 @@ xlog_recover_items_pass2(
 				int n = atomic_inc_return(&mxfs_frskip_n);
 
 				log->l_mxfs_untagged_skips++;
-				/* sess323: refused item → quarantine domain */
+				/* refused item → quarantine domain */
 				mxfs_refused_item_domain(log, item);
 				if (n <= 2000)
 					xfs_notice(log->l_mp,
@@ -5183,7 +5183,7 @@ xlog_recover_items_pass2(
 		}
 
 		/*
-		 * sess332 (sess328 ruling Q2b): genuine mid-replay TORN fault
+		 * (ruling Q2b): genuine mid-replay TORN fault
 		 * injection.  Fails BEFORE applying this item, so the applied
 		 * prefix is deterministic and the caller's xlog_recover_cancel
 		 * runs the real unwind mid-replay — nothing after the failure
@@ -5244,7 +5244,7 @@ xlog_recover_commit_trans(
 		return error;
 
 	/*
-	 * sess412 (D-529): whole-transaction untrusted-replay verdict,
+	 * (D-529): whole-transaction untrusted-replay verdict,
 	 * classified once here over the COMPLETE item queue and cached on
 	 * the trans; the pass-2 batches consume it.  Pass 2 only (pass 1
 	 * never applies images), before reorder (the classifier's own walks
@@ -5254,7 +5254,7 @@ xlog_recover_commit_trans(
 	if (pass == XLOG_RECOVER_PASS2 && xlog_is_mxfs_untrusted_replay(log)) {
 		trans->r_mxfs_verdict = mxfs_classify_untrusted_txn(log, trans,
 								    true);
-		/* sess476: must equal the end-of-pass-1 CANCEL decision */
+		/* must equal the end-of-pass-1 CANCEL decision */
 		error = mxfs_cdefer_verify(log, trans);
 		if (error)
 			return error;
@@ -5305,7 +5305,7 @@ out:
 		list_splice_init(&done_list, &trans->r_itemq);
 
 	/*
-	 * sess476: a pass-1 CANCEL-bearing untrusted transaction is parked
+	 * a pass-1 CANCEL-bearing untrusted transaction is parked
 	 * (its items kept) until the walk completes — see mxfs_cdefer_resolve.
 	 * The caller sees r_mxfs_deferred and does not free it.
 	 */
@@ -5501,7 +5501,7 @@ xlog_recover_free_trans(
 }
 
 /*
- * sess412 (D-527 GPT ruling, part (b)): the hard assembly invariant.  A
+ * (D-527 design-consult ruling, part (b)): the hard assembly invariant.  A
  * COMMITTED transaction must arrive whole: every item fully claimed
  * (ri_total set from its format header), every declared region present,
  * and the first region carrying a recognized item type.  A healthy log
@@ -5560,12 +5560,12 @@ mxfs_xlog_validate_trans_assembly(
 	}
 
 	/*
-	 * sess412 measurement 2: the writer records the checkpoint's TOTAL
+	 * measurement 2: the writer records the checkpoint's TOTAL
 	 * region (iovec) count in the trans header (xlog_cil_build_trans_hdr:
 	 * th_num_items = num_iovecs), and upstream recovery never checks it.
 	 * Verified against the platter (slot 26, txn 0x100007410): 131 items,
 	 * 128 inode x3 + 3 buf x2 regions = th_num_items 390 exactly.  Both
-	 * measured di_magic -117s (sess410 slot 29, sess412 slot 26) failed
+	 * measured di_magic -117s (slot 29, slot 26) failed
 	 * on an item ~17 positions past what the kernel assembled, i.e. the
 	 * assembled stream was SHORTER than the writer's count with ZERO
 	 * unknown-tid skips — so enforce the writer's own total.  A mismatch
@@ -5654,7 +5654,7 @@ xlog_recovery_process_trans(
 		error = -EFSCORRUPTED;
 		break;
 	}
-	/* sess476: a parked CANCEL-bearing transaction is owned by the
+	/* a parked CANCEL-bearing transaction is owned by the
 	 * pass-1 defer list (mxfs_cdefer_stash) until mxfs_cdefer_resolve */
 	if (error || (freeit && !trans->r_mxfs_deferred))
 		xlog_recover_free_trans(trans);
@@ -5749,7 +5749,7 @@ xlog_recover_process_ophdr(
 	trans = xlog_recover_ophdr_to_trans(rhash, rhead, ohead);
 	if (!trans) {
 		/*
-		 * sess412 (D-527 ruling): an unknown-tid non-START ophdr is
+		 * (D-527 ruling): an unknown-tid non-START ophdr is
 		 * tolerated as slack (a txn wholly applied before the tail can
 		 * leave regions inside [tail,head]) — but it is also exactly
 		 * what a stale prior-life record inside the span looks like,
@@ -6118,7 +6118,7 @@ xlog_recover_iunlink_bucket(
 		ASSERT(VFS_I(ip)->i_nlink == 0);
 		ASSERT(VFS_I(ip)->i_mode != 0);
 		xfs_iflags_clear(ip, XFS_IRECOVERY);
-		/* mxfs sess40 (F1): membership established by this walk — the
+		/* (F1): membership established by this walk — the
 		 * later remove must target THIS bucket, not a recomputation. */
 		ip->i_unlinked_bucket = (short)bucket;
 		agino = ip->i_next_unlinked;
@@ -6215,7 +6215,7 @@ xlog_recover_iunlink_ag(
 
 	for (bucket = 0; bucket < XFS_AGI_UNLINKED_BUCKETS; bucket++) {
 		/*
-		 * mxfs sess40 (D-AGI-UNLINKED F1, recovery scoping): on a
+		 * (D-AGI-UNLINKED F1, recovery scoping): on a
 		 * multi-node mount this recovery owns ONLY its own slot's
 		 * bucket — every other bucket belongs to a live peer (its
 		 * members are the peer's in-flight open-unlinked inodes;
@@ -6798,7 +6798,7 @@ xlog_do_recovery_pass(
 			 * prevent future recovery of all the changes in the
 			 * checkpoints at this start LSN.
 			 *
-			 * sess338 513B (sess337 GPT ruling): the upstream
+			 * 513B (design-consult ruling): the upstream
 			 * unwind below achieves that by shutting down
 			 * log->l_mp so the delwri submission stales the
 			 * batch without I/O — but on a FOREIGN-slice replay
@@ -6821,7 +6821,7 @@ xlog_do_recovery_pass(
 			 * state without doing any IO.
 			 */
 			if (xlog_is_mxfs_foreign_replay(log)) {
-				pr_warn("mxfs: P227-FR-UNWIND err=%d — foreign-slice pass-2 error with queued buffers; failing batch without I/O, survivor mount untouched\n",
+				mxfs_probe("mxfs: P227-FR-UNWIND err=%d — foreign-slice pass-2 error with queued buffers; failing batch without I/O, survivor mount untouched\n",
 					error);
 				error2 = xfs_buf_delwri_fail(&buffer_list,
 							     error);
@@ -6886,7 +6886,7 @@ xlog_do_log_recovery(
 	error = xlog_alloc_buf_cancel_table(log);
 	if (error)
 		return error;
-	/* sess476: parked CANCEL-bearing untrusted txns (mxfs_cdefer_stash) */
+	/* parked CANCEL-bearing untrusted txns (mxfs_cdefer_stash) */
 	INIT_LIST_HEAD(&log->l_mxfs_cdefer);
 
 	error = xlog_do_recovery_pass(log, head_blk, tail_blk,
@@ -6895,7 +6895,7 @@ xlog_do_log_recovery(
 		goto out_cancel;
 
 	/*
-	 * sess476: the pass-1 walk is complete (every clean-release marker
+	 * the pass-1 walk is complete (every clean-release marker
 	 * collected) — decide the parked transactions and put a refused one's
 	 * cancel entries back out BEFORE pass 2 applies anything.
 	 */
@@ -6944,7 +6944,7 @@ xlog_do_recover(
 		return -EIO;
 
 	/*
-	 * sess421: an ADOPTED own-slice mount replay skipped the previous
+	 * an ADOPTED own-slice mount replay skipped the previous
 	 * incarnation's intents through the same census as a foreign replay.
 	 * Print it here (the foreign shadow prints from its terminal
 	 * predicate in xfs_log.c); an open set on this path is the
@@ -6952,7 +6952,7 @@ xlog_do_recover(
 	 * not yet a mount refusal.
 	 */
 	if (!xlog_is_mxfs_foreign_replay(log) &&
-	    !xlog_is_mxfs_bootstrap_adopted(log) &&	/* sess441: intents applied */
+	    !xlog_is_mxfs_bootstrap_adopted(log) &&	/* intents applied */
 	    xlog_is_mxfs_untrusted_replay(log)) {
 		uint64_t	imask = 0;
 		bool		ifsw = false;

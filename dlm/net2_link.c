@@ -15,7 +15,7 @@
  *     standalone ACKs first).  Replaces mxfs_peer_send's caller-context
  *     send under send_lock (peer.c:884).
  *  3. Reconnect tears down freely (departure from peer.c:914-940
- *     sess40 keep-socket-up): the retransmit ring owns delivery, the
+ *     keep-socket-up): the retransmit ring owns delivery, the
  *     session survives, a link event is a routing event.
  *
  * Handshake: connector sends an FC_SYN frame whose payload is the TLV

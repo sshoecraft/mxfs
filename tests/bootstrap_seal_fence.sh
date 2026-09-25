@@ -108,7 +108,7 @@ done
 [ $devup -eq 1 ] || { fail "$DEV / /src never came up on $RM"; echo "=== bootstrap_seal_fence $LABEL: fails=$fails out=$OUT ==="; exit 1; }
 TM=$(date +%s)
 sshq $((MOUNT_BOUND+60)) "$RM" "echo 3 > /proc/sys/vm/drop_caches; cp /src/mxfs/mxfs.ko /tmp/mxfs.ko; m=\$(md5sum /tmp/mxfs.ko | awk '{print \$1}'); [ \"\$m\" = '$KO_MD5' ] || { echo KO_MD5_MISMATCH \$m; exit 1; }
-    modprobe libcrc32c 2>/dev/null || true; insmod /tmp/mxfs.ko; cat /sys/module/mxfs/srcversion
+    modprobe libcrc32c 2>/dev/null || true; insmod /tmp/mxfs.ko dyndbg=+p; cat /sys/module/mxfs/srcversion
     echo BOOTSEAL-MOUNT-$LABEL > /dev/kmsg; mkdir -p $MNT; timeout $MOUNT_BOUND mount -t mxfs $DEV $MNT; echo MOUNT_RC=\$?
     sg_persist -i -k $DEV 2>&1 | tail -3" > "$OUT/remount.txt" 2>&1
 MW=$(( $(date +%s) - TM ))

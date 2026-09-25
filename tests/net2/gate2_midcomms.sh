@@ -148,7 +148,7 @@ EOS
             grep -vE '^Warning|^Unauthorized|^If you'
 set -u
 dmesg -C
-insmod /src/mxfs/mxfs.ko net2_selftest=1 \
+insmod /src/mxfs/mxfs.ko dyndbg=+p net2_selftest=1 \
     net2_selftest_slot="$1" net2_selftest_peer="$2" \
     net2_selftest_peer_slot="$3" || { echo INSMOD_FAIL; exit 1; }
 echo "INSMOD_OK sv=$(cat /sys/module/mxfs/srcversion)"

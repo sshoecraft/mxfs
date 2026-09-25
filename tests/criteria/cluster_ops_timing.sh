@@ -29,7 +29,7 @@ t0=$(date +%s%N)
 out=$(ssh_node "$NODE0" "
     $MXFS_PREP >/tmp/prep.log 2>&1
     modprobe libcrc32c
-    insmod $MXFS_MODULE
+    insmod $MXFS_MODULE dyndbg=+p
     echo y | $MXFS_MKFS $MXFS_DEV >/tmp/mkfs.log 2>&1
     mount -t mxfs ${MXFS_MOUNT_OPTS} $MXFS_DEV $MXFS_MOUNT && echo MOUNT_OK
 ")
@@ -46,7 +46,7 @@ for n in "${REST[@]}"; do
         ssh_node_quiet "$n" "
             $MXFS_PREP >/tmp/prep.log 2>&1
             modprobe libcrc32c
-            insmod $MXFS_MODULE 2>/dev/null
+            insmod $MXFS_MODULE dyndbg=+p 2>/dev/null
             mount -t mxfs ${MXFS_MOUNT_OPTS} $MXFS_DEV $MXFS_MOUNT
         "
         t1=$(date +%s%N)

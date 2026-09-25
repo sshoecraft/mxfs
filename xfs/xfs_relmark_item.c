@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
  * MXFS clean-release marker log item — producer, log item ops, and the
- * untrusted-replay pass-1 table (sess403 design-consult ruling, see xfs_relmark_item.h).
+ * untrusted-replay pass-1 table (design-consult ruling, see xfs_relmark_item.h).
  *
  * Modelled on xfs_icreate_item: one log vector, XFS_ITEM_RELEASE_WHEN_COMMITTED
  * (never AIL-resident), no in-core state beyond the format.  Trusted replay
@@ -124,7 +124,7 @@ mxfs_relmark_publish(
 	if (!mp || !mp->m_log || xfs_is_shutdown(mp))
 		return -EIO;
 	if (!grant_epoch) {
-		/* a zero epoch proves nothing (sess108); nothing to certify */
+		/* a zero epoch proves nothing; nothing to certify */
 		atomic64_inc(&mxfs_relmark_publish_skip_noid);
 		return 0;
 	}
@@ -143,7 +143,7 @@ mxfs_relmark_publish(
 				XFS_TRANS_NO_WRITECOUNT, &tp);
 	if (error) {
 		atomic64_inc(&mxfs_relmark_publish_fail);
-		pr_warn_ratelimited("mxfs: P-RELMARK-FAIL class=%u res=%llu gepoch=%llu who=%s rc=%d — clean-release marker NOT published (transaction)\n",
+		mxfs_probe_ratelimited("mxfs: P-RELMARK-FAIL class=%u res=%llu gepoch=%llu who=%s rc=%d — clean-release marker NOT published (transaction)\n",
 			(unsigned)auth_class, (unsigned long long)resource,
 			(unsigned long long)grant_epoch, who ? who : "?",
 			error);
@@ -172,7 +172,7 @@ mxfs_relmark_publish(
 	error = xfs_trans_commit(tp);
 	if (error) {
 		atomic64_inc(&mxfs_relmark_publish_fail);
-		pr_warn_ratelimited("mxfs: P-RELMARK-FAIL class=%u res=%llu gepoch=%llu who=%s rc=%d — clean-release marker NOT durable (commit)\n",
+		mxfs_probe_ratelimited("mxfs: P-RELMARK-FAIL class=%u res=%llu gepoch=%llu who=%s rc=%d — clean-release marker NOT durable (commit)\n",
 			(unsigned)auth_class, (unsigned long long)resource,
 			(unsigned long long)grant_epoch, who ? who : "?",
 			error);

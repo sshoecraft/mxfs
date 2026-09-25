@@ -89,167 +89,172 @@
    "guards": 1,
    "note": ""
   },
-  "xfs/xfs_mxfs_dlm.c::EXPORT_SYMBOL": {
+  "xfs/xfs_mxfs_iget.c::mxfs_dlm_iget_visibility_nudge": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_iget.c::mxfs_dlm_iget_shell_reload": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_pubob.c::EXPORT_SYMBOL": {
    "class": "unclassified",
    "guards": 4,
    "note": ""
   },
-  "xfs/xfs_mxfs_dlm.c::__mxfs_dlm_dir_inode_durable": {
+  "xfs/xfs_mxfs_coherency.c::mxfs_dlm_note_dir_modified": {
    "class": "unclassified",
    "guards": 1,
    "note": ""
   },
-  "xfs/xfs_mxfs_dlm.c::mxfs_ag_meta_coldread_discard": {
-   "class": "unclassified",
-   "guards": 1,
-   "note": ""
-  },
-  "xfs/xfs_mxfs_dlm.c::mxfs_bmbt_tenure_end_evict": {
+  "xfs/xfs_mxfs_buf.c::mxfs_buf_xfsaild_skip_agmeta_write": {
    "class": "epoch",
    "guards": 1,
    "note": "D-0975 tenure-end bmbt eviction. While alone no peer can free or reuse a block of this inode's tree, and the single-to-multi join (mxfs_dlm_join_prepare under freeze_super -> mxfs_dlm_invalidate_cached_views -> mxfs_dlm_drop_clean_cached_blocks) drops every clean cached block and keeps the peer unadmitted while any is retained. Unproven residual: a reader tenure that caches a bmbt block after prepare's drop and ends before the view flip is skipped here and survives the join - tracked in D-BMBT-TENURE-END-EVICT-SKIP-WINDOW-BETWEEN-JOIN-DROP-AND-FLIP"
   },
-  "xfs/xfs_mxfs_dlm.c::mxfs_bmbt_write_probe": {
+  "xfs/xfs_mxfs_buf.c::mxfs_buf_xfsaild_skip_bmbt_write": {
    "class": "unclassified",
    "guards": 1,
    "note": ""
   },
-  "xfs/xfs_mxfs_dlm.c::mxfs_buf_xfsaild_skip_agmeta_write": {
+  "xfs/xfs_mxfs_dir_bmbt.c::mxfs_bmbt_tenure_end_evict": {
    "class": "unclassified",
    "guards": 1,
    "note": ""
   },
-  "xfs/xfs_mxfs_dlm.c::mxfs_buf_xfsaild_skip_bmbt_write": {
+  "xfs/xfs_mxfs_dir_data.c::mxfs_bmbt_write_probe": {
    "class": "unclassified",
    "guards": 1,
    "note": ""
   },
-  "xfs/xfs_mxfs_dlm.c::mxfs_buf_xfsaild_skip_dir_write": {
+  "xfs/xfs_mxfs_open.c::mxfs_dlm_pr_sweep_trigger": {
    "class": "unclassified",
    "guards": 1,
    "note": ""
   },
-  "xfs/xfs_mxfs_dlm.c::mxfs_danode_crcfail_probe": {
+  "xfs/xfs_mxfs_buf.c::mxfs_dir_data_track": {
    "class": "unclassified",
    "guards": 1,
    "note": ""
   },
-  "xfs/xfs_mxfs_dlm.c::mxfs_destage_kick": {
+  "xfs/xfs_mxfs_dir_bmbt.c::mxfs_dir_evict_owned_data_blocks": {
    "class": "unclassified",
    "guards": 1,
    "note": ""
   },
-  "xfs/xfs_mxfs_dlm.c::mxfs_dir_ail_push_defer": {
+  "xfs/xfs_mxfs_reload.c::mxfs_danode_crcfail_probe": {
    "class": "unclassified",
    "guards": 1,
    "note": ""
   },
-  "xfs/xfs_mxfs_dlm.c::mxfs_dir_bmbt_track": {
+  "xfs/xfs_mxfs_obligation.c::mxfs_f4_commit": {
    "class": "unclassified",
    "guards": 1,
    "note": ""
   },
-  "xfs/xfs_mxfs_dlm.c::mxfs_dir_choke_merge_remset": {
+  "xfs/xfs_mxfs_dir_data.c::mxfs_dir_choke_merge_remset": {
    "class": "unclassified",
    "guards": 1,
    "note": ""
   },
-  "xfs/xfs_mxfs_dlm.c::mxfs_dir_data_owner_scan": {
+  "xfs/xfs_mxfs_dir_data.c::mxfs_sfconv_disk_check": {
    "class": "unclassified",
    "guards": 1,
    "note": ""
   },
-  "xfs/xfs_mxfs_dlm.c::mxfs_dir_data_track": {
-   "class": "unclassified",
-   "guards": 1,
-   "note": ""
-  },
-  "xfs/xfs_mxfs_dlm.c::mxfs_dir_evict_owned_data_blocks": {
-   "class": "unclassified",
-   "guards": 1,
-   "note": ""
-  },
-  "xfs/xfs_mxfs_dlm.c::mxfs_dir_merge_peer_blocks": {
-   "class": "unclassified",
-   "guards": 1,
-   "note": ""
-  },
-  "xfs/xfs_mxfs_dlm.c::mxfs_dir_merge_peer_into_tp": {
-   "class": "unclassified",
-   "guards": 1,
-   "note": ""
-  },
-  "xfs/xfs_mxfs_dlm.c::mxfs_dir_modify_adopt_disk_format": {
-   "class": "unclassified",
-   "guards": 1,
-   "note": ""
-  },
-  "xfs/xfs_mxfs_dlm.c::mxfs_dir_noino_land_scan": {
-   "class": "unclassified",
-   "guards": 1,
-   "note": ""
-  },
-  "xfs/xfs_mxfs_dlm.c::mxfs_dir_pending_add": {
-   "class": "unclassified",
-   "guards": 1,
-   "note": ""
-  },
-  "xfs/xfs_mxfs_dlm.c::mxfs_dir_pending_replay": {
-   "class": "unclassified",
-   "guards": 1,
-   "note": ""
-  },
-  "xfs/xfs_mxfs_dlm.c::mxfs_dir_postrmw_probe": {
-   "class": "unclassified",
-   "guards": 1,
-   "note": ""
-  },
-  "xfs/xfs_mxfs_dlm.c::mxfs_dir_reconcile_stale_data_blocks": {
-   "class": "unclassified",
-   "guards": 1,
-   "note": ""
-  },
-  "xfs/xfs_mxfs_dlm.c::mxfs_dir_record_removed": {
-   "class": "unclassified",
-   "guards": 1,
-   "note": ""
-  },
-  "xfs/xfs_mxfs_dlm.c::mxfs_dir_refresh_stale_data_blocks": {
-   "class": "unclassified",
-   "guards": 1,
-   "note": ""
-  },
-  "xfs/xfs_mxfs_dlm.c::mxfs_dir_release_invalidate_data_blocks": {
-   "class": "unclassified",
-   "guards": 1,
-   "note": ""
-  },
-  "xfs/xfs_mxfs_dlm.c::mxfs_dir_sf_premerge_for_release": {
-   "class": "unclassified",
-   "guards": 1,
-   "note": ""
-  },
-  "xfs/xfs_mxfs_dlm.c::mxfs_dir_should_force_block": {
-   "class": "unclassified",
-   "guards": 1,
-   "note": ""
-  },
-  "xfs/xfs_mxfs_dlm.c::mxfs_dir_zombie_push_retire": {
-   "class": "unclassified",
-   "guards": 1,
-   "note": ""
-  },
-  "xfs/xfs_mxfs_dlm.c::mxfs_dlm_close_release": {
+  "xfs/xfs_mxfs_open.c::mxfs_dlm_close_release": {
    "class": "unclassified",
    "guards": 2,
    "note": ""
   },
-  "xfs/xfs_mxfs_dlm.c::mxfs_dlm_creator_baseline_query": {
+  "xfs/xfs_mxfs_dir_modify.c::mxfs_dir_pending_add": {
    "class": "unclassified",
    "guards": 1,
    "note": ""
   },
-  "xfs/xfs_mxfs_dlm.c::mxfs_dlm_dir_durable_signal": {
+  "xfs/xfs_mxfs_dir_modify.c::mxfs_dir_merge_peer_blocks": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dir_modify.c::mxfs_dir_merge_peer_into_tp": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_statfs_perag_sums": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dir_modify.c::mxfs_dir_modify_adopt_disk_format": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_init_all_perag_data": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_durable.c::mxfs_destage_kick": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dir_modify.c::mxfs_dir_postrmw_probe": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dir_modify.c::mxfs_dir_reconcile_stale_data_blocks": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dir_data.c::mxfs_dir_record_removed": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dir_data.c::mxfs_dir_refresh_stale_data_blocks": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dir_evict.c::mxfs_dir_release_invalidate_data_blocks": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dir_sf.c::mxfs_dir_sf_premerge_for_release": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dir_modify.c::mxfs_dir_should_force_block": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_buf.c::mxfs_dir_ail_push_defer": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_coherency.c::mxfs_inode_is_peer_ag": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_publish.c::mxfs_dlm_creator_baseline_query": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_coherency.c::mxfs_dlm_dir_durable_signal": {
    "class": "epoch",
    "guards": 1,
    "note": "MEASURED reachable by a sole survivor (P952). Stages a DIR_MODIFY signal for LIVE peers to consume; a rejoining peer remounts with a cold cache and has nothing stale to invalidate, so the signal has no future reader. Also gated CAW-only downstream. Revisit if a rejoining peer is ever allowed to reuse pre-departure cached state."
@@ -259,32 +264,32 @@
    "guards": 0,
    "note": ""
   },
-  "xfs/xfs_mxfs_dlm.c::mxfs_dlm_dir_modify_refresh": {
+  "xfs/xfs_mxfs_dir_modify.c::mxfs_dlm_dir_modify_refresh": {
    "class": "recovery",
    "guards": 1,
    "note": "Sibling of dir_modify_reload_prelock on the modify path; same pending-peer-invalidation consumer shape, same dynamic-membership test, same D-0904 relationship. Read both together and fix both or neither - D-0949 showed what fixing one of a sibling pair costs when the two btrees then disagree."
   },
-  "xfs/xfs_mxfs_dlm.c::mxfs_dlm_dir_modify_reload_prelock": {
+  "xfs/xfs_mxfs_dir_modify.c::mxfs_dlm_dir_modify_reload_prelock": {
    "class": "recovery",
    "guards": 1,
    "note": "A CONSUMER OF A PENDING PEER INVALIDATION, and that is D-0904's defect statement verbatim: 'every consumer of a pending peer-invalidation signal returns early on the single-node bypass before consulting the signal'. D-0904 was closed FIXED AND VERIFIED after fixing ONE such consumer; this is another one and it still tests dynamic membership. It consumes a DIR_MODIFY reload signal before taking the dir lock, so a survivor with an invalidation the departed peer issued and never had serviced skips the reload and keeps serving the pre-invalidation fork. Recovery class, not epoch: whether the signal still matters depends on whether the departed peer's outstanding invalidations were drained, not on member count."
   },
-  "xfs/xfs_mxfs_dlm.c::mxfs_dlm_force_peer_flush": {
+  "xfs/xfs_mxfs_ilock.c::mxfs_ilock_admit_ioend": {
    "class": "unclassified",
    "guards": 1,
    "note": ""
   },
-  "xfs/xfs_mxfs_dlm.c::mxfs_dlm_iget_miss_reload": {
+  "xfs/xfs_mxfs_ag_meta.c::mxfs_ag_meta_coldread_discard": {
    "class": "unclassified",
    "guards": 1,
    "note": ""
   },
-  "xfs/xfs_mxfs_dlm.c::mxfs_dlm_iget_shell_reload": {
+  "xfs/xfs_mxfs_dir_bmbt.c::mxfs_dir_noino_land_scan": {
    "class": "unclassified",
    "guards": 1,
    "note": ""
   },
-  "xfs/xfs_mxfs_dlm.c::mxfs_dlm_iget_visibility_nudge": {
+  "xfs/xfs_mxfs_dir_bmbt.c::mxfs_dir_data_owner_scan": {
    "class": "unclassified",
    "guards": 1,
    "note": ""
@@ -299,12 +304,12 @@
    "guards": 0,
    "note": ""
   },
-  "xfs/xfs_mxfs_dlm.c::mxfs_dlm_note_dir_modified": {
+  "xfs/xfs_mxfs_durable.c::__mxfs_dlm_dir_inode_durable": {
    "class": "unclassified",
    "guards": 1,
    "note": ""
   },
-  "xfs/xfs_mxfs_dlm.c::mxfs_dlm_note_inode_freed": {
+  "xfs/xfs_mxfs_coherency.c::mxfs_dlm_note_inode_freed": {
    "class": "unclassified",
    "guards": 1,
    "note": ""
@@ -314,7 +319,7 @@
    "guards": 1,
    "note": "The guard is in mxfs_dlm_open_last_close (attributed to the neighbouring ride). A lone node's last close skips clearing a published open mark (set by P90 while multi-node); the mark stays in this node's slot on disk and a later peer reads the file as open here. Durable: must be maintained regardless of membership - tracked in D-OPEN-LAST-CLOSE-SKIPS-THE-CLEAR-WHEN-ALONE-LEAVING-A-DURABLE-OPEN-MARK"
   },
-  "xfs/xfs_mxfs_dlm.c::mxfs_dlm_pr_sweep_trigger": {
+  "xfs/xfs_mxfs_coherency.c::mxfs_p98_getattr_check": {
    "class": "unclassified",
    "guards": 1,
    "note": ""
@@ -334,67 +339,62 @@
    "guards": 0,
    "note": "converted 0.83.3 (D-0955): keyed on mxfs_v5_dlm_never_multi; the early-out left a survivor recycled-number create at NL with the dead peer stale mark (s583c ESTALE directory)"
   },
-  "xfs/xfs_mxfs_dlm.c::mxfs_dlm_recycle_grant_check": {
+  "xfs/xfs_mxfs_dir_data.c::mxfs_dlm_recycle_grant_check": {
    "class": "instrument",
    "guards": 1,
    "note": "D-0532 item (c) phantom-grant counter on xfs_iget_recycle; measurement only, changes no inode or DLM state, so skipping it alone costs a count and nothing else"
   },
-  "xfs/xfs_mxfs_dlm.c::mxfs_dlm_relog_authorized": {
+  "xfs/xfs_mxfs_iget.c::mxfs_dlm_iget_miss_reload": {
    "class": "unclassified",
    "guards": 1,
    "note": ""
   },
-  "xfs/xfs_mxfs_dlm.c::mxfs_f4_commit": {
+  "xfs/xfs_mxfs_buf.c::mxfs_dir_bmbt_track": {
    "class": "unclassified",
    "guards": 1,
    "note": ""
   },
-  "xfs/xfs_mxfs_dlm.c::mxfs_getattr_dlm_lock": {
+  "xfs/xfs_mxfs_coherency.c::mxfs_read_coherency_envelope": {
    "class": "unclassified",
    "guards": 1,
    "note": ""
   },
-  "xfs/xfs_mxfs_dlm.c::mxfs_iclus_publish_open_bits": {
+  "xfs/xfs_mxfs_iclus.c::mxfs_iclus_publish_open_bits": {
    "class": "unclassified",
    "guards": 1,
    "note": ""
   },
-  "xfs/xfs_mxfs_dlm.c::mxfs_iflush_force_bmbt_durable": {
+  "xfs/xfs_mxfs_dir_bmbt.c::mxfs_iflush_force_bmbt_durable": {
    "class": "unclassified",
    "guards": 1,
    "note": ""
   },
-  "xfs/xfs_mxfs_dlm.c::mxfs_ilock_admit_ioend": {
+  "xfs/xfs_mxfs_coherency.c::mxfs_getattr_dlm_lock": {
    "class": "unclassified",
    "guards": 1,
    "note": ""
   },
-  "xfs/xfs_mxfs_dlm.c::mxfs_init_all_perag_data": {
+  "xfs/xfs_mxfs_relbar.c::mxfs_dlm_relog_authorized": {
    "class": "unclassified",
    "guards": 1,
    "note": ""
   },
-  "xfs/xfs_mxfs_dlm.c::mxfs_inode_is_peer_ag": {
+  "xfs/xfs_mxfs_buf.c::mxfs_dir_zombie_push_retire": {
    "class": "unclassified",
    "guards": 1,
    "note": ""
   },
-  "xfs/xfs_mxfs_dlm.c::mxfs_p98_getattr_check": {
+  "xfs/xfs_mxfs_buf.c::mxfs_buf_xfsaild_skip_dir_write": {
    "class": "unclassified",
    "guards": 1,
    "note": ""
   },
-  "xfs/xfs_mxfs_dlm.c::mxfs_read_coherency_envelope": {
+  "xfs/xfs_mxfs_coherency.c::mxfs_dlm_force_peer_flush": {
    "class": "unclassified",
    "guards": 1,
    "note": ""
   },
-  "xfs/xfs_mxfs_dlm.c::mxfs_sfconv_disk_check": {
-   "class": "unclassified",
-   "guards": 1,
-   "note": ""
-  },
-  "xfs/xfs_mxfs_dlm.c::mxfs_statfs_perag_sums": {
+  "xfs/xfs_mxfs_dir_modify.c::mxfs_dir_pending_replay": {
    "class": "unclassified",
    "guards": 1,
    "note": ""

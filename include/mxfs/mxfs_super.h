@@ -144,9 +144,9 @@
  */
 #define MXFS_FORMAT_F_CLUSTER_NAME 0x00000080u
 #define MXFS_FORMAT_F_KNOWN     (MXFS_FORMAT_F_PROTOGATE | MXFS_FORMAT_F_RMAN | \
-                                 MXFS_FORMAT_F_TAUTH | MXFS_FORMAT_F_PRKEY64 | \
-                                 MXFS_FORMAT_F_BOOTSTRAP | MXFS_FORMAT_F_DIRSHARD_VALUE | \
-                                 MXFS_FORMAT_F_SLIFE | MXFS_FORMAT_F_CLUSTER_NAME)
+								 MXFS_FORMAT_F_TAUTH | MXFS_FORMAT_F_PRKEY64 | \
+								 MXFS_FORMAT_F_BOOTSTRAP | MXFS_FORMAT_F_DIRSHARD_VALUE | \
+								 MXFS_FORMAT_F_SLIFE | MXFS_FORMAT_F_CLUSTER_NAME)
 
 /* A cluster name: 1..63 of [A-Za-z0-9._-], NUL-terminated in 64 bytes.
  * The character set keeps it safe in a mount option string (no ',' or '=')
@@ -155,18 +155,18 @@
 
 static inline int mxfs_cluster_name_valid(const char *s)
 {
-    int i;
+	int i;
 
-    for (i = 0; s[i]; i++) {
-        char c = s[i];
+	for (i = 0; s[i]; i++) {
+		char c = s[i];
 
-        if (i >= MXFS_CLUSTER_NAME_LEN - 1)
-            return 0;
-        if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
-              (c >= '0' && c <= '9') || c == '.' || c == '_' || c == '-'))
-            return 0;
-    }
-    return i > 0;
+		if (i >= MXFS_CLUSTER_NAME_LEN - 1)
+			return 0;
+		if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+		      (c >= '0' && c <= '9') || c == '.' || c == '_' || c == '-'))
+			return 0;
+	}
+	return i > 0;
 }
 
 #define MXFS_SLIFE_MAGIC        0x45464C53u  /* "SLFE" */
@@ -181,17 +181,17 @@ static inline int mxfs_cluster_name_valid(const char *s)
 #define MXFS_SLIFE_ZEROING      2u  /* a claimant is zeroing; a crash here restarts the full zero */
 #define MXFS_SLIFE_READY        3u  /* the payload was zeroed through the kernel FUA path */
 struct mxfs_slife_record {
-    uint32_t    magic;              /* MXFS_SLIFE_MAGIC */
-    uint32_t    version;            /* MXFS_SLIFE_VERSION */
-    uint32_t    crc;                /* CRC32C of this 512 B with crc=0 */
-    uint32_t    state;              /* MXFS_SLIFE_* */
-    uint32_t    slice;              /* slice index this record describes */
-    uint32_t    generation;         /* bumped at every INIT_REQUIRED -> READY */
-    uint8_t     fs_uuid[16];        /* the incarnation the state belongs to */
-    uint64_t    owner_node;         /* claimant that wrote ZEROING / READY (0 at mkfs) */
-    uint64_t    owner_epoch;        /* its incarnation epoch (0 at mkfs) */
-    uint64_t    when_ms;            /* writer's clock, informational */
-    uint8_t     pad[MXFS_SLIFE_RECORD_SIZE - 64];
+	uint32_t    magic;              /* MXFS_SLIFE_MAGIC */
+	uint32_t    version;            /* MXFS_SLIFE_VERSION */
+	uint32_t    crc;                /* CRC32C of this 512 B with crc=0 */
+	uint32_t    state;              /* MXFS_SLIFE_* */
+	uint32_t    slice;              /* slice index this record describes */
+	uint32_t    generation;         /* bumped at every INIT_REQUIRED -> READY */
+	uint8_t     fs_uuid[16];        /* the incarnation the state belongs to */
+	uint64_t    owner_node;         /* claimant that wrote ZEROING / READY (0 at mkfs) */
+	uint64_t    owner_epoch;        /* its incarnation epoch (0 at mkfs) */
+	uint64_t    when_ms;            /* writer's clock, informational */
+	uint8_t     pad[MXFS_SLIFE_RECORD_SIZE - 64];
 };
 
 /* Bootstrap record geometry (sess439): one sector, in a 4 KiB region. */
@@ -210,7 +210,7 @@ struct mxfs_slife_record {
 #define MXFS_PRLEDGER_ENTRY_BYTES   512u
 #define MXFS_PRLEDGER_ENTRIES       256u
 #define MXFS_PRLEDGER_BYTES         ((uint64_t)MXFS_PRLEDGER_ENTRIES * \
-                                     MXFS_PRLEDGER_ENTRY_BYTES)
+									 MXFS_PRLEDGER_ENTRY_BYTES)
 
 /* Recovery-manifest region geometry (sess404).  Capacity proof: the protocol
  * maximum held set is every CAW lock slot (MXFS_CAW_MAX_SLOTS = 65536) x one
@@ -221,7 +221,7 @@ struct mxfs_slife_record {
 #define MXFS_RMAN_ENTRY_BYTES   32u
 #define MXFS_RMAN_HDR_BYTES     4096u
 #define MXFS_RMAN_SLOT_BYTES    ((uint64_t)65536u * MXFS_RMAN_ENTRY_BYTES + \
-                                 65536u)          /* 2 MiB + 64 KiB */
+								 65536u)          /* 2 MiB + 64 KiB */
 #define MXFS_RMAN_REGION_BYTES  ((uint64_t)MXFS_RMAN_SLOTS * MXFS_RMAN_SLOT_BYTES)
 /*
  * sess75: 1 -> 2 for the recovery-descriptor v2 fence certificate.
@@ -424,16 +424,16 @@ struct mxfs_slife_record {
  * does) or `chk_mxfs --upgrade-protogate` stamps the generation.
  */
 #define MXFS_PROTO_GEN          22u  /* 0.89.23 (gen 22): fence-class revocation cutover.
-                                     * 0.89.0 (gen 21): open-holder marks on the ledger.
-                                     * 0.88.0 (gen 20): slice lifecycle region.
-                                     * 0.75.0 (gen 19): transport bit in the feature word.
-                                     * sess466 (gen 18): directory sharding gates.
-                                     * sess443 (gen 17): bootstrap record v5, 32 KB region (manifest banks,
-                                     * completion tombstones, lineage, takeover journal — §6.8).
-                                     * sess442: bootstrap record v4 (escrow manifest pointer); sess441: v3 (adopted-
-                                     * slice escrow) + HB_FEAT_BOOTSTRAP_PENDING.
-                                     * sess440: 8 KB bootstrap region with the
-                                      * sealed manifest; descriptor owner kind */
+									 * 0.89.0 (gen 21): open-holder marks on the ledger.
+									 * 0.88.0 (gen 20): slice lifecycle region.
+									 * 0.75.0 (gen 19): transport bit in the feature word.
+									 * sess466 (gen 18): directory sharding gates.
+									 * sess443 (gen 17): bootstrap record v5, 32 KB region (manifest banks,
+									 * completion tombstones, lineage, takeover journal — §6.8).
+									 * sess442: bootstrap record v4 (escrow manifest pointer); sess441: v3 (adopted-
+									 * slice escrow) + HB_FEAT_BOOTSTRAP_PENDING.
+									 * sess440: 8 KB bootstrap region with the
+									  * sealed manifest; descriptor owner kind */
 
 /*
  * On-disk MXFS superblock — first 4KB of the block device.
@@ -447,69 +447,69 @@ struct mxfs_slife_record {
  * All multi-byte fields are native byte order (x86 = little-endian).
  */
 struct mxfs_ondisk_super {
-    uint32_t    magic;              /* MXFS_FORMAT_MAGIC (0x5346584D) */
-    uint32_t    version;            /* MXFS_FORMAT_VERSION */
-    uint32_t    flags;              /* reserved, must be 0 */
-    uint32_t    crc;                /* CRC32C of this 4KB (with crc=0) */
-    uint8_t     fs_uuid[16];        /* copy of XFS sb_uuid */
-    uint64_t    device_size;        /* total device size in bytes */
-    uint64_t    xfs_data_size;      /* XFS data area in bytes */
-    uint64_t    journal_offset;     /* byte offset of journal region */
-    uint64_t    journal_size;       /* journal region size in bytes */
-    uint64_t    disklock_offset;    /* byte offset of disklock region */
-    uint64_t    disklock_size;      /* disklock region size in bytes */
-    uint32_t    max_nodes;          /* max node count at format time */
-    uint32_t    journal_slot_sectors; /* sectors per journal slot */
-    uint64_t    xfs_data_offset;    /* byte offset where XFS data starts */
-    uint32_t    xfs_log_node_count; /* per-node XFS log slices (0=legacy) */
-    uint32_t    xfs_log_slice_bblks;/* basic blocks (512B) per log slice */
-    uint32_t    cluster_proto_gen;  /* sess42 C7: valid iff flags has
-                                     * MXFS_FORMAT_F_PROTOGATE; members
-                                     * must run code with an EQUAL
-                                     * MXFS_PROTO_GEN */
-    uint32_t    pad0;               /* keep the u64s below naturally aligned */
-    uint64_t    rman_offset;        /* sess404: byte offset of the recovery
-                                     * manifest region; valid iff flags has
-                                     * MXFS_FORMAT_F_RMAN */
-    uint64_t    rman_size;          /* sess404: its size in bytes */
-    uint64_t    tauth_offset;       /* sess421: byte offset of the TCP
-                                     * authority ledger region; valid iff
-                                     * flags has MXFS_FORMAT_F_TAUTH */
-    uint64_t    tauth_size;         /* sess421: its size in bytes */
-    uint64_t    prkey_offset;       /* sess438: byte offset of the PR
-                                     * registrant ledger region; valid iff
-                                     * flags has MXFS_FORMAT_F_PRKEY64 */
-    uint64_t    prkey_size;         /* sess438: its size in bytes */
-    uint64_t    bootstrap_offset;   /* sess439: byte offset of the bootstrap
-                                     * record region; valid iff flags has
-                                     * MXFS_FORMAT_F_BOOTSTRAP */
-    uint64_t    bootstrap_size;     /* sess439: its size in bytes */
-    uint64_t    slife_offset;       /* 0.88.0: byte offset of the slice
-                                     * lifecycle region; valid iff flags has
-                                     * MXFS_FORMAT_F_SLIFE */
-    uint64_t    slife_size;         /* 0.88.0: its size in bytes
-                                     * (MXFS_SLIFE_BYTES; the first
-                                     * xfs_log_node_count records are live) */
-    char        cluster_name[MXFS_CLUSTER_NAME_LEN]; /* valid iff flags has
-                                     * MXFS_FORMAT_F_CLUSTER_NAME; else zero */
-    uint8_t     reserved[3840];     /* pad to 4096 bytes */
+	uint32_t    magic;              /* MXFS_FORMAT_MAGIC (0x5346584D) */
+	uint32_t    version;            /* MXFS_FORMAT_VERSION */
+	uint32_t    flags;              /* reserved, must be 0 */
+	uint32_t    crc;                /* CRC32C of this 4KB (with crc=0) */
+	uint8_t     fs_uuid[16];        /* copy of XFS sb_uuid */
+	uint64_t    device_size;        /* total device size in bytes */
+	uint64_t    xfs_data_size;      /* XFS data area in bytes */
+	uint64_t    journal_offset;     /* byte offset of journal region */
+	uint64_t    journal_size;       /* journal region size in bytes */
+	uint64_t    disklock_offset;    /* byte offset of disklock region */
+	uint64_t    disklock_size;      /* disklock region size in bytes */
+	uint32_t    max_nodes;          /* max node count at format time */
+	uint32_t    journal_slot_sectors; /* sectors per journal slot */
+	uint64_t    xfs_data_offset;    /* byte offset where XFS data starts */
+	uint32_t    xfs_log_node_count; /* per-node XFS log slices (0=legacy) */
+	uint32_t    xfs_log_slice_bblks;/* basic blocks (512B) per log slice */
+	uint32_t    cluster_proto_gen;  /* sess42 C7: valid iff flags has
+									 * MXFS_FORMAT_F_PROTOGATE; members
+									 * must run code with an EQUAL
+									 * MXFS_PROTO_GEN */
+	uint32_t    pad0;               /* keep the u64s below naturally aligned */
+	uint64_t    rman_offset;        /* sess404: byte offset of the recovery
+									 * manifest region; valid iff flags has
+									 * MXFS_FORMAT_F_RMAN */
+	uint64_t    rman_size;          /* sess404: its size in bytes */
+	uint64_t    tauth_offset;       /* sess421: byte offset of the TCP
+									 * authority ledger region; valid iff
+									 * flags has MXFS_FORMAT_F_TAUTH */
+	uint64_t    tauth_size;         /* sess421: its size in bytes */
+	uint64_t    prkey_offset;       /* sess438: byte offset of the PR
+									 * registrant ledger region; valid iff
+									 * flags has MXFS_FORMAT_F_PRKEY64 */
+	uint64_t    prkey_size;         /* sess438: its size in bytes */
+	uint64_t    bootstrap_offset;   /* sess439: byte offset of the bootstrap
+									 * record region; valid iff flags has
+									 * MXFS_FORMAT_F_BOOTSTRAP */
+	uint64_t    bootstrap_size;     /* sess439: its size in bytes */
+	uint64_t    slife_offset;       /* 0.88.0: byte offset of the slice
+									 * lifecycle region; valid iff flags has
+									 * MXFS_FORMAT_F_SLIFE */
+	uint64_t    slife_size;         /* 0.88.0: its size in bytes
+									 * (MXFS_SLIFE_BYTES; the first
+									 * xfs_log_node_count records are live) */
+	char        cluster_name[MXFS_CLUSTER_NAME_LEN]; /* valid iff flags has
+									 * MXFS_FORMAT_F_CLUSTER_NAME; else zero */
+	uint8_t     reserved[3840];     /* pad to 4096 bytes */
 };
 
 #ifdef __KERNEL__
 #define MXFS_BUILD_CHECK_SLIFE() \
-    BUILD_BUG_ON(sizeof(struct mxfs_slife_record) != MXFS_SLIFE_RECORD_SIZE)
+	BUILD_BUG_ON(sizeof(struct mxfs_slife_record) != MXFS_SLIFE_RECORD_SIZE)
 #elif !defined(__cplusplus)
 _Static_assert(sizeof(struct mxfs_slife_record) == MXFS_SLIFE_RECORD_SIZE,
-               "mxfs_slife_record must be exactly 512 bytes");
+	       "mxfs_slife_record must be exactly 512 bytes");
 #endif
 
 /* Compile-time size check */
 #ifdef __KERNEL__
 #define MXFS_BUILD_CHECK_SUPER() \
-    BUILD_BUG_ON(sizeof(struct mxfs_ondisk_super) != MXFS_SUPER_SIZE)
+	BUILD_BUG_ON(sizeof(struct mxfs_ondisk_super) != MXFS_SUPER_SIZE)
 #elif !defined(__cplusplus)
 _Static_assert(sizeof(struct mxfs_ondisk_super) == MXFS_SUPER_SIZE,
-               "mxfs_ondisk_super must be exactly 4096 bytes");
+	       "mxfs_ondisk_super must be exactly 4096 bytes");
 #endif
 
 #endif /* MXFS_SUPER_H */

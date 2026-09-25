@@ -58,7 +58,7 @@ out=$(ssh_node "$NODE" "
     modprobe libcrc32c
     # Load only if not already loaded — set -e must not trip on an
     # already-present module.
-    lsmod | grep -q '^mxfs ' || insmod $MXFS_MODULE
+    lsmod | grep -q '^mxfs ' || insmod $MXFS_MODULE dyndbg=+p
     mkdir -p /tmp/resize_test
     cd /tmp/resize_test
     rm -f img.raw

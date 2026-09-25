@@ -55,7 +55,7 @@ grep -q '^UNLOADED' "$OUT/leave.txt" && pass "node left the cluster cleanly ($(g
 row() {
     local id=$1 args=$2 mopts=$3 expect=$4 why=$5 r=""
     sshq 60 "$NODE" "for i in 1 2 3 4 5 6; do rmmod mxfs 2>/dev/null; lsmod | grep -q '^mxfs' || break; sleep 2; done
-        M=\$(date +%s); insmod /root/mxfs.ko.prep $args; echo INSMOD_RC=\$?
+        M=\$(date +%s); insmod /root/mxfs.ko.prep dyndbg=+p $args; echo INSMOD_RC=\$?
         echo eff enforce=\$(cat /sys/module/mxfs/parameters/foreign_replay_token_enforce) rpe=\$(cat /sys/module/mxfs/parameters/release_proof_enforce) fua=\$(cat /sys/module/mxfs/parameters/fua_disable) tcp=\$(cat /sys/module/mxfs/parameters/target_cache_protected) iclus=\$(cat /sys/module/mxfs/parameters/icluster_dlm)
         T0=\$(date +%s); timeout 25 mount -t mxfs $mopts $DEV $MNT; echo MOUNT_RC=\$? WALL=\$(( \$(date +%s) - T0 ))
         journalctl -k --since @\$M --no-pager 2>/dev/null | grep -a 'P-DOMAIN-\|foreign replay\|P163-\|P238-RECOV\|MXFS: xfs_log_mount\|Mounting' | cut -c1-260
@@ -104,7 +104,7 @@ row R8 "target_cache_protected=1 force_transport=1"        ""      ADMITTED ""
 # dropped), and the peer's view is the half the requester's log cannot show.
 PEER=${3:-test1}
 RJM=$(date +%s)
-sshq 90 "$NODE" "for i in 1 2 3 4 5 6; do rmmod mxfs 2>/dev/null; lsmod | grep -q '^mxfs' || break; sleep 2; done; insmod /root/mxfs.ko.prep target_cache_protected=1; T0=\$(date +%s); timeout 60 mount -t mxfs $DEV $MNT; echo REJOIN_RC=\$? WALL=\$(( \$(date +%s) - T0 ))" > "$OUT/rejoin.txt"
+sshq 90 "$NODE" "for i in 1 2 3 4 5 6; do rmmod mxfs 2>/dev/null; lsmod | grep -q '^mxfs' || break; sleep 2; done; insmod /root/mxfs.ko.prep dyndbg=+p target_cache_protected=1; T0=\$(date +%s); timeout 60 mount -t mxfs $DEV $MNT; echo REJOIN_RC=\$? WALL=\$(( \$(date +%s) - T0 ))" > "$OUT/rejoin.txt"
 for n in "$NODE" "$PEER"; do
     sshq 40 "$n" "journalctl -k --since @$RJM --no-pager 2>/dev/null | grep -av 'P-TAUTH-PREPARED\|P-TAUTH-ACTIVATE\|PAGE-MINE\|bdev_io\|P-TAUTH-HANDOFF \|P-TAUTH-TAKEOVER-RETIRE' | cut -c1-400" > "$OUT/rejoin_journal_$n.txt"
 done

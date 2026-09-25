@@ -116,6 +116,37 @@ mxfs-y += $(addprefix xfs/, \
 		xfs_rmap_item.o \
 		xfs_stubs.o \
 		xfs_mxfs_dlm.o \
+		xfs_mxfs_authority.o \
+		xfs_mxfs_iget.o \
+		xfs_mxfs_durable.o \
+		xfs_mxfs_dir_bmbt.o \
+		xfs_mxfs_sb.o \
+		xfs_mxfs_debug.o \
+		xfs_mxfs_dir_data.o \
+		xfs_mxfs_dir_evict.o \
+		xfs_mxfs_dir_modify.o \
+		xfs_mxfs_fallible.o \
+		xfs_mxfs_obligation.o \
+		xfs_mxfs_relbar.o \
+		xfs_mxfs_bast.o \
+		xfs_mxfs_noino.o \
+		xfs_mxfs_reload.o \
+		xfs_mxfs_dir_sf.o \
+		xfs_mxfs_ilock.o \
+		xfs_mxfs_publish.o \
+		xfs_mxfs_evict.o \
+		xfs_mxfs_pubob.o \
+		xfs_mxfs_ag_meta.o \
+		xfs_mxfs_disk.o \
+		xfs_mxfs_coherency.o \
+		xfs_mxfs_ag_lock.o \
+		xfs_mxfs_open.o \
+		xfs_mxfs_ag_unlock.o \
+		xfs_mxfs_buf.o \
+		xfs_mxfs_join.o \
+		xfs_mxfs_recovery.o \
+		xfs_mxfs_mount.o \
+		xfs_mxfs_iclus.o \
 		)
 
 # Excluded: quota (xfs_dquot*.o, xfs_qm*.o, xfs_quotaops.o, xfs_trans_dquot.o)

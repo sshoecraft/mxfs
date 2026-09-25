@@ -27,8 +27,8 @@
 #include "xfs_sb.h"
 #include "xfs_rtgroup.h"
 #include "xfs_rtbitmap.h"
-#include "xfs_relmark_item.h"	/* sess459: MXFS_RI_VERDICT_APPLY */
-#include "xfs_mxfs_dirshard.h"	/* sess466: manifest block type + mgen veto */
+#include "xfs_relmark_item.h"	/* MXFS_RI_VERDICT_APPLY */
+#include "xfs_mxfs_dirshard.h"	/* manifest block type + mgen veto */
 
 /*
  * This is the number of entries in the l_buf_cancel_table used during
@@ -332,7 +332,7 @@ xlog_recover_validate_buf_type(
 		bp->b_ops = &xfs_symlink_buf_ops;
 		break;
 	case XFS_BLFT_MXFS_DIRSHARD_BUF:
-		/* sess466: directory-sharding manifest block (docs/dir-sharding.md) */
+		/* directory-sharding manifest block (docs/dir-sharding.md) */
 		if (magic32 != MXFS_DIRSHARD_BLK_MAGIC) {
 			warnmsg = "Bad MXFS dirshard manifest block magic!";
 			break;
@@ -1032,7 +1032,7 @@ xlog_recover_get_buf_lsn(
 		uuid = &((struct xfs_dsymlink_hdr *)blk)->sl_uuid;
 		break;
 	case MXFS_DIRSHARD_BLK_MAGIC:
-		/* sess466: directory-sharding manifest block */
+		/* directory-sharding manifest block */
 		lsn = be64_to_cpu(((struct mxfs_dirshard_blk *)blk)->lsn);
 		uuid = (uuid_t *)((struct mxfs_dirshard_blk *)blk)->uuid;
 		break;
@@ -1122,7 +1122,7 @@ recover_immediately:
 }
 
 /*
- * sess466 (docs/dir-sharding.md): decide whether a directory-sharding
+ * (docs/dir-sharding.md): decide whether a directory-sharding
  * manifest image may be applied over the block on disk.  Every image of this
  * type is complete — the module logs the whole formatted region from offset
  * 0 (xfs_mxfs_dirshard.c mxfs_dirshard_blk_log) — so the first logged region
@@ -1233,7 +1233,7 @@ xlog_recover_buf_commit_pass2(
 		if (!xlog_put_buffer_cancelled(log, buf_f->blf_blkno,
 				buf_f->blf_len)) {
 			/*
-			 * sess476: upstream relies on pass 1 having added every
+			 * upstream relies on pass 1 having added every
 			 * CANCEL, so a miss here was unreachable.  On an
 			 * untrusted replay the end-of-pass-1 decision removes
 			 * a REFUSED transaction's entries and pass 2 returns
@@ -1256,7 +1256,7 @@ xlog_recover_buf_commit_pass2(
 		if (xlog_is_buffer_cancelled(log, buf_f->blf_blkno,
 				buf_f->blf_len)) {
 			/*
-			 * sess476: on an untrusted replay this is the pass-1
+			 * on an untrusted replay this is the pass-1
 			 * cancel table acting on an image — the witness the
 			 * CANCEL-token negative arm asserts is ZERO when every
 			 * cancel came from a refused transaction, and the
@@ -1279,7 +1279,7 @@ xlog_recover_buf_commit_pass2(
 	}
 
 	/*
-	 * sess456 (D-0517 instrument step 2): on a FOREIGN replay this read goes
+	 * (D-0517 instrument step 2): on a FOREIGN replay this read goes
 	 * through the live replayer's own buffer cache with no freshness flag,
 	 * so a cluster this node cached earlier (any peer stats the shared
 	 * directory's inodes) is served as-is: the unlinked-pointer patch
@@ -1351,7 +1351,7 @@ xlog_recover_buf_commit_pass2(
 					((struct xfs_dinode *)xfs_buf_offset(bp, 0))->di_ino));
 	}
 	/*
-	 * sess459 (D-0517, proven by instrument on chain 80 laps 2-3 + chain 81; design-consult
+	 * (D-0517, proven by instrument on chain 80 laps 2-3 + chain 81; design-consult
 	 * ruling ccmemory ccloop-c7ee71c6-sess459-GPT-ruling-d0517-buf-lsn-skip-
 	 * bypass-STOP-SHIP-6-items): on an UNTRUSTED replay current_lsn is the
 	 * dead node's slice position while the on-disk stamp (bb_lsn / agi_lsn
@@ -1419,7 +1419,7 @@ xlog_recover_buf_commit_pass2(
 		if (override)
 			goto mxfs_apply;
 		/*
-		 * sess459 (D-OWN-SLICE-PASS1-RECLAIM-REPLAY-CROSS-SLICE-LSN-
+		 * (D-OWN-SLICE-PASS1-RECLAIM-REPLAY-CROSS-SLICE-LSN-
 		 * VETO-0521): a TRUSTED recovery on a clustered mount (PASS-1
 		 * own-stamp reclaim) meets the same cross-slice stamps with no
 		 * token verdict to override them.  Observability only until that
@@ -1458,7 +1458,7 @@ xlog_recover_buf_commit_pass2(
 
 mxfs_apply:
 	/*
-	 * sess466 (docs/dir-sharding.md): manifest-generation veto — the
+	 * (docs/dir-sharding.md): manifest-generation veto — the
 	 * "belt" beside the token verdict "braces".  mgen increases by one on
 	 * every write of the manifest block, all under the visible parent's
 	 * DLM EX, so it orders the block's versions across nodes and journal
@@ -1502,7 +1502,7 @@ mxfs_apply:
 			xfs_update_rtsb(rtsb_bp, bp);
 			rtsb_bp->b_flags |= _XBF_LOGRECOVERY;
 			/*
-			 * sess340 513B: ownership-safe foreign provenance +
+			 * 513B: ownership-safe foreign provenance +
 			 * queue.  On conflict record the error but keep the
 			 * upstream shape (bp itself still goes through the
 			 * writebuf path below so its release stays on the
@@ -1546,7 +1546,7 @@ out_writebuf:
 	    (BBTOB(bp->b_length) != M_IGEO(log->l_mp)->inode_cluster_size)) {
 		xfs_buf_stale(bp);
 		/*
-		 * sess338 513B: on a foreign replay this synchronous write's
+		 * 513B: on a foreign replay this synchronous write's
 		 * failure must fail the replay, not shut down the survivor's
 		 * live b_mount — xfs_bwrite snapshots the provenance and
 		 * skips its error shutdown for it.
@@ -1577,7 +1577,7 @@ out_writebuf:
 			atomic_inc(&mxfs_recov_queued);
 		}
 		/*
-		 * sess340 513B: ownership-safe foreign provenance + queue.
+		 * 513B: ownership-safe foreign provenance + queue.
 		 * A conflict (-EBUSY) refuses the replay; keep any earlier
 		 * primary error.
 		 */

@@ -18,7 +18,7 @@
 #include "xfs_log.h"
 #include "xfs_xattr.h"
 #include "xfs_quota.h"
-#include "xfs_mxfs_dirshard.h"	/* sess472: sharded parent — Model A refusal */
+#include "xfs_mxfs_dirshard.h"	/* sharded parent — Model A refusal */
 
 #include <linux/posix_acl_xattr.h>
 
@@ -87,7 +87,7 @@ xfs_attr_change(
 		return -EIO;
 
 	/*
-	 * sess472 (D-0531 item 4, design-consult review; docs/dir-sharding.md Model A):
+	 * (D-0531 item 4, design-consult review; docs/dir-sharding.md Model A):
 	 * a sharded parent's attr fork carries exactly the shortform locator and
 	 * must stay shortform — the holder-free transaction removes the locator
 	 * synchronously in the same commit as the holder's unlink, which

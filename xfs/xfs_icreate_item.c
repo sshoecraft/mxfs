@@ -57,7 +57,7 @@ xfs_icreate_item_format(
 	size_t			len = sizeof(struct xfs_icreate_log);
 
 	/*
-	 * MXFS (sess444): the writer-time trailer rides contiguously after
+	 * MXFS: the writer-time trailer rides contiguously after
 	 * the upstream struct (ic_mxfs follows ic_format in the item, both
 	 * 4-byte aligned, no padding).  Only a stamped item formats it.
 	 */
@@ -129,7 +129,7 @@ xfs_icreate_log(
 }
 
 /*
- * MXFS (sess444): the caller proved every cluster of the chunk durably
+ * MXFS: the caller proved every cluster of the chunk durably
  * initialised on the platter (P133 FUA write returned 0 for each) before
  * the transaction commits — stamp the record so a replayer knows the init
  * is already applied.  Called before commit, while the item is still
@@ -160,7 +160,7 @@ mxfs_icreate_record_flags(
 }
 
 /*
- * MXFS (sess444, design-consult ruling on ICREATE authority): verify ONE cluster of
+ * MXFS (design-consult ruling on ICREATE authority): verify ONE cluster of
  * a SYNCINIT chunk from the platter.  Every dinode must be structurally the
  * inode the chunk position names (magic, v3, di_ino, meta uuid, CRC) — the
  * init image, or any later valid state of it (an allocated inode, a peer's
@@ -220,7 +220,7 @@ mxfs_icreate_verify_cluster(
 			*why = "crc";
 		}
 		if (*why) {
-			pr_warn("mxfs: P-ICREATE-VERIFY-FAIL agno=%u agbno=%u daddr=%lld dinode=%d ino=%llu why=%s magic=0x%x ver=%u di_ino=%llu\n",
+			mxfs_probe("mxfs: P-ICREATE-VERIFY-FAIL agno=%u agbno=%u daddr=%lld dinode=%d ino=%llu why=%s magic=0x%x ver=%u di_ino=%llu\n",
 				agno, agbno, (long long)daddr, i,
 				(unsigned long long)(first_ino + i), *why,
 				be16_to_cpu(dip->di_magic), dip->di_version,
@@ -367,7 +367,7 @@ xlog_recover_icreate_commit_pass2(
 	}
 
 	/*
-	 * MXFS (sess444, design-consult ruling; D-ICREATE-REPLAY-REINIT-CLOBBERS-
+	 * MXFS (design-consult ruling; D-ICREATE-REPLAY-REINIT-CLOBBERS-
 	 * PEER-INODES): an ICREATE re-initialises WHOLE clusters, and in a
 	 * shared-LUN cluster an inode of this chunk may since have been
 	 * modified by a peer under inode authority — a blind re-init would

@@ -12,10 +12,10 @@ extern const struct address_space_operations xfs_dax_aops;
 int xfs_setfilesize(struct xfs_inode *ip, xfs_off_t offset, size_t size);
 void xfs_end_bio(struct bio *bio);
 void xfs_end_io(struct work_struct *work);
-/* FIX-25 (sess8): true when current is the xfs-conv ioend worker — admitted
+/* FIX-25: true when current is the xfs-conv ioend worker — admitted
  * to a nested EX during a BAST/DEMOTING drain (see mxfs_dlm_ilock_begin). */
 bool xfs_task_in_ioend(void);
-/* FIX-26 (ccloop c7ee71c6 sess6): true while current is inside
+/* FIX-26: true while current is inside
  * xfs_vm_writepages (writeback SUBMISSION — flusher, sync, fsync).  These
  * tasks hold folio locks across ->map_blocks' xfs_ilock(EX) (delalloc
  * conversion); the same nested-EX admit as FIX-25 applies, else the bast

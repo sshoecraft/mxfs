@@ -188,7 +188,7 @@ void xfs_dir2_sf_put_ftype(struct xfs_mount *mp,
 /* xfs_dir2_readdir.c */
 extern int xfs_readdir(struct xfs_trans *tp, struct xfs_inode *dp,
 		       struct dir_context *ctx, size_t bufsize);
-/* sess10(a9a03929) instrumented dir-block content probes (xfs_dir2_readdir.c) */
+/* instrumented dir-block content probes (xfs_dir2_readdir.c) */
 extern int mxfs_dirblk_count_active(struct xfs_mount *mp, void *blk,
 				    uint32_t blen);
 extern int mxfs_dirblk_platter_active(struct xfs_mount *mp, xfs_daddr_t daddr);
@@ -221,12 +221,12 @@ enum xfs_dacmp xfs_dir2_compname(struct xfs_da_args *args,
 		const unsigned char *name, int len);
 
 #ifdef __KERNEL__
-/* sess21 (ccloop 8ddb16a2): MXFS clustered-dir LEAF coherency repair. */
+/* MXFS clustered-dir LEAF coherency repair. */
 int mxfs_dir_rebuild_leaf_from_data(struct xfs_da_args *args);
-/* sess22 (ccloop): leaf-hash-hole READ heal via coherent data-block scan;
+/* leaf-hash-hole READ heal via coherent data-block scan;
  * shared by single-leaf (xfs_dir2_leaf_lookup) and node (xfs_dir2_node_lookup). */
 int mxfs_dir2_datascan_lookup(struct xfs_da_args *args);
-/* sess5 (ccloop 46efd8b6): leaf-hash-hole UNLINK heal — expunge a leafless
+/* leaf-hash-hole UNLINK heal — expunge a leafless
  * ghost dirent data-side so the remove txn completes (uv ghost chain). */
 int mxfs_dir2_leafless_removename(struct xfs_da_args *args);
 #endif

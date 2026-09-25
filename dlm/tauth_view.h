@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
  * MXFS TCP authority ledger — VIEW RECORD / ROOT device primitives
- * (docs/tauth-view-table.md build step 1, sess428).  The format itself
+ * (docs/tauth-view-table.md build step 1).  The format itself
  * (structs, digest, crc, validation, HRW) is header-only in
  * include/mxfs/mxfs_tauth.h; this file is the PAL-backed I/O: root read and
  * full-block COMPARE AND WRITE, view slot read and FUA write + readback.

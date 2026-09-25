@@ -2,11 +2,11 @@
 /*
  * MXFS symmetric directory sharding — kernel-side API.
  *
- * sess464.  Design: docs/dir-sharding.md ("Stage 1-2 concrete shape" and
+ * .  Design: docs/dir-sharding.md ("Stage 1-2 concrete shape" and
  * "Stage 1 implementation decisions").  On-disk format and the pure manifest
  * check: include/mxfs/mxfs_dirshard.h.  Implementation: xfs_mxfs_dirshard.c.
  *
- * Three objects (sess463 ruling):
+ * Three objects (ruling):
  *   Manifest pin     — parent DLM PR (ILOCK_SHARED on the visible parent);
  *                      the PUBLISHED manifest is immutable under it and is
  *                      cached in the parent's in-core state.
@@ -105,7 +105,7 @@ int mxfs_dirshard_manifest_load(struct xfs_inode *dp,
  * '..' == owner} and returns the shard inode referenced (no lock held).
  * Never called on an inode number that did not come from a validated
  * manifest.  -EFSCORRUPTED on any mismatch (the manifest names a stranger),
- * -ENOENT when the number is free.  A TRUSTED iget since 0.64.11 (sess470):
+ * -ENOENT when the number is free.  A TRUSTED iget since 0.64.11:
  * XFS_IGET_UNTRUSTED consulted the unlocked inobt and refused peer-allocated
  * members with -EINVAL.
  */

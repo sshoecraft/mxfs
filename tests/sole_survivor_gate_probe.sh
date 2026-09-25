@@ -128,7 +128,7 @@ KMARK="SSGP-MARK-$LABEL"
 rsx 15 "$B" "echo $KMARK > /dev/kmsg" > /dev/null
 BMARK=$(date +%s)
 echo "MARK=$BMARK" > "$OUT/B_join.txt"
-( rsx $((JOIN_BOUND + 60)) "$B" "lsmod | grep -q '^mxfs ' || insmod $KO $MODARGS mount_postregister_pause_ms=$PAUSE_MS; echo INSMOD_RC=\$?; T0=\$(date +%s%N); mountpoint -q $MNT || timeout $JOIN_BOUND mount -t mxfs $MXFS_DEV $MNT; echo MOUNT_RC=\$?; echo WALL_MS=\$(( (\$(date +%s%N) - T0) / 1000000 )); mountpoint -q $MNT && echo MOUNTED || echo NOT_MOUNTED" >> "$OUT/B_join.txt" ) &
+( rsx $((JOIN_BOUND + 60)) "$B" "lsmod | grep -q '^mxfs ' || insmod $KO dyndbg=+p $MODARGS mount_postregister_pause_ms=$PAUSE_MS; echo INSMOD_RC=\$?; T0=\$(date +%s%N); mountpoint -q $MNT || timeout $JOIN_BOUND mount -t mxfs $MXFS_DEV $MNT; echo MOUNT_RC=\$?; echo WALL_MS=\$(( (\$(date +%s%N) - T0) / 1000000 )); mountpoint -q $MNT && echo MOUNTED || echo NOT_MOUNTED" >> "$OUT/B_join.txt" ) &
 bpid=$!
 
 # Wait until B is DEMONSTRABLY parked in the window — never just sleep and
@@ -152,7 +152,7 @@ fi
 # injected off so the absent-key verdict stands and the gate is reached.
 AMARK=$(date +%s)
 echo "MARK=$AMARK" > "$OUT/A_join.txt"
-rsx $((JOIN_BOUND + 60)) "$A" "lsmod | grep -q '^mxfs ' || insmod $KO $MODARGS fence_bootsucc_inject_refuse=1; echo INSMOD_RC=\$?; T0=\$(date +%s%N); mountpoint -q $MNT || timeout $JOIN_BOUND mount -t mxfs $MXFS_DEV $MNT; echo MOUNT_RC=\$?; echo WALL_MS=\$(( (\$(date +%s%N) - T0) / 1000000 )); mountpoint -q $MNT && echo MOUNTED || echo NOT_MOUNTED" >> "$OUT/A_join.txt"
+rsx $((JOIN_BOUND + 60)) "$A" "lsmod | grep -q '^mxfs ' || insmod $KO dyndbg=+p $MODARGS fence_bootsucc_inject_refuse=1; echo INSMOD_RC=\$?; T0=\$(date +%s%N); mountpoint -q $MNT || timeout $JOIN_BOUND mount -t mxfs $MXFS_DEV $MNT; echo MOUNT_RC=\$?; echo WALL_MS=\$(( (\$(date +%s%N) - T0) / 1000000 )); mountpoint -q $MNT && echo MOUNTED || echo NOT_MOUNTED" >> "$OUT/A_join.txt"
 wait $bpid 2>/dev/null
 # The journals and the platter are captured BEFORE the join lists are judged:
 # a join whose ssh wrapper died (s65f: B's mount outlived its own 300 s

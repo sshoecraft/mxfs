@@ -86,7 +86,7 @@ xfs_initialize_perag_data(
 		a_btree = be32_to_cpu(agf->agf_btreeblks);
 
 		/*
-		 * sess474 (D-0133, chain 115 s473c: sb icount 1856 vs inobt 2048
+		 * (D-0133, chain 115 s473c: sb icount 1856 vs inobt 2048
 		 * after a CLEAN fleet unmount = exactly 3 peer chunks of 64
 		 * missing; s473b: sb 64/61 = the mkfs snapshot).  In a cluster the
 		 * pagi_ and pagf_ summaries are rebuilt only on the FIRST header
@@ -174,7 +174,7 @@ xfs_perag_uninit(
 
 	cancel_delayed_work_sync(&pag->pag_blockgc_work);
 	xfs_buf_cache_destroy(&pag->pag_bcache);
-	xa_destroy(&pag->pag_disklive_q);	/* sess430 D-0351 containment */
+	xa_destroy(&pag->pag_disklive_q);	/* D-0351 containment */
 #endif
 }
 
@@ -302,13 +302,13 @@ xfs_perag_alloc(
 	atomic_set(&pag->pag_dlm_meta_pending, 0);
 	pag->pag_dlm_release_pending = false;
 	pag->pag_dlm_yield_remaining = 0;	/* v0.3.131 */
-	pag->pag_dlm_yield_quantum_eff = 0;	/* v0.3.147 sess33: lazy-init at fresh acquire */
-	pag->pag_dlm_skips_no_bast = 0;		/* v0.3.147 sess33 */
+	pag->pag_dlm_yield_quantum_eff = 0;	/* v0.3.147 lazy-init at fresh acquire */
+	pag->pag_dlm_skips_no_bast = 0;		/* v0.3.147 */
 	pag->pag_dlm_fua_window_until = 0;
 	mutex_init(&pag->pag_dlm_acquire_lock);
-	spin_lock_init(&pag->pag_resv_lock);	/* 0.23.0 sess392 */
+	spin_lock_init(&pag->pag_resv_lock);	/* 0.23.0 */
 	pag->pag_resv_cursor = NULLAGINO;
-	xa_init(&pag->pag_disklive_q);		/* sess430 D-0351 containment */
+	xa_init(&pag->pag_disklive_q);		/* D-0351 containment */
 	pag->pag_disklive_n = 0;
 	pag->pag_dlm_cached = false;
 	pag->pag_dlm_bast_pending = false;

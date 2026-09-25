@@ -276,7 +276,7 @@ xfs_dir2_block_to_sf(
 		extern unsigned long long mxfs_watch_ino;
 
 		if (unlikely(mxfs_watch_ino) && dp->i_ino == mxfs_watch_ino)
-			pr_warn("mxfs: PW-BLOCK2SF ino=%llu nx=%llu size=%lld sfsize=%d pin=%d comm=%s realns=%llu\n",
+			mxfs_probe("mxfs: PW-BLOCK2SF ino=%llu nx=%llu size=%lld sfsize=%d pin=%d comm=%s realns=%llu\n",
 				(unsigned long long)dp->i_ino,
 				(unsigned long long)dp->i_df.if_nextents,
 				(long long)dp->i_disk_size, size,
@@ -286,7 +286,7 @@ xfs_dir2_block_to_sf(
 	}
 
 	/*
-	 * v0.6.5 (sess5 186320ae): a MULTINODE dir stays BLOCK format for
+	 * v0.6.5 (186320ae): a MULTINODE dir stays BLOCK format for
 	 * life — the shrink-side mirror of mxfs.dir_force_block's mkdir-side
 	 * conversion.  force_block eliminated the sf->block conversion race,
 	 * but the rm/unlink shrink path still converted block->sf mid-storm,
@@ -307,7 +307,7 @@ xfs_dir2_block_to_sf(
 		extern int mxfs_dirwr_enabled, mxfs_instr_enabled;
 
 		if (unlikely(mxfs_dirwr_enabled || mxfs_instr_enabled))
-			pr_warn_ratelimited(
+			mxfs_probe_ratelimited(
 				"mxfs: P-BLOCK2SF-SUPPRESS ino=%llu sfsize=%d — multinode dir stays block format (force_block shrink-side)\n",
 				(unsigned long long)dp->i_ino, size);
 		return 0;
@@ -419,7 +419,7 @@ xfs_dir2_sf_addname(
 	trace_xfs_dir2_sf_addname(args);
 
 	/*
-	 * sess58 instrumented ALWAYS-ON modify-time detector for the concurrent
+	 * instrumented ALWAYS-ON modify-time detector for the concurrent
 	 * shortform-dir LOST-UPDATE (cache_coherency / cross_visibility H2).
 	 * Logs THIS node's view AT THE MOMENT IT ADDS its entry: the base
 	 * entry list it is building on, the name being added, and the CAW
@@ -431,7 +431,7 @@ xfs_dir2_sf_addname(
 	 *       cached image (FASTEX) and will clobber the peer's add.
 	 * Only fires multi-node + LOCAL dir; sf_addname is once-per-add (4
 	 * entries for cross_visibility), so it does not create the read lull
-	 * that hides the race (sess50 Heisenberg note).
+	 * that hides the race (Heisenberg note).
 	 */
 	if (({ extern int mxfs_instr_enabled; mxfs_instr_enabled; }) &&
 	    dp->i_mount->m_mxfs_dlm &&
@@ -451,7 +451,7 @@ xfs_dir2_sf_addname(
 		}
 		exp = mxfs_v5_dlm_inode_ex_count(dp->i_mount->m_mxfs_dlm,
 						 dp->i_ino, &exn);
-		mxfs_pal_log(MXFS_LOG_WARN,
+		mxfs_pal_log(MXFS_LOG_DEBUG,
 			"mxfs: P-SFADD ino=%llu add=[%.*s] base_count=%u base=[%s] ex_pop=%d ex_nslots=%d realns=%llu",
 			(unsigned long long)dp->i_ino,
 			args->namelen, args->name, sfp->count, names,
@@ -793,7 +793,7 @@ xfs_dir2_sf_verify(
 	uint8_t				filetype;
 
 	/*
-	 * mxfs sess13(c7ee71c6): a concurrent fork teardown (xfs_idestroy_fork
+	 * a concurrent fork teardown (xfs_idestroy_fork
 	 * sets if_data=NULL, if_bytes briefly unchanged) exposed a NULL sfp to
 	 * a flusher-side verify — PANIC (RIP xfs_dir2_sf_verify+0x26, CR2=1,
 	 * test6+test12 dual crash during 32/caw cache_coherency).  The torn
@@ -947,7 +947,7 @@ xfs_dir2_sf_lookup(
 	trace_xfs_dir2_sf_lookup(args);
 
 	/*
-	 * sess110 DIAGNOSTIC (instrumented): the cache_coherency NULL-pointer Oops is
+	 * DIAGNOSTIC (instrumented): the cache_coherency NULL-pointer Oops is
 	 * a shortform-dir lookup where dp->i_df.if_data == NULL while if_format
 	 * still reads LOCAL — a directory inode left half-built (fork destroyed
 	 * but not repopulated) by some concurrent reload/conversion path.  The
@@ -958,7 +958,7 @@ xfs_dir2_sf_lookup(
 	 * correlated against the reload logs for this ino.
 	 */
 	if (unlikely(!sfp)) {
-		mxfs_pal_log(MXFS_LOG_WARN,
+		mxfs_pal_log(MXFS_LOG_DEBUG,
 			"mxfs: P110-SFNULL-LOOKUP ino=%llu fmt=%u if_bytes=%lld disk_size=%lld stale=%d dlm_mode=%u gen=%u nextents=%llu name=%.*s realns=%llu",
 			(unsigned long long)dp->i_ino,
 			dp->i_df.if_format,
@@ -1073,7 +1073,7 @@ xfs_dir2_sf_removename(
 	 */
 	if (i == sfp->count)
 		return -ENOENT;
-	/* sess13 P13-SFRM (watch-gated): SHORTFORM removal ledger.  The fence
+	/* P13-SFRM (watch-gated): SHORTFORM removal ledger.  The fence
 	 * n4_14 leak = an sf-dir removal that committed but durably REVERTED
 	 * (disk kept the name while the ifree destaged -> dangling dirent,
 	 * unremovable).  Log every watched-dir sf removal with the inode's
@@ -1088,7 +1088,7 @@ xfs_dir2_sf_removename(
 			static atomic_t p13sfrm = ATOMIC_INIT(0);
 
 			if (atomic_inc_return(&p13sfrm) <= 4000)
-				pr_warn("mxfs: P13-SFRM ino=%llu name=[%.*s] count=%u pin=%d realns=%llu comm=%s\n",
+				mxfs_probe("mxfs: P13-SFRM ino=%llu name=[%.*s] count=%u pin=%d realns=%llu comm=%s\n",
 					(unsigned long long)dp->i_ino,
 					args->namelen, args->name, sfp->count,
 					atomic_read(&dp->i_pincount),
@@ -1129,7 +1129,7 @@ xfs_dir2_sf_removename(
 			sfp->i8count--;
 	}
 	xfs_dir2_sf_check(args);
-	/* sess8 (a9a03929) P8-SFRM — resurrection tracer (gated dir_relverify):
+	/* P8-SFRM — resurrection tracer (gated dir_relverify):
 	 * ledger every multi-node SF dirent REMOVE with the post-remove name
 	 * set.  A name reappearing later in a P8-SFIFLUSH platter copy or a
 	 * P8-SFADOPT/P62-SF2BLK list pins the write that resurrected it (the
@@ -1141,7 +1141,7 @@ xfs_dir2_sf_removename(
 		char p8nm[160];
 
 		mxfs_sf_fmt_names(mp, dp->i_df.if_data, p8nm, sizeof(p8nm));
-		pr_warn("mxfs: P8-SFRM ino=%llu rm=[%.*s] count=%u mode=%u after=[%s] realns=%llu\n",
+		mxfs_probe("mxfs: P8-SFRM ino=%llu rm=[%.*s] count=%u mode=%u after=[%s] realns=%llu\n",
 			(unsigned long long)dp->i_ino,
 			args->namelen, args->name,
 			sfp ? sfp->count : 0, dp->i_dlm_mode, p8nm,

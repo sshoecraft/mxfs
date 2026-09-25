@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
  * MXFS TCP authority ledger — VIEW RECORD / ROOT device primitives.
- * See tauth_view.h and docs/tauth-view-table.md (build step 1, sess428).
+ * See tauth_view.h and docs/tauth-view-table.md (build step 1).
  */
 #include "tauth_view.h"
 #ifdef __KERNEL__

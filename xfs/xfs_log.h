@@ -125,7 +125,7 @@ int	  xfs_log_mount_finish(struct xfs_mount *mp);
 void	xfs_log_mount_cancel(struct xfs_mount *);
 
 /*
- * sess324 (D-513, sess320 ruling): the verdict a refused foreign replay
+ * (D-513, ruling): the verdict a refused foreign replay
  * hands back to the caller so the recovery-lease owner can publish a
  * TERMINAL REFUSED outcome instead of latching silently.  reason values
  * intentionally equal the disklock wire constants (MXFS_RECOV_REFUSAL_*);
@@ -133,7 +133,7 @@ void	xfs_log_mount_cancel(struct xfs_mount *);
  * not depend on dlm/disklock.h.
  *
  * digest_valid=false means the forensic digest could not be captured
- * (the slice reread failed).  sess327 (sess325 ruling item 5): the
+ * (the slice reread failed).  (ruling item 5): the
  * verdict still publishes — with the DIGEST_VALID flag clear and a zero
  * digest — because the refusal evidence is the gate decision itself;
  * the digest is forensics, never a gate.
@@ -141,13 +141,13 @@ void	xfs_log_mount_cancel(struct xfs_mount *);
 #define MXFS_FREPLAY_REASON_NONE		0
 #define MXFS_FREPLAY_REASON_POLICY_REFUSED	1
 #define MXFS_FREPLAY_REASON_TORN		2
-#define MXFS_FREPLAY_REASON_AUTHORITY_MUTATED	3	/* sess405: manifest vs live */
-#define MXFS_FREPLAY_REASON_MANIFEST_INVALID	4	/* sess405: sealed manifest corrupt */
-#define MXFS_FREPLAY_REASON_ASSEMBLY_DISCONTINUITY 5	/* sess412: item assembly crossed
+#define MXFS_FREPLAY_REASON_AUTHORITY_MUTATED	3	/* manifest vs live */
+#define MXFS_FREPLAY_REASON_MANIFEST_INVALID	4	/* sealed manifest corrupt */
+#define MXFS_FREPLAY_REASON_ASSEMBLY_DISCONTINUITY 5	/* item assembly crossed
 							 * an ophdr discontinuity (stale
 							 * foreign records inside the span);
 							 * bytes are stable, NOT a tear */
-#define MXFS_FREPLAY_REASON_INTENTS_UNDISCHARGED 6	/* sess421: the slice's intent
+#define MXFS_FREPLAY_REASON_INTENTS_UNDISCHARGED 6	/* the slice's intent
 							 * census is open at the end
 							 * of the replay — fail before
 							 * purge (wire reason 8) */
@@ -163,7 +163,7 @@ struct mxfs_freplay_verdict {
 	uint32_t	refused_items;	/* log items the gates refused */
 	uint32_t	malformed_items;/* log items that failed to parse */
 	/*
-	 * sess462 (item 5 increment 2): the census split of the open intents
+	 * (item 5 increment 2): the census split of the open intents
 	 * (xfs_mxfs_icensus.h).  obl_* = the RECOVER entries — admitted EFIs
 	 * whose extents a completion would free; the list (recov_obl.h
 	 * entries, kvmalloc'd, freed by mxfs_freplay_verdict_free()) outlives
@@ -181,7 +181,7 @@ struct mxfs_freplay_verdict {
 
 void	mxfs_freplay_verdict_free(struct mxfs_freplay_verdict *verdict);
 
-/* sess444: barrier-side prefetch of the next victim's slice stability proof */
+/* barrier-side prefetch of the next victim's slice stability proof */
 void	mxfs_xlog_snap_prefetch(struct xfs_mount *mp, uint32_t slot);
 void	mxfs_xlog_snap_prefetch_cancel(struct xfs_mount *mp);
 int	mxfs_xlog_recover_foreign_slice(struct xfs_mount *mp,

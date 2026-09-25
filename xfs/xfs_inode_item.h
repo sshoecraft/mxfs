@@ -33,7 +33,7 @@ struct xfs_inode_log_item {
 	unsigned int		ili_last_fields;   /* fields when flushed */
 	unsigned int		ili_fields;	   /* fields to be logged */
 	xfs_lsn_t		ili_flush_lsn;	   /* lsn at last flush */
-	uint64_t		ili_mxfs_buf_gen;  /* ccloop 72513a13 sess2: b_mxfs_alloc_gen of the cluster buffer at li_buf attach; mismatch vs current li_buf->b_mxfs_alloc_gen at push/drain = the buffer was freed+recycled under us (P113 wedge discriminator) */
+	uint64_t		ili_mxfs_buf_gen;  /*  b_mxfs_alloc_gen of the cluster buffer at li_buf attach; mismatch vs current li_buf->b_mxfs_alloc_gen at push/drain = the buffer was freed+recycled under us (P113 wedge discriminator) */
 
 	/*
 	 * We record the sequence number for every inode modification, as

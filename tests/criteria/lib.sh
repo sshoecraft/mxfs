@@ -243,7 +243,7 @@ fresh_cluster_mount() {
         # insmod fails File-exists SILENTLY and INSMOD_OPTS params are
         # swallowed.  Force a fresh load so params always apply.
         lsmod | grep -q '^mxfs ' && { umount $MXFS_MOUNT 2>/dev/null; rmmod mxfs || echo RMMOD_FAIL; }
-        insmod $MXFS_MODULE $insmod_opts || echo INSMOD_FAIL
+        insmod $MXFS_MODULE dyndbg=+p $insmod_opts || echo INSMOD_FAIL
         # Cold cluster form: clear any stale SCSI Persistent Reservation left
         # by a node that died uncleanly.  SCST enforces PR, so a stale WE-RO
         # holder blocks our mkfs/mount with a Reservation Conflict.  We are
@@ -279,7 +279,7 @@ fresh_cluster_mount() {
             modprobe libcrc32c
             # sess18: force fresh load so INSMOD_OPTS params always apply
             lsmod | grep -q '^mxfs ' && { umount $MXFS_MOUNT 2>/dev/null; rmmod mxfs 2>/dev/null; }
-            insmod $MXFS_MODULE $insmod_opts 2>/dev/null
+            insmod $MXFS_MODULE dyndbg=+p $insmod_opts 2>/dev/null
             mount -t mxfs $MXFS_MOUNT_OPTS $MXFS_DEV $MXFS_MOUNT && echo MOUNTED
         " > "$tmpdir/${n}.log" 2>&1 ) &
         pids+=($!)
@@ -364,7 +364,7 @@ paired_workload_wall_ms() {
     mxfs_ms=$(ssh_node "$node" "
         $MXFS_PREP >/tmp/prep.log 2>&1
         modprobe libcrc32c
-        insmod $MXFS_MODULE 2>/dev/null
+        insmod $MXFS_MODULE dyndbg=+p 2>/dev/null
         echo y | $MXFS_MKFS $MXFS_DEV >/tmp/mxfs_mkfs.log 2>&1
         mount -t mxfs $MXFS_MOUNT_OPTS $MXFS_DEV $MXFS_MOUNT
         sync; echo 3 > /proc/sys/vm/drop_caches

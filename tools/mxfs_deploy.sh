@@ -31,7 +31,7 @@ echo "--- Step 4: Build on target ---"
 ssh_run "cd ${NFS_DST} && make clean && make 2>&1 && echo BUILD_OK || echo BUILD_FAIL"
 
 echo "--- Step 5: Load module ---"
-ssh_run "insmod ${NFS_DST}/mxfs.ko && echo MODULE_LOADED || echo MODULE_LOAD_FAILED"
+ssh_run "insmod ${NFS_DST}/mxfs.ko dyndbg=+p && echo MODULE_LOADED || echo MODULE_LOAD_FAILED"
 
 if [ "$NOMOUNT" != "--no-mount" ]; then
     echo "--- Step 6: Mount ---"

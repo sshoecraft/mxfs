@@ -19,7 +19,7 @@ if [ "$FSTYPE" = xfs ]; then
     t=$(ms); mount "$DEV" "$MNT" || { emit FAIL mount "remount failed"; exit 1; };      rest=$(( $(ms) - t ))
 else
 modprobe libcrc32c 2>/dev/null || true
-lsmod | grep -q '^mxfs' || insmod "$MODULE" force_transport=1 || { emit FAIL setup insmod; exit 1; }
+lsmod | grep -q '^mxfs' || insmod "$MODULE" dyndbg=+p force_transport=1 || { emit FAIL setup insmod; exit 1; }
 "$MKFS" -f "$DEV" >/dev/null 2>&1 || { emit FAIL setup mkfs; exit 1; }
 t=$(ms); mount -t mxfs "$DEV" "$MNT" || { emit FAIL mount "first mount failed"; exit 1; }; first=$(( $(ms) - t ))
 t=$(ms); umount "$MNT"            || { emit FAIL umount "umount failed"; exit 1; };       um=$(( $(ms) - t ))

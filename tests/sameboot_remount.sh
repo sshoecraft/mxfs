@@ -104,7 +104,7 @@ leave() {
 join() {
     local h
     h=$(fault_host "join_$2" "$1")
-    rsx 60 "$h" "M=\$(date +%s); echo MARK=\$M; insmod $KO $MODARGS; echo INSMOD_RC=\$?; T0=\$(date +%s); timeout $JOIN_BOUND mount -t mxfs $DEV $MNT; R=\$?; echo MOUNT_RC=\$R; echo WALL=\$(( \$(date +%s) - T0 )); mountpoint -q $MNT && echo MOUNTED || echo NOT_MOUNTED" > "$OUT/$2_join.txt"
+    rsx 60 "$h" "M=\$(date +%s); echo MARK=\$M; insmod $KO dyndbg=+p $MODARGS; echo INSMOD_RC=\$?; T0=\$(date +%s); timeout $JOIN_BOUND mount -t mxfs $DEV $MNT; R=\$?; echo MOUNT_RC=\$R; echo WALL=\$(( \$(date +%s) - T0 )); mountpoint -q $MNT && echo MOUNTED || echo NOT_MOUNTED" > "$OUT/$2_join.txt"
     capture_require "$OUT/$2_join.txt" '^(MOUNTED|NOT_MOUNTED)$' "$2: the join of $1"
     capture_require "$OUT/$2_join.txt" '^MARK=[0-9]+$' "$2: the clock mark of $1's join"
     jl "$1" "$(field "$OUT/$2_join.txt" MARK)" > "$OUT/$2_join_journal.txt"

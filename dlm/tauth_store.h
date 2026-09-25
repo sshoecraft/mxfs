@@ -39,8 +39,8 @@ struct mxfs_tauth_store {
     uint64_t        local_inc;
     /* counters (forensic, read by the unit test and P-lines) */
     uint64_t        reads, writes, torn_seen, repairs, unknown,
-                    conflicts, lost_races;   /* sess423 step 4 */
-    /* sess426 (D-0347, conditional commit) */
+                    conflicts, lost_races;   /* step 4 */
+    /* (D-0347, conditional commit) */
     uint64_t        stale_bases,    /* write refused: the platter moved past
                                      * the image the caller patched */
                     ticket_busy,    /* spare copy under a LIVE ticket */
@@ -48,12 +48,12 @@ struct mxfs_tauth_store {
                     ticket_resumes, /* our own abandoned ticket */
                     stolen,         /* publish CAW lost: protocol/fencing fault */
                     superseded;     /* readback shows a later commit: ours landed */
-    /* sess426 (D-0349 instrumented): per-phase commit cost in ms — totals + max */
+    /* (D-0349 instrumented): per-phase commit cost in ms — totals + max */
     uint64_t        ph_ticket_ms, ph_ticket_max, ph_body_ms, ph_body_max,
                     ph_publish_ms, ph_publish_max, ph_flush_ms, ph_flush_max,
                     ph_read_ms, ph_read_max, ph_commits;
     uint64_t        nonce_state;                /* write_nonce generator */
-    /* sess426: may a ticket left by {node, inc} be taken over?  Only when
+    /* may a ticket left by {node, inc} be taken over? Only when
      * that incarnation is durably fenced from the LUN (recovery-purged
      * after the SCSI-PR fence).  Absent = never (writes on such a page
      * return -EBUSY, reads are unaffected). */
@@ -75,7 +75,7 @@ int  mxfs_tauth_page_read(struct mxfs_tauth_store *s, uint32_t page_id,
                           struct mxfs_tauth_page *pg, int *copy_out);
 
 /* Durably commit *pg as the next version of page pg->hdr.page_id — a
- * CONDITIONAL commit (sess426, D-0347): pg->hdr.seq / write_nonce name the
+ * CONDITIONAL commit (D-0347): pg->hdr.seq / write_nonce name the
  * committed image the caller derived *pg from (0/0 = the page had no valid
  * copy); the commit lands only if the platter still holds exactly that
  * image.  -ESTALE = it moved (re-read, re-derive); -EBUSY = the spare copy

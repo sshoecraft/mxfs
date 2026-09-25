@@ -21,7 +21,7 @@
 #include "xfs_buf_item.h"
 #include "xfs_log.h"
 #include "xfs_health.h"
-#include "../../dlm/v5_mount.h"	/* sess22: mxfs_v5_dlm_is_single_node */
+#include "../../dlm/v5_mount.h"	/* mxfs_v5_dlm_is_single_node */
 
 /*
  * Function declarations.
@@ -1717,7 +1717,7 @@ xfs_dir2_node_add_datablk(
 		return error;
 
 	/*
-	 * sess46 (ccloop, instrumented): NON-PERTURBING dir-grow probe.  Earlier FUA-read
+	 * (instrumented): NON-PERTURBING dir-grow probe.  Earlier FUA-read
 	 * variants of this probe MASKED the failure (added grow-path latency that
 	 * let async durability land) — useless for measuring the race.  This version
 	 * does NO I/O: it logs only cheap in-core state so a per-NODE per-ROUND
@@ -1727,12 +1727,12 @@ xfs_dir2_node_add_datablk(
 	 * normal per-round rebuild of a reused dir (ABA, benign).  Storm dir only. */
 	if (dp->i_ino <= 256 && dbp && mp->m_mxfs_dlm &&
 	    !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm)) {
-		/* sess46: CAPPED (not ratelimited) so EVERY grow in a round is
+		/* CAPPED (not ratelimited) so EVERY grow in a round is
 		 * logged → complete cross-node same-round double-grow correlation
 		 * (ratelimited dropped most). Cap well above a run's total grows. */
 		static atomic_t p46n = ATOMIC_INIT(0);
 		if (atomic_inc_return(&p46n) <= 60000)
-		pr_warn(
+		mxfs_probe(
 		    "mxfs: P46-GROW ino=%llu newdbno=%lld daddr=%lld incore_nx=%llu incore_sz=%lld dirgen=%llu valid_epoch=%u incore_gen=%u comm=%s\n",
 		    (unsigned long long)dp->i_ino,
 		    (long long)*dbno,
@@ -1955,9 +1955,9 @@ xfs_dir2_node_addname_int(
 	int			needlog = 0;	/* need to log data header */
 	int			needscan = 0;	/* need to rescan data frees */
 	__be16			*tagp;		/* data entry tag pointer */
-	int			fs_retry = 0;	/* sess22: stale-freeindex restart cap */
-	bool			epoch_refreshed = false; /* sess28: one-shot stale-base refresh latch */
-	bool			platter_guarded = false; /* sess28: one-shot platter-guard restart latch */
+	int			fs_retry = 0;	/* stale-freeindex restart cap */
+	bool			epoch_refreshed = false; /* one-shot stale-base refresh latch */
+	bool			platter_guarded = false; /* one-shot platter-guard restart latch */
 
 restart:
 	length = xfs_dir2_data_entsize(dp->i_mount, args->namelen);
@@ -1997,7 +1997,7 @@ restart:
 	hdr = dbp->b_addr;
 	bf = xfs_dir2_data_bestfree_p(dp->i_mount, hdr);
 
-	/* sess28: read-side staleness fix — if the CLEAN in-core base is stale vs
+	/* read-side staleness fix — if the CLEAN in-core base is stale vs
 	 * the durable platter (a peer added a dirent our cached block is missing),
 	 * invalidate + restart so xfs_dir3_data_read re-fetches it through the read
 	 * verifier; the re-read bestfree then reflects the peer's entry and
@@ -2014,7 +2014,7 @@ restart:
 	}
 
 	/*
-	 * sess28(ccloop) FIX — PROVEN intra-block dir-slot COLLISION (sess27).
+	 * FIX — PROVEN intra-block dir-slot COLLISION.
 	 * The EXISTING data block selected above can be a STALE prior-tenure base
 	 * (a peer added a dirent at an offset our cached bestfree still shows FREE,
 	 * because the gen bump that would invalidate it was MISSED on a rapid
@@ -2043,7 +2043,7 @@ restart:
 								   dp->i_ino);
 			struct xfs_buf_log_item *dbip = dbp->b_log_item;
 
-			/* sess28 DIAGNOSTIC (capped, ino<=256): split write-side
+			/* DIAGNOSTIC (capped, ino<=256): split write-side
 			 * durability vs read-side stale-buffer for the proven slot
 			 * collision.  FUA-read the SAME daddr from the platter and
 			 * compare to the returned in-core buffer.  MATCH => the read
@@ -2071,7 +2071,7 @@ restart:
 							cmp = memcmp(tmp, dbp->b_addr, blen) ? 1 : 0;
 						kfree(tmp);
 					}
-					pr_warn("mxfs: P28-PLATTER ino=%llu dbno=%d daddr=%lld b_epoch=%u valid=%u master=%u done=%d dirty=%d in_ail=%d bp=%px lseq=%u wseq=%u pin=%d incore_vs_platter=%s\n",
+					mxfs_probe("mxfs: P28-PLATTER ino=%llu dbno=%d daddr=%lld b_epoch=%u valid=%u master=%u done=%d dirty=%d in_ail=%d bp=%px lseq=%u wseq=%u pin=%d incore_vs_platter=%s\n",
 						(unsigned long long)dp->i_ino, dbno,
 						(long long)dbp->b_maps[0].bm_bn,
 						dbp->b_mxfs_dir_epoch,
@@ -2086,11 +2086,11 @@ restart:
 				}
 			}
 
-			/* sess45: braces — unconditional incarn stamp (see the
+			/* braces — unconditional incarn stamp (see the
 			 * xfs_da_btree.c sibling fix). */
 			if (mep != 0 && mep > dp->i_dlm_dir_valid_epoch) {
 				dp->i_dlm_dir_valid_epoch = mep;
-				dp->i_dlm_dir_valid_incarn = VFS_I(dp)->i_generation;	/* sess28: the baseline belongs to THIS incarnation */
+				dp->i_dlm_dir_valid_incarn = VFS_I(dp)->i_generation;	/* the baseline belongs to THIS incarnation */
 			}
 			{
 				struct xfs_buf_log_item *bip = dbp->b_log_item;
@@ -2098,11 +2098,11 @@ restart:
 						&bip->bli_item.li_flags);
 				bool in_ail = bip && test_bit(XFS_LI_IN_AIL,
 						&bip->bli_item.li_flags);
-				/* sess54(ccloop) — TWO staleness signals (PROVEN BY INSTRUMENT):
+				/* — TWO staleness signals (PROVEN BY INSTRUMENT):
 				 *  (1) NORMAL: master epoch present and this block's
 				 *      coherent-read epoch LAGS the inode's known-coherent
 				 *      epoch -> a peer modified the dir since our base.
-				 *  (2) FAIL-CLOSED (GPT design part 1): the master epoch is
+				 *  (2) FAIL-CLOSED (design review part 1): the master epoch is
 				 *      UNAVAILABLE (mep==0) yet this block carries a NON-ZERO
 				 *      prior-tenure epoch -> the per-resource handoff epoch
 				 *      REGRESSED to 0 (the dg_shadow slot for this hot dir was
@@ -2123,7 +2123,7 @@ restart:
 					if ((dbp->b_flags & XBF_DONE) && !dirty &&
 					    !in_ail && !xfs_buf_ispinned(dbp) &&
 					    !(dbp->b_flags & _XBF_DELWRI_Q)) {
-						pr_warn_ratelimited("mxfs: P28-ADDNAME-EPOCHSTALE ino=%llu dbno=%d daddr=%lld buf_epoch=%u valid_epoch=%u master=%u fc=%d — stale bestfree base; refresh+restart\n",
+						mxfs_probe_ratelimited("mxfs: P28-ADDNAME-EPOCHSTALE ino=%llu dbno=%d daddr=%lld buf_epoch=%u valid_epoch=%u master=%u fc=%d — stale bestfree base; refresh+restart\n",
 							(unsigned long long)dp->i_ino, dbno,
 							(long long)dbp->b_maps[0].bm_bn,
 							dbp->b_mxfs_dir_epoch,
@@ -2139,7 +2139,7 @@ restart:
 					else if (dp->i_ino <= 256) {
 						static atomic_t p54kg = ATOMIC_INIT(0);
 						if (atomic_inc_return(&p54kg) <= 50000)
-							pr_warn("mxfs: P54-KEEPGUARD-STALE ino=%llu dbno=%d daddr=%lld buf_epoch=%u valid_epoch=%u master=%u fc=%d done=%d dirty=%d in_ail=%d pinned=%d delwri=%d — stale base but keep-guard blocked refresh; RMW proceeds STALE\n",
+							mxfs_probe("mxfs: P54-KEEPGUARD-STALE ino=%llu dbno=%d daddr=%lld buf_epoch=%u valid_epoch=%u master=%u fc=%d done=%d dirty=%d in_ail=%d pinned=%d delwri=%d — stale base but keep-guard blocked refresh; RMW proceeds STALE\n",
 								(unsigned long long)dp->i_ino, dbno,
 								(long long)dbp->b_maps[0].bm_bn,
 								dbp->b_mxfs_dir_epoch,
@@ -2156,7 +2156,7 @@ restart:
 	}
 
 	/*
-	 * mxfs (sess22, GPT design — dir_reuse readdir=799 free-slot
+	 * mxfs (design review — dir_reuse readdir=799 free-slot
 	 * double-allocation fix): xfs_dir2_node_find_freeblk selected this data
 	 * block because the freespace SUMMARY (freehdr.bests[findex]) advertised
 	 * >= length free.  Across a cross-node EX transfer that summary can be
@@ -2189,7 +2189,7 @@ restart:
 				xfs_dir2_free_log_bests(args, &freehdr, fbp,
 							findex, findex);
 			}
-			pr_warn_ratelimited("mxfs: P22-FREESLOT-STALE ino=%llu dbno=%d findex=%d actual=%u need=%d retry=%d — stale freeindex summary, repaired+restart\n",
+			mxfs_probe_ratelimited("mxfs: P22-FREESLOT-STALE ino=%llu dbno=%d findex=%d actual=%u need=%d retry=%d — stale freeindex summary, repaired+restart\n",
 				(unsigned long long)dp->i_ino, dbno, findex,
 				be16_to_cpu(bf[0].length), length, fs_retry);
 			if (++fs_retry <= 32) {
@@ -2210,7 +2210,7 @@ restart:
 	aoff = (xfs_dir2_data_aoff_t)((char *)dup - (char *)hdr);
 
 	/*
-	 * sess28(ccloop) DECISIVE platter guard for the PROVEN intra-block
+	 * DECISIVE platter guard for the PROVEN intra-block
 	 * slot collision.  in-core bestfree offers aoff as FREE; FUA-read the
 	 * platter for THIS daddr and check whether a LIVE dirent occupies aoff.
 	 * If so, our cached base is read-side stale (missing a peer's durable
@@ -2307,7 +2307,7 @@ restart:
 						}
 					} else if (ptag != cpu_to_be16(
 							XFS_DIR2_DATA_FREE_TAG)) {
-						pr_warn_ratelimited("mxfs: P28W-STALEALLOC ino=%llu dbno=%d daddr=%lld aoff=%u pmagic=0x%x powner=%llu pcur=%d plive=%d — benign (stale pre-alloc bytes at grown daddr)\n",
+						mxfs_probe_ratelimited("mxfs: P28W-STALEALLOC ino=%llu dbno=%d daddr=%lld aoff=%u pmagic=0x%x powner=%llu pcur=%d plive=%d — benign (stale pre-alloc bytes at grown daddr)\n",
 							(unsigned long long)dp->i_ino,
 							dbno,
 							(long long)dbp->b_maps[0].bm_bn,
@@ -2338,8 +2338,8 @@ restart:
 	*tagp = cpu_to_be16((char *)dep - (char *)hdr);
 	xfs_dir2_data_log_entry(args, dbp, dep);
 
-	/* sess13run (instrumented): ALWAYS-ON node-addname placement probe for the
-	 * storm dir.  sess11run FINAL proved the residual dirent is logged here
+	/* (instrumented): ALWAYS-ON node-addname placement probe for the
+	 * storm dir.  FINAL proved the residual dirent is logged here
 	 * (rval=0) then VANISHES from this block by durable_signal — an
 	 * in-transaction revert.  Capture the exact (daddr, aoff) the entry lands
 	 * at so a readdir-miss can be traced to its placement block + whether a
@@ -2348,12 +2348,12 @@ restart:
 	if (dp->i_ino <= 256 && args->namelen >= 4 &&
 	    args->name[0] == 'n' && args->name[1] == 'o' &&
 	    args->name[2] == 'd' && args->name[3] == 'e') {
-		/* sess43: capped counter (NOT ratelimited) so the full create
+		/* capped counter (NOT ratelimited) so the full create
 		 * wave of the failing round is captured (24*800=19200 adds; the
 		 * ratelimit suppressed the round-N add we need to trace). */
 		static atomic_t p13n = ATOMIC_INIT(0);
 		if (atomic_inc_return(&p13n) <= 60000)
-			pr_warn("mxfs: P13-NADD ino=%llu daddr=%lld aoff=%u needscan=%d name=[%.*s] bp=%px lseq=%u wseq=%u comm=%s\n",
+			mxfs_probe("mxfs: P13-NADD ino=%llu daddr=%lld aoff=%u needscan=%d name=[%.*s] bp=%px lseq=%u wseq=%u comm=%s\n",
 				(unsigned long long)dp->i_ino,
 				(long long)dbp->b_maps[0].bm_bn, aoff, needscan,
 				(int)args->namelen, args->name,
@@ -2503,7 +2503,7 @@ xfs_dir2_node_lookup(
 	xfs_da_state_free(state);
 #ifdef __KERNEL__
 	/*
-	 * sess22(ccloop): node-format leaf-hash-hole heal.  On a multi-node dir a
+	 * node-format leaf-hash-hole heal.  On a multi-node dir a
 	 * peer's last hash entry can be durably dropped from this node's leaf/node
 	 * index while the authoritative DATA block still holds the dirent (the
 	 * leaf-block lost-update — both nodes agree the leaf is short).  The
@@ -2520,7 +2520,7 @@ xfs_dir2_node_lookup(
 	if (rval == -ENOENT && mxfs_dir_datascan_heal &&
 	    args->dp->i_mount->m_mxfs_dlm &&
 	    !mxfs_v5_dlm_is_single_node(args->dp->i_mount->m_mxfs_dlm)) {
-		/* sess1 (ccloop 46efd8b6) datascan gen-gate — see the leaf
+		/* datascan gen-gate — see the leaf
 		 * lookup call site: skip the O(dir) heal scan while the leaf
 		 * is already verified ENOENT-consistent at this coherency
 		 * state. */
@@ -2566,7 +2566,7 @@ xfs_dir2_node_removename(
 	if (rval != -EEXIST) {
 #ifdef __KERNEL__
 		/*
-		 * sess5 (ccloop 46efd8b6): on a multi-node dir the "upper
+		 * on a multi-node dir the "upper
 		 * layer" is NOT screwed up — the create-wave leaf wars leave
 		 * leaf-hash HOLES (name present in a data block + inode live,
 		 * hash entry lost), and the lookup that routed us here was

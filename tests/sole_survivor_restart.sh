@@ -144,7 +144,7 @@ echo "STAGE device=$MXFS_DEV"
 
 MARK=$(rsx 30 "$A" 'date +%s' | tail -1)
 require_epoch "$MARK" "$A's clock mark before the survivor mount"
-measure "$A" $((JOIN_BOUND + 60)) "$OUT/A_join.txt" '^(MOUNTED|NOT_MOUNTED)$' "the survivor mount on $A" "lsmod | grep -q '^mxfs ' || insmod $KO $MODARGS; echo INSMOD_RC=\$?; T0=\$(date +%s%N); mountpoint -q $MNT || timeout $JOIN_BOUND mount -t mxfs $MXFS_DEV $MNT; echo MOUNT_RC=\$?; echo WALL_MS=\$(( (\$(date +%s%N) - T0) / 1000000 )); mountpoint -q $MNT && echo MOUNTED || echo NOT_MOUNTED"
+measure "$A" $((JOIN_BOUND + 60)) "$OUT/A_join.txt" '^(MOUNTED|NOT_MOUNTED)$' "the survivor mount on $A" "lsmod | grep -q '^mxfs ' || insmod $KO dyndbg=+p $MODARGS; echo INSMOD_RC=\$?; T0=\$(date +%s%N); mountpoint -q $MNT || timeout $JOIN_BOUND mount -t mxfs $MXFS_DEV $MNT; echo MOUNT_RC=\$?; echo WALL_MS=\$(( (\$(date +%s%N) - T0) / 1000000 )); mountpoint -q $MNT && echo MOUNTED || echo NOT_MOUNTED"
 echo "STAGE survivor join rc=$(field "$OUT/A_join.txt" MOUNT_RC) wall=$(field "$OUT/A_join.txt" WALL_MS)ms total=$(( $(date +%s) - s0 ))s"
 
 # Read back BEFORE anything else touches the filesystem.
@@ -183,7 +183,7 @@ if [ "$REJOIN" = 1 ]; then
     measure "$B" 60 "$OUT/B_md5.txt" '^[0-9a-f]{32}$' "the module copy on $B" "cp /src/mxfs/mxfs.ko $KO && md5sum $KO | cut -c1-32"
     BMARK=$(rsx 30 "$B" 'date +%s' | tail -1)
     require_epoch "$BMARK" "$B's clock mark before its rejoin"
-    measure "$B" $((JOIN_BOUND + 60)) "$OUT/B_join.txt" '^(MOUNTED|NOT_MOUNTED)$' "the rejoin of $B" "lsmod | grep -q '^mxfs ' || insmod $KO $MODARGS; T0=\$(date +%s%N); mountpoint -q $MNT || timeout $JOIN_BOUND mount -t mxfs $MXFS_DEV $MNT; echo MOUNT_RC=\$?; echo WALL_MS=\$(( (\$(date +%s%N) - T0) / 1000000 )); mountpoint -q $MNT && echo MOUNTED || echo NOT_MOUNTED"
+    measure "$B" $((JOIN_BOUND + 60)) "$OUT/B_join.txt" '^(MOUNTED|NOT_MOUNTED)$' "the rejoin of $B" "lsmod | grep -q '^mxfs ' || insmod $KO dyndbg=+p $MODARGS; T0=\$(date +%s%N); mountpoint -q $MNT || timeout $JOIN_BOUND mount -t mxfs $MXFS_DEV $MNT; echo MOUNT_RC=\$?; echo WALL_MS=\$(( (\$(date +%s%N) - T0) / 1000000 )); mountpoint -q $MNT && echo MOUNTED || echo NOT_MOUNTED"
     measure "$B" 180 "$OUT/B_read.txt" '^BAD=[0-9]+$' "the read-back on $B" "ok=0; bad=0; for i in \$(seq 1 $NF); do for h in $A $B; do f=$D/\${h}_\$i; if [ \"\$(cat \$f 2>/dev/null)\" = \"\${h}:\${i}:mxfs-sole-survivor\" ]; then ok=\$((ok+1)); else bad=\$((bad+1)); fi; done; done; echo OK=\$ok; echo BAD=\$bad"
     measure "$B" 120 "$OUT/B_journal.txt" 'kernel: ' "the kernel journal on $B across its rejoin" "journalctl -k --since=@$BMARK --no-pager -o short-iso 2>/dev/null | tail -4000"
     echo "--- the peer rejoins (polls=$w)"

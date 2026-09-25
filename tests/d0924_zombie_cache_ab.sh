@@ -113,7 +113,7 @@ cycle() {
         echo SYSFS_AFTER=\$(readlink /sys/kernel/slab/mxfs_buf 2>/dev/null || { [ -d /sys/kernel/slab/mxfs_buf ] && echo DIR; } || echo GONE)
         echo TAINT=\$(cat /proc/sys/kernel/tainted)
         dmesg | sed -n '/$mk/,\$p' | grep -a 'Objects remaining\|Object 0x\|Slab cache still\|P-DBG-LEAK-BUF\|WARNING: CPU' | cut -c1-200
-        insmod $KO $MODARGS $args; echo IRC=\$?
+        insmod $KO dyndbg=+p $MODARGS $args; echo IRC=\$?
         timeout 60 mount -t mxfs $DEV $MNT; echo MRC=\$?
         # A refused mount makes every later cycle vacuous — no buffers are
         # allocated, so the leak knob strands nothing and the arm reports 0

@@ -14,8 +14,8 @@
 #include "xfs_trans.h"
 #include "xfs_trans_priv.h"
 #include "xfs_inode_item.h"
-#include "xfs_mxfs_dlm.h"	/* sess19: mxfs_note_fork_tear tripwire */
-#include "../../dlm/v5_mount.h"	/* sess33: P234 single-node gate */
+#include "xfs_mxfs_dlm.h"	/* mxfs_note_fork_tear tripwire */
+#include "../../dlm/v5_mount.h"	/* P234 single-node gate */
 
 #include <linux/iversion.h>
 
@@ -98,7 +98,7 @@ xfs_trans_log_inode(
 	ASSERT(!xfs_iflags_test(ip, XFS_ISTALE));
 
 	/*
-	 * sess14 (ccloop c7ee71c6) D3 residual — publication obligation,
+	 * D3 residual — publication obligation,
 	 * wiring step 1 of 4 (design + remaining steps at xfs_inode.h's
 	 * i_mxfs_pub_pending_seq block; rationale in ccmemory sess14-J).
 	 * Every logged inode-core change creates an obligation to land that
@@ -114,7 +114,7 @@ xfs_trans_log_inode(
 	 * drain's success return on pending == durable.
 	 */
 	/*
-	 * sess382 (D-RELOG-BEHIND-DISK-OBLIGATION-DEADLOCK-WEDGE-380): NOT for
+	 * (D-RELOG-BEHIND-DISK-OBLIGATION-DEADLOCK-WEDGE-380): NOT for
 	 * the release drain's own gated re-log.  That re-log re-logs the SAME
 	 * in-core core purely to get it flushed after a fence abandoned the
 	 * previous attempt (P146V-UNLANDED); it represents no new committed
@@ -134,7 +134,7 @@ xfs_trans_log_inode(
 		ip->i_mxfs_pub_pending_seq++;
 
 	/*
-	 * sess32 P230: this mutation is being logged under an ILOCK that was
+	 * P230: this mutation is being logged under an ILOCK that was
 	 * acquired through ilock_try's atomic-context DLM BYPASS — no tenure,
 	 * no DEMOTING gate, invisible to the release pipeline.  If this ever
 	 * fires, the bypass arm must refuse EX (see P229 in xfs_mxfs_dlm.c).
@@ -144,7 +144,7 @@ xfs_trans_log_inode(
 		int p230 = atomic_inc_return(&p230_n);
 
 		if (p230 <= 200)
-			pr_warn("mxfs: P230-LOG-UNDER-ATOMIC-BYPASS ino=%llu pend=%llu age_us=%llu comm=%s n=%d — inode logged under a DLM-bypassed atomic trylock grant\n",
+			mxfs_probe("mxfs: P230-LOG-UNDER-ATOMIC-BYPASS ino=%llu pend=%llu age_us=%llu comm=%s n=%d — inode logged under a DLM-bypassed atomic trylock grant\n",
 				(unsigned long long)ip->i_ino,
 				(unsigned long long)ip->i_mxfs_pub_pending_seq,
 				(unsigned long long)((ktime_get_ns() -
@@ -154,7 +154,7 @@ xfs_trans_log_inode(
 	}
 
 	/*
-	 * sess33 P234 — SOURCE counter for GPT's D-RELEASE-BARRIER closure
+	 * P234 — SOURCE counter for design review's D-RELEASE-BARRIER closure
 	 * criterion 3 ("inodegc dirty-at-NL" generalized): a publication
 	 * obligation is being created RIGHT NOW; under what cluster authority?
 	 * Every correct multinode mutator holds this inode's DLM grant at EX
@@ -172,7 +172,7 @@ xfs_trans_log_inode(
 		uint8_t p234_m = READ_ONCE(ip->i_dlm_mode);
 
 		/*
-		 * sess33 refinement (instrumented, attributed on the 289 board):
+		 * refinement (instrumented, attributed on the 289 board):
 		 * i_dlm_mode alone is the WRONG authority sensor during a
 		 * BAST drain — drain site 2 clears it to NL while the
 		 * on-disk mirror grant is still ours, and the FIX-25/26/27
@@ -199,7 +199,7 @@ xfs_trans_log_inode(
 				atomic64_inc(&mxfs_lognoex_pr);
 			p234 = atomic_inc_return(&p234_n);
 			if (p234 <= 200)
-				pr_warn("mxfs: P234-LOG-NOEX ino=%llu mode=%u flags=0x%x pend=%llu nlink=%u isdir=%d comm=%s caller=%pS n=%d\n",
+				mxfs_probe("mxfs: P234-LOG-NOEX ino=%llu mode=%u flags=0x%x pend=%llu nlink=%u isdir=%d comm=%s caller=%pS n=%d\n",
 					(unsigned long long)ip->i_ino,
 					p234_m, flags,
 					(unsigned long long)ip->i_mxfs_pub_pending_seq,
@@ -211,14 +211,14 @@ xfs_trans_log_inode(
 	}
 
 	/*
-	 * sess19 TORN-FORK TRIPWIRE (dossier at mxfs_note_fork_tear).  This is
+	 * TORN-FORK TRIPWIRE (dossier at mxfs_note_fork_tear).  This is
 	 * the step that turns a half-rebuilt LOCAL fork into a dirty log item
 	 * the AIL will try to flush forever, so it is the right place to name
 	 * the producer with a stack.
 	 */
 	mxfs_note_fork_tear(ip, "trans_log_inode");
 
-	/* sess2 (a9a03929) P2G-LOGWHO: name whoever logs a REGULAR file's
+	/* P2G-LOGWHO: name whoever logs a REGULAR file's
 	 * core during the rm-phase window (P2D-DRAINWHY shows every rm-target
 	 * inode dirty-in-AIL with fields=0x1 at its own release, re-appearing
 	 * per inode after the shared cluster buffer was already flushed —
@@ -226,7 +226,7 @@ xfs_trans_log_inode(
 	 * the caller so the logging site is named in one run. */
 	if (unlikely(S_ISREG(VFS_I(ip)->i_mode)) && ip->i_mount &&
 	    ip->i_mount->m_mxfs_dlm)
-		pr_warn_ratelimited("mxfs: P2G-LOGWHO ino=%llu flags=0x%x dlm_state=%u comm=%s caller=%pS\n",
+		mxfs_probe_ratelimited("mxfs: P2G-LOGWHO ino=%llu flags=0x%x dlm_state=%u comm=%s caller=%pS\n",
 			(unsigned long long)ip->i_ino, flags,
 			ip->i_dlm_state, current->comm,
 			__builtin_return_address(0));
@@ -234,7 +234,7 @@ xfs_trans_log_inode(
 	tp->t_flags |= XFS_TRANS_DIRTY;
 
 	/*
-	 * sess17b (ccloop 4eef1f39, Gemini DLM-epoch lineage guard): bind this
+	 * (design review DLM-epoch lineage guard): bind this
 	 * dirtying to the current EX tenure.  Modifications only happen while we
 	 * hold the inode EX (multinode write authority), so i_mxfs_ex_grant_seq is
 	 * the epoch of the tenure under which this change was made.  If we later
@@ -244,7 +244,7 @@ xfs_trans_log_inode(
 	 * Memory-only, under ILOCK_EXCL.
 	 */
 	ip->i_mxfs_dirty_seq = ip->i_mxfs_ex_grant_seq;
-	/* sess22 P197: wall clock of this dirtying, so a probe can test P6's
+	/* P197: wall clock of this dirtying, so a probe can test P6's
 	 * "modified under the CURRENT tenure" claim against the tenure's own
 	 * acquire timestamp.  See xfs_inode.h i_mxfs_dirty_ns. */
 	ip->i_mxfs_dirty_ns = ktime_get_ns();
@@ -259,7 +259,7 @@ xfs_trans_log_inode(
 	 * unconditionally.
 	 */
 	/*
-	 * sess382 (GPT ruling 2, Q1): the release drain's own gated re-log must
+	 * (design-consult ruling 2, Q1): the release drain's own gated re-log must
 	 * not advance the LOGICAL VERSION either.  Same argument as the
 	 * pending_seq suppression above, on the counter that matters more:
 	 * di_changecount is MXFS's cross-node freshness stamp, compared by
@@ -294,7 +294,7 @@ xfs_trans_log_inode(
 	}
 
 	/*
-	 * sess6 (ccloop 46efd8b6) PROVEN BY INSTRUMENT (run 112803Z, test12 i!=1):
+	 * PROVEN BY INSTRUMENT (run 112803Z, test12 i!=1):
 	 * on a multi-node MXFS mount di_changecount is the cross-node reload
 	 * freshness stamp (P-RELOAD-IDENTICAL / P3-REFUSE-OLDER / epoch
 	 * gates compare it to decide whether a peer modified the inode since
@@ -312,7 +312,7 @@ xfs_trans_log_inode(
 	if ((flags & XFS_ILOG_CORE) &&
 	    !(iip->ili_dirty_flags & (XFS_ILOG_CORE | XFS_ILOG_IVERSION)) &&
 	    !(flags & XFS_ILOG_IVERSION) &&
-	    /* sess382 Q1: the forced bump is the OTHER half of the same
+	    /* Q1: the forced bump is the OTHER half of the same
 	     * suppression — see the block above.  Missing it here would leave
 	     * the drain's re-log inflating cc through the MXFS path even after
 	     * the upstream path was fixed. */

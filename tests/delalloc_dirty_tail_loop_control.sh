@@ -146,7 +146,7 @@ fi
 # (no other initiator can write it) — both literally true of a file on this
 # node's own root disk.  s139a set only the first and was refused with
 # P303-FENCECAP-OVERRIDE-REFUSED-CLUSTERED.
-rsx 60 "$NODE" "lsmod | grep -q '^mxfs' && { rmmod mxfs || exit 9; }; cp -f /src/mxfs/mxfs.ko /root/mxfs.ko.ddtl && modprobe libcrc32c 2>/dev/null; insmod /root/mxfs.ko.ddtl force_transport=1 target_cache_protected=1 && echo 1 > /sys/module/mxfs/parameters/fence_capability_override && echo 1 > /sys/module/mxfs/parameters/single_node_exclusive && cat /sys/module/mxfs/srcversion" > "$OUT/load.txt" 2>&1
+rsx 60 "$NODE" "lsmod | grep -q '^mxfs' && { rmmod mxfs || exit 9; }; cp -f /src/mxfs/mxfs.ko /root/mxfs.ko.ddtl && modprobe libcrc32c 2>/dev/null; insmod /root/mxfs.ko.ddtl dyndbg=+p force_transport=1 target_cache_protected=1 && echo 1 > /sys/module/mxfs/parameters/fence_capability_override && echo 1 > /sys/module/mxfs/parameters/single_node_exclusive && cat /sys/module/mxfs/srcversion" > "$OUT/load.txt" 2>&1
 capture_require "$OUT/load.txt" "^$SV\$" "the load of the tree's module on $NODE"
 echo "  PASS the tree's module ($SV) is loaded on $NODE"
 rsx 40 "$NODE" "echo DDTL-MARK-$LABEL > /dev/kmsg; rm -f $IMG; truncate -s 2G $IMG && losetup $DEV $IMG && /src/mxfs/tools/mkfs_mxfs -f $DEV > /dev/null 2>&1 && mount -t mxfs $DEV $MNT && grep ' $MNT ' /proc/mounts | awk '{print \$3}'" > "$OUT/setup_mxfs.txt" 2>&1

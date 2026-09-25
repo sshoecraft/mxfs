@@ -36,7 +36,7 @@ WANT_SV=$(modinfo mxfs.ko 2>/dev/null | awk '/^srcversion/{print $2}')
 reload() {
   $SSH "$NODE" "umount $MNT 2>/dev/null; umount /mnt/shared 2>/dev/null; \
     losetup -d $DEV 2>/dev/null; rmmod mxfs 2>/dev/null; \
-    insmod /src/mxfs/mxfs.ko 2>&1; cat /sys/module/mxfs/srcversion" \
+    insmod /src/mxfs/mxfs.ko dyndbg=+p 2>&1; cat /sys/module/mxfs/srcversion" \
     2>/dev/null | tail -1
 }
 

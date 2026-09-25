@@ -520,13 +520,13 @@ xfs_extent_free_cancel_item(
 }
 
 /*
- * sess436 (D-FOREIGN-SLICE-INTENTS-ABANDONED verification arm): while >0,
+ * (D-FOREIGN-SLICE-INTENTS-ABANDONED verification arm): while >0,
  * the first extent free after the knob is set forces the log (so the EFI
  * logged by the preceding roll is DURABLE) and then holds the transaction
  * for up to that many ms before the EFD is logged.  The harness destroys
  * the node inside the hold, which is the only deterministic way to leave
  * an open intent in the victim's last checkpoint: the plain unlink burst
- * (8 or 48 fragmented files) never did — sess436 measured the 8-file rm
+ * (8 or 48 fragmented files) never did — measured the 8-file rm
  * at 1.35 s and the 48-file lap still had P226-ICENSUS intents=0, because
  * the frees run in inactivation after the unlink syscalls return and the
  * two destroy points both missed the chain.  Self-clearing: one hold per
@@ -550,7 +550,7 @@ mxfs_dbg_efd_hold(
 	if (cmpxchg(&mxfs_dbg_efd_hold_ms, hold, 0) != hold)
 		return;
 	xfs_log_force(mp, XFS_LOG_SYNC);
-	pr_warn("mxfs: P-EFD-HOLD start=%u len=%u hold_ms=%d comm=%s — EFI forced durable, EFD transaction held\n",
+	mxfs_probe("mxfs: P-EFD-HOLD start=%u len=%u hold_ms=%d comm=%s — EFI forced durable, EFD transaction held\n",
 		(unsigned)xefi->xefi_startblock, xefi->xefi_blockcount, hold,
 		current->comm);
 	while (slept < hold && !xfs_is_shutdown(mp)) {
@@ -613,7 +613,7 @@ xfs_extent_free_finish_item(
 	 */
 	if (error == -ETIMEDOUT && xefi->xefi_agwait < mxfs_efi_agwait_max) {
 		xefi->xefi_agwait++;
-		pr_warn("mxfs: P-EFI-AGWAIT ag=%u len=%u try=%u/%u comm=%s — AG DLM busy past CAW wait; requeueing extent-free intent\n",
+		mxfs_probe("mxfs: P-EFI-AGWAIT ag=%u len=%u try=%u/%u comm=%s — AG DLM busy past CAW wait; requeueing extent-free intent\n",
 			pag_agno(to_perag(xefi->xefi_group)),
 			xefi->xefi_blockcount, xefi->xefi_agwait,
 			mxfs_efi_agwait_max, current->comm);

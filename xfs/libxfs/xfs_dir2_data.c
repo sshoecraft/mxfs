@@ -374,7 +374,7 @@ xfs_dir3_data_read_verify(
 	if (xfs_has_crc(mp) &&
 	    !xfs_buf_verify_cksum(bp, XFS_DIR3_DATA_CRC_OFF)) {
 		/*
-		 * sess5(a9a03929) P56X-CRCFAIL: run75 live repro — userspace
+		 * P56X-CRCFAIL: run75 live repro — userspace
 		 * reads of this daddr are clean while this read verifier fails
 		 * deterministically.  Dump buffer geometry (length, map count,
 		 * per-map daddr/len) + per-512B-sector crc32c of b_addr so the
@@ -394,7 +394,7 @@ xfs_dir3_data_read_verify(
 					ns = 16;
 				for (s = 0; s < ns; s++)
 					scrc[s] = crc32c(0, ba + s * 512, 512);
-				pr_warn("mxfs: P56X-CRCFAIL daddr=%lld blen_bb=%u nmaps=%d map0=%lld/%d map1=%lld/%d stored_crc=0x%08x secrc=%*ph\n",
+				mxfs_probe("mxfs: P56X-CRCFAIL daddr=%lld blen_bb=%u nmaps=%d map0=%lld/%d map1=%lld/%d stored_crc=0x%08x secrc=%*ph\n",
 					(long long)xfs_buf_daddr(bp),
 					(unsigned)bp->b_length,
 					bp->b_map_count,
@@ -433,7 +433,7 @@ xfs_dir3_data_read_verify(
 		if (ncnt) {
 			static atomic_t pdrd = ATOMIC_INIT(0);
 			if (atomic_inc_return(&pdrd) <= 1500)
-				pr_warn("mxfs: P-DRD daddr=%lld node1_cnt=%d comm=%s\n",
+				mxfs_probe("mxfs: P-DRD daddr=%lld node1_cnt=%d comm=%s\n",
 					(long long)xfs_buf_daddr(bp), ncnt,
 					current->comm);
 		}
@@ -473,13 +473,13 @@ xfs_dir3_data_write_verify(
 		if (ncnt) {
 			static atomic_t pdwr = ATOMIC_INIT(0);
 			if (atomic_inc_return(&pdwr) <= 1500)
-				pr_warn("mxfs: P-DWR daddr=%lld node1_cnt=%d comm=%s\n",
+				mxfs_probe("mxfs: P-DWR daddr=%lld node1_cnt=%d comm=%s\n",
 					(long long)xfs_buf_daddr(bp), ncnt,
 					current->comm);
 		}
 	}
 
-	/* sess68 WRITE-SIDE forensic (ALWAYS-ON, cheap, no-IO, ratelimited):
+	/* WRITE-SIDE forensic (ALWAYS-ON, cheap, no-IO, ratelimited):
 	 * count ALL "node" dirents (node1_/node2_/...) in EVERY multinode dir DATA
 	 * block as it is written to disk, with the writing thread.  A write of a
 	 * given daddr carrying FEWER entries than an EARLIER write of the SAME
@@ -524,7 +524,7 @@ xfs_dir3_data_write_verify(
 			static atomic_t pdwr2 = ATOMIC_INIT(0);
 			if (unlikely(mxfs_dirwr_enabled) &&
 			    atomic_inc_return(&pdwr2) <= 4000)
-				pr_warn("mxfs: P68-DWR daddr=%lld nodecnt=%d nameset=0x%08x incarn=%u owner=%llu comm=%s\n",
+				mxfs_probe("mxfs: P68-DWR daddr=%lld nodecnt=%d nameset=0x%08x incarn=%u owner=%llu comm=%s\n",
 					(long long)xfs_buf_daddr(bp), tot, nameset,
 					bp->b_mxfs_dir_incarn,
 					(unsigned long long)be64_to_cpu(hdr3->owner),
@@ -532,7 +532,7 @@ xfs_dir3_data_write_verify(
 		}
 	}
 
-	/* sess62 (instrumented) ALWAYS-ON, capped, low-flood (writes only): the durable
+	/* (instrumented) ALWAYS-ON, capped, low-flood (writes only): the durable
 	 * dir_reuse loss is ALWAYS node1_f1 (the first dirent of the reused dir).
 	 * Track node1_f1's EXACT presence in every dir DATA block written to disk,
 	 * with daddr + comm.  A write of a daddr that earlier carried node1_f1 and
@@ -558,7 +558,7 @@ xfs_dir3_data_write_verify(
 		{
 			static atomic_t pn1 = ATOMIC_INIT(0);
 			if (atomic_inc_return(&pn1) <= 3000)
-				pr_warn("mxfs: P62-DWR-N1F1 daddr=%lld node1_f1=%d node1_tot=%d owner=%llu comm=%s\n",
+				mxfs_probe("mxfs: P62-DWR-N1F1 daddr=%lld node1_f1=%d node1_tot=%d owner=%llu comm=%s\n",
 					(long long)xfs_buf_daddr(bp), n1f1, n1tot,
 					(unsigned long long)be64_to_cpu(hdr3->owner),
 					current->comm);
@@ -913,7 +913,7 @@ xfs_dir3_data_init(
 	if (error)
 		return error;
 
-	/* sess16(ccloop): stamp the dir-block COHERENT-TENURE epoch on a freshly
+	/* stamp the dir-block COHERENT-TENURE epoch on a freshly
 	 * created/initialized DATA block so it carries the CURRENT handoff epoch
 	 * (not 0).  This is what makes the prior-tenure evict override
 	 * (mxfs_dir_evict_data_blocks, dir_evict_prior_tenure) able to drop its
@@ -924,7 +924,7 @@ xfs_dir3_data_init(
 	bp->b_mxfs_dir_epoch = dp->i_dlm_dir_valid_epoch;
 
 	/*
-	 * sess54(ccloop) instrumented: ALWAYS-ON, I/O-FREE dir-block DOUBLE-ALLOCATION
+	 * instrumented: ALWAYS-ON, I/O-FREE dir-block DOUBLE-ALLOCATION
 	 * detector.  The durable round-N whole-block losses (LOOKUP_ENOENT, spread
 	 * across many nodes' entries, addname coherent-compare CLEAN = the clobber
 	 * is NOT a read-side RMW) point at xfs_dir3_data_init ZEROING a daddr that
@@ -951,7 +951,7 @@ xfs_dir3_data_init(
 					(d2_fsb - d2_got.br_startblock);
 				if (mapped != d2_off &&
 				    atomic_inc_return(&p54dm) <= 4000)
-					pr_warn("mxfs: P54-DOUBLEMAP ino=%llu new_lblk=%d daddr=%lld pfsb=%llu already_mapped_off=%llu init_off=%llu — daddr already mapped by THIS dir at a different logical block = dir-block DOUBLE-ALLOC about to zero live data\n",
+					mxfs_probe("mxfs: P54-DOUBLEMAP ino=%llu new_lblk=%d daddr=%lld pfsb=%llu already_mapped_off=%llu init_off=%llu — daddr already mapped by THIS dir at a different logical block = dir-block DOUBLE-ALLOC about to zero live data\n",
 						(unsigned long long)dp->i_ino,
 						(int)blkno,
 						(long long)xfs_buf_daddr(bp),
@@ -963,7 +963,7 @@ xfs_dir3_data_init(
 	}
 
 	/*
-	 * ccloop sess31 P31E-DATAINIT-ABA (GPT-5.5 design-consult decisive detector):
+	 *  P31E-DATAINIT-ABA (design-consult decisive detector):
 	 * xfs_da_get_buf returns a get_buf (NOT read) buffer about to be ZEROED
 	 * and re-initialized as an empty dir DATA block.  Under the
 	 * dir_reuse_coherency churn (rm-rf+recreate reuses the dir inode# and its
@@ -981,7 +981,7 @@ xfs_dir3_data_init(
 		struct xfs_inode *p31e_dp = dp;
 		struct xfs_mount *p31e_mp = mp;
 
-		/* sess37: these detectors do SYNCHRONOUS plain-read disk I/O per
+		/* these detectors do SYNCHRONOUS plain-read disk I/O per
 		 * fire (capped 800) which materially perturbs the create-heavy
 		 * dir_reuse path timing and MASKS the stale-RMW race (a heisenbug:
 		 * the test flips pass/fail with the extra latency).  Gate behind
@@ -995,7 +995,7 @@ xfs_dir3_data_init(
 			static atomic_t p31e_n = ATOMIC_INIT(0);
 
 			/*
-			 * sess32 (b)-discriminator (GPT-5.5): is the daddr the
+			 * (b)-discriminator (design review): is the daddr the
 			 * allocator just handed out for this "new" dir block
 			 * ALREADY mapped by THIS dir's in-core data-fork extent
 			 * map at a DIFFERENT logical offset?  If so the AG
@@ -1024,7 +1024,7 @@ xfs_dir3_data_init(
 							(dm_fsb - dm_got.br_startblock);
 						if (mapped != dm_off &&
 						    atomic_inc_return(&p32b_n) <= 800)
-							pr_warn("mxfs: P32B-DOUBLEMAP ino=%llu new_lblk=%d daddr=%lld pfsb=%llu already_mapped_off=%llu init_off=%llu — daddr already mapped by THIS dir at a different logical block = dir-block DOUBLE-ALLOC\n",
+							mxfs_probe("mxfs: P32B-DOUBLEMAP ino=%llu new_lblk=%d daddr=%lld pfsb=%llu already_mapped_off=%llu init_off=%llu — daddr already mapped by THIS dir at a different logical block = dir-block DOUBLE-ALLOC\n",
 								(unsigned long long)dp->i_ino,
 								(int)blkno,
 								(long long)xfs_buf_daddr(bp),
@@ -1056,7 +1056,7 @@ xfs_dir3_data_init(
 					int live = 0;
 					unsigned int off = p31e_mp->m_dir_geo->data_entry_offset;
 					unsigned int end = p31e_mp->m_dir_geo->blksize;
-					/* sess32: capture the first real dirent name on the
+					/* capture the first real dirent name on the
 					 * block about to be zeroed.  DECISIVE dual-EX proof:
 					 * if THIS node (e.g. test1, writes node1_*) is about
 					 * to zero a block holding the PEER's node2_* names,
@@ -1088,7 +1088,7 @@ xfs_dir3_data_init(
 						}
 					}
 					if (isdir && live > 0) {
-						/* sess37 instrumented DECISIVE: is the on-disk INODE's
+						/* instrumented DECISIVE: is the on-disk INODE's
 						 * extent map missing the block we are about to
 						 * clobber (durability/drain gap) or does in-core
 						 * lag disk (reload gap)?  Dump the in-core data-
@@ -1148,7 +1148,7 @@ xfs_dir3_data_init(
 						 * the dirty fork belongs to an earlier EX
 						 * tenure (we yielded EX in between => the
 						 * reacquire did not reload = sess10 case b). */
-						pr_warn("mxfs: P31E-DATAINIT-ABA ino=%llu lblk=%d daddr=%lld caller=%pS disk_magic=0x%08x disk_owner=%llu live_dirents=%d first_name=\"%s\" incore_fmt=%d incore_nx=%llu incore_size=%lld dir_gen=%llu loaded_gen=%u dlm_mode=%u dlm_state=%u stale=%d selfc=%d unpub=%d reused=%d bast_pend=%d ex_gseq=%llu dirty_seq=%llu comm=%s — get_buf/init about to ZERO a block holding live peer dirents\n",
+						mxfs_probe("mxfs: P31E-DATAINIT-ABA ino=%llu lblk=%d daddr=%lld caller=%pS disk_magic=0x%08x disk_owner=%llu live_dirents=%d first_name=\"%s\" incore_fmt=%d incore_nx=%llu incore_size=%lld dir_gen=%llu loaded_gen=%u dlm_mode=%u dlm_state=%u stale=%d selfc=%d unpub=%d reused=%d bast_pend=%d ex_gseq=%llu dirty_seq=%llu comm=%s — get_buf/init about to ZERO a block holding live peer dirents\n",
 							(unsigned long long)p31e_dp->i_ino,
 							(int)blkno,
 							(long long)xfs_buf_daddr(bp),
@@ -1177,7 +1177,7 @@ xfs_dir3_data_init(
 		}
 	}
 
-	/* sess62 (instrumented) ALWAYS-ON, no-FUA, decisive: log every data_init of a
+	/* (instrumented) ALWAYS-ON, no-FUA, decisive: log every data_init of a
 	 * multinode non-root dir's LOGICAL BLOCK 0.  The durable loss is ALWAYS
 	 * node1_f1 (first dirent of the reused dir); if data_init(blk0) is called
 	 * during the create wave (after node1_f1 exists) it ZEROES block0 ->
@@ -1204,7 +1204,7 @@ xfs_dir3_data_init(
 		{
 			static atomic_t pdi0 = ATOMIC_INIT(0);
 			if (atomic_inc_return(&pdi0) <= 3000)
-				pr_warn("mxfs: P62-DATAINIT-BLK0 ino=%llu daddr=%lld buf_done=%d cached_has_n1f1=%d i_gen=%u dlm_mode=%u comm=%s — about to ZERO+init dir logical block0\n",
+				mxfs_probe("mxfs: P62-DATAINIT-BLK0 ino=%llu daddr=%lld buf_done=%d cached_has_n1f1=%d i_gen=%u dlm_mode=%u comm=%s — about to ZERO+init dir logical block0\n",
 					(unsigned long long)dp->i_ino,
 					(long long)xfs_buf_daddr(bp), done, has_n1f1,
 					VFS_I(dp)->i_generation, dp->i_dlm_mode,
@@ -1236,14 +1236,14 @@ xfs_dir3_data_init(
 					uint32_t m = be32_to_cpu(dmagic);
 					if (m == XFS_DIR3_BLOCK_MAGIC ||
 					    m == XFS_DIR3_DATA_MAGIC) {
-						pr_warn("mxfs: P-DBLALLOC-BIRTH ino=%llu daddr=%lld disk_magic=0x%x disk_owner=%llu foreign=%d — allocating dir block0 over a %s on-disk dir block\n",
+						mxfs_probe("mxfs: P-DBLALLOC-BIRTH ino=%llu daddr=%lld disk_magic=0x%x disk_owner=%llu foreign=%d — allocating dir block0 over a %s on-disk dir block\n",
 							(unsigned long long)dp->i_ino,
 							(long long)xfs_buf_daddr(bp),
 							m, (unsigned long long)downer,
 							(downer != dp->i_ino) ? 1 : 0,
 							(downer != dp->i_ino) ?
 							"FOREIGN LIVE" : "own-stale");
-						/* P-DBLALLOC-AGF (instrumented, sess5): read-vs-write
+						/* P-DBLALLOC-AGF (instrumented): read-vs-write
 						 * discriminator for the bnobt double-alloc.  On a
 						 * FOREIGN-LIVE birth, compare this node's in-core AGF
 						 * summary (pag->pagf_freeblks/longest) against the
@@ -1268,7 +1268,7 @@ xfs_dir3_data_init(
 									struct xfs_agf *dagf = ab;
 									uint32_t dfree = be32_to_cpu(dagf->agf_freeblks);
 									uint32_t dlong = be32_to_cpu(dagf->agf_longest);
-									pr_warn("mxfs: P-DBLALLOC-AGF ino=%llu agno=%u incore_freeblks=%u disk_freeblks=%u incore_longest=%u disk_longest=%u agf_differ=%d — %s\n",
+									mxfs_probe("mxfs: P-DBLALLOC-AGF ino=%llu agno=%u incore_freeblks=%u disk_freeblks=%u incore_longest=%u disk_longest=%u agf_differ=%d — %s\n",
 										(unsigned long long)dp->i_ino,
 										agno,
 										(unsigned)pag->pagf_freeblks,
@@ -1291,7 +1291,7 @@ xfs_dir3_data_init(
 		}
 	}
 
-	/* sess68 (instrumented) ALWAYS-ON, NO-IO: log every data_init of a multinode
+	/* (instrumented) ALWAYS-ON, NO-IO: log every data_init of a multinode
 	 * non-root dir at ANY logical block.  force_block converged block0 (all
 	 * nodes @ same daddr); the residual 4-node loss is now at HIGHER blocks
 	 * (BLOCK->LEAF grow).  Decisive question: does this node data_init a
@@ -1304,7 +1304,7 @@ xfs_dir3_data_init(
 		static atomic_t pdi_any = ATOMIC_INIT(0);
 		if (unlikely(mxfs_dirwr_enabled) &&
 		    atomic_inc_return(&pdi_any) <= 3000)
-			pr_warn("mxfs: P68-DATAINIT blkno=%d ino=%llu daddr=%lld buf_done=%d incore_nx=%llu fmt=%u dlm_mode=%u dir_gen=%u loaded_gen=%u i_gen=%u comm=%s\n",
+			mxfs_probe("mxfs: P68-DATAINIT blkno=%d ino=%llu daddr=%lld buf_done=%d incore_nx=%llu fmt=%u dlm_mode=%u dir_gen=%u loaded_gen=%u i_gen=%u comm=%s\n",
 				(int)blkno, (unsigned long long)dp->i_ino,
 				(long long)xfs_buf_daddr(bp),
 				!!(bp->b_flags & XBF_DONE),
@@ -1355,13 +1355,13 @@ xfs_dir3_data_init(
 	xfs_dir2_data_log_header(args, bp);
 	xfs_dir2_data_log_unused(args, bp, dup);
 	/*
-	 * sess40 (ccloop 8ddb16a2): stamp the CURRENT incarnation on this freshly
+	 * stamp the CURRENT incarnation on this freshly
 	 * get_buf'd + re-initialized dir DATA block — mirror of the read-path
 	 * stamp (xfs_da_btree.c:3484).  xfs_da_get_buf above can return a LINGERING
 	 * cached buffer at a reused daddr that still carries the PRIOR incarnation's
 	 * b_mxfs_dir_incarn; this block now holds the CURRENT incarnation's content,
 	 * so without re-stamping it the writeback ABA guard
-	 * (mxfs_buf_xfsaild_skip_dir_write, sess40) would mistake the first block of
+	 * (mxfs_buf_xfsaild_skip_dir_write) would mistake the first block of
 	 * a recreated dir for a dead-incarnation leftover and suppress its flush =
 	 * durable loss.  dp is the owning dir inode.
 	 */
@@ -1371,7 +1371,7 @@ xfs_dir3_data_init(
 }
 
 /*
- * sess49 (ccloop, instrumented DECISIVE): does a block image contain an active dirent
+ * (instrumented DECISIVE): does a block image contain an active dirent
  * with the given name?  Walks active dirents from data_entry_offset, skipping
  * free entries by length, stopping defensively on a zero/garbage namelen so it
  * never wanders into a block-format leaf tail.  Pure in-memory, no I/O.
@@ -1435,7 +1435,7 @@ xfs_dir2_data_log_entry(
 		(uint)((char *)(xfs_dir2_data_entry_tag_p(mp, dep) + 1) -
 		       (char *)hdr - 1));
 
-	/* sess52(ccloop) DECISIVE concurrent-modify / phantom-EX probe (sess50 plan).
+	/* DECISIVE concurrent-modify / phantom-EX probe (plan).
 	 * P28-PLATTER proved the DATA base is COHERENT at modify (in-core==platter),
 	 * so the count-preserving single-dirent loss is a DLM SERIALIZATION HOLE, not
 	 * a cache bug: TWO nodes RMW the SAME dir block in overlapping windows.  Log
@@ -1463,7 +1463,7 @@ xfs_dir2_data_log_entry(
 		if (mxfs_held51 == 0 && mxfs_master51 == 0 &&
 		    current->comm[0] != 'm' /* skip benign mkdir master self-grant */) {
 			static atomic_t mxfs_phantom_dumped = ATOMIC_INIT(0);
-			pr_warn("mxfs: P51-PHANTOM ino=%llu daddr=%lld name=[%.*s] state=%d bastacq=%d demoter_self=%d comm=%s\n",
+			mxfs_probe("mxfs: P51-PHANTOM ino=%llu daddr=%lld name=[%.*s] state=%d bastacq=%d demoter_self=%d comm=%s\n",
 				(unsigned long long)args->dp->i_ino,
 				(long long)xfs_buf_daddr(bp),
 				args->namelen, args->name,
@@ -1472,10 +1472,10 @@ xfs_dir2_data_log_entry(
 				(args->dp->i_dlm_demoter == current) ? 1 : 0,
 				current->comm);
 			if (atomic_inc_return(&mxfs_phantom_dumped) <= 2)
-				dump_stack();
+				mxfs_probe_stack();
 		}
 		if (atomic_inc_return(&mxfs_p51n) <= 40000)
-			pr_warn("mxfs: P51-MOD ino=%llu daddr=%lld name=[%.*s] dlm_mode=%d master=%d held=%d gg=%u bastpend=%d bastacq=%d demoting=%d realns=%llu comm=%s\n",
+			mxfs_probe("mxfs: P51-MOD ino=%llu daddr=%lld name=[%.*s] dlm_mode=%d master=%d held=%d gg=%u bastpend=%d bastacq=%d demoting=%d realns=%llu comm=%s\n",
 				(unsigned long long)args->dp->i_ino,
 				(long long)xfs_buf_daddr(bp),
 				args->namelen, args->name,
@@ -1491,13 +1491,13 @@ xfs_dir2_data_log_entry(
 				current->comm);
 	}
 
-	/* sess2(ccloop) ALWAYS-ON cheap epoch-at-placement probe (instrumented): the
+	/* ALWAYS-ON cheap epoch-at-placement probe (instrumented): the
 	 * mht=1500 residual is a CLEAN round-1 single-dirent loss = stale-base
 	 * free-slot double-alloc.  HYPOTHESIS: in round 1 the per-dir master/valid
 	 * epoch is still 0/low so the addname epoch-staleness gates never fire on
 	 * the first cross-node handoffs -> unprotected stale-base RMW.  Capture (in
 	 * mem only, NO FUA / NO dump_stack -> non-perturbing) the epoch triple at
-	 * EVERY storm-dir placement, BEFORE the sess16 stamp launders b_epoch.  Log
+	 * EVERY storm-dir placement, BEFORE the stamp launders b_epoch.  Log
 	 * the EPOCH-UNESTABLISHED (master_ep==0) and STALE-BASE (b_ep<master_ep)
 	 * placements so a captured round-1 loss can be correlated. Capped. */
 	if (args->dp && mxfs_ino_watched(args->dp->i_ino) && mp->m_mxfs_dlm &&
@@ -1514,7 +1514,7 @@ xfs_dir2_data_log_entry(
 		if (unestablished || stale_base) {
 			static atomic_t p2ep = ATOMIC_INIT(0);
 			if (atomic_inc_return(&p2ep) <= 400)
-				pr_warn("mxfs: P2-EPOCHPLACE ino=%llu daddr=%lld name=[%.*s] master_ep=%u valid_ep=%u b_ep=%u unestablished=%d stale_base=%d comm=%s\n",
+				mxfs_probe("mxfs: P2-EPOCHPLACE ino=%llu daddr=%lld name=[%.*s] master_ep=%u valid_ep=%u b_ep=%u unestablished=%d stale_base=%d comm=%s\n",
 					(unsigned long long)args->dp->i_ino,
 					(long long)xfs_buf_daddr(bp),
 					args->namelen, args->name,
@@ -1522,7 +1522,7 @@ xfs_dir2_data_log_entry(
 					unestablished ? 1 : 0,
 					stale_base ? 1 : 0, current->comm);
 		}
-		/* sess13 PLACEMENT LEDGER (watch-gated, instrumented): the drc f1 loss
+		/* PLACEMENT LEDGER (watch-gated, instrumented): the drc f1 loss
 		 * commits in-core and never reaches the platter (P13-COLLIDE
 		 * never fired for blk0; the final bins lack the names).  Log
 		 * EVERY placement on the watched dir with the dir's DLM
@@ -1531,7 +1531,7 @@ xfs_dir2_data_log_entry(
 		 * shows whether the victim's commit landed inside the release
 		 * drain->unlock window or was tossed by a later adopt. */
 		{
-			/* sess13: dirwr-gated — at 8 nodes this always-on
+			/* dirwr-gated — at 8 nodes this always-on
 			 * ledger's printk volume (journald ratelimit off) blew
 			 * the drc/tds time budgets (~40s rounds; workers
 			 * killed with empty results).  mxfs.dirwr=1 re-arms
@@ -1540,7 +1540,7 @@ xfs_dir2_data_log_entry(
 			static atomic_t p13pl = ATOMIC_INIT(0);
 			if (unlikely(mxfs_dirwr_enabled) &&
 			    atomic_inc_return(&p13pl) <= 40000)
-				pr_warn("mxfs: P13-PLACE ino=%llu daddr=%lld name=[%.*s] mode=%u state=%u exh=%u bpend=%d bacq=%d realns=%llu comm=%s\n",
+				mxfs_probe("mxfs: P13-PLACE ino=%llu daddr=%lld name=[%.*s] mode=%u state=%u exh=%u bpend=%d bacq=%d realns=%llu comm=%s\n",
 					(unsigned long long)args->dp->i_ino,
 					(long long)xfs_buf_daddr(bp),
 					args->namelen, args->name,
@@ -1554,7 +1554,7 @@ xfs_dir2_data_log_entry(
 		}
 	}
 
-	/* sess16(ccloop): MODIFY-time coherent-tenure stamp.  We are modifying this
+	/* MODIFY-time coherent-tenure stamp.  We are modifying this
 	 * DATA block under the dir's current grant tenure, so its content is OUR
 	 * current-tenure work — stamp the current handoff epoch so the prior-tenure
 	 * evict override never mistakes it for a stale prior-tenure base (the piece
@@ -1563,7 +1563,7 @@ xfs_dir2_data_log_entry(
 	if (args->dp)
 		bp->b_mxfs_dir_epoch = args->dp->i_dlm_dir_valid_epoch;
 
-	/* sess13run (ccloop, instrumented DECISIVE): collision detector AT placement.
+	/* (instrumented DECISIVE): collision detector AT placement.
 	 * The dir_reuse residual is a free-slot DOUBLE-ALLOCATION — two nodes place
 	 * different dirents at the same (daddr, byte offset).  Here, right as we
 	 * write our dirent, do a COHERENT plain-bdev read of THIS data block from
@@ -1573,7 +1573,7 @@ xfs_dir2_data_log_entry(
 	 * to durably clobber a peer's committed entry — log it with both names.
 	 * Fires ONLY on the actual collision (rare) so perturbation is minimal.
 	 * SAFE in-transaction: plain-bdev read into a kmalloc temp does NOT touch
-	 * the buffer cache (no fresh xfs_buf_incore, which sess11run proved
+	 * the buffer cache (no fresh xfs_buf_incore, which proved
 	 * corrupts).  Scoped to the storm dir (ino<=256), multinode only. */
 	if (args->dp && mxfs_ino_watched(args->dp->i_ino) &&
 	    !READ_ONCE(mxfs_watch_light) && bp->b_target &&
@@ -1606,7 +1606,7 @@ xfs_dir2_data_log_entry(
 				if (dnl >= 1 && off + 9 + dnl <= blen &&
 				    (dnl != dep->namelen ||
 				     memcmp(de->name, dep->name, dnl) != 0)) {
-					/* sess46 (ccloop, instrumented DECISIVE): capture the
+					/* (instrumented DECISIVE): capture the
 					 * colliding buffer's clean/dirty/AIL state AT the
 					 * collision.  If dirty/in-AIL/pinned/delwri/!DONE,
 					 * mxfs_dir_addname_coherent_refresh SKIPPED this
@@ -1624,7 +1624,7 @@ xfs_dir2_data_log_entry(
 					int cpin = xfs_buf_ispinned(bp);
 					int cdelwri = !!(bp->b_flags & _XBF_DELWRI_Q);
 					int cdone = !!(bp->b_flags & XBF_DONE);
-					pr_warn_ratelimited(
+					mxfs_probe_ratelimited(
 					    "mxfs: P13-COLLIDE ino=%llu daddr=%lld off=%u our=[%.*s] disk=[%.*s] comm=%s dirty=%d inail=%d pin=%d delwri=%d done=%d bufgen=%llu dirgen=%llu cohgen=%u dmagic=0x%x downer=%llu ourdir=%d — placing onto a DIFFERENT durable dirent (stale-base free-slot double-alloc)\n",
 					    (unsigned long long)args->dp->i_ino,
 					    (long long)bp->b_maps[0].bm_bn, off,
@@ -1639,7 +1639,7 @@ xfs_dir2_data_log_entry(
 				}
 			}
 
-			/* sess49 (ccloop, instrumented DECISIVE): whole-block stale-base
+			/* (instrumented DECISIVE): whole-block stale-base
 			 * detector.  P13-COLLIDE above only fires when the SAME byte
 			 * offset already holds a different durable dirent — i.e. a
 			 * free-slot DOUBLE-ALLOCATION.  The residual single-dirent loss
@@ -1703,8 +1703,8 @@ xfs_dir2_data_log_entry(
 					int spin = xfs_buf_ispinned(bp);
 					int sdelwri = !!(bp->b_flags & _XBF_DELWRI_Q);
 					int sdone = !!(bp->b_flags & XBF_DONE);
-					pr_warn_ratelimited(
-					    /* sess79: the trailing prose used to repeat the count
+					mxfs_probe_ratelimited(
+					    /* the trailing prose used to repeat the count
 					     * with a %d that had NO argument — 16 specifiers, 15
 					     * args.  vsnprintf then read an uninitialised va_arg,
 					     * so this probe's own summary line printed garbage.
@@ -1727,7 +1727,7 @@ xfs_dir2_data_log_entry(
 			kfree(tmp);
 	}
 
-	/* sess11(ccloop) P11-DATALOG: the entry BYTES of a dirent are logged to
+	/* P11-DATALOG: the entry BYTES of a dirent are logged to
 	 * THIS data block here.  Capture (dir ino, daddr, name) for the storm
 	 * dir so a lost dirent (PRELOGF shows its block lacks it post-commit)
 	 * can be traced to the exact block it was written to — isolating whether
@@ -1739,7 +1739,7 @@ xfs_dir2_data_log_entry(
 		     mxfs_ino_watched(args->dp->i_ino) && dep->namelen >= 8 &&
 		     dep->name[0] == 'n' && dep->name[1] == 'o' &&
 		     dep->name[2] == 'd' && dep->name[3] == 'e'))
-		pr_warn("mxfs: P11-DATALOG ino=%llu daddr=%lld off=%u name=[%.*s] comm=%s\n",
+		mxfs_probe("mxfs: P11-DATALOG ino=%llu daddr=%lld off=%u name=[%.*s] comm=%s\n",
 			(unsigned long long)args->dp->i_ino,
 			(long long)bp->b_maps[0].bm_bn,
 			(unsigned int)((char *)dep - (char *)hdr),
@@ -1765,7 +1765,7 @@ xfs_dir2_data_log_header(
 
 	xfs_trans_log_buf(args->trans, bp, 0, args->geo->data_entry_offset - 1);
 
-	/* sess16(ccloop): MODIFY-time coherent-tenure stamp (see
+	/* MODIFY-time coherent-tenure stamp (see
 	 * xfs_dir2_data_log_entry). */
 	if (args->dp)
 		bp->b_mxfs_dir_epoch = args->dp->i_dlm_dir_valid_epoch;
@@ -1827,7 +1827,7 @@ xfs_dir2_data_make_free(
 	hdr = bp->b_addr;
 
 	/*
-	 * sess9(a9a03929) instrumented free-side ledger — mirror of P13-LADD.  Every
+	 * instrumented free-side ledger — mirror of P13-LADD.  Every
 	 * byte-range free in a storm-dir data block, with the live dirent name
 	 * currently at the freed offset.  Discriminator for the readdir-tear:
 	 * a make_free that lands on a PEER's dirent leaves the entry's bytes as
@@ -1849,7 +1849,7 @@ xfs_dir2_data_make_free(
 
 			if (nl > 32)
 				nl = 32;
-			pr_warn("mxfs: P9-LFREE ino=%llu daddr=%lld aoff=%u len=%u live=%d name=[%.*s] comm=%s realns=%llu\n",
+			mxfs_probe("mxfs: P9-LFREE ino=%llu daddr=%lld aoff=%u len=%u live=%d name=[%.*s] comm=%s realns=%llu\n",
 				(unsigned long long)args->dp->i_ino,
 				(long long)bp->b_maps[0].bm_bn,
 				(unsigned)offset, (unsigned)len, live,
@@ -2055,7 +2055,7 @@ xfs_dir2_data_check_new_free(
 }
 
 /*
- * sess28(ccloop) THE FIX — format-agnostic read-side staleness guard.  Called
+ * THE FIX — format-agnostic read-side staleness guard.  Called
  * from block/leaf/node addname right after the data block's bestfree (bf) is
  * located and BEFORE dup/use_free.  If the CLEAN in-core dir DATA block diverges
  * from the durable platter image (a peer added a dirent we never saw — the lossy
@@ -2091,7 +2091,7 @@ mxfs_dir_addname_coherent_refresh(
 		return 0;
 	if (!S_ISDIR(VFS_I(dp)->i_mode) || dp->i_dlm_unpublished)
 		return 0;
-	/* ccloop 0d6e174d dlm_scaling ROOT FIX: a published dir held EX with zero
+	/*  dlm_scaling ROOT FIX: a published dir held EX with zero
 	 * peer BASTs is provably private (i_dlm_mode==EX && !i_dlm_dir_contended;
 	 * see mxfs_dir_priv_ex_skip) — no peer can have committed a dirent our
 	 * in-core base is missing, so the per-addname FUA-platter compare below is
@@ -2125,7 +2125,7 @@ mxfs_dir_addname_coherent_refresh(
 				&bip->bli_item.li_flags);
 
 		/*
-		 * sess54(ccloop) instrumented — relax the in-AIL half of the keep-guard.
+		 * instrumented — relax the in-AIL half of the keep-guard.
 		 * The residual durable single .md5 loss survives ALL read-side
 		 * checks (P28E coherent, DOUBLEMAP=0, KEEPGUARD=0, MEPZERO=0) AND
 		 * is NOT a modify-without-EX hole (P54-NOTEX-MODIFY=0) NOR a
@@ -2144,7 +2144,7 @@ mxfs_dir_addname_coherent_refresh(
 		 * !DONE or UNDESTAGED-in-AIL block (real un-landed work).
 		 */
 		/*
-		 * sess5(a9a03929) run80 ROOT FIX (instrumented, test2 r1 @69.966):
+		 * run80 ROOT FIX (instrumented, test2 r1 @69.966):
 		 * the undestaged keep-guard was conditioned on b_inail — but a
 		 * block whose fresh adds are still CIL-RESIDENT (committed,
 		 * not yet AIL-inserted: in_cil=1 in_ail=0, transient pin
@@ -2156,7 +2156,7 @@ mxfs_dir_addname_coherent_refresh(
 		 * cluster-wide).  With completion-time wseq (FIX-5) the
 		 * undestaged predicate (pinned || lseq>wseq) is exact through
 		 * the whole commit->destage pipeline — honor it
-		 * UNCONDITIONALLY.  The sess54 zombie relaxation is
+		 * UNCONDITIONALLY.  The zombie relaxation is
 		 * preserved: a genuinely destaged (lseq==wseq) in-AIL zombie
 		 * still gets FUA-compared.
 		 */
@@ -2188,13 +2188,13 @@ mxfs_dir_addname_coherent_refresh(
 		pcur = (be32_to_cpu(ph->magic) == XFS_DIR3_DATA_MAGIC ||
 			be32_to_cpu(ph->magic) == XFS_DIR3_BLOCK_MAGIC) &&
 		       be64_to_cpu(ph->owner) == dp->i_ino;
-		/* sess28 capped (NOT ratelimited -> real counts) instrument: does the
+		/* capped (NOT ratelimited -> real counts) instrument: does the
 		 * helper reach the FUA read for the storm dir, and does the in-core
 		 * block diverge from the platter?  diff=1 means a stale base caught. */
 		if (mxfs_ino_watched(dp->i_ino)) {
 			static atomic_t p28e = ATOMIC_INIT(0);
 			if (atomic_inc_return(&p28e) <= 60000)
-				pr_warn("mxfs: P28E ino=%llu daddr=%lld pcur=%d pmagic=0x%x powner=%llu diff=%d\n",
+				mxfs_probe("mxfs: P28E ino=%llu daddr=%lld pcur=%d pmagic=0x%x powner=%llu diff=%d\n",
 					(unsigned long long)dp->i_ino,
 					(long long)dbp->b_maps[0].bm_bn, pcur,
 					be32_to_cpu(ph->magic),
@@ -2213,7 +2213,7 @@ mxfs_dir_addname_coherent_refresh(
 				dbp->b_flags &= ~(XBF_DONE | _XBF_FUA_FRESH);
 				dbp->b_mxfs_dir_gen = 0;
 				ret = 1;
-				pr_warn_ratelimited("mxfs: P28C-STALE ino=%llu daddr=%lld dir_gen=%llu — CLEAN in-core dir block stale vs platter; invalidate+reread\n",
+				mxfs_probe_ratelimited("mxfs: P28C-STALE ino=%llu daddr=%lld dir_gen=%llu — CLEAN in-core dir block stale vs platter; invalidate+reread\n",
 					(unsigned long long)dp->i_ino,
 					(long long)dbp->b_maps[0].bm_bn,
 					(unsigned long long)dp->i_dlm_dir_gen);
@@ -2221,7 +2221,7 @@ mxfs_dir_addname_coherent_refresh(
 		}
 	}
 	kfree(tmp);
-	/* sess2(ccloop) ROOT FIX (P2-EPOCHPLACE PROVEN): leaf/block-format addname
+	/* ROOT FIX (P2-EPOCHPLACE PROVEN): leaf/block-format addname
 	 * RMW'd an EPOCH-STALE base UNPROTECTED.  node-format addname (xfs_dir2_node.c)
 	 * has a coarse master-handoff-epoch gate (b_mxfs_dir_epoch < valid_epoch =>
 	 * a peer held EX + modified the dir since this block's base loaded => cold
@@ -2240,18 +2240,18 @@ mxfs_dir_addname_coherent_refresh(
 							    uint64_t);
 		uint32_t master_ep = mxfs_v5_dlm_inode_dir_epoch(mp->m_mxfs_dlm,
 								 dp->i_ino);
-		/* sess45: braces — unconditional incarn stamp (see the
+		/* braces — unconditional incarn stamp (see the
 		 * xfs_da_btree.c sibling fix). */
 		if (master_ep > dp->i_dlm_dir_valid_epoch) {
 			dp->i_dlm_dir_valid_epoch = master_ep;
-			dp->i_dlm_dir_valid_incarn = VFS_I(dp)->i_generation;	/* sess28: the baseline belongs to THIS incarnation */
+			dp->i_dlm_dir_valid_incarn = VFS_I(dp)->i_generation;	/* the baseline belongs to THIS incarnation */
 		}
 		if (master_ep != 0 && dbp->b_mxfs_dir_epoch != 0 &&
 		    dbp->b_mxfs_dir_epoch < dp->i_dlm_dir_valid_epoch) {
 			dbp->b_flags &= ~(XBF_DONE | _XBF_FUA_FRESH);
 			dbp->b_mxfs_dir_gen = 0;
 			ret = 1;
-			pr_warn_ratelimited("mxfs: P2-LEAF-EPOCHSTALE ino=%llu daddr=%lld b_ep=%u master_ep=%u — leaf/block addname epoch-stale base; invalidate+reread\n",
+			mxfs_probe_ratelimited("mxfs: P2-LEAF-EPOCHSTALE ino=%llu daddr=%lld b_ep=%u master_ep=%u — leaf/block addname epoch-stale base; invalidate+reread\n",
 				(unsigned long long)dp->i_ino,
 				(long long)dbp->b_maps[0].bm_bn,
 				dbp->b_mxfs_dir_epoch, master_ep);
@@ -2288,9 +2288,9 @@ xfs_dir2_data_use_free(
 	hdr = bp->b_addr;
 
 	/*
-	 * sess54(ccloop) instrumented SERIALIZATION-HOLE probe.  The durable dirent loss
+	 * instrumented SERIALIZATION-HOLE probe.  The durable dirent loss
 	 * is NOT a stale-base RMW (read-side coherent) and NOT a stale reflush
-	 * (tenure_reflush_skip=1 did not help) => sess50/54 converge on a DLM
+	 * (tenure_reflush_skip=1 did not help) => /54 converge on a DLM
 	 * serialization hole.  DECISIVE test: a dirent is being PLACED here; if this
 	 * node does NOT hold the owning dir inode's DLM EX at the placement, two
 	 * nodes can place into the same block concurrently and one durably erases
@@ -2307,7 +2307,7 @@ xfs_dir2_data_use_free(
 		    ufdp->i_dlm_mode != MXFS_LOCK_EX) {
 			static atomic_t p54nx = ATOMIC_INIT(0);
 			if (atomic_inc_return(&p54nx) <= 4000)
-				pr_warn("mxfs: P54-NOTEX-MODIFY ino=%llu dlm_mode=%d daddr=%lld off=%u len=%u comm=%s — placing a dirent while NOT holding dir DLM EX (serialization hole)\n",
+				mxfs_probe("mxfs: P54-NOTEX-MODIFY ino=%llu dlm_mode=%d daddr=%lld off=%u len=%u comm=%s — placing a dirent while NOT holding dir DLM EX (serialization hole)\n",
 					(unsigned long long)ufdp->i_ino,
 					ufdp->i_dlm_mode,
 					(long long)bp->b_maps[0].bm_bn,

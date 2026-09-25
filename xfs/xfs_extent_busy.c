@@ -61,14 +61,14 @@ xfs_extent_busy_insert_list(
 		if (new->bno < busyp->bno) {
 			rbp = &(*rbp)->rb_left;
 			if (unlikely(new->bno + new->length > busyp->bno))
-				pr_warn_ratelimited("mxfs: P-BUSY-OVERLAP xg=%u new[bno=%u len=%u] busy[bno=%u len=%u] comm=%s — overlapping in-flight extent frees (double-free family)\n",
+				mxfs_probe_ratelimited("mxfs: P-BUSY-OVERLAP xg=%u new[bno=%u len=%u] busy[bno=%u len=%u] comm=%s — overlapping in-flight extent frees (double-free family)\n",
 					xg->xg_gno, new->bno, new->length,
 					busyp->bno, busyp->length,
 					current->comm);
 		} else if (new->bno > busyp->bno) {
 			rbp = &(*rbp)->rb_right;
 			if (unlikely(bno < busyp->bno + busyp->length))
-				pr_warn_ratelimited("mxfs: P-BUSY-OVERLAP xg=%u new[bno=%u len=%u] busy[bno=%u len=%u] comm=%s — overlapping in-flight extent frees (double-free family)\n",
+				mxfs_probe_ratelimited("mxfs: P-BUSY-OVERLAP xg=%u new[bno=%u len=%u] busy[bno=%u len=%u] comm=%s — overlapping in-flight extent frees (double-free family)\n",
 					xg->xg_gno, new->bno, new->length,
 					busyp->bno, busyp->length,
 					current->comm);
@@ -89,7 +89,7 @@ xfs_extent_busy_insert_list(
 			 * first transaction's commit.  The duplicate free
 			 * itself remains the defect to hunt via this probe.
 			 */
-			pr_warn("mxfs: P-BUSY-DUP xg=%u bno=%u len=%u vs busy[len=%u flags=0x%x] comm=%s — duplicate in-flight extent free; skipping insert (upstream would loop forever)\n",
+			mxfs_probe("mxfs: P-BUSY-DUP xg=%u bno=%u len=%u vs busy[len=%u flags=0x%x] comm=%s — duplicate in-flight extent free; skipping insert (upstream would loop forever)\n",
 				xg->xg_gno, new->bno, new->length,
 				busyp->length, busyp->flags, current->comm);
 			spin_unlock(&eb->eb_lock);

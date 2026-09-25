@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
  * MXFS intent/done census for untrusted (foreign or adopted) slice replay
- * (sess421, D-FOREIGN-SLICE-INTENTS-ABANDONED interim step; sess420 design-consult
+ * (D-FOREIGN-SLICE-INTENTS-ABANDONED interim step; design-consult
  * mount-barrier ruling stop-ship 1:
  * docs/rulings/mount-barrier-items-3-4-6c-window-arm.md).
  *
@@ -29,7 +29,7 @@
  * POLICY_REFUSED — the census domain is folded into that verdict so the
  * quarantine also covers the open obligations.
  *
- * sess461 (item 5 increment 1, design-consult ruling ccloop-c7ee71c6-sess461-GPT-
+ * (item 5 increment 1, design-consult ruling ccloop-c7ee71c6-sess461-GPT-
  * ruling-intents-item5-efi-completion-design): the census now keeps, per
  * intent, the EXTENTS it names and the whole-transaction verdict of the
  * intent's transaction and of the done's transaction, and CLASSIFIES every
@@ -62,7 +62,7 @@
 struct xlog;
 struct xlog_recover_item;
 
-/* sess461: the per-entry classification of an OPEN census entry. */
+/* the per-entry classification of an OPEN census entry. */
 #define MXFS_ICENSUS_CLS_UNCLASSIFIED	0
 #define MXFS_ICENSUS_CLS_RECOVER	1
 #define MXFS_ICENSUS_CLS_QUARANTINE	2
@@ -86,7 +86,7 @@ uint32_t mxfs_icensus_undischarged(struct xlog *log, const char *src,
 				   uint32_t *malformed);
 
 /*
- * sess461: classify every open entry (idempotent; runs once per log) and
+ * classify every open entry (idempotent; runs once per log) and
  * report the split.  *recover = entries whose extents may be completed by
  * the recovery owner (their AG union in *recover_mask); *quarantine =
  * entries that must keep the terminal refusal (AG union *q_mask, *q_fswide
@@ -104,7 +104,7 @@ void mxfs_icensus_free(struct xlog *log);
 struct mxfs_recov_obl_ext;
 
 /*
- * sess462 (item 5 increment 2): copy the RECOVER entries' extents out of the
+ * (item 5 increment 2): copy the RECOVER entries' extents out of the
  * census into a caller-owned obligation list (recov_obl.h entries: fsbno,
  * agno, len) so they outlive the shadow log.  Runs the classification if it
  * has not run.  *ext is kvmalloc'd (caller frees with kvfree), *n the entry

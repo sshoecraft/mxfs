@@ -94,7 +94,7 @@ nodes() { seq 1 32 | sed 's/^/test/'; }
     zcat "$O"/ctx_*.gz 2>/dev/null | grep -a 'P491-EVICT-UNDEST' | grep -aE 'mode=[45] ' | head -3 | cut -c1-330 | sed 's/^/    /'
     zcat "$O"/ctx_*.gz 2>/dev/null | grep -a 'P491-NEWTENURE-RETIRE-UNDEST' | head -3 | cut -c1-330 | sed 's/^/    /'
     zcat "$O"/ctx_*.gz 2>/dev/null | grep -a 'P491-REL-UNDEST' | head -3 | cut -c1-330 | sed 's/^/    /'
-    zcat "$O"/ctx_*.gz 2>/dev/null | grep -a 'P285-F4-BLI-FREED-OPEN' | grep -ao 'site=[0-9]*' | sort | uniq -c | sort -rn | head -5 | sed 's/^/    site: /'
+    zcat "$O"/ctx_*.gz 2>/dev/null | grep -a 'P285-F4-BLI-FREED-OPEN' | grep -ao 'site=[0-9]*:[0-9]*' | sort | uniq -c | sort -rn | head -5 | sed 's/^/    site: /'
     zcat "$O"/ctx_*.gz 2>/dev/null | grep -a 'mxfs-cc-FAIL' | head -3 | cut -c1-200 | sed 's/^/    LOSS: /'
   else
     echo "NOT RUN: prep rc=$rc"

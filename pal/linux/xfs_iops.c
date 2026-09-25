@@ -4,7 +4,7 @@
  * All Rights Reserved.
  */
 #include "xfs_platform.h"
-#include <linux/namei.h>	/* sess37 CREATEINT: LOOKUP_CREATE/LOOKUP_EXCL */
+#include <linux/namei.h>	/* CREATEINT: LOOKUP_CREATE/LOOKUP_EXCL */
 #include "xfs_fs.h"
 #include "xfs_shared.h"
 #include "xfs_format.h"
@@ -23,7 +23,7 @@
 #include "xfs_trace.h"
 #include "xfs_icache.h"
 #include "xfs_symlink.h"
-#include "xfs_mxfs_dirshard.h"	/* sess466: sharded-parent dispatch */
+#include "xfs_mxfs_dirshard.h"	/* sharded-parent dispatch */
 #include "xfs_dir2.h"
 #include "xfs_iomap.h"
 #include "xfs_error.h"
@@ -33,7 +33,7 @@
 #include "xfs_bmap.h"
 #include "xfs_zone_alloc.h"
 
-/* sess23: igrab() call-site attribution — see mxfs_igrab_tracked(). */
+/* igrab call-site attribution — see mxfs_igrab_tracked. */
 #define igrab(vi) mxfs_igrab_tracked((vi), __LINE__, 3)
 #define iput(vi) mxfs_iput_tracked((vi), __LINE__, 3)
 
@@ -208,14 +208,14 @@ xfs_generic_create(
 		args.rdev = 0;
 	}
 
-	/* sess446 D-0515: never build a create/mkdir/mknod/tmpfile transaction
+	/* D-0515: never build a create/mkdir/mknod/tmpfile transaction
 	 * under a quarantined (or stale) parent — see mxfs_quar_gate_op. */
 	error = mxfs_quar_gate_op(XFS_I(dir), tmpfile ? "tmpfile" : "create");
 	if (unlikely(error))
 		return error;
 
 	/*
-	 * sess466 (docs/dir-sharding.md, stage 2 Model A): under a sharded
+	 * (docs/dir-sharding.md, stage 2 Model A): under a sharded
 	 * parent only named non-directory creates are routed to a shard;
 	 * mkdir (a child whose ".." would name a container) and O_TMPFILE (a
 	 * later linkat would need routing) are refused, never mis-parented.
@@ -234,7 +234,7 @@ xfs_generic_create(
 		goto out_free_acl;
 
 	/*
-	 * sess126 INSTR (instrumented): capture EVERY create's PARENT dir inode + the
+	 * INSTR (instrumented): capture EVERY create's PARENT dir inode + the
 	 * dentry's pre-create positive/negative state.  The create-race-loser
 	 * blocker (test_unlink_visibility: a node that lost the unlink_visibility
 	 * mkdir creates ZERO files into the shared winner dir — P105-CREATE-PARENT
@@ -244,7 +244,7 @@ xfs_generic_create(
 	{ extern int mxfs_instr_enabled; extern int mxfs_dirwr_enabled;
 	if (unlikely(mxfs_dirwr_enabled || mxfs_instr_enabled) &&
 	    XFS_I(dir)->i_mount->m_mxfs_dlm)
-		pr_warn_ratelimited(
+		mxfs_probe_ratelimited(
 			"mxfs: P-GENCREATE dir_ino=%llu dir_mode=0%o pos=%d name=%.*s\n",
 			(unsigned long long)XFS_I(dir)->i_ino,
 			dir->i_mode,
@@ -263,7 +263,7 @@ xfs_generic_create(
 		else
 			error = xfs_create(&args, &name, &ip);
 		/*
-		 * MXFS Mode A fix (sess37): xfs_create returns -EEXIST only in
+		 * MXFS Mode A fix: xfs_create returns -EEXIST only in
 		 * the cross-node create-race case.  The VFS dentry is still
 		 * NEGATIVE (our stale lookup) and XFS has no d_revalidate, so a
 		 * later stat() would reuse it and wrongly return ENOENT --
@@ -319,7 +319,7 @@ xfs_generic_create(
 		 */
 		mxfs_set_nlink(ip, 1);
 		d_tmpfile(tmpfile, inode);
-		/* sess5 shadow ledger: d_tmpfile's internal drop_nlink took
+		/* shadow ledger: d_tmpfile's internal drop_nlink took
 		 * i_nlink back to 0 and INC'd s_remove_count outside our
 		 * wrappers — re-arm the accounted flag to match. */
 		if (inode->i_nlink == 0) {
@@ -424,14 +424,14 @@ xfs_vn_lookup(
 	if (dentry->d_name.len >= MAXNAMELEN)
 		return ERR_PTR(-ENAMETOOLONG);
 
-	/* sess446 D-0515: a quarantined directory's names come from a torn
+	/* D-0515: a quarantined directory's names come from a torn
 	 * platter — refuse the lookup rather than instantiate them. */
 	error = mxfs_quar_gate_op(XFS_I(dir), "lookup");
 	if (unlikely(error))
 		return ERR_PTR(error);
 
 	xfs_dentry_to_name(&name, dentry);
-	if (mxfs_is_dirshard_parent(XFS_I(dir)))	/* sess466 */
+	if (mxfs_is_dirshard_parent(XFS_I(dir)))	/* */
 		error = mxfs_dirshard_lookup(XFS_I(dir), &name, &cip,
 				(flags & (LOOKUP_CREATE | LOOKUP_EXCL)) != 0);
 	else
@@ -444,7 +444,7 @@ xfs_vn_lookup(
 	else
 		inode = ERR_PTR(error);
 	/*
-	 * sess71 INSTR (instrumented): confirm whether a cache-cold `cat` of a
+	 * INSTR (instrumented): confirm whether a cache-cold `cat` of a
 	 * reused/renamed name actually reaches ->lookup (the path that runs
 	 * the INODE-REUSE-EVICT repair) or is served from a stale cached
 	 * dentry that bypasses us.  Ratelimited, always-on.
@@ -464,13 +464,13 @@ xfs_vn_lookup(
 		 * harness's own name count); ratelimited for the wide knobs. */
 		if (unlikely(READ_ONCE(mxfs_dbg_dreval_trace_ino) ==
 			     XFS_I(dir)->i_ino))
-			pr_info("mxfs: P-VNLOOKUP dp=%llu ino=%llu mode=0%o name=%.*s\n",
+			mxfs_probe("mxfs: P-VNLOOKUP dp=%llu ino=%llu mode=0%o name=%.*s\n",
 				(unsigned long long)XFS_I(dir)->i_ino,
 				inode ? (unsigned long long)XFS_I(inode)->i_ino : 0ULL,
 				inode ? inode->i_mode : 0,
 				(int)dentry->d_name.len, dentry->d_name.name);
 		else if (unlikely(mxfs_dirwr_enabled || mxfs_instr_enabled))
-			pr_warn_ratelimited(
+			mxfs_probe_ratelimited(
 				"mxfs: P-VNLOOKUP dp=%llu ino=%llu mode=0%o name=%.*s\n",
 				(unsigned long long)XFS_I(dir)->i_ino,
 				inode ? (unsigned long long)XFS_I(inode)->i_ino : 0ULL,
@@ -496,10 +496,10 @@ xfs_vn_ci_lookup(
 	if (dentry->d_name.len >= MAXNAMELEN)
 		return ERR_PTR(-ENAMETOOLONG);
 
-	error = mxfs_quar_gate_op(XFS_I(dir), "ci_lookup");	/* sess446 D-0515 */
+	error = mxfs_quar_gate_op(XFS_I(dir), "ci_lookup");	/* D-0515 */
 	if (unlikely(error))
 		return ERR_PTR(error);
-	/* sess466: mkfs_mxfs never formats asciici; a sharded parent routes
+	/* mkfs_mxfs never formats asciici; a sharded parent routes
 	 * exact bytes only (MXFS_DIRSHARD_CANON_EXACT). */
 	if (mxfs_is_dirshard_parent(XFS_I(dir)))
 		return ERR_PTR(-EOPNOTSUPP);
@@ -547,12 +547,12 @@ xfs_vn_link(
 	if (IS_PRIVATE(inode))
 		return -EPERM;
 
-	error = mxfs_quar_gate_op(XFS_I(dir), "link");		/* sess446 D-0515 */
+	error = mxfs_quar_gate_op(XFS_I(dir), "link");		/* D-0515 */
 	if (!error)
 		error = mxfs_quar_gate_op(XFS_I(inode), "link");
 	if (unlikely(error))
 		return error;
-	if (mxfs_is_dirshard_parent(XFS_I(dir)))	/* sess466 Model A */
+	if (mxfs_is_dirshard_parent(XFS_I(dir)))	/* Model A */
 		return -EOPNOTSUPP;
 
 	error = xfs_link(XFS_I(dir), XFS_I(inode), &name);
@@ -574,13 +574,13 @@ xfs_vn_unlink(
 
 	xfs_dentry_to_name(&name, dentry);
 
-	error = mxfs_quar_gate_op(XFS_I(dir), "unlink");	/* sess446 D-0515 */
+	error = mxfs_quar_gate_op(XFS_I(dir), "unlink");	/* D-0515 */
 	if (!error)
 		error = mxfs_quar_gate_op(XFS_I(d_inode(dentry)), "unlink");
 	if (unlikely(error))
 		return error;
 
-	if (mxfs_is_dirshard_parent(XFS_I(dir)))	/* sess466: unlink in a shard */
+	if (mxfs_is_dirshard_parent(XFS_I(dir)))	/* unlink in a shard */
 		error = mxfs_dirshard_remove(XFS_I(dir), &name,
 					     XFS_I(d_inode(dentry)));
 	else
@@ -615,8 +615,8 @@ xfs_vn_symlink(
 	if (unlikely(error))
 		goto out;
 
-	error = mxfs_quar_gate_op(XFS_I(dir), "symlink");	/* sess446 D-0515 */
-	if (!error && mxfs_is_dirshard_parent(XFS_I(dir)))	/* sess466 Model A */
+	error = mxfs_quar_gate_op(XFS_I(dir), "symlink");	/* D-0515 */
+	if (!error && mxfs_is_dirshard_parent(XFS_I(dir)))	/* Model A */
 		error = -EOPNOTSUPP;
 	if (unlikely(error))
 		goto out;
@@ -663,7 +663,7 @@ xfs_vn_rename(
 	if (flags & ~(RENAME_NOREPLACE | RENAME_EXCHANGE | RENAME_WHITEOUT))
 		return -EINVAL;
 
-	/* sess446 D-0515: every inode a rename touches must be outside a
+	/* D-0515: every inode a rename touches must be outside a
 	 * quarantined victim domain before the transaction is built. */
 	error = mxfs_quar_gate_op(XFS_I(odir), "rename");
 	if (!error)
@@ -674,7 +674,7 @@ xfs_vn_rename(
 		error = mxfs_quar_gate_op(XFS_I(new_inode), "rename");
 	if (unlikely(error))
 		return error;
-	/* sess466 (docs/dir-sharding.md, Model A): rename into or out of a
+	/* (docs/dir-sharding.md, Model A): rename into or out of a
 	 * sharded parent needs the cross-shard multi-inode record (stage 5). */
 	if (mxfs_is_dirshard_parent(XFS_I(odir)) ||
 	    mxfs_is_dirshard_parent(XFS_I(ndir)))
@@ -715,7 +715,7 @@ xfs_vn_get_link(
 	if (!dentry)
 		return ERR_PTR(-ECHILD);
 
-	error = mxfs_quar_gate_op(XFS_I(d_inode(dentry)), "readlink");	/* sess446 D-0515 */
+	error = mxfs_quar_gate_op(XFS_I(d_inode(dentry)), "readlink");	/* D-0515 */
 	if (unlikely(error))
 		goto out_err;
 
@@ -894,7 +894,7 @@ xfs_vn_getattr(
 	if (xfs_is_shutdown(mp))
 		return -EIO;
 
-	/* sess318: stale size/attrs from a poisoned dead incarnation are a
+	/* stale size/attrs from a poisoned dead incarnation are a
 	 * wrong-object answer; -ESTALE makes the VFS re-walk with LOOKUP_REVAL
 	 * (D-INCARN-STALE-SHELL-UNGATED-FILE-READS-512) */
 	if (mxfs_inode_incarn_estale(ip))
@@ -935,7 +935,7 @@ xfs_vn_getattr(
 	stat->blocks = XFS_FSB_TO_BB(mp, ip->i_nblocks + ip->i_delayed_blks);
 
 	/*
-	 * sess466 (docs/dir-sharding.md): a sharded parent's logical nlink,
+	 * (docs/dir-sharding.md): a sharded parent's logical nlink,
 	 * size, blocks, mtime and ctime are synthesised over its containers
 	 * under the pin; the parent's own core stays 2 / empty.  An error
 	 * leaves the core values (the manifest loader already named it).
@@ -1326,7 +1326,7 @@ xfs_setattr_size(
 	xfs_ilock(ip, XFS_ILOCK_EXCL);
 
 	/*
-	 * mxfs (ccloop-4dd7 sess2, ino 133 autopsy): the DLM EX acquire inside
+	 * mxfs (ccloop-4dd7, ino 133 autopsy): the DLM EX acquire inside
 	 * xfs_ilock can RELOAD this inode to a DIFFERENT incarnation — a peer
 	 * freed the number and reused it (P-RELOAD-TYPEFLIP incore=0100644
 	 * disk=040755) or the reload adopted a peer-freed image (mode 0).  The
@@ -1445,7 +1445,7 @@ xfs_vn_setattr(
 	struct xfs_inode	*ip = XFS_I(inode);
 	int			error;
 
-	error = mxfs_quar_gate_op(ip, "setattr");		/* sess446 D-0515 */
+	error = mxfs_quar_gate_op(ip, "setattr");		/* D-0515 */
 	if (unlikely(error))
 		return error;
 
@@ -1502,12 +1502,12 @@ xfs_vn_update_time(
 
 	trace_xfs_update_time(ip);
 
-	error = mxfs_quar_gate_op(ip, "update_time");	/* sess446 D-0515 */
+	error = mxfs_quar_gate_op(ip, "update_time");	/* D-0515 */
 	if (unlikely(error))
 		return error;
 
 	/*
-	 * sess45: never write a PEER node's regular-file inode for a pure
+	 * never write a PEER node's regular-file inode for a pure
 	 * atime (read) update.  Under node-affine allocation the inode's
 	 * authoritative state lives on its owning node; if we acquire EX and
 	 * iflush it here, xfs_iflush copies our (possibly stale) in-core
@@ -1914,8 +1914,8 @@ xfs_setup_inode(
 	inode_state_set_raw(inode, I_NEW);
 
 	/*
-	 * ccloop cc87fed3 sess7: instrumented ROOT FIX for the P135-PRSWEEP-CYCLE
-	 * list corruption hunted across sess5/6/7.  PROVEN mechanism (P141
+	 *  instrumented ROOT FIX for the P135-PRSWEEP-CYCLE
+	 * list corruption hunted across /6/7.  PROVEN mechanism (P141
 	 * instrumentation, live capture, build F7F6D5D9AA96198435A4429):
 	 * this call used to be unconditional, unlike stock inode_insert5's
 	 * own call (fs/inode.c), which guards with "if (list_empty(&inode->
@@ -1961,7 +1961,7 @@ xfs_setup_inode(
 		int n = atomic_inc_return(&p141_n);
 
 		if (n <= 200)
-			pr_warn("mxfs: P141-SETUP-SKIP-DOUBLE-ADD ino=0x%llx ip=%px pid=%d comm=%s is_meta=%d count=%d nlink=%u mode=0%o — inode_sb_list_add SKIPPED, i_sb_list already linked (next=%px prev=%px) -- avoided a double-link\n",
+			mxfs_probe("mxfs: P141-SETUP-SKIP-DOUBLE-ADD ino=0x%llx ip=%px pid=%d comm=%s is_meta=%d count=%d nlink=%u mode=0%o — inode_sb_list_add SKIPPED, i_sb_list already linked (next=%px prev=%px) -- avoided a double-link\n",
 				(unsigned long long)ip->i_ino, ip, current->pid,
 				current->comm, is_meta,
 				atomic_read(&inode->i_count), inode->i_nlink,

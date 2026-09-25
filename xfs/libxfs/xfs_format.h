@@ -400,7 +400,7 @@ xfs_sb_has_ro_compat_feature(
 #define XFS_SB_FEAT_INCOMPAT_ZONED	(1 << 9)  /* zoned RT allocator */
 #define XFS_SB_FEAT_INCOMPAT_ZONE_GAPS	(1 << 10) /* RTGs have LBA gaps */
 /*
- * sess42 C7 (MXFS): protocol-gated cluster filesystem.  Set by mkfs_mxfs on
+ * C7 (MXFS): protocol-gated cluster filesystem.  Set by mkfs_mxfs on
  * every gated format.  Every pre-gate mxfs kernel inherits the strict
  * unknown-incompat refusal below, so old code cannot mount a gated
  * filesystem at all — this bit is the PREVENTATIVE version gate; the
@@ -412,7 +412,7 @@ xfs_sb_has_ro_compat_feature(
 #define XFS_SB_FEAT_INCOMPAT_MXFS_PROTOGATE	(1 << 30)
 
 /*
- * MXFS symmetric directory sharding (sess464/466, docs/dir-sharding.md).
+ * MXFS symmetric directory sharding (/466, docs/dir-sharding.md).
  * Bit 29, next to PROTOGATE; the value is pinned to
  * MXFS_DIRSHARD_SB_INCOMPAT in include/mxfs/mxfs_dirshard.h by a build check
  * in xfs_mxfs_dirshard.c.  A kernel without this bit refuses the mount via

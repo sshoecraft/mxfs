@@ -1,10 +1,10 @@
 /*
- * MXFS — SCSI PR REGISTRANT LEDGER (sess438, docs/whole-cluster-restart.md
+ * MXFS — SCSI PR REGISTRANT LEDGER (docs/whole-cluster-restart.md
  * item 2; design-consult ruling ccmemory
  * docs/rulings/prkey64-item2-ledger-not-deferrable.md).
  *
  * The PR key a host registers on a LUN is a 64-bit value DERIVED once per
- * {host boot, LUN} from {host_uuid, boot_uuid, fs_uuid} (sess439; see
+ * {host boot, LUN} from {host_uuid, boot_uuid, fs_uuid} (see
  * mxfs_prledger_select below for why it is derived and not drawn).  It is
  * recorded HERE, on the LUN, immediately AFTER the REGISTER is verified, so
  * that every PTPL registration the target holds has a durable owner record
@@ -20,7 +20,7 @@
  * for devices without CAW, which cannot run a CAW cluster anyway).  States:
  *
  *   FREE        never used, or wiped by mkfs
- *   PREPARED    (sess438 only; no longer produced — an unregistered
+ *   PREPARED (only; no longer produced — an unregistered
  *               initiator cannot write under WE-AR.  Still honoured as an
  *               owned state if found on a 0.43.0-written ledger)
  *   REGISTERED  REGISTER succeeded and READ KEYS showed the key
@@ -55,75 +55,75 @@
 #define MXFS_PRLEDGER_KEY_MIN       (1ULL << 32)
 
 struct mxfs_prledger_entry {
-    uint32_t    magic;          /* MXFS_PRLEDGER_MAGIC */
-    uint16_t    ver;            /* MXFS_PRLEDGER_VERSION */
-    uint16_t    state;          /* MXFS_PRLEDGER_* */
-    uint32_t    key_gen;        /* generation of pr_key for this {boot, LUN} */
-    uint32_t    node_id;        /* mount context that registered it; 0 until known */
-    uint64_t    pr_key;         /* the registered 64-bit key */
-    uint8_t     host_uuid[16];  /* mxfs_host_identity.host_uuid */
-    uint8_t     boot_uuid[16];  /* mxfs_host_identity.boot_uuid */
-    uint8_t     fs_uuid[16];    /* the LUN's XFS volume uuid */
-    uint64_t    stamp_ms;       /* writer's mxfs_pal_time_ms at last change */
-    uint64_t    seq;            /* bumped on every CAS transition */
-    uint32_t    host_src;       /* MXFS_HOSTID_SRC_* */
-    uint32_t    fenced_by;      /* node_id of the certified fencer (FENCED) */
-    uint32_t    crc32c;         /* over the entry with crc32c=0, then index */
-    /* sess439 self-succession (docs/whole-cluster-restart.md §5.2): a
-     * REGISTERED entry whose registration was made by REGISTER(rk=old_key,
-     * sark=pr_key) on the successor's own nexus names the predecessor it
-     * replaced.  The slice-recovery prover consumes this record — together
-     * with READ FULL STATUS showing old_key absent and pr_key present — to
-     * certify SELF_SUCCESSION_DONE for the predecessor's slot.  Zero when
-     * the registration was fresh. */
-    uint32_t    succ_pad0;      /* 100: explicit alignment pad */
-    uint64_t    succ_old_key;   /* 104 */
-    uint32_t    succ_old_key_gen;   /* 112 */
-    uint32_t    succ_pad;       /* 116 */
-    uint8_t     succ_old_boot[16];  /* 120 */
-    uint8_t     reserved[376];  /* 136 .. 512 */
+	uint32_t    magic;          /* MXFS_PRLEDGER_MAGIC */
+	uint16_t    ver;            /* MXFS_PRLEDGER_VERSION */
+	uint16_t    state;          /* MXFS_PRLEDGER_* */
+	uint32_t    key_gen;        /* generation of pr_key for this {boot, LUN} */
+	uint32_t    node_id;        /* mount context that registered it; 0 until known */
+	uint64_t    pr_key;         /* the registered 64-bit key */
+	uint8_t     host_uuid[16];  /* mxfs_host_identity.host_uuid */
+	uint8_t     boot_uuid[16];  /* mxfs_host_identity.boot_uuid */
+	uint8_t     fs_uuid[16];    /* the LUN's XFS volume uuid */
+	uint64_t    stamp_ms;       /* writer's mxfs_pal_time_ms at last change */
+	uint64_t    seq;            /* bumped on every CAS transition */
+	uint32_t    host_src;       /* MXFS_HOSTID_SRC_* */
+	uint32_t    fenced_by;      /* node_id of the certified fencer (FENCED) */
+	uint32_t    crc32c;         /* over the entry with crc32c=0, then index */
+	/* self-succession (docs/whole-cluster-restart.md §5.2): a
+	 * REGISTERED entry whose registration was made by REGISTER(rk=old_key,
+	 * sark=pr_key) on the successor's own nexus names the predecessor it
+	 * replaced.  The slice-recovery prover consumes this record — together
+	 * with READ FULL STATUS showing old_key absent and pr_key present — to
+	 * certify SELF_SUCCESSION_DONE for the predecessor's slot.  Zero when
+	 * the registration was fresh. */
+	uint32_t    succ_pad0;      /* 100: explicit alignment pad */
+	uint64_t    succ_old_key;   /* 104 */
+	uint32_t    succ_old_key_gen;   /* 112 */
+	uint32_t    succ_pad;       /* 116 */
+	uint8_t     succ_old_boot[16];  /* 120 */
+	uint8_t     reserved[376];  /* 136 .. 512 */
 };
 
 /* What a successor's PUBLISH records about the key it replaced. */
 struct mxfs_prledger_succ {
-    uint64_t    old_key;
-    uint32_t    old_key_gen;
-    uint8_t     old_boot[16];
+	uint64_t    old_key;
+	uint32_t    old_key_gen;
+	uint8_t     old_boot[16];
 };
 
 _Static_assert(sizeof(struct mxfs_prledger_entry) == MXFS_PRLEDGER_ENTRY_BYTES,
-               "prledger entry is one sector (PAL I/O must be sector-sized)");
+	       "prledger entry is one sector (PAL I/O must be sector-sized)");
 
 struct mxfs_prledger {
-    mxfs_bdev_t                 *dev;
-    uint64_t                    offset;         /* region start */
-    uint32_t                    entries;        /* region size / 512 */
-    mxfs_mutex_t                *lock;
-    /* our own entry, once selected */
-    int                         own_idx;        /* -1 = none */
-    struct mxfs_prledger_entry  own;            /* exact on-disk image */
-    uint8_t                     host_uuid[16];
-    uint8_t                     boot_uuid[16];
-    uint8_t                     fs_uuid[16];
-    uint32_t                    host_src;
-    /* sess439: SELECT's findings for PUBLISH */
-    uint64_t                    derived_key;
-    bool                        seen_on_target; /* K in READ KEYS at select */
-    uint32_t                    free_idx;       /* reusable entry, or ~0 */
+	mxfs_bdev_t                 *dev;
+	uint64_t                    offset;         /* region start */
+	uint32_t                    entries;        /* region size / 512 */
+	mxfs_mutex_t                *lock;
+	/* our own entry, once selected */
+	int                         own_idx;        /* -1 = none */
+	struct mxfs_prledger_entry  own;            /* exact on-disk image */
+	uint8_t                     host_uuid[16];
+	uint8_t                     boot_uuid[16];
+	uint8_t                     fs_uuid[16];
+	uint32_t                    host_src;
+	/* SELECT's findings for PUBLISH */
+	uint64_t                    derived_key;
+	bool                        seen_on_target; /* K in READ KEYS at select */
+	uint32_t                    free_idx;       /* reusable entry, or ~0 */
 };
 
 /* Open the ledger region (no I/O).  identity: host/boot uuids of THIS boot;
  * fs_uuid: the volume being mounted.  Returns NULL on bad geometry. */
 struct mxfs_prledger *mxfs_prledger_open(mxfs_bdev_t *dev, uint64_t offset,
-                                         uint64_t size,
-                                         const uint8_t host_uuid[16],
-                                         const uint8_t boot_uuid[16],
-                                         uint32_t host_src,
-                                         const uint8_t fs_uuid[16]);
+					 uint64_t size,
+					 const uint8_t host_uuid[16],
+					 const uint8_t boot_uuid[16],
+					 uint32_t host_src,
+					 const uint8_t fs_uuid[16]);
 void mxfs_prledger_close(struct mxfs_prledger *l);
 
 /*
- * sess439 (design-consult ruling ccmemory
+ * (design-consult ruling ccmemory
  * docs/rulings/prkey-register-before-ledger-derived-key.md):
  * the ledger is written AFTER REGISTER, never before.  MEASURED on 0.43.0:
  * under the cluster's Write-Exclusive-All-Registrants reservation an
@@ -155,13 +155,13 @@ void mxfs_prledger_close(struct mxfs_prledger *l);
  * Returns 0 with key and key_gen set.
  */
 int mxfs_prledger_select(struct mxfs_prledger *l,
-                         bool (*key_present)(void *arg, uint64_t key),
-                         void *arg, uint64_t *key, uint32_t *key_gen);
+			 bool (*key_present)(void *arg, uint64_t key),
+			 void *arg, uint64_t *key, uint32_t *key_gen);
 
 /* The derived per-{host boot, LUN} key (>= MXFS_PRLEDGER_KEY_MIN, != ~0). */
 uint64_t mxfs_prledger_derive_key(const uint8_t host_uuid[16],
-                                  const uint8_t boot_uuid[16],
-                                  const uint8_t fs_uuid[16]);
+				  const uint8_t boot_uuid[16],
+				  const uint8_t fs_uuid[16]);
 
 /*
  * PUBLISH after a VERIFIED REGISTER (READ KEYS showed our key): CAS the
@@ -172,22 +172,22 @@ uint64_t mxfs_prledger_derive_key(const uint8_t host_uuid[16],
  * initiator → -EEXIST (P-PRKEY-COLLISION) and the caller must unregister.
  */
 int mxfs_prledger_publish(struct mxfs_prledger *l, uint32_t node_id,
-                          bool nexus_reused,
-                          const struct mxfs_prledger_succ *succ);
+			  bool nexus_reused,
+			  const struct mxfs_prledger_succ *succ);
 
 /*
- * sess439 self-succession, successor side: the ONE REGISTERED entry of a
+ * self-succession, successor side: the ONE REGISTERED entry of a
  * PREVIOUS BOOT of THIS host on this LUN whose key the target still holds
  * (key_present).  0 with old_key/old_boot/old_gen set; -ENOENT none;
  * -EEXIST more than one candidate (ruling §5.4: refuse — never guess).
  */
 int mxfs_prledger_find_predecessor(struct mxfs_prledger *l,
-                                   bool (*key_present)(void *arg, uint64_t key),
-                                   void *arg, uint64_t *old_key,
-                                   uint8_t old_boot[16], uint32_t *old_gen);
+				   bool (*key_present)(void *arg, uint64_t key),
+				   void *arg, uint64_t *old_key,
+				   uint8_t old_boot[16], uint32_t *old_gen);
 
 /*
- * sess439 self-succession, prover side: the ONE REGISTERED entry that names
+ * self-succession, prover side: the ONE REGISTERED entry that names
  * {old_key, old_boot} as its predecessor and carries victim_host as its own
  * host.  0 with new_key/new_node set; -ENOENT none; -EEXIST more than one.
  *
@@ -198,10 +198,10 @@ int mxfs_prledger_find_predecessor(struct mxfs_prledger *l,
  * the target.
  */
 int mxfs_prledger_find_successor(struct mxfs_prledger *l, uint64_t old_key,
-                                 const uint8_t old_boot[16],
-                                 const uint8_t victim_host[16],
-                                 uint64_t *new_key, uint32_t *new_node,
-                                 uint8_t new_boot[16]);
+				 const uint8_t old_boot[16],
+				 const uint8_t victim_host[16],
+				 uint64_t *new_key, uint32_t *new_node,
+				 uint8_t new_boot[16]);
 
 /* Own-entry transitions (CAS from the remembered image). */
 int mxfs_prledger_set_registered(struct mxfs_prledger *l, uint32_t node_id);
@@ -211,21 +211,21 @@ int mxfs_prledger_set_retired(struct mxfs_prledger *l);
  * owner) to FENCED.  -ENOENT when no PREPARED/REGISTERED entry carries the
  * key (a legacy or foreign key — logged, not an error for the fencer). */
 int mxfs_prledger_mark_fenced(struct mxfs_prledger *l, uint64_t victim_key,
-                              uint32_t fencer_node);
+			      uint32_t fencer_node);
 
 /* Look a node id up (bare fences for slotless lease members): the key its
  * PREPARED/REGISTERED entry carries, or 0. */
 uint64_t mxfs_prledger_key_of_node(struct mxfs_prledger *l, uint32_t node_id);
-/* sess441 (§6.3 key classification): the owned entry carrying `key`, or
+/* (§6.3 key classification): the owned entry carrying `key`, or
  * -ENOENT.  Read-only; the caller decides class 3 vs class 4. */
 int mxfs_prledger_find_by_key(struct mxfs_prledger *l, uint64_t key,
-                              struct mxfs_prledger_entry *out);
+			      struct mxfs_prledger_entry *out);
 
 /* Entry validation shared with chk_mxfs. */
 uint32_t mxfs_prledger_entry_crc(const struct mxfs_prledger_entry *e,
-                                 uint32_t idx);
+				 uint32_t idx);
 bool mxfs_prledger_entry_valid(const struct mxfs_prledger_entry *e,
-                               uint32_t idx);
+			       uint32_t idx);
 const char *mxfs_prledger_state_name(uint16_t state);
 
 #endif /* MXFS_PRLEDGER_H */

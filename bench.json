@@ -17736,5 +17736,93 @@
         "iops": 25405
       }
     }
+  },
+  "fio_perf_2n_tcp_1790293595": {
+    "ts": "2026-09-24T23:46:35Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 108
+      },
+      "seq_read_1m": {
+        "bw_mib": 112
+      },
+      "rand_write_4k": {
+        "iops": 23801
+      },
+      "rand_read_4k": {
+        "iops": 27665
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1790295442": {
+    "ts": "2026-09-25T00:17:22Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 110
+      },
+      "seq_read_1m": {
+        "bw_mib": 116
+      },
+      "rand_write_4k": {
+        "iops": 28519
+      },
+      "rand_read_4k": {
+        "iops": 26597
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1790297874": {
+    "ts": "2026-09-25T00:57:54Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 113
+      },
+      "seq_read_1m": {
+        "bw_mib": 112
+      },
+      "rand_write_4k": {
+        "iops": 22741
+      },
+      "rand_read_4k": {
+        "iops": 23800
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1790301651": {
+    "ts": "2026-09-25T02:00:51Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 111
+      },
+      "seq_read_1m": {
+        "bw_mib": 112
+      },
+      "rand_write_4k": {
+        "iops": 24258
+      },
+      "rand_read_4k": {
+        "iops": 28226
+      }
+    }
   }
 }

@@ -1173,7 +1173,7 @@ xfs_attr_set(
 		int n = atomic_inc_return(&p_xsp_n);
 
 		if (n <= 64 || n % 256 == 0)
-			pr_warn("mxfs: P958-XATTRSET-PATH ino=%llu op=%d has_af=%d af_fmt=%d af_bytes=%lld af_nextents=%llu forkoff=%u nlink=%u comm=%s\n",
+			mxfs_probe("mxfs: P958-XATTRSET-PATH ino=%llu op=%d has_af=%d af_fmt=%d af_bytes=%lld af_nextents=%llu forkoff=%u nlink=%u comm=%s\n",
 				(unsigned long long)dp->i_ino, (int)op,
 				xfs_inode_has_attr_fork(dp) ? 1 : 0,
 				(int)dp->i_af.if_format,

@@ -290,7 +290,7 @@ ck "$A: no buffer left in an AG buffer cache at teardown" "$bcache" "0"
 ck "$A: no kernel warning or corruption line in the unload window" "$warn" "0"
 
 # Stage 4: restore.  B held the filesystem throughout; A rejoins behind it.
-rs 200 "$A" "modprobe libcrc32c 2>/dev/null; insmod $KO $PARAMS && echo INSMOD_OK sv=\$(cat /sys/module/mxfs/srcversion); mkdir -p $MNT; t0=\$(date +%s%N); timeout 150 mount -t mxfs $MXFS_DEV $MNT; mrc=\$?; t1=\$(date +%s%N); echo REJOIN mount_rc=\$mrc mount_ms=\$(( (t1 - t0) / 1000000 )) mounted=\$(grep -c ' $MNT mxfs ' /proc/mounts)" > "$OUT/rejoin_$A.txt"
+rs 200 "$A" "modprobe libcrc32c 2>/dev/null; insmod $KO dyndbg=+p $PARAMS && echo INSMOD_OK sv=\$(cat /sys/module/mxfs/srcversion); mkdir -p $MNT; t0=\$(date +%s%N); timeout 150 mount -t mxfs $MXFS_DEV $MNT; mrc=\$?; t1=\$(date +%s%N); echo REJOIN mount_rc=\$mrc mount_ms=\$(( (t1 - t0) / 1000000 )) mounted=\$(grep -c ' $MNT mxfs ' /proc/mounts)" > "$OUT/rejoin_$A.txt"
 echo "  INFO $(grep -a 'INSMOD_OK\|^REJOIN ' "$OUT/rejoin_$A.txt" | tr '\n' ' ')"
 # sess567: CAPTURE THE REJOIN WINDOW.  This assertion had no evidence behind it
 # — only the exit code — so when it failed (round 1 of the s568alt alternating

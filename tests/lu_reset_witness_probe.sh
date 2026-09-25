@@ -117,7 +117,7 @@ measure "$A" 90 "$OUT/A_deploy.txt" '^DEPLOY_RC=' "deploying the helper and the 
      echo HELPER_MD5=\$(md5sum $HELPER | awk '{print \$1}'); \
      cp -f /src/mxfs/mxfs.ko /root/mxfs.ko.lurw; \
      echo KO_MD5=\$(md5sum /root/mxfs.ko.lurw | awk '{print \$1}'); \
-     insmod /root/mxfs.ko.lurw force_transport=1 target_cache_protected=1 \
+     insmod /root/mxfs.ko.lurw dyndbg=+p force_transport=1 target_cache_protected=1 \
         lu_reset_probe_enable=1 lu_reset_helper=$HELPER > /dev/null 2>&1; \
      echo INSMOD_RC=\$?; \
      echo LOADED=\$(lsmod | grep -c '^mxfs '); \

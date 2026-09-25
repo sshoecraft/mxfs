@@ -30,8 +30,8 @@
 #include "xfs_error.h"
 #include "xfs_errortag.h"
 #include "xfs_mxfs_dlm.h"
-#include "xfs_mxfs_dirshard.h"	/* sess466: sharded-parent readdir/fsync */
-#include "../../dlm/v5_mount.h"	/* sess40: open-tracking publish at open() */
+#include "xfs_mxfs_dirshard.h"	/* sharded-parent readdir/fsync */
+#include "../../dlm/v5_mount.h"	/* open-tracking publish at open */
 #include <mxfs/mxfs_dlm.h>
 
 #include <linux/dax.h>
@@ -79,14 +79,14 @@ xfs_dir_fsync(
 	struct xfs_inode	*ip = XFS_I(file->f_mapping->host);
 	int			error;
 
-	/* sess414 (D-512 ruling): -ESTALE, never stale durability — a
+	/* (D-512 ruling): -ESTALE, never stale durability — a
 	 * poisoned dead incarnation has nothing whose persistence could
 	 * be honestly acknowledged */
 	error = mxfs_inode_incarn_estale(ip);
 	if (error)
 		return error;
 
-	/* sess466 (docs/dir-sharding.md, stage 1): a sharded parent's
+	/* (docs/dir-sharding.md, stage 1): a sharded parent's
 	 * durability spans N containers; until the barrier fsync lands an
 	 * honest refusal beats a force of the parent's own (always empty)
 	 * dir2 alone. */
@@ -154,7 +154,7 @@ xfs_file_fsync(
 
 	trace_xfs_file_fsync(ip);
 
-	/* sess414 (D-512 ruling): -ESTALE, never stale durability — and
+	/* (D-512 ruling): -ESTALE, never stale durability — and
 	 * never flush this shell's pages through its dead bmap (the write-
 	 * and-wait below would submit them to blocks that may now belong
 	 * to another live file) */
@@ -475,7 +475,7 @@ xfs_file_buffered_read(
 		return -ESTALE;
 	}
 	/*
-	 * sess46 NOTE: SIXTH and final VFS-layer trigger attempt — a di_size==0
+	 * NOTE: SIXTH and final VFS-layer trigger attempt — a di_size==0
 	 * gated DIRECT mxfs_dlm_reload_inode from the read path (build 8DA09749) —
 	 * also REVERTED: it WEDGED a node (reload's down_write(i_lock) deadlocks
 	 * under concurrent readers holding i_lock read).  Conclusive: NO VFS-layer
@@ -503,13 +503,13 @@ xfs_file_read_iter(
 	if (xfs_is_shutdown(mp))
 		return -EIO;
 
-	/* sess318: poisoned dead incarnation — its bmap's blocks belong to
+	/* poisoned dead incarnation — its bmap's blocks belong to
 	 * another live file now (D-INCARN-STALE-SHELL-UNGATED-FILE-READS-512) */
 	if (mxfs_inode_incarn_estale(XFS_I(inode)))
 		return -ESTALE;
 
 	/*
-	 * sess46 STICKY-PR coherency envelope (see coherency-sticky-pr-fix.md):
+	 * STICKY-PR coherency envelope (see coherency-sticky-pr-fix.md):
 	 * acquire the inode DLM PR grant BEFORE any VFS lock so a grant-less/stale
 	 * cached regular-file inode is revalidated (reload + page-drop) and
 	 * registered as a grant holder (so a future writer's EX BASTs us).  Sticky:
@@ -555,7 +555,7 @@ xfs_file_splice_read(
 	if (xfs_is_shutdown(mp))
 		return -EIO;
 
-	/* sess318: see xfs_file_read_iter */
+	/* see xfs_file_read_iter */
 	if (mxfs_inode_incarn_estale(ip))
 		return -ESTALE;
 
@@ -1504,7 +1504,7 @@ xfs_file_write_iter(
 	if (xfs_is_shutdown(ip->i_mount))
 		return -EIO;
 
-	/* sess318: a poisoned shell must never dirty pages / write through
+	/* a poisoned shell must never dirty pages / write through
 	 * a stale bmap (D-INCARN-STALE-SHELL-UNGATED-FILE-READS-512) */
 	if (mxfs_inode_incarn_estale(ip))
 		return -ESTALE;
@@ -1918,7 +1918,7 @@ xfs_file_fallocate(
 		return -EINVAL;
 	if (mode & ~XFS_FALLOC_FL_SUPPORTED)
 		return -EOPNOTSUPP;
-	/* sess318: no allocation changes through a poisoned dead incarnation */
+	/* no allocation changes through a poisoned dead incarnation */
 	if (mxfs_inode_incarn_estale(XFS_I(inode)))
 		return -ESTALE;
 
@@ -1983,7 +1983,7 @@ xfs_file_remap_range(
 	if (remap_flags & ~(REMAP_FILE_DEDUP | REMAP_FILE_ADVISORY))
 		return -EINVAL;
 
-	/* sess318: neither side of a remap may be a poisoned dead incarnation */
+	/* neither side of a remap may be a poisoned dead incarnation */
 	if (mxfs_inode_incarn_estale(src) || mxfs_inode_incarn_estale(dest))
 		return -ESTALE;
 
@@ -2041,7 +2041,7 @@ out_unlock:
 }
 
 /*
- * sess414 (D-512 verification knob): force-poison the nominated inode at its
+ * (D-512 verification knob): force-poison the nominated inode at its
  * next open on this node, exactly as a protective reload would on a genuine
  * cross-incarnation detection.  Lets the gate/revocation matrix be exercised
  * deterministically: establish fds/mappings, arm the knob, re-open the file.
@@ -2088,7 +2088,7 @@ mxfs_dbg_incarn_racewin(
 	if (likely(!ms) ||
 	    READ_ONCE(mxfs_dbg_incarn_race_ino) != ip->i_ino)
 		return;
-	pr_warn("mxfs: P-D512-RACEWIN ino=%llu site=%s ms=%u — holding post-gate race window\n",
+	mxfs_probe("mxfs: P-D512-RACEWIN ino=%llu site=%s ms=%u — holding post-gate race window\n",
 		(unsigned long long)ip->i_ino, site, ms);
 	msleep(ms);
 }
@@ -2108,13 +2108,13 @@ xfs_file_open(
 			(unsigned long long)XFS_I(inode)->i_ino);
 		mxfs_incarn_poison(XFS_I(inode));
 	}
-	/* sess318: never hand out an fd on a poisoned dead incarnation; the
+	/* never hand out an fd on a poisoned dead incarnation; the
 	 * -ESTALE makes the VFS re-walk with LOOKUP_REVAL → fresh lookup →
 	 * the retire arm re-igets the live incarnation. */
 	if (mxfs_inode_incarn_estale(XFS_I(inode)))
 		return -ESTALE;
 	/*
-	 * sess46 NOTE: an open()-time mxfs_dlm_reload_inode for peer-AG regular
+	 * NOTE: an open-time mxfs_dlm_reload_inode for peer-AG regular
 	 * files was TRIED here (build F3CA2903) to trigger the reused-inode
 	 * reload+page-drop, and REVERTED — it REGRESSED cross_visibility (nodes
 	 * couldn't see files, incl. own) and did NOT fix rename/cwr.  Reloading
@@ -2129,7 +2129,7 @@ xfs_file_open(
 		int mxfs_rc = generic_file_open(inode, file);
 
 		/*
-		 * sess40 (D-CROSSNODE-OPEN-UNLINK): track open file
+		 * (D-CROSSNODE-OPEN-UNLINK): track open file
 		 * descriptions per inode.  MEASURED WHY THIS IS A COUNTER
 		 * AND NOT A SLOT CAS HERE (0.11.334): publishing the cluster
 		 * open bit at every open() put one generation-bumping CAS on
@@ -2154,7 +2154,7 @@ xfs_file_open(
 			atomic_inc(&XFS_I(inode)->i_mxfs_open_n);
 		}
 		/*
-		 * sess41 (GPT audit C3): a dcache-served open can complete
+		 * (design review audit C3): a dcache-served open can complete
 		 * with the inode at NL (grant idle-released/close-demoted) —
 		 * no grant means no BAST, no P90 publish, and a peer's
 		 * unlink frees the file under this live fd.  Ensure a grant
@@ -2195,7 +2195,7 @@ xfs_dir_open(
 		return error;
 
 	/*
-	 * sess71 INSTR (instrumented): Face A decisive probe.  xfs_lookup correctly
+	 * INSTR (instrumented): Face A decisive probe.  xfs_lookup correctly
 	 * repairs the reused inode to REG (P-EVICT-RESULT final_ftype=1) and
 	 * splices a REG dentry, yet `cat node1_after_1` still gets EISDIR.
 	 * That means cat's open binds the DIRECTORY file_operations — i.e. it
@@ -2207,7 +2207,7 @@ xfs_dir_open(
 	{ extern int mxfs_instr_enabled; extern int mxfs_dirwr_enabled;
 	if (unlikely(mxfs_dirwr_enabled || mxfs_instr_enabled) &&
 	    ip->i_mount->m_mxfs_dlm && file->f_path.dentry)
-		pr_warn_ratelimited(
+		mxfs_probe_ratelimited(
 			"mxfs: P-DIROPEN ino=%llu ip=%px mode=0%o name=%.*s\n",
 			(unsigned long long)ip->i_ino, ip, VFS_I(ip)->i_mode,
 			(int)file->f_path.dentry->d_name.len,
@@ -2237,7 +2237,7 @@ xfs_file_release(
 	struct xfs_inode	*ip = XFS_I(inode);
 	struct xfs_mount	*mp = ip->i_mount;
 
-	/* sess40: this open file description is going away (see
+	/* this open file description is going away (see
 	 * i_mxfs_open_n).  Before any early-return so the count cannot drift
 	 * upward on a read-only/shutdown mount and pin a peer's reap. */
 	if (atomic_read(&ip->i_mxfs_open_n) > 0)
@@ -2258,13 +2258,13 @@ xfs_file_release(
 	 * CAS = ~45ms per unlink).  Async and drain-free; the next local
 	 * read re-acquires and revalidates like any BAST-evicted reader.
 	 */
-	/* ccloop 72513a13 sess2: also hook WRITE-mode closes — the DLM layer
+	/*  also hook WRITE-mode closes — the DLM layer
 	 * routes read closes to the PR demote (2ms) and written-file closes
 	 * to the delayed EX demote (ex_close_release_ms), so fresh files stop
 	 * pinning their creator's EX and cross-node first readers claim a
 	 * free slot (~1ms) instead of paying a 6ms on-demand handoff. */
 	mxfs_dlm_close_release(ip);
-	/* sess41 (GPT audit C4): last close with a published open bit —
+	/* (design review audit C4): last close with a published open bit —
 	 * clear it now instead of at evict, so a peer's deferred reap of a
 	 * file we no longer hold open converges in seconds, not hours. */
 	mxfs_dlm_open_last_close(ip);
@@ -2366,7 +2366,7 @@ xfs_file_readdir(
 	 * allowed and just bumps the DLM holder count.
 	 */
 	/*
-	 * sess97: consumer-side eager dir-block refresh BEFORE the read.  If a
+	 * consumer-side eager dir-block refresh BEFORE the read.  If a
 	 * peer modified this dir since our last refresh, drop all clean cached
 	 * dir DATA blocks so xfs_readdir below refetches the peer's durable
 	 * committed image (no-op single-node / unchanged dir).  Takes its own
@@ -2389,7 +2389,7 @@ xfs_file_readdir(
 	}
 
 	/*
-	 * sess11 (ccloop c7ee71c6) 16/cawd ghost-dirent ROOT FIX: if a peer
+	 * 16/cawd ghost-dirent ROOT FIX: if a peer
 	 * staled this dir (BAST/epoch arm -> i_dlm_stale), the reload MUST
 	 * land BEFORE we take ILOCK_SHARED below — the DLM hook inside
 	 * xfs_ilock arms mxfs_dlm_reload_inode, but the reload needs the
@@ -2413,7 +2413,7 @@ xfs_file_readdir(
 			ip->i_dlm_stale = true; ip->i_dlm_stale_src = 27;	/* keep armed across bails */
 			msleep(10);
 		}
-		pr_warn_ratelimited(
+		mxfs_probe_ratelimited(
 			"mxfs: P95D-READDIR-WAIT ino=%llu resolved=%d rounds=%d fmt=%d\n",
 			(unsigned long long)ip->i_ino,
 			ip->i_dlm_stale ? 0 : 1, p95d,
@@ -2421,7 +2421,7 @@ xfs_file_readdir(
 	}
 
 	/*
-	 * sess74 (ccloop 14d31183) SELF-DEADLOCK FIX (instrumented, PROVEN by
+	 * SELF-DEADLOCK FIX (instrumented, PROVEN by
 	 * P73-ILOCK-STUCK ino=131 want=EX rd_held=1: find holds ILOCK_SHARED from
 	 * here while xfs_readdir's xfs_ilock_data_map_shared wants ILOCK_EXCL):
 	 * the old code unconditionally held ILOCK_SHARED across xfs_readdir on the
@@ -2444,7 +2444,7 @@ xfs_file_readdir(
 	 * EXCL upgrade.  consumer_refresh() above already settled any peer reload.
 	 */
 	/*
-	 * sess466 (docs/dir-sharding.md): a sharded parent's listing is the
+	 * (docs/dir-sharding.md): a sharded parent's listing is the
 	 * concatenation of its containers under the pin; the module takes the
 	 * parent ILOCK_SHARED itself and applies the same per-format lock rule
 	 * to each shard.  bufsize from the parent's (empty) size would be 0;
@@ -2687,7 +2687,7 @@ xfs_filemap_fault(
 	struct xfs_inode	*ip = XFS_I(inode);
 	vm_fault_t		ret;
 
-	/* sess318: no fault may fill pages from a poisoned dead incarnation's
+	/* no fault may fill pages from a poisoned dead incarnation's
 	 * stale bmap; SIGBUS is the mmap-path shape of -ESTALE
 	 * (D-INCARN-STALE-SHELL-UNGATED-FILE-READS-512) */
 	if (mxfs_inode_incarn_estale(ip))
@@ -2768,7 +2768,7 @@ static vm_fault_t
 xfs_filemap_page_mkwrite(
 	struct vm_fault		*vmf)
 {
-	/* sess318: no dirty page may be created against a poisoned shell */
+	/* no dirty page may be created against a poisoned shell */
 	if (mxfs_inode_incarn_estale(XFS_I(file_inode(vmf->vma->vm_file))))
 		return VM_FAULT_SIGBUS;
 	return xfs_write_fault(vmf, 0);
@@ -2783,7 +2783,7 @@ static vm_fault_t
 xfs_filemap_pfn_mkwrite(
 	struct vm_fault		*vmf)
 {
-	/* sess318: see xfs_filemap_page_mkwrite */
+	/* see xfs_filemap_page_mkwrite */
 	if (mxfs_inode_incarn_estale(XFS_I(file_inode(vmf->vma->vm_file))))
 		return VM_FAULT_SIGBUS;
 	return xfs_write_fault(vmf, 0);
@@ -2817,7 +2817,7 @@ xfs_file_mmap_prepare(
 		return -EOPNOTSUPP;
 #endif
 
-	/* sess318: no new mapping of a poisoned dead incarnation */
+	/* no new mapping of a poisoned dead incarnation */
 	if (mxfs_inode_incarn_estale(XFS_I(inode)))
 		return -ESTALE;
 
@@ -2837,7 +2837,7 @@ xfs_file_mmap(
 	struct file		*file,
 	struct vm_area_struct	*vma)
 {
-	/* sess318: no new mapping of a poisoned dead incarnation */
+	/* no new mapping of a poisoned dead incarnation */
 	if (mxfs_inode_incarn_estale(XFS_I(file_inode(file))))
 		return -ESTALE;
 	file_accessed(file);

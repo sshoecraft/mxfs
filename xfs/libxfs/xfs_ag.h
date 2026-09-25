@@ -85,7 +85,7 @@ struct xfs_perag {
 	int		pag_ici_reclaimable;	/* reclaimable inodes */
 	unsigned long	pag_ici_reclaim_cursor;	/* reclaim restart point */
 	/*
-	 * ccloopff21 sess1: holder tracking mirroring pag_dlm_holder_pid/comm
+	 * ccloopff21 holder tracking mirroring pag_dlm_holder_pid/comm
 	 * below, for diagnosing a soft-lockup where multiple threads spun
 	 * forever apparently contending pag_ici_lock (kworker/u10, kworker/u11,
 	 * bash all stuck; xfs_icache.c:3201 XFS_ALL_IRECLAIM_FLAGS assert fired
@@ -123,7 +123,7 @@ struct xfs_perag {
 	struct mutex		pag_mxfs_alloc_buflist_lock;
 	struct list_head	pag_mxfs_alloc_buflist;
 	/*
-	 * sess6 (ccloop 8ba7ae5c) AG-metadata read-side time-travel fence.
+	 * AG-metadata read-side time-travel fence.
 	 * Stamped with m_mxfs_flush_epoch at every AG-metadata buffer
 	 * (AGF/AGI/AGFL/bnobt/cntbt/inobt/finobt) WRITE COMPLETION on a
 	 * multi-node mount.  A completed write means "reached the target's
@@ -140,7 +140,7 @@ struct xfs_perag {
 	 */
 	atomic64_t		pag_mxfs_meta_wr_epoch;
 	/*
-	 * sess47 (rsync-rename producer, fossil di_next_unlinked): sibling of
+	 * (rsync-rename producer, fossil di_next_unlinked): sibling of
 	 * pag_mxfs_meta_wr_epoch for INODE CLUSTER buffers, which
 	 * mxfs_agmeta_ops deliberately excludes.  Stamped at every cluster
 	 * write completion; the cold-read side currently only REPORTS
@@ -148,7 +148,7 @@ struct xfs_perag {
 	 */
 	atomic64_t		pag_mxfs_inocl_wr_epoch;
 	/*
-	 * sess48 (foreign-replay authority token, step 2a): the durable
+	 * (foreign-replay authority token, step 2a): the durable
 	 * exclusive-grant epoch of this AG's CURRENT CAW tenure — the
 	 * generation of the CAS that granted us EX, read back from the
 	 * slot at fresh-acquire (the on-disk counterpart of the in-memory
@@ -159,7 +159,7 @@ struct xfs_perag {
 	 * token writers must fail closed (emit no-authority, never 0-as-
 	 * valid).  Written only on the fresh-grant path while EX is held.
 	 *
-	 * sess82 step 5.1 — LIFECYCLE INVARIANT.  Every write is under
+	 * step 5.1 — LIFECYCLE INVARIANT.  Every write is under
 	 * pag_dlm_lock and uses WRITE_ONCE; the only lock-free reader is
 	 * xfs_buf_item_format_segment (READ_ONCE).  The value means:
 	 *
@@ -179,7 +179,7 @@ struct xfs_perag {
 	 */
 	uint64_t		pag_mxfs_grant_epoch;
 	/*
-	 * sess176 (sess175 lineage ruling): the slot binding's
+	 * (lineage ruling): the slot binding's
 	 * resource_lineage from the SAME grant result that carried
 	 * pag_mxfs_grant_epoch.  Identifies WHICH binding of this AG's slot
 	 * the epoch namespace belongs to — a slot recycled through a
@@ -194,7 +194,7 @@ struct xfs_perag {
 	 */
 	uint64_t		pag_mxfs_grant_lineage;
 	/*
-	 * sess432 (D-0353): the current AG grant came from the CAW single-node
+	 * (D-0353): the current AG grant came from the CAW single-node
 	 * fast path (MXFS_GAUTH_SINGLE_NODE): no slot image, no epoch, but a
 	 * legitimate tenure while the DLM is still single-node.  Lets the
 	 * P243 epochless-hint guard keep the cached hint within the single-
@@ -204,7 +204,7 @@ struct xfs_perag {
 	 */
 	bool			pag_mxfs_grant_single;
 	/*
-	 * sess403 (clean-release marker): the {epoch, lineage} of the tenure
+	 * (clean-release marker): the {epoch, lineage} of the tenure
 	 * the release COMMIT just detached, saved in the SAME critical section
 	 * that zeroes pag_mxfs_grant_epoch/lineage (mxfs_ag_handoff_commit).
 	 * Read ONLY by the release worker that follows the COMMIT, to publish
@@ -237,7 +237,7 @@ struct xfs_perag {
 	atomic_t		pag_dlm_meta_pending;
 	bool			pag_dlm_release_pending;
 	/*
-	 * v0.3.131 (sess31, v6a phase 2 proper): bounded yield quantum
+	 * v0.3.131 (v6a phase 2 proper): bounded yield quantum
 	 * for the per-trans alloc-buflist drain.  Decremented in
 	 * mxfs_ag_dlm_unlock when the holders==0 path skips drain
 	 * (lazy_ag_drain knob); when it reaches 0, the next holders==0
@@ -247,14 +247,14 @@ struct xfs_perag {
 	 *
 	 * Caps the amount of dirty AG metadata that can accumulate
 	 * before peer's BAST forces drain — without this cap, lazy
-	 * drain causes peer starvation (proven by sess31 v0.3.130
+	 * drain causes peer starvation (proven by v0.3.130
 	 * experiment: T2 stuck for 600s while T1 held cached grants).
 	 *
 	 * Per docs/v6-cache-architecture-proposal.md §11 + spec D10.
 	 */
 	int			pag_dlm_yield_remaining;
 	/*
-	 * v0.3.147 sess33: adaptive yield quantum (prescription E).
+	 * v0.3.147 adaptive yield quantum (prescription E).
 	 * pag_dlm_yield_quantum_eff is the effective quantum reload value;
 	 * adapts dynamically as: halve on peer BAST (fairness signal),
 	 * double after MXFS_AG_YIELD_DOUBLE_THRESH consecutive non-contended
@@ -318,7 +318,7 @@ struct xfs_perag {
 	 */
 	bool			pag_dlm_cached;
 	/*
-	 * sess40: per-AG metadata generation, bumped on every multi-node AG
+	 * per-AG metadata generation, bumped on every multi-node AG
 	 * fresh-acquire.  The AG-meta buffer read path (agf/agi/agfl/bnobt/
 	 * cntbt/inobt/finobt) compares a buffer's stamped b_mxfs_ag_gen to
 	 * this; a lagging buffer is FUA-re-read so the allocator sees a peer's
@@ -328,7 +328,7 @@ struct xfs_perag {
 	 */
 	u64			pag_dlm_meta_gen;
 	/*
-	 * sess123 (ccloop, Gemini design-consult redesign): monotonic counter bumped
+	 * (design review design-consult redesign): monotonic counter bumped
 	 * once per GENUINE fresh AG-DLM acquire from the cluster (the CAW-grant
 	 * path where Invariant #1 already drained our prior tenure, so no
 	 * this-node-ahead buffers survive).  A buffer whose b_tenure_id ==
@@ -345,7 +345,7 @@ struct xfs_perag {
 	 */
 	u64			ag_dlm_tenure_id;
 	/*
-	 * sess3 (ccloop 8ba7ae5c, GPT lineage-certificate design): true while
+	 * (design review lineage-certificate design): true while
 	 * this node holds an OPEN grant lineage for this AG — set at every
 	 * genuine fresh CAW-grant acquire, cleared ONLY when a sanctioned
 	 * release path yields the on-disk slot (bast_work_fn full drain,
@@ -358,7 +358,7 @@ struct xfs_perag {
 	 */
 	bool			pag_dlm_lineage_open;
 	/*
-	 * sess19 (ccloop 4eef1f39): last on-disk CAW slot generation observed
+	 * last on-disk CAW slot generation observed
 	 * for this AG at a fresh acquire.  The slot.generation is a SHARED
 	 * cross-node ABA counter bumped on every acquire+release of this AG's
 	 * lock by ANY node, so a change since we last looked reliably means a
@@ -366,14 +366,14 @@ struct xfs_perag {
 	 * advance the (strictly monotonic) pag_dlm_meta_gen and reset the
 	 * in-core PAG summary so the read-time invalidation cold-reads the
 	 * peer's durable {AGF,AGFL,bnobt,cntbt,AGI,inobt} as a consistent set.
-	 * Replaces the frozen local-only ++ scheme (sess80/116 measured stuck
+	 * Replaces the frozen local-only ++ scheme (/116 measured stuck
 	 * at 1 -> all invalidation was dead code).
 	 */
 	u64			pag_dlm_disk_gen_seen;
 	bool			pag_dlm_bast_pending;
 	bool			pag_dlm_bast_scheduled;
 	/*
-	 * sess12(a9a03929) starvation forensics: when pag_dlm_bast_pending
+	 * starvation forensics: when pag_dlm_bast_pending
 	 * went 0->1 (jiffies) and how many cached fast-path re-adoptions
 	 * happened while a peer was left waiting.  A 190s continuous AG-0 EX
 	 * hold (P-LKTIMEOUT-HOLDER held_ms=189614) starved two peers' rm
@@ -384,7 +384,7 @@ struct xfs_perag {
 	unsigned long		pag_dlm_bast_pending_since;
 	u32			pag_dlm_readopt_n;
 	/*
-	 * sess291 (D-488 leg 7 part 1b, sess289 ruling): the rx strand
+	 * (D-488 leg 7 part 1b, ruling): the rx strand
 	 * detector found our own CAW holder bit on the platter with no
 	 * in-core tenure.  This is NOT cached ownership and NOT write
 	 * authority — the bast worker must first perform the verified
@@ -395,7 +395,7 @@ struct xfs_perag {
 	 */
 	bool			pag_dlm_readopt_pending;
 	/*
-	 * sess391 (design-consult ruling ccloop-c7ee71c6-sess391-GPT-ruling-ag-handoff-
+	 * (design-consult ruling ccloop-c7ee71c6-sess391-GPT-ruling-ag-handoff-
 	 * latch-closing-restartable; D-RSYNC-LAP-PACE-AG-SHARING-388): the
 	 * handoff LATCH.  The AG BAST worker's release COMMIT (cached=false,
 	 * demoting=true, epoch=0) used to be reachable only by the worker
@@ -420,7 +420,7 @@ struct xfs_perag {
 	u64			pag_dlm_latch_ns;
 	u64			pag_dlm_bast_rx_ns;	/* first rx of this generation */
 	/*
-	 * 0.22.2 (sess392): BAST->COMMIT latency split for the handoff tail.
+	 * 0.22.2: BAST->COMMIT latency split for the handoff tail.
 	 * work_enter_ns = first worker entry for this generation (rx->enter is
 	 * workqueue/scheduling latency), armed_ns = prepass_done (enter->armed
 	 * is the publish + bounded push), armed->COMMIT is the drain of admitted
@@ -431,7 +431,7 @@ struct xfs_perag {
 	u64			pag_dlm_queued_ns;	/* first worker queue after rx */
 	int			pag_dlm_rx_holders;	/* holders at first rx */
 	/*
-	 * 0.23.0 (sess392, design-consult ruling ccloop-c7ee71c6-sess392-GPT-ruling-
+	 * 0.23.0 (design-consult ruling ccloop-c7ee71c6-sess392-GPT-ruling-
 	 * dialloc-try-reserve-candidate-rotation): dialloc candidate-rotation
 	 * state.  pag_resv_cool = inode numbers whose DLM slot a peer held at a
 	 * recent try-reserve (skipped without a probe until `until`); a bounded
@@ -459,7 +459,7 @@ struct xfs_perag {
 	unsigned int		pag_resv_cool_next;
 	xfs_agino_t		pag_resv_cursor;
 	/*
-	 * sess430 (D-0351 containment, design-consult ruling ccloop-c7ee71c6-sess430-
+	 * (D-0351 containment, design-consult ruling ccloop-c7ee71c6-sess430-
 	 * GPT-ruling-d0351-dialloc-containment-two-phase): DISK-LIVE quarantine.
 	 * aginos dialloc found FREE in the inobt but LIVE on the platter (a
 	 * crossed FREE-PUBLISH invariant on some node).  Exact membership, no
@@ -471,7 +471,7 @@ struct xfs_perag {
 	struct xarray		pag_disklive_q;
 	unsigned int		pag_disklive_n;
 	/*
-	 * sess12(a9a03929): identity of the last holders 0->1 adopter.  When a
+	 * identity of the last holders 0->1 adopter.  When a
 	 * peer's BAST finds the hold stuck (page_ms large, holders frozen>0),
 	 * mxfs_dlm_ag_bast_notify dumps this task's stack (sched_show_task) —
 	 * the holder of a 60s AG hold is often NOT in a DLM wait itself, so
@@ -480,7 +480,7 @@ struct xfs_perag {
 	pid_t			pag_dlm_holder_pid;
 	char			pag_dlm_holder_comm[16];
 	/*
-	 * sess388 (D-474 AIL-freeze anatomy): pag_dlm_lock hold forensics.
+	 * (D-474 AIL-freeze anatomy): pag_dlm_lock hold forensics.
 	 * P-AILMIN dumps showed the frozen AIL-min ILOCK owner blocked for
 	 * >5 s in mutex_lock(&pag_dlm_lock) via mxfs_ag_dlm_trylock — a
 	 * mutex documented as "never held across CAW".  Every lock/unlock
@@ -494,7 +494,7 @@ struct xfs_perag {
 	pid_t			pag_dlm_lock_pid;
 	char			pag_dlm_lock_comm[16];
 	/*
-	 * sess390 (D-474, convoy-aware noino fence): count of LOCAL tasks
+	 * (D-474, convoy-aware noino fence): count of LOCAL tasks
 	 * currently inside the BLOCKING per-AG CAW acquire for this AG
 	 * (mxfs_v5_dlm_ag_lock in __mxfs_ag_dlm_lock), and the start time
 	 * of the oldest such episode.  The no-inode release fence consults
@@ -555,7 +555,7 @@ struct xfs_perag {
 	 */
 	bool			pag_dlm_demoting;
 	/*
-	 * sess427 (D-0351): PUBLICATION-WRITE GATE.  Count of xfs_iflush
+	 * (D-0351): PUBLICATION-WRITE GATE.  Count of xfs_iflush
 	 * copy-ins in flight that were sanctioned by the FREE obligation
 	 * predicate (P55C) against pag_mxfs_grant_epoch.  The release COMMIT
 	 * zeroes the epoch and then WAITS for this to drain before its
@@ -567,16 +567,16 @@ struct xfs_perag {
 	 * locked buffer.
 	 */
 	atomic_t		pag_mxfs_pubwrite;
-	/* sess427 (D-0351): FREE obligations the last release audit could not
+	/* (D-0351): FREE obligations the last release audit could not
 	 * publish (pending frees + unrepaired) — the release worker defers
 	 * the on-disk unlock while this is non-zero (bounded). */
 	int			pag_mxfs_freeob_split;
-	/* sess465 (D-0524): FREE_PENDING entries at the release gate that are
+	/* (D-0524): FREE_PENDING entries at the release gate that are
 	 * orphans or cross-tenure — refuse the release without deferral. */
 	int			pag_mxfs_freeob_fatal;
 	wait_queue_head_t	pag_dlm_demote_wq;
 	/*
-	 * sess39: deferred-release flush worker.  mxfs_dlm_ag_meta_iodone runs
+	 * deferred-release flush worker.  mxfs_dlm_ag_meta_iodone runs
 	 * in xfs-buf workqueue context where blkdev_issue_flush deadlocks, but
 	 * the deferred on-disk AG unlock MUST be preceded by a cache flush so a
 	 * peer's FUA read of the AG btrees sees our just-written free-space

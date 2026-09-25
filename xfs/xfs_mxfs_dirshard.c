@@ -4,8 +4,8 @@
  * and the dispatch wrappers that run the unchanged XFS directory primitives
  * against a shard container as the physical directory.
  *
- * sess464 — D-32NODE-SHARED-DIR-CREATE-PACE (board face D-401), on the
- * critical path of D-FOREIGN-REPLAY-UNGATED-IMAGES since sess463.
+ * — D-32NODE-SHARED-DIR-CREATE-PACE (board face D-401), on the
+ * critical path of D-FOREIGN-REPLAY-UNGATED-IMAGES since.
  * Design: docs/dir-sharding.md.  Format: include/mxfs/mxfs_dirshard.h.
  * Rulings: ccmemory ccloop-c7ee71c6-sess463-GPT-ruling-dirshard-stage1-2-
  * concrete-shape and ccloop-c7ee71c6-sess464-GPT-ruling-dirshard-manifest-
@@ -65,8 +65,8 @@
 #include "xfs_mxfs_dlm.h"
 #include <linux/version.h>
 #include <linux/namei.h>	/* try_lookup_noperm, 6.16+ */
-#include "../dlm/v5_mount.h"	/* sess473: mxfs_v5_dlm_is_single_node (D-0533 probe revalidation) */
-#include <linux/delay.h>	/* sess470: msleep in the per-shard settle */
+#include "../dlm/v5_mount.h"	/* mxfs_v5_dlm_is_single_node (D-0533 probe revalidation) */
+#include <linux/delay.h>	/* msleep in the per-shard settle */
 #include "xfs_mxfs_dirshard.h"
 #include <linux/siphash.h>
 #include <linux/random.h>
@@ -305,7 +305,7 @@ mxfs_dirshard_locator_set(
 	loc.manifest_gen = mxfs_dirshard_be32(mxfs_dirshard_igen(holder));
 	mxfs_dirshard_locator_args_init(&args, dp, tp, &loc);
 	/*
-	 * sess468 (chain 98b, 0.64.4: every MXFS_IOC_DIRSHARD_MKDIR returned
+	 * (chain 98b, 0.64.4: every MXFS_IOC_DIRSHARD_MKDIR returned
 	 * EUCLEAN with nothing logged): XFS_ICREATE_INIT_XATTRS initialises
 	 * the attr fork as an EMPTY EXTENTS fork (xfs_inode_init ->
 	 * xfs_ifork_init_attr(ip, XFS_DINODE_FMT_EXTENTS, 0)), never LOCAL —
@@ -325,7 +325,7 @@ mxfs_dirshard_locator_set(
 		return -EFSCORRUPTED;
 	}
 	/*
-	 * sess472 (D-0531 item 3, design-consult review): this runs inside the
+	 * (D-0531 item 3, design-consult review): this runs inside the
 	 * parent's ALLOCATION transaction, which is already dirty (dialloc,
 	 * icreate), so a refusal here is a dirty cancel = shutdown.  The two
 	 * post-conditions are impossible by construction once the
@@ -452,7 +452,7 @@ mxfs_dirshard_blk_log(
  * Never called on an inode number that did not come from a validated locator
  * or manifest.
  *
- * sess470 (0.64.11): this was an XFS_IGET_UNTRUSTED iget "so a manifest
+ * (0.64.11): this was an XFS_IGET_UNTRUSTED iget "so a manifest
  * naming a freed/never-allocated number fails instead of instantiating
  * garbage".  On MXFS that flag is wrong: xfs_imap_lookup answers it from the
  * inobt read WITHOUT the AG DLM lock, i.e. from whatever AGI/inobt image this
@@ -481,7 +481,7 @@ mxfs_dirshard_blk_log(
  * corruption).
  */
 /*
- * sess473 (D-0533, chain 113 on 0.64.18): the iget above is lock-less, so a
+ * (D-0533, chain 113 on 0.64.18): the iget above is lock-less, so a
  * member number this node still has CACHED from a previous incarnation comes
  * back as a cache HIT — no inode DLM acquire, no stale reload — and its old
  * generation is compared against the manifest.  Measured on the peer
@@ -508,7 +508,7 @@ mxfs_dirshard_blk_log(
  * via a PR acquire before that verdict.  Match case: zero extra I/O.
  */
 /*
- * Design-consult review of the first cut (sess473) — what this shape now honours:
+ * Design-consult review of the first cut — what this shape now honours:
  *  - "adopted" requires the stale flag CLEAR, the generation equal AND the
  *    type equal to expect_ftype (a bailed trylock reload could otherwise
  *    report a half-adopted shell as converged);
@@ -665,7 +665,7 @@ mxfs_dirshard_iget_probe(
 		}
 	}
 	/*
-	 * Identity.  Two answers, ruled apart by the sess470 design-consult review:
+	 * Identity.  Two answers, ruled apart by the design-consult review:
 	 *  - a different generation, or our generation with nlink 0: the
 	 *    member this manifest named is GONE (freed and reused, or already
 	 *    on an unlinked list where the sweep frees it) -> -ESTALE;
@@ -712,7 +712,7 @@ mxfs_dirshard_iget(
 					 false, ipp);
 	if (error == -ESTALE)
 		return -EFSCORRUPTED;
-	if (error == -EBUSY)	/* sess473: unconverged stale shell -> revalidate-and-retry */
+	if (error == -EBUSY)	/* unconverged stale shell -> revalidate-and-retry */
 		return -ESTALE;
 	return error;
 }
@@ -770,7 +770,7 @@ mxfs_dirshard_cache_get(
 }
 
 /*
- * sess473 (D-0534, chain 115 on 0.64.20): the manifest block is a plain
+ * (D-0534, chain 115 on 0.64.20): the manifest block is a plain
  * metadata buffer keyed by daddr.  A peer that cached the PREVIOUS set's
  * block at this address (holder freed, a new holder's one-block extent landed
  * on the same fsblock) gets a buffer-cache HIT — XBF_DONE, never invalidated,
@@ -1184,7 +1184,7 @@ mxfs_dirshard_alloc_parent(
 	 * setup here: clears I_NEW, which every later iget of these numbers
 	 * (resolver, inactivation) would otherwise block on.
 	 *
-	 * sess470 (0.64.11, chain 103 stage-1 on 0.64.6): the operation
+	 * (0.64.11, chain 103 stage-1 on 0.64.6): the operation
 	 * vtables are NOT installed by xfs_icreate/xfs_inode_init — only
 	 * xfs_setup_inode (mode, mapping) is; xfs_generic_create installs
 	 * i_op/i_fop itself with xfs_setup_iops before d_instantiate.  This
@@ -1297,7 +1297,7 @@ mxfs_dirshard_alloc_container(
 	if (error)
 		goto out_release;
 	xfs_iunlock(c, XFS_ILOCK_EXCL);
-	xfs_setup_iops(c);		/* sess470: see mxfs_dirshard_alloc_parent */
+	xfs_setup_iops(c);		/* see mxfs_dirshard_alloc_parent */
 	xfs_finish_inode_setup(c);
 	xfs_irele(c);		/* referenced again by the resolver on demand */
 	return 0;
@@ -1320,7 +1320,7 @@ out_release:
  * nlink 0 -> 2, off the AGI unlinked list, manifest COMPLETE -> PUBLISHED.
  * xfs_link refuses directories, so this is a dedicated path; the unlinked
  * removal brackets the AGI with the AG DLM exactly as xfs_dir_add_child does
- * for O_TMPFILE linkat (sess399).
+ * for O_TMPFILE linkat.
  */
 static int
 mxfs_dirshard_publish(
@@ -1444,7 +1444,7 @@ mxfs_dirshard_mkdir(
 					   &holder);
 	if (error) {
 		/*
-		 * sess468: step A commits nothing on failure, but a silent
+		 * step A commits nothing on failure, but a silent
 		 * errno (chain 98b's EUCLEAN) cost a rig lap to attribute —
 		 * name it.  -ENOSPC/-EDQUOT are ordinary and stay quiet.
 		 */
@@ -1543,7 +1543,7 @@ mxfs_dirshard_free_container(
 	int			error;
 
 	/*
-	 * sess470: only "free" (-ENOENT) or "reused" (-ESTALE) mean gone.
+	 * only "free" (-ENOENT) or "reused" (-ESTALE) mean gone.
 	 * -EINVAL was accepted here too and it was the unlocked-inobt refusal
 	 * of the old UNTRUSTED iget (see mxfs_dirshard_iget_probe): the bit
 	 * was cleared under a live container, which leaked it.  Any other
@@ -1589,7 +1589,7 @@ mxfs_dirshard_free_container(
 	m->valid_mask = cpu_to_be64(be64_to_cpu(m->valid_mask) & ~(1ULL << index));
 	mxfs_dirshard_blk_log(tp, bp);
 	/*
-	 * sess471 (D-0530, chain 109 on 0.64.12): the container was joined
+	 * (D-0530, chain 109 on 0.64.12): the container was joined
 	 * with XFS_ILOCK_EXCL, so commit AND cancel release its ILOCK
 	 * (xfs_inode_item_release).  This path used to unlock it again —
 	 * an unpaired up_write on i_lock (WARN in mxfs_ilk_note_unlock,
@@ -1614,7 +1614,7 @@ out_irele:
  * block as another metadata type from meeting a stale cached buffer with our
  * ops (the symlink-remote truncate does the same).
  *
- * sess470 (0.64.11, design-consult review item 3): the SAME transaction removes the
+ * (0.64.11, design-consult review item 3): the SAME transaction removes the
  * parent's locator.  The holder's unlink is the irreversible step, and a
  * crash between it and the parent's free used to be restarted by probing
  * the holder's number — which, once the holder's whole inode chunk has been
@@ -1654,7 +1654,7 @@ mxfs_dirshard_free_holder(
 	xfs_ilock(holder, XFS_ILOCK_EXCL);
 	xfs_trans_ijoin(tp, holder, XFS_ILOCK_EXCL);
 	/*
-	 * sess472 (D-0531, chain 109 s472a on 0.64.14): the locator remove
+	 * (D-0531, chain 109 s472a on 0.64.14): the locator remove
 	 * below is only synchronous when the parent's attr fork can take the
 	 * shortform shortcut (xfs_attr_removename: attr fork present AND
 	 * shortform).  On the rig it could not — xfs_attr_removename queued
@@ -1702,7 +1702,7 @@ mxfs_dirshard_free_holder(
 	largs->value = NULL;
 	largs->valuelen = 0;
 	/*
-	 * sess472 (D-0531 root, design-consult reviewed): the 0.64.12 check below
+	 * (D-0531 root, design-consult reviewed): the 0.64.12 check below
 	 * asked "is t_dfops non-empty?" AFTER xfs_bunmapi — and freeing the
 	 * holder's real extent ALWAYS queues a deferred extent free (EFI,
 	 * P3-EFREE-Q on the holder right before the refusal in chain 112's
@@ -1726,7 +1726,7 @@ mxfs_dirshard_free_holder(
 			"MXFS P-DIRSHARD-LOCATOR-DEFERRED parent=%llu dfops=%zu->%zu — locator remove queued a deferred attr intent despite the shortform precondition; committing with the intent",
 			(unsigned long long)parent->i_ino, ndef,
 			list_count_nodes(&tp->t_dfops));
-	/* sess471 (D-0530): the holder was joined with XFS_ILOCK_EXCL —
+	/* (D-0530): the holder was joined with XFS_ILOCK_EXCL —
 	 * commit/cancel release it; no second unlock (see free_container). */
 	error = xfs_trans_commit(tp);
 	kfree(largs);
@@ -1768,7 +1768,7 @@ mxfs_dirshard_inactive_parent(
 	if (error == -ENOENT) {
 		/* torn step A (the parent committed on a dialloc roll before its
 		 * locator existed) or a restart after the holder free took the
-		 * locator with it (sess470) — nothing to walk, free it as a
+		 * locator with it — nothing to walk, free it as a
 		 * plain empty directory */
 		xfs_notice(mp,
 			"MXFS P-DIRSHARD-INACTIVE parent=%llu no locator — torn allocation or post-holder-free restart, freeing as plain directory",
@@ -1778,7 +1778,7 @@ mxfs_dirshard_inactive_parent(
 	}
 	if (error)
 		goto out_unlock;
-	/* sess472 (D-0531): the parent's attr-fork state at inactivation entry,
+	/* (D-0531): the parent's attr-fork state at inactivation entry,
 	 * beside the locator read that just succeeded — the shortform remove
 	 * in free_holder depends on it. */
 	xfs_notice(mp,
@@ -1804,14 +1804,14 @@ mxfs_dirshard_inactive_parent(
 		error = 0;
 		goto out_unlock;
 	}
-	if (error)	/* sess470: an I/O or lock failure is not "gone" */
+	if (error)	/* an I/O or lock failure is not "gone" */
 		goto out_unlock;
 	xfs_ilock(holder, XFS_ILOCK_SHARED);
 	error = mxfs_dirshard_holder_daddr(holder, &daddr);
 	xfs_iunlock(holder, XFS_ILOCK_SHARED);
 	if (error)
 		goto out;
-	mxfs_dirshard_blk_refresh(dp, holder, daddr);	/* sess473 D-0534: same coherency point as the slow load */
+	mxfs_dirshard_blk_refresh(dp, holder, daddr);	/* D-0534: same coherency point as the slow load */
 	error = mxfs_dirshard_blk_read(NULL, dp, holder, daddr, &bp, &v);
 	if (error)
 		goto out;
@@ -2020,9 +2020,9 @@ mxfs_dirshard_readdir_actor(
 }
 
 /*
- * sess470 (0.64.11): what xfs_file_readdir does for an ordinary directory
- * before reading it — the sess97 consumer-side dir-block refresh and the
- * sess11 stale-reload settle — has to happen per CONTAINER.  The VFS only
+ * (0.64.11): what xfs_file_readdir does for an ordinary directory
+ * before reading it — the consumer-side dir-block refresh and the
+ * stale-reload settle — has to happen per CONTAINER.  The VFS only
  * ever sees the parent, so the parent's settle in xfs_file_readdir settles a
  * directory that holds no entries.  chain 103's cc laps on 0.64.6 (test1
  * ring, 14:35-14:43Z) logged 20x "P173-RELOAD-SELFREAD ino=133 ...
@@ -2055,7 +2055,7 @@ mxfs_dirshard_shard_settle(
 		shard->i_dlm_stale_src = 27;	/* keep armed across bails */
 		msleep(10);
 	}
-	pr_warn_ratelimited(
+	mxfs_probe_ratelimited(
 		"mxfs: P95D-READDIR-WAIT ino=%llu resolved=%d rounds=%d fmt=%d shard=1\n",
 		(unsigned long long)shard->i_ino, shard->i_dlm_stale ? 0 : 1,
 		rounds, shard->i_df.if_format);
@@ -2142,7 +2142,7 @@ mxfs_dirshard_readdir(
 		 * container's namespace lock (every container mutation runs
 		 * under the parent's i_rwsem EXCL, and a container never has a
 		 * dentry of its own).  xfs_readdir's IOLOCK assertion knows
-		 * this (sess470; it WARNed 588x on chain 103's cc laps).
+		 * this (it WARNed 588x on chain 103's cc laps).
 		 */
 		if (S_ISDIR(VFS_I(shard)->i_mode)) {
 			error = mxfs_dirshard_shard_settle(shard);

@@ -124,7 +124,7 @@ TM=$(date +%s)
 # harness bound 540 kept as the hard ceiling).
 MOUNT_BOUND=${MOUNT_BOUND:-540}
 sshq 120 "$RM" "set -e; echo 3 > /proc/sys/vm/drop_caches; cp /src/mxfs/mxfs.ko /tmp/mxfs.ko; m=\$(md5sum /tmp/mxfs.ko | awk '{print \$1}'); [ \"\$m\" = '$KO_MD5' ] || { echo KO_MD5_MISMATCH \$m; exit 1; }
-    modprobe libcrc32c 2>/dev/null || true; insmod /tmp/mxfs.ko; cat /sys/module/mxfs/srcversion
+    modprobe libcrc32c 2>/dev/null || true; insmod /tmp/mxfs.ko dyndbg=+p; cat /sys/module/mxfs/srcversion
     echo 1 > $P/target_cache_protected; echo 1 > $P/foreign_replay_token_enforce; echo armed=\$(cat $P/target_cache_protected)\$(cat $P/foreign_replay_token_enforce)
     echo NOSURV-MOUNT-$LABEL > /dev/kmsg; mkdir -p $MNT; rm -f /tmp/nosurv_mount_rc; (setsid nohup sh -c 'timeout $MOUNT_BOUND mount -t mxfs $DEV $MNT; echo MOUNT_RC=\$? > /tmp/nosurv_mount_rc' >/dev/null 2>&1 &); echo LAUNCHED" > "$OUT/remount.txt" 2>&1
 for a in $(seq 1 $((MOUNT_BOUND/5 + 2))); do

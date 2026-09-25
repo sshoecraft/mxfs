@@ -55,7 +55,7 @@
 #include <linux/ktime.h>
 #include <linux/sched.h>
 #include <linux/hashtable.h>
-#include <linux/sched/debug.h>	/* sess4: sched_show_task for mxfs_pal_dump_task_stack */
+#include <linux/sched/debug.h>	/* sched_show_task for mxfs_pal_dump_task_stack */
 #include <linux/sched/signal.h>	/* 0.75.29: signal_pending for the condition waits */
 #include <linux/sort.h>
 #include <linux/net.h>
@@ -381,7 +381,7 @@ static int bdev_sync_io(struct mxfs_bdev *dev, uint64_t offset,
 }
 
 /*
- * sess444: synchronous bio I/O on a RAW struct block_device for callers
+ * synchronous bio I/O on a RAW struct block_device for callers
  * that hold one (the XFS buftarg) and no mxfs_bdev handle.  Fallback for
  * the SCSI passthrough FUA paths (mxfs_pal_scsi_{read,write}_fua_bdev
  * return -EOPNOTSUPP on a non-SCSI device such as a loop device): the
@@ -770,7 +770,7 @@ static struct scsi_device *mxfs_bdev_to_sdev(struct block_device *bdev)
 		return NULL;
 
 	/*
-	 * sess444 (design-consult landing review, STOP-SHIP 2): a PARTITION's LBAs are
+	 * (design-consult landing review, STOP-SHIP 2): a PARTITION's LBAs are
 	 * partition-relative, a passthrough CDB's are whole-LUN — resolving
 	 * the sdev here would let every passthrough caller write/read the
 	 * wrong LBA.  Refuse (callers get -EOPNOTSUPP and take their bio
@@ -820,7 +820,7 @@ static struct scsi_device *mxfs_bdev_to_sdev(struct block_device *bdev)
 	}
 	spin_unlock(&mxfs_sdev_cache_lock);
 	if (stale) {
-		pr_warn("mxfs: P-MPATH-RESOLVE cached backing path for %u:%u went offline — re-resolving\n",
+		mxfs_probe("mxfs: P-MPATH-RESOLVE cached backing path for %u:%u went offline — re-resolving\n",
 			MAJOR(bdev->bd_dev), MINOR(bdev->bd_dev));
 		scsi_device_put(stale);
 	}
@@ -864,7 +864,7 @@ static struct scsi_device *mxfs_bdev_to_sdev(struct block_device *bdev)
 		scsi_device_put(spare);
 
 	if (sdev)
-		pr_info("mxfs: P-MPATH-RESOLVE stacked bdev %u:%u -> SCSI backing path %d:%d:%d:%llu\n",
+		mxfs_probe("mxfs: P-MPATH-RESOLVE stacked bdev %u:%u -> SCSI backing path %d:%d:%d:%llu\n",
 			MAJOR(bdev->bd_dev), MINOR(bdev->bd_dev),
 			sdev->host->host_no, sdev->channel, sdev->id,
 			(unsigned long long)sdev->lun);
@@ -892,9 +892,9 @@ void mxfs_pal_sdev_cache_release(void)
 EXPORT_SYMBOL_GPL(mxfs_pal_sdev_cache_release);
 
 /*
- * ─── sess379: PER-TASK ABSOLUTE I/O BUDGET (design-consult ruling item 5) ───
+ * ─── PER-TASK ABSOLUTE I/O BUDGET (design-consult ruling item 5) ───
  *
- * D-MASS-UMOUNT-ROOT-EX-SERIALIZE-100S-526B, root-caused sess379: a plain
+ * D-MASS-UMOUNT-ROOT-EX-SERIALIZE-100S-526B, root-caused a plain
  * `statx()` of the mount point blocked 60.5 / 121 / 181.5 s on 30 of 32 nodes
  * during a simultaneous mass unmount.  The captured stack was
  *
@@ -1013,7 +1013,7 @@ static int mxfs_pal_scsi_read_fua_bdev_body(struct block_device *bdev,
 					     uint32_t len);
 
 /*
- * sess494 (D-32NODE-SHARED-DIR-CREATE-PACE): node-wide count and wall of
+ * (D-32NODE-SHARED-DIR-CREATE-PACE): node-wide count and wall of
  * every synchronous FUA passthrough read.  The create-cost probe samples both
  * around its existence lookup so the in-tenure lookup term can be attributed
  * to cold directory-block reads rather than guessed.  Always on: two atomic
@@ -1032,13 +1032,13 @@ int mxfs_pal_scsi_read_fua_bdev(struct block_device *bdev, uint64_t lba_512,
 
 	atomic64_inc(&mxfs_fua_read_calls);
 	atomic64_add(dt, &mxfs_fua_read_ns);
-	/* sess495: see P495-LKP-RD kind=bio in xfs_buf.c — the FUA half of
+	/* see P495-LKP-RD kind=bio in xfs_buf.c — the FUA half of
 	 * the lookup-window read trace. */
 	if (unlikely(READ_ONCE(mxfs_lkp_trace_open))) {
 		static atomic_t p495f = ATOMIC_INIT(0);
 
 		if (atomic_inc_return(&p495f) <= 300)
-			pr_warn("mxfs: P495-LKP-RD kind=fua lba=%llu len=%u us=%llu rc=%d pid=%d comm=%s\n",
+			mxfs_probe("mxfs: P495-LKP-RD kind=fua lba=%llu len=%u us=%llu rc=%d pid=%d comm=%s\n",
 				(unsigned long long)lba_512, len,
 				(unsigned long long)(dt / 1000), rc,
 				current->pid, current->comm);
@@ -1105,7 +1105,7 @@ static int mxfs_pal_scsi_read_fua_bdev_body(struct block_device *bdev,
 		 * bug is on the WRITE side, not read.  Removed for cost. */
 
 		/*
-		 * sess5(a9a03929) run76: under the 8-node verify storm this
+		 * run76: under the 8-node verify storm this
 		 * passthrough fails transiently (queue pressure: short
 		 * transfer / TASK SET FULL / busy) and the old code returned
 		 * a SILENT -EIO on the first failure.  The inode-reload
@@ -1120,7 +1120,7 @@ static int mxfs_pal_scsi_read_fua_bdev_body(struct block_device *bdev,
 		 */
 		for (fua_try = 0; ; fua_try++) {
 			/*
-			 * sess379: one absolute deadline, attempt budgets
+			 * one absolute deadline, attempt budgets
 			 * capped by what is left of it, SCSI retries dropped
 			 * to 0 so the only retry policy in play is this loop's.
 			 * Unbudgeted callers take the `else` and keep the
@@ -1133,7 +1133,7 @@ static int mxfs_pal_scsi_read_fua_bdev_body(struct block_device *bdev,
 				static atomic_t p_fuadl_n = ATOMIC_INIT(0);
 
 				if (atomic_inc_return(&p_fuadl_n) <= 200)
-					pr_warn("mxfs: P302-FUA-READ-DEADLINE lba=%llu len=%u tries=%d — per-task I/O budget exhausted; abandoning the read (no sample, NOT a proof of anything)\n",
+					mxfs_probe("mxfs: P302-FUA-READ-DEADLINE lba=%llu len=%u tries=%d — per-task I/O budget exhausted; abandoning the read (no sample, NOT a proof of anything)\n",
 						(unsigned long long)lba_512,
 						len, fua_try);
 				scsi_device_put(sdev);
@@ -1154,7 +1154,7 @@ static int mxfs_pal_scsi_read_fua_bdev_body(struct block_device *bdev,
 					       buf, len, cmd_j, cmd_retries,
 					       &args);
 			/*
-			 * v0.3.108 (sess26 root-cause): scsi_execute_cmd can
+			 * v0.3.108 (root-cause): scsi_execute_cmd can
 			 * return 0 (success) but transfer LESS than requested
 			 * when the SCSI device is under queue pressure or
 			 * returns short data.  Detect via residual count and
@@ -1168,7 +1168,7 @@ static int mxfs_pal_scsi_read_fua_bdev_body(struct block_device *bdev,
 			if (fua_try >= 20) {
 				static atomic_t p_fuaerr_n = ATOMIC_INIT(0);
 				if (atomic_inc_return(&p_fuaerr_n) <= 200)
-					pr_warn("mxfs: P-FUA-READ-ERR lba=%llu len=%u ret=0x%x resid=%d sense=%d key=0x%x asc=0x%x ascq=0x%x tries=%d\n",
+					mxfs_probe("mxfs: P-FUA-READ-ERR lba=%llu len=%u ret=0x%x resid=%d sense=%d key=0x%x asc=0x%x ascq=0x%x tries=%d\n",
 						(unsigned long long)lba_512,
 						len, ret, resid,
 						scsi_sense_valid(&sshdr) ? 1 : 0,
@@ -1181,17 +1181,17 @@ static int mxfs_pal_scsi_read_fua_bdev_body(struct block_device *bdev,
 				static atomic_t p_fuartry_n = ATOMIC_INIT(0);
 				if (atomic_inc_return(&p_fuartry_n) <= 400)
 					/*
-					 * sess379: comm + the budget this lap
+					 * comm + the budget this lap
 					 * SAW.  Without them a retry line cannot
 					 * be attributed to a task, and the
-					 * sess379 landing could not be told from
+					 * landing could not be told from
 					 * "budget not applied" vs "the command
 					 * timed out at the deadline but the
 					 * block layer only returned after SCSI
 					 * error recovery".  budget_ms=0 means NO
 					 * budget was registered for this task.
 					 */
-					pr_warn("mxfs: P-FUA-READ-RETRY lba=%llu ret=0x%x resid=%d key=0x%x try=%d budget_ms=%ld cmd_ms=%u comm=%s pid=%d\n",
+					mxfs_probe("mxfs: P-FUA-READ-RETRY lba=%llu ret=0x%x resid=%d key=0x%x try=%d budget_ms=%ld cmd_ms=%u comm=%s pid=%d\n",
 						(unsigned long long)lba_512,
 						ret, resid,
 						scsi_sense_valid(&sshdr) ?
@@ -1233,7 +1233,7 @@ static int mxfs_pal_scsi_read_fua_bdev_body(struct block_device *bdev,
 }
 
 /*
- * sess103 instrumentation helper: COHERENT plain-bio read of an
+ * instrumentation helper: COHERENT plain-bio read of an
  * absolute 512-byte LBA, given only a struct block_device *.  Mirrors the
  * absolute-LBA contract of mxfs_pal_scsi_read_fua_bdev (lba_512 already
  * includes bt_sector_offset) but issues a plain REQ_OP_READ — which under
@@ -1325,7 +1325,7 @@ static int mxfs_scsi_read16_fua(mxfs_bdev_t *dev, uint64_t offset,
 }
 
 /*
- * v0.3.117 sess29: WRITE(16) FUA passthrough sibling of
+ * v0.3.117 WRITE(16) FUA passthrough sibling of
  * mxfs_pal_scsi_read_fua_bdev.  Used for surgical FUA-rewrite of a
  * specific buf in mxfs_dlm_bast_process before DLM unlock — closes
  * the write-side persistence gap for one write per release without
@@ -1388,7 +1388,7 @@ wfua_submit:
 		if (ret == 0 && resid != 0) {
 			static int once;
 			if (!once) {
-				pr_warn("mxfs: P60-INSTR scsi-write-fua short transfer "
+				mxfs_probe("mxfs: P60-INSTR scsi-write-fua short transfer "
 					"lba=%llu len=%u resid=%d\n",
 					(unsigned long long)lba_512, len, resid);
 				once = 1;
@@ -1409,7 +1409,7 @@ wfua_submit:
 	if (ret > 0 && scsi_sense_valid(&sshdr) &&
 	    sshdr.sense_key == UNIT_ATTENTION && ua_try < 5) {
 		ua_try++;
-		pr_warn_ratelimited("mxfs: P-WFUA-UA-RETRY lba=%llu asc=0x%x ascq=0x%x try=%d\n",
+		mxfs_probe_ratelimited("mxfs: P-WFUA-UA-RETRY lba=%llu asc=0x%x ascq=0x%x try=%d\n",
 			(unsigned long long)lba_512, sshdr.asc, sshdr.ascq,
 			ua_try);
 		msleep(2 << ua_try);
@@ -1441,21 +1441,21 @@ int mxfs_pal_bdev_read_prio(mxfs_bdev_t *dev, uint64_t offset,
 	rc = mxfs_scsi_read16_fua(dev, offset, buf, len);
 	if (rc == 0) {
 		n = atomic64_inc_return(&mxfs_dlm_read_fua_ok);
-		/* sess34: silenced — these were rolling dmesg ring buffer.  Keep counter only. */
+		/* silenced — these were rolling dmesg ring buffer.  Keep counter only. */
 		(void)n;
 		return 0;
 	}
 	if (rc == -EOPNOTSUPP) {
 		n = atomic64_inc_return(&mxfs_dlm_read_fua_fallback);
 		if ((n & 63) == 1)
-			pr_warn("mxfs: P24-INSTR scsi-read-fua FALLBACK to bio n=%llu (NOT bypassing cache)\n",
+			mxfs_probe("mxfs: P24-INSTR scsi-read-fua FALLBACK to bio n=%llu (NOT bypassing cache)\n",
 				n);
 		return bdev_sync_io(dev, offset, buf, len,
 				    REQ_OP_READ | REQ_PRIO | REQ_SYNC);
 	}
 	n = atomic64_inc_return(&mxfs_dlm_read_fua_err);
 	if ((n & 63) == 1)
-		pr_warn("mxfs: P24-INSTR scsi-read-fua ERR n=%llu rc=%d\n",
+		mxfs_probe("mxfs: P24-INSTR scsi-read-fua ERR n=%llu rc=%d\n",
 			n, rc);
 	return rc;
 }
@@ -1490,7 +1490,7 @@ int mxfs_pal_bdev_write_fua(mxfs_bdev_t *dev, uint64_t offset,
 	dev->stat_write_fua_bytes += len;
 	t0 = ktime_get_ns();
 	/*
-	 * sess37: REQ_PRIO | REQ_SYNC.  FUA writes here are latency-critical
+	 * REQ_PRIO | REQ_SYNC.  FUA writes here are latency-critical
 	 * coordination I/O — the disklock heartbeat (every 2s; if it stalls
 	 * >62s under load the survivors false-fence this node -> PR preempt ->
 	 * DLM shutdown) and CAW/metadata.  Without a priority hint these queue
@@ -2110,7 +2110,7 @@ void mxfs_pal_mutex_unlock(mxfs_mutex_t *m)
 		mutex_unlock(&m->mtx);
 }
 
-/* sess454 (0.61.0, D1/D8) */
+/* (0.61.0, D1/D8) */
 int mxfs_pal_mutex_trylock(mxfs_mutex_t *m)
 {
 	if (!m)
@@ -2224,7 +2224,7 @@ void mxfs_pal_rwlock_rdlock(mxfs_rwlock_t *rw)
 }
 
 /*
- * ccloop c7ee71c6 sess21 — NON-SLEEPING read acquire.
+ *  — NON-SLEEPING read acquire.
  *
  * down_read_trylock() never schedules: it either takes the reader count
  * atomically or fails.  That makes it the ONLY rwlock acquire legal with a
@@ -2240,7 +2240,7 @@ int mxfs_pal_rwlock_tryrdlock(mxfs_rwlock_t *rw)
 	return down_read_trylock(&rw->sem) ? 1 : 0;
 }
 
-/* ccloop c7ee71c6 sess21 — see pal.h.  in_atomic() covers a held spinlock
+/*  — see pal.h.  in_atomic covers a held spinlock
  * and preempt_disable(); irqs_disabled() covers the hardirq/spin_lock_irq
  * cases in_atomic() does not. */
 int mxfs_pal_may_sleep(void)
@@ -2564,7 +2564,7 @@ int mxfs_pal_tcp_send(mxfs_sock_t *s, const void *buf, uint32_t len)
 			 * If we already sent partial data (done > 0), we MUST
 			 * keep trying — returning mid-message corrupts the
 			 * protocol stream.
-			 * sess40: NOTE returning a DISTINCT code here for the
+			 * NOTE returning a DISTINCT code here for the
 			 * done==0 vs done>0 cases (-EAGAIN/-ECONNRESET) REGRESSED
 			 * 2/tcp (0/3) — mxfs_pal_tcp_send has MANY callers
 			 * (discovery/lease/journal) that retry-loop on -EAGAIN
@@ -2808,7 +2808,7 @@ mxfs_sock_t *mxfs_pal_udp_open(uint16_t port)
 	s->sk->sk->sk_reuseport = 1;
 #endif
 
-	/* sess8 (ccloop 72513a13): default rcvbuf (~208KB ≈ 270 skbs) drops
+	/* default rcvbuf (~208KB ≈ 270 skbs) drops
 	 * BAST-hint/GRANT-nudge mcasts under 32-node storms — the recv
 	 * thread on a loaded VM can't drain >1k pkt/s bursts from the
 	 * default window, and a lost GRANT nudge costs the waiter a full
@@ -3038,7 +3038,7 @@ void mxfs_pal_dump_stack(void)
 }
 
 /*
- * sess133: non-returning local fail-stop.  See the contract in pal.h — this is
+ * non-returning local fail-stop.  See the contract in pal.h — this is
  * reached only when a node can neither prove it released its shared-storage
  * state nor safely return to the caller, and both alternatives (hang forever /
  * return with live threads holding a mount the VFS is about to free) were
@@ -3062,7 +3062,7 @@ void mxfs_pal_failstop_fn(const char *fmt, ...)
 }
 
 /*
- * sess133: one-shot deferred call.
+ * one-shot deferred call.
  *
  * system_unbound_wq rather than system_wq: the handler this carries runs an
  * upper-layer escalation that may itself block, and an unbound workqueue will
@@ -3114,7 +3114,7 @@ int mxfs_pal_defer(void (*fn)(void *), void *arg)
 	return 0;
 }
 
-/* ccloop-4dd7 sess4: dump another task's kernel stack by pid (holder
+/* ccloop-4dd7 dump another task's kernel stack by pid (holder
  * forensics — the b58r1 184s cross-node stall's EX-admission holders were
  * blocked at a wait site no probe could see; this lets the demote-refusal
  * path print the holder's stack directly).  Safe from process/work context:
@@ -3148,7 +3148,7 @@ uint32_t mxfs_pal_crc32c(uint32_t crc, const void *data, size_t len)
  * ═══════════════════════════════════════════════════════════════════ */
 
 /*
- * sess452 (D-0518): a printk whose text does not end in '\n' is stored
+ * (D-0518): a printk whose text does not end in '\n' is stored
  * with LOG_CONT and its ringbuffer record is COMMITTED BUT NOT FINALIZED
  * (kernel/printk/printk.c vprintk_store: prb_commit vs prb_final_commit).
  * Readers — dmesg, /dev/kmsg, journald — cannot read an unfinalized
@@ -3250,7 +3250,7 @@ static const struct pr_ops *get_pr_ops(struct mxfs_bdev *dev)
  * deterministically.  Never enable in production.
  */
 /*
- * sess452 (0.59.2) DEBUG knobs for the deterministic UNKNOWN / slow-PR arms
+ * (0.59.2) DEBUG knobs for the deterministic UNKNOWN / slow-PR arms
  * of tests/retire_pending_admission.sh (design-consult STOP-SHIP #2 required
  * tests).  Consumed inside the PR IN wrappers so every consumer — the
  * key-state bracket, verify_registered, validate_admission, the fence
@@ -3312,7 +3312,7 @@ uint32_t mxfs_pal_dbg_pr_own_proof_brackets(void)
 }
 EXPORT_SYMBOL_GPL(mxfs_pal_dbg_pr_own_proof_brackets);
 
-/* sess454 (0.61.0, D9 tests): settle-absent / probe-lifecycle injectors. */
+/* (0.61.0, D9 tests): settle-absent / probe-lifecycle injectors. */
 static int mxfs_dbg_settle_pause_ms;
 module_param_named(dbg_settle_pause_ms, mxfs_dbg_settle_pause_ms, int, 0644);
 MODULE_PARM_DESC(dbg_settle_pause_ms,
@@ -3398,7 +3398,7 @@ uint32_t mxfs_pal_dbg_depart_late_token_take(void)
 }
 EXPORT_SYMBOL_GPL(mxfs_pal_dbg_depart_late_token_take);
 
-/* sess459 (review #5 condition 8 + the deterministic G3 arms): consumed
+/* (review #5 condition 8 + the deterministic G3 arms): consumed
  * one-shot by put_super; see mxfs_depart_dbg_inject (pal/linux/xfs_buf.c). */
 static int mxfs_dbg_depart_inject;
 module_param_named(dbg_depart_inject, mxfs_dbg_depart_inject, int, 0644);
@@ -3416,7 +3416,7 @@ int mxfs_pal_dbg_depart_inject_take(void)
 EXPORT_SYMBOL_GPL(mxfs_pal_dbg_depart_inject_take);
 
 /*
- * sess460 (0.61.6, review #5 conditions 2/3/4 — ccmemory
+ * (0.61.6, review #5 conditions 2/3/4 — ccmemory
  * ccloop-c7ee71c6-sess456-GPT-ruling-review5-0611-NO-GO-untokened-failclosed-
  * 6-conditions).  Three more injectors, all default-off, all consumed by
  * production code paths that read 0 in production:
@@ -3533,7 +3533,7 @@ int mxfs_pal_scsi_pr_register(mxfs_bdev_t *dev, uint64_t key)
 	}
 
 	/*
-	 * sess433: PLAIN REGISTER (SA 0x00), reservation key 0, new key =
+	 * PLAIN REGISTER (SA 0x00), reservation key 0, new key =
 	 * ours.  A nexus that already holds a registration answers
 	 * RESERVATION CONFLICT and nothing changes (dm_pr_register rolls back
 	 * the paths it did register, dm.c dm_pr_register).  Safe to reissue
@@ -3558,7 +3558,7 @@ int mxfs_pal_scsi_pr_register(mxfs_bdev_t *dev, uint64_t key)
 	 * PR_STS_RESERVATION_CONFLICT, 0x18).  A transport/path error, a
 	 * CHECK CONDITION or any errno is NOT — those are reported as what
 	 * they are and the mount fails on them as an ordinary register
-	 * failure (sess432 review: never infer a conflict from -EBUSY/-EIO).
+	 * failure (review: never infer a conflict from -EBUSY/-EIO).
 	 */
 	if (ret == PR_STS_RESERVATION_CONFLICT) {
 		mxfs_pal_log(MXFS_LOG_WARN,
@@ -3614,7 +3614,7 @@ int mxfs_pal_scsi_pr_register_swap(mxfs_bdev_t *dev, uint64_t old_key,
 	if (!ops || !ops->pr_register)
 		return -EOPNOTSUPP;
 
-	/* sess439: plain REGISTER (SA 0x00), RK = old_key, SARK = new_key.
+	/* plain REGISTER (SA 0x00), RK = old_key, SARK = new_key.
 	 * SPC: executed only if this nexus is registered with RK; otherwise
 	 * RESERVATION CONFLICT and nothing changes.  A CHECK CONDITION means
 	 * the command was not executed — safe to reissue. */
@@ -3674,7 +3674,7 @@ int mxfs_pal_scsi_pr_reserve(mxfs_bdev_t *dev, uint64_t key, uint32_t type)
 		}
 	}
 	/*
-	 * sess381: this used to fold RESERVATION CONFLICT into 0 on the theory
+	 * this used to fold RESERVATION CONFLICT into 0 on the theory
 	 * that "we're registered, which is all we need for type 5 access".
 	 * That is a statement about I/O permission, not about the reservation,
 	 * and it hid the only condition that can tell a caller its reservation
@@ -3694,7 +3694,7 @@ int mxfs_pal_scsi_pr_reserve(mxfs_bdev_t *dev, uint64_t key, uint32_t type)
  * RAW CDB straight at an underlying scsi_device.
  *
  * WHY THIS EXISTS, AND WHY ops->pr_preempt MUST NEVER BE USED FOR THE ABORT
- * FORM.  Proven twice in sess378 — once in the kernel source, once on the wire:
+ * FORM.  Proven twice in — once in the kernel source, once on the wire:
  *
  *   drivers/md/dm.c dm_pr_preempt() takes `bool abort` and builds
  *       struct dm_pr pr = { .new_key, .old_key, .type, .fail_early = false };
@@ -3783,7 +3783,7 @@ prout_submit:
 	cdb[0] = 0x5F;			/* PERSISTENT RESERVE OUT           */
 	cdb[1] = 0x05;			/* SERVICE ACTION: PREEMPT AND ABORT */
 	/* scope 0 (LU) | the type of the reservation actually in force.
-	 * sess381: this was hardcoded to type 5; with a WR_EX_AR reservation
+	 * this was hardcoded to type 5; with a WR_EX_AR reservation
 	 * held, a type-5 PROUT is a scope/type mismatch. */
 	cdb[2] = (u8)(type & 0x0f);
 	cdb[5] = (u8)(sizeof(data) >> 24);   /* PARAMETER LIST LENGTH = 24 */
@@ -3875,7 +3875,7 @@ prout_submit:
 	    sshdr.sense_key == UNIT_ATTENTION &&
 	    ua_try < MXFS_PR_UA_RETRIES) {
 		ua_try++;
-		pr_warn_ratelimited("mxfs: P302-PROUT-UA-RETRY victim_key=0x%llx "
+		mxfs_probe_ratelimited("mxfs: P302-PROUT-UA-RETRY victim_key=0x%llx "
 				    "asc=0x%x ascq=0x%x try=%d\n",
 				    (unsigned long long)victim_key,
 				    sshdr.asc, sshdr.ascq, ua_try);
@@ -4014,7 +4014,7 @@ resubmit:
 	 * types out of it. */
 	out->we_ro     = out->tmv && !!(resp[4] & 0x20);
 	/* WR_EX_AR is type 7h == byte 4 bit 7 — the type MXFS establishes from
-	 * proto-gen 5 on (sess381).  Same TMV precondition as we_ro. */
+	 * proto-gen 5 on.  Same TMV precondition as we_ro. */
 	out->we_ar     = out->tmv && !!(resp[4] & 0x80);
 
 	scsi_device_put(sdev);
@@ -4214,7 +4214,7 @@ int mxfs_pal_scsi_pr_preempt(mxfs_bdev_t *dev, uint64_t my_key,
 	 * key, so THIS command did nothing — no registration removed, and
 	 * under 0x05 no task set aborted.
 	 *
-	 * Until sess71 this returned 0 ("the victim is fenced either way").
+	 * Until this returned 0 ("the victim is fenced either way").
 	 * That is false and it was the load-bearing lie in the fence path:
 	 * at 32 nodes up to 31 survivors race to preempt one victim, so the
 	 * conflict path is the COMMON path, and every loser was reporting a
@@ -4233,7 +4233,7 @@ int mxfs_pal_scsi_pr_preempt(mxfs_bdev_t *dev, uint64_t my_key,
  * READ RESERVATION.  Needed because "the victim's key is absent" only
  * bounds the victim's write capability while a WE-RO reservation is
  * actually held — with no reservation, an unregistered initiator writes
- * freely and key absence proves nothing (sess71 GPT ruling, item 1.3).
+ * freely and key absence proves nothing (design-consult ruling, item 1.3).
  */
 int mxfs_pal_scsi_pr_read_reservation(mxfs_bdev_t *dev,
 				      struct mxfs_pal_pr_reservation *out)
@@ -4279,7 +4279,7 @@ int mxfs_pal_scsi_pr_read_reservation(mxfs_bdev_t *dev,
 	 * (sd_pr_read_reservation returns early, leaving rsv untouched, when
 	 * the ADDITIONAL LENGTH field is 0), and rsv is memset above.
 	 *
-	 * sess381: `held` USED TO BE (rsv.key != 0), on the reasoning that a
+	 * `held` USED TO BE (rsv.key != 0), on the reasoning that a
 	 * held reservation always carries a nonzero holder key "because MXFS
 	 * never registers key 0".  That reasoning holds only for SINGLE-HOLDER
 	 * types.  Under an all-registrants type there is no single holder and
@@ -4342,7 +4342,7 @@ int mxfs_pal_scsi_pr_read_reservation(mxfs_bdev_t *dev,
 /*
  * ── D-CLEAN-UNMOUNT-LEAKS-PR-REGISTRATION-377 ─────────────────────────────
  *
- * MEASURED (sess377, 32/caw, dm-multipath with 2 paths): a mount registered
+ * MEASURED (32/caw, dm-multipath with 2 paths): a mount registered
  * its key on BOTH nexuses (READ KEYS listed it twice) and a clean unmount
  * removed exactly ONE of them, reporting success.  The departed node's
  * initiator kept write access to the shared LUN, and nothing in MXFS noticed.
@@ -4364,7 +4364,7 @@ int mxfs_pal_scsi_pr_read_reservation(mxfs_bdev_t *dev,
  *     a path refused.  The only valid reading is "the requested state was not
  *     established by this command — inspect global state".
  *
- * sess377 design-consult ruling (ccmemory ccloop-c7ee71c6-sess377-GPT-ruling3-pr-
+ * design-consult ruling (ccmemory ccloop-c7ee71c6-sess377-GPT-ruling3-pr-
  * unregister-leak-fix-shape): the symmetric unregister is the MECHANISM, the
  * READ KEYS read-back is the POSTCONDITION, and the load-bearing invariant is
  *
@@ -4459,7 +4459,7 @@ static int mxfs_pr_key_present_bdev(struct block_device *bdev, uint64_t key,
 }
 
 /*
- * sess449 DEBUG one-shot (D-0356 / D-377): make the next late unregister
+ * DEBUG one-shot (D-0356 / D-377): make the next late unregister
  * report NOT RETIRED without issuing anything — the key really stays
  * registered, which is exactly the state the re-stamp handoff must cover.
  * tests/pr_unregister_fail_restamp.sh.  Never enable in production.
@@ -4471,7 +4471,7 @@ MODULE_PARM_DESC(dbg_pr_unregister_fail,
 	"DEBUG one-shot: report the next late SCSI PR unregister as NOT RETIRED without issuing it (departure fail-closed test). Never enable in production.");
 
 /*
- * sess450 DEBUG one-shot: after a failed late unregister, SKIP the P303
+ * DEBUG one-shot: after a failed late unregister, SKIP the P303
  * WITHDRAWN re-stamp — models a node that crashed (or lost the LUN) between
  * writing RETIRE_PENDING and retiring its key.  Peers must expire the
  * record to WITHDRAWN and fence the key on their own
@@ -4608,7 +4608,7 @@ int mxfs_pal_scsi_pr_unregister(mxfs_bdev_t *dev, uint64_t key)
 	if (!ops || !ops->pr_register)
 		return -EOPNOTSUPP;
 
-	/* sess377: one implementation, one contract — the symmetric all-nexus
+	/* one implementation, one contract — the symmetric all-nexus
 	 * unregister plus the mandatory READ KEYS postcondition.  See
 	 * mxfs_pal_scsi_pr_unregister_bdev() for the full reasoning and the
 	 * result mapping; duplicating the old open-coded version here is how
@@ -4640,7 +4640,7 @@ int mxfs_pal_scsi_pr_read_keys(mxfs_bdev_t *dev, uint64_t *keys,
 	if (!ops || !ops->pr_read_keys)
 		return -EOPNOTSUPP;
 
-	/* sess452 debug arms (see the knobs' comment). */
+	/* debug arms (see the knobs' comment). */
 	if (unlikely(READ_ONCE(mxfs_dbg_pr_read_keys_delay_ms) > 0)) {
 		int d = READ_ONCE(mxfs_dbg_pr_read_keys_delay_ms);
 
@@ -4730,7 +4730,7 @@ int mxfs_pal_scsi_pr_read_keys(mxfs_bdev_t *dev, uint64_t *keys,
  * is per-I_T-nexus AND target-generated at command time — READ KEYS
  * cannot distinguish "my key" from "someone re-registered the same key
  * value", and a fenced node's plain reads of the heartbeat sector can
- * be arbitrarily stale (sess276: 51 generations).  PR IN is permitted
+ * be arbitrarily stale (51 generations).  PR IN is permitted
  * to an unregistered initiator under WE-RO, so a fenced victim can
  * still ask this question — that is the point.
  *
@@ -4883,7 +4883,7 @@ out:
  * ═══════════════════════════════════════════════════════════════════ */
 
 /*
- * v0.3.109 (sess26): tested CAW serialization — global mutex
+ * v0.3.109: tested CAW serialization — global mutex
  * caused inode-DLM ETIMEDOUT, bucketed mutex same.  Serialization
  * adds latency that triggers higher-level timeouts.  CAS is supposed
  * to be SCSI-level atomic; adding our own mutex is wrong direction.
@@ -4891,7 +4891,7 @@ out:
  */
 
 /*
- * v0.3.128 (sess30): module param to select CAW submission path.
+ * v0.3.128: module param to select CAW submission path.
  *   0 = legacy scsi_execute_cmd (uses bio_map_kern → bio_add_virt_nofail
  *       on caller's kernel buffer).  Sess26 P49 confirmed this returns
  *       CAS-success without persisting writes under cross-node stress.
@@ -4900,13 +4900,13 @@ out:
  *       blk_rq_append_bio, blk_execute_rq (synchronous, at_head=true).
  *       Userspace SG_IO via /dev/sg* uses this same data layout
  *       (bio owns a private page, copied data) and works correctly
- *       on the same target under the same load (sess26 caw_verify).
+ *       on the same target under the same load (caw_verify).
  *
  * Set via mxfs.caw_path=1 at insmod time.  Default 0 keeps legacy
  * behavior unchanged until path 1 is validated.
  */
 /*
- * Default caw_path=1 (manual-bio submission) since sess30 path A testing:
+ * Default caw_path=1 (manual-bio submission) since path A testing:
  *   - 5×256 cross-node stress, fresh mkfs each: 30/30 PASS across 6 samples.
  *   - 15×256: 4/15, 1/15, 15/15 across 3 samples (mixed; bug still fires).
  *   - 15×512: 6/15, 8/15, 7/15 across 3 samples (mixed).
@@ -4925,7 +4925,7 @@ MODULE_PARM_DESC(caw_path,
                  "path A — partial fix).");
 
 /*
- * v0.3.128 sess30: post-CAS blkdev_issue_flush.
+ * v0.3.128 post-CAS blkdev_issue_flush.
  *
  * Investigation finding: the underlying physical SSD on the iSCSI/LIO
  * server (Samsung 870 EVO) has /sys/block/.../queue/fua = 0 (no native
@@ -4941,9 +4941,9 @@ MODULE_PARM_DESC(caw_path,
  * the caller, ensuring the next peer read sees our write.
  *
  * Sess26 tested blkdev_issue_flush after CAS in v0.3.108 era and said
- * "slight degradation, no fix" — but that was BEFORE sess29's Mode A
+ * "slight degradation, no fix" — but that was BEFORE Mode A
  * fix (msleep+double log_force).  Mode A was masking any improvement.
- * Re-testing in sess30 with all sess29 correctness fixes in place.
+ * Re-testing in with all correctness fixes in place.
  *
  * 0 = no flush (default until validated; minimal change).
  * 1 = blkdev_issue_flush after every CAS-success.
@@ -4956,7 +4956,7 @@ MODULE_PARM_DESC(caw_flush,
                  "no-FUA underlying device).");
 
 /*
- * v0.3.128 sess30: post-CAS FUA-readback verify (single check, no PAL-
+ * v0.3.128 post-CAS FUA-readback verify (single check, no PAL-
  * level retry).
  *
  * On verify mismatch we return -EAGAIN to the CALLER, surfacing the
@@ -4982,7 +4982,7 @@ static atomic64_t mxfs_caw_verify_ok;
 static atomic64_t mxfs_caw_verify_mismatch;
 
 /*
- * sess30 path A: build the SCSI request manually, mirroring the data path
+ * path A: build the SCSI request manually, mirroring the data path
  * that drivers/scsi/sg.c uses for SG_IO.  Specifically:
  *   - allocate a fresh page for the 1024-byte data payload (compare+write)
  *   - copy caller's compare/write buffers into the fresh page
@@ -4996,7 +4996,7 @@ static atomic64_t mxfs_caw_verify_mismatch;
  *   - bio carries a fresh private page, not virt_to_page(caller_buf)
  *     (avoids the bio_map_kern → bio_add_virt_nofail aliasing path)
  *   - scmd->allowed = 0 instead of 1 (matches SG_DEFAULT_RETRIES;
- *     sess26 already tested retries=0 without effect, but keep the
+ *     already tested retries=0 without effect, but keep the
  *     parity for now)
  *   - no RQF_QUIET on the request (sg doesn't set it; informational)
  */
@@ -5167,7 +5167,7 @@ int mxfs_pal_bdev_compare_and_write(mxfs_bdev_t *dev, uint64_t offset,
 	cdb[13] = 0x01;                     /* number of logical blocks = 1 */
 
 	/* Data buffer: compare (512) + write (512) = 1024 bytes.
-	 * v0.3.109 (sess26): use page-sized allocation for guaranteed
+	 * v0.3.109: use page-sized allocation for guaranteed
 	 * 512-byte alignment.  blk_rq_map_kern uses bounce buffer if the
 	 * passed kbuf isn't queue-aligned, which adds a copy step that
 	 * could be the bug source.  4KB allocation is naturally aligned
@@ -5189,9 +5189,9 @@ int mxfs_pal_bdev_compare_and_write(mxfs_bdev_t *dev, uint64_t offset,
 	unsigned char verify_buf[512];
 
 	/*
-	 * v0.3.128 (sess30): mxfs_caw_path=1 dispatches to the manual-bio
+	 * v0.3.128: mxfs_caw_path=1 dispatches to the manual-bio
 	 * SG-style submission to bypass bio_map_kern's bio_add_virt_nofail
-	 * data-aliasing path that sess26 P49 implicated as the cause of
+	 * data-aliasing path that P49 implicated as the cause of
 	 * silent CAS-success-without-persist.  Path 0 keeps the legacy
 	 * scsi_execute_cmd flow.  The pre-allocated `data` page above is
 	 * unused on path 1 (path 1 allocates its own fresh page); we keep
@@ -5227,8 +5227,8 @@ caw_submit:
 #endif
 
 	/*
-	 * P51-INSTR (sess26 final): log detailed CAW return + sense info
-	 * so sess27 can correlate fake-success cases with actual SCSI
+	 * P51-INSTR (final): log detailed CAW return + sense info
+	 * so can correlate fake-success cases with actual SCSI
 	 * status.  Log even on ret==0 if sense is valid — catches the
 	 * case where target returned GOOD status but provided sense data.
 	 * v0.3.108: also log if caw_resid != 0 (partial transfer — short
@@ -5237,7 +5237,7 @@ caw_submit:
 	{ extern int mxfs_instr_enabled; extern int mxfs_dirwr_enabled;
 	if (unlikely(mxfs_dirwr_enabled || mxfs_instr_enabled) &&
 	    (ret != 0 || scsi_sense_valid(&sshdr) || caw_resid != 0)) {
-		pr_warn_ratelimited("mxfs: P51-INSTR caw lba=%llu ret=%d resid=%d sense_valid=%d sense_key=0x%x asc=0x%x ascq=0x%x\n",
+		mxfs_probe_ratelimited("mxfs: P51-INSTR caw lba=%llu ret=%d resid=%d sense_valid=%d sense_key=0x%x asc=0x%x ascq=0x%x\n",
 			(unsigned long long)lba, ret, caw_resid,
 			scsi_sense_valid(&sshdr) ? 1 : 0,
 			sshdr.sense_key, sshdr.asc, sshdr.ascq);
@@ -5251,7 +5251,7 @@ caw_submit:
 	if (ret > 0 && scsi_sense_valid(&sshdr) &&
 	    sshdr.sense_key == UNIT_ATTENTION && ua_try < 5) {
 		ua_try++;
-		pr_warn_ratelimited("mxfs: P-CAW-UA-RETRY lba=%llu asc=0x%x ascq=0x%x try=%d\n",
+		mxfs_probe_ratelimited("mxfs: P-CAW-UA-RETRY lba=%llu asc=0x%x ascq=0x%x try=%d\n",
 			(unsigned long long)lba, sshdr.asc, sshdr.ascq,
 			ua_try);
 		msleep(2 << ua_try);
@@ -5270,7 +5270,7 @@ caw_submit:
 	if (ret > 0) {
 		/* RESERVATION CONFLICT is fencing, not an I/O fault: our PR
 		 * registration was preempted.  Collapsing it to -EIO hid the
-		 * sess276 fenced-victim from every layer above (the victim
+		 * fenced-victim from every layer above (the victim
 		 * spun P15-REL-ABORT for hours on -EIO CAS failures).  Both
 		 * submission paths land here: caw_manual_bio returns raw
 		 * scmd->result and scsi_execute_cmd returns the SCSI status,
@@ -5315,15 +5315,15 @@ caw_submit:
 	 * Plan B post-CAS verify: read the same LBA back via SCSI READ(16)
 	 * FUA and compare against `write_buf`.  If they don't match, the
 	 * target's "CAS-success" was accepted into a write-back cache and
-	 * the data hasn't yet committed to permanent media (sess26 root
-	 * cause #2; sess30 storage finding: Samsung 870 EVO doesn't support
+	 * the data hasn't yet committed to permanent media (root
+	 * cause #2; storage finding: Samsung 870 EVO doesn't support
 	 * FUA so LIO silently drops our FUA bit on writes — see
 	 * sess30_lessons.md).
 	 *
 	 * Strategy: bounded poll-for-persistence with exponential backoff.
 	 * Re-read up to N times waiting for delayed persistence to show up.
 	 * Crucially we do NOT retry the CAS — only the FUA-read.  This
-	 * avoids the compounding-retry issue from sess30's earlier
+	 * avoids the compounding-retry issue from earlier
 	 * verify-with-CAS-retry attempt (which ETIMEDOUT'd the DLM grant).
 	 *
 	 * If the read eventually shows our content, return success.
@@ -5368,7 +5368,7 @@ caw_submit:
 	 * caller's existing miscompare-retry path.
 	 */
 	atomic64_inc(&mxfs_caw_verify_mismatch);
-	pr_warn_ratelimited("mxfs: P71-INSTR caw verify-mismatch lba=%llu — kernel SCSI passthrough non-persist (sess26 root cause #2); returning -EAGAIN\n",
+	mxfs_probe_ratelimited("mxfs: P71-INSTR caw verify-mismatch lba=%llu — kernel SCSI passthrough non-persist (sess26 root cause #2); returning -EAGAIN\n",
 		(unsigned long long)lba);
 	ret = -EAGAIN;
 

@@ -32,7 +32,7 @@
 #include "xfs_mxfs_dlm.h"
 #include "../dlm/v5_mount.h"
 
-/* sess23: igrab() call-site attribution — see mxfs_igrab_tracked(). */
+/* igrab call-site attribution — see mxfs_igrab_tracked. */
 #define igrab(vi) mxfs_igrab_tracked((vi), __LINE__, 2)
 #define iput(vi) mxfs_iput_tracked((vi), __LINE__, 2)
 #include <mxfs/mxfs_dlm.h>
@@ -41,7 +41,7 @@
 #include <linux/moduleparam.h>
 
 /*
- * D-0527 (sess472): how many XFS_IGET_UNTRUSTED igets ran their allocation
+ * D-0527: how many XFS_IGET_UNTRUSTED igets ran their allocation
  * check (xfs_imap_lookup's AGI + inobt walk) under the AG DLM.  Read-only;
  * the verification harness reads it to prove the bracket executed rather
  * than the peer's cache happening to be fresh.
@@ -126,7 +126,7 @@ static int xfs_icwalk_ag(struct xfs_perag *pag,
 		enum xfs_icwalk_goal goal, struct xfs_icwalk *icw);
 
 /*
- * ccloopff21 sess1: record the task holding pag_ici_lock, mirroring
+ * ccloopff21 record the task holding pag_ici_lock, mirroring
  * mxfs_ag_stamp_holder (xfs_mxfs_dlm.c) for pag_dlm_lock.  Diagnostic only —
  * chasing a soft lockup (kworker/u10, kworker/u11, bash all spinning
  * forever) that followed an XFS_ALL_IRECLAIM_FLAGS assert at line ~3210
@@ -142,7 +142,7 @@ mxfs_ici_stamp_holder(struct xfs_perag *pag)
 }
 
 /*
- * ccloop 703f15c3 sess1: the holder-stamp fields above were written on every
+ *  the holder-stamp fields above were written on every
  * acquire but never consumed — no capture existed to name a stuck holder when
  * the lockup this diagnostic is chasing actually happens.  This is that
  * consumer: a spin_lock-equivalent (same non-blocking, non-preemptible
@@ -198,7 +198,7 @@ static inline xa_mark_t ici_tag_to_mark(unsigned int tag)
 }
 
 /*
- * ccloop c7ee71c6 sess23 — D-UNMOUNT-BUSY-INODES leak detector.
+ *  — D-UNMOUNT-BUSY-INODES leak detector.
  *
  * Every allocated xfs_inode joins this list and leaves it in the RCU free
  * callback (the last instant before kmem_cache_free), so the list is an exact
@@ -264,12 +264,12 @@ mxfs_report_leaked_inodes(void)
 			atomic_read(&vip->i_writecount),
 			(void *)ip->i_mxfs_iget_ret);
 		/*
-		 * ccloop c7ee71c6 sess27 — P206-OWNERS, the OWNERSHIP question.
+		 *  — P206-OWNERS, the OWNERSHIP question.
 		 *
 		 * Every pairing-based instrument has now failed here (global
 		 * grab/release balance, the refcount-level table, and the
 		 * final-tenure scoping added this session, which measured its
-		 * own failure at tenure_grabs=499).  Per the design-consult GPT consult
+		 * own failure at tenure_grabs=499).  Per the design-consult design review consult
 		 * the right question is not "who incremented and never
 		 * decremented" but "WHICH OWNER OBJECT still contains this
 		 * inode".  drgn/crash/gdb and debug symbols are all absent from
@@ -295,7 +295,7 @@ mxfs_report_leaked_inodes(void)
 
 			hlist_for_each_entry(de, &vip->i_dentry, d_u.d_alias)
 				nd++;
-			pr_warn("mxfs: P206-OWNERS ino=%llu fsnotify=%d flctx=%d iprivate=%d nrpages=%lu readcount=%d dentry_count=%d i_state=0x%lx i_opflags=0x%x — which OWNER object still contains this inode\n",
+			mxfs_probe("mxfs: P206-OWNERS ino=%llu fsnotify=%d flctx=%d iprivate=%d nrpages=%lu readcount=%d dentry_count=%d i_state=0x%lx i_opflags=0x%x — which OWNER object still contains this inode\n",
 				(unsigned long long)ip->i_ino,
 				rcu_access_pointer(vip->i_fsnotify_marks) ? 1 : 0,
 				vip->i_flctx ? 1 : 0,
@@ -305,7 +305,7 @@ mxfs_report_leaked_inodes(void)
 				nd, mxfs_istate(vip), (unsigned)vip->i_opflags);
 		}
 		/*
-		 * sess26 P205-REFBAL — which HALF of the code holds the survivor.
+		 * P205-REFBAL — which HALF of the code holds the survivor.
 		 *
 		 * P203-LEVEL names the grab occupying each refcount level but is
 		 * sound only under LIFO release order, so it cannot prove who
@@ -320,7 +320,7 @@ mxfs_report_leaked_inodes(void)
 		 * Anything in between means both, and the difference from icount is
 		 * how many untracked references survive.
 		 */
-		pr_warn("mxfs: P205-REFBAL ino=%llu icount=%d tgrabs=%u tputs=%u net=%d verdict=%s\n",
+		mxfs_probe("mxfs: P205-REFBAL ino=%llu icount=%d tgrabs=%u tputs=%u net=%d verdict=%s\n",
 			(unsigned long long)ip->i_ino,
 			atomic_read(&vip->i_count),
 			(unsigned int)ip->i_mxfs_tgrabs,
@@ -339,7 +339,7 @@ mxfs_report_leaked_inodes(void)
 		 * file:line, since those sites are macro-tagged not IP-tagged).
 		 */
 		/*
-		 * sess25: the OUTSTANDING-GRAB STACK is the answer; the ring
+		 * the OUTSTANDING-GRAB STACK is the answer; the ring
 		 * below is only corroborating history.  Anything still on this
 		 * stack is a grab with no matching release — i.e. the leak
 		 * itself, named by site.  A nonzero under= means a release was
@@ -351,10 +351,10 @@ mxfs_report_leaked_inodes(void)
 			int	k;
 
 			/*
-			 * sess27: the table is now scoped to the FINAL busy
+			 * the table is now scoped to the FINAL busy
 			 * tenure (cleared at every i_count->0 in
 			 * xfs_fs_drop_inode), so the LIFO objection that made
-			 * the sess25/26 reading unsound no longer applies —
+			 * the /26 reading unsound no longer applies —
 			 * there is only one tenure's worth of grabs in it.
 			 *
 			 * tenure_grabs=0 is a RESULT, not a missing
@@ -365,7 +365,7 @@ mxfs_report_leaked_inodes(void)
 			 * through i_count==0 on our watch, which would
 			 * contradict lru_linked=1 and indicts the instrument.
 			 */
-			pr_warn("mxfs: P203-GRABLEVELS ino=%llu icount=%d over=%u zero_seq=%u tenure_grabs=%u tenure_age_ms=%u lru_linked=%d verdict=%s — slot N names the grab that took i_count to N WITHIN THE FINAL TENURE; with icount=1 slot 1 IS the outstanding reference\n",
+			mxfs_probe("mxfs: P203-GRABLEVELS ino=%llu icount=%d over=%u zero_seq=%u tenure_grabs=%u tenure_age_ms=%u lru_linked=%d verdict=%s — slot N names the grab that took i_count to N WITHIN THE FINAL TENURE; with icount=1 slot 1 IS the outstanding reference\n",
 				(unsigned long long)ip->i_ino,
 				atomic_read(&vip->i_count),
 				ip->i_mxfs_grabst_over,
@@ -389,11 +389,11 @@ mxfs_report_leaked_inodes(void)
 				 * (packed file:line); kind 1 = xfs_iget handing
 				 * out a ref (a raw return address). */
 				if (ip->i_mxfs_grabst_kind[k] == 2)
-					pr_warn("mxfs:   P203-LEVEL[%d] site=file%lu:line%lu\n",
+					mxfs_probe("mxfs:   P203-LEVEL[%d] site=file%lu:line%lu\n",
 						k + 1, who >> 32,
 						who & 0xffffffffUL);
 				else
-					pr_warn("mxfs:   P203-LEVEL[%d] %pS\n",
+					mxfs_probe("mxfs:   P203-LEVEL[%d] %pS\n",
 						k + 1, (void *)who);
 			}
 		}
@@ -409,12 +409,12 @@ mxfs_report_leaked_inodes(void)
 				if (!who)
 					continue;
 				if (kind >= 2)
-					pr_warn("mxfs:   P202-REFEV[%d] %s site=file%lu:line%lu count_after=%u\n",
+					mxfs_probe("mxfs:   P202-REFEV[%d] %s site=file%lu:line%lu count_after=%u\n",
 						k, kind == 2 ? "GRAB" : "RELE",
 						who >> 32, who & 0xffffffffUL,
 						ip->i_mxfs_refev_cnt[idx]);
 				else
-					pr_warn("mxfs:   P202-REFEV[%d] %s %pS count_after=%u\n",
+					mxfs_probe("mxfs:   P202-REFEV[%d] %s %pS count_after=%u\n",
 						k, kind == 1 ? "IGET" : "IRELE",
 						(void *)who,
 						ip->i_mxfs_refev_cnt[idx]);
@@ -500,12 +500,12 @@ xfs_inode_alloc(
 	ip->i_mxfs_openprot_arm = 0;
 	ip->i_mxfs_open_pub = false;
 	ip->i_mxfs_open_setting = false;
-	ip->i_mxfs_dirshard = NULL;	/* sess466: sharded-parent manifest cache */
+	ip->i_mxfs_dirshard = NULL;	/* sharded-parent manifest cache */
 
 	/* MXFS DLM lock cache */
 	mxfs_dlm_inode_init(ip);
 
-	/* sess23: join the live registry (see mxfs_report_leaked_inodes). */
+	/* join the live registry (see mxfs_report_leaked_inodes). */
 	INIT_LIST_HEAD(&ip->i_mxfs_live_link);
 	ip->i_mxfs_alloc_jiffies = jiffies;
 	if (mxfs_live_inode_track) {
@@ -537,7 +537,7 @@ xfs_inode_free_callback(
 
 	xfs_ifork_zap_attr(ip);
 
-	/* sess14: free the 3-way shortform-merge base snapshot, if any. */
+	/* free the 3-way shortform-merge base snapshot, if any. */
 	if (ip->i_dlm_dir_sf_base) {
 		kfree(ip->i_dlm_dir_sf_base);
 		ip->i_dlm_dir_sf_base = NULL;
@@ -557,14 +557,14 @@ xfs_inode_free_callback(
 		ip->i_dlm_dir_sf_own_next = 0;
 	}
 
-	/* sess65: free the pending local-dirent replay list, if any. */
+	/* free the pending local-dirent replay list, if any. */
 	if (ip->i_dlm_dir_pending) {
 		kfree(ip->i_dlm_dir_pending);
 		ip->i_dlm_dir_pending = NULL;
 		ip->i_dlm_dir_pending_bytes = 0;
 	}
 
-	/* sess34: free the per-tenure drain-merge removed-set, if any. */
+	/* free the per-tenure drain-merge removed-set, if any. */
 	if (ip->i_dlm_dir_removed) {
 		kfree(ip->i_dlm_dir_removed);
 		ip->i_dlm_dir_removed = NULL;
@@ -572,7 +572,7 @@ xfs_inode_free_callback(
 		ip->i_dlm_dir_removed_cap = 0;
 	}
 
-	/* sess466: free a sharded parent's manifest cache, if any. */
+	/* free a sharded parent's manifest cache, if any. */
 	if (ip->i_mxfs_dirshard) {
 		kfree(ip->i_mxfs_dirshard);
 		ip->i_mxfs_dirshard = NULL;
@@ -590,7 +590,7 @@ xfs_inode_free_callback(
 	}
 
 	/*
-	 * sess23: leave the live registry.  This is the last instant before the
+	 * leave the live registry.  This is the last instant before the
 	 * object returns to the slab, so the list stays an exact mirror of the
 	 * cache's live objects.  list_del_init() (not list_del) so a double
 	 * free would be visible rather than corrupting the list.
@@ -604,7 +604,7 @@ xfs_inode_free_callback(
 	}
 
 	/*
-	 * sess29: the slab does NOT zero this object on the next allocation, so
+	 * the slab does NOT zero this object on the next allocation, so
 	 * a demoter claim still set here is inherited by whatever inode lands on
 	 * this memory next and makes mxfs_foreign_demoter() true for it from
 	 * birth — a permanent strand nothing can own or clear.  Must be the last
@@ -634,7 +634,7 @@ xfs_inode_free(
 	ASSERT(!xfs_iflags_test(ip, XFS_IFLUSHING));
 
 	/*
-	 * sess5 shadow ledger — DISCARD-LEAK probe: freeing an inode whose
+	 * shadow ledger — DISCARD-LEAK probe: freeing an inode whose
 	 * nlink==0 state still holds a +1 in s_remove_count (flag set)
 	 * means no __destroy_inode dec will ever run for it — the counter
 	 * leaks +1 permanently (remount-ro -EBUSY forever).  Upstream shape:
@@ -811,7 +811,7 @@ xfs_reinit_inode(
 	error = inode_init_always(mp->m_super, inode);
 
 	/*
-	 * sess9(a9a03929) instrumented s_remove_count skew ledger (see P9-NLEDGE in
+	 * instrumented s_remove_count skew ledger (see P9-NLEDGE in
 	 * xfs_inode_buf.c).  inode_init_always RAW-writes __i_nlink=1 (no
 	 * accounting), so recycling an nlink==0 corpse makes the set_nlink(0)
 	 * below re-INCREMENT s_remove_count for a zero-state that was already
@@ -820,14 +820,14 @@ xfs_reinit_inode(
 	if (nlink == 0) {
 		static atomic_t p9rc_n = ATOMIC_INIT(0);
 		if (atomic_inc_return(&p9rc_n) <= 4000)
-			pr_warn("mxfs: P9-NLEDGE reinit0 ino=%llu rmcnt=%ld acct=%d comm=%s\n",
+			mxfs_probe("mxfs: P9-NLEDGE reinit0 ino=%llu rmcnt=%ld acct=%d comm=%s\n",
 				(unsigned long long)XFS_I(inode)->i_ino,
 				atomic_long_read(&inode->i_sb->s_remove_count),
 				xfs_iflags_test(XFS_I(inode), MXFS_IF_RMC_ACCT) ? 1 : 0,
 				current->comm);
 	}
 	/*
-	 * sess5 shadow ledger: inode_init_always above RAW-wrote __i_nlink=1,
+	 * shadow ledger: inode_init_always above RAW-wrote __i_nlink=1,
 	 * so mxfs_set_nlink(0) below goes through clear_nlink and INCS
 	 * s_remove_count — correct re-accounting, because the corpse's prior
 	 * zero was dec'd by __destroy_inode at VFS eviction (which also
@@ -849,7 +849,7 @@ xfs_reinit_inode(
 		xfs_iflags_clear(XFS_I(inode), MXFS_IF_RMC_ACCT);
 	}
 	/*
-	 * sess5 (b68r1 -45 flood): the corpse still carries I_FREEING|I_CLEAR
+	 * (b68r1 -45 flood): the corpse still carries I_FREEING|I_CLEAR
 	 * here — xfs_iget_recycle stamps I_NEW only after we return — and
 	 * mxfs_set_nlink's corpse-raw arm would swallow the re-accounting
 	 * inc this restore must perform.  This inode is becoming LIVE again:
@@ -896,7 +896,7 @@ xfs_iget_recycle(
 	trace_xfs_iget_recycle(ip);
 
 	/*
-	 * ccloop cc87fed3 sess6: direct-evidence probe (Fable-guided,
+	 *  direct-evidence probe (Fable-guided,
 	 * P135-PRSWEEP-CYCLE root cause hunt).  PROVEN via live capture
 	 * (P139-RECYCLE-UNLINKED, 14 hits in one repro, always on a reused
 	 * ino under directory churn + fault_netpartition, always via the
@@ -907,7 +907,7 @@ xfs_iget_recycle(
 	 * run on it), while still reachable via the per-AG radix tree (only
 	 * removed near the very end of xfs_reclaim_inode's own teardown).
 	 *
-	 * TRIED AND REVERTED (sess6): auto-healing by calling
+	 * TRIED AND REVERTED: auto-healing by calling
 	 * inode_sb_list_add(inode) right here made things WORSE, not
 	 * better -- re-validating with that fix live, P135's cycle length
 	 * grew (visited=17 on the first hit, vs visited=2-3 pre-fix) and
@@ -925,12 +925,12 @@ xfs_iget_recycle(
 		static atomic_t p139_n = ATOMIC_INIT(0);
 
 		if (atomic_inc_return(&p139_n) <= 200)
-			pr_warn("mxfs: P139-RECYCLE-UNLINKED ino=0x%llx ip=%px pid=%d comm=%s — recycling an inode whose i_sb_list is ALREADY empty (already evicted by someone else)\n",
+			mxfs_probe("mxfs: P139-RECYCLE-UNLINKED ino=0x%llx ip=%px pid=%d comm=%s — recycling an inode whose i_sb_list is ALREADY empty (already evicted by someone else)\n",
 				(unsigned long long)ip->i_ino, ip, current->pid,
 				current->comm);
 	} else {
 		/*
-		 * ccloop cc87fed3 sess7: instrumented -- the P141-SETUP-DOUBLE-ADD
+		 *  instrumented -- the P141-SETUP-DOUBLE-ADD
 		 * evidence (xfs_setup_inode, pal/linux/xfs_iops.c) proves the
 		 * actual corruption precursor is the OPPOSITE of what P139
 		 * checks: xfs_fs_destroy_inode (the only site that sets
@@ -947,7 +947,7 @@ xfs_iget_recycle(
 		static atomic_t p142_n = ATOMIC_INIT(0);
 
 		if (atomic_inc_return(&p142_n) <= 200)
-			pr_warn("mxfs: P142-RECYCLE-STILL-LINKED ino=0x%llx ip=%px pid=%d comm=%s count=%d nlink=%u mode=0%o — recycling an IRECLAIMABLE inode whose i_sb_list is STILL LINKED (next=%px prev=%px)\n",
+			mxfs_probe("mxfs: P142-RECYCLE-STILL-LINKED ino=0x%llx ip=%px pid=%d comm=%s count=%d nlink=%u mode=0%o — recycling an IRECLAIMABLE inode whose i_sb_list is STILL LINKED (next=%px prev=%px)\n",
 				(unsigned long long)ip->i_ino, ip, current->pid,
 				current->comm, atomic_read(&inode->i_count),
 				inode->i_nlink, inode->i_mode,
@@ -957,7 +957,7 @@ xfs_iget_recycle(
 	ASSERT(!rwsem_is_locked(&inode->i_rwsem));
 	error = xfs_reinit_inode(mp, inode);
 	/*
-	 * sess472 (D-0532): the ILOCK_EXCL here was taken by xfs_ilock_nowait
+	 * (D-0532): the ILOCK_EXCL here was taken by xfs_ilock_nowait
 	 * in xfs_iget_cache_hit, which enters NO DLM begin for ILOCK; a plain
 	 * xfs_iunlock would run mxfs_dlm_ilock_end on a corpse that still
 	 * carries its DEFERRED-free cached grant (P128-INACT-DEFER) — an
@@ -970,7 +970,7 @@ xfs_iget_recycle(
 	xfs_iunlock_nodlm(ip, XFS_ILOCK_EXCL);
 
 	/*
-	 * sess2 (a9a03929) STALE-BAST-ON-RECYCLE FIX (P2G/P2D proven): a
+	 * STALE-BAST-ON-RECYCLE FIX (P2G/P2D proven): a
 	 * recycled in-core inode is a NEW incarnation, but the DLM bast
 	 * bookkeeping of the PREVIOUS incarnation (i_dlm_bast_pending +
 	 * state=BAST, left behind after its unlink/inactivation released the
@@ -1000,7 +1000,7 @@ xfs_iget_recycle(
 	 * the grant exactly as it would have, and the new incarnation's first
 	 * xfs_ilock parks in the demote-wait (state BAST, no local holder)
 	 * and acquires fresh after the hand-off.  Ruled by design consult
-	 * (Astra, 2026-09-18): preserve or service the obligation, never
+	 * (design review, 2026-09-18): preserve or service the obligation, never
 	 * discard it because the incarnation changed.  recycle_bast_keep=0
 	 * restores the unconditional clear for A/B.
 	 */
@@ -1084,14 +1084,14 @@ xfs_iget_recycle(
 		if (xfs_buf_incore(mp->m_ddev_targp, ip->i_imap.im_blkno,
 				   ip->i_imap.im_len, 0, &stale_bp) == 0) {
 			/*
-			 * sess91 ROOT FIX: never clear XBF_DONE on a cluster
+			 * ROOT FIX: never clear XBF_DONE on a cluster
 			 * buffer that carries this node's logged-but-not-
 			 * checkpointed modification to a co-resident inode —
 			 * the re-read would clobber it (P90-FUA-OVER-LOGGED).
 			 * See the matching guard in xfs_iget_cache_miss.
 			 */
 			if (mxfs_buf_has_uncheckpointed_mods(stale_bp)) {
-				pr_warn_ratelimited(
+				mxfs_probe_ratelimited(
 				    "mxfs: P91-RECYCLE-PROTECT ino=0x%llx blkno=0x%llx flags=0x%x — keeping in-core authoritative cluster buffer\n",
 				    (unsigned long long)ip->i_ino,
 				    (unsigned long long)ip->i_imap.im_blkno,
@@ -1102,10 +1102,10 @@ xfs_iget_recycle(
 				 * logged — a later re-read of this daddr pulls
 				 * PLATTER content, which under publish-only
 				 * dirsig may predate our committed state.
-				 * sess38 run14d: gated for ship. */
+				 * run14d: gated for ship. */
 				if (unlikely(mxfs_dirwr_enabled ||
 					     mxfs_instr_enabled))
-					pr_warn_ratelimited(
+					mxfs_probe_ratelimited(
 					    "mxfs: P20-CLUSTER-INVAL site=recycle ino=0x%llx blkno=0x%llx flags=0x%x comm=%s\n",
 					    (unsigned long long)ip->i_ino,
 					    (unsigned long long)ip->i_imap.im_blkno,
@@ -1120,7 +1120,7 @@ xfs_iget_recycle(
 				xfs_buf_offset(rbp, ip->i_imap.im_boffset);
 
 			/*
-			 * sess5 ROOT FIX (b70r1 shutdown, proven by instrument): when
+			 * ROOT FIX (b70r1 shutdown, proven by instrument): when
 			 * the cluster buffer is P91-PROTECTED (carries our
 			 * uncheckpointed mods to a co-resident inode), the
 			 * xfs_imap_to_bp read above is a CACHE HIT on that
@@ -1154,7 +1154,7 @@ xfs_iget_recycle(
 
 					if (sdip->di_mode != dip->di_mode ||
 					    sdip->di_gen != dip->di_gen)
-						pr_warn("mxfs: P-CR63-SIDEREAD ino=%llu cached[mode=0%o gen=%u] platter[mode=0%o gen=%u] — protected cluster buf lagged the platter; verdict uses platter\n",
+						mxfs_probe("mxfs: P-CR63-SIDEREAD ino=%llu cached[mode=0%o gen=%u] platter[mode=0%o gen=%u] — protected cluster buf lagged the platter; verdict uses platter\n",
 							(unsigned long long)ip->i_ino,
 							be16_to_cpu(dip->di_mode),
 							be32_to_cpu(dip->di_gen),
@@ -1168,7 +1168,7 @@ xfs_iget_recycle(
 			 * The adopt decision.  Adopt a LIVE platter image of a
 			 * DIFFERENT incarnation; keep the in-core state for the
 			 * same incarnation (it may be ahead of the platter, the
-			 * sess39 RELOAD-SIZE-DROP regression) and for the one
+			 * RELOAD-SIZE-DROP regression) and for the one
 			 * lag this node can produce itself: a platter still
 			 * carrying the pre-free image of the incarnation this
 			 * node freed in core (xfs_inode_uninit bumped the
@@ -1200,13 +1200,13 @@ xfs_iget_recycle(
 				recycle_adopt = be16_to_cpu(dip->di_mode) != 0 &&
 						dgen != igen && dgen + 1 != igen;
 			}
-			/* sess70: decisive always-on diagnostic for the
+			/* decisive always-on diagnostic for the
 			 * INODE-REUSE type-confusion residual.  When a stale
 			 * inode is recycled, log disk di_mode/di_gen vs the
 			 * preserved in-core gen + the gate decision.  If the
 			 * gen-gate SKIPS (disk gen == incore gen) while the
 			 * type differs, the stale DIR mode is kept = the bug. */
-			pr_warn_ratelimited(
+			mxfs_probe_ratelimited(
 				"mxfs: P-RECYCLE-GATE ino=%llu disk_mode=0%o disk_gen=%u incore_mode=0%o incore_gen=%u adopt=%d\n",
 				(unsigned long long)ip->i_ino,
 				be16_to_cpu(dip->di_mode),
@@ -1227,7 +1227,7 @@ xfs_iget_recycle(
 				 * reclaim recovery below); the create errors
 				 * loudly instead of clobbering a live inode.
 				 */
-				pr_warn("mxfs: P-CR63-DEFER-DISKLIVE ino=%llu disk_mode=0%o disk_gen=%u incore_gen=%u — deferred deadshell CREATE found LIVE platter image; failing recycle\n",
+				mxfs_probe("mxfs: P-CR63-DEFER-DISKLIVE ino=%llu disk_mode=0%o disk_gen=%u incore_gen=%u — deferred deadshell CREATE found LIVE platter image; failing recycle\n",
 					(unsigned long long)ip->i_ino,
 					be16_to_cpu(dip->di_mode),
 					be32_to_cpu(dip->di_gen),
@@ -1241,7 +1241,7 @@ xfs_iget_recycle(
 				 * core — is excluded above).
 				 */
 				xfs_idestroy_fork(&ip->i_df);
-				/* sess473 (D-0535): zap, not destroy — a stale
+				/* (D-0535): zap, not destroy — a stale
 				 * if_bytes/if_format must not survive into an
 				 * incarnation without an attr fork (see
 				 * mxfs_dlm_reset_inode_for_create). */
@@ -1258,11 +1258,11 @@ xfs_iget_recycle(
 					/* ccloop-4dd7: adopted a DIFFERENT
 					 * incarnation — the old life's
 					 * local-unlink intent must not leak
-					 * onto it (sess37 flag-leak). */
+					 * onto it (flag-leak). */
 					xfs_iflags_clear(ip,
 						MXFS_IF_LOCAL_UNLINK);
 					/*
-					 * sess68 (instrumented): we just adopted a
+					 * (instrumented): we just adopted a
 					 * DIFFERENT incarnation of this reused dir
 					 * inode#.  The cluster buffer was staled
 					 * above, but the prior incarnation's dir
@@ -1301,7 +1301,7 @@ xfs_iget_recycle(
 				 * sees a free inode.
 				 */
 				xfs_idestroy_fork(&ip->i_df);
-				/* sess473 (D-0535): zap, not destroy — a stale
+				/* (D-0535): zap, not destroy — a stale
 				 * if_bytes/if_format must not survive into an
 				 * incarnation without an attr fork (see
 				 * mxfs_dlm_reset_inode_for_create). */
@@ -1326,7 +1326,7 @@ xfs_iget_recycle(
 				VFS_I(ip)->i_generation =
 					be32_to_cpu(dip->di_gen);
 				/* ccloop-4dd7: prior-life intent must not leak
-				 * into the new life (sess37 flag-leak). */
+				 * into the new life (flag-leak). */
 				xfs_iflags_clear(ip, MXFS_IF_LOCAL_UNLINK | MXFS_IF_ADOPTED_UNLINK);
 				pr_warn_ratelimited(
 				    "mxfs: P-RECYCLE-SANITIZE ino=%llu disk_gen=%u — peer-freed dead shell reset to free (missed local uninit emulated)\n",
@@ -1368,11 +1368,11 @@ xfs_iget_recycle(
 							&amode, &agen, &amagic);
 
 		if (arc) {
-			pr_warn("mxfs: P946-RECYCLE-ASSERT-READFAIL ino=%llu rc=%d — platter home unreadable at the create-path recycle; no verdict taken\n",
+			mxfs_probe("mxfs: P946-RECYCLE-ASSERT-READFAIL ino=%llu rc=%d — platter home unreadable at the create-path recycle; no verdict taken\n",
 				(unsigned long long)ip->i_ino, arc);
 		} else if (amagic && amode != 0) {
 			mxfs_dbg_recycle_platter_note(true);
-			pr_warn("mxfs: P946-RECYCLE-ASSERT-DISKLIVE ino=%llu disk_mode=0%o disk_gen=%u incore_gen=%u deadshell=%d — create-path recycle of a number whose platter dinode is LIVE: the allocator handed out a number whose free is not on the platter; failing the recycle\n",
+			mxfs_probe("mxfs: P946-RECYCLE-ASSERT-DISKLIVE ino=%llu disk_mode=0%o disk_gen=%u incore_gen=%u deadshell=%d — create-path recycle of a number whose platter dinode is LIVE: the allocator handed out a number whose free is not on the platter; failing the recycle\n",
 				(unsigned long long)ip->i_ino, amode, agen,
 				VFS_I(ip)->i_generation, deadshell_create ? 1 : 0);
 			error = -EFSCORRUPTED;
@@ -1382,7 +1382,7 @@ xfs_iget_recycle(
 	}
 
 	/*
-	 * sess428 (instrumented, s431 board collapse): a shell this node FREED may
+	 * (instrumented, s431 board collapse): a shell this node FREED may
 	 * carry a dead-incarnation WRITE-POISON (i_mxfs_dead_incarn_gen) from
 	 * the FREE-PUBLISH audit / P55C verdict on its old life.  When THIS
 	 * node re-allocates the number (dialloc under the AG EX; a deadshell
@@ -1400,7 +1400,7 @@ xfs_iget_recycle(
 		ip->i_mxfs_dead_incarn_gen = 0;
 	}
 	/*
-	 * sess430 (D-0351 chain): the number is being re-allocated by THIS node
+	 * (D-0351 chain): the number is being re-allocated by THIS node
 	 * while its previous life's FREE obligation may still be open — the
 	 * store entry must stop being actionable (CHAIN_LIVE) before this life
 	 * can be flushed or audited.  Also resets the previous life's per-inode
@@ -1410,7 +1410,7 @@ xfs_iget_recycle(
 		mxfs_pubob_recycle(mp, ip, deadshell_create);
 
 	/*
-	 * sess409 (D-FREPLAY-VICTIM-INODE-CORE-NOT-APPLIED-BUCKET-TO-ZERO-CORE-
+	 * (D-FREPLAY-VICTIM-INODE-CORE-NOT-APPLIED-BUCKET-TO-ZERO-CORE-
 	 * 408): a CREATE that recycles an in-core reclaimable shell is the
 	 * DOMINANT reincarnation path under churn (same node frees and
 	 * re-allocates the agino while the shell is still cached) — the
@@ -1544,7 +1544,7 @@ xfs_iget_check_free_state(
 				if (xfs_buf_incore(ip->i_mount->m_ddev_targp,
 					ip->i_imap.im_blkno, ip->i_imap.im_len,
 					0, &_dbp) == 0) {
-					mxfs_pal_log(MXFS_LOG_WARN,
+					mxfs_pal_log(MXFS_LOG_DEBUG,
 						"mxfs: P16-INSTR has-blocks-buf ino=0x%llx "
 						"blkno=%llu bli=%px dq=%d li=%d "
 						"flags=0x%x dlm_stale=%d nblocks=%llu",
@@ -1562,7 +1562,7 @@ xfs_iget_check_free_state(
 						   (ip->i_mount->m_sb.sb_inopblock - 1)) * isz;
 						struct xfs_dinode *dip =
 							(struct xfs_dinode *)((char *)_dbp->b_addr + off);
-						mxfs_pal_log(MXFS_LOG_WARN,
+						mxfs_pal_log(MXFS_LOG_DEBUG,
 							"mxfs: P16-INSTR has-blocks-disk ino=0x%llx off=%u "
 							"magic=0x%04x mode=0x%04x ver=0x%02x fmt=0x%02x "
 							"nlink=%u nblocks=%llu size=%lld",
@@ -1576,7 +1576,7 @@ xfs_iget_check_free_state(
 					}
 					xfs_buf_relse(_dbp);
 				} else {
-					mxfs_pal_log(MXFS_LOG_WARN,
+					mxfs_pal_log(MXFS_LOG_DEBUG,
 						"mxfs: P16-INSTR has-blocks-buf ino=0x%llx "
 						"blkno=%llu NOT-IN-CACHE dlm_stale=%d nblocks=%llu",
 						ip->i_ino,
@@ -1596,14 +1596,14 @@ xfs_iget_check_free_state(
 	/* should be an allocated inode */
 	if (VFS_I(ip)->i_mode == 0) {
 		/*
-		 * sess38 P-IGET-ENOENT: a peer-allocated inode reachable via a
+		 * P-IGET-ENOENT: a peer-allocated inode reachable via a
 		 * now-visible parent dirent reads as mode==0 here -> ENOENT
 		 * (concurrent-mkdir loser sees the winner's child as missing).
 		 * Distinguish: cached cluster buffer stale (cached_disk_mode==0)
 		 * vs in-core ip not refreshed from a good buffer (cached!=0).
 		 */
 		/*
-		 * sess40 DIAGNOSTIC (always-on, rate-limited, multi-node only):
+		 * DIAGNOSTIC (always-on, rate-limited, multi-node only):
 		 * fires when a path resolved to this inode but its in-core mode
 		 * reads 0 -> the caller sees ENOENT for a name that exists on a
 		 * peer.  cached_disk_mode distinguishes a stale on-disk inode
@@ -1612,7 +1612,7 @@ xfs_iget_check_free_state(
 		 * (!=0).  Cheap: only reached when in-core mode==0.
 		 */
 		/*
-		 * sess127: UNGATED (was instr-gated, which hid the decisive
+		 * UNGATED (was instr-gated, which hid the decisive
 		 * evidence — instr=1 is a 100x slowdown that masks the race).
 		 * Fires only on the mode==0 -> ENOENT error path, rate-limited.
 		 */
@@ -1647,7 +1647,7 @@ xfs_iget_check_free_state(
 				struct xfs_dinode *dip =
 				   (struct xfs_dinode *)((char *)_b->b_addr + off);
 				/*
-				 * sess40: also FUA-read the cluster straight from the
+				 * also FUA-read the cluster straight from the
 				 * backing store (past the SCST write cache) to tell a
 				 * DURABILITY gap (fua_mode==0: creator never flushed the
 				 * dinode to the platter) from a CACHING/ordering gap
@@ -1668,7 +1668,7 @@ xfs_iget_check_free_state(
 						   ((struct xfs_dinode *)((char *)pg + off))->di_mode);
 					free_page((unsigned long)pg);
 				}
-				pr_warn_ratelimited(
+				mxfs_probe_ratelimited(
 					"mxfs: P-IGET-ENOENT ino=0x%llx incore_mode=0 cached_disk_mode=0x%x fua_disk_mode=0x%x flags=0x%lx iget_flags=0x%x reclaimable=%d dlm_stale=%d buf_flags=0x%x\n",
 					ip->i_ino, be16_to_cpu(dip->di_mode), fua_mode,
 					ip->i_flags, flags,
@@ -1676,13 +1676,13 @@ xfs_iget_check_free_state(
 					ip->i_dlm_stale, _b->b_flags);
 				xfs_buf_relse(_b);
 			} else {
-				pr_warn_ratelimited(
+				mxfs_probe_ratelimited(
 					"mxfs: P-IGET-ENOENT ino=0x%llx incore_mode=0 buf=NOT-CACHED-or-ATOMIC iget_flags=0x%x reclaimable=%d dlm_stale=%d\n",
 					ip->i_ino, flags,
 					(ip->i_flags & XFS_IRECLAIMABLE) ? 1 : 0,
 					ip->i_dlm_stale);
 			}
-			/* sess4(a16ec5f2) DECISIVE: run27 proved the dangler
+			/* DECISIVE: run27 proved the dangler
 			 * ENOENTs (dlm_stale=1, !IRECLAIMABLE, iget_flags=0)
 			 * take NEITHER cache_hit reuse branch (P4S=0,
 			 * P-REUSE-RELOAD=0).  Name the actual call path. */
@@ -1691,9 +1691,9 @@ xfs_iget_check_free_state(
 				static atomic_t p4st_n = ATOMIC_INIT(0);
 
 				if (atomic_inc_return(&p4st_n) <= 3) {
-					pr_warn("mxfs: P4ST-ENOENT-STACK ino=0x%llx iget_flags=0x%x\n",
+					mxfs_probe("mxfs: P4ST-ENOENT-STACK ino=0x%llx iget_flags=0x%x\n",
 						ip->i_ino, flags);
-					dump_stack();
+					mxfs_probe_stack();
 				}
 			}
 		} }
@@ -1745,7 +1745,7 @@ xfs_inodegc_wait_all(
 }
 
 /*
- * sess390 (ccloop c7ee71c6): reference-free lifecycle probe.  Same locking
+ * reference-free lifecycle probe.  Same locking
  * discipline as the prologue of xfs_iget_cache_hit — rcu + the radix lookup,
  * then i_flags_lock for a coherent snapshot; the ino re-check defends against
  * the RCU-deferred free/reuse of the slot.  No reference is taken and no
@@ -1856,7 +1856,7 @@ xfs_iget_cache_hit(
 	int			error;
 	/*
 	 * ccloop-4dd7: CREATE cache-hit a peer-freed IRECLAIMABLE dead shell
-	 * (nlink==0, in-core mode never zeroed because the sess47 authority
+	 * (nlink==0, in-core mode never zeroed because the authority
 	 * guard skipped local destructive inactivation).  When set, skip the
 	 * fatal xfs_iget_check_free_state (dialloc's inobt-free verdict under
 	 * AG DLM is authoritative — this is NOT corruption) and let the
@@ -1900,7 +1900,7 @@ xfs_iget_cache_hit(
 	if (ip->i_flags & XFS_NEED_INACTIVE) {
 		/* Unlinked inodes cannot be re-grabbed. */
 		if (VFS_I(ip)->i_nlink == 0) {
-			/* <ccloop sess3> Multi-node reused-inode CREATE race (PROVEN
+			/* < > Multi-node reused-inode CREATE race (PROVEN
 			 * root of the dir_reuse->fault-test 2/tcp cascade): xfs_dialloc
 			 * handed out this ino (FREE cluster-wide in the inobt) but our
 			 * local in-core copy is still NEED_INACTIVE (nlink=0) from this
@@ -1912,7 +1912,7 @@ xfs_iget_cache_hit(
 			if (mxfs_create_needinact_flush && (flags & XFS_IGET_CREATE) &&
 			    ip->i_mount->m_mxfs_dlm &&
 			    !mxfs_v5_dlm_is_single_node(ip->i_mount->m_mxfs_dlm)) {
-				pr_warn_ratelimited(
+				mxfs_probe_ratelimited(
 				    "mxfs: P-CR3-NEEDINACT ino=0x%llx CREATE reused-while-NEED_INACTIVE -> inodegc_flush+EAGAIN (was fatal ENOENT)\n",
 					ip->i_ino);
 				goto out_inodegc_flush;
@@ -1953,13 +1953,13 @@ xfs_iget_cache_hit(
 		 *    the fatal check_free_state (hole);
 		 *  - IRECLAIMABLE   -> dead shell whose i_mode was never
 		 *    zeroed (peer freed the ino; local ifree never ran —
-		 *    sess47 guard skips destructive inactivation), FALLS
+		 *    guard skips destructive inactivation), FALLS
 		 *    THROUGH to the fatal check_free_state (hole; the pve1
 		 *    shutdown signature: mode=0x81a4 dlm_stale=1 platter-free).
 		 */
 		bool cr63_reclaimable = !!(ip->i_flags & XFS_IRECLAIMABLE);
 
-		pr_warn_ratelimited("mxfs: P-CR63-SHELL ino=0x%llx mode=0%o nlink=%u nblk=%llu iflags=0x%lx istate=0x%lx reclaimable=%d dlm_mode=%u dlm_state=%u stale=%d src=%u comm=%s\n",
+		mxfs_probe_ratelimited("mxfs: P-CR63-SHELL ino=0x%llx mode=0%o nlink=%u nblk=%llu iflags=0x%lx istate=0x%lx reclaimable=%d dlm_mode=%u dlm_state=%u stale=%d src=%u comm=%s\n",
 			(unsigned long long)ip->i_ino, VFS_I(ip)->i_mode,
 			VFS_I(ip)->i_nlink,
 			(unsigned long long)ip->i_nblocks,
@@ -1979,7 +1979,7 @@ xfs_iget_cache_hit(
 				iput(inode_grabbed);
 				return -EAGAIN;
 			}
-			pr_warn("mxfs: P-CR63-IGRAB-FAIL ino=0x%llx istate=0x%lx — mid-teardown shell falls through to check_free_state\n",
+			mxfs_probe("mxfs: P-CR63-IGRAB-FAIL ino=0x%llx istate=0x%lx — mid-teardown shell falls through to check_free_state\n",
 				(unsigned long long)ip->i_ino,
 				mxfs_istate(VFS_I(ip)));
 		} else if (VFS_I(ip)->i_nlink == 0) {
@@ -2000,13 +2000,13 @@ xfs_iget_cache_hit(
 				(unsigned long long)ip->i_ino,
 				ip->i_dlm_stale ? 1 : 0);
 		} else {
-			pr_warn("mxfs: P-CR63-DEADSHELL ino=0x%llx nlink=%u — IRECLAIMABLE stale-mode LINKED shell falls through to check_free_state\n",
+			mxfs_probe("mxfs: P-CR63-DEADSHELL ino=0x%llx nlink=%u — IRECLAIMABLE stale-mode LINKED shell falls through to check_free_state\n",
 				(unsigned long long)ip->i_ino, VFS_I(ip)->i_nlink);
 		}
 	}
 
 	/*
-	 * sess38: reused-inode cross-node coherency.
+	 * reused-inode cross-node coherency.
 	 *
 	 * A cached inode that looks FREE (mode==0) here may have been
 	 * re-allocated by a PEER since this node last saw it free (inode
@@ -2036,7 +2036,7 @@ xfs_iget_cache_hit(
 		struct inode *inode_grabbed = igrab(inode);
 
 		/*
-		 * sess4(a16ec5f2) FIX B1 (instrumented, run23 P-IGET-ENOENT proof:
+		 * FIX B1 (instrumented, run23 P-IGET-ENOENT proof:
 		 * incore_mode=0 fua_disk_mode=0x81a4 flags=0x0 — disk VALID,
 		 * live stale shell): if igrab fails the VFS inode is mid-
 		 * teardown (the reader's own drop_caches races this lookup).
@@ -2055,7 +2055,7 @@ xfs_iget_cache_hit(
 			rcu_read_unlock();
 			mxfs_dlm_reload_inode(ip, XFS_DIR3_FT_UNKNOWN, false);
 			/*
-			 * sess40: if the cheap reload still reads free, the peer
+			 * if the cheap reload still reads free, the peer
 			 * creator may not have flushed yet (Type-A).  Acquire the
 			 * inode DLM PR to BAST the holder and force its flush, then
 			 * reload again.  Gated by reuse_dlm (expensive); the
@@ -2067,7 +2067,7 @@ xfs_iget_cache_hit(
 				mxfs_dlm_ilock_end(ip, MXFS_LOCK_PR);
 			}
 			error = (VFS_I(ip)->i_mode != 0) ? -EAGAIN : -ENOENT;
-			/* sess4(a16ec5f2): name the live-shell reload outcome —
+			/* name the live-shell reload outcome —
 			 * run25 shows disk-valid (0x81a4) inos ENOENTing with
 			 * this branch armed; is it entered, and does the reload
 			 * adopt? */
@@ -2075,7 +2075,7 @@ xfs_iget_cache_hit(
 				static atomic_t p4s_n = ATOMIC_INIT(0);
 
 				if (atomic_inc_return(&p4s_n) <= 20000)
-					pr_warn("mxfs: P4S-LIVESHELL-RELOAD ino=0x%llx post_mode=0%o err=%d dlm_stale=%d realns=%llu\n",
+					mxfs_probe("mxfs: P4S-LIVESHELL-RELOAD ino=0x%llx post_mode=0%o err=%d dlm_stale=%d realns=%llu\n",
 						ip->i_ino, VFS_I(ip)->i_mode,
 						error, ip->i_dlm_stale,
 						(unsigned long long)ktime_get_real_ns());
@@ -2086,8 +2086,8 @@ xfs_iget_cache_hit(
 	}
 
 	/*
-	 * sess40: IRECLAIMABLE reused-inode cross-node coherency (the gap the
-	 * sess38 fix above left open).  A locally-freed inode incarnation sits
+	 * IRECLAIMABLE reused-inode cross-node coherency (the gap the
+	 * fix above left open).  A locally-freed inode incarnation sits
 	 * in-core as IRECLAIMABLE mode==0; a PEER then reuses that inode number
 	 * for a new file/dir.  Because we hold no DLM lock on an idle freed
 	 * inode, the peer's allocation never BASTs us, so the peer never flushes
@@ -2119,7 +2119,7 @@ xfs_iget_cache_hit(
 		rcu_read_unlock();
 
 		/*
-		 * sess40 perf: try the cheap reload-from-disk FIRST (no DLM
+		 * perf: try the cheap reload-from-disk FIRST (no DLM
 		 * round-trip).  Two observed sub-types of the reused-inode race:
 		 *  - Type B (common): the peer's new dinode is ALREADY on disk
 		 *    (fua_disk_mode!=0) and only our in-core struct is stale — a
@@ -2133,7 +2133,7 @@ xfs_iget_cache_hit(
 		{ extern int mxfs_reuse_dlm;
 		if (mxfs_reuse_dlm && VFS_I(ip)->i_mode == 0) {
 			/*
-			 * sess40: the Type-A DLM PR round-trip (BAST the peer to
+			 * the Type-A DLM PR round-trip (BAST the peer to
 			 * force its flush) is needed only when the creator hasn't
 			 * flushed yet.  It is EXPENSIVE per iget and over-fires on
 			 * the unlink verify-gone phase (~480 deleted-file igets ->
@@ -2146,14 +2146,14 @@ xfs_iget_cache_hit(
 			mxfs_dlm_ilock_end(ip, MXFS_LOCK_PR);
 		} }
 
-		/* sess4(a16ec5f2): UN-GATED (was instr-only, invisible in dirwr
+		/* UN-GATED (was instr-only, invisible in dirwr
 		 * runs) — the r10 dangler autopsy needs this branch's outcome:
 		 * did the cheap reload adopt the peer's valid dinode? */
 		{
 			static atomic_t p4rr_n = ATOMIC_INIT(0);
 
 			if (atomic_inc_return(&p4rr_n) <= 20000)
-				pr_warn("mxfs: P-REUSE-RELOAD ino=0x%llx post_mode=0%o dlm_mode=%u stale=%d realns=%llu\n",
+				mxfs_probe("mxfs: P-REUSE-RELOAD ino=0x%llx post_mode=0%o dlm_mode=%u stale=%d realns=%llu\n",
 					ip->i_ino, VFS_I(ip)->i_mode,
 					ip->i_dlm_mode, ip->i_dlm_stale,
 					(unsigned long long)ktime_get_real_ns());
@@ -2213,7 +2213,7 @@ xfs_iget_cache_hit(
 		trace_xfs_iget_hit(ip);
 
 		/*
-		 * sess409: a CREATE can also land on a VFS-LIVE shell (the
+		 * a CREATE can also land on a VFS-LIVE shell (the
 		 * P-CR63 reset-for-create + EAGAIN rescue path returns here on
 		 * its second pass).  It is a reincarnation like the recycle
 		 * case: continue di_changecount from the freed core (see
@@ -2238,7 +2238,7 @@ xfs_iget_cache_hit(
 	}
 
 	/*
-	 * sess45 P99: cache-HIT return of a regular file with in-core
+	 * P99: cache-HIT return of a regular file with in-core
 	 * di_size==0.  If the medium has di_size!=0, this is a STALE CACHE
 	 * HIT — the node holds a cached in-core inode it never refreshed (it
 	 * holds no DLM on a peer's inode, so no BAST set i_dlm_stale) and
@@ -2250,7 +2250,7 @@ xfs_iget_cache_hit(
 	      !(flags & XFS_IGET_INCORE) &&
 	      S_ISREG(VFS_I(ip)->i_mode) && ip->i_disk_size == 0) {
 		uint64_t dsz = mxfs_inode_disk_di_size(ip, NULL, NULL);
-		pr_warn_ratelimited("mxfs: P99-IGET-HIT ino=%llu incore_size=0 disk_di_size=%lld dlm_mode=%u stale=%d (disk!=0 => STALE CACHE HIT)\n",
+		mxfs_probe_ratelimited("mxfs: P99-IGET-HIT ino=%llu incore_size=0 disk_di_size=%lld dlm_mode=%u stale=%d (disk!=0 => STALE CACHE HIT)\n",
 			(unsigned long long)ino, (long long)dsz,
 			ip->i_dlm_mode, ip->i_dlm_stale);
 	  } }
@@ -2286,10 +2286,10 @@ out_inodegc_flush:
 }
 
 /*
- * sess19(ccloop): does the in-core cluster buffer show the inode at the given
+ * does the in-core cluster buffer show the inode at the given
  * byte offset as ALLOCATED (valid dinode magic + nonzero mode)?  Used to skip
- * the sess38 per-inode cluster re-stale when the cached image already proves
- * the inode exists (the sess38 ENOENT risk is strictly the cached-FREE case).
+ * the per-inode cluster re-stale when the cached image already proves
+ * the inode exists (the ENOENT risk is strictly the cached-FREE case).
  * Conservative: any uncertainty (no b_addr, bad magic) returns false → stale.
  */
 static bool
@@ -2413,7 +2413,7 @@ xfs_iget_cache_miss(
 		return -ENOMEM;
 
 	/*
-	 * D-0527 (sess470 design-consult answer D, landed sess472, 0.64.15): an
+	 * D-0527 (design-consult answer D, landed, 0.64.15): an
 	 * XFS_IGET_UNTRUSTED iget decides "is this number allocated?" from
 	 * xfs_imap_lookup's AGI + inobt walk.  On MXFS those buffers are only
 	 * refreshed when this node ACQUIRES the AG (Invariant 1 drain on the
@@ -2455,7 +2455,7 @@ xfs_iget_cache_miss(
 				WRITE_ONCE(mxfs_untrusted_aglock_inject_eagain,
 					   READ_ONCE(mxfs_untrusted_aglock_inject_eagain) - 1);
 				error = -EAGAIN;
-				pr_warn("mxfs: P-IMAP-UNTRUSTED-AGLOCK-INJECT ino=%llu agno=%u comm=%s — TEST ONLY: the AG acquire is answered EAGAIN by injection (%d left)\n",
+				mxfs_probe("mxfs: P-IMAP-UNTRUSTED-AGLOCK-INJECT ino=%llu agno=%u comm=%s — TEST ONLY: the AG acquire is answered EAGAIN by injection (%d left)\n",
 					(unsigned long long)ino, pag_agno(pag),
 					current->comm,
 					READ_ONCE(mxfs_untrusted_aglock_inject_eagain));
@@ -2477,7 +2477,7 @@ xfs_iget_cache_miss(
 			    !fatal_signal_pending(current))
 				continue;
 			if (error == -EAGAIN) {
-				pr_warn("mxfs: P-IMAP-UNTRUSTED-AGLOCK-GIVEUP ino=%llu agno=%u budgets=%d comm=%s — the AG's authority stayed unreachable for every budget; failing the lookup with EIO instead of retrying forever\n",
+				mxfs_probe("mxfs: P-IMAP-UNTRUSTED-AGLOCK-GIVEUP ino=%llu agno=%u budgets=%d comm=%s — the AG's authority stayed unreachable for every budget; failing the lookup with EIO instead of retrying forever\n",
 					(unsigned long long)ino, pag_agno(pag),
 					budgets, current->comm);
 				error = -EIO;
@@ -2543,7 +2543,7 @@ xfs_iget_cache_miss(
 
 		if (flags & XFS_IGET_CREATE) {
 			/*
-			 * sess44 deferred-publish: this is the allocating node
+			 * deferred-publish: this is the allocating node
 			 * for a brand-new inode that no peer can see yet.  Grant
 			 * the DLM lock LOCALLY (EX, cached) with NO disk CAW —
 			 * the dominant rsync_paired cost is one CAW round-trip
@@ -2598,7 +2598,7 @@ xfs_iget_cache_miss(
 		 * with stale contents under cache-pressure workloads.
 		 */
 		/*
-		 * sess38: invalidate a stale cached cluster buffer for EVERY
+		 * invalidate a stale cached cluster buffer for EVERY
 		 * multi-node cache-miss read, not only when we acquired the DLM
 		 * above.  xfs_lookup() igets with lock_flags=0 (no ILOCK), so
 		 * dlm_acquired is false there — yet the cluster buffer may be
@@ -2657,13 +2657,13 @@ xfs_iget_cache_miss(
 					   mxfs_dinode_cached_allocated(stale_bp,
 						ip->i_imap.im_boffset)) {
 					/*
-					 * sess19(ccloop) PERF (the precise inverse of the
-					 * sess38 bug): the sess38 invalidation exists ONLY
+					 * PERF (the precise inverse of the
+					 * bug): the invalidation exists ONLY
 					 * to catch a peer's fresh ALLOCATION of an inode our
 					 * cache still shows FREE (mode=0 → check_free_state
 					 * ENOENT).  When the cached cluster already shows
 					 * THIS inode ALLOCATED (di_magic ok, di_mode!=0), the
-					 * sess38 ENOENT cannot occur — existence is coherent.
+					 * ENOENT cannot occur — existence is coherent.
 					 * (A dir entry resolving to this ino implies the ino
 					 * is allocated on disk; dir staleness is handled by
 					 * the separate dir_gen path.)  Content coherency is
@@ -2674,15 +2674,15 @@ xfs_iget_cache_miss(
 					 * cluster-stale thrash that made a read-only 800-entry
 					 * verify (and rm-rf) FUA-read each cluster ~32×.
 					 * Only the mode=0 cached-free case (the genuine
-					 * sess38 risk) still falls through to the stale below.
+					 * risk) still falls through to the stale below.
 					 */
 					atomic64_inc(&mxfs_fua_inode_owned_skip);
 				} else {
 					/* P20 forensic — see recycle-site twin.
-					 * sess38 run14d: gated for ship. */
+					 * run14d: gated for ship. */
 					if (unlikely(mxfs_dirwr_enabled ||
 						     mxfs_instr_enabled))
-						pr_warn_ratelimited(
+						mxfs_probe_ratelimited(
 						    "mxfs: P20-CLUSTER-INVAL site=iget-miss ino=0x%llx blkno=0x%llx flags=0x%x comm=%s\n",
 						    (unsigned long long)ino,
 						    (unsigned long long)ip->i_imap.im_blkno,
@@ -2705,9 +2705,9 @@ xfs_iget_cache_miss(
 		else
 			xfs_inode_mark_sick(ip, XFS_SICK_INO_CORE);
 		/*
-		 * sess79 instrumented DECISIVE PROBE: inode_from_disk failed
+		 * instrumented DECISIVE PROBE: inode_from_disk failed
 		 * verification (e.g. xfs_dir2_sf_verify !ino_ok inode=0) on a
-		 * multi-node mount.  The sess38 stale-invalidate above already
+		 * multi-node mount.  The stale-invalidate above already
 		 * forced this buffer FUA-fresh, so a TORN/in-flight peer write
 		 * is the only way a fresh read sees a half-written shortform dir.
 		 * FUA-re-read the cluster block straight from the medium and
@@ -2730,7 +2730,7 @@ xfs_iget_cache_miss(
 		xfs_trans_brelse(tp, bp);
 
 		/*
-		 * sess45 P99: cache-MISS read of a regular file that landed
+		 * P99: cache-MISS read of a regular file that landed
 		 * di_size==0.  FUA-read the medium NOW (separate from the buffer
 		 * we just read through the cache) to tell durability (disk==0 =>
 		 * writer not destaged) from a stale buffer read (disk!=0 => the
@@ -2742,13 +2742,13 @@ xfs_iget_cache_miss(
 		      !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm) &&
 		      S_ISREG(VFS_I(ip)->i_mode) && ip->i_disk_size == 0) {
 			uint64_t dsz = mxfs_inode_disk_di_size(ip, NULL, NULL);
-			pr_warn_ratelimited("mxfs: P99-IGET-MISS ino=%llu incore_size=0 disk_di_size=%lld dlm_acq=%d stale=%d (disk!=0 => reread missed current; disk==0 => writer not durable)\n",
+			mxfs_probe_ratelimited("mxfs: P99-IGET-MISS ino=%llu incore_size=0 disk_di_size=%lld dlm_acq=%d stale=%d (disk!=0 => reread missed current; disk==0 => writer not durable)\n",
 				(unsigned long long)ino, (long long)dsz,
 				dlm_acquired, ip->i_dlm_stale);
 		  } }
 
 		/*
-		 * sess-tcp ROOT FIX: extend the sess127 durable-before-visible
+		 * sess-tcp ROOT FIX: extend the durable-before-visible
 		 * coordination to the dinode-VERIFY-FAIL case.  On the
 		 * TCP/write-through (LIO/tcm_loop) stack the creator's freshly
 		 * allocated child inode cluster is often not yet durable on the
@@ -2776,7 +2776,7 @@ xfs_iget_cache_miss(
 			mxfs_dlm_ilock_end(ip, MXFS_LOCK_PR);
 			if (VFS_I(ip)->i_mode != 0)
 				error = 0;
-			pr_warn_ratelimited(
+			mxfs_probe_ratelimited(
 				"mxfs: P-TCP-VERIFY-COORD ino=0x%llx post_mode=0%o err=%d (verify-fail -> coordinated creator flush)\n",
 				(unsigned long long)ino, VFS_I(ip)->i_mode,
 				error);
@@ -2795,13 +2795,13 @@ xfs_iget_cache_miss(
 	error = xfs_iget_check_free_state(ip, flags);
 
 	/*
-	 * sess127 ROOT FIX (PROVEN BY INSTRUMENT via repro_uv_create_race.sh +
+	 * ROOT FIX (PROVEN BY INSTRUMENT via repro_uv_create_race.sh +
 	 * ungated P-IGET-ENOENT: fua_disk_mode=0x0 on every loser):
 	 * durable-before-visible gap for NEWLY CREATED inodes.  The creator
 	 * commits dirent + new dinode in ONE transaction; its parent-dir
 	 * BAST release flushes the PARENT durable (so we can see the
 	 * dirent), but the new CHILD dinode stays unflushed in the
-	 * creator's AIL — and per sess44 deferred-publish the creator's EX
+	 * creator's AIL — and per deferred-publish the creator's EX
 	 * on the child is LOCAL (no CAW slot), so nothing ever BASTs it to
 	 * flush.  xfs_lookup igets with lock_flags=0, so no DLM acquire
 	 * happens on this path at all: we read the on-platter FREE image
@@ -2811,7 +2811,7 @@ xfs_iget_cache_miss(
 	 *
 	 * Recovery: ONE coordinated PR acquire on the child inode.  The
 	 * acquire contends with the creator's (published-on-dir-BAST) EX,
-	 * BASTing it; the creator's release path (sess38 writer-flush
+	 * BASTing it; the creator's release path (writer-flush
 	 * durability wait) makes the dinode durable before granting; the
 	 * reload then reads the real mode and we proceed.  If the inode is
 	 * GENUINELY free (lookup racing a real unlink), the acquire is
@@ -2830,7 +2830,7 @@ xfs_iget_cache_miss(
 		mxfs_dlm_ilock_begin(ip, MXFS_LOCK_PR);
 		mxfs_dlm_reload_inode(ip, XFS_DIR3_FT_UNKNOWN, false);
 		mxfs_dlm_ilock_end(ip, MXFS_LOCK_PR);
-		pr_warn_ratelimited(
+		mxfs_probe_ratelimited(
 			"mxfs: P127-IGET-COORD ino=0x%llx post_mode=0%o (0=>genuinely free; !=0=>creator flush forced)\n",
 			(unsigned long long)ino, VFS_I(ip)->i_mode);
 		error = xfs_iget_check_free_state(ip, flags);
@@ -2874,7 +2874,7 @@ xfs_iget_cache_miss(
 	ip->i_pdquot = NULL;
 	xfs_iflags_set(ip, XFS_INEW);
 	/*
-	 * sess118: XFS_IGET_CREATE means THIS node is allocating a brand-new
+	 * XFS_IGET_CREATE means THIS node is allocating a brand-new
 	 * inode incarnation.  Mark it so the xfs_iflush resurrection guard knows
 	 * its first on-disk write is legitimate (the on-disk slot still holds the
 	 * chunk-init/prior-free image, so disk_gen != incore_gen is expected and
@@ -2919,7 +2919,7 @@ out_release_dlm:
 		mxfs_dlm_ilock_end(ip, dlm_mode);
 out_destroy:
 	/*
-	 * sess44 deferred-publish: a failed XFS_IGET_CREATE may have linked ip
+	 * deferred-publish: a failed XFS_IGET_CREATE may have linked ip
 	 * onto mp->m_mxfs_unpub_list via mxfs_dlm_grant_local_new.  Remove it
 	 * before freeing or the list holds a dangling pointer.  No-op if the
 	 * inode was never granted locally.
@@ -2927,7 +2927,7 @@ out_destroy:
 	if (mp->m_mxfs_dlm)
 		mxfs_dlm_unpublish_drop(ip);
 	/*
-	 * sess6 (ccloop 8ba7ae5c) ROOT FIX of the recycled-inode BAST-work
+	 * ROOT FIX of the recycled-inode BAST-work
 	 * panics (test26 radix_tree_tag_set ino=0, test5 agino=0xb7): the
 	 * mxfs_dlm_ilock_begin coordination above runs on this NOT-YET-
 	 * INSERTED inode, and a peer BAST during that window arms
@@ -2961,12 +2961,12 @@ out_destroy:
 		mxfs_incarn_poison(ip);
 	}
 	if (unlikely(atomic_read(&ip->i_mxfs_revoke_refs) > 0)) {
-		pr_warn("mxfs: P-REVOKE-DIRECT-FREE ino=%llu gen=%u error=%d revoke_refs=%d i_count=%d i_state=0x%lx iflags=0x%lx — uninserted inode freed directly while a queued incarnation revocation owns a reference to it\n",
+		mxfs_probe("mxfs: P-REVOKE-DIRECT-FREE ino=%llu gen=%u error=%d revoke_refs=%d i_count=%d i_state=0x%lx iflags=0x%lx — uninserted inode freed directly while a queued incarnation revocation owns a reference to it\n",
 			(unsigned long long)ino, VFS_I(ip)->i_generation, error,
 			atomic_read(&ip->i_mxfs_revoke_refs),
 			atomic_read(&VFS_I(ip)->i_count), mxfs_istate(VFS_I(ip)),
 			(unsigned long)ip->i_flags);
-		dump_stack();
+		mxfs_probe_stack();
 	}
 	__destroy_inode(VFS_I(ip));
 	xfs_inode_free(ip);
@@ -3021,7 +3021,7 @@ again:
 		if (error)
 			goto out_error_or_again;
 		/*
-		 * sess128 ROOT FIX: a CREATE satisfied from the inode cache is
+		 * ROOT FIX: a CREATE satisfied from the inode cache is
 		 * a REUSED incarnation carrying the prior incarnation's DLM
 		 * fields (phantom EX, unpub flag clear — the prior slot was
 		 * released at xfs_inactive).  Re-arm deferred-publish so
@@ -3057,9 +3057,9 @@ again:
 	 */
 	if (xfs_iflags_test(ip, XFS_INEW) && VFS_I(ip)->i_mode != 0)
 		xfs_setup_existing_inode(ip);
-	/* sess23: attribute the reference this call is handing to its caller. */
+	/* attribute the reference this call is handing to its caller. */
 	ip->i_mxfs_iget_ret = _RET_IP_;
-	/* sess26 P205-REFBAL: xfs_iget hands the caller a reference that is NOT
+	/* P205-REFBAL: xfs_iget hands the caller a reference that is NOT
 	 * an mxfs_igrab_tracked grab.  Count it, or the balance is asymmetric in
 	 * the other direction (releases via xfs_irele would drive net negative). */
 	if (ip->i_mxfs_tgrabs < 0xffff)
@@ -3208,7 +3208,7 @@ xfs_reclaim_inode(
 {
 	xfs_ino_t		ino = ip->i_ino; /* for radix_tree_delete */
 	/*
-	 * sess474 (D-0532 design-consult option (a)): xfs_ilock_nowait takes NO DLM
+	 * (D-0532 design-consult option (a)): xfs_ilock_nowait takes NO DLM
 	 * begin for ILOCK, but xfs_iunlock always runs mxfs_dlm_ilock_end —
 	 * on a DEFERRED-freed corpse whose EX grant is still cached that is an
 	 * unpaired end (P71-UNDERFLOW comm=kworker, chain 108 s473c defer arm
@@ -3240,7 +3240,7 @@ xfs_reclaim_inode(
 		 * stale. We don't need the inode locked to run the flush abort
 		 * code, but the flush abort needs to lock the cluster buffer.
 		 */
-		xfs_iunlock_nodlm(ip, XFS_ILOCK_EXCL);	/* sess474 D-0532 */
+		xfs_iunlock_nodlm(ip, XFS_ILOCK_EXCL);	/* D-0532 */
 		xfs_iflush_shutdown_abort(ip);
 		xfs_ilock(ip, XFS_ILOCK_EXCL);
 		dlm_begun = true;
@@ -3250,7 +3250,7 @@ xfs_reclaim_inode(
 		goto out_clear_flush;
 	if (!xfs_inode_clean(ip))
 		goto out_clear_flush;
-	/* sess387 (d), design-consult ruling: reclaim must REFUSE an inode with a live
+	/* (d), design-consult ruling: reclaim must REFUSE an inode with a live
 	 * publication obligation regardless of ili_fields — reclaiming the
 	 * shell strands an on-disk unlinked-list entry whose home dinode still
 	 * reads LINKED, and the next adjacent remove/reload shuts the node
@@ -3270,7 +3270,7 @@ xfs_reclaim_inode(
 reclaim:
 	trace_xfs_inode_reclaiming(ip);
 
-	/* sess387 tripwire: a live publication obligation means this inode is
+	/* tripwire: a live publication obligation means this inode is
 	 * an on-disk unlinked-list member whose home-dinode nlink=0 conversion
 	 * has never been verified written — reclaiming its shell now strands a
 	 * list entry that any adjacent remove or reload will read as LINKED
@@ -3288,17 +3288,17 @@ reclaim:
 			current->comm);
 
 	/*
-	 * ccloop cc87fed3 sess6: audit trail (Fable-guided, P135
+	 *  audit trail (Fable-guided, P135
 	 * root cause hunt) -- every REAL eviction commit, so a later
 	 * P135/P139 corruption report's ino/ptr can be cross-referenced
 	 * against exactly when and by whom it was actually reclaimed.
 	 */
-	/* sess9 (72513a13) CAPPED — see P82-ADD comment (printk-storm DoS). */
+	/* CAPPED — see P82-ADD comment (printk-storm DoS). */
 	{
 		static atomic_t p140_n = ATOMIC_INIT(0);
 
 		if (atomic_inc_return(&p140_n) <= 300)
-			pr_warn("mxfs: P140-RECLAIM-COMMIT ino=0x%llx ip=%px pid=%d comm=%s\n",
+			mxfs_probe("mxfs: P140-RECLAIM-COMMIT ino=0x%llx ip=%px pid=%d comm=%s\n",
 				(unsigned long long)ino, VFS_I(ip),
 				current->pid, current->comm);
 	}
@@ -3327,7 +3327,7 @@ reclaim:
 	if (dlm_begun)
 		xfs_iunlock(ip, XFS_ILOCK_EXCL);
 	else
-		xfs_iunlock_nodlm(ip, XFS_ILOCK_EXCL);	/* sess474 D-0532 */
+		xfs_iunlock_nodlm(ip, XFS_ILOCK_EXCL);	/* D-0532 */
 
 	XFS_STATS_INC(ip->i_mount, xs_ig_reclaims);
 	/*
@@ -3363,7 +3363,7 @@ reclaim:
 out_clear_flush:
 	xfs_iflags_clear(ip, XFS_IFLUSHING);
 out_iunlock:
-	xfs_iunlock_nodlm(ip, XFS_ILOCK_EXCL);	/* sess474 D-0532: nowait-taken */
+	xfs_iunlock_nodlm(ip, XFS_ILOCK_EXCL);	/* D-0532: nowait-taken */
 out:
 	xfs_iflags_clear(ip, XFS_IRECLAIM);
 }
@@ -4520,7 +4520,7 @@ xfs_inodegc_queue(
 	 */
 	if (!xfs_is_inodegc_enabled(mp)) {
 		/*
-		 * sess485: on a clustered unmount xfs_unmountfs_prepare disables
+		 * on a clustered unmount xfs_unmountfs_prepare disables
 		 * the queue before the AG grants are published; an inode that
 		 * arrives here afterwards is never inactivated — a leaked AGI /
 		 * inode-btree update — and is counted as the violation it is.
@@ -4535,7 +4535,7 @@ xfs_inodegc_queue(
 				acct->inodegc_after_stop++;
 			spin_unlock(&acct->lock);
 			if (late)
-				pr_warn_ratelimited("mxfs: P485-INODEGC-AFTER-STOP ino=%llu nlink=%u comm=%s — inode queued for inactivation after unmount disabled the queue; it will never be inactivated\n",
+				mxfs_probe_ratelimited("mxfs: P485-INODEGC-AFTER-STOP ino=%llu nlink=%u comm=%s — inode queued for inactivation after unmount disabled the queue; it will never be inactivated\n",
 					(unsigned long long)ip->i_ino,
 					VFS_I(ip)->i_nlink, current->comm);
 		}
@@ -4577,7 +4577,7 @@ xfs_inode_mark_reclaimable(
 	XFS_STATS_INC(mp, vn_reclaim);
 
 	/*
-	 * ccloop cc87fed3 sess6: sweep-pin tripwire (direct-evidence
+	 *  sweep-pin tripwire (direct-evidence
 	 * probe for the P135-PRSWEEP-CYCLE self-loop hang).
 	 * mxfs_dlm_pr_sweep_work_fn (xfs_mxfs_dlm.c) records here which
 	 * inode it currently holds a live igrab() reference on.  That
@@ -4591,16 +4591,16 @@ xfs_inode_mark_reclaimable(
 	 * paths below.
 	 */
 	if (unlikely(READ_ONCE(mp->m_mxfs_pr_sweep_pinned) == VFS_I(ip))) {
-		pr_warn("mxfs: P136-SWEEPPIN-TRIPWIRE ino=0x%llx ip=%px pid=%d comm=%s — inode entering real eviction while pr_sweep still believes it holds a live igrab() pin on it\n",
+		mxfs_probe("mxfs: P136-SWEEPPIN-TRIPWIRE ino=0x%llx ip=%px pid=%d comm=%s — inode entering real eviction while pr_sweep still believes it holds a live igrab() pin on it\n",
 			(unsigned long long)ip->i_ino, ip, current->pid,
 			current->comm);
-		dump_stack();
+		mxfs_probe_stack();
 	}
 
 	/*
 	 * We should never get here with any of the reclaim flags already set.
 	 *
-	 * ccloopff21 sess1: this assert fired live during fence_during_write@
+	 * ccloopff21 this assert fired live during fence_during_write@
 	 * 8/caw (0.10.74) immediately preceding a permanent 3-CPU soft lockup
 	 * on the node.  Root cause of the double-entry is unproven — log the
 	 * ino/pid/comm/raw-flags so the next reproduction gives a definitive
@@ -4608,7 +4608,7 @@ xfs_inode_mark_reclaimable(
 	 * for the same ino (mid-flight re-entrancy vs. a stale leaked flag).
 	 */
 	if (unlikely(xfs_iflags_test(ip, XFS_ALL_IRECLAIM_FLAGS))) {
-		pr_warn("mxfs: P-DBLRECLAIM ino=0x%llx pid=%d comm=%s flags=0x%lx\n",
+		mxfs_probe("mxfs: P-DBLRECLAIM ino=0x%llx pid=%d comm=%s flags=0x%lx\n",
 			(unsigned long long)ip->i_ino, current->pid, current->comm,
 			(unsigned long)ip->i_flags);
 	}
@@ -4631,7 +4631,7 @@ xfs_inode_mark_reclaimable(
 		 * (inodegc queue) is preserved.
 		 */
 		/*
-		 * RE-ENTRANCY GUARD (sess41 ccloop): synchronous inactivation
+		 * RE-ENTRANCY GUARD: synchronous inactivation
 		 * starts its own transaction and locks the AGI buffer
 		 * (xfs_inactive -> xfs_ifree -> xfs_difree -> xfs_read_agi).
 		 * If we reach here nested inside an active transaction that
@@ -4656,7 +4656,7 @@ xfs_inode_mark_reclaimable(
 			int error;
 
 			/*
-			 * ccloop cc87fed3 sess4: added ip=/pid=/comm= (instrumented —
+			 *  added ip=/pid=/comm= (instrumented —
 			 * BUG3 hunt).  Prior instances of this print gave no way
 			 * to tell whether two "sync-inactive" firings for the
 			 * same ino within one dmesg-second are (a) the SAME
@@ -4668,12 +4668,12 @@ xfs_inode_mark_reclaimable(
 			 * OWN call chain is what reaches here, vs a foreign
 			 * thread racing it).
 			 */
-			/* sess9 (72513a13) CAPPED — see P82-ADD (printk DoS). */
+			/* CAPPED — see P82-ADD (printk DoS). */
 			{
 				static atomic_t p25a_n = ATOMIC_INIT(0);
 
 				if (atomic_inc_return(&p25a_n) <= 300)
-					pr_warn("mxfs: P25-INSTR sync-inactive ino=0x%llx nlink=%u mode=0x%x ip=%px pid=%d comm=%s\n",
+					mxfs_probe("mxfs: P25-INSTR sync-inactive ino=0x%llx nlink=%u mode=0x%x ip=%px pid=%d comm=%s\n",
 						(unsigned long long)ip->i_ino,
 						VFS_I(ip)->i_nlink,
 						VFS_I(ip)->i_mode, ip,
@@ -4692,7 +4692,7 @@ xfs_inode_mark_reclaimable(
 				static atomic_t p25b_n = ATOMIC_INIT(0);
 
 				if (atomic_inc_return(&p25b_n) <= 300)
-					pr_warn("mxfs: P25-INSTR sync-inactive-DONE ino=0x%llx rc=%d ip=%px pid=%d comm=%s\n",
+					mxfs_probe("mxfs: P25-INSTR sync-inactive-DONE ino=0x%llx rc=%d ip=%px pid=%d comm=%s\n",
 						(unsigned long long)ip->i_ino,
 						error, ip,
 						current->pid, current->comm);

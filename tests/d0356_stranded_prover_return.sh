@@ -213,7 +213,7 @@ RMARK=$(date +%s)
 # the witness cats may legitimately fail (that IS the measurement): their
 # text is output, and the list ends in a command whose status is the mount
 # state's, so a failed cat is never mistaken for a failed invocation
-rsx $((JOIN_BOUND + 60)) "$B" "lsmod | grep -q '^mxfs ' || insmod $KO $MODARGS; echo INSMOD_RC=\$?; T0=\$(date +%s%N); mountpoint -q $MNT || timeout $JOIN_BOUND mount -t mxfs $MXFS_DEV $MNT; echo MOUNT_RC=\$?; echo WALL_MS=\$(( (\$(date +%s%N) - T0) / 1000000 )); mountpoint -q $MNT && echo MOUNTED || echo NOT_MOUNTED; cat $MNT/$WA 2>&1; cat $MNT/$WB 2>&1; true" > "$OUT/B_join.txt"
+rsx $((JOIN_BOUND + 60)) "$B" "lsmod | grep -q '^mxfs ' || insmod $KO dyndbg=+p $MODARGS; echo INSMOD_RC=\$?; T0=\$(date +%s%N); mountpoint -q $MNT || timeout $JOIN_BOUND mount -t mxfs $MXFS_DEV $MNT; echo MOUNT_RC=\$?; echo WALL_MS=\$(( (\$(date +%s%N) - T0) / 1000000 )); mountpoint -q $MNT && echo MOUNTED || echo NOT_MOUNTED; cat $MNT/$WA 2>&1; cat $MNT/$WB 2>&1; true" > "$OUT/B_join.txt"
 capture_require "$OUT/B_join.txt" '^(MOUNTED|NOT_MOUNTED)$' "the lone mount of $B"
 bwall=$(sed -n 's/^WALL_MS=//p' "$OUT/B_join.txt" | head -1)
 echo "STAGE $B lone mount rc=$(sed -n 's/^MOUNT_RC=//p' "$OUT/B_join.txt" | head -1) wall=${bwall:-?}ms total=$(el)s"

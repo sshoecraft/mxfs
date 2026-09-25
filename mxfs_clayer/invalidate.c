@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * mxfs_clayer/invalidate.c — v6a invalidation primitives (sess35 SKETCH)
+ * mxfs_clayer/invalidate.c — v6a invalidation primitives (SKETCH)
  *
  * STATUS: SKELETON ONLY. Not built into the module. Sess36+ implementation
  * task. The functions below are stubs documenting the intended structure;
@@ -12,13 +12,13 @@
  *
  * Per `docs/v6-cache-architecture-proposal.md` §3.2.
  *
- * Sess35 prescription: do this AFTER more careful design work in sess36.
- * Don't merge as-is. The skeleton exists to let sess36 fill it in
+ * Sess35 prescription: do this AFTER more careful design work in.
+ * Don't merge as-is. The skeleton exists to let fill it in
  * without re-deriving the design.
  */
 
 #ifndef MXFS_CLAYER_INVALIDATE_BUILD_NOT_READY
-/* Stub-out the whole file at compile time until sess36 lands the impl.
+/* Stub-out the whole file at compile time until lands the impl.
  * Define MXFS_CLAYER_INVALIDATE_BUILD_NOT_READY in the Makefile to
  * enable. */
 

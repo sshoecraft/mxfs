@@ -24,8 +24,8 @@
 #include "xfs_parent.h"
 #include "xfs_ag.h"
 #include "xfs_ialloc.h"
-#include "../../dlm/v5_mount.h"	/* sess59: mxfs_v5_dlm_is_single_node + pal log */
-#include "xfs_mxfs_dlm.h"	/* sess80: mxfs_dlm_note_dir_modified */
+#include "../../dlm/v5_mount.h"	/* mxfs_v5_dlm_is_single_node + pal log */
+#include "xfs_mxfs_dlm.h"	/* mxfs_dlm_note_dir_modified */
 
 const struct xfs_name xfs_name_dotdot = {
 	.name	= (const unsigned char *)"..",
@@ -198,7 +198,7 @@ xfs_da_unmount(
 
 /*
  * Return 1 if directory contains only "." and "..".
- * sess466: exported for the directory-sharding rmdir emptiness check
+ * exported for the directory-sharding rmdir emptiness check
  * (xfs_mxfs_dirshard.c mxfs_dirshard_isempty walks every container).
  */
 bool
@@ -217,7 +217,7 @@ xfs_dir_isempty(
 }
 
 /*
- * v0.6.5 (sess5 186320ae): BLOCK-format emptiness check for multinode dirs.
+ * v0.6.5 (186320ae): BLOCK-format emptiness check for multinode dirs.
  *
  * With mxfs.dir_force_block a multinode dir is born block-format and (as of
  * v0.6.5) the rm/unlink shrink path never converts it back to shortform —
@@ -325,9 +325,9 @@ xfs_dir2_format(
 	if (eof == XFS_B_TO_FSB(mp, geo->blksize)) {
 		if (XFS_IS_CORRUPT(mp, dp->i_disk_size != geo->blksize)) {
 			/*
-			 * sess58 (ccloop 14d31183) P58-FMT-DISIZE-CORRUPT — instrumented
+			 * P58-FMT-DISIZE-CORRUPT — instrumented
 			 * proof probe at the EXACT shutdown site.  This is the
-			 * dominant clean-gate root (sess57): a MODIFY path
+			 * dominant clean-gate root: a MODIFY path
 			 * (xfs_create/remove/rename) reached here with an extent
 			 * map that maps eof==1 block (so xfs_bmap says BLOCK
 			 * format) but a di_size that is NOT one block — the two
@@ -364,7 +364,7 @@ xfs_dir2_format(
 			return XFS_DIR2_FMT_ERROR;
 		}
 		/*
-		 * sess56 (ccloop 14d31183) P56-FMT-BLOCK-RELOAD-PENDING — proof
+		 * P56-FMT-BLOCK-RELOAD-PENDING — proof
 		 * probe for the format-transition coherency gap.  A peer that
 		 * grows this dir block->leaf arms MXFS_IF_DIR_RELOAD via the
 		 * DIR_MODIFY evict-ring; the LOOKUP/READDIR paths consume it and
@@ -382,7 +382,7 @@ xfs_dir2_format(
 		    !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm) &&
 		    dp->i_df.if_nextents != 1) {
 			/*
-			 * sess56 (ccloop 14d31183): FMT_BLOCK requires EXACTLY
+			 * FMT_BLOCK requires EXACTLY
 			 * one extent (the single dir data block).  if_nextents
 			 * != 1 here means the in-core data-fork extent map is
 			 * STALE or TORN (e.g. nextents=2 from a peer's block->
@@ -396,7 +396,7 @@ xfs_dir2_format(
 			static atomic_t p56f_n = ATOMIC_INIT(0);
 
 			if (atomic_inc_return(&p56f_n) <= 400)
-				mxfs_pal_log(MXFS_LOG_WARN,
+				mxfs_pal_log(MXFS_LOG_DEBUG,
 					"mxfs: P56-FMT-BLOCK-TORN ino=%llu eof=%llu size=%lld nextents=%llu fmt=%d dir_gen=%llu loaded_gen=%u reload_flag=%d self_created=%d dlm_mode=%d comm=%s realns=%llu",
 					(unsigned long long)dp->i_ino,
 					(unsigned long long)eof,
@@ -435,9 +435,9 @@ xfs_dir_createname_args(
 	fmt = xfs_dir2_format(args, &error);
 
 	/*
-	 * sess59 instrumented ALWAYS-ON: format-agnostic create-time detector for the
+	 * instrumented ALWAYS-ON: format-agnostic create-time detector for the
 	 * cross_visibility lost-update.  P-SFADD (xfs_dir2_sf.c) only fires for
-	 * the FMT_SF path; the sess58 timeline showed the victim node's add was
+	 * the FMT_SF path; the timeline showed the victim node's add was
 	 * ABSENT from P-SFADD entirely (the dirent for node1.txt never appeared),
 	 * so the add either took a non-SF format or a different parent.  Log the
 	 * format + parent + child for every node*.txt add so we can see, per
@@ -449,7 +449,7 @@ xfs_dir_createname_args(
 	    args->inumber && args->namelen >= 8 &&
 	    args->name[0] == 'n' && args->name[1] == 'o' &&
 	    args->name[2] == 'd' && args->name[3] == 'e')
-		mxfs_pal_log(MXFS_LOG_WARN,
+		mxfs_pal_log(MXFS_LOG_DEBUG,
 			"mxfs: P-CRNAME pino=%llu add=[%.*s] cino=%llu fmt=%d realns=%llu",
 			(unsigned long long)dp->i_ino,
 			args->namelen, args->name,
@@ -457,7 +457,7 @@ xfs_dir_createname_args(
 			(unsigned long long)ktime_get_real_ns());
 
 	/*
-	 * sess58 (ccloop 14d31183) P58-STALE-BASE-ADD — instrumented ALWAYS-ON
+	 * P58-STALE-BASE-ADD — instrumented ALWAYS-ON
 	 * detector for the durable dirent lost-update (the silent=11 residual
 	 * in zero_silent_loss: e.g. node14_dir1 created by test14 but durably
 	 * absent from the shared parent).  A block/leaf-format parent dir whose
@@ -473,7 +473,7 @@ xfs_dir_createname_args(
 	 * created) is distinguishable from a real peer-modified stale base.
 	 * Cheap: two integer compares, multi-node + non-SF only, rate-limited.
 	 */
-	/* sess58: NON-PERTURBING narrow trigger — only log when the gen metric
+	/* NON-PERTURBING narrow trigger — only log when the gen metric
 	 * says our RMW base is stale (rare).  An every-add log hides the race
 	 * (instr-slowdown).  If loss occurs with this SILENT, the gen tracking
 	 * itself misses the staleness (the real bug is a stale reload, stale=0). */
@@ -483,7 +483,7 @@ xfs_dir_createname_args(
 		static atomic_t p58sb_n = ATOMIC_INIT(0);
 
 		if (atomic_inc_return(&p58sb_n) <= 600)
-			mxfs_pal_log(MXFS_LOG_WARN,
+			mxfs_pal_log(MXFS_LOG_DEBUG,
 				"mxfs: P58-STALE-BASE-ADD pino=%llu add=[%.*s] fmt=%d disize=%lld dir_gen=%llu loaded_gen=%u self_created=%d reload_flag=%d realns=%llu",
 				(unsigned long long)dp->i_ino,
 				args->namelen, args->name, fmt,
@@ -518,7 +518,7 @@ xfs_dir_createname_args(
 	    args->inumber && args->namelen >= 8 &&
 	    args->name[0] == 'n' && args->name[1] == 'o' &&
 	    args->name[2] == 'd' && args->name[3] == 'e')
-		mxfs_pal_log(MXFS_LOG_WARN,
+		mxfs_pal_log(MXFS_LOG_DEBUG,
 			"mxfs: P-CRNAME-DONE pino=%llu add=[%.*s] cino=%llu fmt=%d rval=%d realns=%llu",
 			(unsigned long long)dp->i_ino,
 			args->namelen, args->name,
@@ -571,7 +571,7 @@ xfs_dir_createname(
 
 #ifdef __KERNEL__
 	/*
-	 * sess21 (ccloop 8ddb16a2): if a peer modified this dir's shared LEAF
+	 * if a peer modified this dir's shared LEAF
 	 * (hash index) block while it was pinned on this node (the acquire-side
 	 * evict could not refresh a pinned/undestaged leaf), our in-core leaf is
 	 * missing the peer's committed hashvals.  Rebuild the leaf hash index
@@ -582,7 +582,7 @@ xfs_dir_createname(
 	 * acquire.  Cheap: gated on the flag, fires only after a real stale-skip.
 	 */
 	/*
-	 * sess26 (ccloop 8ddb16a2): the flag-only trigger (set solely on an
+	 * the flag-only trigger (set solely on an
 	 * evict-SKIP of an undurable leaf) MISSED the dominant dir_reuse_
 	 * coherency leaf-hash hole — the failing run fired ZERO
 	 * P21S-EVICTSKIP-LEAF, so the rebuild never ran and a node durably
@@ -612,7 +612,7 @@ xfs_dir_createname(
 
 	rval = xfs_dir_createname_args(args);
 	kfree(args);
-	/* sess80: tell passively-caching peers this shared dir changed. */
+	/* tell passively-caching peers this shared dir changed. */
 	if (!rval)
 		mxfs_dlm_note_dir_modified(dp->i_mount, dp->i_ino);
 	return rval;
@@ -669,14 +669,14 @@ xfs_dir_lookup_args(
 	}
 
 #ifdef __KERNEL__
-	/* sess26 (ccloop): which FORMAT path did a FAILING multi-node lookup
+	/* which FORMAT path did a FAILING multi-node lookup
 	 * take?  datascan-heal is only wired into the LEAF path; if the failing
 	 * lookups dispatch to NODE/BLOCK the leaf-hash hole goes unhealed. */
 	if (error && error != -EEXIST && args->dp->i_mount->m_mxfs_dlm &&
 	    !mxfs_v5_dlm_is_single_node(args->dp->i_mount->m_mxfs_dlm)) {
 		static atomic_t p26fl = ATOMIC_INIT(0);
 		if (atomic_inc_return(&p26fl) <= 200)
-			pr_warn("mxfs: P26-LKFMT ino=%llu fmt=%d err=%d name=\"%.*s\"\n",
+			mxfs_probe("mxfs: P26-LKFMT ino=%llu fmt=%d err=%d name=\"%.*s\"\n",
 				(unsigned long long)args->dp->i_ino, fmt, error,
 				args->namelen, args->name);
 	}
@@ -726,14 +726,14 @@ xfs_dir_lookup(
 
 	lock_mode = xfs_ilock_data_map_shared(dp);
 	/*
-	 * sess115 PROVEN ROOT FIX (instrumented, dmesg EFSCORRUPTED trace):
+	 * PROVEN ROOT FIX (instrumented, dmesg EFSCORRUPTED trace):
 	 * xfs_ilock_data_map_shared above recurses into the MXFS DLM acquire
 	 * hook, which can RELOAD dp from a peer-committed on-disk image
 	 * (mxfs_dlm_reload_inode).  If a peer FREED dp (rm/teardown) or REUSED
 	 * its inode number for a different type across the lock, the reloaded
 	 * dinode is mode=0 (freed) or non-dir — the S_ISDIR assert at entry ran
 	 * BEFORE that reload, so it does not protect us here.  A freed inode's
-	 * data fork is reset to empty-EXTENTS (sess114) while i_disk_size stays
+	 * data fork is reset to empty-EXTENTS while i_disk_size stays
 	 * stale-large; xfs_dir_lookup_args' format dispatch then defaults to
 	 * xfs_dir2_node_lookup, which walks the now-EMPTY extent map and reads
 	 * the node-root daddr (bno 0x800000) → xfs_dabuf_map finds a HOLE with
@@ -747,7 +747,7 @@ xfs_dir_lookup(
 	 */
 	if (unlikely(!S_ISDIR(VFS_I(dp)->i_mode))) {
 		xfs_iunlock(dp, lock_mode);
-		pr_warn_ratelimited(
+		mxfs_probe_ratelimited(
 			"mxfs: P115-PARENT-FREED ino=%llu mode=0%o name=%.*s -> ENOENT (peer freed/reused parent dir mid-lookup)\n",
 			(unsigned long long)dp->i_ino, VFS_I(dp)->i_mode,
 			name->len, (const char *)name->name);
@@ -774,15 +774,15 @@ xfs_dir_lookup(
 	}
 #endif
 	/*
-	 * ccloop c7ee71c6 sess21 — P194: FRESHNESS ASSERTION AT THE OPERATION
-	 * BOUNDARY (design-consult GPT prescription, first of its runtime assertions:
+	 *  — P194: FRESHNESS ASSERTION AT THE OPERATION
+	 * BOUNDARY (design-consult design review prescription, first of its runtime assertions:
 	 * "no mutation if valid_epoch != grant_epoch").
 	 *
 	 * MEASUREMENT ONLY — no behaviour change.
 	 *
-	 * The sess21 storm loss (ROUND 29, pino=46137485, node24_1 vanished with
+	 * The storm loss (ROUND 29, pino=46137485, node24_1 vanished with
 	 * mkdir(2) returning 0) was originally read as "P6 and P65 assert
-	 * contradictory facts".  The GPT review corrected that: they do NOT
+	 * contradictory facts".  The design review corrected that: they do NOT
 	 * conflict.  `grant_epoch > valid_epoch` does not prove a peer wrote
 	 * DURING our tenure — it proves our cached base was ALREADY STALE WHEN
 	 * THE TENURE BEGAN.  P6's premise ("disk cannot have become newer during
@@ -827,14 +827,14 @@ xfs_dir_lookup(
 		 * ~100 spurious adopts per run and hide the ONE hit that
 		 * matters — which was comm=mkdir, the proven loss path.
 		 */
-		/* sess28: incarnation-qualified — see mxfs_dir_epoch_superseded.
+		/* incarnation-qualified — see mxfs_dir_epoch_superseded.
 		 * The raw compare made this permanently true for any directory
 		 * created on a recycled inode number. */
 		bool stale = mxfs_dir_epoch_superseded(dp, ge);
 
 		if (stale) {
 			/*
-			 * GPT's precondition: adopting is only safe while this
+			 * design review's precondition: adopting is only safe while this
 			 * tenure has made NO mutation of its own.  If it has,
 			 * adopting would silently discard our committed change —
 			 * that is the invariant violation, and it must be
@@ -845,7 +845,7 @@ xfs_dir_lookup(
 			bool dirty_here = dp->i_mxfs_dirty_seq != 0 &&
 				dp->i_mxfs_dirty_seq == dp->i_mxfs_ex_grant_seq;
 
-			pr_warn_ratelimited(
+			mxfs_probe_ratelimited(
 				"mxfs: P194-EPOCH-STALE-OP ino=%llu op=lookup grant_epoch=%u valid_epoch=%u dlm_mode=%u fmt=%d nx=%llu size=%lld dirty_here=%d gate=%d name=%.*s comm=%s — directory operation on a base NOT coherent with the epoch on our grant\n",
 				(unsigned long long)dp->i_ino, ge,
 				dp->i_dlm_dir_valid_epoch, dp->i_dlm_mode,
@@ -879,7 +879,7 @@ xfs_dir_lookup(
 
 				if (atomic_inc_return(&p195_n) <= 2000) {
 					/*
-					 * sess21 instrumented: P195 asserts we are in
+					 * instrumented: P195 asserts we are in
 					 * ONE continuous EX tenure
 					 * (dirty_seq == ex_grant_seq) while the
 					 * epoch says a peer PUBLISHED.  Both
@@ -904,12 +904,12 @@ xfs_dir_lookup(
 						dp->i_mount->m_mxfs_dlm, dp->i_ino);
 
 					/*
-					 * ccloop c7ee71c6 sess27: is this the
+					 *  is this the
 					 * CREATOR case?  The one captured P195
 					 * had cached_gen=0 (the "never set"
 					 * sentinel) on a freshly created empty
 					 * dir (comm=mkdir fmt=1 size=6
-					 * valid_epoch=0) — and sess27 proved
+					 * valid_epoch=0) — and proved
 					 * mxfs.create_baseline_trackers is DEAD
 					 * CODE (its S_ISDIR gate reads an i_mode
 					 * that xfs_init_new_inode has not set
@@ -927,7 +927,7 @@ xfs_dir_lookup(
 					 * baseline_unset=1, the creator baseline
 					 * IS the root and the fix is scoped.
 					 */
-					pr_warn("mxfs: P195-STALE-BASE-ALREADY-DIRTY ino=%llu grant_epoch=%u valid_epoch=%u grant_gen=%u cached_gen=%u gen_moved=%d dirty_seq=%llu ex_grant_seq=%llu self_created=%d baseline_unset=%d bvalid=%d base_state=%u fmt=%d comm=%s — this tenure ALREADY mutated an epoch-stale base; neither keep-mine nor adopt-disk is correct here\n",
+					mxfs_probe("mxfs: P195-STALE-BASE-ALREADY-DIRTY ino=%llu grant_epoch=%u valid_epoch=%u grant_gen=%u cached_gen=%u gen_moved=%d dirty_seq=%llu ex_grant_seq=%llu self_created=%d baseline_unset=%d bvalid=%d base_state=%u fmt=%d comm=%s — this tenure ALREADY mutated an epoch-stale base; neither keep-mine nor adopt-disk is correct here\n",
 						(unsigned long long)dp->i_ino,
 						ge, dp->i_dlm_dir_valid_epoch,
 						gg, dp->i_dlm_cached_grant_gen,
@@ -937,13 +937,13 @@ xfs_dir_lookup(
 						dp->i_mxfs_self_created ? 1 : 0,
 						(dp->i_dlm_cached_grant_gen == 0 &&
 						 dp->i_dlm_dir_valid_epoch == 0) ? 1 : 0,
-						/* sess45 Option B: the explicit
+						/* Option B: the explicit
 						 * validity bit — any P195 with
 						 * bvalid=1 is a baseline the gate
 						 * trusted and still went stale
 						 * (invalidation-coverage gap). */
 						dp->i_dlm_base_valid ? 1 : 0,
-						/* sess28: the creator
+						/* the creator
 						 * baseline state (MXFS_CBASE_*).
 						 * 0 = never established (the bug).
 						 * 1 = control arm reached publish.
@@ -987,7 +987,7 @@ xfs_dir_lookup(
  *
  * The stock xfs_dir_lookup takes xfs_ilock_data_map_shared(dp) internally,
  * which under MXFS recurses into the distributed-lock hook (mxfs_dlm_ilock_*)
- * and deadlocks when the caller already holds ILOCK_EXCL (sess36).  This
+ * and deadlocks when the caller already holds ILOCK_EXCL.  This
  * helper skips the relock — the caller's ILOCK covers the read.
  *
  * Used to re-validate non-existence of @name under the held cross-node EX
@@ -1083,10 +1083,10 @@ xfs_dir_removename(
 	args->owner = dp->i_ino;
 	rval = xfs_dir_removename_args(args);
 	kfree(args);
-	/* sess80: tell passively-caching peers this shared dir changed. */
+	/* tell passively-caching peers this shared dir changed. */
 	if (!rval) {
 		mxfs_dlm_note_dir_modified(dp->i_mount, dp->i_ino);
-		/* sess34: record the removed inumber in this tenure's removed-set
+		/* record the removed inumber in this tenure's removed-set
 		 * so the release-drain merge never resurrects our own remove. */
 		mxfs_dir_record_removed(dp, ino);
 	}
@@ -1150,7 +1150,7 @@ xfs_dir_replace(
 	args->owner = dp->i_ino;
 	rval = xfs_dir_replace_args(args);
 	kfree(args);
-	/* sess80: tell passively-caching peers this shared dir changed. */
+	/* tell passively-caching peers this shared dir changed. */
 	if (!rval)
 		mxfs_dlm_note_dir_modified(dp->i_mount, dp->i_ino);
 	return rval;
@@ -1204,14 +1204,14 @@ xfs_dir2_grow_inode(
 
 	*dbp = xfs_dir2_da_to_db(args->geo, (xfs_dablk_t)bno);
 
-	/* <ccloop sess49> tripwire: a successful dir grow must leave the new
+	/* < > tripwire: a successful dir grow must leave the new
 	 * block REAL-allocated, never delalloc.  Catch the path that leaves a
 	 * DELAYSTARTBLOCK in the dir data fork (the 8/tcp DABUF_MAP_HOLE root). */
 	if (S_ISDIR(VFS_I(dp)->i_mode))
 		mxfs_dir_delalloc_tripwire(dp, "dir2_grow_inode");
 
 	/*
-	 * ccloop sess39 P-GROW0 (instrumented DECISIVE, low-perturbation, NO disk I/O):
+	 *  P-GROW0 (instrumented DECISIVE, low-perturbation, NO disk I/O):
 	 * log every allocation of dir DATA logical block 0.  The dir_reuse_coherency
 	 * durable loss is a DIVERGENT extent map — node1 writes blk0 to one daddr,
 	 * node2 to another, for the SAME dir incarnation (i_generation).  If BOTH
@@ -1237,7 +1237,7 @@ xfs_dir2_grow_inode(
 				}
 			}
 			if (atomic_inc_return(&pg0) <= 1200)
-				pr_warn("mxfs: P-GROW0 ino=%llu gen=%u fmt=%d nx=%llu fsb=%llu comm=%s\n",
+				mxfs_probe("mxfs: P-GROW0 ino=%llu gen=%u fmt=%d nx=%llu fsb=%llu comm=%s\n",
 					(unsigned long long)dp->i_ino,
 					VFS_I(dp)->i_generation,
 					dp->i_df.if_format,
@@ -1290,7 +1290,7 @@ xfs_dir2_shrink_inode(
 
 #ifdef __KERNEL__
 	/*
-	 * ccloop-4dd7 sess2 P148-DIRSHRINK — every dir-block free with the
+	 * ccloop-4dd7 P148-DIRSHRINK — every dir-block free with the
 	 * BASE COHERENCY stamps at free time.  The round-3 double-map's
 	 * suspected poison step is a shrink whose base predates a peer's
 	 * regrow (stale-lineage free of the peer's live block).  Joined with
@@ -1302,7 +1302,7 @@ xfs_dir2_shrink_inode(
 		static atomic_t p148_n = ATOMIC_INIT(0);
 
 		if (atomic_inc_return(&p148_n) <= 4000)
-			pr_warn("mxfs: P148-DIRSHRINK ino=%llu db=%d da=%u fmt=%d nx=%d size=%lld dir_gen=%u loaded_gen=%u acq_epoch=%u valid_epoch=%u dlm_mode=%u comm=%s realns=%llu\n",
+			mxfs_probe("mxfs: P148-DIRSHRINK ino=%llu db=%d da=%u fmt=%d nx=%d size=%lld dir_gen=%u loaded_gen=%u acq_epoch=%u valid_epoch=%u dlm_mode=%u comm=%s realns=%llu\n",
 				(unsigned long long)dp->i_ino, (int)db,
 				(unsigned)da, dp->i_df.if_format,
 				(int)dp->i_df.if_nextents,
@@ -1346,7 +1346,7 @@ xfs_dir2_shrink_inode(
 	 * If the block isn't the last one in the directory, we're done.
 	 */
 	if (dp->i_disk_size > xfs_dir2_db_off_to_byte(args->geo, db + 1, 0)) {
-		/* <ccloop sess49b> ORIGIN PROBE: freeing a NON-last (middle) dir
+		/* < > ORIGIN PROBE: freeing a NON-last (middle) dir
 		 * data block removes its extent but leaves di_size unchanged ->
 		 * a GAP in the data-region extent map.  Legitimate single-node
 		 * (the leaf/free index no longer references it), but the PROVEN
@@ -1587,7 +1587,7 @@ xfs_dir_add_child(
 
 		pag = xfs_perag_get(mp, XFS_INO_TO_AGNO(mp, ip->i_ino));
 		/*
-		 * MXFS sess399 (D-AGI-FREECOUNT-BTREE-DIVERGENCE-STALE-AGI-RMW-399):
+		 * MXFS (D-AGI-FREECOUNT-BTREE-DIVERGENCE-STALE-AGI-RMW-399):
 		 * this is the linkat(AT_EMPTY_PATH) of an O_TMPFILE.  Upstream
 		 * pulls the inode off the AGI unlinked list here with only the
 		 * AGI buffer lock; in the cluster that is an AGI modification
@@ -1744,7 +1744,7 @@ xfs_dir_remove_child(
 
 		error = xfs_dir_removename(tp, dp, name, ip->i_ino, resblks);
 		if (error) {
-			pr_warn("mxfs: MX-INSTR remove dp=%llu ip=%llu name=\"%.*s\" xfs_dir_removename rc=%d (clean-cancel, node stays up)",
+			mxfs_probe("mxfs: MX-INSTR remove dp=%llu ip=%llu name=\"%.*s\" xfs_dir_removename rc=%d (clean-cancel, node stays up)",
 				(unsigned long long)dp->i_ino,
 				(unsigned long long)ip->i_ino,
 				name->len, (const char *)name->name, error);
@@ -1761,7 +1761,7 @@ xfs_dir_remove_child(
 		/* Drop the link from dp to ip. */
 		error = xfs_droplink(tp, ip);
 		if (error) {
-			pr_warn("mxfs: MX-INSTR remove dp=%llu ip=%llu nlink=%u xfs_droplink rc=%d",
+			mxfs_probe("mxfs: MX-INSTR remove dp=%llu ip=%llu nlink=%u xfs_droplink rc=%d",
 				(unsigned long long)dp->i_ino,
 				(unsigned long long)ip->i_ino,
 				VFS_I(ip)->i_nlink, error);
@@ -1781,7 +1781,7 @@ xfs_dir_remove_child(
 		/* Drop the link from dp to ip. */
 		error = xfs_droplink(tp, ip);
 		if (error) {
-			pr_warn("mxfs: MX-INSTR remove dp=%llu ip=%llu nlink=%u xfs_droplink rc=%d",
+			mxfs_probe("mxfs: MX-INSTR remove dp=%llu ip=%llu nlink=%u xfs_droplink rc=%d",
 				(unsigned long long)dp->i_ino,
 				(unsigned long long)ip->i_ino,
 				VFS_I(ip)->i_nlink, error);
@@ -1790,7 +1790,7 @@ xfs_dir_remove_child(
 
 		error = xfs_dir_removename(tp, dp, name, ip->i_ino, resblks);
 		if (error) {
-			pr_warn("mxfs: MX-INSTR remove dp=%llu ip=%llu name=\"%.*s\" xfs_dir_removename rc=%d",
+			mxfs_probe("mxfs: MX-INSTR remove dp=%llu ip=%llu name=\"%.*s\" xfs_dir_removename rc=%d",
 				(unsigned long long)dp->i_ino,
 				(unsigned long long)ip->i_ino,
 				name->len, (const char *)name->name, error);
@@ -1802,7 +1802,7 @@ xfs_dir_remove_child(
 	if (du->ppargs) {
 		error = xfs_parent_removename(tp, du->ppargs, dp, name, ip);
 		if (error) {
-			pr_warn("mxfs: MX-INSTR remove dp=%llu ip=%llu xfs_parent_removename rc=%d",
+			mxfs_probe("mxfs: MX-INSTR remove dp=%llu ip=%llu xfs_parent_removename rc=%d",
 				(unsigned long long)dp->i_ino,
 				(unsigned long long)ip->i_ino, error);
 			return error;
@@ -1964,7 +1964,7 @@ xfs_dir_exchange_children(
  * is a freshly allocated whiteout.
  */
 /*
- * sess384 P217-RENAME-FAILSITE.  D-RSYNC-RENAME-DIRTY-CANCEL-MASS-SHUTDOWN-361:
+ * P217-RENAME-FAILSITE.  D-RSYNC-RENAME-DIRTY-CANCEL-MASS-SHUTDOWN-361:
  * a same-directory rsync rename returns rc=-117 (EFSCORRUPTED) with the
  * transaction already DIRTY, so xfs_trans_cancel force-shuts the filesystem
  * (0x8, SHUTDOWN_CORRUPT_INCORE) and 17 of 32 nodes died from it -- twice on
@@ -1992,7 +1992,7 @@ mxfs_dir_rename_fail(
 {
 	if (likely(!error) || !mp->m_mxfs_dlm)
 		return;
-	pr_warn_ratelimited("mxfs: P217-RENAME-FAILSITE site=%s rc=%d ino=%llu fmt=%u if_bytes=%lld size=%lld nextents=%llu comm=%s — first failing helper inside xfs_dir_rename_children; the caller cancels a DIRTY transaction next\n",
+	mxfs_probe_ratelimited("mxfs: P217-RENAME-FAILSITE site=%s rc=%d ino=%llu fmt=%u if_bytes=%lld size=%lld nextents=%llu comm=%s — first failing helper inside xfs_dir_rename_children; the caller cancels a DIRTY transaction next\n",
 		site, error,
 		(unsigned long long)(subject ? subject->i_ino : 0),
 		subject ? subject->i_df.if_format : 0,
@@ -2070,7 +2070,7 @@ xfs_dir_rename_children(
 
 		pag = xfs_perag_get(mp, XFS_INO_TO_AGNO(mp, du_wip->ip->i_ino));
 		/*
-		 * MXFS sess399 (D-AGI-FREECOUNT-BTREE-DIVERGENCE-STALE-AGI-RMW-399):
+		 * MXFS (D-AGI-FREECOUNT-BTREE-DIVERGENCE-STALE-AGI-RMW-399):
 		 * the whiteout's unlinked-list removal is an AGI modification and
 		 * needs AG-DLM tenure, same as the O_TMPFILE linkat in
 		 * xfs_dir_add_child.  Lock before the AGI read; the transaction
@@ -2225,7 +2225,7 @@ xfs_dir_rename_children(
 		extern int mxfs_dirwr_enabled, mxfs_instr_enabled;
 		if (unlikely(mxfs_dirwr_enabled || mxfs_instr_enabled) &&
 		    src_dp->i_mount->m_mxfs_dlm)
-			pr_warn_ratelimited("mxfs: P-RENAME-SRCDEL src_dp=%llu src=%.*s tgt=%.*s src_ino=%llu rc=%d dp_fmt=%u dp_size=%lld dlm_mode=%u realns=%llu\n",
+			mxfs_probe_ratelimited("mxfs: P-RENAME-SRCDEL src_dp=%llu src=%.*s tgt=%.*s src_ino=%llu rc=%d dp_fmt=%u dp_size=%lld dlm_mode=%u realns=%llu\n",
 				(unsigned long long)src_dp->i_ino,
 				src_name->len, (const char *)src_name->name,
 				target_name->len, (const char *)target_name->name,

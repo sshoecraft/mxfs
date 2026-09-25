@@ -19,12 +19,12 @@
 #include "xfs_log_recover.h"
 #include "xfs_error.h"
 #include "xfs_mxfs_icensus.h"
-#include "../dlm/recov_obl.h"	/* sess462: obligation list entries */
+#include "../dlm/recov_obl.h"	/* obligation list entries */
 
 /* An open table larger than this is not a slice any node could have
  * written between two checkpoints; stop tracking and fail closed. */
 #define MXFS_ICENSUS_MAX_OPEN	65536u
-/* sess461: total extents retained across every open EFI; beyond it the
+/* total extents retained across every open EFI; beyond it the
  * census overflows (fail closed) exactly like the open-table bound. */
 #define MXFS_ICENSUS_MAX_EXTENTS 65536u
 /* Per-item notices are bounded per log; the counters are not. */
@@ -36,7 +36,7 @@ struct mxfs_icensus_ent {
 	uint64_t		ag_mask;
 	uint64_t		lsn;
 	uint16_t		type;
-	/* sess461: whole-transaction verdicts (MXFS_TXNV_*) of the intent's
+	/* whole-transaction verdicts (MXFS_TXNV_*) of the intent's
 	 * transaction and, when a done was seen in a NON-admitted
 	 * transaction, of that done's transaction (ambiguous: kept open). */
 	uint8_t			verdict;
@@ -46,7 +46,7 @@ struct mxfs_icensus_ent {
 	bool			malformed;
 	bool			ambiguous_done;
 	bool			duplicate;	/* a second intent carried this id */
-	/* sess461: the EFI's extents (copied out of the log item) so the
+	/* the EFI's extents (copied out of the log item) so the
 	 * completion increments can act on them; NULL for non-EFI classes. */
 	uint32_t		nextents;
 	struct xfs_extent	*extents;
@@ -133,7 +133,7 @@ mxfs_icensus_is_done(
 }
 
 /*
- * sess461: did the enclosing transaction's images APPLY?  Only these three
+ * did the enclosing transaction's images APPLY? Only these three
  * verdicts mean the whole transaction was honoured; SKIP/SBCLEAN/PREINC
  * (and UNSET on a trusted replay, which never reaches the census) are not
  * admission.  Ruling SS7: nothing else may be read as executable.
@@ -199,7 +199,7 @@ mxfs_icensus_ent_ino(
 }
 
 /*
- * sess461: copy an EFI's extents out of the log item.  The three on-disk
+ * copy an EFI's extents out of the log item.  The three on-disk
  * layouts (native, 32-bit packed, 64-bit padded) differ only in the extent
  * record stride; every extent is validated (xfs_verify_fsbext: non-zero
  * length, inside the filesystem, not crossing an AG) — a bad one marks the
@@ -411,7 +411,7 @@ mxfs_icensus_note(
 			if (e->id != id || e->malformed)
 				continue;
 			/*
-			 * sess461 (ruling SS7): a done inside a transaction
+			 * (ruling SS7): a done inside a transaction
 			 * whose images did NOT apply is AMBIGUOUS — honouring
 			 * it could suppress required work whose metadata never
 			 * reached home; ignoring it could double-free.  Keep
@@ -503,7 +503,7 @@ mxfs_icensus_note(
 	}
 }
 
-/* sess461: do two fs-block ranges intersect? */
+/* do two fs-block ranges intersect? */
 static bool
 mxfs_icensus_ext_overlap(
 	const struct xfs_extent	*a,
@@ -514,7 +514,7 @@ mxfs_icensus_ext_overlap(
 }
 
 /*
- * sess461: the classification pass.  Runs once; the result is cached on
+ * the classification pass.  Runs once; the result is cached on
  * the census.  Ruling SS7 matrix plus the overlap rule: any two RECOVER
  * candidates (within one EFI or across EFIs) that overlap are BOTH
  * quarantined — an exact duplicate extent is malformed source evidence,

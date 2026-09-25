@@ -22,7 +22,7 @@
 #include "xfs_log.h"
 #include "xfs_btree_staging.h"
 #include "xfs_ag.h"
-#include "xfs_mxfs_dlm.h"	/* sess40: mxfs_ag_meta_invalidate_stale */
+#include "xfs_mxfs_dlm.h"	/* mxfs_ag_meta_invalidate_stale */
 #include "xfs_alloc_btree.h"
 #include "xfs_ialloc_btree.h"
 #include "xfs_bmap_btree.h"
@@ -1401,7 +1401,7 @@ xfs_btree_read_buf_block(
 	if (error)
 		return error;
 	/*
-	 * sess41: AG free-space read coherency for bnobt/cntbt/inobt/finobt
+	 * AG free-space read coherency for bnobt/cntbt/inobt/finobt
 	 * BLOCKS.  XFS btrees update IN-PLACE — a peer overwrites the block at a
 	 * given agbno, so this node's cached buffer for that agbno is stale even
 	 * after we re-read a fresh AGF/AGI (which only give the correct ROOT
@@ -1420,7 +1420,7 @@ xfs_btree_read_buf_block(
 		mxfs_ag_meta_invalidate_stale(mp, to_perag(cur->bc_group), d,
 				xfs_btree_bbsize(cur));
 	/*
-	 * sess133: same in-place-rewrite staleness for INODE-rooted (bmbt)
+	 * same in-place-rewrite staleness for INODE-rooted (bmbt)
 	 * btrees of a shared DIRECTORY's data fork.  After a DLM reload the
 	 * dinode root is fresh but cached bmbt CHILD blocks are not; a peer's
 	 * grow rewrote them at the same daddr, so the lazy iread_extents walk
@@ -1439,7 +1439,7 @@ xfs_btree_read_buf_block(
 	if (error)
 		return error;
 
-	/* sess125: tenure is stamped at MODIFY time now (mxfs_ag_meta_track in
+	/* tenure is stamped at MODIFY time now (mxfs_ag_meta_track in
 	 * xfs_trans_log_buf), not read time — a cache-hit read of bnobt/cntbt/
 	 * inobt/finobt must NOT re-stamp a prior-tenure stale block to the
 	 * current tenure (that masked the gen-based cold-read refresh and let
@@ -4816,7 +4816,7 @@ xfs_btree_visit_blocks(
 struct xfs_btree_block_change_owner_info {
 	uint64_t		new_owner;
 	struct list_head	*buffer_list;
-	bool			mxfs_foreign_recovery;	/* sess338 513B */
+	bool			mxfs_foreign_recovery;	/* 513B */
 };
 
 static int
@@ -4860,7 +4860,7 @@ xfs_btree_block_change_owner(
 			return -EAGAIN;
 		}
 	} else {
-		/* sess340 513B: ownership-safe foreign provenance + queue */
+		/* 513B: ownership-safe foreign provenance + queue */
 		return xfs_buf_delwri_queue_recovery(bp, bbcoi->buffer_list,
 				bbcoi->mxfs_foreign_recovery);
 	}

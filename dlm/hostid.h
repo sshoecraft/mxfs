@@ -1,5 +1,5 @@
 /*
- * MXFS — host and boot identity (sess437, docs/whole-cluster-restart.md §1).
+ * MXFS — host and boot identity (docs/whole-cluster-restart.md §1).
  *
  * Nothing in MXFS's identity model tied a SCSI PR registration to a HOST or a
  * BOOT: node_id is per mount context, the epoch per slot claim, the PR key

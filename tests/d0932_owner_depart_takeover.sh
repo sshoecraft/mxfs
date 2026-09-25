@@ -282,7 +282,7 @@ capture_require "$OUT/B_md5.txt" '^[0-9a-f]{32}$' "the module copy on $B"
 ck "$B runs the tree build (md5)" "$(head -1 "$OUT/B_md5.txt")" "$MD5"
 
 RMARK=$(date +%s)
-rsx $((JOIN_BOUND + 60)) "$B" "lsmod | grep -q '^mxfs ' || insmod $KO $MODARGS; echo INSMOD_RC=\$?; T0=\$(date +%s%N); mountpoint -q $MNT || timeout $JOIN_BOUND mount -t mxfs $MXFS_DEV $MNT; echo MOUNT_RC=\$?; echo WALL_MS=\$(( (\$(date +%s%N) - T0) / 1000000 )); mountpoint -q $MNT && echo MOUNTED || echo NOT_MOUNTED" > "$OUT/B_join.txt"
+rsx $((JOIN_BOUND + 60)) "$B" "lsmod | grep -q '^mxfs ' || insmod $KO dyndbg=+p $MODARGS; echo INSMOD_RC=\$?; T0=\$(date +%s%N); mountpoint -q $MNT || timeout $JOIN_BOUND mount -t mxfs $MXFS_DEV $MNT; echo MOUNT_RC=\$?; echo WALL_MS=\$(( (\$(date +%s%N) - T0) / 1000000 )); mountpoint -q $MNT && echo MOUNTED || echo NOT_MOUNTED" > "$OUT/B_join.txt"
 capture_require "$OUT/B_join.txt" '^(MOUNTED|NOT_MOUNTED)$' "the lone mount of $B"
 echo "STAGE $B join rc=$(sed -n 's/^MOUNT_RC=//p' "$OUT/B_join.txt" | head -1) wall=$(sed -n 's/^WALL_MS=//p' "$OUT/B_join.txt" | head -1)ms total=$(el)s"
 rsx 60 "$B" "journalctl -k --since @$RMARK --no-pager 2>/dev/null | cut -c1-600" > "$OUT/B_journal.txt"

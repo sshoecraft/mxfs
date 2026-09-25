@@ -28,7 +28,7 @@ struct xfs_dquot;
 #define MXFS_DLM_ISTATE_BAST		2	/* DLM lock held, BAST pending (deferred) */
 #define MXFS_DLM_ISTATE_DEMOTING	3	/* flushing/invalidating for BAST release */
 #define MXFS_DLM_ISTATE_ACQUIRING	4	/* NEWARCH Phase 1.3
-						 * (Gemini chokepoint design):
+						 * (design review chokepoint design):
 						 * slow-path caw_lock in flight
 						 * on this node.  Blocks
 						 * concurrent same-node fast-
@@ -43,10 +43,10 @@ struct xfs_dquot;
 						 * BAST arrived while we were
 						 * acquiring). */
 
-struct mxfs_dirshard_cache;	/* sess466: xfs_mxfs_dirshard.h */
+struct mxfs_dirshard_cache;	/* xfs_mxfs_dirshard.h */
 
 /*
- * sess469 fix shape A: the EXACT identity of the certificate xfs_inactive
+ * fix shape A: the EXACT identity of the certificate xfs_inactive
  * installed, read back under i_dlm_lock at install time (the installer may
  * ADVANCE an existing same-tenure certificate to max(epoch), so the grant
  * result's own epoch is not necessarily what got installed).  The revoke at
@@ -122,7 +122,7 @@ typedef struct xfs_inode {
 	xfs_agino_t		i_next_unlinked;
 
 	/*
-	 * mxfs sess203: pending iunlink-transition certificate.  Between
+	 * pending iunlink-transition certificate.  Between
 	 * xfs_iunlink_log_inode (item creation, where the caller then
 	 * advances i_next_unlinked to the new value) and the item's
 	 * precommit (where the buffer and the iunl store catch up), the
@@ -154,17 +154,17 @@ typedef struct xfs_inode {
 	xfs_agino_t		i_prev_unlinked;
 
 	/*
-	 * mxfs sess40 (D-AGI-UNLINKED F1, per-slot buckets): the AGI bucket
+	 * (D-AGI-UNLINKED F1, per-slot buckets): the AGI bucket
 	 * this inode's unlinked-list entry actually lives in; -1 = not on any
 	 * list.  Stamped at insert and by every recovery/reload walk that
 	 * establishes list membership; the remove path uses THIS and never
 	 * recomputes (bucket choice is the inserter's node slot in multi-node
 	 * mode, so a remover must not re-derive it from its own identity or
-	 * from agino hashing — GPT sess40 review, "explicit recorded bucket").
+	 * from agino hashing — design review, "explicit recorded bucket").
 	 */
 	int16_t			i_unlinked_bucket;
 
-	/* sess40 (D-CROSSNODE-OPEN-UNLINK): count of open file descriptions
+	/* (D-CROSSNODE-OPEN-UNLINK): count of open file descriptions
 	 * this node holds for the inode.  Together with mapping_mapped() it
 	 * answers "does this node have protected activity" — the predicate
 	 * published to peers as an open-holder bit when a BAST makes us
@@ -183,7 +183,7 @@ typedef struct xfs_inode {
 	 * returns; readers take i_mxfs_open_n first, then this. */
 	atomic_t		i_mxfs_open_inflight;
 
-	/* sess236 (D-OPEN-PROTECT-DEMOTE-RACE-SPURIOUS-EIO, sess235 design-consult
+	/* (D-OPEN-PROTECT-DEMOTE-RACE-SPURIOUS-EIO, design-consult
 	 * ruling): count of open admissions (mxfs_dlm_open_protect) in their
 	 * critical section AFTER exhausting plain cold-open restarts.  The
 	 * release worker's last gate honors it: while >0 the terminal
@@ -199,7 +199,7 @@ typedef struct xfs_inode {
 	 * mxfs_inode_owns_logged_metadata answers "owns" while it is nonzero. */
 	atomic_t		i_mxfs_attr_setting;
 
-	/* sess40: this node has PUBLISHED an open-holder bit for the inode
+	/* this node has PUBLISHED an open-holder bit for the inode
 	 * (BAST release while still open here).  The clear paths consult it
 	 * first: without it, evict and every unlinked-inode exit would run a
 	 * full slot probe (SCSI reads on the shared LUN) for inodes that
@@ -207,16 +207,16 @@ typedef struct xfs_inode {
 	 * workloads.  Only published inodes pay the clear. */
 	bool			i_mxfs_open_pub;
 
-	/* sess46 (iclus open tracking): a standalone SET of this inode's
+	/* (iclus open tracking): a standalone SET of this inode's
 	 * open bit is IN FLIGHT from the icluster release-publication sweep.
 	 * Under i_dlm_lock with i_mxfs_open_pub.  C4's last-close clear
 	 * skips while set (the sweep's post-SET recheck performs the clear
-	 * if activity reached zero mid-SET), closing the GPT
+	 * if activity reached zero mid-SET), closing the design review
 	 * close-during-SETTING race that would otherwise leave a permanent
 	 * stale bit deferring peers' reaps until fencing. */
 	bool			i_mxfs_open_setting;
 
-	/* sess466 (docs/dir-sharding.md): validated manifest cache of a
+	/* (docs/dir-sharding.md): validated manifest cache of a
 	 * sharded PARENT directory (NULL for every other inode).  Allocated
 	 * on first load under the parent's ILOCK, invalidated by every
 	 * barrier-side mutation and by the DLM grant release
@@ -227,90 +227,90 @@ typedef struct xfs_inode {
 	spinlock_t		i_dlm_lock;	/* protects DLM cache fields */
 	wait_queue_head_t	i_dlm_wait;	/* blocked by DEMOTING state */
 	struct work_struct	i_dlm_bast_work; /* deferred BAST processing */
-	struct delayed_work	i_dlm_bast_dwork; /* sess124: MHT (minimum hold time) deferred BAST release timer */
-	bool			i_dlm_bast_pending; /* sess124: a peer BAST is deferred under MHT; honor it on dwork expiry / unlock / evict */
-	bool			i_dlm_dir_contended; /* sess25 (ccloop 4cb2d0a2): STICKY — set on ANY BAST received for this dir inode; gates mxfs_dir_ail_push_defer so a SHARED dir defers background dir-block destages to the release-drain even during the create-phase cold window (dir_gen still 0 on a fresh incarnation since the create path never bumps dir_gen — only reads do).  A truly private dir is never BAST'd → stays false → destages normally (no log-tail starvation).  Reset at inode init. */
-	bool			i_dlm_dir_want_ex; /* ccloop 12e0d157 (Fable design): set when a peer BAST requested EX (a MODIFIER) on this dir since the last grant.  Distinct from i_dlm_dir_contended (set on ANY BAST incl PR readers / MHT self-demote / noino).  Gates the release-time dir-buffer invalidation (mxfs_dir_release_invalidate_data_blocks) under mxfs_dir_release_skip_nonex: a dir released while NO peer wants EX keeps its cached blocks (no peer can modify what it holds only ≥PR on), killing the 32-node dlm_scaling cold-reread storm.  Cleared at inode init and on each fresh grant. */
-	u64			i_dlm_ex_acquire_ns; /* sess124: ktime of the most recent FRESH inode-EX grant (start of the MHT window) */
-	u64			i_dlm_tenure_firstop_ns; /* sess296 (D-503 ruling step 1): ktime of the FIRST ilock_end served by the current EX tenure (0 = none yet).  Tenure decomposition input: grant→firstop = adoption/setup cost, (lastop-firstop)/(ops-1) = marginal per-op cost, entry→lastop gap = idle tail.  Reset to 0 at every fresh-EX stamp alongside i_dlm_tenure_ops. */
-	u64			i_dlm_tenure_lastop_ns; /* sess7 (ccloop 72513a13): ktime of the most recent ilock_end on this inode — the last moment the current tenure was CONSUMED.  Quiet-age input for the MHT dwork: with a peer parked (bast_pending), a young-window tenure releases at the first sample where now-max(this,acquire_ns) >= the batch grace, instead of sleeping out the full 300ms window on an idle grant (cc@32 rv: 32-node rotation at 300ms/hop = 3-7.7s peer waits). */
+	struct delayed_work	i_dlm_bast_dwork; /* MHT (minimum hold time) deferred BAST release timer */
+	bool			i_dlm_bast_pending; /* a peer BAST is deferred under MHT; honor it on dwork expiry / unlock / evict */
+	bool			i_dlm_dir_contended; /* STICKY — set on ANY BAST received for this dir inode; gates mxfs_dir_ail_push_defer so a SHARED dir defers background dir-block destages to the release-drain even during the create-phase cold window (dir_gen still 0 on a fresh incarnation since the create path never bumps dir_gen — only reads do).  A truly private dir is never BAST'd → stays false → destages normally (no log-tail starvation).  Reset at inode init. */
+	bool			i_dlm_dir_want_ex; /*  (design review design): set when a peer BAST requested EX (a MODIFIER) on this dir since the last grant.  Distinct from i_dlm_dir_contended (set on ANY BAST incl PR readers / MHT self-demote / noino).  Gates the release-time dir-buffer invalidation (mxfs_dir_release_invalidate_data_blocks) under mxfs_dir_release_skip_nonex: a dir released while NO peer wants EX keeps its cached blocks (no peer can modify what it holds only ≥PR on), killing the 32-node dlm_scaling cold-reread storm.  Cleared at inode init and on each fresh grant. */
+	u64			i_dlm_ex_acquire_ns; /* ktime of the most recent FRESH inode-EX grant (start of the MHT window) */
+	u64			i_dlm_tenure_firstop_ns; /* (D-503 ruling step 1): ktime of the FIRST ilock_end served by the current EX tenure (0 = none yet).  Tenure decomposition input: grant→firstop = adoption/setup cost, (lastop-firstop)/(ops-1) = marginal per-op cost, entry→lastop gap = idle tail.  Reset to 0 at every fresh-EX stamp alongside i_dlm_tenure_ops. */
+	u64			i_dlm_tenure_lastop_ns; /* ktime of the most recent ilock_end on this inode — the last moment the current tenure was CONSUMED.  Quiet-age input for the MHT dwork: with a peer parked (bast_pending), a young-window tenure releases at the first sample where now-max(this,acquire_ns) >= the batch grace, instead of sleeping out the full 300ms window on an idle grant (cc@32 rv: 32-node rotation at 300ms/hop = 3-7.7s peer waits). */
 	uint8_t			i_dlm_mode;	/* cached mode: NL/PR/EX */
 	uint8_t			i_dlm_state;	/* MXFS_DLM_ISTATE_* */
-	u32			i_dlm_nl_line;	/* sess207 #18 forensics: __LINE__ (xfs_mxfs_dlm.c) of the last transition INTO NL from a granted mode, stamped in mxfs_dlmtr_rec for EVERY inode (no watch_ino gate).  0 = never lowered to NL.  Names the setter when P95-OPEN-PROTECT-FAIL finds mode==NL after the ilock ride. */
-	pid_t			i_dlm_nl_pid;	/* sess207 #18 forensics: pid of that setter */
-	u64			i_dlm_nl_ns;	/* sess207 #18 forensics: ktime_get_real_ns at that setter (age printed by P95) */
-	uint8_t			i_dlm_nl_om;	/* sess207 #18 forensics: the granted mode the setter lowered FROM */
-	char			i_dlm_nl_comm[16]; /* sess207 #18 forensics: comm of that setter */
-	/* sess238 #23 forensics (design-consult ruling): open_protect marks its task
+	u32			i_dlm_nl_line;	/* #18 forensics: __LINE__ (xfs_mxfs_dlm.c) of the last transition INTO NL from a granted mode, stamped in mxfs_dlmtr_rec for EVERY inode (no watch_ino gate).  0 = never lowered to NL.  Names the setter when P95-OPEN-PROTECT-FAIL finds mode==NL after the ilock ride. */
+	pid_t			i_dlm_nl_pid;	/* #18 forensics: pid of that setter */
+	u64			i_dlm_nl_ns;	/* #18 forensics: ktime_get_real_ns at that setter (age printed by P95) */
+	uint8_t			i_dlm_nl_om;	/* #18 forensics: the granted mode the setter lowered FROM */
+	char			i_dlm_nl_comm[16]; /* #18 forensics: comm of that setter */
+	/* #23 forensics (design-consult ruling): open_protect marks its task
 	 * here (under i_dlm_lock) before each ilock ride; mxfs_dlmtr_rec then
 	 * stamps the __LINE__ of every DLM transition/holder event this task
 	 * performs, so the admission re-read can name WHICH ilock_begin admit
-	 * arm registered its holder (hypothesis: the sess47 relflush-admit arm,
+	 * arm registered its holder (hypothesis: the relflush-admit arm,
 	 * which has no mode check and admits at post-terminal-store NL).
 	 * 0 = no open_protect ride in flight / arm not recorded. */
 	pid_t			i_mxfs_openprot_pid;
 	u32			i_mxfs_openprot_arm;
-	/* sess5 shadow-ledger provenance: return address of the last
+	/* shadow-ledger provenance: return address of the last
 	 * nlink-0 install and of the last MXFS_IF_RMC_ACCT clear — printed
 	 * (%pS) by mxfs_rmc_unpaired so the unpaired 0->N dec names the
 	 * exact site that installed/unaccounted the zero. */
 	void			*i_rmc_last0_ra;
 	void			*i_rmc_lastclr_ra;
 	unsigned long		i_dlm_heldchk_j; /* v0.5.2: jiffies of the last P108 on-disk slot-ownership verify (one 512B slot read per idle dir-ilock cache hit; throttled to one per 100ms per inode — same correctness class, the verify is TOCTOU-bounded either way) */
-	unsigned long		i_dlm_phantom_bast_j; /* sess7 FIX-20: jiffies of the last NONE/NL BAST that found NO local mirror (possible master-side phantom grant).  With i_dlm_phantom_bast_n it discriminates a one-off stale BAST (swallowed, cheap) from a phantom-holder BAST STORM (starved waiters retry ~1/s -> repeated BASTs): the 2nd+ strike within 15s escalates to a serialized reconcile release. */
-	unsigned int		i_dlm_phantom_bast_n; /* sess7 FIX-20: consecutive no-mirror NONE/NL BAST strikes within the window */
-	bool			i_dlm_reconcile_pending; /* sess7 FIX-20b: one-shot — the queued bast_process is a phantom reconcile; its P6Z mirror-empty arm must send the mirror-bypassing gen=0 release to the master instead of skipping silently */
-	uint32_t		i_dlm_orphan_gg; /* sess15 FIX-H2: grant_gen seen at the last orphan-live release abort (cleanup-flavor bast_process vs a live-gen mirror entry).  With i_dlm_orphan_strikes it discriminates a grant mid-completion (gen turns over / gets consumed -> reset) from a genuinely STRANDED grant (same gen, never consumed, no ACQUIRING slow path across >=4 samples ~25ms apart -> release it; r12 proved abort-only wedges a hot dir 184s -> rc=-110 shutdown cascade). */
-	uint16_t		i_dlm_orphan_strikes; /* sess15 FIX-H2: consecutive same-gen orphan-live abort samples.  uint16_t, NOT uint8_t, and the width is load-bearing: the escape threshold was raised from 4 to 280 samples without widening this field, and a uint8_t promotes to at most 255, so `++strikes >= 280` was a comparison the compiler could prove false.  It deleted the branch — the built module carried no P15H-STRANDED-RELEASE string at all — and with it the ONLY strand escape TCP has, since the wall-clock escape beside it is gated to CAW on purpose.  i_dlm_p72_strikes below is uint16_t for the same reason. */
-	u64			i_dlm_orphan_since_ns; /* ccloop a864 sess4: ktime when the orphan-live (mode==NL) release strand was FIRST observed continuously.  Reset to 0 on genuine consumption (ACQUIRING / mode!=NL) or a non-orphan release.  Drives the WALL-CLOCK strand escape that the same-gen strike counter cannot reach on CAW (grant_seq churns under N-node contention -> strikes never converge -> node held dir EX 119s idle).  A true mid-completion grant resumes in microseconds, so >mxfs_caw_orphan_force_ms of continuous mode==NL is a genuine strand. */
+	unsigned long		i_dlm_phantom_bast_j; /* FIX-20: jiffies of the last NONE/NL BAST that found NO local mirror (possible master-side phantom grant).  With i_dlm_phantom_bast_n it discriminates a one-off stale BAST (swallowed, cheap) from a phantom-holder BAST STORM (starved waiters retry ~1/s -> repeated BASTs): the 2nd+ strike within 15s escalates to a serialized reconcile release. */
+	unsigned int		i_dlm_phantom_bast_n; /* FIX-20: consecutive no-mirror NONE/NL BAST strikes within the window */
+	bool			i_dlm_reconcile_pending; /* FIX-20b: one-shot — the queued bast_process is a phantom reconcile; its P6Z mirror-empty arm must send the mirror-bypassing gen=0 release to the master instead of skipping silently */
+	uint32_t		i_dlm_orphan_gg; /* FIX-H2: grant_gen seen at the last orphan-live release abort (cleanup-flavor bast_process vs a live-gen mirror entry).  With i_dlm_orphan_strikes it discriminates a grant mid-completion (gen turns over / gets consumed -> reset) from a genuinely STRANDED grant (same gen, never consumed, no ACQUIRING slow path across >=4 samples ~25ms apart -> release it; r12 proved abort-only wedges a hot dir 184s -> rc=-110 shutdown cascade). */
+	uint16_t		i_dlm_orphan_strikes; /* FIX-H2: consecutive same-gen orphan-live abort samples.  uint16_t, NOT uint8_t, and the width is load-bearing: the escape threshold was raised from 4 to 280 samples without widening this field, and a uint8_t promotes to at most 255, so `++strikes >= 280` was a comparison the compiler could prove false.  It deleted the branch — the built module carried no P15H-STRANDED-RELEASE string at all — and with it the ONLY strand escape TCP has, since the wall-clock escape beside it is gated to CAW on purpose.  i_dlm_p72_strikes below is uint16_t for the same reason. */
+	u64			i_dlm_orphan_since_ns; /*  a864 ktime when the orphan-live (mode==NL) release strand was FIRST observed continuously.  Reset to 0 on genuine consumption (ACQUIRING / mode!=NL) or a non-orphan release.  Drives the WALL-CLOCK strand escape that the same-gen strike counter cannot reach on CAW (grant_seq churns under N-node contention -> strikes never converge -> node held dir EX 119s idle).  A true mid-completion grant resumes in microseconds, so >mxfs_caw_orphan_force_ms of continuous mode==NL is a genuine strand. */
 	u64			i_dlm_bast_starve_since_ns; /* fence_during_write@8caw livelock fix: ktime when a peer BAST was first observed pending (i_dlm_bast_pending) on this ino while bast_process kept hitting the P15-REL-ABORT abort path.  UNLIKE i_dlm_orphan_since_ns this is NOT reset by local mode churn (ACQUIRING / mode!=NL) — only by i_dlm_bast_pending going false (peer served).  PROVEN NEED (live dmesg, ino=2099074 isdir=1): a hot-dir create+unlink storm on THIS node re-acquires/releases the dir's own lock every ~26ms, which resets i_dlm_orphan_since_ns via the "genuine consumption" branch on every single cycle, so the wall-clock strand escape never survives 3 continuous seconds even though a peer blocked 360s+ (3x120s ACQUIRE timeouts) waiting for the SAME ino and self-fenced (DLM inode lock unrecoverable -> xfs_force_shutdown).  This clock measures PEER STARVATION directly instead of continuous LOCAL idleness, so local churn cannot reset it. */
 	uint32_t		i_dlm_init_seq; /* interactive session 2026-07-13: diagnostic-only.  Stamped from a global atomic counter in mxfs_dlm_inode_init (true fresh xfs_inode_alloc, incl. post-eviction re-iget).  Printed alongside P15-REL-ABORT to test the hypothesis that i_dlm_orphan_since_ns/i_dlm_bast_starve_since_ns keep getting wiped by in-core inode eviction+reinstantiation (icache reclaim churn under the fence_during_write hot-dir storm) rather than by any bug in the clocks' own reset logic — a DIFFERENT value across "consecutive" P15-REL-ABORT samples for the SAME ino proves the in-core inode was recycled in between. */
-	uint16_t		i_dlm_p72_strikes; /* ccloop a864 sess3: consecutive P72 stuck-DEMOTING orphan swallows (mode==NL, holders==0) seen while i_dlm_demoter is non-NULL.  A non-NULL demoter at work_busy==0 is a stuck INLINE bast_process (blocked at mode==NL, past its Phase-2 drain, so demoter=NULL never runs).  A LIVE inline drain completes within 1-2 peer BASTs; the wedge storms 100s+.  Once this reaches MXFS_P72_ORPHAN_STRIKES the orphan-reclaim overrides the demoter gate and force-clears the bit.  Reset on claim / when the orphan shape no longer holds. */
+	uint16_t		i_dlm_p72_strikes; /*  a864 consecutive P72 stuck-DEMOTING orphan swallows (mode==NL, holders==0) seen while i_dlm_demoter is non-NULL.  A non-NULL demoter at work_busy==0 is a stuck INLINE bast_process (blocked at mode==NL, past its Phase-2 drain, so demoter=NULL never runs).  A LIVE inline drain completes within 1-2 peer BASTs; the wedge storms 100s+.  Once this reaches MXFS_P72_ORPHAN_STRIKES the orphan-reclaim overrides the demoter gate and force-clears the bit.  Reset on claim / when the orphan shape no longer holds. */
 	unsigned long		i_dlm_epoch;	/* v0.5.1: DLM hold-epoch.  Bumped every time this node LOSES the inode's DLM grant (mode -> NL) or marks it stale.  While i_dlm_mode != NL the on-disk grant is held, so no peer can have modified this inode/dir since the epoch last changed.  d_revalidate stamps the parent's epoch into dentry->d_time after a coordinated validation; a later cached lookup whose stamp still equals the parent's epoch (parent grant held, not stale) is provably fresh with ZERO disk I/O. */
 	uint16_t		i_dlm_ex_holders; /* active IOLOCK_EXCL holders */
 	uint16_t		i_dlm_pr_holders; /* active IOLOCK_SHARED holders */
 	uint16_t		i_dlm_pin_count;  /* D9: multi-step op pins (mxfs_clayer/pinned_resource.h) */
-	uint16_t		i_dlm_acq_inflight; /* ccloop daf50d34 sess2: count of slow-path DLM acquires in flight on this inode (bumped with ISTATE_ACQUIRING under i_dlm_lock, dropped at every slow-path exit).  PROVEN (mkdir_storm r5, test15 ino 12585041): a stale bast_process exit trampled state ACQUIRING->NONE during an 836ms GRANT-WAIT; when the grant landed, mode=EX was published (v0.3.15 early publish) with state=NONE/holders=0, and bast_notify's NONE-held-idle branch released the 0ms-old tenure before the acquiring mkdir ever used it.  The op then FASTEX'd on the phantom cached EX (P-TDS-RMW held=0) and its late AIL destage clobbered the successor tenure's committed dirent (durable node1 loss).  state==ACQUIRING is the intended defer signal but is trample-able by concurrent pipeline exits; this counter is not: bast_notify's idle/orphan/immediate release branches and the MHT dwork treat >0 as "defer via i_dlm_bast_during_acq / re-arm" instead of releasing. */
+	uint16_t		i_dlm_acq_inflight; /*  count of slow-path DLM acquires in flight on this inode (bumped with ISTATE_ACQUIRING under i_dlm_lock, dropped at every slow-path exit).  PROVEN (mkdir_storm r5, test15 ino 12585041): a stale bast_process exit trampled state ACQUIRING->NONE during an 836ms GRANT-WAIT; when the grant landed, mode=EX was published (v0.3.15 early publish) with state=NONE/holders=0, and bast_notify's NONE-held-idle branch released the 0ms-old tenure before the acquiring mkdir ever used it.  The op then FASTEX'd on the phantom cached EX (P-TDS-RMW held=0) and its late AIL destage clobbered the successor tenure's committed dirent (durable node1 loss).  state==ACQUIRING is the intended defer signal but is trample-able by concurrent pipeline exits; this counter is not: bast_notify's idle/orphan/immediate release branches and the MHT dwork treat >0 as "defer via i_dlm_bast_during_acq / re-arm" instead of releasing. */
 	uint16_t		i_dlm_yield_remaining; /* D10: BAST yield quantum (mxfs_clayer/yield_quantum.h) */
-	uint16_t		i_dlm_tenure_ops; /* sess6 (ccloop 72513a13): ILOCK cycles served by the CURRENT EX tenure (reset at every fresh-EX stamp).  Adaptive MHT floor input: a tenure that has served only ONE op is a one-shot (cc cv-write storm shape) and yields to a pending BAST after a ~5ms grace instead of the full dir_sf_mht_ms/inode_mht_ms floor; >=2 ops = burst (fairness/drc round shape) keeps the full batching floor. */
+	uint16_t		i_dlm_tenure_ops; /* ILOCK cycles served by the CURRENT EX tenure (reset at every fresh-EX stamp).  Adaptive MHT floor input: a tenure that has served only ONE op is a one-shot (cc cv-write storm shape) and yields to a pending BAST after a ~5ms grace instead of the full dir_sf_mht_ms/inode_mht_ms floor; >=2 ops = burst (fairness/drc round shape) keeps the full batching floor. */
 	uint16_t		i_dlm_dwork_strikes; /* v0.10.31: consecutive busy re-arms of i_dlm_bast_dwork within ONE deferral episode.  The dwork re-arms every ~8ms while ex/pr/pin holders are in flight; a holder that NEVER drops (create-path oops leaking the dir locks — test9 2026-07-10) made that an infinite 4ms spin holding an iget ref, so unmount leaked the inode ("Objects remaining on __kmem_cache_shutdown") and post-rmmod bio completions panicked the node.  At MXFS_DWORK_STRIKE_MAX the dwork STRIKES OUT: logs P36-STRIKEOUT, drops its ref, does NOT re-arm.  i_dlm_bast_pending stays set, so ilock_end/unpin refire or the peers' ~1s BAST retries re-arm a fresh episode (strikes reset at fresh-episode arm only, NOT on repeat-BASTs of a running episode, else the 1s retries would reset the count forever). */
-	uint8_t			i_dlm_relab_streak; /* sess279 (sess276 ruling B): consecutive release-abort re-arms (P15/P244/P95 defer arms) with UNCHANGED tenure gen.  Each streak step doubles the dwork re-arm delay from 25ms toward a 1s cap (+0-31ms jitter) — a victim whose release can never complete (e.g. fenced node whose drain writes bounce) must not hammer the 25ms re-fire loop forever.  Reset when the tenure gen moves (progress) and at every committed release. */
+	uint8_t			i_dlm_relab_streak; /* (ruling B): consecutive release-abort re-arms (P15/P244/P95 defer arms) with UNCHANGED tenure gen.  Each streak step doubles the dwork re-arm delay from 25ms toward a 1s cap (+0-31ms jitter) — a victim whose release can never complete (e.g. fenced node whose drain writes bounce) must not hammer the 25ms re-fire loop forever.  Reset when the tenure gen moves (progress) and at every committed release. */
 	uint32_t		i_dlm_relab_gen; /* tenure gen (p_rel_gen) at the last release-abort re-arm; the streak's unchanged-gen comparand */
-	/* sess408 (D-FREPLAY-VICTIM-INODE-CORE-NOT-APPLIED-BUCKET-TO-ZERO-CORE-408):
+	/* (D-FREPLAY-VICTIM-INODE-CORE-NOT-APPLIED-BUCKET-TO-ZERO-CORE-408):
 	 * di_changecount of the FREED core this allocation reincarnates (fresh
 	 * read at iget CREATE, multi-node only); xfs_inode_init continues from it
 	 * so di_changecount is monotonic across incarnations of an inode number —
 	 * the node-independent foreign-replay skip rule depends on that. */
 	uint64_t		i_mxfs_prev_changecount;
-	bool			i_dlm_stale;	/* needs reload from disk after BAST */ uint8_t i_dlm_stale_src; /* sess11(a9a03929): code of the LAST i_dlm_stale=true setter (1=readdir 2=consumer_refresh 3=modify_prelock 4=adopt_fmt 5=bast_process_rel 6=bast_notify_acq 7=ilock_slow_prereload 8=fastpath_rearm 9-13=dlm_misc 14-17=iget 18-20=inode_misc 21-23=super 24=iflush_deadincarn 25=iflush_dirvalid_epoch 26=reload_identical_keepfork 27=file_rw_bail) — P11-ACQSTALE-SELFBAST forensics */ uint8_t i_dlm_bastq_src; /* sess11: site that queued the last bast_work/dwork (1=ilock_end_refire 2=demwait_redrive 3=notify_idle 4=notify_orphan 5=notify_immediate 6=ilock_begin_recov 7=acq_selfbast 9=mht_arm 10=stranded_arm 11=batch_arm 12=sf_tenure_arm 13=grantwin_park 14=close_release 15=pr_idle_release 16=dir_ex_sweep) */
-	u64			i_dlm_bastq_qns; /* sess294 P296-BASTQLAT (D-503 instrumented): expected-run ktime of the last SUCCESSFUL bast work/dwork arm — queue time for the immediate work, queue time + delay for the dwork (so work-fn-entry minus this = pure queue-to-run EXCESS, not the intended MHT delay).  Stamped under m_mxfs_arm_lock only when queue(_delayed)_work returned true (a false = already pending — the earlier stamp stays authoritative).  Read+cleared locklessly at both work-fn entries; a re-arm racing that read can make the delta negative, which the probe discards. */
-	bool			i_dlm_bast_during_acq; /* sess35 (ccloop): a peer BAST arrived while this node was in ISTATE_ACQUIRING (slow-path DLM acquire in flight).  SEPARATE flag from i_dlm_stale: the post-acquire reload CLEARS i_dlm_stale before the post-publish reads it, so reusing i_dlm_stale to defer the BAST silently SWALLOWED the revoke — the holder kept the grant cached idle and the peer's request stalled the full 6000ms MXFS_LOCK_ACQUIRE_WAIT_MS until its retry re-fired the BAST (the dir_reuse 2/tcp ~6s handoff, PROVEN sess35: 9 ACQUIRING-EX BASTs lost/run).  Set by bast_notify's ACQUIRING branch; honored at the slow-path post-publish (-> ISTATE_BAST + drain) regardless of reload; cleared there. */
-	struct task_struct	*i_dlm_tries_owner; /* ccloop-4dd7 sess2 ABBA breaker: task for which the NEXT slow-path acquire of THIS inode is retry-bounded (set by xfs_lock_two_inodes around its SECOND ilock_begin while it holds the first inode's grant-hold).  Gating by task means a concurrent acquirer of the same inode never inherits the bound. */
+	bool			i_dlm_stale;	/* needs reload from disk after BAST */ uint8_t i_dlm_stale_src; /* code of the LAST i_dlm_stale=true setter (1=readdir 2=consumer_refresh 3=modify_prelock 4=adopt_fmt 5=bast_process_rel 6=bast_notify_acq 7=ilock_slow_prereload 8=fastpath_rearm 9-13=dlm_misc 14-17=iget 18-20=inode_misc 21-23=super 24=iflush_deadincarn 25=iflush_dirvalid_epoch 26=reload_identical_keepfork 27=file_rw_bail) — P11-ACQSTALE-SELFBAST forensics */ uint8_t i_dlm_bastq_src; /* site that queued the last bast_work/dwork (1=ilock_end_refire 2=demwait_redrive 3=notify_idle 4=notify_orphan 5=notify_immediate 6=ilock_begin_recov 7=acq_selfbast 9=mht_arm 10=stranded_arm 11=batch_arm 12=sf_tenure_arm 13=grantwin_park 14=close_release 15=pr_idle_release 16=dir_ex_sweep) */
+	u64			i_dlm_bastq_qns; /* P296-BASTQLAT (D-503 instrumented): expected-run ktime of the last SUCCESSFUL bast work/dwork arm — queue time for the immediate work, queue time + delay for the dwork (so work-fn-entry minus this = pure queue-to-run EXCESS, not the intended MHT delay).  Stamped under m_mxfs_arm_lock only when queue(_delayed)_work returned true (a false = already pending — the earlier stamp stays authoritative).  Read+cleared locklessly at both work-fn entries; a re-arm racing that read can make the delta negative, which the probe discards. */
+	bool			i_dlm_bast_during_acq; /* a peer BAST arrived while this node was in ISTATE_ACQUIRING (slow-path DLM acquire in flight).  SEPARATE flag from i_dlm_stale: the post-acquire reload CLEARS i_dlm_stale before the post-publish reads it, so reusing i_dlm_stale to defer the BAST silently SWALLOWED the revoke — the holder kept the grant cached idle and the peer's request stalled the full 6000ms MXFS_LOCK_ACQUIRE_WAIT_MS until its retry re-fired the BAST (the dir_reuse 2/tcp ~6s handoff, PROVEN 9 ACQUIRING-EX BASTs lost/run).  Set by bast_notify's ACQUIRING branch; honored at the slow-path post-publish (-> ISTATE_BAST + drain) regardless of reload; cleared there. */
+	struct task_struct	*i_dlm_tries_owner; /* ccloop-4dd7 ABBA breaker: task for which the NEXT slow-path acquire of THIS inode is retry-bounded (set by xfs_lock_two_inodes around its SECOND ilock_begin while it holds the first inode's grant-hold).  Gating by task means a concurrent acquirer of the same inode never inherits the bound. */
 	int			i_dlm_tries;       /* retry budget for the bounded acquire (0 = unbounded/normal) */
 	int			i_dlm_tries_rc;    /* OUT: 0 = acquired; -ETIMEDOUT = bounded acquire gave up (caller must drop its other grant-hold, back off, retry both) */
-	bool			i_dlm_self_demote; /* sess51 (ccloop 8ddb16a2): the next mxfs_dlm_bast_process for this inode is a SELF-demote (the P109 EDEADLK upgrade-conflict recovery dropping our own cached PR->NL to re-request EX from a clean state), NOT a peer handoff.  No peer reads our state across a self-demote, so a clean (read-only) self-demote needs no durability drain — skipping it kills the tcp_dlm_scaling PR->EX upgrade-livelock amplifier WITHOUT removing the coherency-masking barrier on genuine peer handoffs (dir_reuse/rsync_paired).  Set in the EDEADLK recovery before queuing bast_work; read+cleared at bast_process entry. */
-	bool			i_dlm_unpublished; /* sess43: brand-new inode granted LOCALLY (i_dlm_mode=EX) with NO on-disk CAW slot yet; published lazily on a peer dir/AGI BAST or dropped silently on local eviction.  See notes/sess43_deferred_publish_design.md */
-	struct list_head	i_dlm_unpub_link;  /* sess43: linkage on mp->m_mxfs_unpub_list while i_dlm_unpublished */
-	xfs_ino_t		i_mxfs_unpub_parent; /* v0.5.6 (sess29 ccloop 14d31183): ino of the directory whose dirent names this unpublished inode; 0 = unknown (tmpfile/whiteout/pre-assignment window) and means "include in EVERY scoped BAST publish".  Lets the BAST-side publish drain claim slots ONLY for inodes a peer can actually reach through the lock being released (the released dir's children, or the released AG's inodes) instead of the whole list — the whole-list drain at 16 nodes claimed ~96k slots against the 65536-slot CAW table, took minutes per release, and starved EX waiters into 120s timeouts + shutdown (sess28 scaling_curve root cause 2).  Set after xfs_dir_create_child in xfs_create/xfs_symlink; a plain store suffices: a racing scoped drain that reads the pre-store 0 over-publishes (safe), never under-publishes.  Cross-dir rename/link of a still-unpublished inode force-publishes synchronously (mxfs_dlm_publish_inode) so the recorded parent can never go stale. */
-	uint32_t		i_dlm_dir_gen;	/* sess37: bumped on DLM re-acquire-after-BAST; dir-block read path forces FUA re-read when cached buf's stamp < this (read-time/lazy block-dir invalidation, deadlock-free) */
-	uint32_t		i_dlm_cached_grant_gen; /* sess61 (sess10 plan): the TCP DLM per-grant generation token cached at the last SLOW-PATH acquire of this inode.  On a dir-EX FAST-PATH serve, if mxfs_v5_dlm_inode_grant_gen() != this, the lock CHANGED HANDS (a peer was granted) since we cached it -> the in-core dir base is stale -> force a reload-on-reacquire before the RMW.  This is the RELIABLE (acked-TCP grant_gen) replacement for the lossy DIR_MODIFY eviction-ring as the dir staleness signal (sess61 PROVEN root: fast-path RMW of a stale block0 clobbers peers' dirents). 0 = not yet cached. */
-	uint32_t		i_dlm_dir_loaded_gen; /* sess94: value of i_dlm_dir_gen at the moment the SHORTFORM dir fork was last (re)loaded from disk.  If i_dlm_dir_gen has advanced past this when a cached EX-acquire fast-paths, the in-core shortform fork is STALE (a peer modified the dir) and RMW'ing it would clobber the peer's dirents — the unlink_visibility lost-update. */
-	uint64_t		i_mxfs_dscan_clean_key; /* sess1 (ccloop 46efd8b6): datascan gen-gate.  Composite of (i_dlm_dir_gen, i_dlm_dir_valid_epoch, i_dlm_dir_loaded_gen) captured when mxfs_dir2_datascan_lookup last verified the leaf hash-index ENOENT-consistent (scan found nothing the leaf missed).  While the coherency state hasn't moved, further hash-miss lookups skip the O(dir) authoritative data scan (measured 459 read-IOs / 112ms per MISS on a 640-entry shared dir — every rv/uv negative lookup).  Any peer modify moves the epoch/gen (leaf-hole formation requires a peer write), and any real fork adopt resets this to the ~0 sentinel, re-arming one scan. */
-	uint32_t		i_mxfs_rd_vgg;	/* ccloop c7ee71c6 sess7 (GPT tenure-coherence ruling): DLM grant gen under which this dir's fork was last VALIDATED for readdir (reload attempted+landed).  0 = never validated.  A grant gen change (re-grant after revoke, incl. the round-1 dir_gen==0 case the want_block_refresh gate misses) means the fork may predate a peer's EX tenure -> readdir revalidates ONCE per grant episode.  Solo dirs keep one grant forever -> one initial validation, zero steady-state cost (the sess38/91 anti-poll constraint). */
-	bool			i_dlm_routed_iclus; /* ccloop 72513a13 sess4: WHICH resource backs the current i_dlm_mode grant — true = the inode-cluster (iclus) resource, false = the per-inode slot.  Stamped at every disk acquire; every release/sweep decision routes by THIS, never by re-evaluating S_ISREG (a mode-0 dead-shell acquire is per-inode, and re-evaluating at release orphaned the slot forever — proven: per-inode EX gen=2201 held 220s, 7 nodes queued on the root dir). */
-	uint64_t		i_dlm_iclus_seen_seq; /* ccloop 72513a13 sess4: mxfs_iclus grant_seq at our last reload/adopt of this inode.  seen==current ⟹ the cluster grant was held (by us or nobody) continuously since — no peer EX possible — so the in-core image is coherent (reload skippable); seen!=current ⟹ a fresh cluster claim happened (peer may have written) — genuine handoff, force disk adopt.  0 = never loaded under iclus. */
-	uint32_t		i_dlm_handoff_acted_gen; /* sess63: grant_gen at which we last ACTED on a cross-node EX handoff (forced a full disk-superset reload of this dir).  The master-exposed handoff bit (mxfs_v5_dlm_inode_grant_handoff) is consumed once per grant episode: act only when handoff && grant_gen != this, then set this=grant_gen.  Prevents a 2nd same-tenure reload re-adopting disk over our own in-flight mods (resurrection).  0 = never acted. */
-	uint32_t		i_dlm_dir_valid_epoch; /* sess64 (GPT design): the MONOTONIC cross-node handoff epoch (mxfs_v5_dlm_inode_dir_epoch) that this dir's in-core base is known coherent with.  On any dir grant authorization the XFS layer reads the grant's dir_epoch; if it EXCEEDS this, a peer modified the dir since our base loaded -> force a disk-superset adopt + clean dir-block invalidation, then set this=grant_epoch.  LEVEL-triggered (a missed intermediate handoff still leaves grant_epoch > this), curing the edge-triggered handoff bool's ~80% under-fire.  0 = base predates any tracked handoff. */
-	uint32_t		i_dlm_dir_valid_incarn; /* ccloop c7ee71c6 sess28: the i_generation (INCARNATION) that i_dlm_dir_valid_epoch's baseline was established under.  The CAW dir_epoch is a property of the inode NUMBER, not of an incarnation: caw_tombstone_slot/caw_claim_inherit_epoch deliberately carry it across an idle gap, and mxfs_v5_dlm_inode_dir_epoch() serves it out of a per-resource grant_meta cache that survives the inode being freed and re-created.  So `master_epoch > i_dlm_dir_valid_epoch` compares a DEAD incarnation's handoff lineage against a LIVE incarnation's baseline unless this matches VFS_I(ip)->i_generation — the same cross-incarnation-comparison class sess27 proved for di_gen in RELOAD-TYPEFLIP.  TRACE-PROVEN (2/caw, test2, ino 2099630): incarnation A published at epoch 0, was handed off and freed (EVICT-RING-FLAG incore_gen=2916713347 freed_gen=...348); incarnation B was created on the same number moments later and, still i_dlm_unpublished with no grant of its own, read grant_epoch=2 out of A's stale grant_meta — so P32E-DIREPOCH-FENCE skipped every flush of B and its mkdir was silently lost.  0 = no baseline (see mxfs_dir_epoch_superseded). */
-#define MXFS_CBASE_UNSET	0	/* sess28: LOCAL_UNPUBLISHED — no baseline established */
-#define MXFS_CBASE_SEEN		1	/* sess28: publish reached with the stamp knob off (control arm) */
-#define MXFS_CBASE_VALID	2	/* sess28: baseline established at the first real EX grant */
-	uint8_t			i_dlm_base_valid; /* ccloop c7ee71c6 sess45 (GPT Option-B contract, D-DIRENT-PUBLISH-STALE-BASE-P195-360): EXPLICIT validity bit for the dir-base coherence baseline pair (i_dlm_dir_valid_epoch, i_dlm_cached_grant_gen).  0 = the baseline was never established for this in-core incarnation OR was invalidated (EX release/demote, aborted adopt, phantom-EX bail) — the next dir-EX authorization MUST adopt the disk base before exposing the tenure to dir ops (mxfs.dir_adopt_at_acquire gate).  1 = the pair was stamped by mxfs_dir_base_stamp AFTER a completed adopt/keep decision (reload install point), a creator publish (first real EX grant, self_created), or an authority rebase.  Written with smp_store_release AFTER the epoch/gen stores; gate reads with smp_load_acquire.  Replaces the sentinel-0 inferences that made P195's tenure-vs-epoch disambiguation inert (valid_epoch=0 and cached_gen=0 are both legitimately reachable baselines — GPT sess27/sess44). */
-	uint8_t			i_dlm_creator_base_state; /* ccloop c7ee71c6 sess28: explicit lifecycle of the CREATOR BASELINE for a directory this node created (MXFS_CBASE_*).  UNSET(0) = LOCAL_UNPUBLISHED, no baseline ever established — the state that made i_dlm_dir_valid_epoch stick at 0 and P32E-DIREPOCH-FENCE skip every flush of a self-created dir (D-SILENT-MKDIR-LOSS).  SEEN(1) = the inode reached its first real EX grant while mxfs.creator_baseline_stamp was 0, i.e. the CONTROL arm entered the state; this exists so the exposure counter is KNOB-INDEPENDENT (a fix-gated exposure counter makes the reproducing arm report zero exposure — sess27's method lesson).  VALID(2) = the baseline was established from that grant.  This is the explicit state GPT's sess27 review asked for: "never established" must not be inferred from the numeric 0, because epoch 0 and grant_gen 0 are both legitimately reachable baselines.  One-shot per incarnation; reset at inode init/reuse. */
-	bool			i_dlm_icd_refused; /* v0.6.5 (sess5 186320ae): a per-op/release inode-cluster destage was REFUSED because the on-disk CAW slot was no longer ours (P-ICD-TENURE-REFUSE).  The committed change exists in the log/in-core but NOT on disk, and the ili may retire clean (ghost-skip), so "clean => disk is superset" is FALSE until the next successful destage.  The acquire-reload honors this by 3-way-MERGING our pre-reload fork over the adopted disk image (instead of the clean-wholesale-adopt that would revert our committed rename/rm — the n3_r1 ghost).  Set at refuse; cleared on a successful mxfs_inode_cluster_durable. */
-	uint32_t		i_dlm_dir_acq_epoch; /* sess5(ccloop 186320ae) v0.6.5: the grant dir_epoch at which this dir's fork was last made coherent by the ACQUIRE-RELOAD falling through to xfs_inode_from_disk (adopt point).  The P65 epoch-consume adopt gate compares the current grant epoch against THIS, not valid_epoch: the modify/evict-path hooks legitimately sync valid_epoch UP to the master epoch mid-tenure for buffer stamping (b_mxfs_dir_epoch) and prior-tenure evicts, which ERASES the acquire gate's lag without any adopt having happened — the storm-dir stale-base resurrection (uv dangling dirent: a node's frozen 18-entry block view survives handoffs, its last unlinks convert block->sf from that stale base and durably re-assert peer-removed names).  ONLY the reload coherence point may advance this; a keep-stale-guard early return leaves it lagging so the next acquire re-fires the adopt.  0 = never made coherent. */
-	void			*i_dlm_dir_sf_base; /* sess14: snapshot of this SHORTFORM dir's on-disk dirent image (xfs_dir2_sf_hdr + entries) captured at the last coherent disk read/reload — the BASE for a 3-way merge (base/ours/theirs).  A concurrent shortform RMW reconciles in-core (ours) with disk (theirs) relative to this base: names WE changed (ours != base) keep OURS, names we didn't touch follow THEIRS.  This keeps our own committed-not-durable rename/rm (no self-revert on a destage-lagging disk read) AND adopts the peer's committed adds/removes (no resurrection of a peer's removed dirent).  NULL = no snapshot yet (merge falls back to adopt-or-skip). kmalloc'd; freed in xfs_inode_free_callback. */
-	uint32_t		i_dlm_dir_sf_base_bytes; /* sess14: byte length of i_dlm_dir_sf_base */
+	bool			i_dlm_self_demote; /* the next mxfs_dlm_bast_process for this inode is a SELF-demote (the P109 EDEADLK upgrade-conflict recovery dropping our own cached PR->NL to re-request EX from a clean state), NOT a peer handoff.  No peer reads our state across a self-demote, so a clean (read-only) self-demote needs no durability drain — skipping it kills the tcp_dlm_scaling PR->EX upgrade-livelock amplifier WITHOUT removing the coherency-masking barrier on genuine peer handoffs (dir_reuse/rsync_paired).  Set in the EDEADLK recovery before queuing bast_work; read+cleared at bast_process entry. */
+	bool			i_dlm_unpublished; /* brand-new inode granted LOCALLY (i_dlm_mode=EX) with NO on-disk CAW slot yet; published lazily on a peer dir/AGI BAST or dropped silently on local eviction.  See notes/sess43_deferred_publish_design.md */
+	struct list_head	i_dlm_unpub_link;  /* linkage on mp->m_mxfs_unpub_list while i_dlm_unpublished */
+	xfs_ino_t		i_mxfs_unpub_parent; /* v0.5.6: ino of the directory whose dirent names this unpublished inode; 0 = unknown (tmpfile/whiteout/pre-assignment window) and means "include in EVERY scoped BAST publish".  Lets the BAST-side publish drain claim slots ONLY for inodes a peer can actually reach through the lock being released (the released dir's children, or the released AG's inodes) instead of the whole list — the whole-list drain at 16 nodes claimed ~96k slots against the 65536-slot CAW table, took minutes per release, and starved EX waiters into 120s timeouts + shutdown (scaling_curve root cause 2).  Set after xfs_dir_create_child in xfs_create/xfs_symlink; a plain store suffices: a racing scoped drain that reads the pre-store 0 over-publishes (safe), never under-publishes.  Cross-dir rename/link of a still-unpublished inode force-publishes synchronously (mxfs_dlm_publish_inode) so the recorded parent can never go stale. */
+	uint32_t		i_dlm_dir_gen;	/* bumped on DLM re-acquire-after-BAST; dir-block read path forces FUA re-read when cached buf's stamp < this (read-time/lazy block-dir invalidation, deadlock-free) */
+	uint32_t		i_dlm_cached_grant_gen; /* (plan): the TCP DLM per-grant generation token cached at the last SLOW-PATH acquire of this inode.  On a dir-EX FAST-PATH serve, if mxfs_v5_dlm_inode_grant_gen != this, the lock CHANGED HANDS (a peer was granted) since we cached it -> the in-core dir base is stale -> force a reload-on-reacquire before the RMW.  This is the RELIABLE (acked-TCP grant_gen) replacement for the lossy DIR_MODIFY eviction-ring as the dir staleness signal (PROVEN root: fast-path RMW of a stale block0 clobbers peers' dirents). 0 = not yet cached. */
+	uint32_t		i_dlm_dir_loaded_gen; /* value of i_dlm_dir_gen at the moment the SHORTFORM dir fork was last (re)loaded from disk.  If i_dlm_dir_gen has advanced past this when a cached EX-acquire fast-paths, the in-core shortform fork is STALE (a peer modified the dir) and RMW'ing it would clobber the peer's dirents — the unlink_visibility lost-update. */
+	uint64_t		i_mxfs_dscan_clean_key; /* datascan gen-gate.  Composite of (i_dlm_dir_gen, i_dlm_dir_valid_epoch, i_dlm_dir_loaded_gen) captured when mxfs_dir2_datascan_lookup last verified the leaf hash-index ENOENT-consistent (scan found nothing the leaf missed).  While the coherency state hasn't moved, further hash-miss lookups skip the O(dir) authoritative data scan (measured 459 read-IOs / 112ms per MISS on a 640-entry shared dir — every rv/uv negative lookup).  Any peer modify moves the epoch/gen (leaf-hole formation requires a peer write), and any real fork adopt resets this to the ~0 sentinel, re-arming one scan. */
+	uint32_t		i_mxfs_rd_vgg;	/*  (design review tenure-coherence ruling): DLM grant gen under which this dir's fork was last VALIDATED for readdir (reload attempted+landed).  0 = never validated.  A grant gen change (re-grant after revoke, incl. the round-1 dir_gen==0 case the want_block_refresh gate misses) means the fork may predate a peer's EX tenure -> readdir revalidates ONCE per grant episode.  Solo dirs keep one grant forever -> one initial validation, zero steady-state cost (the /91 anti-poll constraint). */
+	bool			i_dlm_routed_iclus; /*  WHICH resource backs the current i_dlm_mode grant — true = the inode-cluster (iclus) resource, false = the per-inode slot.  Stamped at every disk acquire; every release/sweep decision routes by THIS, never by re-evaluating S_ISREG (a mode-0 dead-shell acquire is per-inode, and re-evaluating at release orphaned the slot forever — proven: per-inode EX gen=2201 held 220s, 7 nodes queued on the root dir). */
+	uint64_t		i_dlm_iclus_seen_seq; /*  mxfs_iclus grant_seq at our last reload/adopt of this inode.  seen==current ⟹ the cluster grant was held (by us or nobody) continuously since — no peer EX possible — so the in-core image is coherent (reload skippable); seen!=current ⟹ a fresh cluster claim happened (peer may have written) — genuine handoff, force disk adopt.  0 = never loaded under iclus. */
+	uint32_t		i_dlm_handoff_acted_gen; /* grant_gen at which we last ACTED on a cross-node EX handoff (forced a full disk-superset reload of this dir).  The master-exposed handoff bit (mxfs_v5_dlm_inode_grant_handoff) is consumed once per grant episode: act only when handoff && grant_gen != this, then set this=grant_gen.  Prevents a 2nd same-tenure reload re-adopting disk over our own in-flight mods (resurrection).  0 = never acted. */
+	uint32_t		i_dlm_dir_valid_epoch; /* (design review): the MONOTONIC cross-node handoff epoch (mxfs_v5_dlm_inode_dir_epoch) that this dir's in-core base is known coherent with.  On any dir grant authorization the XFS layer reads the grant's dir_epoch; if it EXCEEDS this, a peer modified the dir since our base loaded -> force a disk-superset adopt + clean dir-block invalidation, then set this=grant_epoch.  LEVEL-triggered (a missed intermediate handoff still leaves grant_epoch > this), curing the edge-triggered handoff bool's ~80% under-fire.  0 = base predates any tracked handoff. */
+	uint32_t		i_dlm_dir_valid_incarn; /*  the i_generation (INCARNATION) that i_dlm_dir_valid_epoch's baseline was established under.  The CAW dir_epoch is a property of the inode NUMBER, not of an incarnation: caw_tombstone_slot/caw_claim_inherit_epoch deliberately carry it across an idle gap, and mxfs_v5_dlm_inode_dir_epoch serves it out of a per-resource grant_meta cache that survives the inode being freed and re-created.  So `master_epoch > i_dlm_dir_valid_epoch` compares a DEAD incarnation's handoff lineage against a LIVE incarnation's baseline unless this matches VFS_I(ip)->i_generation — the same cross-incarnation-comparison class proved for di_gen in RELOAD-TYPEFLIP.  TRACE-PROVEN (2/caw, test2, ino 2099630): incarnation A published at epoch 0, was handed off and freed (EVICT-RING-FLAG incore_gen=2916713347 freed_gen=...348); incarnation B was created on the same number moments later and, still i_dlm_unpublished with no grant of its own, read grant_epoch=2 out of A's stale grant_meta — so P32E-DIREPOCH-FENCE skipped every flush of B and its mkdir was silently lost.  0 = no baseline (see mxfs_dir_epoch_superseded). */
+#define MXFS_CBASE_UNSET	0	/* LOCAL_UNPUBLISHED — no baseline established */
+#define MXFS_CBASE_SEEN		1	/* publish reached with the stamp knob off (control arm) */
+#define MXFS_CBASE_VALID	2	/* baseline established at the first real EX grant */
+	uint8_t			i_dlm_base_valid; /*  (design review Option-B contract, D-DIRENT-PUBLISH-STALE-BASE-P195-360): EXPLICIT validity bit for the dir-base coherence baseline pair (i_dlm_dir_valid_epoch, i_dlm_cached_grant_gen).  0 = the baseline was never established for this in-core incarnation OR was invalidated (EX release/demote, aborted adopt, phantom-EX bail) — the next dir-EX authorization MUST adopt the disk base before exposing the tenure to dir ops (mxfs.dir_adopt_at_acquire gate).  1 = the pair was stamped by mxfs_dir_base_stamp AFTER a completed adopt/keep decision (reload install point), a creator publish (first real EX grant, self_created), or an authority rebase.  Written with smp_store_release AFTER the epoch/gen stores; gate reads with smp_load_acquire.  Replaces the sentinel-0 inferences that made P195's tenure-vs-epoch disambiguation inert (valid_epoch=0 and cached_gen=0 are both legitimately reachable baselines — design review /). */
+	uint8_t			i_dlm_creator_base_state; /*  explicit lifecycle of the CREATOR BASELINE for a directory this node created (MXFS_CBASE_*).  UNSET(0) = LOCAL_UNPUBLISHED, no baseline ever established — the state that made i_dlm_dir_valid_epoch stick at 0 and P32E-DIREPOCH-FENCE skip every flush of a self-created dir (D-SILENT-MKDIR-LOSS).  SEEN(1) = the inode reached its first real EX grant while mxfs.creator_baseline_stamp was 0, i.e. the CONTROL arm entered the state; this exists so the exposure counter is KNOB-INDEPENDENT (a fix-gated exposure counter makes the reproducing arm report zero exposure — method lesson).  VALID(2) = the baseline was established from that grant.  This is the explicit state design review's review asked for: "never established" must not be inferred from the numeric 0, because epoch 0 and grant_gen 0 are both legitimately reachable baselines.  One-shot per incarnation; reset at inode init/reuse. */
+	bool			i_dlm_icd_refused; /* v0.6.5 (186320ae): a per-op/release inode-cluster destage was REFUSED because the on-disk CAW slot was no longer ours (P-ICD-TENURE-REFUSE).  The committed change exists in the log/in-core but NOT on disk, and the ili may retire clean (ghost-skip), so "clean => disk is superset" is FALSE until the next successful destage.  The acquire-reload honors this by 3-way-MERGING our pre-reload fork over the adopted disk image (instead of the clean-wholesale-adopt that would revert our committed rename/rm — the n3_r1 ghost).  Set at refuse; cleared on a successful mxfs_inode_cluster_durable. */
+	uint32_t		i_dlm_dir_acq_epoch; /* v0.6.5: the grant dir_epoch at which this dir's fork was last made coherent by the ACQUIRE-RELOAD falling through to xfs_inode_from_disk (adopt point).  The P65 epoch-consume adopt gate compares the current grant epoch against THIS, not valid_epoch: the modify/evict-path hooks legitimately sync valid_epoch UP to the master epoch mid-tenure for buffer stamping (b_mxfs_dir_epoch) and prior-tenure evicts, which ERASES the acquire gate's lag without any adopt having happened — the storm-dir stale-base resurrection (uv dangling dirent: a node's frozen 18-entry block view survives handoffs, its last unlinks convert block->sf from that stale base and durably re-assert peer-removed names).  ONLY the reload coherence point may advance this; a keep-stale-guard early return leaves it lagging so the next acquire re-fires the adopt.  0 = never made coherent. */
+	void			*i_dlm_dir_sf_base; /* snapshot of this SHORTFORM dir's on-disk dirent image (xfs_dir2_sf_hdr + entries) captured at the last coherent disk read/reload — the BASE for a 3-way merge (base/ours/theirs).  A concurrent shortform RMW reconciles in-core (ours) with disk (theirs) relative to this base: names WE changed (ours != base) keep OURS, names we didn't touch follow THEIRS.  This keeps our own committed-not-durable rename/rm (no self-revert on a destage-lagging disk read) AND adopts the peer's committed adds/removes (no resurrection of a peer's removed dirent).  NULL = no snapshot yet (merge falls back to adopt-or-skip). kmalloc'd; freed in xfs_inode_free_callback. */
+	uint32_t		i_dlm_dir_sf_base_bytes; /* byte length of i_dlm_dir_sf_base */
 /*
  * 0.84.18 (D-0963): the last shortform images THIS node copied into its
  * inode cluster buffer during the CURRENT EX tenure.  The pre-mutation
@@ -329,32 +329,32 @@ typedef struct xfs_inode {
 	void			*i_dlm_dir_sf_own[MXFS_SF_OWN_RING];
 	uint32_t		i_dlm_dir_sf_own_bytes[MXFS_SF_OWN_RING];
 	uint8_t			i_dlm_dir_sf_own_next;
-	void			*i_dlm_dir_pending; /* sess65: kmalloc'd array of struct mxfs_pend_ent — local positive dirents recently CREATED in this dir by this node (this incarnation).  Replayed (re-added) into the dir whenever a stale-block0 ADOPT drops our own just-created entries (the dir_reuse_coherency node1_f1 double-block0 orphan: rank1 converts sf->block0@A with node1_f1, a peer converts its stale shortform to block0@B which wins on disk, rank1's next create adopts block0@B dropping node1_f1; merge_ours only covers shortform<->shortform so it can't restore it).  Lazily allocated, bounded ring; freed in xfs_inode_free_callback. */
-	uint32_t		i_dlm_dir_pending_bytes; /* sess65: used byte length of i_dlm_dir_pending */
-	uint32_t		i_dlm_dir_pending_incarn; /* sess65: VFS i_generation the pending list belongs to; on incarnation change (rm-rf+recreate bumps di_gen) the list is dropped so we never replay a dead incarnation's names. */
-	uint32_t		i_dlm_dir_evicted_gen; /* sess97: i_dlm_dir_gen value at the last EAGER consumer-side dir-DATA-block evict (mxfs_dlm_dir_consumer_refresh).  When i_dlm_dir_gen advances past this (a peer modified the dir), the next readdir/lookup eagerly drops ALL clean cached dir data blocks so they refetch the peer's durable image — replacing the lazy per-buffer restamp-prone hook that could cache a stale block as current. */
-	uint32_t		i_dlm_dir_evicted_incarn; /* sess104 (Gemini ABA fix): VFS i_generation at the last whole-dir clean-block evict.  i_dlm_dir_gen counts WITHIN one inode incarnation and resets to 0 on a fresh struct, so under inode-number REUSE a peer's PREVIOUS-incarnation dir blocks (cached by physical daddr, not by inode) can collide on gen (old gen == new gen) and escape the gen-keyed evict.  XFS bumps di_gen on every reallocation, so evict-once-per-incarnation (this != i_generation) closes the ABA gap. */
-	uint32_t		i_dlm_dir_coherent_gen; /* sess19(ccloop): i_dlm_dir_gen at the last mxfs_dir_refresh_stale_data_blocks (dir_coherent_modify) per-block coherence scan.  HANDOFF-GATE: the scan runs ONCE per cross-node dir-EX handoff (when i_dlm_dir_gen advances past this), NOT per addname — under EX no peer modifies mid-tenure, so a single tenure-start scan suffices.  Turns the O(blocks×creates) per-addname scan (5× too slow @ mht=50) into O(blocks×handoffs). */
-	unsigned long		i_dlm_adopt_ok_epoch; /* sess495 (create pace): i_dlm_epoch at the last mxfs_dir_modify_adopt_disk_format FUA read that found the platter NOT ahead of in-core while this node held the dir EX.  While the epoch, the incarnation and the dir gen below are unchanged and the EX grant is still held (mode==EX, !stale), no peer can have written the dir inode, so the next modify's adopt check needs no read.  0 = never checked. */
-	uint32_t		i_dlm_adopt_ok_incarn;	/* sess495: VFS i_generation at that clean check */
-	uint32_t		i_dlm_adopt_ok_dir_gen;	/* sess495: i_dlm_dir_gen at that clean check (a late DIR_MODIFY ring notification re-arms the read) */
+	void			*i_dlm_dir_pending; /* kmalloc'd array of struct mxfs_pend_ent — local positive dirents recently CREATED in this dir by this node (this incarnation).  Replayed (re-added) into the dir whenever a stale-block0 ADOPT drops our own just-created entries (the dir_reuse_coherency node1_f1 double-block0 orphan: rank1 converts sf->block0@A with node1_f1, a peer converts its stale shortform to block0@B which wins on disk, rank1's next create adopts block0@B dropping node1_f1; merge_ours only covers shortform<->shortform so it can't restore it).  Lazily allocated, bounded ring; freed in xfs_inode_free_callback. */
+	uint32_t		i_dlm_dir_pending_bytes; /* used byte length of i_dlm_dir_pending */
+	uint32_t		i_dlm_dir_pending_incarn; /* VFS i_generation the pending list belongs to; on incarnation change (rm-rf+recreate bumps di_gen) the list is dropped so we never replay a dead incarnation's names. */
+	uint32_t		i_dlm_dir_evicted_gen; /* i_dlm_dir_gen value at the last EAGER consumer-side dir-DATA-block evict (mxfs_dlm_dir_consumer_refresh).  When i_dlm_dir_gen advances past this (a peer modified the dir), the next readdir/lookup eagerly drops ALL clean cached dir data blocks so they refetch the peer's durable image — replacing the lazy per-buffer restamp-prone hook that could cache a stale block as current. */
+	uint32_t		i_dlm_dir_evicted_incarn; /* (design review ABA fix): VFS i_generation at the last whole-dir clean-block evict.  i_dlm_dir_gen counts WITHIN one inode incarnation and resets to 0 on a fresh struct, so under inode-number REUSE a peer's PREVIOUS-incarnation dir blocks (cached by physical daddr, not by inode) can collide on gen (old gen == new gen) and escape the gen-keyed evict.  XFS bumps di_gen on every reallocation, so evict-once-per-incarnation (this != i_generation) closes the ABA gap. */
+	uint32_t		i_dlm_dir_coherent_gen; /* i_dlm_dir_gen at the last mxfs_dir_refresh_stale_data_blocks (dir_coherent_modify) per-block coherence scan.  HANDOFF-GATE: the scan runs ONCE per cross-node dir-EX handoff (when i_dlm_dir_gen advances past this), NOT per addname — under EX no peer modifies mid-tenure, so a single tenure-start scan suffices.  Turns the O(blocks×creates) per-addname scan (5× too slow @ mht=50) into O(blocks×handoffs). */
+	unsigned long		i_dlm_adopt_ok_epoch; /* (create pace): i_dlm_epoch at the last mxfs_dir_modify_adopt_disk_format FUA read that found the platter NOT ahead of in-core while this node held the dir EX.  While the epoch, the incarnation and the dir gen below are unchanged and the EX grant is still held (mode==EX, !stale), no peer can have written the dir inode, so the next modify's adopt check needs no read.  0 = never checked. */
+	uint32_t		i_dlm_adopt_ok_incarn;	/* VFS i_generation at that clean check */
+	uint32_t		i_dlm_adopt_ok_dir_gen;	/* i_dlm_dir_gen at that clean check (a late DIR_MODIFY ring notification re-arms the read) */
 	unsigned long		i_dlm_leaf_scan_epoch;	/* 0.75.61: i_dlm_epoch at the last completed mxfs_dir_refresh_stale_data_blocks LEAF-range scan taken while this node held the dir EX (mode==EX, !stale).  While the epoch and the incarnation are unchanged and EX is still held, no peer can have written a leaf block, so the per-modify scan (1-3 plain reads + memcmp per leaf block, measured 0.7-1.2 ms per create in a >400-entry dir) is skipped.  0 = never scanned under EX. */
 	uint32_t		i_dlm_leaf_scan_incarn;	/* 0.75.61: VFS i_generation at that scan */
 	bool			i_mxfs_dir_hole_known;	/* 0.75.63: this directory's data-region extent map is KNOWN to hold a legitimate hole: this node punched a non-last data block (xfs_dir2_shrink_inode, the node-format removename path frees emptied middle blocks) or adopted a holey canonical disk image at acquire (P-RELOAD-HOLEY-ADOPT).  The flush-time hole detector (P-IFLUSH-GAP-DETECT) stays silent for such a map; a hole that appears with this false is the divergent-grow signature the detector exists for.  Reset with the other per-incarnation DLM fields. */
-	uint32_t		i_dlm_dir_evict_mep; /* sess26(ccloop) NEW-TENURE evict: the master dir epoch (mxfs_v5_dlm_inode_dir_epoch) observed at this dir's last modify-path clean-block evict.  When the master epoch ADVANCES past this, a peer held EX since our last evict (a genuine cross-node handoff) — so our cached dir blocks, INCLUDING ones lingering in-AIL, are durable-but-stale (Inv 1 drained them at the release that preceded the peer's tenure) and must be force-evicted so the first RMW of this new tenure cold-reads the peer's durable image.  Unlike valid_epoch (synced mid-tenure -> mis-flags this tenure's own earlier blocks -> readdir=0), this is compared at the EVICT-CALL granularity: same epoch => same tenure => keep genuine in-flight work. */
-	uint64_t		*i_dlm_dir_removed; /* sess34(ccloop): inumbers REMOVED from this dir during the CURRENT EX tenure (since the last valid_epoch change) — the drain-merge removed-set.  At the release drain a disk-only dirent (on disk, absent in-core) is AMBIGUOUS: our own pending remove (don't graft) vs a peer's add we never refreshed (graft).  Its inumber being in this set proves it is OUR remove → never resurrect it; absent → a peer add → graft (fixes dir_reuse readdir=799 without the dir_write_merge over-graft to 803).  kmalloc'd, freed in xfs_inode_free_callback. */
-	uint32_t		i_dlm_dir_removed_n;	/* sess34: used entries */
-	uint32_t		i_dlm_dir_removed_cap;	/* sess34: allocated entries */
-	uint32_t		i_dlm_dir_removed_epoch; /* sess34: i_dlm_dir_valid_epoch the removed-set belongs to; a mismatch => no removes recorded this tenure (set treated empty). */
-	uint64_t		i_mxfs_ex_grant_seq; /* sess17b (ccloop 4eef1f39, Gemini DLM-epoch guard): node-global monotonic epoch stamped each time this inode TRANSITIONS into an EX grant (a fresh EX tenure).  Unchanged while EX is held continuously. */
-	uint64_t		i_mxfs_dirty_seq; /* sess17b: value of i_mxfs_ex_grant_seq at the moment this inode was last logged/dirtied under EX.  At flush time, dirty_seq != ex_grant_seq means the dirty in-core state belongs to a PREVIOUS EX tenure (we yielded EX in between, so a peer may have freed/reused the inode on disk) -> a stale ghost; skip the flush instead of clobbering the peer's live on-disk incarnation (the rename_visibility/cross_write_read empty-content + bnobt resurrection family). */
+	uint32_t		i_dlm_dir_evict_mep; /* NEW-TENURE evict: the master dir epoch (mxfs_v5_dlm_inode_dir_epoch) observed at this dir's last modify-path clean-block evict.  When the master epoch ADVANCES past this, a peer held EX since our last evict (a genuine cross-node handoff) — so our cached dir blocks, INCLUDING ones lingering in-AIL, are durable-but-stale (Inv 1 drained them at the release that preceded the peer's tenure) and must be force-evicted so the first RMW of this new tenure cold-reads the peer's durable image.  Unlike valid_epoch (synced mid-tenure -> mis-flags this tenure's own earlier blocks -> readdir=0), this is compared at the EVICT-CALL granularity: same epoch => same tenure => keep genuine in-flight work. */
+	uint64_t		*i_dlm_dir_removed; /* inumbers REMOVED from this dir during the CURRENT EX tenure (since the last valid_epoch change) — the drain-merge removed-set.  At the release drain a disk-only dirent (on disk, absent in-core) is AMBIGUOUS: our own pending remove (don't graft) vs a peer's add we never refreshed (graft).  Its inumber being in this set proves it is OUR remove → never resurrect it; absent → a peer add → graft (fixes dir_reuse readdir=799 without the dir_write_merge over-graft to 803).  kmalloc'd, freed in xfs_inode_free_callback. */
+	uint32_t		i_dlm_dir_removed_n;	/* used entries */
+	uint32_t		i_dlm_dir_removed_cap;	/* allocated entries */
+	uint32_t		i_dlm_dir_removed_epoch; /* i_dlm_dir_valid_epoch the removed-set belongs to; a mismatch => no removes recorded this tenure (set treated empty). */
+	uint64_t		i_mxfs_ex_grant_seq; /* (design review DLM-epoch guard): node-global monotonic epoch stamped each time this inode TRANSITIONS into an EX grant (a fresh EX tenure).  Unchanged while EX is held continuously. */
+	uint64_t		i_mxfs_dirty_seq; /* value of i_mxfs_ex_grant_seq at the moment this inode was last logged/dirtied under EX.  At flush time, dirty_seq != ex_grant_seq means the dirty in-core state belongs to a PREVIOUS EX tenure (we yielded EX in between, so a peer may have freed/reused the inode on disk) -> a stale ghost; skip the flush instead of clobbering the peer's live on-disk incarnation (the rename_visibility/cross_write_read empty-content + bnobt resurrection family). */
 
 	/*
-	 * ─── MXFS DURABLE-AUTHORITY STATE (sess98, step 5.3(c)) ───
+	 * ─── MXFS DURABLE-AUTHORITY STATE (step 5.3(c)) ───
 	 *
 	 * D-FOREIGN-REPLAY-UNGATED-IMAGES needs every logged metadata image to
 	 * carry proof that THIS node durably held EX on the resource backing
-	 * the object at the moment the image was formatted.  The sess96 design-consult
+	 * the object at the moment the image was formatted.  The design-consult
 	 * ruling named the reason i_dlm_mode cannot be that proof:
 	 *
 	 *   i_dlm_mode == MXFS_LOCK_EX cannot distinguish an UNPUBLISHED local
@@ -419,11 +419,11 @@ typedef struct xfs_inode {
 	uint64_t		i_mxfs_auth_gen;
 	uint64_t		i_mxfs_auth_resource;	/* gres.resource of the live tenure */
 	uint64_t		i_mxfs_auth_epoch;	/* gres.grant_epoch stamped by the granting CAS */
-	uint64_t		i_mxfs_auth_lineage;	/* gres.resource_lineage of the same image (sess176; 0 = legacy binding, equality only) */
+	uint64_t		i_mxfs_auth_lineage;	/* gres.resource_lineage of the same image (0 = legacy binding, equality only) */
 	uint32_t		i_mxfs_auth_incarn;	/* i_generation the tenure was installed under */
 	uint32_t		i_mxfs_auth_line;	/* __LINE__ of the last state change (forensics) */
 	/*
-	 * sess469 (fix shape A review, STOP-SHIP 2): the tuple above is
+	 * (fix shape A review, STOP-SHIP 2): the tuple above is
 	 * WRITTEN under i_dlm_lock and READ by the token producer under
 	 * i_flags_lock (RCU lookup from the formatter — it may not take
 	 * i_dlm_lock).  Two different locks give no mutual exclusion, so the
@@ -435,7 +435,7 @@ typedef struct xfs_inode {
 	 */
 	seqcount_spinlock_t	i_mxfs_auth_seq;
 	/*
-	 * sess469 fix shape A: the INACTIVATION certificate's lifecycle
+	 * fix shape A: the INACTIVATION certificate's lifecycle
 	 * (installed by xfs_inactive from its raw EX grant result):
 	 *   MXFS_INACT_CERT_NONE     none live
 	 *   MXFS_INACT_CERT_ACTIVE   installed; truncate/ifree may be dirtying
@@ -443,7 +443,7 @@ typedef struct xfs_inode {
 	 *                            release-side actor in this state is a LOSS
 	 *                            (P-INACT-CERT-LOST) and the INACT-EXREL
 	 *                            revoke then finds GONE -> fail closed
-	 *                            (design-consult sess469 ruling: a certificate
+	 *                            (design-consult ruling: a certificate
 	 *                            removed before the final dirty may have
 	 *                            left classless images).
 	 *   MXFS_INACT_CERT_LOST     a release-side actor moved it while ACTIVE
@@ -459,17 +459,17 @@ typedef struct xfs_inode {
 #define MXFS_INACT_CERT_LOST		2
 #define MXFS_INACT_CERT_DEFERRED	3
 /* refusals of an inactivation certificate for one zombie before the deferred
- * reap stops retrying and the node fails closed (design-consult sess469 ruling 2:
+ * reap stops retrying and the node fails closed (design-consult ruling 2:
  * a permanent refusal must escalate, never be allowed to free) */
 #define MXFS_INACT_CERT_REFUSE_MAX	8
 	/*
-	 * sess105 — THE LAST INSTALL ATTEMPT.
+	 * — THE LAST INSTALL ATTEMPT.
 	 *
 	 * i_mxfs_auth_line records the last SUCCESSFUL transition, which is
 	 * precisely what a broken inode does NOT have: a failed install does
 	 * not transition, so `line` only ever names where NONE was
 	 * established (in practice the mode-lowering backstop).  It cannot say
-	 * why the next write grant failed to install.  The sess104 design-consult
+	 * why the next write grant failed to install.  The design-consult
 	 * ruling named this as the one piece of persistent instrumentation
 	 * worth adding, and it answers the whole classification table:
 	 *
@@ -491,7 +491,7 @@ typedef struct xfs_inode {
 	uint64_t		i_mxfs_auth_try_epoch;	/* gres.grant_epoch offered */
 	uint64_t		i_mxfs_auth_try_gen;	/* i_mxfs_auth_gen at attempt time */
 	/*
-	 * sess403 (clean-release marker, design-consult ruling): the {resource,
+	 * (clean-release marker, design-consult ruling): the {resource,
 	 * grant epoch} of the LAST tenure this node published an
 	 * XFS_LI_MXFS_RELMARK for from this inode's release pipeline.  Once
 	 * the marker is durable the release is IRREVOCABLE for that epoch:
@@ -504,7 +504,7 @@ typedef struct xfs_inode {
 	uint64_t		i_mxfs_relmark_res;
 	uint64_t		i_mxfs_relmark_epoch;
 	/*
-	 * ccloop c7ee71c6 sess22 (P197) — WALL CLOCK for the dirtying above.
+	 *  (P197) — WALL CLOCK for the dirtying above.
 	 *
 	 * P6-MIDTENURE-RELOAD-SKIP refuses a reload on the strength of
 	 * `dirty_seq == ex_grant_seq`, which it reads as "this dir was modified
@@ -522,12 +522,12 @@ typedef struct xfs_inode {
 	 */
 	uint64_t		i_mxfs_dirty_ns;
 	struct task_struct	*i_dlm_demoter;	/* thread inside bast_process for this inode (or NULL) */
-	pid_t			i_dlm_demoter_pid;	/* sess5: leak forensics — stamped at every demoter set */
+	pid_t			i_dlm_demoter_pid;	/* leak forensics — stamped at every demoter set */
 	char			i_dlm_demoter_comm[16];
 	u64			i_dlm_demoter_set_ns;
 	int			i_dlm_demoter_line;
 	/*
-	 * sess25: nesting depth of the demoter claim, owned exclusively by
+	 * nesting depth of the demoter claim, owned exclusively by
 	 * i_dlm_demoter (only the claiming task ever reads or writes it), so a
 	 * plain int needs no additional synchronisation.  Exists because the
 	 * claim is legitimately re-entered: a drain can re-enter the inode
@@ -535,7 +535,7 @@ typedef struct xfs_inode {
 	 */
 	int			i_dlm_demoter_depth;
 	/*
-	 * sess25: SECOND claim slot.  One slot was not enough and the reason is
+	 * SECOND claim slot.  One slot was not enough and the reason is
 	 * measured, not guessed: making the single slot un-stealable fixed the
 	 * self-wedge but REGRESSED crash_consistency from PASS 74s to FAIL at
 	 * its 90s budget (same build, A/B'd via mxfs.demoter_legacy_clobber),
@@ -549,7 +549,7 @@ typedef struct xfs_inode {
 	struct task_struct	*i_dlm_demoter2;
 	int			i_dlm_demoter2_depth;
 	/*
-	 * ccloop c7ee71c6 sess29 — SLOT 2 HAD NO FORENSICS AT ALL, and that
+	 *  — SLOT 2 HAD NO FORENSICS AT ALL, and that
 	 * made the only instrument aimed at the stranded-claim defect
 	 * AMBIGUOUS.  mxfs_foreign_demoter() is true when EITHER slot is set,
 	 * but P34J-RELOAD-DEMOTE-BAIL printed only i_dlm_demoter_pid/comm/line
@@ -572,7 +572,7 @@ typedef struct xfs_inode {
 	u64			i_dlm_demoter2_set_ns;
 	int			i_dlm_demoter2_line;
 	/*
-	 * ccloop c7ee71c6 sess29 — ROOT FIX for D-MOUNT-DEGRADES-WITH-USE's
+	 *  — ROOT FIX for D-MOUNT-DEGRADES-WITH-USE's
 	 * remaining component: THE ONLY DEMOTER CLAIM THAT OUTLIVES ITS OWN
 	 * CRITICAL SECTION.
 	 *
@@ -620,14 +620,14 @@ typedef struct xfs_inode {
 	uint8_t			i_dlm_punt_n[2];
 	u64			i_dlm_demoter_punt_ns;
 	/*
-	 * sess29: this inode has already been named by P214-DEMOTER-STRANDED.
+	 * this inode has already been named by P214-DEMOTER-STRANDED.
 	 * A strand causes hundreds of bails; without this the one line that
 	 * identifies it is indistinguishable from the flood it causes, and
 	 * pr_warn_ratelimited would drop it as readily as any other.
 	 */
 	bool			i_dlm_strand_named;
 	/*
-	 * sess25 (D-BAST-IRELE-INACTIVE-SELF-WEDGE): demoter claim/clear ring.
+	 * (D-BAST-IRELE-INACTIVE-SELF-WEDGE): demoter claim/clear ring.
 	 *
 	 * i_dlm_demoter is a single non-nestable task pointer shared by every
 	 * release path (bast_work_fn, bast_dwork_fn, the orphan reclaim, the
@@ -656,7 +656,7 @@ typedef struct xfs_inode {
 	uint8_t			i_dlm_demev_state[MXFS_DEMEV_N];
 	uint8_t			i_dlm_demev_head;
 	/*
-	 * sess26: the A/B knob `demoter_legacy_clobber` reproduces the pre-fix
+	 * the A/B knob `demoter_legacy_clobber` reproduces the pre-fix
 	 * unconditional store so the wedge can be re-armed on ONE build.  But
 	 * the arm needs its own EXPOSURE measure: "legacy armed + no wedge" is
 	 * uninformative unless we know a live claim was actually stolen.  So
@@ -667,7 +667,7 @@ typedef struct xfs_inode {
 	pid_t			i_dlm_clobber_victim_pid;
 	uint32_t		i_dlm_clobber_victim_line;
 	/*
-	 * sess26 H4: how many times in a row P6-MIDTENURE-RELOAD-SKIP has
+	 * H4: how many times in a row P6-MIDTENURE-RELOAD-SKIP has
 	 * cleared this inode's i_dlm_stale WITHOUT reloading.  Reset by a real
 	 * reload completion and at inode init, so a high value means the
 	 * staleness is being set and skip-cleared repeatedly with no re-read in
@@ -677,22 +677,22 @@ typedef struct xfs_inode {
 	 * 19 of 44 skips, which is what this counts properly.
 	 */
 	uint16_t		i_dlm_p6skip_n;
-	pid_t			i_dlm_acq_pid;	/* ccloop-4dd7 sess3: ISTATE_ACQUIRING setter forensics — stamped at the (single) ACQUIRING set site in mxfs_dlm_ilock_begin.  b54r1 dir 131 sat in ACQUIRING 184s with zero local holders and no live acquirer anywhere on the node; every peer BAST was deferred to an acquire-completion that no longer existed -> peer -110 -> dirty-cancel shutdown.  These name the leaker on the next firing. */
+	pid_t			i_dlm_acq_pid;	/* ccloop-4dd7 ISTATE_ACQUIRING setter forensics — stamped at the (single) ACQUIRING set site in mxfs_dlm_ilock_begin.  b54r1 dir 131 sat in ACQUIRING 184s with zero local holders and no live acquirer anywhere on the node; every peer BAST was deferred to an acquire-completion that no longer existed -> peer -110 -> dirty-cancel shutdown.  These name the leaker on the next firing. */
 	char			i_dlm_acq_comm[16];
 	u64			i_dlm_acq_set_ns;
 	uint16_t		i_dlm_acq_strikes; /* consecutive bast_notify ACQUIRING-deferrals observed with i_dlm_acq_inflight==0.  A live slow-path acquirer ALWAYS holds inflight>=1 (bumped before ACQUIRING is set, dropped at every exit, all under i_dlm_lock), so ACQUIRING+inflight==0 is a leaked state: nothing will ever honor the deferred BAST.  At the strike threshold the notify path reclaims via DEMOTING + bast_process (same machinery as P-DEMWAIT-REDRIVE). */
-	pid_t			i_dlm_exh_pid;	/* ccloop-4dd7 sess4: EX-admission holder forensics — stamped at every i_dlm_ex_holders 0->1 transition (all under i_dlm_lock).  b58r1: both nodes -110'd after 184s with a single live rm holding an EX admission (ex=1) the whole stall, blocked on something invisible to the DLM probes (cleared only by the shutdown).  P36-MHT-REARM prints these and dumps the holder's kernel stack at sustained-refusal strike thresholds, so the blocked holder names itself and its wait site on the next occurrence. */
+	pid_t			i_dlm_exh_pid;	/* ccloop-4dd7 EX-admission holder forensics — stamped at every i_dlm_ex_holders 0->1 transition (all under i_dlm_lock).  b58r1: both nodes -110'd after 184s with a single live rm holding an EX admission (ex=1) the whole stall, blocked on something invisible to the DLM probes (cleared only by the shutdown).  P36-MHT-REARM prints these and dumps the holder's kernel stack at sustained-refusal strike thresholds, so the blocked holder names itself and its wait site on the next occurrence. */
 	char			i_dlm_exh_comm[16];
 	u64			i_dlm_exh_since_ns;
-	bool			i_mxfs_reused_create; /* v0.5.4 (sess24 ccloop 14d31183): this CREATE reused an in-core incarnation (xfs_iget cache HIT with XFS_IGET_CREATE -> mxfs_dlm_rearm_unpublished).  Peers may still hold stale dcache/icache references to this inode NUMBER from the prior incarnation and can therefore name it -- and cleanly acquire its empty CAW slot -- without first reading our new parent dirent.  While i_dlm_unpublished, this keeps the synchronous sess107 unpublished-dir-EX backstop in mxfs_dlm_ilock_begin armed; FRESH cache-miss creates (mxfs_dlm_grant_local_new clears this) skip the backstop because no peer can name a never-before-used ino faster than the pre-commit async publish worker claims its slot (mxfs_dlm_publish_dirs_work, ~1 ms): dirent paths transit a lock we hold (BAST publishes the unpub list before release) and a lookup-iget of our not-yet-flushed dinode reads FREE on disk and bails ENOENT without any slot acquire. */
-	uint64_t		i_mxfs_iget_ns;      /* sess3 (ccloop 46efd8b6): ktime_get_ns at mxfs inode-DLM field init (== iget construction).  Printed by P14-DABUF-HOLE as iget_age_ms — a tiny age at a hole proves the cold-iget-adopts-lagging-home mechanism (dir inode evicted, re-igot from a mid-tenure-lagging home image, walked with newer cached structure). */
-	uint64_t		i_mxfs_lastrel_ns;   /* sess10(a9a03929) instrumented last-release ledger: ktime_get_real_ns at the end of the most recent release-path __mxfs_dlm_dir_inode_durable decision for this dir (bast_process sd stage or per-op wrapper).  Printed by P-SFDIR-REVERT so a platter-lags-commit event shows when the last durable-at-release ran relative to the stale reload.  0 = never. */
-	uint64_t		i_mxfs_lastrel_size; /* sess10: i_disk_size at that decision point. */
-	uint32_t		i_mxfs_lastrel_flag; /* sess10: 1=durable helper RAN, 2=SKIPPED by the pr_release_fast clean-release gate, 3=helper ran but self-guard bailed (not LOCAL handled elsewhere/…).  0 = never. */
-	bool			i_mxfs_self_created; /* v0.5.4 (sess23 ccloop 14d31183): this inode was CREATED by this node this mount and no peer BAST has arrived for it.  Gates the per-mkdir shortform-parent cluster-durability barrier in xfs_create (mxfs_dlm_dir_inode_durable): a dir we created ourselves with zero observed peer interest cannot be mid-cold-read by a coordinated peer (peers reach it only through a shared ancestor, whose own barrier fired, or by taking its DLM lock — which BASTs us and clears this flag before the release-path flush).  Cleared on any peer BAST (mxfs_dlm_bast_notify); false for every inode igot from disk, so pre-existing/shared dirs always keep the barrier. */
+	bool			i_mxfs_reused_create; /* v0.5.4: this CREATE reused an in-core incarnation (xfs_iget cache HIT with XFS_IGET_CREATE -> mxfs_dlm_rearm_unpublished).  Peers may still hold stale dcache/icache references to this inode NUMBER from the prior incarnation and can therefore name it -- and cleanly acquire its empty CAW slot -- without first reading our new parent dirent.  While i_dlm_unpublished, this keeps the synchronous unpublished-dir-EX backstop in mxfs_dlm_ilock_begin armed; FRESH cache-miss creates (mxfs_dlm_grant_local_new clears this) skip the backstop because no peer can name a never-before-used ino faster than the pre-commit async publish worker claims its slot (mxfs_dlm_publish_dirs_work, ~1 ms): dirent paths transit a lock we hold (BAST publishes the unpub list before release) and a lookup-iget of our not-yet-flushed dinode reads FREE on disk and bails ENOENT without any slot acquire. */
+	uint64_t		i_mxfs_iget_ns;      /* ktime_get_ns at mxfs inode-DLM field init (== iget construction).  Printed by P14-DABUF-HOLE as iget_age_ms — a tiny age at a hole proves the cold-iget-adopts-lagging-home mechanism (dir inode evicted, re-igot from a mid-tenure-lagging home image, walked with newer cached structure). */
+	uint64_t		i_mxfs_lastrel_ns;   /* instrumented last-release ledger: ktime_get_real_ns at the end of the most recent release-path __mxfs_dlm_dir_inode_durable decision for this dir (bast_process sd stage or per-op wrapper).  Printed by P-SFDIR-REVERT so a platter-lags-commit event shows when the last durable-at-release ran relative to the stale reload.  0 = never. */
+	uint64_t		i_mxfs_lastrel_size; /* i_disk_size at that decision point. */
+	uint32_t		i_mxfs_lastrel_flag; /* 1=durable helper RAN, 2=SKIPPED by the pr_release_fast clean-release gate, 3=helper ran but self-guard bailed (not LOCAL handled elsewhere/…).  0 = never. */
+	bool			i_mxfs_self_created; /* v0.5.4: this inode was CREATED by this node this mount and no peer BAST has arrived for it.  Gates the per-mkdir shortform-parent cluster-durability barrier in xfs_create (mxfs_dlm_dir_inode_durable): a dir we created ourselves with zero observed peer interest cannot be mid-cold-read by a coordinated peer (peers reach it only through a shared ancestor, whose own barrier fired, or by taking its DLM lock — which BASTs us and clears this flag before the release-path flush).  Cleared on any peer BAST (mxfs_dlm_bast_notify); false for every inode igot from disk, so pre-existing/shared dirs always keep the barrier. */
 
 	/*
-	 * sess14 (ccloop c7ee71c6) D3 RESIDUAL — publication obligation.
+	 * D3 RESIDUAL — publication obligation.
 	 * Design-consult design (memories sess14-D/H/J), the replacement for four
 	 * REFUTED local write-path predicates.  The invariant to enforce:
 	 *
@@ -724,7 +724,7 @@ typedef struct xfs_inode {
 	 * EAGAIN/clean-skip success return on pending == durable; (4) only
 	 * then may the write-side guards revert to pure assertions.
 	 *
-	 * sess18 (ccloop c7ee71c6) COMPLETES step (2).  sess14 advanced durable
+	 * COMPLETES step (2).  advanced durable
 	 * ONLY at the release drain's own xfs_bwrite, which made the predicate a
 	 * gross OVER-approximation: every inode landed by ANY other flush path
 	 * (xfsaild, reclaim, sync, a co-resident cluster write) kept reading
@@ -747,7 +747,7 @@ typedef struct xfs_inode {
 	uint64_t		i_mxfs_pub_durable_seq;
 	uint64_t		i_mxfs_pub_flush_seq;
 	/*
-	 * sess257 step-5 F3 (sess253 ruling item C): m_mxfs_flush_epoch
+	 * step-5 F3 (ruling item C): m_mxfs_flush_epoch
 	 * observed when durable_seq was last discharged.  A release in
 	 * fua_disable=0 mode holds a REAL_FLUSH ticket only when the device
 	 * flush_epoch has advanced PAST this stamp — i.e. a real cache flush
@@ -760,19 +760,19 @@ typedef struct xfs_inode {
 	uint64_t		i_mxfs_pub_durable_fepoch;
 
 	/*
-	 * sess201 (tenure-release build-order step 3): per-inode release state
+	 * (tenure-release build-order step 3): per-inode release state
 	 * (enum mxfs_release_state).  Written with WRITE_ONCE by the release
 	 * pipeline (per-inode serialized); read at the wire CAS to certify
 	 * which proof phase the release was in.  Observation-only until step 6
 	 * arms DEMOTING retention/WEDGED; races only distort telemetry.
 	 */
 	uint8_t			i_mxfs_rel_state;
-	/* sess426 (D-DUP-RELEASE invariant 4): the release-pipeline instance that
+	/* (D-DUP-RELEASE invariant 4): the release-pipeline instance that
 	 * last entered RELEASING; only that instance's finish may reset ACTIVE */
 	atomic_t		i_mxfs_rel_instance;
 
 	/*
-	 * sess314 step-6 F1 INODE containment (sess312 ruling): deferred-
+	 * step-6 F1 INODE containment (ruling): deferred-
 	 * release episode state, all under i_dlm_lock.  started_j != 0 marks
 	 * an open episode; ONLY a release completing its wire CAS closes it —
 	 * never a local reacquire, a repeated BAST, or a cause-mask change (a
@@ -789,7 +789,7 @@ typedef struct xfs_inode {
 	unsigned int		i_mxfs_reldefer_badness;
 	unsigned int		i_mxfs_reldefer_tries;
 	/*
-	 * sess382 (D-RELOG-BEHIND-DISK-OBLIGATION-DEADLOCK-WEDGE-380): reloads
+	 * (D-RELOG-BEHIND-DISK-OBLIGATION-DEADLOCK-WEDGE-380): reloads
 	 * this defer episode has driven from the release-side worker because a
 	 * flush fence abandoned our publication.  BOUNDED — an inode whose
 	 * reload keeps bailing on its keep-guards must still reach the wedge
@@ -798,7 +798,7 @@ typedef struct xfs_inode {
 	 */
 	unsigned int		i_mxfs_reldefer_reloads;
 	/*
-	 * sess382: xfs_iflush returned SUCCESS for this inode without stamping
+	 * xfs_iflush returned SUCCESS for this inode without stamping
 	 * i_mxfs_pub_flush_seq while an obligation was open — i.e. one of the
 	 * "safe skip" fences abandoned the publication.  Set at the single
 	 * flush_out chokepoint, consumed by the release-side retry worker,
@@ -809,7 +809,7 @@ typedef struct xfs_inode {
 	bool			i_mxfs_relwedge_shot;
 
 	/*
-	 * ccloop c7ee71c6 sess30 — STAGING TENURE STAMP, for design-consult review
+	 *  — STAGING TENURE STAMP, for design-consult review
 	 * item 2 on D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY: "logged this
 	 * round" proves a JOURNAL representation, not authority to publish to
 	 * HOME.
@@ -825,7 +825,7 @@ typedef struct xfs_inode {
 	 * taken at copy-in and compared at submit answers "did we still hold the
 	 * tenure the bytes were staged under?" with one 64-bit compare, no DLM
 	 * query and no I/O — which matters because the compare happens inside
-	 * pag_ici_lock, where the blocking held-query would sleep (sess20).
+	 * pag_ici_lock, where the blocking held-query would sleep.
 	 *
 	 * The inode FLUSH LOCK is held from xfs_iflush until the buffer's
 	 * iodone, so exactly one staging is outstanding at a time and the stamp
@@ -843,7 +843,7 @@ typedef struct xfs_inode {
 	 * a revert and not a legitimate newer incarnation.
 	 */
 	uint64_t		i_mxfs_pub_stage_ns;
-	uint8_t			i_mxfs_pipe_relog; /* sess33: the release pipeline's own
+	uint8_t			i_mxfs_pipe_relog; /* the release pipeline's own
 			 * tiny re-log transaction (P146V clean-but-unlanded arm,
 			 * P182 relmerge arm) is in flight on this inode.  Gates
 			 * the P234-LOG-NOEX source counter: those two arms
@@ -856,7 +856,7 @@ typedef struct xfs_inode {
 			 * missed by the tripwire but still covered by the
 			 * pipeline's own drain. */
 	/*
-	 * sess32 P229 detection: nonzero (ns timestamp) while an
+	 * P229 detection: nonzero (ns timestamp) while an
 	 * xfs_ilock_nowait acquisition entered through the ilock_try
 	 * preempt_count()>0 arm, which BYPASSES the DLM (no DEMOTING gate, no
 	 * holder count).  EX is REFUSED there since 0.11.285 (an EX bypass
@@ -867,19 +867,19 @@ typedef struct xfs_inode {
 	 */
 	uint64_t		i_mxfs_atomic_bypass_ns;
 	/*
-	 * sess30: __LINE__ of the site that last bumped i_dlm_epoch (= the
+	 * __LINE__ of the site that last bumped i_dlm_epoch (= the
 	 * release/stale path that ENDED the tenure).  i_dlm_epoch is bumped
 	 * from nine different places; knowing the tenure was lost is not
 	 * actionable until the leaking path is named.
 	 */
-	uint16_t		i_dlm_epoch_src;
+	uint32_t		i_dlm_epoch_src;
 
 	/*
-	 * sess483 (D-32NODE-SHARED-DIR-CREATE-PACE) — creates completed per
+	 * (D-32NODE-SHARED-DIR-CREATE-PACE) — creates completed per
 	 * DIRECTORY-GRANT TENURE, which is the one number that separates the
 	 * two remaining explanations for the shared-directory create cost.
 	 *
-	 * Measured sess483 (chain 129), P=32, cost per create in one shared
+	 * Measured (chain 129), P=32, cost per create in one shared
 	 * directory: 193, 169, 550, 1558, 2151 ms for F = 8/16/32/64/128 files
 	 * per node.  It RISES with the work outstanding, so it is neither a
 	 * fixed admission being amortised nor a periodic batching quantum.
@@ -914,7 +914,7 @@ typedef struct xfs_inode {
 	uint64_t		i_dlm_cr_last_ns;
 
 	/*
-	 * ccloop c7ee71c6 sess20 (P186) — highest di_nlink this node has ever
+	 *  (P186) — highest di_nlink this node has ever
 	 * OBSERVED on the platter for the CURRENT incarnation of this inode,
 	 * plus the incarnation it belongs to.  A directory's link count only
 	 * grows while children are being created, so an outgoing dinode image
@@ -930,7 +930,7 @@ typedef struct xfs_inode {
 	uint32_t		i_mxfs_disk_nlink_gen;
 
 	/*
-	 * sess427 (D-0351, FREE-PUBLISH invariant): this inode's FREE publication
+	 * (D-0351, FREE-PUBLISH invariant): this inode's FREE publication
 	 * obligation state, mirrored from the store entry (mxfs_pubob):
 	 * 0 none, 1 FREE_PENDING (xfs_inactive_ifree is between the unlink
 	 * obligation's list removal and the ifree commit — the audit must DEFER,
@@ -941,7 +941,7 @@ typedef struct xfs_inode {
 	uint8_t			i_mxfs_freeob;
 	uint8_t			i_mxfs_freeob_strikes;	/* P55C denials (recovery trigger) */
 	/*
-	 * sess431 (D-0351, design-consult ruling): the FREE-publication CLAIM.  A P55C
+	 * (D-0351, design-consult ruling): the FREE-publication CLAIM.  A P55C
 	 * copy-in stages the committed free image into ONE cluster buffer under
 	 * ONE AG tenure; nothing downstream (the cluster merge, the partial-write
 	 * mask, the completion) could tell that staged mode-0 slot apart from a
@@ -957,15 +957,15 @@ typedef struct xfs_inode {
 	uint64_t		i_mxfs_freepub_epoch;
 	uint64_t		i_mxfs_freepub_seq;
 	uint32_t		i_mxfs_freepub_gen;
-	uint32_t		i_mxfs_dead_incarn_gen; /* sess14 (ccloop c7ee71c6) D3 ROOT FIX: the di_gen of a NEWER on-disk incarnation of this ino, recorded when a reload dirent-validated a genuine type-flip (RELOAD-TYPEFLIP-DIRENT-OK: disk+parent-dirent agree the number was freed and reused) but had to bail because a release drain raced it (P34J-RELOAD-RACE-BAIL).  While set, this in-core object is a DEAD PRIOR INCARNATION: the drain's clean-but-unlanded re-log (P146V) and xfs_iflush MUST NOT write its core over the peer's live slot (the proven ino-167 cluster clobber: stale storm-dir dinode re-logged at NL and iflush_cluster'd over the peer's current file — 22/32 nodes lost the rename).  Cleared when a reload successfully adopts the disk incarnation, and at init. */
+	uint32_t		i_mxfs_dead_incarn_gen; /* D3 ROOT FIX: the di_gen of a NEWER on-disk incarnation of this ino, recorded when a reload dirent-validated a genuine type-flip (RELOAD-TYPEFLIP-DIRENT-OK: disk+parent-dirent agree the number was freed and reused) but had to bail because a release drain raced it (P34J-RELOAD-RACE-BAIL).  While set, this in-core object is a DEAD PRIOR INCARNATION: the drain's clean-but-unlanded re-log (P146V) and xfs_iflush MUST NOT write its core over the peer's live slot (the proven ino-167 cluster clobber: stale storm-dir dinode re-logged at NL and iflush_cluster'd over the peer's current file — 22/32 nodes lost the rename).  Cleared when a reload successfully adopts the disk incarnation, and at init. */
 
-	/* sess132 (instrumented): ILOCK last-locker forensics for the 16-node
+	/* (instrumented): ILOCK last-locker forensics for the 16-node
 	 * create-storm wedge — a bast_process drain blocked forever on
 	 * i_lock with NO live holder (leaked ILOCK).  Records the most
 	 * recent EXCL and SHARED takers + a shared-hold counter so the
 	 * stuck-drain probe can name the leaking call path. */
 	atomic_t		i_mxfs_ilk_rd_held; /* outstanding ILOCK_SHARED holds */
-	atomic_t		i_mxfs_ilk_wr_held; /* sess33 (ccloop c7ee71c6) writer-quiescence census:
+	atomic_t		i_mxfs_ilk_wr_held; /* writer-quiescence census:
 			 * outstanding ILOCK_EXCL holds taken through xfs_ilock /
 			 * xfs_ilock_nowait ONLY (inc open-coded at those two
 			 * sites, post-acquisition; dec in mxfs_ilk_note_unlock,
@@ -1004,7 +1004,7 @@ typedef struct xfs_inode {
 	struct list_head	i_ioend_list;
 
 	/*
-	 * ccloop c7ee71c6 sess23 — D-UNMOUNT-BUSY-INODES leak detector.
+	 *  — D-UNMOUNT-BUSY-INODES leak detector.
 	 *
 	 * `kmem_cache_destroy mxfs_inode: Slab cache still has objects` at rmmod
 	 * reports "objects=18 used=1": exactly ONE xfs_inode outlives the last
@@ -1020,7 +1020,7 @@ typedef struct xfs_inode {
 	struct list_head	i_mxfs_live_link;
 	unsigned long		i_mxfs_alloc_jiffies;
 	/*
-	 * sess23: attribution for the leaked reference.  Every igrab() inside
+	 * attribution for the leaked reference.  Every igrab inside
 	 * an MXFS translation unit self-tags with its own __LINE__ (see the
 	 * mxfs_igrab_tracked wrapper below and the per-file #define), so P202
 	 * names the exact source line that took the reference that was never
@@ -1030,7 +1030,7 @@ typedef struct xfs_inode {
 	unsigned int		i_mxfs_grab_line;
 	unsigned char		i_mxfs_grab_file;
 	/*
-	 * sess26: TRACKED-vs-UNTRACKED reference balance (P205-REFBAL).
+	 * TRACKED-vs-UNTRACKED reference balance (P205-REFBAL).
 	 *
 	 * P203-LEVEL names the grab occupying each refcount level, but it is
 	 * only sound under LIFO release order: if grab A takes 0->1 and B takes
@@ -1057,7 +1057,7 @@ typedef struct xfs_inode {
 	uint16_t		i_mxfs_tgrabs;
 	uint16_t		i_mxfs_tputs;
 	/*
-	 * sess23: return address of the LAST caller of xfs_iget() that walked
+	 * return address of the LAST caller of xfs_iget that walked
 	 * away with a reference on this inode.  The igrab line alone resolves
 	 * to xfs_iget_cache_hit(), which is upstream's ordinary cache-hit grab
 	 * and names nothing — the leak is a CALLER that never paired its iget
@@ -1065,9 +1065,9 @@ typedef struct xfs_inode {
 	 */
 	unsigned long		i_mxfs_iget_ret;
 	/*
-	 * sess23 H2 causal-link probe.  Stamped when P34J-RELOAD-RACE-BAIL
+	 * H2 causal-link probe.  Stamped when P34J-RELOAD-RACE-BAIL
 	 * ABANDONS a reload ("caller retries post-drain" — a promise that was
-	 * never implemented for the DEMOTE flavour, which sess22 proved is how
+	 * never implemented for the DEMOTE flavour, which proved is how
 	 * i_dlm_dir_valid_epoch is left behind and P32E then fences away every
 	 * later flush).  P32E prints the age of this stamp so the chain
 	 * race-bail -> fenced flush -> lost dirent can be established with a
@@ -1075,7 +1075,7 @@ typedef struct xfs_inode {
 	 */
 	u64			i_mxfs_racebail_ns;
 	/*
-	 * sess23: reference-event ring.  Every xfs_iget() that hands out a
+	 * reference-event ring.  Every xfs_iget that hands out a
 	 * reference, every xfs_irele(), and every igrab()/iput() inside a
 	 * tagged MXFS translation unit records (who, grab/release, resulting
 	 * i_count) here.  P202 replays it for the inode that survived unmount,
@@ -1084,7 +1084,7 @@ typedef struct xfs_inode {
 	 * under a race is far cheaper than serialising the iget/irele path.
 	 */
 	/*
-	 * sess25 (D-BAST-WRITEBACK-ABBA-DEADLOCK): which folio-lock-taking
+	 * (D-BAST-WRITEBACK-ABBA-DEADLOCK): which folio-lock-taking
 	 * flush the release drain is currently inside.  mxfs_dlm_bast_process
 	 * calls filemap_write_and_wait TWICE and the two are NOT equivalent:
 	 *
@@ -1114,13 +1114,13 @@ typedef struct xfs_inode {
 	unsigned char		i_mxfs_refev_kind[MXFS_REFEV_N]; /* 0=rele 1=grab(ip) 2=grab(file:line) 3=rele(file:line) */
 	unsigned char		i_mxfs_refev_cnt[MXFS_REFEV_N];
 	unsigned char		i_mxfs_refev_head;
-	/* sess25: outstanding-grab stack — see mxfs_refev_rec(). */
+	/* outstanding-grab stack — see mxfs_refev_rec. */
 #define MXFS_GRABST_N	16
 	unsigned long		i_mxfs_grabst[MXFS_GRABST_N];
 	unsigned char		i_mxfs_grabst_kind[MXFS_GRABST_N];
 	unsigned char		i_mxfs_grabst_over;
 	/*
-	 * ccloop c7ee71c6 sess27 (D-UNMOUNT-BUSY-INODES), from the design-consult GPT
+	 *  (D-UNMOUNT-BUSY-INODES), from the design-consult design review
 	 * consult.  An inode joins the inode LRU ONLY at i_count==0 — verified
 	 * in /src/linux/fs/inode.c, __inode_lru_list_add() returns early
 	 * `if (icount_read(inode))`.  The leaked inode is ALWAYS lru_linked=1
@@ -1131,7 +1131,7 @@ typedef struct xfs_inode {
 	 * transition, so the filesystem CAN observe it.  Bumping the tenure and
 	 * clearing the grab table there scopes i_mxfs_grabst[] to the FINAL
 	 * tenure alone — which removes the LIFO-ordering assumption that made
-	 * the sess25/26 level table unsound, because the table then holds only
+	 * the /26 level table unsound, because the table then holds only
 	 * this tenure's grabs.  With icount=1, slot 1 IS the outstanding
 	 * reference.
 	 *
@@ -1146,7 +1146,7 @@ typedef struct xfs_inode {
 	unsigned long		i_mxfs_zero_jiffies;
 } xfs_inode_t;
 
-/* sess23: global live-xfs_inode registry — see i_mxfs_live_link above. */
+/* global live-xfs_inode registry — see i_mxfs_live_link above. */
 extern spinlock_t		mxfs_live_inodes_lock;
 extern struct list_head		mxfs_live_inodes;
 extern int			mxfs_live_inode_track;
@@ -1232,7 +1232,7 @@ static inline struct inode *VFS_I(struct xfs_inode *ip)
 }
 
 /*
- * sess23 — igrab() call-site attribution (D-UNMOUNT-BUSY-INODES).
+ * — igrab call-site attribution (D-UNMOUNT-BUSY-INODES).
  *
  * An MXFS .c file that wants its igrab() calls attributed adds, AFTER its
  * includes:
@@ -1258,11 +1258,11 @@ mxfs_refev_rec(struct xfs_inode *ip, unsigned long who, unsigned char kind)
 	ip->i_mxfs_refev_head = (h + 1) % MXFS_REFEV_N;
 
 	/*
-	 * sess25 (D-UNMOUNT-BUSY-INODES): GRAB-BY-REFCOUNT-LEVEL table.
+	 * (D-UNMOUNT-BUSY-INODES): GRAB-BY-REFCOUNT-LEVEL table.
 	 *
 	 * The 10-entry ring above is a fixed HISTORY window and by unmount has
 	 * wrapped many times over, which is why it never produced a capture
-	 * despite being in the tree since sess23: a leak is an OLD grab with no
+	 * despite being in the tree since a leak is an OLD grab with no
 	 * matching release, and a history window structurally cannot hold it.
 	 *
 	 * A push/pop STACK was tried first and MEASURED WRONG: it saturated
@@ -1282,7 +1282,7 @@ mxfs_refev_rec(struct xfs_inode *ip, unsigned long who, unsigned char kind)
 		unsigned char lvl =
 			(unsigned char)atomic_read(&VFS_I(ip)->i_count);
 
-		/* sess27: grabs are attributed to the CURRENT tenure only —
+		/* grabs are attributed to the CURRENT tenure only —
 		 * mxfs_inode_tenure_reset() clears the table at every
 		 * i_count->0 transition (see the field comments above). */
 		ip->i_mxfs_tenure_grabs++;
@@ -1296,7 +1296,7 @@ mxfs_refev_rec(struct xfs_inode *ip, unsigned long who, unsigned char kind)
 }
 
 /*
- * sess27 — called from xfs_fs_drop_inode(), i.e. from iput_final() at the exact
+ * — called from xfs_fs_drop_inode, i.e. from iput_final at the exact
  * instant i_count reaches 0.  Opens a new busy tenure: everything the old one
  * recorded is history and must not be attributed to the reference that survives
  * to unmount.  Deliberately NOT gated on mxfs_live_inode_track: if tracking is
@@ -1360,7 +1360,7 @@ mxfs_iput_tracked(struct inode *vi, unsigned int line, unsigned char file)
 	if (!vi)
 		return;
 	mxfs_refev_rec(XFS_I(vi), MXFS_REFEV_SITE(file, line), 3);
-	/* sess26 P205-REFBAL: count BEFORE iput -- iput may free the inode, and
+	/* P205-REFBAL: count BEFORE iput -- iput may free the inode, and
 	 * touching it afterwards is a use-after-free. */
 	if (XFS_I(vi)->i_mxfs_tputs < 0xffff)
 		XFS_I(vi)->i_mxfs_tputs++;
@@ -1605,7 +1605,7 @@ static inline bool xfs_inode_can_sw_atomic_write(const struct xfs_inode *ip)
 #define XFS_IREMAPPING		(1U << 15)
 
 /*
- * mxfs (sess55): a peer freed+reused this inode number while we held it
+ * mxfs: a peer freed+reused this inode number while we held it
  * passively cached at NL (no DLM grant), so no BAST invalidated us.  The CAW
  * heartbeat-embedded evict-ring consumer sets this; a background workqueue then
  * does d_prune_aliases + xfs_irele to force the stale incarnation out — OUTSIDE
@@ -1615,7 +1615,7 @@ static inline bool xfs_inode_can_sw_atomic_write(const struct xfs_inode *ip)
 #define XFS_ISTALE_CAW		(1U << 16)
 
 /*
- * mxfs (sess118): THIS node allocated this inode incarnation and has not yet
+ * mxfs: THIS node allocated this inode incarnation and has not yet
  * written it to its on-disk home block.  Set in xfs_init_new_inode (the only
  * site where this node creates a brand-new incarnation), cleared on the first
  * xfs_iflush that writes it.  The resurrection guard in xfs_iflush uses it to
@@ -1631,9 +1631,9 @@ static inline bool xfs_inode_can_sw_atomic_write(const struct xfs_inode *ip)
 #define MXFS_IF_FIRST_FLUSH	(1U << 17)
 
 /*
- * mxfs (sess17 ccloop 4eef1f39): THIS inode is being flushed by the SANCTIONED
+ * mxfs: THIS inode is being flushed by the SANCTIONED
  * release path (mxfs_dlm_bast_process reg-durable flush) and must be allowed
- * past the sess119 P119 non-EX guard in xfs_iflush_int.  The release path sets
+ * past the P119 non-EX guard in xfs_iflush_int.  The release path sets
  * i_dlm_mode = NL (release bookkeeping) BEFORE running the durable di_size
  * flush, so without this flag the P119 guard ("only flush while EX") would skip
  * writing the in-core di_size into the cluster buffer (P119-NONEX-FLUSH-SKIP)
@@ -1647,7 +1647,7 @@ static inline bool xfs_inode_can_sw_atomic_write(const struct xfs_inode *ip)
 #define MXFS_IF_DLM_RELFLUSH	(1U << 18)
 
 /*
- * mxfs (sess19 ccloop 4eef1f39): THIS node performed the user-level removal
+ * mxfs: THIS node performed the user-level removal
  * (unlink / rename-over / rmdir) that drove this inode's link count to 0 — set
  * in xfs_droplink at the nlink->0 transition (the genuine local-intent point,
  * NOT the low-level xfs_iunlink which also runs for internal re-inserts).
@@ -1663,12 +1663,12 @@ static inline bool xfs_inode_can_sw_atomic_write(const struct xfs_inode *ip)
  * blocker; proven via P47-INACT DISK-LIVE-same-gen=>A-lost-removal +
  * P81-DEXT disk_claims_freed=1).  disk_nlink is NOT a sound discriminator here
  * (FUA reads hit the stale platter; an unflushed local unlink reads nlink>0) —
- * local intent is.  (Gemini design-consult design.)
+ * local intent is.  (design review design-consult design.)
  */
 #define MXFS_IF_LOCAL_UNLINK	(1U << 19)
 
 /*
- * sess41 C8: ADOPTED freer authority — the elected survivor's sweep (or its
+ * C8: ADOPTED freer authority — the elected survivor's sweep (or its
  * reap retries) is freeing a DEAD peer's orphan.  Satisfies the B3/B4
  * authority tests exactly like LOCAL_UNLINK, but must NEVER arm the
  * P2L-OWNFREE disk-free bypass: that bypass is only sound for a node's OWN
@@ -1681,7 +1681,7 @@ static inline bool xfs_inode_can_sw_atomic_write(const struct xfs_inode *ip)
 #define MXFS_IF_ADOPTED_UNLINK	(1U << 28)
 
 /*
- * sess324 (D-FOREIGN-REPLAY-REFUSAL-CLUSTERWIDE-SUICIDE-513, sess320 design-consult
+ * (D-FOREIGN-REPLAY-REFUSAL-CLUSTERWIDE-SUICIDE-513, design-consult
  * ruling): this inode lives in a QUARANTINED victim domain — a dead peer's
  * slice replay was terminally refused, so committed redo covering this
  * inode's AG (or the whole fs) was suppressed and nothing here may be
@@ -1695,7 +1695,7 @@ static inline bool xfs_inode_can_sw_atomic_write(const struct xfs_inode *ip)
 #define MXFS_IF_QUAR_EIO	(1U << 29)
 
 /*
- * mxfs (sess42 ccloop 14d31183): a peer modified this SHORTFORM directory
+ * mxfs: a peer modified this SHORTFORM directory
  * (CAW evict-ring DIR_MODIFY) and our cached inline dir fork is stale.  The
  * i_dlm_dir_gen bump that covers block/leaf dirs is a no-op for shortform:
  * xfs_dir2_sf_getdents reads if_data inline and never goes through
@@ -1705,16 +1705,16 @@ static inline bool xfs_inode_can_sw_atomic_write(const struct xfs_inode *ip)
  * context); consumed by xfs_readdir, which does an event-driven
  * mxfs_dlm_reload_inode BEFORE the shortform getdents so the inline entries
  * (or a peer-driven LOCAL->block conversion) are refreshed.  Event-driven by
- * design — never poll the disk per readdir (sess38/91 regression).
+ * design — never poll the disk per readdir (/91 regression).
  */
 #define MXFS_IF_DIR_RELOAD	(1U << 20)
 
 /*
- * mxfs (sess21 ccloop 8ddb16a2): the acquire/reader evict could NOT refresh
+ * mxfs: the acquire/reader evict could NOT refresh
  * this dir's LEAF (hash index) block because it was pinned/undestaged (the
  * single shared leaf block is perpetually pinned on the active-creating node —
  * every create touches it, so the CIL never quiesces it; clearing XBF_DONE on a
- * pinned buffer loses the un-checkpointed delta = sess64 corruption, so evict
+ * pinned buffer loses the un-checkpointed delta = corruption, so evict
  * SKIPS it).  The node then holds a STALE in-core leaf missing a peer's
  * committed hashvals; its next dir RMW + destage durably drops them (the
  * dir_reuse_coherency leaf-hash hole: readdir lists the name from the coherent
@@ -1727,7 +1727,7 @@ static inline bool xfs_inode_can_sw_atomic_write(const struct xfs_inode *ip)
 #define MXFS_IF_DIR_LEAF_STALE	(1U << 21)
 
 /*
- * sess31: a dir DATA block was KEPT stale at the acquire-evict (in-AIL
+ * a dir DATA block was KEPT stale at the acquire-evict (in-AIL
  * undestaged: our own committed-but-unwritten add on a base a peer has since
  * superseded on the LUN — clearing XBF_DONE on it would corrupt, so the evict
  * cannot refresh it).  Its next RMW + async destage durably REVERTS the peer's
@@ -1741,7 +1741,7 @@ static inline bool xfs_inode_can_sw_atomic_write(const struct xfs_inode *ip)
 #define MXFS_IF_DIR_DATA_STALE	(1U << 22)
 
 /*
- * ccloop-4dd7 sess5 instrumented s_remove_count shadow ledger: set iff THIS
+ * ccloop-4dd7 instrumented s_remove_count shadow ledger: set iff THIS
  * inode's current i_nlink==0 state holds a +1 in sb->s_remove_count
  * (i.e. the 0-edge went through clear_nlink/drop_nlink accounting).
  * Every 0->N dec site (xfs_inode_from_disk adopt, xfs_droplink PIN,
@@ -1756,7 +1756,7 @@ static inline bool xfs_inode_can_sw_atomic_write(const struct xfs_inode *ip)
 #define MXFS_IF_RMC_ACCT	(1U << 23)
 
 /*
- * ccloop c7ee71c6 sess3 (design-consult GPT incarnation-coherence design, Phase A).
+ *  (design-consult design review incarnation-coherence design, Phase A).
  * This in-core shell is a DEAD INCARNATION: a protective-grant reload read
  * the authoritative on-disk dinode and found the slot FREED (di_mode=0) or
  * carrying a DIFFERENT di_gen while this shell is CLEAN (no in-flight local
@@ -1774,7 +1774,7 @@ static inline bool xfs_inode_can_sw_atomic_write(const struct xfs_inode *ip)
 #define MXFS_IF_INCARN_STALE	(1U << 24)
 
 /*
- * ccloop c7ee71c6 sess318 (design-consult ruling, D-INCARN-STALE-SHELL-UNGATED-
+ *  (design-consult ruling, D-INCARN-STALE-SHELL-UNGATED-
  * FILE-READS-512): once poisoned, this shell may serve NOTHING — not data,
  * not metadata, not mappings.  The dir-op entry gates existed, but REG file
  * ops had none: a poisoned shell whose retirement stalled (hashed+cached,
@@ -1801,7 +1801,7 @@ mxfs_inode_incarn_estale(struct xfs_inode *ip)
 		if (mxfs_recovery_blocked_covers_ino(ip->i_mount, ip->i_ino))
 			return -EIO;
 		/*
-		 * sess324 (D-513): victim-domain quarantine.  A refused
+		 * (D-513): victim-domain quarantine.  A refused
 		 * foreign replay means this domain's committed redo was
 		 * suppressed — serving it would serve a torn platter.  -EIO
 		 * (not -ESTALE): the object is not stale-and-refetchable, it
@@ -1817,7 +1817,7 @@ mxfs_inode_incarn_estale(struct xfs_inode *ip)
 }
 
 /*
- * sess446 (D-QUARANTINED-DIR-NAMESPACE-OPS-PROCEED-WITHOUT-DLM-GRANT-0515):
+ * (D-QUARANTINED-DIR-NAMESPACE-OPS-PROCEED-WITHOUT-DLM-GRANT-0515):
  * the same gate for NAMESPACE operations (create/mkdir/mknod/tmpfile/link/
  * unlink/rmdir/symlink/rename/setattr/update_time/lookup/readlink).  The DLM
  * entry hook refuses the acquire on a quarantined inode (P240-QUAR-REFUSE)
@@ -1902,7 +1902,7 @@ mxfs_quar_gate_locked(struct xfs_inode *ip, const char *op)
 }
 
 /*
- * ccloop c7ee71c6 sess20 — PUBLICATION SKIPPED (H4 root fix).
+ *  — PUBLICATION SKIPPED (H4 root fix).
  *
  * One 4 KiB inode-cluster buffer carries many inodes owned by different
  * nodes, so mxfs_submit_partial_inode_write submits only the sectors this
@@ -1911,7 +1911,7 @@ mxfs_quar_gate_locked(struct xfs_inode *ip, const char *op)
  * -> xfs_iflush_finish clears ili_last_fields, deletes the item from the
  * AIL and declares the inode durable — for bytes that never left this host.
  * That is a false durability assertion, and it silently drops the change
- * from every retry mechanism XFS has.  (design-consult GPT review, sess20: "if an
+ * from every retry mechanism XFS has.  (design-consult design review, "if an
  * inode slot was not written, its inode log item must not receive
  * successful-I/O completion semantics ... that alone is sufficient to lose
  * committed changes permanently.")
@@ -1924,7 +1924,7 @@ mxfs_quar_gate_locked(struct xfs_inode *ip, const char *op)
 #define MXFS_IF_PUB_SKIPPED	(1U << 25)
 
 /*
- * sess35 (c7ee71c6) P241 instrumentation — CLUSTER-MERGE OVERLAY HIT.
+ * P241 instrumentation — CLUSTER-MERGE OVERLAY HIT.
  *
  * Set by mxfs_clmerge_ledger_rollback when the cluster-merge overlay
  * replaces this inode's slot in a buffer while its publication ledger
@@ -1940,7 +1940,7 @@ mxfs_quar_gate_locked(struct xfs_inode *ip, const char *op)
 #define MXFS_IF_CLMERGE_HIT	(1U << 26)
 
 /*
- * mxfs (sess40 ccloop c7ee71c6, D-AGI-UNLINKED / tombstone-semantics fix):
+ * mxfs (D-AGI-UNLINKED / tombstone-semantics fix):
  * THIS NODE COMMITTED THE IFREE for this in-core incarnation.  Set in
  * xfs_inactive_ifree immediately after a successful xfs_trans_commit of the
  * ifree transaction; never set on any guard-skip path (INACT-SKIP-STALE,
@@ -1951,14 +1951,14 @@ mxfs_quar_gate_locked(struct xfs_inode *ip, const char *op)
  * by us): the deterministic AGI-bucket reproducer showed the evict/inact exit
  * writing a free-style tombstone (dir_epoch/last_ex_slot cleared, P144) into
  * the slot of an inode a peer legitimately still owned.  "Inactivation
- * skipped != inode freed" (GPT sess40 ruling): only a committed ifree may
+ * skipped != inode freed" (design-consult ruling): only a committed ifree may
  * publish free-tombstone semantics.  Reset on inode recycle via
  * XFS_IRECLAIM_RESET_FLAGS.
  */
 #define MXFS_IF_FREE_COMMITTED	(1U << 27)
 
 /*
- * sess387 publication obligations (design-consult ruling, D-AGI-UNLINKED-CROSSNODE-
+ * publication obligations (design-consult ruling, D-AGI-UNLINKED-CROSSNODE-
  * RECOVERY-SHUTDOWN): PUBOB is armed when xfs_iunlink puts this inode on the
  * on-disk unlinked list — from that point its home dinode owes a nlink=0
  * conversion before any AG release may publish the list to peers.
@@ -1972,7 +1972,7 @@ mxfs_quar_gate_locked(struct xfs_inode *ip, const char *op)
 #define MXFS_IF_PUBOB_FLUSHED	(1U << 31)
 
 /*
- * sess5 shadow-ledger wrappers: ALL nlink writes on xfs inodes route
+ * shadow-ledger wrappers: ALL nlink writes on xfs inodes route
  * through these so no set_nlink/clear_nlink/drop_nlink/inc_nlink edge
  * can touch sb->s_remove_count without the MXFS_IF_RMC_ACCT flag
  * following it.  mxfs_rmc_unpaired() (xfs_mxfs_dlm.c) screams with the
@@ -2061,7 +2061,7 @@ static inline void mxfs_inc_nlink(struct xfs_inode *ip)
  * ocurring.
  */
 /*
- * sess469 (D-ORPHAN-SCAN-IGET-BUCKETED-ZOMBIE-…-0525): this in-core copy of an
+ * (D-ORPHAN-SCAN-IGET-BUCKETED-ZOMBIE-…-0525): this in-core copy of an
  * nlink==0 inode was instantiated by a scan that is NOT authorized to reap it
  * (it is a member of another slot's AGI unlinked bucket — a live peer's
  * open-unlinked file or a dead slot's zombie awaiting its elected sweeper).
@@ -2096,7 +2096,7 @@ int mxfs_iunlink_find_bucket(struct xfs_perag *pag, struct xfs_trans *tp,
 #define	XFS_MMAPLOCK_EXCL	(1u << 4)
 #define	XFS_MMAPLOCK_SHARED	(1u << 5)
 /*
- * sess1 (ccloop 46efd8b6) MXFS iread-PR: modifier bit for an ILOCK_EXCL
+ * MXFS iread-PR: modifier bit for an ILOCK_EXCL
  * taken ONLY to serialize the in-core extent-map load (the
  * xfs_ilock_data_map_shared / xfs_ilock_attr_map_shared escalation on
  * xfs_need_iread_extents).  Loading the iext tree from committed on-disk
@@ -2112,7 +2112,7 @@ int mxfs_iunlink_find_bucket(struct xfs_perag *pag, struct xfs_trans *tp,
  */
 #define	XFS_ILOCK_MXFS_PRIREAD	(1u << 6)
 /*
- * sess37 CREATE-INTENT EX (mirror of PRIREAD, opposite direction).  A create
+ * CREATE-INTENT EX (mirror of PRIREAD, opposite direction).  A create
  * runs open(O_CREAT)'s LOOKUP half first: the dir ILOCK_SHARED maps to a
  * cluster PR, and the CREATE half's EX then finds 31 peers' PR class ahead
  * of it — measured live (32/caw dir_reuse, instr window): lookup-PR CAS
@@ -2142,7 +2142,7 @@ int mxfs_iunlink_find_bucket(struct xfs_perag *pag, struct xfs_trans *tp,
  */
 #define	XFS_ILOCK_MXFS_NOEND	(1u << 8)
 
-/* sess38: gate+registry consult for the armed create-intent window; used by
+/* gate+registry consult for the armed create-intent window; used by
  * every lock-mode computation inside it (xfs_ilock_data_map_shared and
  * mxfs_dlm_dir_consumer_refresh — the latter's untagged ILOCK_SHARED was
  * leak A of the surviving per-visit PR->EDEADLK->drain cycle). */
@@ -2279,9 +2279,9 @@ int		xfs_rename(struct mnt_idmap *idmap,
 void		xfs_ilock(xfs_inode_t *, uint);
 int		xfs_ilock_nowait(xfs_inode_t *, uint);
 void		xfs_iunlock(xfs_inode_t *, uint);
-/* sess472 (D-0532): release rwsems taken by xfs_ilock_nowait(ILOCK) — no DLM end */
+/* (D-0532): release rwsems taken by xfs_ilock_nowait(ILOCK) — no DLM end */
 void		xfs_iunlock_nodlm(struct xfs_inode *, uint);
-/* sess132 ILOCK forensics (see field block above) */
+/* ILOCK forensics (see field block above) */
 void		mxfs_ilk_note_lock(struct xfs_inode *ip, uint lock_flags,
 				   unsigned long ret_ip);
 void		mxfs_ilk_note_unlock(struct xfs_inode *ip, uint lock_flags,

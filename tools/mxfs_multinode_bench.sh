@@ -49,7 +49,7 @@ echo "--- mount: form $NODE0 ---"
 out=$(run "$NODE0" "
   /src/mxfs/tools/prep_tcm_node_scst.sh >/tmp/p.log 2>&1
   modprobe libcrc32c
-  lsmod | grep -q '^mxfs ' || insmod $MXFS_MODULE
+  lsmod | grep -q '^mxfs ' || insmod $MXFS_MODULE dyndbg=+p
   sg_persist --out --register-ignore --param-sark=0x5eed $MXFS_DEV >/dev/null 2>&1
   sg_persist --out --clear --param-rk=0x5eed $MXFS_DEV >/dev/null 2>&1
   echo y | /src/mxfs/tools/mkfs_mxfs $MXFS_DEV >/tmp/m.log 2>&1 && echo MKFS_OK
@@ -60,7 +60,7 @@ for n in "${NODES[@]:1}"; do
   ( run "$n" "
       /src/mxfs/tools/prep_tcm_node_scst.sh >/tmp/p.log 2>&1
       modprobe libcrc32c
-      lsmod | grep -q '^mxfs ' || insmod $MXFS_MODULE
+      lsmod | grep -q '^mxfs ' || insmod $MXFS_MODULE dyndbg=+p
       mount -t mxfs $MXFS_DEV $MXFS_MOUNT && echo MOUNT_OK
     " 120 | grep -q MOUNT_OK && echo "  join $n OK" || echo "  join $n FAIL" ) &
 done

@@ -249,7 +249,7 @@ xfs_inobt_insert(
 }
 
 #ifdef __KERNEL__
-/* sess399 P-AGIFC-MOD ledger (defined below, after mxfs_agifc_audit). */
+/* P-AGIFC-MOD ledger (defined below, after mxfs_agifc_audit). */
 static void mxfs_agifc_mod(struct xfs_perag *pag, struct xfs_buf *agbp,
 			   const char *site, int delta);
 #endif
@@ -302,7 +302,7 @@ xfs_check_agi_freecount(
  * than logging them (which in a transaction context puts them into the AIL
  * for writeback rather than the xfsbufd queue).
  *
- * sess338 513B: @mxfs_foreign_recovery — the recovery caller (icreate item
+ * 513B: @mxfs_foreign_recovery — the recovery caller (icreate item
  * replay) is applying a DEAD PEER's log slice through a foreign shadow xlog;
  * stamp its queued buffers with the write-failure provenance so a failed
  * write fails the replay instead of shutting down the survivor's live
@@ -330,7 +330,7 @@ xfs_ialloc_inode_init(
 	int			error;
 	struct xfs_icreate_item	*icp = NULL;
 	/*
-	 * sess444 (design-consult ruling, D-ICREATE-REPLAY-REINIT-CLOBBERS-PEER-INODES):
+	 * (design-consult ruling, D-ICREATE-REPLAY-REINIT-CLOBBERS-PEER-INODES):
 	 * on an MXFS mount every cluster of a new chunk is durably initialised
 	 * on the platter by a raw FUA write BEFORE the carve transaction
 	 * commits, and the ICREATE record is stamped SYNCINIT so a replayer
@@ -352,7 +352,7 @@ xfs_ialloc_inode_init(
 	nbufs = length / M_IGEO(mp)->blocks_per_cluster;
 
 	/*
-	 * sess45 (ccloop 8ddb16a2) INSTRUMENTED PROBE — the 2/tcp durable wedge is a
+	 * INSTRUMENTED PROBE — the 2/tcp durable wedge is a
 	 * PARTIALLY-zeroed inode cluster on disk (slots 0-3 valid, 4-15 zero).
 	 * Log every inode-chunk init in multi-node: agbno (-> daddr=agbno*spb),
 	 * blocks (length), inodes (icount), nbufs (=length/bpc, integer div),
@@ -364,7 +364,7 @@ xfs_ialloc_inode_init(
 		static atomic_t p45_init = ATOMIC_INIT(0);
 
 		if (atomic_inc_return(&p45_init) <= 40)
-			pr_warn("mxfs: P45-INIT agno=%u agbno=%u daddr=%lld length=%u icount=%d nbufs=%d ipc=%d bpc=%d\n",
+			mxfs_probe("mxfs: P45-INIT agno=%u agbno=%u daddr=%lld length=%u icount=%d nbufs=%d ipc=%d bpc=%d\n",
 				agno, agbno,
 				(long long)XFS_AGB_TO_DADDR(mp, agno, agbno),
 				length, icount, nbufs,
@@ -392,7 +392,7 @@ xfs_ialloc_inode_init(
 	 * inode cores.
 	 */
 	/*
-	 * sess444 (design-consult landing review, STOP-SHIP 1/7): the SYNCINIT proof
+	 * (design-consult landing review, STOP-SHIP 1/7): the SYNCINIT proof
 	 * must never be fail-open.  On an MXFS mount a carve whose chunk
 	 * cannot be proven (no v3 inodes to CRC-stamp, or a length that is not
 	 * a whole number of clusters so a cluster would go unwritten — the P45
@@ -443,7 +443,7 @@ xfs_ialloc_inode_init(
 			return error;
 
 		/*
-		 * sess39 ALWAYS-ON double-alloc detector.  We are about to
+		 * ALWAYS-ON double-alloc detector.  We are about to
 		 * initialize this block as an inode cluster.  If the very same
 		 * daddr is already cached as a LIVE directory/btree metadata
 		 * buffer (its b_ops is a dir op, and especially if it is dirty /
@@ -538,7 +538,7 @@ xfs_ialloc_inode_init(
 			 * the global xfs_ail_push_all_sync livelock.
 			 */
 			/*
-			 * sess444: the sync FUA init is the SYNCINIT invariant
+			 * the sync FUA init is the SYNCINIT invariant
 			 * (see the prologue) — every MXFS mount, single-node
 			 * included, and its failure FAILS the carve.  It used
 			 * to be multi-node-only and warn-and-continue.
@@ -572,7 +572,7 @@ xfs_ialloc_inode_init(
 					kfree(p133_mb);
 				}
 				if (atomic_inc_return(&p133_n) <= 20 || p133_rc)
-					pr_warn("mxfs: P133-ICLUSTER-SYNCINIT agno=%u daddr=%lld len=%u rc=%d comm=%s\n",
+					mxfs_probe("mxfs: P133-ICLUSTER-SYNCINIT agno=%u daddr=%lld len=%u rc=%d comm=%s\n",
 						agno,
 						(long long)xfs_buf_daddr(fbuf),
 						fbuf->b_length, p133_rc,
@@ -633,7 +633,7 @@ xfs_ialloc_inode_init(
 							  (unsigned long long)vino,
 							  vrc, vmagic ? 1 : 0);
 					else if (atomic_read(&p133_n) <= 20)
-						pr_warn("mxfs: P948-SYNCINIT-READBACK-OK agno=%u daddr=%lld ino=%llu dgen=%u — home reads back as an initialised inode cluster\n",
+						mxfs_probe("mxfs: P948-SYNCINIT-READBACK-OK agno=%u daddr=%lld ino=%llu dgen=%u — home reads back as an initialised inode cluster\n",
 							agno,
 							(long long)xfs_buf_daddr(fbuf),
 							(unsigned long long)vino,
@@ -645,7 +645,7 @@ xfs_ialloc_inode_init(
 				struct xfs_perag *qpag =
 					xfs_perag_get(mp, agno);
 				/*
-				 * sess3 (ccloop 8ba7ae5c) ROOT FIX — fresh-chunk
+				 * ROOT FIX — fresh-chunk
 				 * GARBAGE-READ race (iter_1b: posix_multi 0/32,
 				 * 85× xfs_inode_buf_verify EFSCORRUPTED, hexdump
 				 * = prior owner's urandom file data).  Inode
@@ -702,7 +702,7 @@ xfs_ialloc_inode_init(
 					xfs_buf_delwri_queue(fbuf,
 						&qpag->pag_mxfs_alloc_buflist);
 					/*
-					 * v0.3.148 sess33: mark this buf as
+					 * v0.3.148 mark this buf as
 					 * "queued by mxfs's alloc-buflist path"
 					 * so xfs_ail_push_ag_sync can
 					 * distinguish it from regular
@@ -729,7 +729,7 @@ xfs_ialloc_inode_init(
 			fbuf->b_mxfs_recov_slots =
 				(M_IGEO(mp)->inodes_per_cluster >= 64) ? ~0ULL :
 				((1ULL << M_IGEO(mp)->inodes_per_cluster) - 1);
-			/* sess340 513B: ownership-safe foreign provenance +
+			/* 513B: ownership-safe foreign provenance +
 			 * queue; a conflict refuses the replay (earlier
 			 * clusters stay queued for the caller's unwind). */
 			qerr = xfs_buf_delwri_queue_recovery(fbuf, buffer_list,
@@ -739,7 +739,7 @@ xfs_ialloc_inode_init(
 				return qerr;
 		}
 	}
-	/* sess444: every cluster durably initialised — stamp the proof (icp is
+	/* every cluster durably initialised — stamp the proof (icp is
 	 * non-NULL whenever tp && v3: kmem_cache_zalloc NOFAIL; the geometry
 	 * gate above already guaranteed nbufs > 0 and a whole-cluster length) */
 	if (icp && syncinit)
@@ -1231,7 +1231,7 @@ sparse_alloc:
 						xfs_agbno_to_fsb(pag, high));
 				if (error)
 					return error;
-				pr_warn_ratelimited(
+				mxfs_probe_ratelimited(
 				    "mxfs: P-DIALLOC-FORCE-SPARSE agno=%u region=%u high=%u got=%s comm=%s — TEST KNOB: upper-half sparse carve requested\n",
 					pag_agno(pag), region, high,
 					args.fsbno == NULLFSBLOCK ? "no" : "yes",
@@ -1526,7 +1526,7 @@ mxfs_p150_inorec(
 		return;
 	pag = to_perag(cur->bc_group);
 	bb = xfs_btree_get_block(cur, 0, &bp);
-	pr_warn("mxfs: P150-%s agno=%u startino=%u off=%d pre=0x%llx/%d post=0x%llx/%d tenure=%llu mgen=%llu btenure=%llu bgen=%llu daddr=%lld lsn=%llx comm=%s realns=%llu\n",
+	mxfs_probe("mxfs: P150-%s agno=%u startino=%u off=%d pre=0x%llx/%d post=0x%llx/%d tenure=%llu mgen=%llu btenure=%llu bgen=%llu daddr=%lld lsn=%llx comm=%s realns=%llu\n",
 		tag, pag_agno(pag), (unsigned)post->ir_startino, offset,
 		(unsigned long long)pre_free, pre_fc,
 		(unsigned long long)post->ir_free, (int)post->ir_freecount,
@@ -1545,7 +1545,7 @@ mxfs_p150_inorec(
 
 #ifdef __KERNEL__
 /*
- * P-AGIFC (sess399, instrumented): always-on multi-node audit of the AGI free-inode
+ * P-AGIFC (instrumented): always-on multi-node audit of the AGI free-inode
  * count against BOTH btrees.  The 0.23.9 tmpfile-churn run left AG 0 and AG 5
  * (the two-owner AGs at 32 slots / 25 AGs) with agi_freecount == inobt free +
  * 1 == finobt free + 1 on the platter, AGI + both btree roots stamped with
@@ -1620,7 +1620,7 @@ mxfs_agifc_audit(
 		return;
 	if (atomic_inc_return(&agifc_n) > 400)
 		return;
-	pr_warn("mxfs: P-AGIFC-MISMATCH site=%s agno=%u agi_freecount=%u pagi_freecount=%u ibt_sum=%d/%drecs fin_sum=%d/%drecs agi_count=%u agi_lsn=%llx agi_btenure=%llu agi_bgen=%llu ibt_lsn=%llx ibt_btenure=%llu fin_lsn=%llx fin_btenure=%llu tenure=%llu mgen=%llu comm=%s realns=%llu — AGI free count disagrees with the btrees at this point\n",
+	mxfs_probe("mxfs: P-AGIFC-MISMATCH site=%s agno=%u agi_freecount=%u pagi_freecount=%u ibt_sum=%d/%drecs fin_sum=%d/%drecs agi_count=%u agi_lsn=%llx agi_btenure=%llu agi_bgen=%llu ibt_lsn=%llx ibt_btenure=%llu fin_lsn=%llx fin_btenure=%llu tenure=%llu mgen=%llu comm=%s realns=%llu — AGI free count disagrees with the btrees at this point\n",
 		site, pag_agno(pag),
 		be32_to_cpu(agi->agi_freecount), (unsigned)pag->pagi_freecount,
 		ibt_sum, ibt_n, fin_sum, fin_n, be32_to_cpu(agi->agi_count),
@@ -1635,7 +1635,7 @@ mxfs_agifc_audit(
 }
 
 /*
- * P-AGIFC-MOD (sess399): every AGI free-count modification, so the AGI side
+ * P-AGIFC-MOD: every AGI free-count modification, so the AGI side
  * can be joined against the P150 leaf-record ledger.  Capped like P150.
  */
 static void
@@ -1653,7 +1653,7 @@ mxfs_agifc_mod(
 		return;
 	if (atomic_inc_return(&mod_n) > 20000)
 		return;
-	pr_warn("mxfs: P-AGIFC-MOD site=%s agno=%u delta=%d agi_freecount=%u pagi_freecount=%u agi_count=%u agi_lsn=%llx agi_btenure=%llu agi_bgen=%llu tenure=%llu mgen=%llu comm=%s realns=%llu\n",
+	mxfs_probe("mxfs: P-AGIFC-MOD site=%s agno=%u delta=%d agi_freecount=%u pagi_freecount=%u agi_count=%u agi_lsn=%llx agi_btenure=%llu agi_bgen=%llu tenure=%llu mgen=%llu comm=%s realns=%llu\n",
 		site, pag_agno(pag), delta, be32_to_cpu(agi->agi_freecount),
 		(unsigned)pag->pagi_freecount, be32_to_cpu(agi->agi_count),
 		(unsigned long long)be64_to_cpu(agi->agi_lsn),
@@ -1788,7 +1788,7 @@ struct mxfs_dialloc_resv {
 	int	budget_exhausted;
 	int	swept;		/* a full finobt lap found nothing reservable */
 	/*
-	 * sess430 (D-0351 containment): two-phase candidate validation.
+	 * (D-0351 containment): two-phase candidate validation.
 	 * Phase 1 picks + reserves a candidate under the cursors and returns
 	 * it WITHOUT touching the trees; the caller drops cursors + AGI,
 	 * validates the candidate's platter dinode (authoritative plain read,
@@ -1942,7 +1942,7 @@ mxfs_dialloc_validate_candidate(
 			 * recycle gate then contradicts on a dirty transaction */
 			n = atomic_inc_return(&mxfs_dialloc_pubpend_allowed);
 			if (n <= 32 || (n % 500) == 0)
-				pr_warn("mxfs: P946-VALIDATE-ALLOW via=pubob ino=%llu agno=%u agino=%u okind=%u ogen=%u oepoch=%llu ochain=%u — CONTROL ARM: allowed WITHOUT reading the platter\n",
+				mxfs_probe("mxfs: P946-VALIDATE-ALLOW via=pubob ino=%llu agno=%u agino=%u okind=%u ogen=%u oepoch=%llu ochain=%u — CONTROL ARM: allowed WITHOUT reading the platter\n",
 					(unsigned long long)ino, pag_agno(pag),
 					agino, (unsigned)okind, ogen,
 					(unsigned long long)oepoch,
@@ -2173,7 +2173,7 @@ mxfs_dialloc_try_reserve(
 	}
 	atomic64_inc(&mxfs_resv_stat_err);
 	rs->contended++;
-	pr_warn_ratelimited(
+	mxfs_probe_ratelimited(
 	    "mxfs: P-DIALLOC-RESV-ERR ino=%llu agno=%u rc=%d — try-reserve failed for a non-contention reason; candidate skipped\n",
 		(unsigned long long)ino, pag_agno(pag), rc);
 	return -EAGAIN;
@@ -2225,7 +2225,7 @@ mxfs_dialloc_pick_in_rec(
 			atomic_inc(&mxfs_dialloc_holemask_n);
 			if (!READ_ONCE(mxfs_dbg_dialloc_pick_holes))
 				wfree &= alloc;
-			pr_warn_ratelimited(
+			mxfs_probe_ratelimited(
 			    "mxfs: P-DIALLOC-HOLEMASK agno=%u startino=%u holemask=0x%x count=%u free=0x%llx holes=0x%llx masked=%d comm=%s — sparse inode record: hole bits removed from the candidate walk (0 = control arm, hole-blind)\n",
 				pag_agno(pag), rec->ir_startino,
 				(unsigned)rec->ir_holemask, (unsigned)rec->ir_count,
@@ -2251,7 +2251,7 @@ mxfs_dialloc_pick_in_rec(
 
 			atomic_inc(&mxfs_dialloc_holepick_n);
 			if (atomic_inc_return(&holepick_lines) <= 200)
-				pr_warn("mxfs: P-DIALLOC-HOLEPICK agno=%u startino=%u off=%d agino=%u ino=%llu holemask=0x%x comm=%s — CONTROL ARM: candidate taken from inside a sparse record's hole (its home block was never carved)\n",
+				mxfs_probe("mxfs: P-DIALLOC-HOLEPICK agno=%u startino=%u off=%d agino=%u ino=%llu holemask=0x%x comm=%s — CONTROL ARM: candidate taken from inside a sparse record's hole (its home block was never carved)\n",
 					pag_agno(pag), rec->ir_startino, off,
 					agino, (unsigned long long)ino,
 					(unsigned)rec->ir_holemask,
@@ -2267,7 +2267,7 @@ mxfs_dialloc_pick_in_rec(
 			*offp = off;
 			return 0;
 		}
-		/* sess430: phase 2 — take exactly the validated candidate (its
+		/* phase 2 — take exactly the validated candidate (its
 		 * reservation is already held; no probe, no cooldown check) */
 		if (rs->validated != NULLFSINO) {
 			if (ino == rs->validated) {
@@ -2578,7 +2578,7 @@ xfs_dialloc_ag_inobt(
 
 alloc_inode:
 	/*
-	 * 0.23.0 (sess392): try-reserve rotation within the record.  This
+	 * 0.23.0: try-reserve rotation within the record.  This
 	 * inobt-only path (no finobt) does not advance records on a contended
 	 * chunk — it returns the AG (-EAGAIN) and the sweep retries; mkfs_mxfs
 	 * always formats a finobt, so xfs_dialloc_ag below is the real path.
@@ -2649,7 +2649,7 @@ xfs_dialloc_ag_finobt_near(
 		if (error)
 			return error;
 		if (XFS_IS_CORRUPT(lcur->bc_mp, i != 1)) {
-			pr_warn("mxfs: P-DIAG-NEAR-LE-GETREC agno=%u pagino=%u i=%d\n",
+			mxfs_probe("mxfs: P-DIAG-NEAR-LE-GETREC agno=%u pagino=%u i=%d\n",
 				pag_agno(to_perag(lcur->bc_group)), pagino, i);
 			xfs_btree_mark_sick(lcur);
 			return -EFSCORRUPTED;
@@ -2684,7 +2684,7 @@ xfs_dialloc_ag_finobt_near(
 	}
 
 	if (XFS_IS_CORRUPT(lcur->bc_mp, i != 1 && j != 1)) {
-		/* sess42 P72-INSTR: fire-only-on-corruption — is the finobt
+		/* P72-INSTR: fire-only-on-corruption — is the finobt
 		 * leaf STALE vs disk (read-coherency) or on-disk garbage? */
 		{
 			struct xfs_perag *p72_pag = to_perag(lcur->bc_group);
@@ -2693,7 +2693,7 @@ xfs_dialloc_ag_finobt_near(
 			int p72_pin = p72_lb ? atomic_read(&p72_lb->b_pin_count) : -1;
 			int p72_dirty = (p72_lb && p72_lb->b_log_item &&
 				test_bit(XFS_LI_DIRTY, &p72_lb->b_log_item->bli_item.li_flags)) ? 1 : 0;
-			pr_warn("mxfs: P72-INSTR finobt-near-fail agno=%u i=%d j=%d pagino=%u pag_gen=%llu cached=%d holders=%d "
+			mxfs_probe("mxfs: P72-INSTR finobt-near-fail agno=%u i=%d j=%d pagino=%u pag_gen=%llu cached=%d holders=%d "
 				"fino_daddr=%lld fino_gen=%llu fino_bflags=0x%x fino_disk_differs=%d fino_pin=%d fino_dirty=%d\n",
 				pag_agno(p72_pag), i, j, pagino,
 				(unsigned long long)p72_pag->pag_dlm_meta_gen,
@@ -2759,7 +2759,7 @@ xfs_dialloc_ag_finobt_newino(
 			if (error)
 				return error;
 			if (XFS_IS_CORRUPT(cur->bc_mp, i != 1)) {
-				pr_warn("mxfs: P-DIAG-NEWINO-HINT agno=%u newino=%u i=%d\n",
+				mxfs_probe("mxfs: P-DIAG-NEWINO-HINT agno=%u newino=%u i=%d\n",
 					pag_agno(to_perag(cur->bc_group)),
 					be32_to_cpu(agi->agi_newino), i);
 				xfs_btree_mark_sick(cur);
@@ -2776,14 +2776,14 @@ xfs_dialloc_ag_finobt_newino(
 	if (error)
 		return error;
 	if (XFS_IS_CORRUPT(cur->bc_mp, i != 1)) {
-		/* sess95 P-DIAG: the finobt says this AG has free inodes (agi
+		/* P-DIAG: the finobt says this AG has free inodes (agi
 		 * freecount>0 got us here) but the finobt B-tree itself has NO
 		 * record at all (GE 0 returns nothing).  finobt buffer is stale
 		 * vs AGI, or empty/torn. */
 		{
 			struct xfs_perag *dp = to_perag(cur->bc_group);
 			struct xfs_buf *lb = cur->bc_levels[0].bp;
-			pr_warn("mxfs: P-DIAG-NEWINO-FIRST agno=%u i=%d agi_freecnt=%u "
+			mxfs_probe("mxfs: P-DIAG-NEWINO-FIRST agno=%u i=%d agi_freecnt=%u "
 				"fino_daddr=%lld fino_disk_differs=%d pag_meta_gen=%llu cached=%d holders=%d\n",
 				pag_agno(dp), i, be32_to_cpu(agi->agi_freecount),
 				lb ? (long long)lb->b_maps[0].bm_bn : -1LL,
@@ -2799,7 +2799,7 @@ xfs_dialloc_ag_finobt_newino(
 	if (error)
 		return error;
 	if (XFS_IS_CORRUPT(cur->bc_mp, i != 1)) {
-		pr_warn("mxfs: P-DIAG-NEWINO-GETREC agno=%u i=%d\n",
+		mxfs_probe("mxfs: P-DIAG-NEWINO-GETREC agno=%u i=%d\n",
 			pag_agno(to_perag(cur->bc_group)), i);
 		xfs_btree_mark_sick(cur);
 		return -EFSCORRUPTED;
@@ -2826,13 +2826,13 @@ xfs_dialloc_ag_update_inobt(
 	if (error)
 		return error;
 	if (XFS_IS_CORRUPT(cur->bc_mp, i != 1)) {
-		/* sess95 P-DIAG: finobt selected startino %llu but the INOBT has
+		/* P-DIAG: finobt selected startino %llu but the INOBT has
 		 * NO matching record (i=%d) — inobt cached buffer is STALE vs
 		 * finobt (cross-tree desync). */
 		{
 			struct xfs_perag *dp = to_perag(cur->bc_group);
 			struct xfs_buf *lb = cur->bc_levels[0].bp;
-			pr_warn("mxfs: P-DIAG-UI-LOOKUP agno=%u startino=%llu i=%d "
+			mxfs_probe("mxfs: P-DIAG-UI-LOOKUP agno=%u startino=%llu i=%d "
 				"inobt_daddr=%lld inobt_disk_differs=%d pag_meta_gen=%llu cached=%d\n",
 				pag_agno(dp), (unsigned long long)frec->ir_startino, i,
 				lb ? (long long)lb->b_maps[0].bm_bn : -1LL,
@@ -2847,7 +2847,7 @@ xfs_dialloc_ag_update_inobt(
 	if (error)
 		return error;
 	if (XFS_IS_CORRUPT(cur->bc_mp, i != 1)) {
-		pr_warn("mxfs: P-DIAG-UI-GETREC agno=%u startino=%llu i=%d\n",
+		mxfs_probe("mxfs: P-DIAG-UI-GETREC agno=%u startino=%llu i=%d\n",
 			pag_agno(to_perag(cur->bc_group)),
 			(unsigned long long)frec->ir_startino, i);
 		xfs_btree_mark_sick(cur);
@@ -2869,14 +2869,14 @@ xfs_dialloc_ag_update_inobt(
 	if (XFS_IS_CORRUPT(cur->bc_mp,
 			   rec.ir_free != frec->ir_free ||
 			   rec.ir_freecount != frec->ir_freecount)) {
-		/* sess95 P-DIAG: the inobt record for this chunk DISAGREES with
+		/* P-DIAG: the inobt record for this chunk DISAGREES with
 		 * the finobt record after applying the same alloc — the two
 		 * btrees are out of sync.  Dump both so we can see which side is
 		 * stale (cached-buffer coherency vs torn write). */
 		{
 			struct xfs_perag *dp = to_perag(cur->bc_group);
 			struct xfs_buf *lb = cur->bc_levels[0].bp;
-			pr_warn("mxfs: P-DIAG-UI-MISMATCH agno=%u startino=%llu offset=%d "
+			mxfs_probe("mxfs: P-DIAG-UI-MISMATCH agno=%u startino=%llu offset=%d "
 				"inobt_free=0x%llx finobt_free=0x%llx inobt_fcnt=%d finobt_fcnt=%d "
 				"inobt_daddr=%lld inobt_disk_differs=%d pag_meta_gen=%llu cached=%d\n",
 				pag_agno(dp), (unsigned long long)rec.ir_startino, offset,
@@ -2945,7 +2945,7 @@ xfs_dialloc_ag(
 	 * parent. If so, find the closest available inode to the parent. If
 	 * not, consider the agi hint or find the first free inode in the AG.
 	 *
-	 * 0.23.0 (sess392): a previous visit that ran out of probe budget on
+	 * 0.23.0: a previous visit that ran out of probe budget on
 	 * this AG left a continuation cursor — resume there instead of
 	 * re-probing the same (peer-held) first-free candidates.
 	 */
@@ -2953,7 +2953,7 @@ xfs_dialloc_ag(
 	spin_lock(&pag->pag_resv_lock);
 	cursor = pag->pag_resv_cursor;
 	spin_unlock(&pag->pag_resv_lock);
-	/* sess430 phase 2: start at the validated candidate's chunk record */
+	/* phase 2: start at the validated candidate's chunk record */
 	if (rs->validated != NULLFSINO)
 		cursor = XFS_INO_TO_AGINO(mp, rs->validated) &
 			 ~((xfs_agino_t)XFS_INODES_PER_CHUNK - 1);
@@ -2980,7 +2980,7 @@ xfs_dialloc_ag(
 	}
 
 	/*
-	 * 0.23.0 (sess392): candidate rotation.  Try the free inodes of this
+	 * 0.23.0: candidate rotation.  Try the free inodes of this
 	 * record in order; a record with no reservable inode advances to the
 	 * next finobt record (wrapping once) — "first free" is not a right,
 	 * a peer's just-freed, still-held inode is simply not ours to take
@@ -3001,7 +3001,7 @@ xfs_dialloc_ag(
 			pag->pag_resv_cursor = rec.ir_startino;
 			spin_unlock(&pag->pag_resv_lock);
 			atomic64_inc(&mxfs_resv_stat_exhaust);
-			pr_warn_ratelimited(
+			mxfs_probe_ratelimited(
 			    "mxfs: P-DIALLOC-RESV-EXHAUST agno=%u rec=%u probes=%d contended=%d cool=%d demand=%d — visit budget spent on peer-held candidates; AG returned, cursor kept\n",
 				pag_agno(pag), rec.ir_startino, rs->probes,
 				rs->contended, rs->cool_skips, rs->demand);
@@ -3050,7 +3050,7 @@ xfs_dialloc_ag(
 			 * backed off forever with the parent directory locked.
 			 */
 			rs->swept = 1;
-			pr_warn_ratelimited(
+			mxfs_probe_ratelimited(
 			    "mxfs: P-DIALLOC-RESV-SWEPT agno=%u probes=%d contended=%d cool=%d pubpend=%d demand=%d swept=%d — every free inode in this AG is peer-held or cooling; AG returned\n",
 				pag_agno(pag), rs->probes, rs->contended,
 				rs->cool_skips, rs->pubpend, rs->demand,
@@ -3072,7 +3072,7 @@ xfs_dialloc_ag(
 	ino = xfs_agino_to_ino(pag, rec.ir_startino + offset);
 
 	/*
-	 * sess430 (D-0351 containment) phase 1: hand the reserved candidate
+	 * (D-0351 containment) phase 1: hand the reserved candidate
 	 * back UNMODIFIED — no tree update, transaction still clean — so the
 	 * caller can validate its platter image with the cursor and the AGI
 	 * released (design-consult: no platter I/O under the AGI/btree nesting).
@@ -3266,7 +3266,7 @@ xfs_dialloc_good_ag(
 
 #ifdef __KERNEL__
 /*
- * sess430 (D-0351 containment, design-consult ruling ccmemory ccloop-c7ee71c6-sess430-
+ * (D-0351 containment, design-consult ruling ccmemory ccloop-c7ee71c6-sess430-
  * GPT-ruling-d0351-dialloc-containment-two-phase).  Phase 1: pick + reserve a
  * candidate under the cursors, trees untouched (pick_only).  Drop the AGI,
  * validate the candidate's platter image (plain LUN read; the pubob store
@@ -3327,7 +3327,7 @@ mxfs_dialloc_two_phase(
 				int		n = atomic_inc_return(&p951n);
 
 				if (n <= 40)
-					pr_warn("mxfs: P951-VALIDATE-OFF-SOLE agno=%u n=%d — a SOLE SURVIVOR is picking an inode with the D-0351/D-0946 platter validation OFF, because the gate tests membership NOW instead of whether this volume has ever had another node\n",
+					mxfs_probe("mxfs: P951-VALIDATE-OFF-SOLE agno=%u n=%d — a SOLE SURVIVOR is picking an inode with the D-0351/D-0946 platter validation OFF, because the gate tests membership NOW instead of whether this volume has ever had another node\n",
 						pag_agno(pag), n);
 			}
 			return xfs_dialloc_ag(pag, *tpp, *agbpp, parent, inop,
@@ -3387,7 +3387,7 @@ mxfs_dialloc_two_phase(
 		} else if (vrc == -EIO) {
 			if (eio_retry++ < 1)
 				continue;
-			pr_warn_ratelimited("mxfs: P-DIALLOC-VALIDATE-EIO ino=%llu agno=%u — candidate home unreadable twice; failing the create cleanly\n",
+			mxfs_probe_ratelimited("mxfs: P-DIALLOC-VALIDATE-EIO ino=%llu agno=%u — candidate home unreadable twice; failing the create cleanly\n",
 				(unsigned long long)cand, pag_agno(pag));
 			return -EIO;
 		} else if (vrc == -EBUSY) {
@@ -3493,7 +3493,7 @@ mxfs_dialloc_carve_gate(
 	if (rs->grows >= 1) {
 		n = atomic_inc_return(&n_bound);
 		if (n <= 32 || (n % 1000) == 0)
-			pr_warn("mxfs: P-DIALLOC-CARVE-BOUND agno=%u arm=%s grows=%d blk_res=%u blk_res_used=%u left=%u restarts=%d pubpend=%d contended=%d cool=%d comm=%s — this allocation already carved the one chunk its reservation pays for; AG handed back, no carve\n",
+			mxfs_probe("mxfs: P-DIALLOC-CARVE-BOUND agno=%u arm=%s grows=%d blk_res=%u blk_res_used=%u left=%u restarts=%d pubpend=%d contended=%d cool=%d comm=%s — this allocation already carved the one chunk its reservation pays for; AG handed back, no carve\n",
 				pag_agno(pag), arm, rs->grows, tp->t_blk_res,
 				tp->t_blk_res_used, left, rs->restarts,
 				rs->pubpend, rs->contended, rs->cool_skips,
@@ -3503,7 +3503,7 @@ mxfs_dialloc_carve_gate(
 	n = atomic_inc_return(&n_probe);
 	if (left < M_IGEO(tp->t_mountp)->ialloc_blks || n <= 8 ||
 	    (n % 1000) == 0)
-		pr_warn("mxfs: P-DIALLOC-GROW-RES agno=%u arm=%s grows=%d blk_res=%u blk_res_used=%u left=%u ialloc_blks=%u restarts=%d pubpend=%d comm=%s%s\n",
+		mxfs_probe("mxfs: P-DIALLOC-GROW-RES agno=%u arm=%s grows=%d blk_res=%u blk_res_used=%u left=%u ialloc_blks=%u restarts=%d pubpend=%d comm=%s%s\n",
 			pag_agno(pag), arm, rs->grows + 1, tp->t_blk_res,
 			tp->t_blk_res_used, left,
 			M_IGEO(tp->t_mountp)->ialloc_blks, rs->restarts,
@@ -3600,7 +3600,7 @@ xfs_dialloc_try_ag(
 #endif
 #ifdef __KERNEL__
 	/*
-	 * 0.23.1 (sess392): every free inode in this AG is held by a peer
+	 * 0.23.1: every free inode in this AG is held by a peer
 	 * (its just-freed, noino-cached inodes) but the AG itself has room:
 	 * GROW it — allocate a fresh chunk (unheld inode numbers) and retry
 	 * once — instead of returning -EAGAIN and letting the sweep spill
@@ -3618,7 +3618,7 @@ xfs_dialloc_try_ag(
 		if (error)
 			goto out_release;
 		atomic64_inc(&mxfs_resv_stat_grow);
-		pr_warn_ratelimited("mxfs: P-DIALLOC-RESV-GROW agno=%u — all free inodes peer-held; grew a fresh chunk in the owned AG instead of spilling\n",
+		mxfs_probe_ratelimited("mxfs: P-DIALLOC-RESV-GROW agno=%u — all free inodes peer-held; grew a fresh chunk in the owned AG instead of spilling\n",
 			pag_agno(pag));
 		rs->probes = 0;
 		rs->budget_exhausted = 0;
@@ -3628,7 +3628,7 @@ xfs_dialloc_try_ag(
 		if (!agbp)
 			goto out_dlm;
 	}
-	/* sess430: clean containment failures — the transaction is untouched,
+	/* clean containment failures — the transaction is untouched,
 	 * release the AGI + AG now (same contract as the -EAGAIN skip) */
 	if (error == -EUCLEAN || error == -EIO)
 		goto out_release;
@@ -3638,7 +3638,7 @@ xfs_dialloc_try_ag(
 	if (!error)
 		*new_ino = ino;
 	/*
-	 * sess24 (ccloop 4eef1f39) INSTRUMENTED DETECTOR (P-IALLOC-DBLALLOC): we just
+	 * INSTRUMENTED DETECTOR (P-IALLOC-DBLALLOC): we just
 	 * carved `ino` out of this AG's inobt as FREE.  Read its COHERENT on-disk
 	 * mode (plain bio = the image a peer sees).  If it is already a LIVE
 	 * inode (mode != 0 and != 0xFFFF), a peer owns that inode number -> the
@@ -3657,7 +3657,7 @@ xfs_dialloc_try_ag(
 		uint16_t cmode = mxfs_dbg_disk_di_mode_coherent(mp, ino, &cgen);
 
 		if (cmode != 0 && cmode != 0xFFFF)
-			pr_warn_ratelimited(
+			mxfs_probe_ratelimited(
 				"mxfs: P-IALLOC-DBLALLOC ino=%llu agno=%u carved-FREE-from-inobt but coherent-disk mode=0%o gen=%u is LIVE — inobt stale at alloc (same-chunk double-alloc)\n",
 				(unsigned long long)ino,
 				(unsigned)XFS_INO_TO_AGNO(mp, ino),
@@ -3665,7 +3665,7 @@ xfs_dialloc_try_ag(
 	}
 	}
 	/*
-	 * MXFS sess386 (474 leg A unwind): a reserve-contended skip
+	 * MXFS (474 leg A unwind): a reserve-contended skip
 	 * (-EAGAIN from mxfs_dialloc_reserve_ino, transaction still clean)
 	 * used to fall through to the deferred-unlock tail below, leaving
 	 * THIS AG's AGI buffer locked in the transaction and its AG DLM
@@ -3747,7 +3747,7 @@ xfs_dialloc_pick_ag(
 	}
 
 	/*
-	 * MXFS node-affine regular-file allocation (sess45 architectural fix
+	 * MXFS node-affine regular-file allocation (architectural fix
 	 * for the cross_write_read di_size=0 / inode-cluster lost-update).
 	 *
 	 * Upstream XFS co-locates a new file with its PARENT DIRECTORY's AG
@@ -3810,7 +3810,7 @@ mxfs_ag_inode_owned(struct xfs_mount *mp, xfs_agnumber_t agno)
 	if (L <= 1)
 		return true;
 	/*
-	 * 0.23.1 (sess392): fewer AGs than configured nodes (the agcount<nodes
+	 * 0.23.1: fewer AGs than configured nodes (the agcount<nodes
 	 * geometry, e.g. 25 AGs / 32 slots).  With L > agcount the slots >=
 	 * agcount owned NOTHING and ran every allocation in the RELAXED pass,
 	 * wandering into any AG that momentarily returned -EAGAIN — seeding
@@ -3854,7 +3854,7 @@ xfs_dialloc(
 	int			flags;
 	int			error = 0;
 	/*
-	 * MXFS sess386 (design-consult ruling): bounded jittered re-sweeps before
+	 * MXFS (design-consult ruling): bounded jittered re-sweeps before
 	 * ENOSPC.  With the bounded inode-DLM reserve, a fully swept AG set
 	 * can mean transient CLUSTER CONTENTION (every candidate's grant
 	 * parked on a peer for <1s), not exhaustion — and converting that to
@@ -3969,7 +3969,7 @@ retry:
 		}
 #ifdef __KERNEL__
 		/*
-		 * MXFS sess386 / 0.23.0-0.23.1 (sess392 design-consult ruling): a full
+		 * MXFS / 0.23.0-0.23.1 (design-consult ruling): a full
 		 * failed sweep that SAW contention (peer-held or cooling
 		 * candidates, a spent visit budget, a swept AG) is transient
 		 * cluster contention, not exhaustion — it must never become
@@ -3997,7 +3997,7 @@ retry:
 			atomic64_inc(&mxfs_resv_stat_sweeps);
 			atomic64_add(ms, &mxfs_resv_stat_backoff_ms);
 			if (resv_sweeps == 1 || (resv_sweeps & 15) == 0)
-				pr_warn_ratelimited(
+				mxfs_probe_ratelimited(
 				    "mxfs: P-DIALLOC-SWEEP-RETRY sweep=%d start_agno=%u contended=%d cool=%d exhausted=%d swept=%d pubpend=%d relaxed=%d backoff_ms=%u — all AG passes came up empty under cluster contention; re-sweeping with DEMAND, never ENOSPC\n",
 					resv_sweeps, start_agno, rs.contended,
 					rs.cool_skips, rs.budget_exhausted,
@@ -4034,7 +4034,7 @@ retry:
 			goto retry;
 		}
 #ifdef __KERNEL__
-		/* sess430 (D-0351 containment, design-consult): every remaining free
+		/* (D-0351 containment, design-consult): every remaining free
 		 * inode is a quarantined DISK-LIVE number — that is corruption
 		 * needing repair, never ENOSPC.  Clean failure, no shutdown. */
 		if (rs.quarantined || rs.disklive) {
@@ -4055,7 +4055,7 @@ retry:
 	 */
 	if (ino == parent || !xfs_verify_dir_ino(mp, ino)) {
 		xfs_alert(mp, "Allocated a known in-use inode 0x%llx!", ino);
-		/* sess432 (vergate mixed_build, fresh 4-AG loop fs): the very
+		/* (vergate mixed_build, fresh 4-AG loop fs): the very
 		 * first create after a clean mount was rejected here for ino
 		 * 131 with parent 128.  Print every input of the verdict so the
 		 * rejecting sub-check is named, not guessed. */
@@ -4087,18 +4087,18 @@ retry:
 	}
 
 	*new_ino = ino;
-	/* sess36: gate this per-allocation diagnostic (fires on every
+	/* gate this per-allocation diagnostic (fires on every
 	 * create) behind mxfs.instr — default off for perf. */
 	{
 		extern int mxfs_instr_enabled;
 		if (unlikely(mxfs_instr_enabled))
-			mxfs_pal_log(MXFS_LOG_WARN,
+			mxfs_pal_log(MXFS_LOG_DEBUG,
 				"mxfs: P9-INSTR dialloc PICK ino=%llu agno=%u parent=%llu",
 				(unsigned long long)ino,
 				(unsigned int)XFS_INO_TO_AGNO(mp, ino),
 				(unsigned long long)parent);
 	}
-	/* sess90: ALWAYS-ON double-allocation tracer.  P-RELOAD-TYPEFLIP
+	/* ALWAYS-ON double-allocation tracer.  P-RELOAD-TYPEFLIP
 	 * proved inode 2097285 was handed out as both a DIR and a REG with
 	 * the SAME generation (cross/same-node double-alloc via stale
 	 * inobt).  Log every PICK with the allocating node's slot + the
@@ -4111,7 +4111,7 @@ retry:
 		extern int mxfs_instr_enabled;
 
 		if (unlikely(mxfs_dirwr_enabled || mxfs_instr_enabled))
-			mxfs_pal_log(MXFS_LOG_WARN,
+			mxfs_pal_log(MXFS_LOG_DEBUG,
 				"mxfs: P90-PICK slot=%u ino=%llu agno=%u ifmt=0%o parent=%llu",
 				(unsigned int)mp->m_mxfs_node_slot,
 				(unsigned long long)ino,
@@ -4376,7 +4376,7 @@ xfs_difree_inobt(
 	 */
 	if (rec.ir_free & XFS_INOBT_MASK(off)) {
 		struct xfs_agi *dbg_agi = agbp->b_addr;
-		pr_warn_ratelimited(
+		mxfs_probe_ratelimited(
 			"mxfs: P-DIFREE-DBL agno=%u agino=%u startino=%u off=%d ir_free=0x%llx freecount=%d agi_freecount=%u multinode=%d — inode ALREADY free in inobt (double-free)\n",
 			(unsigned)pag_agno(pag), (unsigned)agino,
 			(unsigned)rec.ir_startino, off,
@@ -4384,7 +4384,7 @@ xfs_difree_inobt(
 			(unsigned)be32_to_cpu(dbg_agi->agi_freecount),
 			(int)(mp->m_mxfs_dlm && !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm)));
 		/*
-		 * ccloop-4dd7 sess3 (round-5 ino 134 autopsy): in multi-node
+		 * ccloop-4dd7 (round-5 ino 134 autopsy): in multi-node
 		 * mode this is not a can't-happen — it is the SECOND
 		 * inactivation of an inode whose unlink+free a peer already
 		 * completed.  Our in-core mirror adopted nlink=0 from disk
@@ -4426,7 +4426,7 @@ xfs_difree_inobt(
 	 * remove the chunk if the block size is large enough for multiple inode
 	 * chunks (that might not be free).
 	 *
-	 * sess54 (ccloop) — INODE-CHUNK-KEEP in multi-node mode (ikeep
+	 * — INODE-CHUNK-KEEP in multi-node mode (ikeep
 	 * semantics).  PROVEN root of the posix_semantics_multi16 shutdown:
 	 * rm-rf frees a fully-free inode chunk -> xfs_ifree_cluster returns
 	 * the inode-cluster blocks to AG free space (bnobt) -> a peer with a
@@ -4447,7 +4447,7 @@ xfs_difree_inobt(
 	    mp->m_sb.sb_inopblock <= XFS_INODES_PER_CHUNK &&
 	    mxfs_inode_chunk_may_delete(mp)) {
 		/*
-		 * sess103 instrumented DISCRIMINATOR (P103-CHUNKFREE): a fully-free
+		 * instrumented DISCRIMINATOR (P103-CHUNKFREE): a fully-free
 		 * inode chunk is being deleted and its blocks deferred-freed.
 		 * If a peer concurrently drove the same chunk all-free (stale
 		 * in-core inobt rec), both nodes free the same chunk blocks =>
@@ -4457,7 +4457,7 @@ xfs_difree_inobt(
 		 * whole life, which is what made it unreachable — see below.)
 		 */
 		/*
-		 * sess573 (D-0948): THIS PROBE WAS UNREACHABLE FOR ITS WHOLE
+		 * (D-0948): THIS PROBE WAS UNREACHABLE FOR ITS WHOLE
 		 * LIFE, AND THAT IS WHY THIS PATH HAS NEVER BEEN MEASURED.
 		 *
 		 * The branch it sits in requires NOT-multi-node (see the guard
@@ -4494,7 +4494,7 @@ xfs_difree_inobt(
 					(unsigned)XFS_AGINO_TO_AGBNO(mp, rec.ir_startino),
 					(unsigned)M_IGEO(mp)->ialloc_blks,
 					(unsigned)rec.ir_startino);
-			pr_warn_ratelimited(
+			mxfs_probe_ratelimited(
 				"mxfs: P103-CHUNKFREE sole=%d agno=%u chunk_agbno=%u ialloc_blks=%u startino=%u freecount=%d agi_freecount=%u pagi_freecount=%u agi_count=%u holemask=0x%x\n",
 				sole ? 1 : 0,
 				(unsigned)pag_agno(pag),
@@ -4629,7 +4629,7 @@ xfs_difree_finobt(
 	if (error)
 		goto error;
 	if (XFS_IS_CORRUPT(mp, i != 1)) {
-		/* sess46 (D-REAP-IFREE-EFSCORRUPTED-SHUTDOWN-372): the last
+		/* (D-REAP-IFREE-EFSCORRUPTED-SHUTDOWN-372): the last
 		 * un-probed -EFSCORRUPTED exit under xfs_difree — the one
 		 * -117 shutdown observed printed NO P-DIFREE line, so every
 		 * exit must self-name for the next occurrence. */
@@ -4674,7 +4674,7 @@ xfs_difree_finobt(
 	 * enough for multiple chunks. Leave the finobt record to remain in sync
 	 * with the inobt.
 	 *
-	 * sess54 (ccloop) — keep the finobt record in sync with the
+	 * — keep the finobt record in sync with the
 	 * INODE-CHUNK-KEEP gate in xfs_difree_inobt: in multi-node mode the
 	 * chunk is never deleted from the inobt, so the all-free finobt record
 	 * must be retained (updated) rather than deleted.
@@ -4833,7 +4833,7 @@ xfs_imap_lookup(
 	if (rec.ir_startino > agino ||
 	    rec.ir_startino + M_IGEO(mp)->ialloc_inos <= agino) {
 		if (flags & XFS_IGET_UNTRUSTED)
-			pr_warn_ratelimited(
+			mxfs_probe_ratelimited(
 				"mxfs: P-IMAP-UNTRUSTED-NOREC agno=%u agino=%u rec_start=%u — untrusted iget: inobt (read unlocked) has no chunk for it\n",
 				pag_agno(pag), agino, rec.ir_startino);
 		return -EINVAL;
@@ -4842,7 +4842,7 @@ xfs_imap_lookup(
 	/*
 	 * for untrusted inodes check it is allocated first
 	 *
-	 * sess470: on MXFS this inobt read is NOT under the AG DLM lock, so a
+	 * on MXFS this inobt read is NOT under the AG DLM lock, so a
 	 * peer's allocation of the number is invisible here until this node
 	 * next takes the AG and refreshes the AGI/inobt buffers.  Name the
 	 * refusal: a validated on-disk reference (dir-sharding manifest,
@@ -4851,7 +4851,7 @@ xfs_imap_lookup(
 	 */
 	if ((flags & XFS_IGET_UNTRUSTED) &&
 	    (rec.ir_free & XFS_INOBT_MASK(agino - rec.ir_startino))) {
-		pr_warn_ratelimited(
+		mxfs_probe_ratelimited(
 			"mxfs: P-IMAP-UNTRUSTED-FREE agno=%u agino=%u rec_start=%u free=0x%llx freecount=%u — untrusted iget: inobt (read unlocked) says free\n",
 			pag_agno(pag), agino, rec.ir_startino,
 			(unsigned long long)rec.ir_free, rec.ir_freecount);
@@ -5110,7 +5110,7 @@ xfs_agi_verify(
 }
 
 #ifdef __KERNEL__
-/* sess30(ccloop) AGI-CRC diagnostic: 0=off. When 1, every AGI write logs its
+/* AGI-CRC diagnostic: 0=off. When 1, every AGI write logs its
  * stamped CRC + content fingerprint so a failing read (always logged) can be
  * cross-correlated to the write that produced the on-disk image. */
 int mxfs_agi_crc_probe;
@@ -5126,7 +5126,7 @@ mxfs_agi_probe_log(struct xfs_buf *bp, const char *tag)
 	if (!bp->b_addr || bp->b_map_count != 1)
 		return;
 	fp = crc32c(~(uint32_t)0, bp->b_addr, BBTOB(bp->b_length));
-	pr_warn("mxfs: P30-AGI-%s daddr=%lld stored_crc=0x%08x fp=0x%08x seqno=%u len=%u count=%u free=%u newino=0x%llx lsn=0x%llx comm=%s realns=%llu\n",
+	mxfs_probe("mxfs: P30-AGI-%s daddr=%lld stored_crc=0x%08x fp=0x%08x seqno=%u len=%u count=%u free=%u newino=0x%llx lsn=0x%llx comm=%s realns=%llu\n",
 		tag, (long long)bp->b_maps[0].bm_bn,
 		le32_to_cpu(*crcp), fp,
 		be32_to_cpu(agi->agi_seqno), be32_to_cpu(agi->agi_length),
@@ -5147,7 +5147,7 @@ xfs_agi_read_verify(
 	if (xfs_has_crc(mp) &&
 	    !xfs_buf_verify_cksum(bp, XFS_AGI_CRC_OFF)) {
 #ifdef __KERNEL__
-		/* sess30: AGI CRC read failure — the dir_reuse 8/tcp shutdown.
+		/* AGI CRC read failure — the dir_reuse 8/tcp shutdown.
 		 * Always log (rare) regardless of the probe param. */
 		mxfs_agi_probe_log(bp, "RDFAIL");
 #endif
@@ -5209,7 +5209,7 @@ xfs_read_agi(
 
 	trace_xfs_read_agi(pag);
 
-	/* sess40: FUA-re-read a stale cached AGI (inobt roots / free-inode
+	/* FUA-re-read a stale cached AGI (inobt roots / free-inode
 	 * counts) after a peer modified this AG — anti inode double-alloc. */
 	mxfs_ag_meta_invalidate_stale(mp, pag,
 			XFS_AG_DADDR(mp, pag_agno(pag), XFS_AGI_DADDR(mp)),
@@ -5223,10 +5223,10 @@ xfs_read_agi(
 	if (error)
 		return error;
 	/*
-	 * sess125: tenure is stamped at MODIFY time now (mxfs_ag_meta_track),
+	 * tenure is stamped at MODIFY time now (mxfs_ag_meta_track),
 	 * not at read time.  The iunlink INSERT that logs the AGI stamps it
 	 * current and keeps the committed unlinked-list head tenure-guarded
-	 * (preserves the sess123 AGI fix), while a read-only AGI stays
+	 * (preserves the AGI fix), while a read-only AGI stays
 	 * prior-tenure so a stale cache-hit is refreshed via the gen-based
 	 * cold-read rather than re-stamped this-node-authoritative.
 	 */
@@ -5234,7 +5234,7 @@ xfs_read_agi(
 		xfs_trans_buf_set_type(tp, *agibpp, XFS_BLFT_AGI_BUF);
 
 	/*
-	 * MXFS sess400 (D-AGI-FREECOUNT-BTREE-DIVERGENCE-STALE-AGI-RMW-399,
+	 * MXFS (D-AGI-FREECOUNT-BTREE-DIVERGENCE-STALE-AGI-RMW-399,
 	 * in-core arm): a fresh AG-DLM tenure clears XFS_AGSTATE_AGI_INIT so
 	 * the in-core summary is rebuilt from the re-read AGI — but upstream
 	 * rebuilds it only in xfs_ialloc_read_agi, while xfs_iunlink,
