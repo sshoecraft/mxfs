@@ -416,13 +416,31 @@
         },
         "2/cawd": {
           "status": "PASS",
-          "measured": "elapsed=186s (fresh prep)",
+          "measured": "elapsed=57s (fresh prep)",
           "reason": "",
-          "iso": "2026-09-26T06:52:13Z",
+          "iso": "2026-09-26T08:17:02Z",
           "recorded": "2026-09-26",
-          "elapsed_s": 186,
-          "build": "023BCBA38B30E7662B22216",
+          "elapsed_s": 57,
+          "build": "2C7102E9B2AC77776C59B26",
           "history": [
+            {
+              "status": "PASS",
+              "iso": "2026-09-26T08:14:29Z",
+              "measured": "elapsed=60s (fresh prep)",
+              "reason": ""
+            },
+            {
+              "status": "PASS",
+              "iso": "2026-09-26T08:12:52Z",
+              "measured": "elapsed=54s (fresh prep)",
+              "reason": ""
+            },
+            {
+              "status": "PASS",
+              "iso": "2026-09-26T06:52:13Z",
+              "measured": "elapsed=186s (fresh prep)",
+              "reason": ""
+            },
             {
               "status": "PASS",
               "iso": "2026-09-26T06:46:09Z",
@@ -481,13 +499,25 @@
         },
         "2/tcp": {
           "status": "PASS",
-          "measured": "elapsed=60s (fresh prep)",
+          "measured": "elapsed=52s (fresh prep)",
           "reason": "",
-          "iso": "2026-09-26T04:35:31Z",
-          "recorded": "2026-09-25",
-          "elapsed_s": 60,
-          "build": "384B851E5406EF8E6464469",
+          "iso": "2026-09-26T08:11:30Z",
+          "recorded": "2026-09-26",
+          "elapsed_s": 52,
+          "build": "2C7102E9B2AC77776C59B26",
           "history": [
+            {
+              "status": "PASS",
+              "iso": "2026-09-26T07:55:56Z",
+              "measured": "elapsed=49s (fresh prep)",
+              "reason": ""
+            },
+            {
+              "status": "PASS",
+              "iso": "2026-09-26T04:35:31Z",
+              "measured": "elapsed=60s (fresh prep)",
+              "reason": ""
+            },
             {
               "status": "PASS",
               "iso": "2026-09-25T04:51:19Z",
@@ -534,18 +564,6 @@
               "status": "PASS",
               "iso": "2026-09-25T00:33:58Z",
               "measured": "skipped (marker matched 2/tcp)",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-25T00:33:47Z",
-              "measured": "elapsed=60s (fresh prep)",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-25T00:15:30Z",
-              "measured": "elapsed=61s (fresh prep)",
               "reason": ""
             }
           ]
