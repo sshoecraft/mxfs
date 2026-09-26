@@ -17,9 +17,9 @@
       "verify_tests": "install both .debs from the built packages; DKMS builds on every installed PVE kernel; for EACH claimed kernel (pinned with proxmox-boot-tool, rebooted into): mount with no options on both nodes; cross-node checksums; create/remote-delete counts; chk_mxfs clean; peer= with multicast blocked; peers=; pvesm add/status/remove holds one mount; O_DIRECT read on a stable-writes device; reboot on that kernel, module auto-loaded, remount, earlier data intact (KERNEL=<krel> tests/packaged_round.sh pve9, once per claimed kernel)",
       "verified": {
         "amd64": {
-          "version": "0.89.90",
-          "date": "2026-09-25",
-          "evidence": "tests/evidence/packaged_round/pve9_0.89.90_20260925T002007/ tests/evidence/packaged_round/pve9_0.89.90_20260925T002700/"
+          "version": "0.90.0",
+          "date": "2026-09-26",
+          "evidence": "tests/evidence/packaged_round/pve9_0.90.0_20260926T075243 tests/evidence/packaged_round/pve9_0.90.0_20260926T080007 tests/evidence/full_verify_0.90.0.log"
         }
       },
       "priority": 1,
@@ -42,9 +42,9 @@
       "notes": "The development rig's platform.",
       "verified": {
         "amd64": {
-          "version": "0.89.90",
-          "date": "2026-09-25",
-          "evidence": "tests/evidence/packaged_round/ubuntu2404_0.89.90_20260925T001248/ tests/evidence/full_verify_0.89.90.log"
+          "version": "0.90.0",
+          "date": "2026-09-26",
+          "evidence": "tests/evidence/packaged_round/ubuntu2404_0.90.0_20260926T074501 tests/evidence/full_verify_0.90.0.log"
         }
       },
       "priority": 3,
@@ -68,9 +68,9 @@
       "priority": 2,
       "verified": {
         "amd64": {
-          "version": "0.89.89",
-          "date": "2026-09-24",
-          "evidence": "tests/evidence/packaged_round/rhel9_0.89.89_20260924T213914/ tests/evidence/tcp_peer_freeze_death/20260924T214653/ tests/evidence/selinux_svirt/20260924T215258/"
+          "version": "0.90.0",
+          "date": "2026-09-26",
+          "evidence": "tests/evidence/packaged_round/rhel9_0.90.0_20260926T080723 tests/evidence/full_verify_0.90.0.log"
         }
       },
       "arch": [
@@ -139,7 +139,7 @@
     },
     "debian13": {
       "name": "Debian 13",
-      "status": "development",
+      "status": "released",
       "priority": 4,
       "kernels": [
         "6.12.107+deb13-amd64 (Debian 13.7)"
@@ -153,7 +153,14 @@
       ],
       "build_check": "scripts/debian_kbuild_check.sh -i debian:13",
       "verify_env": "two Debian 13 nodes on the claimed kernel built as lab/vms.md describes (debian13), sharing one iSCSI LUN that supports SCSI persistent reservations, attached in-guest; which nodes and which LUN come from this site's lab file (tools/mxfs_lab.sh), for the packaged round (tests/packaged_round.sh debian13)",
-      "verify_tests": "install the .deb from the built packages with a DKMS build and a module loaded from updates/dkms; mount with no options on both nodes; cross-node checksums; create/remote-delete counts; chk_mxfs clean; peer= with multicast blocked; O_DIRECT read on a stable-writes device; reboot, module auto-loaded, remount, earlier data intact"
+      "verify_tests": "install the .deb from the built packages with a DKMS build and a module loaded from updates/dkms; mount with no options on both nodes; cross-node checksums; create/remote-delete counts; chk_mxfs clean; peer= with multicast blocked; O_DIRECT read on a stable-writes device; reboot, module auto-loaded, remount, earlier data intact",
+      "verified": {
+        "amd64": {
+          "version": "0.90.0",
+          "date": "2026-09-26",
+          "evidence": "tests/evidence/packaged_round/debian13_0.90.0_20260926T082036 tests/evidence/full_verify_0.90.0.log"
+        }
+      }
     },
     "sles16": {
       "name": "SUSE Linux Enterprise Server 16",
