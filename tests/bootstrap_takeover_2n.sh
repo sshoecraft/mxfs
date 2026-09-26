@@ -119,6 +119,31 @@ KO=/root/mxfs.ko.prep
 NFILES=${NFILES:-32}
 CLAIM_BOUND=${CLAIM_BOUND:-200}
 JOIN_BOUND=${JOIN_BOUND:-300}
+# HOLD_K=1: the ESCROWED-SLOT (K) route (D-BOOTSTRAP-TAKEOVER-K-ROUTE-NEVER-DRIVEN).
+# A's bootstrap mount is held (bootstrap_inject=13, TEST ONLY) right after its
+# adoption of a victim slot K has durably advanced the escrow to K_CLAIMED --
+# the ruling's "controlled pause immediately after that real commit"; nothing
+# is fabricated -- and A is cut there, so the contenders must take the K
+# branch.  What the K branch then decides, and on what proof, is the
+# measurement: a refusal is graded like the slotless arms; an acceptance is
+# recorded with the kind and identities it rested on and the lap exits 4
+# (EVIDENCE), because whether that proof covers the owner being replaced is
+# the open question, not something a harness may score.
+HOLD_K=${HOLD_K:-0}
+# CUT=freeze (with HOLD_K=1, foreign arm only): A is SUSPENDED at the hold
+# instead of destroyed, so its iSCSI session and its PR key survive (the QNAP
+# purges a frozen initiator's key only ~40 s later), and B's K-route fence can
+# run a real PREEMPT AND ABORT on A's exact key -- the legally reachable case
+# that produces a certificate for the owner being replaced, which is the only
+# way descriptor consumption on the K route is exercised.  After the arm A is
+# resumed and must find itself excluded.
+CUT=${CUT:-destroy}
+case "$CUT" in destroy|freeze) ;; *) echo "CUT must be destroy or freeze"; exit 2;; esac
+if [ "$CUT" = freeze ] && { [ "$HOLD_K" != 1 ] || [ "$ARM" != foreign ]; }; then
+    echo "ABORT: CUT=freeze needs HOLD_K=1 and the foreign arm (the owner is frozen, not rebooted)"; exit 2
+fi
+HOLD_BOUND=${HOLD_BOUND:-300}
+KACCEPT=0
 CHK=/src/mxfs/tools/chk_mxfs
 DUMP=/src/mxfs/tools/disklock_hb_dump.py
 OUT=tests/evidence/$(date -u +%Y%m%dT%H%M%SZ)_btk_$LABEL
@@ -211,7 +236,7 @@ ck "the observer $B is loaded and NOT mounted" "$(grep -ac '^NOT_MOUNTED' "$OUT/
 
 # ---- 2. A alone claims the bootstrap term
 MARK="BTK-MARK-$LABEL"
-rsx 60 "$A" "echo $MARK > /dev/kmsg; lsmod | grep -q '^mxfs ' || insmod $KO dyndbg=+p $MODARGS; echo INSMOD_RC=\$?; nohup timeout $CLAIM_BOUND mount -t mxfs $MXFS_DEV $MNT > /run/btk_mount.log 2>&1 & echo LAUNCHED" > "$OUT/A_mount_launch.txt"
+rsx 60 "$A" "echo $MARK > /dev/kmsg; lsmod | grep -q '^mxfs ' || insmod $KO dyndbg=+p $MODARGS; echo INSMOD_RC=\$?; $( [ "$HOLD_K" = 1 ] && echo "echo 13 > /sys/module/mxfs/parameters/bootstrap_inject;" ) nohup timeout $([ "$HOLD_K" = 1 ] && echo $((CLAIM_BOUND + HOLD_BOUND + 600)) || echo $CLAIM_BOUND) mount -t mxfs $MXFS_DEV $MNT > /run/btk_mount.log 2>&1 & echo LAUNCHED" > "$OUT/A_mount_launch.txt"
 capture_require "$OUT/A_mount_launch.txt" '^LAUNCHED$' "A's bootstrap mount launch"
 echo "STAGE A's bootstrap mount launched at +$(el)s (waiting for P-BOOT-CLAIMED, bound ${CLAIM_BOUND}s)"
 wait_for_into claimed "$A" "$CLAIM_BOUND" "$MARK" "P-BOOT-CLAIMED"
@@ -236,6 +261,17 @@ AKEY=$(grep -a 'P-BOOT-CLAIMED' "$OUT/A_at_claim.txt" | head -1 | grep -ao 'key=
 ANODE=$(grep -a 'P-BOOT-CLAIMED' "$OUT/A_at_claim.txt" | head -1 | grep -ao 'node=[0-9]*' | head -1 | cut -d= -f2)
 echo "STAGE A claimed at +$(el)s: owner node=$ANODE key=$AKEY"
 [ -n "$AKEY" ] || { echo "RESULT: ABORT label=$LABEL stage=claim-parse evidence=$OUT"; exit 2; }
+if [ "$HOLD_K" = 1 ]; then
+    wait_for_into held "$A" "$HOLD_BOUND" "$MARK" "P-BOOT-INJECT-HOLD point=13"
+    if [ "$held" = timeout ]; then
+        window_into "$OUT/A_window_nohold.txt" "$A" 30 "$MARK"
+        grep -a 'P-BOOT' "$OUT/A_window_nohold.txt" | sed 's/.*mxfs: /    /' | cut -c1-180 | tail -8
+        echo "RESULT: VACUOUS label=$LABEL stage=k-hold (A never reached K_CLAIMED; the K route cannot be driven on this schedule) evidence=$OUT"; exit 3
+    fi
+    window_into "$OUT/A_at_hold.txt" "$A" 20 "$MARK"
+    grep -a 'P-BOOT-ADOPT\|P-BOOT-INJECT-HOLD' "$OUT/A_at_hold.txt" | sed 's/.*mxfs: /    /' | cut -c1-200 | head -3
+    echo "STAGE A is held after K_CLAIMED at +$(el)s"
+fi
 
 # ---- 3. THE PRE-CUT STATE, bound to one owner boot and one term.  The ledger
 #         is not evidence that a registration exists on the target; PR IN is.
@@ -248,18 +284,38 @@ R1_KEY=$(bs_field "$OUT/rec_1_claimed.txt" key)
 R1_HOST=$(bs_field "$OUT/rec_1_claimed.txt" host)
 R1_BOOT=$(bs_field "$OUT/rec_1_claimed.txt" boot)
 echo "STAGE record at the claim: state=$R1_STATE term=$R1_TERM owner=$R1_OWNER key=$R1_KEY host=$R1_HOST boot=$R1_BOOT"
-ck "the durable record is CLAIMED" "${R1_STATE%%(*}" "CLAIMED"
+# in K mode the adoption comes after the claim and the term is already
+# RECOVERING when A is held: still open, short of RECOVERY_COMPLETE, which is
+# the shape the K route needs
+if [ "$HOLD_K" = 1 ]; then
+    ck "the durable record's term is open (CLAIMED or RECOVERING)" "$(echo "${R1_STATE%%(*}" | grep -acxE 'CLAIMED|RECOVERING')" 1
+else
+    ck "the durable record is CLAIMED" "${R1_STATE%%(*}" "CLAIMED"
+fi
 ck "the durable record's crc validates" "$(bs_field "$OUT/rec_1_claimed.txt" crc)" "OK"
 ck "the record names A's node as owner" "${R1_OWNER%%/*}" "$ANODE"
 ck "the record names A's key as owner key" "$(normkey "$R1_KEY")" "$(normkey "$AKEY")"
 ck "the owner key is REGISTERED ON THE TARGET (PR IN, not our ledger)" "$(key_present "$OUT/K1_claimed.txt" "$(normkey "$AKEY")")" 1
+if [ "$HOLD_K" = 1 ]; then
+    ck "the durable escrow is K_CLAIMED (2)" "$(bs_field "$OUT/rec_1_claimed.txt" escrow)" "2"
+    RK=$(bs_field "$OUT/rec_1_claimed.txt" K)
+    echo "STAGE escrowed slot K=$RK; its heartbeat record and recovery descriptor before the cut:"
+    rsx 60 "$B" "python3 $DUMP $MXFS_DEV 2>/dev/null" > "$OUT/hb_precut.txt"
+    awk -v k="$RK" '$1=="slot" && $2==k {p=1; print; next} $1=="slot" {p=0} p' "$OUT/hb_precut.txt" > "$OUT/K_slot_precut.txt"
+    sed 's/^/    /' "$OUT/K_slot_precut.txt" | cut -c1-200 | head -12
+fi
 [ $fails = 0 ] || { echo "RESULT: ABORT label=$LABEL stage=precut evidence=$OUT"; exit 2; }
 
 # ---- 4. the cut, and the record re-read before anything can touch it
-$VIRSH destroy "$A" > /dev/null 2>&1
-echo "STAGE destroyed $A at +$(el)s (mid-CLAIMED)"
+if [ "$CUT" = freeze ]; then
+    $VIRSH suspend "$A" > /dev/null 2>&1
+    echo "STAGE froze $A at +$(el)s (session and key kept; the QNAP purges a frozen key ~40 s later)"
+else
+    $VIRSH destroy "$A" > /dev/null 2>&1
+    echo "STAGE destroyed $A at +$(el)s (mid-CLAIMED)"
+fi
 rec_into "$B" "$OUT/rec_2_aftercut.txt" "the durable record after the cut"
-ck "after the cut the record still reads CLAIMED" "$(bs_field "$OUT/rec_2_aftercut.txt" state | sed 's/(.*//')" "CLAIMED"
+ck "after the cut the record's state is unchanged" "$(bs_field "$OUT/rec_2_aftercut.txt" state)" "$R1_STATE"
 ck "after the cut the term is unchanged" "$(bs_field "$OUT/rec_2_aftercut.txt" term)" "$R1_TERM"
 ck "after the cut the owner is unchanged" "$(bs_field "$OUT/rec_2_aftercut.txt" owner)" "$R1_OWNER"
 ck "after the cut the owner key is unchanged" "$(bs_field "$OUT/rec_2_aftercut.txt" key)" "$R1_KEY"
@@ -287,6 +343,23 @@ arm_run() {     # <node> <arm-name> <tag>
     # it reached the takeover, not some earlier door
     ck "$name: the mount saw the term and registered as a takeover contender" "$(cnt "$j" 'P-BOOT-TAKEOVER-CANDIDATE')" 1
     ckge "$name: the abandon window elapsed and it contended" "$(cnt "$j" 'P-BOOT-CONTENDER-ABANDONED')" 1
+    if [ "$HOLD_K" = 1 ]; then
+        local kline krc
+        kline=$(grep -a 'P-BOOT-TAKEOVER-FENCE-K ' "$j" | head -1)
+        ckge "$name: the takeover took the K branch (P-BOOT-TAKEOVER-FENCE-K)" "$(cnt "$j" 'P-BOOT-TAKEOVER-FENCE-K ')" 1
+        echo "STAGE $name K route: $(echo "$kline" | sed 's/.*mxfs: //' | cut -c1-230)"
+        grep -a 'P-BOOT-TAKEOVER-KIND-REFUSED\|P-BOOT-TAKEOVER-MOVED\|OLD-FENCE-DONE\|P-BOOT-TAKEOVER term=\|P-BOOT-INHERIT\|P-BOOT-SEALED\|P238-RECOV-LEASE' "$j" | sed 's/.*mxfs: /    /' | cut -c1-200 | head -8
+        krc=$(echo "$kline" | grep -ao ' rc=[-0-9]*' | head -1 | cut -d= -f2)
+        if [ "${krc:-x}" = 0 ] && [ "$(cnt "$j" 'P-BOOT-TAKEOVER-KIND-REFUSED')" = 0 ]; then
+            echo "  K ROUTE ACCEPTED the old owner as fenced from K's descriptor: which identity and"
+            echo "  which operation that descriptor certifies is what must be adjudicated -- recorded,"
+            echo "  not scored"
+            KACCEPT=1
+            rec_into "$B" "$OUT/rec_${tag}_after.txt" "the record after the $name arm"
+            sed 's/^/    /' "$OUT/rec_${tag}_after.txt" | cut -c1-260 | head -2
+            return
+        fi
+    else
     ckge "$name: the refusal is the absent-key fence refusal" "$(cnt "$j" 'P-BOOT-TAKEOVER-FENCE-UNPROVEN')" 1
     ck "$name: it took the slotless branch (no per-slot K fence ran)" "$(cnt "$j" 'P-BOOT-TAKEOVER-FENCE-K ')" 0
     ck "$name: no PREEMPT AND ABORT was issued against the owner key (it was absent)" "$(cnt "$j" 'P-BOOT-TAKEOVER-FENCE-REG')" 0
@@ -310,6 +383,7 @@ arm_run() {     # <node> <arm-name> <tag>
                 echo "  this arm reproduces the deleted '${ante}' branch"
             fi ;;
     esac
+    fi
 
     # NO AUTHORITY WAS CREATED — of any class, not merely the retired one
     ck "$name: no certificate of any kind was minted" "$(cnt "$j" 'P236-FENCE-CERTIFIED')" 0
@@ -342,6 +416,22 @@ fi
 if [ "$ARM" = foreign ] || [ "$ARM" = both ]; then
     arm_run "$B" foreign foreign
 fi
+if [ "$CUT" = freeze ]; then
+    # the frozen owner resumes into a term another node took over: it must be
+    # excluded -- its key preempted, its writes refused, the mount withdrawn --
+    # and it must not overwrite the record or the takeover's state
+    $VIRSH resume "$A" > /dev/null 2>&1
+    echo "STAGE resumed $A at +$(el)s; it must find itself fenced"
+    sleep 30
+    measure "$A" 60 "$OUT/A_after_resume.txt" '^JOURNAL_END$' "A's journal after the resume" \
+        "dmesg | sed -n '/$MARK/,\$p' | grep -a 'P131-SELF-FENCE\|P-WITHDRAW\|RESERVATION\|Shutting down\|P-BOOT\|BUG:\|Oops' | tail -20 | cut -c1-300; echo JOURNAL_END"
+    sed 's/^/    /' "$OUT/A_after_resume.txt" | cut -c1-200 | head -12
+    keys_into "$B" "$OUT/K_after_resume.txt" "READ KEYS after A resumed"
+    ck "the resumed owner's key is NOT on the target (it was preempted)" "$(key_present "$OUT/K_after_resume.txt" "$(normkey "$AKEY")")" 0
+    rec_into "$B" "$OUT/rec_after_resume.txt" "the record after A resumed"
+    echo "STAGE record after A resumed: $(grep -a '^BOOTSTRAP' "$OUT/rec_after_resume.txt" | cut -c1-230)"
+    ck "zero BUG / Oops on the resumed owner" "$(cnt "$OUT/A_after_resume.txt" 'BUG:\|Oops')" 0
+fi
 
 # ---- 6. PERMANENCE: the dead end is a separate record, and this is where it
 #         is measured rather than asserted.  One more attempt on each node that
@@ -350,7 +440,8 @@ fi
 #         argument is: the term is unchanged, nothing produces a proof, and
 #         every ordinary mount returns to the same refusal.
 again=0
-for n in "$A" "$B"; do
+[ "$HOLD_K" = 1 ] && echo "STAGE permanence not run in K mode (it presumes a refusal)"
+[ "$HOLD_K" = 1 ] || for n in "$A" "$B"; do
     timeout 60 $SSH "$n" "lsmod | grep -q '^mxfs '" >/dev/null 2>&1 || continue
     rsx $((JOIN_BOUND + 60)) "$n" "echo $MARK-again-$n > /dev/kmsg; timeout $JOIN_BOUND mount -t mxfs $MXFS_DEV $MNT; echo MOUNT_RC=\$?; mountpoint -q $MNT && echo MOUNTED || echo NOT_MOUNTED" > "$OUT/again_${n}.txt"
     capture_require "$OUT/again_${n}.txt" '^(MOUNTED|NOT_MOUNTED)$' "the repeat mount on $n"
@@ -361,10 +452,16 @@ for n in "$A" "$B"; do
     again=$((again + 1))
 done
 rec_into "$B" "$OUT/rec_final.txt" "the durable record at the end"
+if [ "$HOLD_K" != 1 ]; then
 ck "permanence: the record is STILL CLAIMED by a key that cannot come back" "$(bs_field "$OUT/rec_final.txt" state | sed 's/(.*//')" "CLAIMED"
 ck "permanence: the term never moved across every attempt in this lap" "$(bs_field "$OUT/rec_final.txt" term)" "$R1_TERM"
+fi
 echo "STAGE permanence: $again repeat attempt(s), record $(bs_field "$OUT/rec_final.txt" state) term=$(bs_field "$OUT/rec_final.txt" term) owner=$(bs_field "$OUT/rec_final.txt" owner)"
 echo "STAGE the record is left CLAIMED on purpose — it IS the measured state; the next prep's mkfs rewrites it IDLE"
 
+if [ "$KACCEPT" = 1 ] && [ $fails = 0 ]; then
+    echo "RESULT: EVIDENCE label=$LABEL arm=$ARM (the K route accepted; adjudicate the proof it used) fails=0 wall=$(el)s evidence=$OUT"
+    exit 4
+fi
 echo "RESULT: $( [ $fails = 0 ] && echo PASS || echo FAIL ) label=$LABEL arm=$ARM fails=$fails wall=$(el)s evidence=$OUT"
 [ $fails = 0 ]

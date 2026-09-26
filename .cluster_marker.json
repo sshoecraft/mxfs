@@ -1,12 +1,12 @@
 {
   "nodes": 2,
   "dlm": "caw",
-  "srcversion": "023BCBA38B30E7662B22216",
+  "srcversion": "2C7102E9B2AC77776C59B26",
   "node_list": "test1,test2",
   "dev": "/dev/disk/by-id/wwn-0x6e843b6393a5a6ed918bd4f4fdb8e7d6",
   "rig": "qnap",
   "wwid": "naa.6e843b6393a5a6ed918bd4f4fdb8e7d6",
-  "fsid": "8309c522-c563-42ce-ac96-fbee435b87a8",
-  "gen": 508,
-  "iso": "2026-09-26T07:10:03Z"
+  "fsid": "57356251-47a3-4145-b23e-7088d3c0b965",
+  "gen": 512,
+  "iso": "2026-09-26T07:42:21Z"
 }

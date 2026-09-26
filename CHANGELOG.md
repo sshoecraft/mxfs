@@ -35,11 +35,30 @@ could show:
   the slotless old-owner fence) `goto out` on a non-zero return before any
   staging or certificate count.  So the refusal the lap measured for
   SELF-SUCCESSION is the same control flow for the two ledger antecedents.
-- **The escrowed-slot (K) route is a separate record**,
-  `D-BOOTSTRAP-TAKEOVER-K-ROUTE-NEVER-DRIVEN`: it accepts the old owner as
-  fenced from a recovery descriptor, and no lap has selected it (both arms
-  journaled `escrow=NONE K=0`).  Closing the slotless producer does not close
-  owner replacement on every route.
+- **The escrowed-slot (K) route is driven both ways, and it needs a real
+  fence of the exact owner.**  It was filed as its own record because no lap
+  had selected it (the slotless laps journaled `escrow=NONE K=0`), then
+  measured and removed the same day.  `HOLD_K=1` holds the owner
+  (`bootstrap_inject=13`, TEST ONLY) right after its adoption of a victim slot
+  has durably advanced the escrow to K_CLAIMED — a pause after a real commit,
+  nothing fabricated.
+  - Owner power-cut (its key purged): the contender took the K branch, which
+    marks K recovery-pending with the owner's exact identity and runs the
+    ordinary fence pipeline; the pipeline found no key, produced no
+    descriptor, and the takeover refused with nothing written.
+  - Owner frozen (`CUT=freeze`: session and key survive): the contender's K
+    fence ran PREEMPT AND ABORT on the owner's exact key, certified
+    `PREEMPT_ABORT_PROVEN_V1` for that owner and key, took the execution lease
+    on it, advanced the term, inherited the sealed set and completed recovery,
+    and mounted.  Run twice, same result.
+  - The frozen owner, resumed and released: its first I/O got a reservation
+    conflict and its mount unwound; the record stayed with the new term; the
+    new owner then wrote and fsynced with no shutdown.
+- **A fenced node's CAW probe said the device was at fault.**  The capability
+  probe filed RESERVATION CONFLICT (`-EBADE`) under TRANSIENT, so a fenced
+  node was told "this device does not execute COMPARE AND WRITE … retry the
+  mount".  A `FENCED` outcome now fails the admission the same way and says
+  the node's registration was preempted and a retry will not help.
 - **`D-BOOTSTRAP-TAKEOVER-NO-PROOF-LEAVES-VOLUME-UNMOUNTABLE` is now measured
   and stays open.** Repeat mounts on both nodes were refused the same way and
   the record stayed CLAIMED by a key that cannot come back: the volume is

@@ -12246,6 +12246,7 @@ const char *mxfs_caw_cap_name(enum mxfs_caw_cap cap)
 	case MXFS_CAW_CAP_UNSUPPORTED: return "UNSUPPORTED";
 	case MXFS_CAW_CAP_TRANSIENT:   return "TRANSIENT";
 	case MXFS_CAW_CAP_VIOLATION:   return "VIOLATION";
+	case MXFS_CAW_CAP_FENCED:      return "FENCED";
 	}
 	return "?";
 }
@@ -12304,6 +12305,8 @@ enum mxfs_caw_cap mxfs_disklock_caw_capability(struct mxfs_disklock_ctx *ctx,
 		cap = MXFS_CAW_CAP_VIOLATION;       /* mismatch reported success */
 	else if (rc == -EAGAIN)
 		cap = MXFS_CAW_CAP_OK;
+	else if (rc == -EBADE)
+		cap = MXFS_CAW_CAP_FENCED;          /* RESERVATION CONFLICT */
 	else
 		cap = MXFS_CAW_CAP_TRANSIENT;
 	if (cap == MXFS_CAW_CAP_OK) {

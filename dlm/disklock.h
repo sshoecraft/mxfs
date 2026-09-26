@@ -2259,12 +2259,17 @@ void mxfs_disklock_set_slot_limit(struct mxfs_disklock_ctx *ctx, uint32_t limit)
  *                            never classify the device
  *   MXFS_CAW_CAP_VIOLATION   semantic: mismatch reported success, or the
  *                            record changed under a miscompare — hard refusal
+ *   MXFS_CAW_CAP_FENCED      the target answered RESERVATION CONFLICT: this
+ *                            node's registration is gone (it was fenced), which
+ *                            says nothing about the device — fail THIS
+ *                            admission as TRANSIENT does, and say so
  */
 enum mxfs_caw_cap {
 	MXFS_CAW_CAP_OK = 0,
 	MXFS_CAW_CAP_UNSUPPORTED,
 	MXFS_CAW_CAP_TRANSIENT,
 	MXFS_CAW_CAP_VIOLATION,
+	MXFS_CAW_CAP_FENCED,
 };
 enum mxfs_caw_cap mxfs_disklock_caw_capability(struct mxfs_disklock_ctx *ctx,
 					       int *rc_out);

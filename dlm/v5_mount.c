@@ -17517,6 +17517,12 @@ bootstrap_again:
 				     cap == MXFS_CAW_CAP_UNSUPPORTED ? "(definitive)" :
 				     cap == MXFS_CAW_CAP_TRANSIENT ?
 					 "(ambiguous I/O outcome: retry the mount)" :
+				     cap == MXFS_CAW_CAP_FENCED ?
+					 "— NOT a device fault: the target refused this "
+					 "node's I/O with RESERVATION CONFLICT, so its "
+					 "registration was preempted and it is FENCED; "
+					 "retrying will not help until the cluster has "
+					 "recovered it" :
 					 "(SEMANTIC VIOLATION: the target reported "
 					 "success on a mismatching compare or changed "
 					 "the record — unsuitable for a lock table)",

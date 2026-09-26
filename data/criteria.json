@@ -88,13 +88,37 @@
         },
         "2/caw": {
           "status": "PASS",
-          "measured": "elapsed=52s (fresh prep)",
+          "measured": "elapsed=55s (fresh prep)",
           "reason": "",
-          "iso": "2026-09-26T07:10:04Z",
+          "iso": "2026-09-26T07:42:21Z",
           "recorded": "2026-09-26",
-          "elapsed_s": 52,
-          "build": "023BCBA38B30E7662B22216",
+          "elapsed_s": 55,
+          "build": "2C7102E9B2AC77776C59B26",
           "history": [
+            {
+              "status": "PASS",
+              "iso": "2026-09-26T07:31:52Z",
+              "measured": "elapsed=53s (fresh prep)",
+              "reason": ""
+            },
+            {
+              "status": "PASS",
+              "iso": "2026-09-26T07:25:25Z",
+              "measured": "elapsed=164s (fresh prep)",
+              "reason": ""
+            },
+            {
+              "status": "PASS",
+              "iso": "2026-09-26T07:18:38Z",
+              "measured": "elapsed=53s (fresh prep)",
+              "reason": ""
+            },
+            {
+              "status": "PASS",
+              "iso": "2026-09-26T07:10:04Z",
+              "measured": "elapsed=52s (fresh prep)",
+              "reason": ""
+            },
             {
               "status": "PASS",
               "iso": "2026-09-26T07:05:47Z",
@@ -130,30 +154,6 @@
               "iso": "2026-09-04T15:38:35Z",
               "measured": "elapsed=28s",
               "reason": "prep failed"
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-02T07:56:21Z",
-              "measured": "elapsed=46s (fresh prep)",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-02T07:55:27Z",
-              "measured": "elapsed=89s (fresh prep)",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-08-24T03:12:05Z",
-              "measured": "elapsed=28s (fresh prep)",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-08-24T03:11:14Z",
-              "measured": "elapsed=30s (fresh prep)",
-              "reason": ""
             }
           ]
         },
