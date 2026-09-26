@@ -159,7 +159,7 @@ xrep_ibt_check_ifree(
 	if (offset >= BBTOB(cluster_bp->b_length))
 		return -EFSCORRUPTED;
 	dip = xfs_buf_offset(cluster_bp, offset);
-	if (be16_to_cpu(dip->di_magic) != XFS_DINODE_MAGIC)
+	if (be16_to_cpu(dip->di_magic) != MXFS_DINODE_MAGIC)
 		return -EFSCORRUPTED;
 
 	if (dip->di_version >= 3 &&

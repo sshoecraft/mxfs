@@ -684,7 +684,7 @@ xfs_rtsb_write_verify(
 
 const struct xfs_buf_ops xfs_rtsb_buf_ops = {
 	.name		= "xfs_rtsb",
-	.magic		= { 0, cpu_to_be32(XFS_RTSB_MAGIC) },
+	.magic		= { 0, cpu_to_be32(MXFS_RTSB_MAGIC) },
 	.verify_read	= xfs_rtsb_read_verify,
 	.verify_write	= xfs_rtsb_write_verify,
 	.verify_struct	= xfs_rtsb_verify_all,
@@ -700,7 +700,7 @@ xfs_update_rtsb(
 	struct xfs_rtsb		*rsb = rtsb_bp->b_addr;
 	const uuid_t		*meta_uuid;
 
-	rsb->rsb_magicnum = cpu_to_be32(XFS_RTSB_MAGIC);
+	rsb->rsb_magicnum = cpu_to_be32(MXFS_RTSB_MAGIC);
 
 	rsb->rsb_pad = 0;
 	memcpy(&rsb->rsb_fname, &dsb->sb_fname, XFSLABEL_MAX);

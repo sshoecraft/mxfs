@@ -561,8 +561,8 @@ mxfs_dir_hole_disk_probe(struct xfs_inode *ip, xfs_fileoff_t want_bno)
 						 * (child ptrs are not dataptrs
 						 * — the ghost_db=16384
 						 * artifact). */
-						if (lmag != XFS_DIR3_LEAF1_MAGIC &&
-						    lmag != XFS_DIR3_LEAFN_MAGIC) {
+						if (lmag != MXFS_DIR3_LEAF1_MAGIC &&
+						    lmag != MXFS_DIR3_LEAFN_MAGIC) {
 							kfree(dbuf);
 							continue;
 						}
@@ -6171,7 +6171,7 @@ mxfs_dlm_reset_inode_for_create(
 					ip->i_imap.im_boffset);
 
 				if (cd->di_magic ==
-				    cpu_to_be16(XFS_DINODE_MAGIC)) {
+				    cpu_to_be16(MXFS_DINODE_MAGIC)) {
 					r4c_gen = be32_to_cpu(cd->di_gen);
 					r4c_ok = true;
 				}

@@ -132,7 +132,7 @@ def fork_extents(ino):
         def walk(fsb):
             f.seek(xfs_off + fsb_to_daddr(fsb) * 512)
             blk = f.read(blocksize)
-            if blk[0:4] != b'BMA3':
+            if blk[0:4] != b'MBM3':
                 return
             lvl, nrec = struct.unpack_from('>HH', blk, 4)
             hdr = 72
@@ -170,9 +170,9 @@ for off, sfsb, cnt in uv:
     blk = f.read(64)
     magic = blk[0:4]
     owner, = struct.unpack_from('>Q', blk, 40)
-    if magic in (b'XDD3', b'XDB3') and owner != uv_ino:
+    if magic in (b'MDD3', b'MDB3') and owner != uv_ino:
         foreign.append((sfsb, owner))
-    elif magic not in (b'XDD3', b'XDB3'):
+    elif magic not in (b'MDD3', b'MDB3'):
         foreign.append((sfsb, f'nonmagic:{magic.hex()}'))
 print(f"uv data-block foreign-content: {foreign if foreign else 'NONE'}")
 print("REPRODUCED" if (overlap or foreign) else "CLEAN")
@@ -183,7 +183,7 @@ fi
 
 # 5. verdict.  P-DBLALLOC(+AGF) content hits are EXCLUDED from the verdict:
 # they fire 150-600×/iter on legitimate foreign-dead block reuse (holds=dir-
-# block, magic XDD3) — proven false-positive family (iters 1b/3/5b all CLEAN
+# block, magic MDD3) — proven false-positive family (iters 1b/3/5b all CLEAN
 # on the static xref while logging 334-1148 of them).  They are still pulled
 # into probes_test*.log for manual correlation; the authoritative double-alloc
 # channels are the mechanism probes (P130/P131/cil_resident), the static

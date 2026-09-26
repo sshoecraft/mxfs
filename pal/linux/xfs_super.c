@@ -1314,7 +1314,7 @@ xfs_fs_statfs(
 	 */
 	xfs_inodegc_push(mp);
 
-	st->f_type = XFS_SUPER_MAGIC;
+	st->f_type = MXFS_SB_MAGIC;
 	st->f_namelen = MAXNAMELEN - 1;
 	st->f_bsize = mp->m_sb.sb_blocksize;
 	st->f_fsid = u64_to_fsid(huge_encode_dev(mp->m_ddev_targp->bt_dev));
@@ -5012,7 +5012,7 @@ xfs_fs_fill_super(
 	 * we must configure the block size in the superblock before we run the
 	 * full mount process as the mount process can lookup and cache inodes.
 	 */
-	sb->s_magic = XFS_SUPER_MAGIC;
+	sb->s_magic = MXFS_SB_MAGIC;
 	sb->s_blocksize = mp->m_sb.sb_blocksize;
 	sb->s_blocksize_bits = ffs(sb->s_blocksize) - 1;
 	sb->s_maxbytes = MAX_LFS_FILESIZE;

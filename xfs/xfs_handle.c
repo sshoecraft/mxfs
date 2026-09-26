@@ -109,7 +109,7 @@ xfs_find_handle(
 	 * and only for regular files, directories or symbolic links.
 	 */
 	error = -EINVAL;
-	if (inode->i_sb->s_magic != XFS_SB_MAGIC)
+	if (inode->i_sb->s_magic != MXFS_SB_MAGIC)
 		goto out_put;
 
 	error = -EBADF;

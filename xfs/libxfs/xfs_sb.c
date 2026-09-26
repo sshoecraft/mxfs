@@ -1103,7 +1103,7 @@ xfs_sb_read_verify(
 	 * open code the version check to avoid needing to convert the entire
 	 * superblock from disk order just to check the version number
 	 */
-	if (dsb->sb_magicnum == cpu_to_be32(XFS_SB_MAGIC) &&
+	if (dsb->sb_magicnum == cpu_to_be32(MXFS_SB_MAGIC) &&
 	    (((be16_to_cpu(dsb->sb_versionnum) & XFS_SB_VERSION_NUMBITS) ==
 						XFS_SB_VERSION_5) ||
 	     dsb->sb_crc != 0)) {
@@ -1147,7 +1147,7 @@ xfs_sb_quiet_read_verify(
 {
 	struct xfs_dsb	*dsb = bp->b_addr;
 
-	if (dsb->sb_magicnum == cpu_to_be32(XFS_SB_MAGIC)) {
+	if (dsb->sb_magicnum == cpu_to_be32(MXFS_SB_MAGIC)) {
 		/* XFS filesystem, verify noisily! */
 		xfs_sb_read_verify(bp);
 		return;
@@ -1273,14 +1273,14 @@ out_error:
 
 const struct xfs_buf_ops xfs_sb_buf_ops = {
 	.name = "xfs_sb",
-	.magic = { cpu_to_be32(XFS_SB_MAGIC), cpu_to_be32(XFS_SB_MAGIC) },
+	.magic = { cpu_to_be32(MXFS_SB_MAGIC), cpu_to_be32(MXFS_SB_MAGIC) },
 	.verify_read = xfs_sb_read_verify,
 	.verify_write = xfs_sb_write_verify,
 };
 
 const struct xfs_buf_ops xfs_sb_quiet_buf_ops = {
 	.name = "xfs_sb_quiet",
-	.magic = { cpu_to_be32(XFS_SB_MAGIC), cpu_to_be32(XFS_SB_MAGIC) },
+	.magic = { cpu_to_be32(MXFS_SB_MAGIC), cpu_to_be32(MXFS_SB_MAGIC) },
 	.verify_read = xfs_sb_quiet_read_verify,
 	.verify_write = xfs_sb_write_verify,
 };

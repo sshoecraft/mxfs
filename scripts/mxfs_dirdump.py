@@ -36,9 +36,9 @@ class Img:
         # mxfs envelope: locate xfs_data_offset from the MXFS super.
         # Layout (tools/mkfs_mxfs): magic "MXFS" at 0, version, then
         # journal/disklock/xfs_data offsets.  Rather than trust field
-        # offsets, scan the first 4KB for the "XFSB"-bearing sector by
+        # offsets, scan the first 4KB for the "MXSB"-bearing sector by
         # reading the mxfs super's u64 at 0x18..0x40 candidates, falling
-        # back to a bounded scan for the XFSB magic.
+        # back to a bounded scan for the MXSB magic.
         head = self.rd(0, 4096)
         self.xfs_base = None
         if head[:4] == b'MXFS':
@@ -46,7 +46,7 @@ class Img:
                 cand = be(head, off, 8)
                 if 4096 <= cand < 1 << 40 and cand % SECT == 0:
                     try:
-                        if self.rd(cand, 4)[:4] == b'XFSB':
+                        if self.rd(cand, 4)[:4] == b'MXSB':
                             self.xfs_base = cand
                             break
                     except Exception:
@@ -54,11 +54,11 @@ class Img:
         if self.xfs_base is None:
             # bounded scan: every 512B up to 512MB
             for cand in range(0, 512 << 20, SECT):
-                if self.rd(cand, 4)[:4] == b'XFSB':
+                if self.rd(cand, 4)[:4] == b'MXSB':
                     self.xfs_base = cand
                     break
         if self.xfs_base is None:
-            raise SystemExit('no XFSB found — not an mxfs/XFS device?')
+            raise SystemExit('no MXSB found — not an mxfs/XFS device?')
         sb = self.rd(self.xfs_base, 512)
         self.blocksize = be(sb, 0x04, 4)
         self.agblocks = be(sb, 0x54, 4)
@@ -96,7 +96,7 @@ class Img:
     def read_dinode(self, ino):
         daddr, off = self.ino_daddr_off(ino)
         raw = self.rd(self.daddr_bytes(daddr) + off, self.inodesize)
-        if raw[:2] != b'IN':
+        if raw[:2] != b'MN':
             raise SystemExit('ino %d: bad dinode magic %r at daddr %d off %d'
                              % (ino, raw[:2], daddr, off))
         return raw
@@ -123,8 +123,8 @@ class Img:
 def walk_data_block(img, blk, daddr):
     """Yield (name, inum, tag_off, hash) for live entries; also stale count."""
     magic = blk[:4]
-    is_block = magic == b'XDB3'
-    if magic not in (b'XDD3', b'XDB3'):
+    is_block = magic == b'MDB3'
+    if magic not in (b'MDD3', b'MDB3'):
         return None, magic
     p = 64  # sizeof(xfs_dir3_data_hdr)
     end = len(blk)
@@ -159,7 +159,7 @@ def walk_leaf(img, blk):
     # xfs_da3_blkinfo is 56 bytes: forw(4) back(4) magic(2) pad(2) crc(4)
     # blkno(8) lsn(8) uuid(16) owner(8).  leaf3/node3 hdr: count@0x38,
     # stale-or-level@0x3a, pad(4) -> entries at 0x40.
-    if info_magic in (0x3df1, 0x3dff):     # LEAF1 / LEAFN (dir3)
+    if info_magic in (0x4D31, 0x4D3F):     # LEAF1 / LEAFN (dir3)
         count = be(blk, 0x38, 2)
         stale = be(blk, 0x3a, 2)
         ents = []
@@ -168,7 +168,7 @@ def walk_leaf(img, blk):
             addr = be(blk, 0x40 + 8 * i + 4, 4)
             ents.append((h, addr))
         return 'leaf', count, stale, ents
-    if info_magic == 0x3ebe:               # DA3 NODE
+    if info_magic == 0x4D3E:               # DA3 NODE
         count = be(blk, 0x38, 2)
         level = be(blk, 0x3a, 2)
         ents = []

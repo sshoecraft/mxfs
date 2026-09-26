@@ -59,7 +59,7 @@ xfs_dquot_verify(
 	 * This is all fine; things are still consistent, and we haven't lost
 	 * any quota information. Just don't complain about bad dquot blks.
 	 */
-	if (ddq->d_magic != cpu_to_be16(XFS_DQUOT_MAGIC))
+	if (ddq->d_magic != cpu_to_be16(MXFS_DQUOT_MAGIC))
 		return __this_address;
 	if (ddq->d_version != XFS_DQUOT_VERSION)
 		return __this_address;
@@ -132,7 +132,7 @@ xfs_dqblk_repair(
 	ASSERT(id != -1);
 	memset(dqb, 0, sizeof(struct xfs_dqblk));
 
-	dqb->dd_diskdq.d_magic = cpu_to_be16(XFS_DQUOT_MAGIC);
+	dqb->dd_diskdq.d_magic = cpu_to_be16(MXFS_DQUOT_MAGIC);
 	dqb->dd_diskdq.d_version = XFS_DQUOT_VERSION;
 	dqb->dd_diskdq.d_type = type;
 	dqb->dd_diskdq.d_id = cpu_to_be32(id);
@@ -284,8 +284,8 @@ xfs_dquot_buf_write_verify(
 
 const struct xfs_buf_ops xfs_dquot_buf_ops = {
 	.name = "xfs_dquot",
-	.magic16 = { cpu_to_be16(XFS_DQUOT_MAGIC),
-		     cpu_to_be16(XFS_DQUOT_MAGIC) },
+	.magic16 = { cpu_to_be16(MXFS_DQUOT_MAGIC),
+		     cpu_to_be16(MXFS_DQUOT_MAGIC) },
 	.verify_read = xfs_dquot_buf_read_verify,
 	.verify_write = xfs_dquot_buf_write_verify,
 	.verify_struct = xfs_dquot_buf_verify_struct,
@@ -293,8 +293,8 @@ const struct xfs_buf_ops xfs_dquot_buf_ops = {
 
 const struct xfs_buf_ops xfs_dquot_buf_ra_ops = {
 	.name = "xfs_dquot_ra",
-	.magic16 = { cpu_to_be16(XFS_DQUOT_MAGIC),
-		     cpu_to_be16(XFS_DQUOT_MAGIC) },
+	.magic16 = { cpu_to_be16(MXFS_DQUOT_MAGIC),
+		     cpu_to_be16(MXFS_DQUOT_MAGIC) },
 	.verify_read = xfs_dquot_buf_readahead_verify,
 	.verify_write = xfs_dquot_buf_write_verify,
 };

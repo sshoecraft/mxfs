@@ -243,7 +243,7 @@ xfs_rtrefcountbt_write_verify(
 
 const struct xfs_buf_ops xfs_rtrefcountbt_buf_ops = {
 	.name			= "xfs_rtrefcountbt",
-	.magic			= { 0, cpu_to_be32(XFS_RTREFC_CRC_MAGIC) },
+	.magic			= { 0, cpu_to_be32(MXFS_RTREFC_CRC_MAGIC) },
 	.verify_read		= xfs_rtrefcountbt_read_verify,
 	.verify_write		= xfs_rtrefcountbt_write_verify,
 	.verify_struct		= xfs_rtrefcountbt_verify,
@@ -684,7 +684,7 @@ xfs_rtrefcountbt_to_disk(
 	unsigned int			maxrecs;
 	unsigned int			numrecs;
 
-	ASSERT(rblock->bb_magic == cpu_to_be32(XFS_RTREFC_CRC_MAGIC));
+	ASSERT(rblock->bb_magic == cpu_to_be32(MXFS_RTREFC_CRC_MAGIC));
 	ASSERT(uuid_equal(&rblock->bb_u.l.bb_uuid, &mp->m_sb.sb_meta_uuid));
 	ASSERT(rblock->bb_u.l.bb_blkno == cpu_to_be64(XFS_BUF_DADDR_NULL));
 	ASSERT(rblock->bb_u.l.bb_leftsib == cpu_to_be64(NULLFSBLOCK));

@@ -152,7 +152,7 @@ xfs_attr3_leaf_firstused_from_disk(
 {
 	struct xfs_attr3_leaf_hdr	*hdr3;
 
-	if (from->hdr.info.magic == cpu_to_be16(XFS_ATTR3_LEAF_MAGIC)) {
+	if (from->hdr.info.magic == cpu_to_be16(MXFS_ATTR3_LEAF_MAGIC)) {
 		hdr3 = (struct xfs_attr3_leaf_hdr *) from;
 		to->firstused = be16_to_cpu(hdr3->firstused);
 	} else {
@@ -194,7 +194,7 @@ xfs_attr3_leaf_firstused_to_disk(
 		firstused = XFS_ATTR3_LEAF_NULLOFF;
 	}
 
-	if (from->magic == XFS_ATTR3_LEAF_MAGIC) {
+	if (from->magic == MXFS_ATTR3_LEAF_MAGIC) {
 		hdr3 = (struct xfs_attr3_leaf_hdr *) to;
 		hdr3->firstused = cpu_to_be16(firstused);
 	} else {
@@ -210,10 +210,10 @@ xfs_attr3_leaf_hdr_from_disk(
 {
 	int	i;
 
-	ASSERT(from->hdr.info.magic == cpu_to_be16(XFS_ATTR_LEAF_MAGIC) ||
-	       from->hdr.info.magic == cpu_to_be16(XFS_ATTR3_LEAF_MAGIC));
+	ASSERT(from->hdr.info.magic == cpu_to_be16(MXFS_ATTR_LEAF_MAGIC) ||
+	       from->hdr.info.magic == cpu_to_be16(MXFS_ATTR3_LEAF_MAGIC));
 
-	if (from->hdr.info.magic == cpu_to_be16(XFS_ATTR3_LEAF_MAGIC)) {
+	if (from->hdr.info.magic == cpu_to_be16(MXFS_ATTR3_LEAF_MAGIC)) {
 		struct xfs_attr3_leaf_hdr *hdr3 = (struct xfs_attr3_leaf_hdr *)from;
 
 		to->forw = be32_to_cpu(hdr3->info.hdr.forw);
@@ -252,10 +252,10 @@ xfs_attr3_leaf_hdr_to_disk(
 {
 	int				i;
 
-	ASSERT(from->magic == XFS_ATTR_LEAF_MAGIC ||
-	       from->magic == XFS_ATTR3_LEAF_MAGIC);
+	ASSERT(from->magic == MXFS_ATTR_LEAF_MAGIC ||
+	       from->magic == MXFS_ATTR3_LEAF_MAGIC);
 
-	if (from->magic == XFS_ATTR3_LEAF_MAGIC) {
+	if (from->magic == MXFS_ATTR3_LEAF_MAGIC) {
 		struct xfs_attr3_leaf_hdr *hdr3 = (struct xfs_attr3_leaf_hdr *)to;
 
 		hdr3->info.hdr.forw = cpu_to_be32(from->forw);
@@ -460,7 +460,7 @@ xfs_attr3_leaf_header_check(
 		struct xfs_attr3_leafblock *hdr3 = bp->b_addr;
 
 		if (hdr3->hdr.info.hdr.magic !=
-				cpu_to_be16(XFS_ATTR3_LEAF_MAGIC))
+				cpu_to_be16(MXFS_ATTR3_LEAF_MAGIC))
 			return __this_address;
 
 		if (be64_to_cpu(hdr3->hdr.info.owner) != owner)
@@ -519,8 +519,8 @@ xfs_attr3_leaf_read_verify(
 
 const struct xfs_buf_ops xfs_attr3_leaf_buf_ops = {
 	.name = "xfs_attr3_leaf",
-	.magic16 = { cpu_to_be16(XFS_ATTR_LEAF_MAGIC),
-		     cpu_to_be16(XFS_ATTR3_LEAF_MAGIC) },
+	.magic16 = { cpu_to_be16(MXFS_ATTR_LEAF_MAGIC),
+		     cpu_to_be16(MXFS_ATTR3_LEAF_MAGIC) },
 	.verify_read = xfs_attr3_leaf_read_verify,
 	.verify_write = xfs_attr3_leaf_write_verify,
 	.verify_struct = xfs_attr3_leaf_verify,
@@ -1395,7 +1395,7 @@ xfs_attr3_leaf_create(
 	if (xfs_has_crc(mp)) {
 		struct xfs_da3_blkinfo *hdr3 = bp->b_addr;
 
-		ichdr.magic = XFS_ATTR3_LEAF_MAGIC;
+		ichdr.magic = MXFS_ATTR3_LEAF_MAGIC;
 
 		hdr3->blkno = cpu_to_be64(xfs_buf_daddr(bp));
 		hdr3->owner = cpu_to_be64(args->owner);
@@ -1403,7 +1403,7 @@ xfs_attr3_leaf_create(
 
 		ichdr.freemap[0].base = sizeof(struct xfs_attr3_leaf_hdr);
 	} else {
-		ichdr.magic = XFS_ATTR_LEAF_MAGIC;
+		ichdr.magic = MXFS_ATTR_LEAF_MAGIC;
 		ichdr.freemap[0].base = sizeof(struct xfs_attr_leaf_hdr);
 	}
 	ichdr.freemap[0].size = ichdr.firstused - ichdr.freemap[0].base;
@@ -1436,7 +1436,7 @@ xfs_attr3_leaf_split(
 	/*
 	 * Allocate space for a new leaf node.
 	 */
-	ASSERT(oldblk->magic == XFS_ATTR_LEAF_MAGIC);
+	ASSERT(oldblk->magic == MXFS_ATTR_LEAF_MAGIC);
 	error = xfs_da_grow_inode(state->args, &blkno);
 	if (error)
 		return error;
@@ -1444,7 +1444,7 @@ xfs_attr3_leaf_split(
 	if (error)
 		return error;
 	newblk->blkno = blkno;
-	newblk->magic = XFS_ATTR_LEAF_MAGIC;
+	newblk->magic = MXFS_ATTR_LEAF_MAGIC;
 
 	/*
 	 * Rebalance the entries across the two leaves.
@@ -1850,8 +1850,8 @@ xfs_attr3_leaf_rebalance(
 	/*
 	 * Set up environment.
 	 */
-	ASSERT(blk1->magic == XFS_ATTR_LEAF_MAGIC);
-	ASSERT(blk2->magic == XFS_ATTR_LEAF_MAGIC);
+	ASSERT(blk1->magic == MXFS_ATTR_LEAF_MAGIC);
+	ASSERT(blk2->magic == MXFS_ATTR_LEAF_MAGIC);
 	leaf1 = blk1->bp->b_addr;
 	leaf2 = blk2->bp->b_addr;
 	xfs_attr3_leaf_hdr_from_disk(state->args->geo, &ichdr1, leaf1);
@@ -2704,8 +2704,8 @@ xfs_attr3_leaf_moveents(
 	/*
 	 * Set up environment.
 	 */
-	ASSERT(ichdr_s->magic == XFS_ATTR_LEAF_MAGIC ||
-	       ichdr_s->magic == XFS_ATTR3_LEAF_MAGIC);
+	ASSERT(ichdr_s->magic == MXFS_ATTR_LEAF_MAGIC ||
+	       ichdr_s->magic == MXFS_ATTR3_LEAF_MAGIC);
 	ASSERT(ichdr_s->magic == ichdr_d->magic);
 	ASSERT(ichdr_s->count > 0 && ichdr_s->count < args->geo->blksize / 8);
 	ASSERT(ichdr_s->firstused >=

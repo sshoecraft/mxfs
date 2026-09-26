@@ -5591,7 +5591,7 @@ int mxfs_link(struct mxfs_mount *mnt,
  * range of the symlink target it contains.
  *
  * On-disk layout (xfs_dsymlink_hdr):
- *   offset  0: sl_magic   (be32)  XFS_SYMLINK_MAGIC
+ *   offset  0: sl_magic   (be32)  MXFS_SYMLINK_MAGIC
  *   offset  4: sl_offset  (be32)  byte offset of this chunk in target
  *   offset  8: sl_bytes   (be32)  bytes of target in this block
  *   offset 12: sl_crc     (le32)  CRC32C of entire block
@@ -5609,7 +5609,7 @@ static void build_symlink_hdr_v5(uint8_t *blkbuf, uint32_t blocksize,
 
 	memset(blkbuf, 0, XFS_DSYMLINK_HDR_SIZE);
 
-	mount_put_be32(blkbuf + 0, XFS_SYMLINK_MAGIC);
+	mount_put_be32(blkbuf + 0, MXFS_SYMLINK_MAGIC);
 	mount_put_be32(blkbuf + 4, offset);
 	mount_put_be32(blkbuf + 8, nbytes);
 	/* sl_crc at offset 12 — zeroed for now, computed below */
@@ -5975,12 +5975,12 @@ static int readlink_remote(struct mxfs_mount *mnt,
 		/* Validate and skip V5 header */
 		if (mnt->sb.is_v5) {
 			uint32_t magic = mount_get_be32(blkbuf);
-			if (magic != XFS_SYMLINK_MAGIC) {
+			if (magic != MXFS_SYMLINK_MAGIC) {
 				mxfs_pal_log(MXFS_LOG_ERR,
 					     "readlink: ino %llu block %d bad magic "
 					     "0x%08x (expected 0x%08x)",
 					     (unsigned long long)ci->ino, n,
-					     magic, XFS_SYMLINK_MAGIC);
+					     magic, MXFS_SYMLINK_MAGIC);
 				mxfs_pal_free(blkbuf);
 				return -EIO;
 			}

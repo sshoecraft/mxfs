@@ -242,7 +242,7 @@ xfs_attr3_rmt_write_verify(
 
 const struct xfs_buf_ops xfs_attr3_rmt_buf_ops = {
 	.name = "xfs_attr3_rmt",
-	.magic = { 0, cpu_to_be32(XFS_ATTR3_RMT_MAGIC) },
+	.magic = { 0, cpu_to_be32(MXFS_ATTR3_RMT_MAGIC) },
 	.verify_read = xfs_attr3_rmt_read_verify,
 	.verify_write = xfs_attr3_rmt_write_verify,
 	.verify_struct = xfs_attr3_rmt_verify_struct,
@@ -262,7 +262,7 @@ xfs_attr3_rmt_hdr_set(
 	if (!xfs_has_crc(mp))
 		return 0;
 
-	rmt->rm_magic = cpu_to_be32(XFS_ATTR3_RMT_MAGIC);
+	rmt->rm_magic = cpu_to_be32(MXFS_ATTR3_RMT_MAGIC);
 	rmt->rm_offset = cpu_to_be32(offset);
 	rmt->rm_bytes = cpu_to_be32(size);
 	uuid_copy(&rmt->rm_uuid, &mp->m_sb.sb_meta_uuid);

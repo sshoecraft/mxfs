@@ -229,7 +229,7 @@ mxfs_dir_sf_release_base(struct xfs_inode *ip, bool held_ex)
 		gen_match = be32_to_cpu(ddip->di_gen) == VFS_I(ip)->i_generation;
 		disk_size = (unsigned)be64_to_cpu(ddip->di_size);
 		if (gen_match && fmt == XFS_DINODE_FMT_LOCAL && disk_size &&
-		    ddip->di_magic == cpu_to_be16(XFS_DINODE_MAGIC)) {
+		    ddip->di_magic == cpu_to_be16(MXFS_DINODE_MAGIC)) {
 			mxfs_dir_sf_capture_base(ip,
 				(char *)ddip + xfs_dinode_size(ddip->di_version),
 				disk_size);
@@ -611,7 +611,7 @@ mxfs_dir_sf_premerge_for_release(struct xfs_inode *ip)
 	ddip = (struct xfs_dinode *)((char *)rb + ip->i_imap.im_boffset);
 	/* Same incarnation only — a different generation is genuine inode
 	 * reuse and belongs to the normal reload guards, not to a merge. */
-	if (be16_to_cpu(ddip->di_magic) != XFS_DINODE_MAGIC ||
+	if (be16_to_cpu(ddip->di_magic) != MXFS_DINODE_MAGIC ||
 	    be32_to_cpu(ddip->di_gen) != VFS_I(ip)->i_generation ||
 	    ddip->di_format != XFS_DINODE_FMT_LOCAL) {
 		kfree(rb);

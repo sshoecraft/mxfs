@@ -579,7 +579,7 @@ xrep_dir_guess_format(
 	error = xfs_bmap_last_offset(dp, &last, XFS_DATA_FORK);
 	if (!error && XFS_FSB_TO_B(mp, last) == geo->blksize &&
 	    dp->i_disk_size == geo->blksize) {
-		*magic_guess = cpu_to_be32(XFS_DIR3_BLOCK_MAGIC);
+		*magic_guess = cpu_to_be32(MXFS_DIR3_BLOCK_MAGIC);
 		return;
 	}
 
@@ -593,7 +593,7 @@ xrep_dir_guess_format(
 	if (!error &&
 	    XFS_FSB_TO_B(mp, last) > geo->blksize &&
 	    XFS_FSB_TO_B(mp, last) == dp->i_disk_size) {
-		*magic_guess = cpu_to_be32(XFS_DIR3_DATA_MAGIC);
+		*magic_guess = cpu_to_be32(MXFS_DIR3_DATA_MAGIC);
 		return;
 	}
 }
@@ -640,15 +640,15 @@ xrep_dir_recover_dirblock(
 	 * number and pass verifiers.
 	 */
 	switch (hdr->magic) {
-	case cpu_to_be32(XFS_DIR2_BLOCK_MAGIC):
-	case cpu_to_be32(XFS_DIR3_BLOCK_MAGIC):
+	case cpu_to_be32(MXFS_DIR2_BLOCK_MAGIC):
+	case cpu_to_be32(MXFS_DIR3_BLOCK_MAGIC):
 		if (!xrep_buf_verify_struct(bp, &xfs_dir3_block_buf_ops))
 			goto out;
 		if (xfs_dir3_block_header_check(bp, rd->sc->ip->i_ino) != NULL)
 			goto out;
 		break;
-	case cpu_to_be32(XFS_DIR2_DATA_MAGIC):
-	case cpu_to_be32(XFS_DIR3_DATA_MAGIC):
+	case cpu_to_be32(MXFS_DIR2_DATA_MAGIC):
+	case cpu_to_be32(MXFS_DIR3_DATA_MAGIC):
 		if (!xrep_buf_verify_struct(bp, &xfs_dir3_data_buf_ops))
 			goto out;
 		if (xfs_dir3_data_header_check(bp, rd->sc->ip->i_ino) != NULL)

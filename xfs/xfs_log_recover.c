@@ -629,7 +629,7 @@ xlog_header_check_recover(
 	struct xfs_mount	*mp,
 	struct xlog_rec_header	*head)
 {
-	ASSERT(head->h_magicno == cpu_to_be32(XLOG_HEADER_MAGIC_NUM));
+	ASSERT(head->h_magicno == cpu_to_be32(MXFS_LOG_HEADER_MAGIC_NUM));
 
 	/*
 	 * IRIX doesn't write the h_fmt field and leaves it zeroed
@@ -660,7 +660,7 @@ xlog_header_check_mount(
 	struct xfs_mount	*mp,
 	struct xlog_rec_header	*head)
 {
-	ASSERT(head->h_magicno == cpu_to_be32(XLOG_HEADER_MAGIC_NUM));
+	ASSERT(head->h_magicno == cpu_to_be32(MXFS_LOG_HEADER_MAGIC_NUM));
 
 	if (uuid_is_null(&head->h_fs_uuid)) {
 		/*
@@ -858,7 +858,7 @@ xlog_find_verify_log_record(
 
 		head = (struct xlog_rec_header *)offset;
 
-		if (head->h_magicno == cpu_to_be32(XLOG_HEADER_MAGIC_NUM))
+		if (head->h_magicno == cpu_to_be32(MXFS_LOG_HEADER_MAGIC_NUM))
 			break;
 
 		if (!smallmem)
@@ -1207,7 +1207,7 @@ xlog_rseek_logrec_hdr(
 		if (error)
 			goto out_error;
 
-		if (*(__be32 *) offset == cpu_to_be32(XLOG_HEADER_MAGIC_NUM)) {
+		if (*(__be32 *) offset == cpu_to_be32(MXFS_LOG_HEADER_MAGIC_NUM)) {
 			*rblk = i;
 			*rhead = (struct xlog_rec_header *) offset;
 			if (++found == count)
@@ -1227,7 +1227,7 @@ xlog_rseek_logrec_hdr(
 				goto out_error;
 
 			if (*(__be32 *)offset ==
-			    cpu_to_be32(XLOG_HEADER_MAGIC_NUM)) {
+			    cpu_to_be32(MXFS_LOG_HEADER_MAGIC_NUM)) {
 				*wrapped = true;
 				*rblk = i;
 				*rhead = (struct xlog_rec_header *) offset;
@@ -1281,7 +1281,7 @@ xlog_seek_logrec_hdr(
 		if (error)
 			goto out_error;
 
-		if (*(__be32 *) offset == cpu_to_be32(XLOG_HEADER_MAGIC_NUM)) {
+		if (*(__be32 *) offset == cpu_to_be32(MXFS_LOG_HEADER_MAGIC_NUM)) {
 			*rblk = i;
 			*rhead = (struct xlog_rec_header *) offset;
 			if (++found == count)
@@ -1300,7 +1300,7 @@ xlog_seek_logrec_hdr(
 				goto out_error;
 
 			if (*(__be32 *)offset ==
-			    cpu_to_be32(XLOG_HEADER_MAGIC_NUM)) {
+			    cpu_to_be32(MXFS_LOG_HEADER_MAGIC_NUM)) {
 				*wrapped = true;
 				*rblk = i;
 				*rhead = (struct xlog_rec_header *) offset;
@@ -1948,7 +1948,7 @@ xlog_add_record(
 	struct xlog_rec_header	*recp = (struct xlog_rec_header *)buf;
 
 	memset(buf, 0, BBSIZE);
-	recp->h_magicno = cpu_to_be32(XLOG_HEADER_MAGIC_NUM);
+	recp->h_magicno = cpu_to_be32(MXFS_LOG_HEADER_MAGIC_NUM);
 	recp->h_cycle = cpu_to_be32(cycle);
 	recp->h_version = cpu_to_be32(
 			xfs_has_logv2(log->l_mp) ? 2 : 1);
@@ -2833,7 +2833,7 @@ mxfs_sb_counter_only_txn(
 		    (size_t)nbits * XFS_BLF_CHUNK)
 			return MXFS_SBCLEAN_FRAMING;
 		img = item->ri_buf[1].iov_base;
-		if (img->sb_magicnum != cpu_to_be32(XFS_SB_MAGIC))
+		if (img->sb_magicnum != cpu_to_be32(MXFS_SB_MAGIC))
 			return MXFS_SBCLEAN_FRAMING;
 		base = mxfs_sb_baseline_get(log);
 		if (!base)
@@ -5401,7 +5401,7 @@ xlog_recover_add_to_trans(
 		return 0;
 	if (list_empty(&trans->r_itemq)) {
 		/* we need to catch log corruptions here */
-		if (*(uint *)dp != XFS_TRANS_HEADER_MAGIC) {
+		if (*(uint *)dp != MXFS_TRANS_HEADER_MAGIC) {
 			xfs_warn(log->l_mp, "%s: bad header magic number",
 				__func__);
 			ASSERT(0);
@@ -5572,7 +5572,7 @@ mxfs_xlog_validate_trans_assembly(
 	 * is a mis-assembly caught BEFORE any garbage item reaches pass 2;
 	 * the per-item dump bounds where the shift started.
 	 */
-	if (trans->r_theader.th_magic == XFS_TRANS_HEADER_MAGIC &&
+	if (trans->r_theader.th_magic == MXFS_TRANS_HEADER_MAGIC &&
 	    trans->r_theader.th_num_items > 0 &&
 	    nregions != (unsigned int)trans->r_theader.th_num_items) {
 		int dumped = 0;
@@ -6366,7 +6366,7 @@ xlog_valid_rec_header(
 	int			hlen;
 
 	if (XFS_IS_CORRUPT(mp,
-			   rhead->h_magicno != cpu_to_be32(XLOG_HEADER_MAGIC_NUM)))
+			   rhead->h_magicno != cpu_to_be32(MXFS_LOG_HEADER_MAGIC_NUM)))
 		return -EFSCORRUPTED;
 
 	/*

@@ -35,8 +35,8 @@ arrived late.  `digest` says only whether the region moved at all.
 import os, struct, sys, mmap, uuid, hashlib
 
 BLK = 512
-XLOG_MAGIC = 0xFEEDBABE
-DINODE_MAGIC = 0x494E  # 'IN'
+XLOG_MAGIC = 0xFEED4D58
+DINODE_MAGIC = 0x4D4E  # 'MN'
 
 
 def pread_direct(dev, off, length):

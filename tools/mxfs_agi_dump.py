@@ -48,8 +48,8 @@ def main():
             print("cannot derive xfs_data_offset from chk_mxfs -v; pass --xfs-off"); sys.exit(2)
     with open(img, "rb") as f:
         f.seek(xfs_off); sb = f.read(512)
-        if sb[:4] != b"XFSB":
-            print("no XFSB at xfs_off=%d (magic=%r)" % (xfs_off, sb[:4])); sys.exit(2)
+        if sb[:4] != b"MXSB":
+            print("no MXSB at xfs_off=%d (magic=%r)" % (xfs_off, sb[:4])); sys.exit(2)
         bsize = be32(sb, 4); agblocks = be32(sb, 84); agcount = be32(sb, 88)
         icount = be64(sb, 128); ifree = be64(sb, 136)
         print("img=%s xfs_off=%d blocksize=%d agblocks=%d agcount=%d sb_icount=%d sb_ifree=%d"
@@ -57,7 +57,7 @@ def main():
         for agno in agnos:
             base = xfs_off + agno * agblocks * bsize
             f.seek(base + 1024); agi = f.read(512)
-            if agi[:4] != b"XAGI":
+            if agi[:4] != b"MAGI":
                 print("AG %d: bad AGI magic %r" % (agno, agi[:4])); continue
             count = be32(agi, 16); root = be32(agi, 20); level = be32(agi, 24)
             freecount = be32(agi, 28); newino = be32(agi, 32); dirino = be32(agi, 36)
@@ -110,7 +110,7 @@ def main():
                         d = f.read(176)
                         magic = d[:2]; mode = struct.unpack_from(">H", d, 2)[0]
                         nlink = be32(d, 16); gen = be32(d, 84); nu = be32(d, 88); ver = d[4]
-                        if magic != b"IN" or mode == 0 or nlink == 0:
+                        if magic != b"MN" or mode == 0 or nlink == 0:
                             dead += 1
                             print("  DEAD-ALLOCATED agino=%d ino=%d magic=%r ver=%d mode=0%o nlink=%d gen=%d next_unlinked=0x%x"
                                   % (agino, (agno << agshift) + agino, magic, ver, mode, nlink, gen, nu))

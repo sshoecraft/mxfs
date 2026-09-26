@@ -1,3 +1,76 @@
+## 2026-09-26 — 0.90.0 — MXFS has its own on-disk magic numbers (format break)
+
+A reviewer on the linux-xfs list asked that MXFS use different magic numbers,
+so that an MXFS image found in the wild is never mistaken for XFS.  Until
+now, past the MXFS envelope every structure carried XFS's own magics.  Only
+the envelope's offset kept XFS tools away, and that was not enough:
+
+- `blkid -p` through a loop device at the region's offset reported
+  `TYPE="xfs"`.
+- `xfs_repair -n` on the whole device ran its secondary-superblock scan and
+  found two candidate secondaries, MXFS's per-AG superblock copies.  A repair
+  without `-n` that accepted one would write an XFS superblock over LBA 0,
+  destroying the envelope and the lock table.
+- `xfs_repair` and a stock `xfs.ko` mount at the offset refused the volume
+  only because of one incompat feature bit (0x40000000) that upstream XFS may
+  assign at any time.
+
+Every XFS-derived on-disk magic is now MXFS's own, with an `MXFS_` name
+(`MXFS_SB_MAGIC`, `MXFS_DINODE_MAGIC`, `MXFS_LOG_HEADER_MAGIC_NUM`, ...):
+
+| structure | was | now |
+|---|---|---|
+| superblock and per-AG copies | `XFSB` | `MXSB` |
+| AGF / AGI / AGFL | `XAGF` / `XAGI` / `XAFL` | `MAGF` / `MAGI` / `MAFL` |
+| free-space btrees (bno, cnt; v4 and CRC) | `ABTB` `AB3B` `ABTC` `AB3C` | `MABB` `MA3B` `MABC` `MA3C` |
+| inode btrees (ino, fino) | `IABT` `IAB3` `FIBT` `FIB3` | `MIAB` `MIA3` `MFIB` `MFI3` |
+| rmap / refcount / bmap btrees | `RMB3` `R3FC` `BMAP` `BMA3` | `MRM3` `MRF3` `MBMA` `MBM3` |
+| rt superblock / rtrmap / rtrefc / rt bitmap / rt summary | `Frog` `MAPR` `RCNT` `BMPZ` `SUMY` | `MXRT` `MRTR` `MRTC` `MBMP` `MSUM` |
+| inode / dquot | `IN` / `DQ` | `MN` / `MQ` |
+| dir2 / dir3 block, data, free | `XD2B` `XD2D` `XD2F` / `XDB3` `XDD3` `XDF3` | `MD2B` `MD2D` `MD2F` / `MDB3` `MDD3` `MDF3` |
+| da node, attr leaf, dir leaf1/leafn (v2 / v3) | `febe` `fbee` `d2f1` `d2ff` / `3ebe` `3bee` `3df1` `3dff` | `4dbe` `4dee` `4df1` `4dff` / `4d3e` `4d3a` `4d31` `4d3f` |
+| remote attr / symlink | `XARM` / `XSLM` | `MARM` / `MSLM` |
+| log record header / transaction header | `0xFEEDbabe` / `TRAN` | `0xFEED4D58` / `MTRN` |
+
+The inode magic is `MN`, not `MI`, so that no 32-bit magic begins with the
+inode's two bytes (`MIAB`/`MIA3` do).  The log header magic stays in the
+high range, where it can never be a valid cycle number.  A mounted MXFS also
+reports `MXSB` as its VFS magic (`statfs` `f_type`), so `xfs_io`, `xfs_fsr`
+and `xfsdump` stop treating it as XFS.  The handle ioctls check the same
+value.
+
+The userspace tools (`mkfs_mxfs`, `chk_mxfs`, `resize_mxfs`, `mxfs_admin`)
+and the dump and probe scripts carry the new values.  The kernel's byte-wise
+magic checks in the diagnostic probes now compare against the symbols.
+
+**Volumes formatted by an earlier MXFS do not mount on 0.90.0.**  Reformat
+with `mkfs_mxfs`.
+
+Verified: `tests/mxfs_magic_isolation.sh` on a new volume, recognised 0/4.
+`xfs_repair -n` on the whole device finds no candidate secondary superblock,
+`blkid -p` at the offset reports no type, and `xfs_repair -n` and a stock
+`xfs.ko` mount at the offset both reject the bad magic number.
+
+`tests/full_verify.sh 0.90.0` (build `21509EBFD4F990915F60D87`, clean copy,
+0 warnings; `tests/evidence/full_verify_0.90.0.log`):
+
+- The 2-node TCP suite passed 28 tests, including `crash_consistency`,
+  `crash_audit` (log replay under the new log magic) and `chk_clean` (CLEAN).
+- It failed 1: `fio_perf` ran over its 120 s budget while the host's load
+  was 16.9.  Rerun alone on the same build at load 4.6 it passed in 105 s
+  (seqW 112 MiB/s, seqR 128 MiB/s, randW 26256 iops, randR 29612 iops).
+- The packaged rounds passed on Ubuntu 24.04, Proxmox 9 (6.17.2-1-pve and
+  7.0.14-19-pve), RHEL 9.8 (5.14.0-687.49.1.el9_8) and Debian 13
+  (6.12.107+deb13).  So did the hung-node test on RHEL and Debian, and the
+  SELinux sVirt test on RHEL.
+
+Still open and shipped with the user's agreement:
+`D-SURVIVOR-CREATE-STALLS-60S-AFTER-PEER-DEATH-UNTIL-RESUMED-VICTIM-UNMOUNTS`,
+a ~60 s create stall on a RHEL survivor after a peer's death, seen once in
+39 attempts.
+
+`D-MXFS-VOLUMES-CARRY-XFS-MAGICS-SO-XFS-TOOLS-TAKE-THEM-FOR-XFS` is removed.
+
 ## 2026-09-26 — 0.89.93 — the bootstrap-owner takeover is driven live on CAW for the first time
 
 `tests/bootstrap_takeover_2n.sh` had never reached a takeover on this rig: its

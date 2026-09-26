@@ -143,8 +143,8 @@ xfs_dir3_block_write_verify(
 
 const struct xfs_buf_ops xfs_dir3_block_buf_ops = {
 	.name = "xfs_dir3_block",
-	.magic = { cpu_to_be32(XFS_DIR2_BLOCK_MAGIC),
-		   cpu_to_be32(XFS_DIR3_BLOCK_MAGIC) },
+	.magic = { cpu_to_be32(MXFS_DIR2_BLOCK_MAGIC),
+		   cpu_to_be32(MXFS_DIR3_BLOCK_MAGIC) },
 	.verify_read = xfs_dir3_block_read_verify,
 	.verify_write = xfs_dir3_block_write_verify,
 	.verify_struct = xfs_dir3_block_verify,
@@ -160,7 +160,7 @@ xfs_dir3_block_header_check(
 	if (xfs_has_crc(mp)) {
 		struct xfs_dir3_blk_hdr *hdr3 = bp->b_addr;
 
-		if (hdr3->magic != cpu_to_be32(XFS_DIR3_BLOCK_MAGIC))
+		if (hdr3->magic != cpu_to_be32(MXFS_DIR3_BLOCK_MAGIC))
 			return __this_address;
 
 		if (be64_to_cpu(hdr3->owner) != owner)
@@ -190,7 +190,7 @@ xfs_dir3_block_read(
 	 * P56-BLKREAD — capture the stale-inode read.
 	 * We are reading dir block 0 with BLOCK-format ops because the caller
 	 * decided FMT_BLOCK (in-core nextents==1).  If the buffer's on-disk
-	 * magic is XDD3 (0x58444433 = dir3 DATA) rather than XDB3 (block), the
+	 * magic is dir3 DATA rather than dir3 BLOCK, the
 	 * peer converted this dir block->leaf and our in-core inode (nextents/
 	 * format) is STALE while the DATA block was FUA-re-read fresh — the
 	 * inode-vs-datablock coherency asymmetry.  Log the in-core inode state
@@ -207,8 +207,7 @@ xfs_dir3_block_read(
 		    (*bpp)->b_addr) {
 			const unsigned char *m = (*bpp)->b_addr;
 
-			if (!(m[0] == 0x58 && m[1] == 0x44 && m[2] == 0x42 &&
-			      m[3] == 0x33)) {		/* not XDB3 */
+			if (get_unaligned_be32(m) != MXFS_DIR3_BLOCK_MAGIC) {
 				static atomic_t p56b_n = ATOMIC_INIT(0);
 
 				if (atomic_inc_return(&p56b_n) <= 400)
@@ -258,14 +257,14 @@ xfs_dir3_block_init(
 
 	if (xfs_has_crc(mp)) {
 		memset(hdr3, 0, sizeof(*hdr3));
-		hdr3->magic = cpu_to_be32(XFS_DIR3_BLOCK_MAGIC);
+		hdr3->magic = cpu_to_be32(MXFS_DIR3_BLOCK_MAGIC);
 		hdr3->blkno = cpu_to_be64(xfs_buf_daddr(bp));
 		hdr3->owner = cpu_to_be64(args->owner);
 		uuid_copy(&hdr3->uuid, &mp->m_sb.sb_meta_uuid);
 		return;
 
 	}
-	hdr3->magic = cpu_to_be32(XFS_DIR2_BLOCK_MAGIC);
+	hdr3->magic = cpu_to_be32(MXFS_DIR2_BLOCK_MAGIC);
 }
 
 static void
@@ -1086,8 +1085,8 @@ xfs_dir2_leaf_to_block(
 				(unsigned long long)ktime_get_real_ns());
 	}
 
-	ASSERT(leafhdr.magic == XFS_DIR2_LEAF1_MAGIC ||
-	       leafhdr.magic == XFS_DIR3_LEAF1_MAGIC);
+	ASSERT(leafhdr.magic == MXFS_DIR2_LEAF1_MAGIC ||
+	       leafhdr.magic == MXFS_DIR3_LEAF1_MAGIC);
 	/*
 	 * If there are data blocks other than the first one, take this
 	 * opportunity to remove trailing empty data blocks that may have
@@ -1118,8 +1117,8 @@ xfs_dir2_leaf_to_block(
 			return error;
 	}
 	hdr = dbp->b_addr;
-	ASSERT(hdr->magic == cpu_to_be32(XFS_DIR2_DATA_MAGIC) ||
-	       hdr->magic == cpu_to_be32(XFS_DIR3_DATA_MAGIC));
+	ASSERT(hdr->magic == cpu_to_be32(MXFS_DIR2_DATA_MAGIC) ||
+	       hdr->magic == cpu_to_be32(MXFS_DIR3_DATA_MAGIC));
 
 	/*
 	 * INSTRUMENTED PROBE (always-on, ratelimited): the leaf->block reshape

@@ -187,13 +187,13 @@ xfs_attr3_node_inactive(
 		 */
 		info = child_bp->b_addr;
 		switch (info->magic) {
-		case cpu_to_be16(XFS_DA_NODE_MAGIC):
-		case cpu_to_be16(XFS_DA3_NODE_MAGIC):
+		case cpu_to_be16(MXFS_DA_NODE_MAGIC):
+		case cpu_to_be16(MXFS_DA3_NODE_MAGIC):
 			error = xfs_attr3_node_inactive(trans, dp, child_bp,
 							level + 1);
 			break;
-		case cpu_to_be16(XFS_ATTR_LEAF_MAGIC):
-		case cpu_to_be16(XFS_ATTR3_LEAF_MAGIC):
+		case cpu_to_be16(MXFS_ATTR_LEAF_MAGIC):
+		case cpu_to_be16(MXFS_ATTR3_LEAF_MAGIC):
 			error = xfs_attr3_leaf_inactive(trans, dp, child_bp);
 			break;
 		default:
@@ -280,12 +280,12 @@ xfs_attr3_root_inactive(
 	 */
 	info = bp->b_addr;
 	switch (info->magic) {
-	case cpu_to_be16(XFS_DA_NODE_MAGIC):
-	case cpu_to_be16(XFS_DA3_NODE_MAGIC):
+	case cpu_to_be16(MXFS_DA_NODE_MAGIC):
+	case cpu_to_be16(MXFS_DA3_NODE_MAGIC):
 		error = xfs_attr3_node_inactive(trans, dp, bp, 1);
 		break;
-	case cpu_to_be16(XFS_ATTR_LEAF_MAGIC):
-	case cpu_to_be16(XFS_ATTR3_LEAF_MAGIC):
+	case cpu_to_be16(MXFS_ATTR_LEAF_MAGIC):
+	case cpu_to_be16(MXFS_ATTR3_LEAF_MAGIC):
 		error = xfs_attr3_leaf_inactive(trans, dp, bp);
 		break;
 	default:

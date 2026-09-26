@@ -731,7 +731,7 @@ int xfs_attr_node_removename_setup(
 	state = attr->xattri_da_state;
 	ASSERT(state->path.blk[state->path.active - 1].bp != NULL);
 	ASSERT(state->path.blk[state->path.active - 1].magic ==
-		XFS_ATTR_LEAF_MAGIC);
+		MXFS_ATTR_LEAF_MAGIC);
 
 	error = xfs_attr_leaf_mark_incomplete(args, state);
 	if (error)
@@ -1520,7 +1520,7 @@ xfs_attr_node_try_addname(
 	trace_xfs_attr_node_addname(state->args);
 
 	blk = &state->path.blk[state->path.active-1];
-	ASSERT(blk->magic == XFS_ATTR_LEAF_MAGIC);
+	ASSERT(blk->magic == MXFS_ATTR_LEAF_MAGIC);
 
 	if (!xfs_attr3_leaf_add(blk->bp, state->args)) {
 		if (state->path.active == 1) {
@@ -1567,7 +1567,7 @@ xfs_attr_node_removename(
 	 * Remove the name and update the hashvals in the tree.
 	 */
 	blk = &state->path.blk[state->path.active-1];
-	ASSERT(blk->magic == XFS_ATTR_LEAF_MAGIC);
+	ASSERT(blk->magic == MXFS_ATTR_LEAF_MAGIC);
 	retval = xfs_attr3_leaf_remove(blk->bp, args);
 	xfs_da3_fixhashpath(state, &state->path);
 

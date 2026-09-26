@@ -239,11 +239,11 @@ xfs_attr_node_list_lookup(
 			return error;
 		node = bp->b_addr;
 		magic = be16_to_cpu(node->hdr.info.magic);
-		if (magic == XFS_ATTR_LEAF_MAGIC ||
-		    magic == XFS_ATTR3_LEAF_MAGIC)
+		if (magic == MXFS_ATTR_LEAF_MAGIC ||
+		    magic == MXFS_ATTR3_LEAF_MAGIC)
 			break;
-		if (magic != XFS_DA_NODE_MAGIC &&
-		    magic != XFS_DA3_NODE_MAGIC) {
+		if (magic != MXFS_DA_NODE_MAGIC &&
+		    magic != MXFS_DA3_NODE_MAGIC) {
 			XFS_CORRUPTION_ERROR(__func__, XFS_ERRLEVEL_LOW, mp,
 					node, sizeof(*node));
 			goto out_corruptbuf;
@@ -346,8 +346,8 @@ xfs_attr_node_list(
 
 		node = bp->b_addr;
 		switch (be16_to_cpu(node->hdr.info.magic)) {
-		case XFS_DA_NODE_MAGIC:
-		case XFS_DA3_NODE_MAGIC:
+		case MXFS_DA_NODE_MAGIC:
+		case MXFS_DA3_NODE_MAGIC:
 			trace_xfs_attr_list_wrong_blk(context);
 			fa = xfs_da3_node_header_check(bp, dp->i_ino);
 			if (fa) {
@@ -357,8 +357,8 @@ xfs_attr_node_list(
 			xfs_trans_brelse(context->tp, bp);
 			bp = NULL;
 			break;
-		case XFS_ATTR_LEAF_MAGIC:
-		case XFS_ATTR3_LEAF_MAGIC:
+		case MXFS_ATTR_LEAF_MAGIC:
+		case MXFS_ATTR3_LEAF_MAGIC:
 			leaf = bp->b_addr;
 			fa = xfs_attr3_leaf_header_check(bp, dp->i_ino);
 			if (fa) {

@@ -484,7 +484,7 @@ xfs_ialloc_inode_init(
 			int	ioffset = i << mp->m_sb.sb_inodelog;
 
 			free = xfs_make_iptr(mp, fbuf, i);
-			free->di_magic = cpu_to_be16(XFS_DINODE_MAGIC);
+			free->di_magic = cpu_to_be16(MXFS_DINODE_MAGIC);
 			free->di_version = version;
 			free->di_gen = cpu_to_be32(gen);
 			free->di_next_unlinked = cpu_to_be32(NULLAGINO);
@@ -4321,7 +4321,7 @@ xfs_difree_inobt(
 	int				i;
 	int				off;
 
-	ASSERT(agi->agi_magicnum == cpu_to_be32(XFS_AGI_MAGIC));
+	ASSERT(agi->agi_magicnum == cpu_to_be32(MXFS_AGI_MAGIC));
 	ASSERT(XFS_AGINO_TO_AGBNO(mp, agino) < be32_to_cpu(agi->agi_length));
 
 	/*
@@ -5034,7 +5034,7 @@ xfs_ialloc_log_agi(
 #ifdef DEBUG
 	struct xfs_agi		*agi = bp->b_addr;
 
-	ASSERT(agi->agi_magicnum == cpu_to_be32(XFS_AGI_MAGIC));
+	ASSERT(agi->agi_magicnum == cpu_to_be32(MXFS_AGI_MAGIC));
 #endif
 
 	/*
@@ -5188,7 +5188,7 @@ xfs_agi_write_verify(
 
 const struct xfs_buf_ops xfs_agi_buf_ops = {
 	.name = "xfs_agi",
-	.magic = { cpu_to_be32(XFS_AGI_MAGIC), cpu_to_be32(XFS_AGI_MAGIC) },
+	.magic = { cpu_to_be32(MXFS_AGI_MAGIC), cpu_to_be32(MXFS_AGI_MAGIC) },
 	.verify_read = xfs_agi_read_verify,
 	.verify_write = xfs_agi_write_verify,
 	.verify_struct = xfs_agi_verify,

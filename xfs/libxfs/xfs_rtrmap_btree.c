@@ -298,7 +298,7 @@ xfs_rtrmapbt_write_verify(
 
 const struct xfs_buf_ops xfs_rtrmapbt_buf_ops = {
 	.name			= "xfs_rtrmapbt",
-	.magic			= { 0, cpu_to_be32(XFS_RTRMAP_CRC_MAGIC) },
+	.magic			= { 0, cpu_to_be32(MXFS_RTRMAP_CRC_MAGIC) },
 	.verify_read		= xfs_rtrmapbt_read_verify,
 	.verify_write		= xfs_rtrmapbt_write_verify,
 	.verify_struct		= xfs_rtrmapbt_verify,
@@ -571,7 +571,7 @@ xfs_rtrmapbt_mem_rw_verify(
 /* skip crc checks on in-memory btrees to save time */
 static const struct xfs_buf_ops xfs_rtrmapbt_mem_buf_ops = {
 	.name			= "xfs_rtrmapbt_mem",
-	.magic			= { 0, cpu_to_be32(XFS_RTRMAP_CRC_MAGIC) },
+	.magic			= { 0, cpu_to_be32(MXFS_RTRMAP_CRC_MAGIC) },
 	.verify_read		= xfs_rtrmapbt_mem_rw_verify,
 	.verify_write		= xfs_rtrmapbt_mem_rw_verify,
 	.verify_struct		= xfs_rtrmapbt_mem_verify,
@@ -917,7 +917,7 @@ xfs_rtrmapbt_to_disk(
 	unsigned int		numrecs;
 	unsigned int		maxrecs;
 
-	ASSERT(rblock->bb_magic == cpu_to_be32(XFS_RTRMAP_CRC_MAGIC));
+	ASSERT(rblock->bb_magic == cpu_to_be32(MXFS_RTRMAP_CRC_MAGIC));
 	ASSERT(uuid_equal(&rblock->bb_u.l.bb_uuid, &mp->m_sb.sb_meta_uuid));
 	ASSERT(rblock->bb_u.l.bb_blkno == cpu_to_be64(XFS_BUF_DADDR_NULL));
 	ASSERT(rblock->bb_u.l.bb_leftsib == cpu_to_be64(NULLFSBLOCK));

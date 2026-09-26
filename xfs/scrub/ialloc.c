@@ -321,7 +321,7 @@ xchk_iallocbt_check_cluster_ifree(
 	fsino = xfs_agino_to_ino(to_perag(bs->cur->bc_group), agino);
 	irec_free = (irec->ir_free & XFS_INOBT_MASK(irec_ino));
 
-	if (be16_to_cpu(dip->di_magic) != XFS_DINODE_MAGIC ||
+	if (be16_to_cpu(dip->di_magic) != MXFS_DINODE_MAGIC ||
 	    (dip->di_version >= 3 && be64_to_cpu(dip->di_ino) != fsino)) {
 		xchk_btree_set_corrupt(bs->sc, bs->cur, 0);
 		goto out;

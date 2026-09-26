@@ -384,7 +384,7 @@ xfs_rmapbt_write_verify(
 
 const struct xfs_buf_ops xfs_rmapbt_buf_ops = {
 	.name			= "xfs_rmapbt",
-	.magic			= { 0, cpu_to_be32(XFS_RMAP_CRC_MAGIC) },
+	.magic			= { 0, cpu_to_be32(MXFS_RMAP_CRC_MAGIC) },
 	.verify_read		= xfs_rmapbt_read_verify,
 	.verify_write		= xfs_rmapbt_write_verify,
 	.verify_struct		= xfs_rmapbt_verify,
@@ -582,7 +582,7 @@ xfs_rmapbt_mem_rw_verify(
 /* skip crc checks on in-memory btrees to save time */
 static const struct xfs_buf_ops xfs_rmapbt_mem_buf_ops = {
 	.name			= "xfs_rmapbt_mem",
-	.magic			= { 0, cpu_to_be32(XFS_RMAP_CRC_MAGIC) },
+	.magic			= { 0, cpu_to_be32(MXFS_RMAP_CRC_MAGIC) },
 	.verify_read		= xfs_rmapbt_mem_rw_verify,
 	.verify_write		= xfs_rmapbt_mem_rw_verify,
 	.verify_struct		= xfs_rmapbt_mem_verify,

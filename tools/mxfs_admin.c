@@ -53,7 +53,7 @@
                            STRINGIFY(MXFS_VERSION_PATCH)
 
 /* XFS superblock (xfs_dsb), big-endian except the CRC */
-#define XFS_SB_MAGIC            0x58465342  /* "XFSB" */
+#define MXFS_SB_MAGIC            0x4D585342  /* "MXSB" */
 #define XFS_SB_OFF_BLOCKSIZE    4
 #define XFS_SB_OFF_UUID         32
 #define XFS_SB_OFF_AGBLOCKS     84
@@ -194,7 +194,7 @@ static int dev_open(struct admin_dev *d, const char *path, bool change)
         return -1;
     }
     if (read_full(d->fd, d->sb, sizeof(d->sb), d->sup.xfs_data_offset) < 0 ||
-        get_be32(d->sb) != XFS_SB_MAGIC) {
+        get_be32(d->sb) != MXFS_SB_MAGIC) {
         fprintf(stderr, "mxfs_admin: no XFS superblock at the envelope's data "
                 "offset %llu\n", (unsigned long long)d->sup.xfs_data_offset);
         return -1;
@@ -265,7 +265,7 @@ static int for_each_sb(struct admin_dev *d,
         uint64_t off = ag_sb_offset(d, agno);
 
         if (read_full(d->fd, sec, sizeof(sec), off) < 0 ||
-            get_be32(sec) != XFS_SB_MAGIC || !xfs_crc_ok(sec, sizeof(sec))) {
+            get_be32(sec) != MXFS_SB_MAGIC || !xfs_crc_ok(sec, sizeof(sec))) {
             fprintf(stderr, "mxfs_admin: AG %u superblock does not validate; "
                     "left unchanged (run chk_mxfs)\n", agno);
             bad++;

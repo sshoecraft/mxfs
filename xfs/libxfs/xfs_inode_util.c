@@ -299,7 +299,7 @@ mxfs_dinode_nu_write(
 		return 0;
 	nudip = xfs_buf_offset(nubp, ip->i_imap.im_boffset);
 	if ((nubp->b_flags & XBF_STALE) ||
-	    be16_to_cpu(nudip->di_magic) != XFS_DINODE_MAGIC ||
+	    be16_to_cpu(nudip->di_magic) != MXFS_DINODE_MAGIC ||
 	    nudip->di_next_unlinked == cpu_to_be32(want)) {
 		xfs_trans_brelse(tp, nubp);
 		return 0;

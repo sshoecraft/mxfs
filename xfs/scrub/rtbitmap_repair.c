@@ -381,7 +381,7 @@ xrep_rtbitmap_prep_buf(
 	if (xfs_has_rtgroups(sc->mp)) {
 		struct xfs_rtbuf_blkinfo	*hdr = bp->b_addr;
 
-		hdr->rt_magic = cpu_to_be32(XFS_RTBITMAP_MAGIC);
+		hdr->rt_magic = cpu_to_be32(MXFS_RTBITMAP_MAGIC);
 		hdr->rt_owner = cpu_to_be64(sc->ip->i_ino);
 		hdr->rt_blkno = cpu_to_be64(xfs_buf_daddr(bp));
 		hdr->rt_lsn = 0;

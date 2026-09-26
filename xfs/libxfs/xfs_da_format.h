@@ -13,10 +13,10 @@
  * It is used to manage a doubly linked list of all blocks at the same
  * level in the Btree, and to identify which type of block this is.
  */
-#define XFS_DA_NODE_MAGIC	0xfebe	/* magic number: non-leaf blocks */
-#define XFS_ATTR_LEAF_MAGIC	0xfbee	/* magic number: attribute leaf blks */
-#define XFS_DIR2_LEAF1_MAGIC	0xd2f1	/* magic number: v2 dirlf single blks */
-#define XFS_DIR2_LEAFN_MAGIC	0xd2ff	/* magic number: v2 dirlf multi blks */
+#define MXFS_DA_NODE_MAGIC	0x4dbe	/* magic number: non-leaf blocks */
+#define MXFS_ATTR_LEAF_MAGIC	0x4dee	/* magic number: attribute leaf blks */
+#define MXFS_DIR2_LEAF1_MAGIC	0x4df1	/* magic number: v2 dirlf single blks */
+#define MXFS_DIR2_LEAFN_MAGIC	0x4dff	/* magic number: v2 dirlf multi blks */
 
 typedef struct xfs_da_blkinfo {
 	__be32		forw;			/* previous block in list */
@@ -33,10 +33,10 @@ typedef struct xfs_da_blkinfo {
  * code can use the struct xfs_da_blkinfo for manipulating the tree links and
  * magic numbers without modification for both v2 and v3 nodes.
  */
-#define XFS_DA3_NODE_MAGIC	0x3ebe	/* magic number: non-leaf blocks */
-#define XFS_ATTR3_LEAF_MAGIC	0x3bee	/* magic number: attribute leaf blks */
-#define XFS_DIR3_LEAF1_MAGIC	0x3df1	/* magic number: v3 dirlf single blks */
-#define XFS_DIR3_LEAFN_MAGIC	0x3dff	/* magic number: v3 dirlf multi blks */
+#define MXFS_DA3_NODE_MAGIC	0x4d3e	/* magic number: non-leaf blocks */
+#define MXFS_ATTR3_LEAF_MAGIC	0x4d3a	/* magic number: attribute leaf blks */
+#define MXFS_DIR3_LEAF1_MAGIC	0x4d31	/* magic number: v3 dirlf single blks */
+#define MXFS_DIR3_LEAFN_MAGIC	0x4d3f	/* magic number: v3 dirlf multi blks */
 
 struct xfs_da3_blkinfo {
 	/*
@@ -106,9 +106,9 @@ struct xfs_da3_intnode {
  * code and defined in xfs_da_btree.h.
  */
 
-#define	XFS_DIR2_BLOCK_MAGIC	0x58443242	/* XD2B: single block dirs */
-#define	XFS_DIR2_DATA_MAGIC	0x58443244	/* XD2D: multiblock dirs */
-#define	XFS_DIR2_FREE_MAGIC	0x58443246	/* XD2F: free index blocks */
+#define	MXFS_DIR2_BLOCK_MAGIC	0x4d443242	/* MD2B: single block dirs */
+#define	MXFS_DIR2_DATA_MAGIC	0x4d443244	/* MD2D: multiblock dirs */
+#define	MXFS_DIR2_FREE_MAGIC	0x4d443246	/* MD2F: free index blocks */
 
 /*
  * Directory Version 3 With CRCs.
@@ -138,9 +138,9 @@ struct xfs_da3_intnode {
  *	- new magic numbers to be able to detect the v2/v3 types on the fly.
  */
 
-#define	XFS_DIR3_BLOCK_MAGIC	0x58444233	/* XDB3: single block dirs */
-#define	XFS_DIR3_DATA_MAGIC	0x58444433	/* XDD3: multiblock dirs */
-#define	XFS_DIR3_FREE_MAGIC	0x58444633	/* XDF3: free index blocks */
+#define	MXFS_DIR3_BLOCK_MAGIC	0x4d444233	/* MDB3: single block dirs */
+#define	MXFS_DIR3_DATA_MAGIC	0x4d444433	/* MDD3: multiblock dirs */
+#define	MXFS_DIR3_FREE_MAGIC	0x4d444633	/* MDF3: free index blocks */
 
 /*
  * Dirents in version 3 directories have a file type field. Additions to this
@@ -309,8 +309,8 @@ typedef struct xfs_dir2_data_free {
  * The code knows that XFS_DIR2_DATA_FD_COUNT is 3.
  */
 typedef struct xfs_dir2_data_hdr {
-	__be32			magic;		/* XFS_DIR2_DATA_MAGIC or */
-						/* XFS_DIR2_BLOCK_MAGIC */
+	__be32			magic;		/* MXFS_DIR2_DATA_MAGIC or */
+						/* MXFS_DIR2_BLOCK_MAGIC */
 	xfs_dir2_data_free_t	bestfree[XFS_DIR2_DATA_FD_COUNT];
 } xfs_dir2_data_hdr_t;
 
@@ -402,9 +402,9 @@ xfs_dir2_data_unused_tag_p(struct xfs_dir2_data_unused *dup)
  *    +---------------------------+
  *
  * The xfs_dir2_data_off_t members (bests) and tail are at the end of the block
- * for single-leaf (magic = XFS_DIR2_LEAF1_MAGIC) blocks only, but not present
+ * for single-leaf (magic = MXFS_DIR2_LEAF1_MAGIC) blocks only, but not present
  * for directories with separate leaf nodes and free space blocks
- * (magic = XFS_DIR2_LEAFN_MAGIC).
+ * (magic = MXFS_DIR2_LEAFN_MAGIC).
  *
  * As all the entries are variable size structures the accessors below should
  * be used to iterate over them.
@@ -483,7 +483,7 @@ xfs_dir2_leaf_bests_p(struct xfs_dir2_leaf_tail *ltp)
 #define	XFS_DIR2_FREE_OFFSET	(XFS_DIR2_FREE_SPACE * XFS_DIR2_SPACE_SIZE)
 
 typedef	struct xfs_dir2_free_hdr {
-	__be32			magic;		/* XFS_DIR2_FREE_MAGIC */
+	__be32			magic;		/* MXFS_DIR2_FREE_MAGIC */
 	__be32			firstdb;	/* db of first entry */
 	__be32			nvalid;		/* count of valid entries */
 	__be32			nused;		/* count of used entries */
@@ -748,7 +748,7 @@ struct xfs_attr3_leafblock {
 static inline int
 xfs_attr3_leaf_hdr_size(const struct xfs_attr_leafblock *leafp)
 {
-	if (leafp->hdr.info.magic == cpu_to_be16(XFS_ATTR3_LEAF_MAGIC))
+	if (leafp->hdr.info.magic == cpu_to_be16(MXFS_ATTR3_LEAF_MAGIC))
 		return sizeof(struct xfs_attr3_leaf_hdr);
 	return sizeof(struct xfs_attr_leaf_hdr);
 }
@@ -756,7 +756,7 @@ xfs_attr3_leaf_hdr_size(const struct xfs_attr_leafblock *leafp)
 static inline struct xfs_attr_leaf_entry *
 xfs_attr3_leaf_entryp(xfs_attr_leafblock_t *leafp)
 {
-	if (leafp->hdr.info.magic == cpu_to_be16(XFS_ATTR3_LEAF_MAGIC))
+	if (leafp->hdr.info.magic == cpu_to_be16(MXFS_ATTR3_LEAF_MAGIC))
 		return &((struct xfs_attr3_leafblock *)leafp)->entries[0];
 	return &leafp->entries[0];
 }
@@ -865,7 +865,7 @@ static inline int xfs_attr_leaf_entsize_local_max(int bsize)
  * allocation, reading and writing of these attributes as we don't have to guess
  * the number of blocks needed to store the attribute data.
  */
-#define XFS_ATTR3_RMT_MAGIC	0x5841524d	/* XARM */
+#define MXFS_ATTR3_RMT_MAGIC	0x4d41524d	/* MARM */
 
 struct xfs_attr3_rmt_hdr {
 	__be32	rm_magic;

@@ -2,7 +2,7 @@
 """xlog_slice_scan.py — offline map of an MXFS per-node XFS log slice image.
 
 Scans a raw (or .gz) slice image for xlog record headers (h_magicno
-0xFEEDbabe), prints each record's block, cycle, version, len, lsn,
+0xFEED4D58), prints each record's block, cycle, version, len, lsn,
 tail_lsn, num_logops, and marks zero/nonzero block ranges.  Built for the
 incident-474 stuck-replay analysis (torn head at a given block); generally
 useful for any "why won't this slice replay" question.
@@ -14,7 +14,7 @@ import struct
 import sys
 
 BB = 512
-XLOG_HEADER_MAGIC = 0xFEEDBABE
+XLOG_HEADER_MAGIC = 0xFEED4D58
 
 
 def load(path):

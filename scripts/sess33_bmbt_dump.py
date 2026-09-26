@@ -22,7 +22,7 @@ data_off, = struct.unpack_from('<Q', sup, 88)
 
 # XFS sb
 sb = rd(data_off, 512)
-assert sb[0:4] == b'XFSB', sb[0:4]
+assert sb[0:4] == b'MXSB', sb[0:4]
 blocksize, = struct.unpack_from('>I', sb, 4)
 agblocks, = struct.unpack_from('>I', sb, 84)
 agcount, = struct.unpack_from('>I', sb, 88)
@@ -50,7 +50,7 @@ def ino_to_daddr_off(ino):
 
 daddr, boff = ino_to_daddr_off(ino)
 dino = rd(data_off + daddr * 512 + boff, inodesize)
-assert dino[0:2] == b'IN', dino[0:2]
+assert dino[0:2] == b'MN', dino[0:2]
 mode, = struct.unpack_from('>H', dino, 2)
 version = dino[4]
 fmt = dino[5]
@@ -89,11 +89,11 @@ elif fmt == 3:  # BTREE: bmdr root inline
         blk = rd(data_off + fsb_to_daddr(fsb) * 512, blocksize)
         bmag = blk[0:4]
         blevel, bnrec = struct.unpack_from('>HH', blk, 4)
-        if bmag not in (b'BMA3', b'BMAP'):
+        if bmag not in (b'MBM3', b'MBMA'):
             print(f"# BAD child fsb={fsb} daddr={fsb_to_daddr(fsb)} "
                   f"magic={bmag}")
             continue
-        hdr = 72 if bmag == b'BMA3' else 24  # v5 long-form header
+        hdr = 72 if bmag == b'MBM3' else 24  # v5 long-form header
         if blevel == 0:
             for i in range(bnrec):
                 l0, l1 = struct.unpack_from('>QQ', blk, hdr + 16 * i)

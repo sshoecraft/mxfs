@@ -148,7 +148,7 @@ mxfs_dir_evict_owned_dir_blocks(struct xfs_inode *ip, bool leaf_only)
 						BBTOB(bp->b_length),
 						((struct xfs_dir3_blk_hdr *)
 						 bp->b_addr)->magic ==
-						cpu_to_be32(XFS_DIR3_BLOCK_MAGIC),
+						cpu_to_be32(MXFS_DIR3_BLOCK_MAGIC),
 						&fs, &fx);
 				mxfs_probe("mxfs: P4O-OWNEVICT ino=%llu daddr=%lld evict=%d dirty=%d in_ail=%d pin=%d delwri=%d done=%d in_cil=%d fcnt=%u fsum=0x%x fxor=0x%x comm=%s realns=%llu\n",
 					(unsigned long long)ip->i_ino,
@@ -948,7 +948,7 @@ mxfs_dir_evict_data_blocks(struct xfs_inode *ip)
 							BBTOB(dbp->b_length),
 							((struct xfs_dir3_blk_hdr *)
 							 dbp->b_addr)->magic ==
-							cpu_to_be32(XFS_DIR3_BLOCK_MAGIC),
+							cpu_to_be32(MXFS_DIR3_BLOCK_MAGIC),
 							&fs, &fx);
 					mxfs_probe("mxfs: P68-EVDECIDE ino=%llu daddr=%llu undurable=%d staleprt=%d b_epoch=%u cur_mep=%u valid_epoch=%u in_ail=%d dirty=%d pin=%d delwri=%d done=%d in_cil=%d fcnt=%u fsum=0x%x fxor=0x%x mode=%u egseq=%llu comm=%s realns=%llu\n",
 						(unsigned long long)ip->i_ino,
@@ -1204,10 +1204,10 @@ mxfs_dir_evict_data_blocks(struct xfs_inode *ip)
 						struct xfs_dir3_blk_hdr *ih = dbp->b_addr;
 						uint32_t sm = be32_to_cpu(sh->magic);
 						uint32_t im = be32_to_cpu(ih->magic);
-						bool sok = (sm == XFS_DIR3_DATA_MAGIC ||
-							    sm == XFS_DIR3_BLOCK_MAGIC);
-						bool iok = (im == XFS_DIR3_DATA_MAGIC ||
-							    im == XFS_DIR3_BLOCK_MAGIC);
+						bool sok = (sm == MXFS_DIR3_DATA_MAGIC ||
+							    sm == MXFS_DIR3_BLOCK_MAGIC);
+						bool iok = (im == MXFS_DIR3_DATA_MAGIC ||
+							    im == MXFS_DIR3_BLOCK_MAGIC);
 						bool same_owner =
 							(be64_to_cpu(sh->owner) ==
 							 be64_to_cpu(ih->owner));

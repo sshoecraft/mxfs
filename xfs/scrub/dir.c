@@ -338,8 +338,8 @@ xchk_dir_rec(
 	unsigned int			tag;
 	int				error;
 
-	ASSERT(blk->magic == XFS_DIR2_LEAF1_MAGIC ||
-	       blk->magic == XFS_DIR2_LEAFN_MAGIC);
+	ASSERT(blk->magic == MXFS_DIR2_LEAF1_MAGIC ||
+	       blk->magic == MXFS_DIR2_LEAFN_MAGIC);
 
 	xfs_dir2_leaf_hdr_from_disk(mp, &hdr, blk->bp->b_addr);
 	ent = hdr.ents + blk->index;

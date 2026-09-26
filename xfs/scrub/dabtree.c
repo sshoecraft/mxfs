@@ -104,7 +104,7 @@ xchk_da_btree_node_entry(
 	struct xfs_da_state_blk		*blk = &ds->state->path.blk[level];
 	struct xfs_da3_icnode_hdr	hdr;
 
-	ASSERT(blk->magic == XFS_DA_NODE_MAGIC);
+	ASSERT(blk->magic == MXFS_DA_NODE_MAGIC);
 
 	xfs_da3_node_hdr_from_disk(ds->sc->mp, &hdr, blk->bp->b_addr);
 	return hdr.btree + blk->index;
@@ -169,8 +169,8 @@ xchk_da_btree_read_verify(
 	struct xfs_da_blkinfo	*info = bp->b_addr;
 
 	switch (be16_to_cpu(info->magic)) {
-	case XFS_DIR2_LEAF1_MAGIC:
-	case XFS_DIR3_LEAF1_MAGIC:
+	case MXFS_DIR2_LEAF1_MAGIC:
+	case MXFS_DIR3_LEAF1_MAGIC:
 		bp->b_ops = &xfs_dir3_leaf1_buf_ops;
 		bp->b_ops->verify_read(bp);
 		return;
@@ -191,8 +191,8 @@ xchk_da_btree_write_verify(
 	struct xfs_da_blkinfo	*info = bp->b_addr;
 
 	switch (be16_to_cpu(info->magic)) {
-	case XFS_DIR2_LEAF1_MAGIC:
-	case XFS_DIR3_LEAF1_MAGIC:
+	case MXFS_DIR2_LEAF1_MAGIC:
+	case MXFS_DIR3_LEAF1_MAGIC:
 		bp->b_ops = &xfs_dir3_leaf1_buf_ops;
 		bp->b_ops->verify_write(bp);
 		return;
@@ -213,8 +213,8 @@ xchk_da_btree_verify(
 	struct xfs_da_blkinfo	*info = bp->b_addr;
 
 	switch (be16_to_cpu(info->magic)) {
-	case XFS_DIR2_LEAF1_MAGIC:
-	case XFS_DIR3_LEAF1_MAGIC:
+	case MXFS_DIR2_LEAF1_MAGIC:
+	case MXFS_DIR3_LEAF1_MAGIC:
 		bp->b_ops = &xfs_dir3_leaf1_buf_ops;
 		return bp->b_ops->verify_struct(bp);
 	default:
@@ -404,38 +404,38 @@ xchk_da_btree_block(
 
 	/* Interpret the buffer. */
 	switch (blk->magic) {
-	case XFS_ATTR_LEAF_MAGIC:
-	case XFS_ATTR3_LEAF_MAGIC:
+	case MXFS_ATTR_LEAF_MAGIC:
+	case MXFS_ATTR3_LEAF_MAGIC:
 		xfs_trans_buf_set_type(dargs->trans, blk->bp,
 				XFS_BLFT_ATTR_LEAF_BUF);
-		blk->magic = XFS_ATTR_LEAF_MAGIC;
+		blk->magic = MXFS_ATTR_LEAF_MAGIC;
 		blk->hashval = xfs_attr_leaf_lasthash(blk->bp, pmaxrecs);
 		if (ds->tree_level != 0)
 			xchk_da_set_corrupt(ds, level);
 		break;
-	case XFS_DIR2_LEAFN_MAGIC:
-	case XFS_DIR3_LEAFN_MAGIC:
+	case MXFS_DIR2_LEAFN_MAGIC:
+	case MXFS_DIR3_LEAFN_MAGIC:
 		xfs_trans_buf_set_type(dargs->trans, blk->bp,
 				XFS_BLFT_DIR_LEAFN_BUF);
-		blk->magic = XFS_DIR2_LEAFN_MAGIC;
+		blk->magic = MXFS_DIR2_LEAFN_MAGIC;
 		blk->hashval = xfs_dir2_leaf_lasthash(ip, blk->bp, pmaxrecs);
 		if (ds->tree_level != 0)
 			xchk_da_set_corrupt(ds, level);
 		break;
-	case XFS_DIR2_LEAF1_MAGIC:
-	case XFS_DIR3_LEAF1_MAGIC:
+	case MXFS_DIR2_LEAF1_MAGIC:
+	case MXFS_DIR3_LEAF1_MAGIC:
 		xfs_trans_buf_set_type(dargs->trans, blk->bp,
 				XFS_BLFT_DIR_LEAF1_BUF);
-		blk->magic = XFS_DIR2_LEAF1_MAGIC;
+		blk->magic = MXFS_DIR2_LEAF1_MAGIC;
 		blk->hashval = xfs_dir2_leaf_lasthash(ip, blk->bp, pmaxrecs);
 		if (ds->tree_level != 0)
 			xchk_da_set_corrupt(ds, level);
 		break;
-	case XFS_DA_NODE_MAGIC:
-	case XFS_DA3_NODE_MAGIC:
+	case MXFS_DA_NODE_MAGIC:
+	case MXFS_DA3_NODE_MAGIC:
 		xfs_trans_buf_set_type(dargs->trans, blk->bp,
 				XFS_BLFT_DA_NODE_BUF);
-		blk->magic = XFS_DA_NODE_MAGIC;
+		blk->magic = MXFS_DA_NODE_MAGIC;
 		node = blk->bp->b_addr;
 		xfs_da3_node_hdr_from_disk(ip->i_mount, &nodehdr, node);
 		btree = nodehdr.btree;
@@ -551,7 +551,7 @@ xchk_da_btree(
 	blks[level].index = 0;
 	while (level >= 0 && level < XFS_DA_NODE_MAXDEPTH) {
 		/* Handle leaf block. */
-		if (blks[level].magic != XFS_DA_NODE_MAGIC) {
+		if (blks[level].magic != MXFS_DA_NODE_MAGIC) {
 			/* End of leaf, pop back towards the root. */
 			if (blks[level].index >= ds->maxrecs[level]) {
 				if (level > 0)

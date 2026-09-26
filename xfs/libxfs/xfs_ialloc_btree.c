@@ -360,7 +360,7 @@ xfs_inobt_write_verify(
 
 const struct xfs_buf_ops xfs_inobt_buf_ops = {
 	.name = "xfs_inobt",
-	.magic = { cpu_to_be32(XFS_IBT_MAGIC), cpu_to_be32(XFS_IBT_CRC_MAGIC) },
+	.magic = { cpu_to_be32(MXFS_IBT_MAGIC), cpu_to_be32(MXFS_IBT_CRC_MAGIC) },
 	.verify_read = xfs_inobt_read_verify,
 	.verify_write = xfs_inobt_write_verify,
 	.verify_struct = xfs_inobt_verify,
@@ -368,8 +368,8 @@ const struct xfs_buf_ops xfs_inobt_buf_ops = {
 
 const struct xfs_buf_ops xfs_finobt_buf_ops = {
 	.name = "xfs_finobt",
-	.magic = { cpu_to_be32(XFS_FIBT_MAGIC),
-		   cpu_to_be32(XFS_FIBT_CRC_MAGIC) },
+	.magic = { cpu_to_be32(MXFS_FIBT_MAGIC),
+		   cpu_to_be32(MXFS_FIBT_CRC_MAGIC) },
 	.verify_read = xfs_inobt_read_verify,
 	.verify_write = xfs_inobt_write_verify,
 	.verify_struct = xfs_inobt_verify,

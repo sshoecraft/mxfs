@@ -277,7 +277,7 @@ xfs_refcountbt_write_verify(
 
 const struct xfs_buf_ops xfs_refcountbt_buf_ops = {
 	.name			= "xfs_refcountbt",
-	.magic			= { 0, cpu_to_be32(XFS_REFC_CRC_MAGIC) },
+	.magic			= { 0, cpu_to_be32(MXFS_REFC_CRC_MAGIC) },
 	.verify_read		= xfs_refcountbt_read_verify,
 	.verify_write		= xfs_refcountbt_write_verify,
 	.verify_struct		= xfs_refcountbt_verify,

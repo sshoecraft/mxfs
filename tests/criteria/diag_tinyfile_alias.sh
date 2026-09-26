@@ -219,13 +219,13 @@ for ITER in $(seq 1 "$ITERS"); do
                 iter_mm=$((iter_mm+1))
                 adj=$(classify_adjacent "$ITER" "$idx" "$act")
                 case "$adj" in ADJACENT-*) A_ADJ=$((A_ADJ+1));; esac
-                # XDB3=58444233 XDD3=58444433 XDB2=58443242 XDD2=58443244
+                # MDB3=4d444233 MDD3=4d444433 MD2B=4d443242 MD2D=4d443244
                 dirmagic=""
                 case "$mg" in
-                    58444233*) dirmagic="DIR-BLOCK-MAGIC(XDB3)";;
-                    58444433*) dirmagic="DIR-DATA-MAGIC(XDD3)";;
-                    58443242*) dirmagic="DIR-BLOCK-MAGIC(XDB2)";;
-                    58443244*) dirmagic="DIR-DATA-MAGIC(XDD2)";;
+                    4d444233*) dirmagic="DIR-BLOCK-MAGIC(MDB3)";;
+                    4d444433*) dirmagic="DIR-DATA-MAGIC(MDD3)";;
+                    4d443242*) dirmagic="DIR-BLOCK-MAGIC(MD2B)";;
+                    4d443244*) dirmagic="DIR-DATA-MAGIC(MD2D)";;
                 esac
                 [ -n "$dirmagic" ] && { adj="$adj $dirmagic"; A_DIRMAGIC=$((A_DIRMAGIC+1)); }
                 d="  [A iter$ITER] f_$idx exp='$exp' act='$act' sz=$sz mg=$mg match=$adj"
@@ -296,10 +296,10 @@ for ITER in $(seq 1 "$ITERS"); do
                 adj=$(classify_adjacent "$ITER" "$idx" "$act")
                 case "$adj" in ADJACENT-*) B_ADJ=$((B_ADJ+1));; esac
                 case "$mg" in
-                    58444233*) adj="$adj DIR-BLOCK-MAGIC(XDB3)";;
-                    58444433*) adj="$adj DIR-DATA-MAGIC(XDD3)";;
-                    58443242*) adj="$adj DIR-BLOCK-MAGIC(XDB2)";;
-                    58443244*) adj="$adj DIR-DATA-MAGIC(XDD2)";;
+                    4d444233*) adj="$adj DIR-BLOCK-MAGIC(MDB3)";;
+                    4d444433*) adj="$adj DIR-DATA-MAGIC(MDD3)";;
+                    4d443242*) adj="$adj DIR-BLOCK-MAGIC(MD2B)";;
+                    4d443244*) adj="$adj DIR-DATA-MAGIC(MD2D)";;
                 esac
                 d="  [B iter$ITER] after_$idx exp='$exp' act='$act' sz=$sz mg=$mg match=$adj"
                 MISMATCH_DETAILS="${MISMATCH_DETAILS}${d}
@@ -408,10 +408,10 @@ if [ "$RUN_C" = "1" ]; then
                         if [ "$act" = "content_${nid}_${next}" ]; then adj="ADJACENT-NEXT(${pfx}_${next})"; C_ADJ=$((C_ADJ+1));
                         elif [ "$act" = "content_${nid}_${prev}" ]; then adj="ADJACENT-PREV(${pfx}_${prev})"; C_ADJ=$((C_ADJ+1)); fi
                         case "$mg" in
-                            58444233*) adj="$adj DIR-BLOCK-MAGIC(XDB3)";;
-                            58444433*) adj="$adj DIR-DATA-MAGIC(XDD3)";;
-                            58443242*) adj="$adj DIR-BLOCK-MAGIC(XDB2)";;
-                            58443244*) adj="$adj DIR-DATA-MAGIC(XDD2)";;
+                            4d444233*) adj="$adj DIR-BLOCK-MAGIC(MDB3)";;
+                            4d444433*) adj="$adj DIR-DATA-MAGIC(MDD3)";;
+                            4d443242*) adj="$adj DIR-BLOCK-MAGIC(MD2B)";;
+                            4d443244*) adj="$adj DIR-DATA-MAGIC(MD2D)";;
                         esac
                         d="  [C iter$ITER $node] ${pfx}_$idx exp='$exp' act='$act' sz=$sz mg=$mg match=$adj"
                         MISMATCH_DETAILS="${MISMATCH_DETAILS}${d}
@@ -489,7 +489,7 @@ fi
     fi
     echo "  smallest config reproducing:  $SMALLEST"
     echo "  bad data adjacency:           $adj_verdict"
-    echo "  bad bytes carry XFS dir-magic: $A_DIRMAGIC of $A_MISMATCH TEST-A mismatches (XDB3/XDD3 = a dir block aliased into the file's data extent)"
+    echo "  bad bytes carry dir-magic: $A_DIRMAGIC of $A_MISMATCH TEST-A mismatches (MDB3/MDD3 = a dir block aliased into the file's data extent)"
     echo "  dmesg dirty nodes:            ${DMESG_BAD:-none}"
     if [ "$total_mm" -gt 0 ]; then
         echo "  --- mismatch details ---"

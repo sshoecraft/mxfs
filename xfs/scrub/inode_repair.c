@@ -184,7 +184,7 @@ xrep_dinode_buf_core(
 	if (xfs_verify_agino_or_null(bp->b_pag, agino))
 		unlinked_ok = true;
 
-	if (dip->di_magic == cpu_to_be16(XFS_DINODE_MAGIC) &&
+	if (dip->di_magic == cpu_to_be16(MXFS_DINODE_MAGIC) &&
 	    xfs_dinode_good_version(mp, dip->di_version))
 		magic_ok = true;
 
@@ -196,7 +196,7 @@ xrep_dinode_buf_core(
 		return;
 
 	if (!magic_ok) {
-		dip->di_magic = cpu_to_be16(XFS_DINODE_MAGIC);
+		dip->di_magic = cpu_to_be16(MXFS_DINODE_MAGIC);
 		dip->di_version = 3;
 	}
 	if (!unlinked_ok)
@@ -230,7 +230,7 @@ xrep_dinode_header(
 {
 	trace_xrep_dinode_header(sc, dip);
 
-	dip->di_magic = cpu_to_be16(XFS_DINODE_MAGIC);
+	dip->di_magic = cpu_to_be16(MXFS_DINODE_MAGIC);
 	if (!xfs_dinode_good_version(sc->mp, dip->di_version))
 		dip->di_version = 3;
 	dip->di_ino = cpu_to_be64(sc->sm->sm_ino);

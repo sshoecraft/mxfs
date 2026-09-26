@@ -276,7 +276,7 @@ xfs_allocbt_verify(
 		 * we'll validate against the larger of either tree while this
 		 * is going on.
 		 */
-		if (bp->b_ops->magic[0] == cpu_to_be32(XFS_ABTC_MAGIC)) {
+		if (bp->b_ops->magic[0] == cpu_to_be32(MXFS_ABTC_MAGIC)) {
 			maxlevel = pag->pagf_cnt_level;
 #ifdef CONFIG_XFS_ONLINE_REPAIR
 			repair_maxlevel = pag->pagf_repair_cnt_level;
@@ -332,8 +332,8 @@ xfs_allocbt_write_verify(
 
 const struct xfs_buf_ops xfs_bnobt_buf_ops = {
 	.name = "xfs_bnobt",
-	.magic = { cpu_to_be32(XFS_ABTB_MAGIC),
-		   cpu_to_be32(XFS_ABTB_CRC_MAGIC) },
+	.magic = { cpu_to_be32(MXFS_ABTB_MAGIC),
+		   cpu_to_be32(MXFS_ABTB_CRC_MAGIC) },
 	.verify_read = xfs_allocbt_read_verify,
 	.verify_write = xfs_allocbt_write_verify,
 	.verify_struct = xfs_allocbt_verify,
@@ -341,8 +341,8 @@ const struct xfs_buf_ops xfs_bnobt_buf_ops = {
 
 const struct xfs_buf_ops xfs_cntbt_buf_ops = {
 	.name = "xfs_cntbt",
-	.magic = { cpu_to_be32(XFS_ABTC_MAGIC),
-		   cpu_to_be32(XFS_ABTC_CRC_MAGIC) },
+	.magic = { cpu_to_be32(MXFS_ABTC_MAGIC),
+		   cpu_to_be32(MXFS_ABTC_CRC_MAGIC) },
 	.verify_read = xfs_allocbt_read_verify,
 	.verify_write = xfs_allocbt_write_verify,
 	.verify_struct = xfs_allocbt_verify,

@@ -108,7 +108,7 @@ if [ -n "$X" ]; then
     ckn "$NODE P-FREEPUB-WRITE for X" "$(grep -ac "P-FREEPUB-WRITE .*ino=$X " "$L")"
     ckn "$NODE P-FREEPUB-CLAIM-CLEAR why=durable for X" "$(grep -ac "P-FREEPUB-CLAIM-CLEAR ino=$X .*why=durable" "$L")"
     ck0 "$NODE P-FREEOB-XRELEASE (AG released with the obligation open)" "$(grep -ac 'P-FREEOB-XRELEASE' "$L")"
-    if grep -aq 'magic=494e mode=00 ' "$OUT/show_after.txt"; then echo "  PASS platter dinode X=$X reads FREE (mode 0) after the chain"; else echo "  FAIL platter dinode X=$X is not free: $(tail -1 "$OUT/show_after.txt")"; fails=$((fails+1)); fi
+    if grep -aq 'magic=4d4e mode=00 ' "$OUT/show_after.txt"; then echo "  PASS platter dinode X=$X reads FREE (mode 0) after the chain"; else echo "  FAIL platter dinode X=$X is not free: $(tail -1 "$OUT/show_after.txt")"; fails=$((fails+1)); fi
 fi
 rs 20 "$NODE" "rm -rf $D" >/dev/null 2>&1
 echo "=== freepub_platter_home_inject RESULT $([ $fails -eq 0 ] && echo PASS || echo FAIL) fails=$fails out=$OUT ==="

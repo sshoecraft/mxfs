@@ -2852,7 +2852,7 @@ xlog_alloc_log(
 		if (!iclog->ic_header)
 			goto out_free_iclog;
 		iclog->ic_header->h_magicno =
-			cpu_to_be32(XLOG_HEADER_MAGIC_NUM);
+			cpu_to_be32(MXFS_LOG_HEADER_MAGIC_NUM);
 		iclog->ic_header->h_version = cpu_to_be32(
 			xfs_has_logv2(log->l_mp) ? 2 : 1);
 		iclog->ic_header->h_size = cpu_to_be32(log->l_iclog_size);
@@ -3115,7 +3115,7 @@ xlog_split_iclog(
 	for (i = split_offset; i < count; i += BBSIZE) {
 		uint32_t cycle = get_unaligned_be32(data + i);
 
-		if (++cycle == XLOG_HEADER_MAGIC_NUM)
+		if (++cycle == MXFS_LOG_HEADER_MAGIC_NUM)
 			cycle++;
 		put_unaligned_be32(cycle, data + i);
 	}
@@ -4207,7 +4207,7 @@ xlog_state_switch_iclogs(
 		ASSERT(log->l_curr_block >= 0);
 		smp_wmb();
 		log->l_curr_cycle++;
-		if (log->l_curr_cycle == XLOG_HEADER_MAGIC_NUM)
+		if (log->l_curr_cycle == MXFS_LOG_HEADER_MAGIC_NUM)
 			log->l_curr_cycle++;
 	}
 	ASSERT(iclog == log->l_iclog);
@@ -4729,12 +4729,12 @@ xlog_verify_iclog(
 	spin_unlock(&log->l_icloglock);
 
 	/* check log magic numbers */
-	if (rhead->h_magicno != cpu_to_be32(XLOG_HEADER_MAGIC_NUM))
+	if (rhead->h_magicno != cpu_to_be32(MXFS_LOG_HEADER_MAGIC_NUM))
 		xfs_emerg(log->l_mp, "%s: invalid magic num", __func__);
 
 	base_ptr = ptr = rhead;
 	for (ptr += BBSIZE; ptr < base_ptr + count; ptr += BBSIZE) {
-		if (*(__be32 *)ptr == cpu_to_be32(XLOG_HEADER_MAGIC_NUM))
+		if (*(__be32 *)ptr == cpu_to_be32(MXFS_LOG_HEADER_MAGIC_NUM))
 			xfs_emerg(log->l_mp, "%s: unexpected magic num",
 				__func__);
 	}

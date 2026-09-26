@@ -17,7 +17,7 @@ inodesize (+104), inopblog (+123), agblklog (+124).  Dinode home of `ino`:
   agino = ino & ((1 << (agblklog + inopblog)) - 1)
   agbno = agino >> inopblog ; slot = agino & (inopblock - 1)
   byte  = xfs_off + (agno * agblocks + agbno) * blocksize + slot * inodesize
-v5 dinode: magic 'IN' +0, di_mode be16 +2, di_gen be32 +0x5c, di_crc le32
+v5 dinode: magic 'MN' +0, di_mode be16 +2, di_gen be32 +0x5c, di_crc le32
 +0x64 = ~crc32c(~0, image with di_crc zeroed).
 
 Usage:
@@ -25,7 +25,7 @@ Usage:
   dinode_inject.py <dev> <xfs_off> <ino> setlive <gen>   (mode 0100644, nlink 1)
   dinode_inject.py <dev> <xfs_off> <ino> setfree         (mode 0, nlink 0)
 Writes go through O_DIRECT (sector-aligned, one inodesize-multiple block).
-Exit 0 on success, 2 on a slot without 'IN' magic (show still prints).
+Exit 0 on success, 2 on a slot without 'MN' magic (show still prints).
 """
 import mmap
 import os
@@ -60,8 +60,8 @@ def main():
     fd = os.open(dev, os.O_RDONLY)
     sb = os.pread(fd, 512, xfs_off)
     os.close(fd)
-    if sb[:4] != b"XFSB":
-        print("ERROR: no XFSB magic at xfs_off", xfs_off)
+    if sb[:4] != b"MXSB":
+        print("ERROR: no MXSB magic at xfs_off", xfs_off)
         return 2
     blocksize = struct.unpack(">I", sb[4:8])[0]
     agblocks = struct.unpack(">I", sb[84:88])[0]
@@ -90,10 +90,10 @@ def main():
         nlink = struct.unpack(">I", im[0x10:0x14])[0]
         gen = struct.unpack(">I", im[0x5c:0x60])[0]
         crc = struct.unpack("<I", im[0x64:0x68])[0]
-        ok = magic == b"IN" and crc == dinode_crc(im)
+        ok = magic == b"MN" and crc == dinode_crc(im)
         print("%s magic=%s mode=0%o nlink=%d gen=%u crc=0x%08x crc_ok=%d" %
               (tag, magic.hex(), mode, nlink, gen, crc, 1 if ok else 0))
-        return magic == b"IN"
+        return magic == b"MN"
 
     valid = show("before", img)
     if op == "show":

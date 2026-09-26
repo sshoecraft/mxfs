@@ -1328,7 +1328,7 @@ xfs_iread_bmbt_block(
 					xfs_dfork_data_extents(d_dip);
 
 				if (d_dip->di_magic ==
-					    cpu_to_be16(XFS_DINODE_MAGIC) &&
+					    cpu_to_be16(MXFS_DINODE_MAGIC) &&
 				    disk_nx >= ir->loaded + num_recs) {
 					if (mxfs_dirwr_enabled || mxfs_instr_enabled)
 						mxfs_probe("mxfs: P70-DINO-RECONCILE ino=%llu loaded=%llu num_recs=%u stale_if_nextents=%llu disk_nx=%llu — adopting fresh on-disk di_nextents\n",
@@ -1368,7 +1368,7 @@ xfs_iread_bmbt_block(
 				struct xfs_dinode *pl_dip =
 					pl_buf + ip->i_imap.im_boffset;
 
-				if (pl_dip->di_magic == cpu_to_be16(XFS_DINODE_MAGIC)) {
+				if (pl_dip->di_magic == cpu_to_be16(MXFS_DINODE_MAGIC)) {
 					pl_nx = xfs_dfork_data_extents(pl_dip);
 					pl_cc = be64_to_cpu(pl_dip->di_changecount);
 					pl_lsn = be64_to_cpu(pl_dip->di_lsn);

@@ -123,7 +123,7 @@ mxfs_dlm_iget_miss_reload(
 						     imap.im_boffset);
 
 						if (be16_to_cpu(tdip->di_magic)
-						    == XFS_DINODE_MAGIC) {
+						    == MXFS_DINODE_MAGIC) {
 							memcpy((char *)bp->b_addr
 							    + imap.im_boffset,
 							    tdip,

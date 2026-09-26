@@ -7,6 +7,7 @@
 #include <linux/ktime.h>
 #include "xfs_fs.h"
 #include "xfs_format.h"
+#include "xfs_da_format.h"
 #include "xfs_log_format.h"
 #include "xfs_shared.h"
 #include "xfs_trans_resv.h"
@@ -1020,7 +1021,7 @@ xfs_agfl_write_verify(
 
 const struct xfs_buf_ops xfs_agfl_buf_ops = {
 	.name = "xfs_agfl",
-	.magic = { cpu_to_be32(XFS_AGFL_MAGIC), cpu_to_be32(XFS_AGFL_MAGIC) },
+	.magic = { cpu_to_be32(MXFS_AGFL_MAGIC), cpu_to_be32(MXFS_AGFL_MAGIC) },
 	.verify_read = xfs_agfl_read_verify,
 	.verify_write = xfs_agfl_write_verify,
 	.verify_struct = xfs_agfl_verify,
@@ -3771,7 +3772,7 @@ xfs_agf_write_verify(
 
 const struct xfs_buf_ops xfs_agf_buf_ops = {
 	.name = "xfs_agf",
-	.magic = { cpu_to_be32(XFS_AGF_MAGIC), cpu_to_be32(XFS_AGF_MAGIC) },
+	.magic = { cpu_to_be32(MXFS_AGF_MAGIC), cpu_to_be32(MXFS_AGF_MAGIC) },
 	.verify_read = xfs_agf_read_verify,
 	.verify_write = xfs_agf_write_verify,
 	.verify_struct = xfs_agf_verify,
@@ -4345,8 +4346,8 @@ xfs_alloc_vextent_finish(
 	 * double-allocation).  At a DATA-fork allocation (oi_owner = a real inode
 	 * number > 0), COHERENTLY plain-read (SCST write-back cache under
 	 * fua_disable=1 = the cross-node-coherent store) the first allocated
-	 * block; if it ALREADY holds a live dir-block (XDB3/XDD3) / dir-leaf
-	 * (0x3df1/0x3dff at off 8) / inode ('IN') magic, the allocator just
+	 * block; if it ALREADY holds a live dir3 block/data / dir3-leaf
+	 * (at off 8) / inode magic, the allocator just
 	 * handed this data request a block another object still uses as live
 	 * metadata -> double-alloc caught IN THE ACT, with the NEW owner ino, the
 	 * found magic, AG tenure + node slot.  One plain read/alloc (heavy) gated
@@ -4390,10 +4391,12 @@ xfs_alloc_vextent_finish(
 			da_tmp, da_len) == 0) {
 			const unsigned char *m = da_tmp;
 			uint16_t off8 = ((uint16_t)m[8] << 8) | m[9];
-			bool dirblk = (m[0] == 0x58 && m[1] == 0x44 &&
-				(m[2] == 0x42 || m[2] == 0x44) && m[3] == 0x33);
-			bool leaf = (off8 == 0x3df1 || off8 == 0x3dff);
-			bool inode = (m[0] == 0x49 && m[1] == 0x4e);
+			uint32_t magic0 = get_unaligned_be32(m);
+			bool dirblk = (magic0 == MXFS_DIR3_BLOCK_MAGIC ||
+				       magic0 == MXFS_DIR3_DATA_MAGIC);
+			bool leaf = (off8 == MXFS_DIR3_LEAF1_MAGIC ||
+				     off8 == MXFS_DIR3_LEAFN_MAGIC);
+			bool inode = ((magic0 >> 16) == MXFS_DINODE_MAGIC);
 
 			if (dirblk || leaf || inode) {
 				/* 8ba7ae5c: prior owner from the dir3

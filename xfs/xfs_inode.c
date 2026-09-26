@@ -8526,7 +8526,7 @@ mxfs_home_equals_owed(
 	struct xfs_ifork	*dfp = &ip->i_df;
 
 	*why = "?";
-	if (!home || home->di_magic != cpu_to_be16(XFS_DINODE_MAGIC))
+	if (!home || home->di_magic != cpu_to_be16(MXFS_DINODE_MAGIC))
 		return (*why = "no-home", false);
 	if (home->di_version < 3)
 		return (*why = "v2-dinode", false);
@@ -8781,7 +8781,7 @@ xfs_iflush(
 	 * NO behavior change yet — observe the real signature, THEN guard.
 	 */
 	if (mp->m_mxfs_dlm && !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm) &&
-	    dip->di_magic == cpu_to_be16(XFS_DINODE_MAGIC)) {
+	    dip->di_magic == cpu_to_be16(MXFS_DINODE_MAGIC)) {
 		struct inode *vinode = VFS_I(ip);
 		uint16_t disk_mode = be16_to_cpu(dip->di_mode);
 		uint32_t disk_gen = be32_to_cpu(dip->di_gen);
@@ -8812,7 +8812,7 @@ xfs_iflush(
 	 * error handling as the caller will shutdown and fail the buffer.
 	 */
 	error = -EFSCORRUPTED;
-	if (dip->di_magic != cpu_to_be16(XFS_DINODE_MAGIC) ||
+	if (dip->di_magic != cpu_to_be16(MXFS_DINODE_MAGIC) ||
 	    XFS_TEST_ERROR(mp, XFS_ERRTAG_IFLUSH_1)) {
 		xfs_alert_tag(mp, XFS_PTAG_IFLUSH,
 			"%s: Bad inode %llu magic number 0x%x, ptr "PTR_FMT,
@@ -9084,7 +9084,7 @@ xfs_iflush(
 			!mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm) &&
 			S_ISDIR(VFS_I(ip)->i_mode) &&
 			ip->i_dlm_mode == MXFS_LOCK_PR &&
-			dip->di_magic == cpu_to_be16(XFS_DINODE_MAGIC) &&
+			dip->di_magic == cpu_to_be16(MXFS_DINODE_MAGIC) &&
 			be16_to_cpu(dip->di_mode) != 0 &&
 			(be16_to_cpu(dip->di_mode) & S_IFMT) ==
 				(VFS_I(ip)->i_mode & S_IFMT) &&
@@ -9133,7 +9133,7 @@ xfs_iflush(
 				VFS_I(ip)->i_nlink == 0 &&
 				ip->i_dlm_mode == MXFS_LOCK_PR &&
 				!ip->i_mxfs_dead_incarn_gen &&
-				dip->di_magic == cpu_to_be16(XFS_DINODE_MAGIC) &&
+				dip->di_magic == cpu_to_be16(MXFS_DINODE_MAGIC) &&
 				be16_to_cpu(dip->di_mode) != 0 &&
 				(be16_to_cpu(dip->di_mode) & S_IFMT) ==
 					(VFS_I(ip)->i_mode & S_IFMT) &&
@@ -9270,7 +9270,7 @@ xfs_iflush(
 	    !mxfs_cores_commit_flush && READ_ONCE(ip->i_mxfs_freeob) == 2 &&
 	    xfs_iflags_test(ip, MXFS_IF_PUBOB) && VFS_I(ip)->i_mode == 0 &&
 	    VFS_I(ip)->i_nlink == 0 &&
-	    dip->di_magic == cpu_to_be16(XFS_DINODE_MAGIC)) {
+	    dip->di_magic == cpu_to_be16(MXFS_DINODE_MAGIC)) {
 		uint8_t		okind = 0;
 		uint32_t	ogen = 0;
 		uint64_t	oepoch = 0;
@@ -9426,7 +9426,7 @@ xfs_iflush(
 		}
 	}
 	if (mp->m_mxfs_dlm && !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm) &&
-	    dip->di_magic == cpu_to_be16(XFS_DINODE_MAGIC) &&
+	    dip->di_magic == cpu_to_be16(MXFS_DINODE_MAGIC) &&
 	    ip->i_dlm_mode != MXFS_LOCK_EX &&
 	    !xfs_iflags_test(ip, MXFS_IF_DLM_RELFLUSH) &&
 	    (ip->i_dlm_routed_iclus || ip->i_dlm_demoter == NULL) &&
@@ -9484,7 +9484,7 @@ xfs_iflush(
 	 * sanctioned release flush (MXFS_IF_DLM_RELFLUSH) which is current-tenure.
 	 */
 	if (mp->m_mxfs_dlm && !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm) &&
-	    dip->di_magic == cpu_to_be16(XFS_DINODE_MAGIC) &&
+	    dip->di_magic == cpu_to_be16(MXFS_DINODE_MAGIC) &&
 	    !xfs_iflags_test(ip, MXFS_IF_DLM_RELFLUSH) &&
 	    ip->i_mxfs_dirty_seq != ip->i_mxfs_ex_grant_seq &&
 	    /* c7ee71c6 active demote == sanctioned (see P119 above) */
@@ -9544,7 +9544,7 @@ xfs_iflush(
 				   VFS_I(ip)->i_generation);
 	if (mxfs_resurrect_gen_window > 0 &&
 	    mp->m_mxfs_dlm && !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm) &&
-	    dip->di_magic == cpu_to_be16(XFS_DINODE_MAGIC) &&
+	    dip->di_magic == cpu_to_be16(MXFS_DINODE_MAGIC) &&
 	    !xfs_iflags_test(ip, MXFS_IF_DLM_RELFLUSH) &&
 	    be16_to_cpu(dip->di_mode) == 0 && be32_to_cpu(dip->di_nlink) == 0 &&
 	    VFS_I(ip)->i_mode != 0 &&
@@ -9698,7 +9698,7 @@ xfs_iflush(
 	 */
 	if (mp->m_mxfs_dlm && !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm) &&
 	    S_ISDIR(VFS_I(ip)->i_mode) &&
-	    dip->di_magic == cpu_to_be16(XFS_DINODE_MAGIC) &&
+	    dip->di_magic == cpu_to_be16(MXFS_DINODE_MAGIC) &&
 	    (xfs_extnum_t)be32_to_cpu(dip->di_nextents) > ip->i_df.if_nextents) {
 		static atomic_t p32nx = ATOMIC_INIT(0);
 		if (atomic_inc_return(&p32nx) <= 2000)
@@ -9738,7 +9738,7 @@ xfs_iflush(
 		    mp->m_mxfs_dlm && !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm) &&
 		    S_ISDIR(VFS_I(ip)->i_mode) &&
 		    ip->i_ino != mp->m_sb.sb_rootino &&
-		    dip->di_magic == cpu_to_be16(XFS_DINODE_MAGIC) &&
+		    dip->di_magic == cpu_to_be16(MXFS_DINODE_MAGIC) &&
 		    be32_to_cpu(dip->di_gen) == VFS_I(ip)->i_generation &&
 		    (xfs_extnum_t)be32_to_cpu(dip->di_nextents) >
 			ip->i_df.if_nextents) {
@@ -9862,7 +9862,7 @@ xfs_iflush(
 		    mp->m_mxfs_dlm && !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm) &&
 		    S_ISDIR(VFS_I(ip)->i_mode) &&
 		    ip->i_ino != mp->m_sb.sb_rootino &&
-		    dip->di_magic == cpu_to_be16(XFS_DINODE_MAGIC) &&
+		    dip->di_magic == cpu_to_be16(MXFS_DINODE_MAGIC) &&
 		    be32_to_cpu(dip->di_gen) == VFS_I(ip)->i_generation) {
 			uint32_t cur_ep = mxfs_v5_dlm_inode_dir_epoch(
 				mp->m_mxfs_dlm, ip->i_ino);
@@ -9992,7 +9992,7 @@ xfs_iflush(
 				ip->i_dlm_mode,
 				(unsigned long long)b0,
 				(unsigned long long)ip->i_df.if_nextents,
-				(dip->di_magic == cpu_to_be16(XFS_DINODE_MAGIC)) ?
+				(dip->di_magic == cpu_to_be16(MXFS_DINODE_MAGIC)) ?
 					be32_to_cpu(dip->di_nextents) : 0xffffffff,
 				(unsigned long long)ip->i_dlm_dir_gen,
 				ip->i_dlm_dir_loaded_gen,
@@ -10064,7 +10064,7 @@ xfs_iflush(
 	    (ip->i_df.if_format == XFS_DINODE_FMT_EXTENTS ||
 	     ip->i_df.if_format == XFS_DINODE_FMT_BTREE) &&
 	    !xfs_need_iread_extents(&ip->i_df) &&
-	    dip->di_magic == cpu_to_be16(XFS_DINODE_MAGIC) &&
+	    dip->di_magic == cpu_to_be16(MXFS_DINODE_MAGIC) &&
 	    be32_to_cpu(dip->di_gen) == VFS_I(ip)->i_generation &&
 	    dip->di_format == XFS_DINODE_FMT_EXTENTS &&
 	    be32_to_cpu(dip->di_nextents) >= 1) {
@@ -11001,7 +11001,7 @@ mxfs_iflush_cluster_merge_dirs(
 		if (flushing & (1ULL << i))
 			continue;
 		dip = xfs_buf_offset(bp, i << inodelog);
-		if (be16_to_cpu(dip->di_magic) != XFS_DINODE_MAGIC)
+		if (be16_to_cpu(dip->di_magic) != MXFS_DINODE_MAGIC)
 			continue;
 		if (be16_to_cpu(dip->di_mode) != 0) {
 			foreign_dir = true;
@@ -11087,8 +11087,8 @@ mxfs_iflush_cluster_merge_dirs(
 			 * AHEAD of disk; legitimate same-incarnation growth (di_gen ==)
 			 * is never reverted (that case keeps the /rules).
 			 */
-			if (!(be16_to_cpu(ddisk->di_magic) == XFS_DINODE_MAGIC &&
-			      be16_to_cpu(dbuf->di_magic) == XFS_DINODE_MAGIC &&
+			if (!(be16_to_cpu(ddisk->di_magic) == MXFS_DINODE_MAGIC &&
+			      be16_to_cpu(dbuf->di_magic) == MXFS_DINODE_MAGIC &&
 			      S_ISDIR(be16_to_cpu(ddisk->di_mode)) &&
 			      S_ISDIR(be16_to_cpu(dbuf->di_mode)) &&
 			      be32_to_cpu(dbuf->di_gen) != be32_to_cpu(ddisk->di_gen)))
@@ -11138,8 +11138,8 @@ mxfs_iflush_cluster_merge_dirs(
 		 * where the FIX-C rollback keeps the ledger honest.
 		 */
 		if ((curstage & (1ULL << i)) &&
-		    be16_to_cpu(dbuf->di_magic) == XFS_DINODE_MAGIC &&
-		    be16_to_cpu(ddisk->di_magic) == XFS_DINODE_MAGIC &&
+		    be16_to_cpu(dbuf->di_magic) == MXFS_DINODE_MAGIC &&
+		    be16_to_cpu(ddisk->di_magic) == MXFS_DINODE_MAGIC &&
 		    dbuf->di_gen == ddisk->di_gen &&
 		    be64_to_cpu(ddisk->di_changecount) <=
 		    be64_to_cpu(dbuf->di_changecount)) {
@@ -11169,10 +11169,10 @@ mxfs_iflush_cluster_merge_dirs(
 		 * garbage onto a formatted slot).  A genuinely-free disk slot
 		 * still has DINODE_MAGIC with di_mode==0.
 		 */
-		if (be16_to_cpu(ddisk->di_magic) != XFS_DINODE_MAGIC)
+		if (be16_to_cpu(ddisk->di_magic) != MXFS_DINODE_MAGIC)
 			continue;
 
-		bmode = (be16_to_cpu(dbuf->di_magic) == XFS_DINODE_MAGIC)
+		bmode = (be16_to_cpu(dbuf->di_magic) == MXFS_DINODE_MAGIC)
 			? be16_to_cpu(dbuf->di_mode) : 0;
 		dmode = be16_to_cpu(ddisk->di_mode);
 		buf_alloc  = (bmode != 0);
@@ -11205,7 +11205,7 @@ mxfs_iflush_cluster_merge_dirs(
 		 * buffer is BEHIND disk (peer committed entries we are stale on),
 		 * overlaying disk is correct and still happens.
 		 */
-		if (be16_to_cpu(dbuf->di_magic) == XFS_DINODE_MAGIC &&
+		if (be16_to_cpu(dbuf->di_magic) == MXFS_DINODE_MAGIC &&
 		    S_ISDIR(bmode) &&
 		    XFS_DFORK_FORMAT(dbuf, XFS_DATA_FORK) == XFS_DINODE_FMT_LOCAL &&
 		    XFS_DFORK_FORMAT(ddisk, XFS_DATA_FORK) == XFS_DINODE_FMT_LOCAL) {

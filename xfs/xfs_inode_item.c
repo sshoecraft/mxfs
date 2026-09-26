@@ -561,7 +561,7 @@ xfs_inode_to_log_dinode(
 {
 	struct inode		*inode = VFS_I(ip);
 
-	to->di_magic = XFS_DINODE_MAGIC;
+	to->di_magic = MXFS_DINODE_MAGIC;
 	to->di_format = xfs_ifork_format(&ip->i_df);
 	to->di_uid = i_uid_read(inode);
 	to->di_gid = i_gid_read(inode);

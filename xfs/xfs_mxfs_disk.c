@@ -64,7 +64,7 @@ mxfs_acq_fresh_durability_probe(struct xfs_perag *pag)
 	if (mxfs_pal_scsi_read_fua_bdev(tp->bt_bdev, agf_lba, agf, slen))
 		goto out;
 	a = (struct xfs_agf *)agf;
-	if (be32_to_cpu(a->agf_magicnum) != XFS_AGF_MAGIC)
+	if (be32_to_cpu(a->agf_magicnum) != MXFS_AGF_MAGIC)
 		goto out;
 	bno_root  = be32_to_cpu(a->agf_bno_root);
 	bno_level = be32_to_cpu(a->agf_bno_level);
@@ -74,7 +74,7 @@ mxfs_acq_fresh_durability_probe(struct xfs_perag *pag)
 	if (mxfs_pal_scsi_read_fua_bdev(tp->bt_bdev, bno_lba, b1, blen))
 		goto out;
 	bb1 = (struct xfs_btree_block *)b1;
-	if (be32_to_cpu(bb1->bb_magic) != XFS_ABTB_CRC_MAGIC)
+	if (be32_to_cpu(bb1->bb_magic) != MXFS_ABTB_CRC_MAGIC)
 		goto out;
 	/* Only the suspicious near-empty case is worth the 100ms sleep. */
 	if (!(be16_to_cpu(bb1->bb_level) == 0 &&
@@ -148,7 +148,7 @@ mxfs_inode_disk_di_size(struct xfs_inode *ip, uint16_t *modep, uint32_t *genp)
 	if (mxfs_pal_scsi_read_fua_bdev(tp->bt_bdev, lba, tmp, len) == 0) {
 		const __u8 *dk = (const __u8 *)tmp + boff;
 
-		if (be16_to_cpup((const __be16 *)dk) == 0x494e) {
+		if (be16_to_cpup((const __be16 *)dk) == MXFS_DINODE_MAGIC) {
 			dsz = be64_to_cpup((const __be64 *)(dk + 0x38));
 			if (modep)
 				*modep = be16_to_cpup((const __be16 *)(dk + 2));
@@ -233,7 +233,7 @@ mxfs_dbg_disk_di_mode(struct xfs_mount *mp, xfs_ino_t ino, uint32_t *genp)
 	if (mxfs_pal_bdev_read_plain_bdev(tp->bt_bdev, lba, tmp, blen) == 0) {
 		const __u8 *dk = (const __u8 *)tmp + off * isize;
 
-		if (be16_to_cpup((const __be16 *)dk) == 0x494e) {
+		if (be16_to_cpup((const __be16 *)dk) == MXFS_DINODE_MAGIC) {
 			mode = be16_to_cpup((const __be16 *)(dk + 2));
 			if (genp)
 				*genp = be32_to_cpup((const __be32 *)(dk + 0x5c));
@@ -249,7 +249,7 @@ mxfs_dbg_disk_di_mode(struct xfs_mount *mp, xfs_ino_t ino, uint32_t *genp)
 						blen) == 0) {
 			const __u8 *fk = (const __u8 *)tmp2 + off * isize;
 
-			if (be16_to_cpup((const __be16 *)fk) == 0x494e) {
+			if (be16_to_cpup((const __be16 *)fk) == MXFS_DINODE_MAGIC) {
 				fmode = be16_to_cpup((const __be16 *)(fk + 2));
 				fgen = be32_to_cpup(
 					(const __be32 *)(fk + 0x5c));
@@ -316,7 +316,7 @@ mxfs_dbg_disk_di_nlink_coherent(struct xfs_mount *mp, xfs_ino_t ino)
 	if (mxfs_pal_bdev_read_plain_bdev(tp->bt_bdev, lba, tmp, blen) == 0) {
 		const __u8 *dk = (const __u8 *)tmp + off * isize;
 
-		if (be16_to_cpup((const __be16 *)dk) == 0x494e)
+		if (be16_to_cpup((const __be16 *)dk) == MXFS_DINODE_MAGIC)
 			nlink = be32_to_cpup((const __be32 *)(dk + 0x10));
 	}
 	kfree(tmp);
@@ -422,7 +422,7 @@ mxfs_p949_compare_fua(struct xfs_mount *mp, struct block_device *bdev,
 	}
 	fb = (const __u8 *)fua;
 	fk = fb + off * isize;
-	if (be16_to_cpup((const __be16 *)fk) == 0x494e) {
+	if (be16_to_cpup((const __be16 *)fk) == MXFS_DINODE_MAGIC) {
 		/*
 		 * The plain read and the FUA read of the same LBA disagree.
 		 * Loud and unbudgeted: a rate limit on the positive case is how
@@ -519,7 +519,7 @@ mxfs_dbg_disk_di_read_coherent(struct xfs_mount *mp, xfs_ino_t ino,
 	if (rc == 0) {
 		const __u8 *dk = (const __u8 *)tmp + off * isize;
 
-		if (be16_to_cpup((const __be16 *)dk) == 0x494e) {
+		if (be16_to_cpup((const __be16 *)dk) == MXFS_DINODE_MAGIC) {
 			if (magicp)
 				*magicp = true;
 			if (modep)
@@ -605,7 +605,7 @@ mxfs_dbg_disk_di_first_dext(struct xfs_mount *mp, xfs_ino_t ino,
 		struct xfs_dinode *dip =
 			(struct xfs_dinode *)((char *)tmp + (uint64_t)off * isize);
 
-		if (be16_to_cpu(dip->di_magic) == XFS_DINODE_MAGIC) {
+		if (be16_to_cpu(dip->di_magic) == MXFS_DINODE_MAGIC) {
 			if (fmt)
 				*fmt = dip->di_format;
 			if (ndext)

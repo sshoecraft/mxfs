@@ -22,8 +22,8 @@ def main():
         print(f"not an mxfs device (magic {magic:#x})"); return 2
     xfs_off, = struct.unpack_from('<Q', sb0, 88)
     f.seek(xfs_off); sb = f.read(512)
-    if sb[0:4] != b'XFSB':
-        print("no XFSB at xfs_data_offset"); return 2
+    if sb[0:4] != b'MXSB':
+        print("no MXSB at xfs_data_offset"); return 2
     blocksize, = struct.unpack_from('>I', sb, 4)
     logstart, = struct.unpack_from('>Q', sb, 48)
     agblocks, = struct.unpack_from('>I', sb, 84)
@@ -65,7 +65,7 @@ def main():
     for agno in range(agcount):
         f.seek(agb_bytes(agno, 0) + 1024)   # AGI = sector 2 of AG block 0
         agi = f.read(512)
-        if agi[0:4] != b'XAGI':
+        if agi[0:4] != b'MAGI':
             print(f"AG{agno}: bad AGI magic {agi[0:4]}"); return 2
         root, = struct.unpack_from('>I', agi, 20)
         level, = struct.unpack_from('>I', agi, 24)
@@ -73,7 +73,7 @@ def main():
         def walk_inobt(agbno, lvl):
             f.seek(agb_bytes(agno, agbno))
             blk = f.read(blocksize)
-            if blk[0:4] != b'IAB3':
+            if blk[0:4] != b'MIA3':
                 print(f"AG{agno}: inobt block agbno={agbno} bad magic {blk[0:4]}")
                 return
             blvl, nrec = struct.unpack_from('>HH', blk, 4)
@@ -119,7 +119,7 @@ def main():
             agbno = ino_ag >> inopblog
             f.seek(agb_bytes(agno, agbno) + (ino_ag & (inos_per_blk - 1)) * inodesize)
             di = f.read(inodesize)
-            if di[0:2] != b'IN':
+            if di[0:2] != b'MN':
                 print(f"ino {absino}: bad dinode magic {di[0:2].hex()} "
                       f"(chunk {agno}/{startino} slot {slot})")
                 continue
@@ -150,7 +150,7 @@ def main():
                     a2, b2 = fsb_split(fsb)
                     f.seek(agb_bytes(a2, b2))
                     blk = f.read(blocksize)
-                    if blk[0:4] != b'BMA3':
+                    if blk[0:4] != b'MBM3':
                         print(f"ino {absino}: bmbt fsb {fsb} bad magic {blk[0:4]}")
                         continue
                     # bmbt blocks themselves are owned blocks too

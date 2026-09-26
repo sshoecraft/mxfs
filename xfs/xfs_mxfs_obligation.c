@@ -97,19 +97,19 @@ mxfs_f4_owner_decode(struct xfs_buf *bp)
 		return 0;
 	magic32 = be32_to_cpu(*(__be32 *)blk);
 	switch (magic32) {
-	case XFS_DIR3_BLOCK_MAGIC:
-	case XFS_DIR3_DATA_MAGIC:
+	case MXFS_DIR3_BLOCK_MAGIC:
+	case MXFS_DIR3_DATA_MAGIC:
 		return be64_to_cpu(((struct xfs_dir3_blk_hdr *)blk)->owner);
-	case XFS_DIR3_FREE_MAGIC:
+	case MXFS_DIR3_FREE_MAGIC:
 		return be64_to_cpu(((struct xfs_dir3_free_hdr *)blk)->hdr.owner);
-	case XFS_BMAP_CRC_MAGIC:
+	case MXFS_BMAP_CRC_MAGIC:
 		return be64_to_cpu(((struct xfs_btree_block *)blk)->bb_u.l.bb_owner);
 	}
 	switch (be16_to_cpu(((struct xfs_da_blkinfo *)blk)->magic)) {
-	case XFS_DIR3_LEAF1_MAGIC:
-	case XFS_DIR3_LEAFN_MAGIC:
-	case XFS_DA3_NODE_MAGIC:
-	case XFS_ATTR3_LEAF_MAGIC:
+	case MXFS_DIR3_LEAF1_MAGIC:
+	case MXFS_DIR3_LEAFN_MAGIC:
+	case MXFS_DA3_NODE_MAGIC:
+	case MXFS_ATTR3_LEAF_MAGIC:
 		return be64_to_cpu(((struct xfs_da3_blkinfo *)blk)->owner);
 	}
 	return 0;

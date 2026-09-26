@@ -26,7 +26,7 @@ struct xfs_ifork;
  * Fits into a sector-sized buffer at address 0 of each allocation group.
  * Only the first of these is ever updated except during growfs.
  */
-#define	XFS_SB_MAGIC		0x58465342	/* 'XFSB' */
+#define	MXFS_SB_MAGIC		0x4d585342	/* 'MXSB' */
 #define	XFS_SB_VERSION_1	1		/* 5.3, 6.0.1, 6.1 */
 #define	XFS_SB_VERSION_2	2		/* 6.2 - attributes */
 #define	XFS_SB_VERSION_3	3		/* 6.2 - new inode version */
@@ -93,7 +93,7 @@ struct xfs_ifork;
  * Superblock - in core version.  Must be padded to 64 bit alignment.
  */
 typedef struct xfs_sb {
-	uint32_t	sb_magicnum;	/* magic number == XFS_SB_MAGIC */
+	uint32_t	sb_magicnum;	/* magic number == MXFS_SB_MAGIC */
 	uint32_t	sb_blocksize;	/* logical block size, bytes */
 	xfs_rfsblock_t	sb_dblocks;	/* number of data blocks */
 	xfs_rfsblock_t	sb_rblocks;	/* number of realtime blocks */
@@ -191,7 +191,7 @@ typedef struct xfs_sb {
  * Must be padded to 64 bit alignment.
  */
 struct xfs_dsb {
-	__be32		sb_magicnum;	/* magic number == XFS_SB_MAGIC */
+	__be32		sb_magicnum;	/* magic number == MXFS_SB_MAGIC */
 	__be32		sb_blocksize;	/* logical block size, bytes */
 	__be64		sb_dblocks;	/* number of data blocks */
 	__be64		sb_rblocks;	/* number of realtime blocks */
@@ -522,9 +522,9 @@ xfs_is_quota_inode(struct xfs_sb *sbp, xfs_ino_t ino)
  * This is divided into three structures, placed in sequential 512-byte
  * buffers after a copy of the superblock (also in a 512-byte buffer).
  */
-#define	XFS_AGF_MAGIC	0x58414746	/* 'XAGF' */
-#define	XFS_AGI_MAGIC	0x58414749	/* 'XAGI' */
-#define	XFS_AGFL_MAGIC	0x5841464c	/* 'XAFL' */
+#define	MXFS_AGF_MAGIC	0x4d414746	/* 'MAGF' */
+#define	MXFS_AGI_MAGIC	0x4d414749	/* 'MAGI' */
+#define	MXFS_AGFL_MAGIC	0x4d41464c	/* 'MAFL' */
 #define	XFS_AGF_VERSION	1
 #define	XFS_AGI_VERSION	1
 
@@ -541,7 +541,7 @@ typedef struct xfs_agf {
 	/*
 	 * Common allocation group header information
 	 */
-	__be32		agf_magicnum;	/* magic number == XFS_AGF_MAGIC */
+	__be32		agf_magicnum;	/* magic number == MXFS_AGF_MAGIC */
 	__be32		agf_versionnum;	/* header version == XFS_AGF_VERSION */
 	__be32		agf_seqno;	/* sequence # starting from 0 */
 	__be32		agf_length;	/* size in blocks of a.g. */
@@ -642,7 +642,7 @@ typedef struct xfs_agi {
 	/*
 	 * Common allocation group header information
 	 */
-	__be32		agi_magicnum;	/* magic number == XFS_AGI_MAGIC */
+	__be32		agi_magicnum;	/* magic number == MXFS_AGI_MAGIC */
 	__be32		agi_versionnum;	/* header version == XFS_AGI_VERSION */
 	__be32		agi_seqno;	/* sequence # starting from 0 */
 	__be32		agi_length;	/* size in blocks of a.g. */
@@ -775,14 +775,14 @@ union xfs_suminfo_raw {
 #define XFS_MIN_RGEXTENTS	((xfs_rtxlen_t)2)
 #define XFS_MAX_RGNUMBER	((xfs_rgnumber_t)(-1U))
 
-#define XFS_RTSB_MAGIC	0x46726F67	/* 'Frog' */
+#define MXFS_RTSB_MAGIC	0x4d585254	/* 'MXRT' */
 
 /*
  * Realtime superblock - on disk version.  Must be padded to 64 bit alignment.
  * The first block of the realtime volume contains this superblock.
  */
 struct xfs_rtsb {
-	__be32		rsb_magicnum;	/* magic number == XFS_RTSB_MAGIC */
+	__be32		rsb_magicnum;	/* magic number == MXFS_RTSB_MAGIC */
 	__le32		rsb_crc;	/* superblock crc */
 
 	__be32		rsb_pad;	/* zero */
@@ -920,9 +920,9 @@ enum xfs_metafile_type {
  * Note: di_flushiter is only used by v1/2 inodes - it's effectively a zeroed
  * padding field for v3 inodes.
  */
-#define	XFS_DINODE_MAGIC		0x494e	/* 'IN' */
+#define	MXFS_DINODE_MAGIC		0x4d4e	/* 'MN' */
 struct xfs_dinode {
-	__be16		di_magic;	/* inode magic # = XFS_DINODE_MAGIC */
+	__be16		di_magic;	/* inode magic # = MXFS_DINODE_MAGIC */
 	__be16		di_mode;	/* mode and type of file */
 	__u8		di_version;	/* inode version */
 	__u8		di_format;	/* format of di_c data */
@@ -1347,8 +1347,8 @@ static inline bool xfs_dinode_is_metadir(const struct xfs_dinode *dip)
 /*
  * RT bit manipulation macros.
  */
-#define XFS_RTBITMAP_MAGIC	0x424D505A	/* BMPZ */
-#define XFS_RTSUMMARY_MAGIC	0x53554D59	/* SUMY */
+#define MXFS_RTBITMAP_MAGIC	0x4d424d50	/* MBMP */
+#define MXFS_RTSUMMARY_MAGIC	0x4d53554d	/* MSUM */
 
 struct xfs_rtbuf_blkinfo {
 	__be32		rt_magic;	/* validity check on block */
@@ -1365,7 +1365,7 @@ struct xfs_rtbuf_blkinfo {
 /*
  * Dquot and dquot block format definitions
  */
-#define XFS_DQUOT_MAGIC		0x4451		/* 'DQ' */
+#define MXFS_DQUOT_MAGIC		0x4d51		/* 'MQ' */
 #define XFS_DQUOT_VERSION	(uint8_t)0x01	/* latest version number */
 
 #define XFS_DQTYPE_USER		(1u << 0)	/* user dquot record */
@@ -1473,7 +1473,7 @@ static inline time64_t xfs_dq_bigtime_to_unix(uint32_t ondisk_seconds)
  * disk structure.
  */
 struct xfs_disk_dquot {
-	__be16		d_magic;	/* dquot magic = XFS_DQUOT_MAGIC */
+	__be16		d_magic;	/* dquot magic = MXFS_DQUOT_MAGIC */
 	__u8		d_version;	/* dquot version */
 	__u8		d_type;		/* XFS_DQTYPE_USER/PROJ/GROUP */
 	__be32		d_id;		/* user,project,group id */
@@ -1534,7 +1534,7 @@ struct xfs_dqblk {
 /*
  * Remote symlink format and access functions.
  */
-#define XFS_SYMLINK_MAGIC	0x58534c4d	/* XSLM */
+#define MXFS_SYMLINK_MAGIC	0x4d534c4d	/* MSLM */
 
 struct xfs_dsymlink_hdr {
 	__be32	sl_magic;
@@ -1569,10 +1569,10 @@ struct xfs_dsymlink_hdr {
  * by blockcount and blockno.  All blocks look the same to make the code
  * simpler; if we have time later, we'll make the optimizations.
  */
-#define	XFS_ABTB_MAGIC		0x41425442	/* 'ABTB' for bno tree */
-#define	XFS_ABTB_CRC_MAGIC	0x41423342	/* 'AB3B' */
-#define	XFS_ABTC_MAGIC		0x41425443	/* 'ABTC' for cnt tree */
-#define	XFS_ABTC_CRC_MAGIC	0x41423343	/* 'AB3C' */
+#define	MXFS_ABTB_MAGIC		0x4d414242	/* 'MABB' for bno tree */
+#define	MXFS_ABTB_CRC_MAGIC	0x4d413342	/* 'MA3B' */
+#define	MXFS_ABTC_MAGIC		0x4d414243	/* 'MABC' for cnt tree */
+#define	MXFS_ABTC_CRC_MAGIC	0x4d413343	/* 'MA3C' */
 
 /*
  * Data record/key structure
@@ -1603,10 +1603,10 @@ typedef __be32 xfs_alloc_ptr_t;
  *
  * There is a btree for the inode map per allocation group.
  */
-#define	XFS_IBT_MAGIC		0x49414254	/* 'IABT' */
-#define	XFS_IBT_CRC_MAGIC	0x49414233	/* 'IAB3' */
-#define	XFS_FIBT_MAGIC		0x46494254	/* 'FIBT' */
-#define	XFS_FIBT_CRC_MAGIC	0x46494233	/* 'FIB3' */
+#define	MXFS_IBT_MAGIC		0x4d494142	/* 'MIAB' */
+#define	MXFS_IBT_CRC_MAGIC	0x4d494133	/* 'MIA3' */
+#define	MXFS_FIBT_MAGIC		0x4d464942	/* 'MFIB' */
+#define	MXFS_FIBT_CRC_MAGIC	0x4d464933	/* 'MFI3' */
 
 typedef uint64_t	xfs_inofree_t;
 #define	XFS_INODES_PER_CHUNK		(NBBY * sizeof(xfs_inofree_t))
@@ -1684,7 +1684,7 @@ typedef __be32 xfs_inobt_ptr_t;
  *
  * There is a btree for the reverse map per allocation group
  */
-#define	XFS_RMAP_CRC_MAGIC	0x524d4233	/* 'RMB3' */
+#define	MXFS_RMAP_CRC_MAGIC	0x4d524d33	/* 'MRM3' */
 
 /*
  * Ownership info for an extent.  This is used to create reverse-mapping
@@ -1785,7 +1785,7 @@ typedef __be32 xfs_rmap_ptr_t;
  *
  * This is a btree for reverse mapping records for realtime volumes
  */
-#define	XFS_RTRMAP_CRC_MAGIC	0x4d415052	/* 'MAPR' */
+#define	MXFS_RTRMAP_CRC_MAGIC	0x4d525452	/* 'MRTR' */
 
 /*
  * rtrmap root header, on-disk form only.
@@ -1802,7 +1802,7 @@ typedef __be64 xfs_rtrmap_ptr_t;
  * Reference Count Btree format definitions
  *
  */
-#define	XFS_REFC_CRC_MAGIC	0x52334643	/* 'R3FC' */
+#define	MXFS_REFC_CRC_MAGIC	0x4d524633	/* 'MRF3' */
 
 unsigned int xfs_refc_block(struct xfs_mount *mp);
 
@@ -1852,7 +1852,7 @@ typedef __be32 xfs_refcount_ptr_t;
  *
  * This is a btree for reference count records for realtime volumes
  */
-#define	XFS_RTREFC_CRC_MAGIC	0x52434e54	/* 'RCNT' */
+#define	MXFS_RTREFC_CRC_MAGIC	0x4d525443	/* 'MRTC' */
 
 /*
  * rt refcount root header, on-disk form only.
@@ -1871,8 +1871,8 @@ typedef __be64 xfs_rtrefcount_ptr_t;
  * This includes both the root block definition that sits inside an inode fork
  * and the record/pointer formats for the leaf/node in the blocks.
  */
-#define XFS_BMAP_MAGIC		0x424d4150	/* 'BMAP' */
-#define XFS_BMAP_CRC_MAGIC	0x424d4133	/* 'BMA3' */
+#define MXFS_BMAP_MAGIC		0x4d424d41	/* 'MBMA' */
+#define MXFS_BMAP_CRC_MAGIC	0x4d424d33	/* 'MBM3' */
 
 /*
  * Bmap root header, on-disk form only.

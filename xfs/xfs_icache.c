@@ -2302,7 +2302,7 @@ mxfs_dinode_cached_allocated(
 	if (!bp->b_addr)
 		return false;
 	dip = xfs_buf_offset(bp, boffset);
-	return dip->di_magic == cpu_to_be16(XFS_DINODE_MAGIC) &&
+	return dip->di_magic == cpu_to_be16(MXFS_DINODE_MAGIC) &&
 	       dip->di_mode != 0;
 }
 
@@ -2385,7 +2385,7 @@ mxfs_iget_create_prev_changecount(
 	if (fresh && tenure)
 		bp->b_tenure_id = tenure;
 	dip = xfs_buf_offset(bp, ip->i_imap.im_boffset);
-	if (be16_to_cpu(dip->di_magic) == XFS_DINODE_MAGIC &&
+	if (be16_to_cpu(dip->di_magic) == MXFS_DINODE_MAGIC &&
 	    dip->di_version >= 3)
 		ip->i_mxfs_prev_changecount = be64_to_cpu(dip->di_changecount);
 	xfs_trans_brelse(tp, bp);

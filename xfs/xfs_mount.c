@@ -204,7 +204,7 @@ reread:
 	 * If we haven't validated the superblock, do so now before we try
 	 * to check the sector size and reread the superblock appropriately.
 	 */
-	if (sbp->sb_magicnum != XFS_SB_MAGIC) {
+	if (sbp->sb_magicnum != MXFS_SB_MAGIC) {
 		if (loud)
 			xfs_warn(mp, "Invalid superblock magic number");
 		error = -EINVAL;

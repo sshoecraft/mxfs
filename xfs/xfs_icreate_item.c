@@ -207,7 +207,7 @@ mxfs_icreate_verify_cluster(
 		struct xfs_dinode *dip = (struct xfs_dinode *)
 					 (img + ((size_t)i << mp->m_sb.sb_inodelog));
 
-		if (dip->di_magic != cpu_to_be16(XFS_DINODE_MAGIC)) {
+		if (dip->di_magic != cpu_to_be16(MXFS_DINODE_MAGIC)) {
 			*why = "magic";
 		} else if (dip->di_version != 3) {
 			*why = "version";

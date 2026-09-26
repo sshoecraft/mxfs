@@ -49,7 +49,7 @@ xfs_symlink_hdr_set(
 		return 0;
 
 	memset(dsl, 0, sizeof(struct xfs_dsymlink_hdr));
-	dsl->sl_magic = cpu_to_be32(XFS_SYMLINK_MAGIC);
+	dsl->sl_magic = cpu_to_be32(MXFS_SYMLINK_MAGIC);
 	dsl->sl_offset = cpu_to_be32(offset);
 	dsl->sl_bytes = cpu_to_be32(size);
 	uuid_copy(&dsl->sl_uuid, &mp->m_sb.sb_meta_uuid);
@@ -160,7 +160,7 @@ xfs_symlink_write_verify(
 
 const struct xfs_buf_ops xfs_symlink_buf_ops = {
 	.name = "xfs_symlink",
-	.magic = { 0, cpu_to_be32(XFS_SYMLINK_MAGIC) },
+	.magic = { 0, cpu_to_be32(MXFS_SYMLINK_MAGIC) },
 	.verify_read = xfs_symlink_read_verify,
 	.verify_write = xfs_symlink_write_verify,
 	.verify_struct = xfs_symlink_verify,

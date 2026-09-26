@@ -157,13 +157,13 @@ xchk_xattr_find_leftmost_leaf(
 
 		node = bp->b_addr;
 		magic = be16_to_cpu(node->hdr.info.magic);
-		if (magic == XFS_ATTR_LEAF_MAGIC ||
-		    magic == XFS_ATTR3_LEAF_MAGIC)
+		if (magic == MXFS_ATTR_LEAF_MAGIC ||
+		    magic == MXFS_ATTR3_LEAF_MAGIC)
 			break;
 
 		error = -EFSCORRUPTED;
-		if (magic != XFS_DA_NODE_MAGIC &&
-		    magic != XFS_DA3_NODE_MAGIC)
+		if (magic != MXFS_DA_NODE_MAGIC &&
+		    magic != MXFS_DA3_NODE_MAGIC)
 			goto out_buf;
 
 		fa = xfs_da3_node_header_check(bp, ip->i_ino);

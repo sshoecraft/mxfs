@@ -143,7 +143,7 @@ xrep_symlink_salvage_remote(
 		 */
 		fa = bp->b_ops->verify_struct(bp);
 		dsl = bp->b_addr;
-		magic_ok = dsl->sl_magic == cpu_to_be32(XFS_SYMLINK_MAGIC);
+		magic_ok = dsl->sl_magic == cpu_to_be32(MXFS_SYMLINK_MAGIC);
 		hdr_ok = xfs_symlink_hdr_ok(ip->i_ino, offset, byte_cnt, bp);
 		if (!hdr_ok || (fa != NULL && !magic_ok))
 			break;

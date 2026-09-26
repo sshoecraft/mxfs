@@ -578,7 +578,7 @@ xfs_agfblock_init(
 	struct xfs_agf		*agf = bp->b_addr;
 	xfs_extlen_t		tmpsize;
 
-	agf->agf_magicnum = cpu_to_be32(XFS_AGF_MAGIC);
+	agf->agf_magicnum = cpu_to_be32(MXFS_AGF_MAGIC);
 	agf->agf_versionnum = cpu_to_be32(XFS_AGF_VERSION);
 	agf->agf_seqno = cpu_to_be32(id->agno);
 	agf->agf_length = cpu_to_be32(id->agsize);
@@ -627,7 +627,7 @@ xfs_agflblock_init(
 	int			bucket;
 
 	if (xfs_has_crc(mp)) {
-		agfl->agfl_magicnum = cpu_to_be32(XFS_AGFL_MAGIC);
+		agfl->agfl_magicnum = cpu_to_be32(MXFS_AGFL_MAGIC);
 		agfl->agfl_seqno = cpu_to_be32(id->agno);
 		uuid_copy(&agfl->agfl_uuid, &mp->m_sb.sb_meta_uuid);
 	}
@@ -646,7 +646,7 @@ xfs_agiblock_init(
 	struct xfs_agi		*agi = bp->b_addr;
 	int			bucket;
 
-	agi->agi_magicnum = cpu_to_be32(XFS_AGI_MAGIC);
+	agi->agi_magicnum = cpu_to_be32(MXFS_AGI_MAGIC);
 	agi->agi_versionnum = cpu_to_be32(XFS_AGI_VERSION);
 	agi->agi_seqno = cpu_to_be32(id->agno);
 	agi->agi_length = cpu_to_be32(id->agsize);

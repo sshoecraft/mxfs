@@ -439,7 +439,7 @@ mxfs_buf_iunlink_ag_authorized(
 	if (!xfs_has_v3inodes(mp) || BBTOB(bp->b_length) < sizeof(*dip))
 		return false;
 	dip = xfs_buf_offset(bp, 0);
-	if (!dip || be16_to_cpu(dip->di_magic) != XFS_DINODE_MAGIC ||
+	if (!dip || be16_to_cpu(dip->di_magic) != MXFS_DINODE_MAGIC ||
 	    dip->di_version < 3 ||
 	    !uuid_equal(&dip->di_uuid, &mp->m_sb.sb_meta_uuid))
 		return false;
@@ -557,15 +557,15 @@ mxfs_buf_derive_owner(
 		magic = be32_to_cpu(h->magic);
 		/* magic must agree with BOTH b_ops and the BLFT */
 		if (ops == &xfs_dir3_data_buf_ops) {
-			if (magic != XFS_DIR3_DATA_MAGIC ||
+			if (magic != MXFS_DIR3_DATA_MAGIC ||
 			    blft != XFS_BLFT_DIR_DATA_BUF)
 				return;
 		} else if (ops == &xfs_dir3_block_buf_ops) {
-			if (magic != XFS_DIR3_BLOCK_MAGIC ||
+			if (magic != MXFS_DIR3_BLOCK_MAGIC ||
 			    blft != XFS_BLFT_DIR_BLOCK_BUF)
 				return;
 		} else {
-			if (magic != XFS_DIR3_FREE_MAGIC ||
+			if (magic != MXFS_DIR3_FREE_MAGIC ||
 			    blft != XFS_BLFT_DIR_FREE_BUF)
 				return;
 		}
@@ -584,11 +584,11 @@ mxfs_buf_derive_owner(
 			return;
 		magic = be16_to_cpu(h->hdr.magic);
 		if (ops == &xfs_dir3_leaf1_buf_ops) {
-			if (magic != XFS_DIR3_LEAF1_MAGIC ||
+			if (magic != MXFS_DIR3_LEAF1_MAGIC ||
 			    blft != XFS_BLFT_DIR_LEAF1_BUF)
 				return;
 		} else if (ops == &xfs_dir3_leafn_buf_ops) {
-			if (magic != XFS_DIR3_LEAFN_MAGIC ||
+			if (magic != MXFS_DIR3_LEAFN_MAGIC ||
 			    blft != XFS_BLFT_DIR_LEAFN_BUF)
 				return;
 		} else if (ops == &xfs_da3_node_buf_ops) {
@@ -597,13 +597,13 @@ mxfs_buf_derive_owner(
 			 * and (for a dir) the leafn magic, and both BLFTs are
 			 * legitimate for it — accept the exact pairs only.
 			 */
-			if (!((magic == XFS_DA3_NODE_MAGIC &&
+			if (!((magic == MXFS_DA3_NODE_MAGIC &&
 			       blft == XFS_BLFT_DA_NODE_BUF) ||
-			      (magic == XFS_DIR3_LEAFN_MAGIC &&
+			      (magic == MXFS_DIR3_LEAFN_MAGIC &&
 			       blft == XFS_BLFT_DIR_LEAFN_BUF)))
 				return;
 		} else {
-			if (magic != XFS_ATTR3_LEAF_MAGIC ||
+			if (magic != MXFS_ATTR3_LEAF_MAGIC ||
 			    blft != XFS_BLFT_ATTR_LEAF_BUF)
 				return;
 		}
@@ -615,7 +615,7 @@ mxfs_buf_derive_owner(
 		const struct xfs_attr3_rmt_hdr *h = addr;
 
 		if (sizeof(*h) > blen ||
-		    be32_to_cpu(h->rm_magic) != XFS_ATTR3_RMT_MAGIC ||
+		    be32_to_cpu(h->rm_magic) != MXFS_ATTR3_RMT_MAGIC ||
 		    blft != XFS_BLFT_ATTR_RMT_BUF)
 			return;
 		owner = be64_to_cpu(h->rm_owner);
@@ -626,7 +626,7 @@ mxfs_buf_derive_owner(
 		const struct xfs_dsymlink_hdr *h = addr;
 
 		if (sizeof(*h) > blen ||
-		    be32_to_cpu(h->sl_magic) != XFS_SYMLINK_MAGIC ||
+		    be32_to_cpu(h->sl_magic) != MXFS_SYMLINK_MAGIC ||
 		    blft != XFS_BLFT_SYMLINK_BUF)
 			return;
 		owner = be64_to_cpu(h->sl_owner);
@@ -664,7 +664,7 @@ mxfs_buf_derive_owner(
 		 * block can never be read through the long-form union arm.
 		 */
 		if (XFS_BTREE_LBLOCK_CRC_LEN > blen ||
-		    be32_to_cpu(h->bb_magic) != XFS_BMAP_CRC_MAGIC ||
+		    be32_to_cpu(h->bb_magic) != MXFS_BMAP_CRC_MAGIC ||
 		    blft != XFS_BLFT_BTREE_BUF)
 			return;
 		owner = be64_to_cpu(h->bb_u.l.bb_owner);

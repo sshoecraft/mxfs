@@ -1672,7 +1672,7 @@ mxfs_p87_read_home_dinode(
 		return rc < 0 ? rc : -EIO;
 	}
 	dp = (struct xfs_dinode *)((char *)tmp + secoff);
-	if (be16_to_cpu(dp->di_magic) != XFS_DINODE_MAGIC) {
+	if (be16_to_cpu(dp->di_magic) != MXFS_DINODE_MAGIC) {
 		kfree(tmp);
 		return -EFSCORRUPTED;
 	}
@@ -1847,7 +1847,7 @@ mxfs_agifc_release_audit(
 		goto out;
 	}
 	agi = agibuf;
-	if (be32_to_cpu(agi->agi_magicnum) != XFS_AGI_MAGIC) {
+	if (be32_to_cpu(agi->agi_magicnum) != MXFS_AGI_MAGIC) {
 		atomic64_inc(&mxfs_agifc_audit_skip_read);	/* */
 		goto out;
 	}
@@ -1862,8 +1862,8 @@ mxfs_agifc_release_audit(
 	/* past every early exit — this call actually inspects the
 	 * platter, so it is one unit of the denominator. */
 	atomic64_inc(&mxfs_agifc_audit_ran);
-	ibt_magic = xfs_has_crc(mp) ? XFS_IBT_CRC_MAGIC : XFS_IBT_MAGIC;
-	fin_magic = xfs_has_crc(mp) ? XFS_FIBT_CRC_MAGIC : XFS_FIBT_MAGIC;
+	ibt_magic = xfs_has_crc(mp) ? MXFS_IBT_CRC_MAGIC : MXFS_IBT_MAGIC;
+	fin_magic = xfs_has_crc(mp) ? MXFS_FIBT_CRC_MAGIC : MXFS_FIBT_MAGIC;
 	rc = mxfs_agifc_read_platter(mp,
 			XFS_AGB_TO_DADDR(mp, pag_agno(pag),
 					 be32_to_cpu(agi->agi_root)),
@@ -1924,7 +1924,7 @@ mxfs_agifc_release_audit(
 			if (k == 0) {
 				struct xfs_agi *cagi = bp->b_addr;
 
-				if (be32_to_cpu(cagi->agi_magicnum) == XFS_AGI_MAGIC) {
+				if (be32_to_cpu(cagi->agi_magicnum) == MXFS_AGI_MAGIC) {
 					cval = be32_to_cpu(cagi->agi_freecount);
 					clsn = be64_to_cpu(cagi->agi_lsn);
 				}
@@ -2008,7 +2008,7 @@ mxfs_p86_agi_unlinked_publish_audit(
 		goto obligations;
 	}
 	agi = agibp->b_addr;
-	if (be32_to_cpu(agi->agi_magicnum) == XFS_AGI_MAGIC) {
+	if (be32_to_cpu(agi->agi_magicnum) == MXFS_AGI_MAGIC) {
 		for (i = 0; i < XFS_AGI_UNLINKED_BUCKETS; i++)
 			bucket[i] = be32_to_cpu(agi->agi_unlinked[i]);
 		snapped = true;

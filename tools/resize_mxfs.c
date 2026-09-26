@@ -51,15 +51,15 @@
                              STRINGIFY(MXFS_VERSION_MINOR) "." \
                              STRINGIFY(MXFS_VERSION_PATCH)
 
-/* XFS on-disk constants */
-#define XFS_SB_MAGIC            0x58465342  /* "XFSB" */
-#define XFS_AGF_MAGIC           0x58414746  /* "XAGF" */
-#define XFS_AGI_MAGIC           0x58414749  /* "XAGI" */
-#define XFS_AGFL_MAGIC          0x5841464C  /* "XAFL" */
-#define XFS_BNO_MAGIC           0x41423342  /* "AB3B" */
-#define XFS_CNT_MAGIC           0x41423343  /* "AB3C" */
-#define XFS_INO_MAGIC           0x49414233  /* "IAB3" */
-#define XFS_FINO_MAGIC          0x46494233  /* "FIB3" */
+/* MXFS on-disk constants (XFS-derived structures) */
+#define MXFS_SB_MAGIC            0x4D585342  /* "MXSB" */
+#define MXFS_AGF_MAGIC           0x4D414746  /* "MAGF" */
+#define MXFS_AGI_MAGIC           0x4D414749  /* "MAGI" */
+#define MXFS_AGFL_MAGIC          0x4D41464C  /* "MAFL" */
+#define MXFS_ABTB_CRC_MAGIC           0x4D413342  /* "MA3B" */
+#define MXFS_ABTC_CRC_MAGIC           0x4D413343  /* "MA3C" */
+#define MXFS_IBT_CRC_MAGIC           0x4D494133  /* "MIA3" */
+#define MXFS_FIBT_CRC_MAGIC          0x4D464933  /* "MFI3" */
 
 #define XFS_BLOCKSIZE           4096
 #define XFS_SECTSIZE            512
@@ -396,7 +396,7 @@ static void build_xfs_sb_sector(uint8_t *sec, const struct xfs_sb_info *sb,
 {
     memset(sec, 0, 512);
 
-    put_be32(sec + 0, XFS_SB_MAGIC);
+    put_be32(sec + 0, MXFS_SB_MAGIC);
     put_be32(sec + 4, sb->blocksize);
     put_be64(sec + 8, sb->dblocks);
     /* rblocks[16], rextents[24] = 0 */
@@ -464,7 +464,7 @@ static void write_agf_sector(uint8_t *sec, uint32_t agno, uint32_t aglen,
 {
     memset(sec, 0, 512);
 
-    put_be32(sec + 0x00, XFS_AGF_MAGIC);
+    put_be32(sec + 0x00, MXFS_AGF_MAGIC);
     put_be32(sec + 0x04, 1);          /* versionnum */
     put_be32(sec + 0x08, agno);       /* seqno */
     put_be32(sec + 0x0C, aglen);      /* length */
@@ -503,7 +503,7 @@ static void write_agi_sector(uint8_t *sec, uint32_t agno, uint32_t aglen,
 
     memset(sec, 0, 512);
 
-    put_be32(sec + 0x00, XFS_AGI_MAGIC);
+    put_be32(sec + 0x00, MXFS_AGI_MAGIC);
     put_be32(sec + 0x04, 1);             /* versionnum */
     put_be32(sec + 0x08, agno);          /* seqno */
     put_be32(sec + 0x0C, aglen);         /* length */
@@ -536,7 +536,7 @@ static void write_agfl_sector(uint8_t *sec, uint32_t agno, const uint8_t *uuid)
 
     memset(sec, 0, 512);
 
-    put_be32(sec + 0x00, XFS_AGFL_MAGIC);
+    put_be32(sec + 0x00, MXFS_AGFL_MAGIC);
     put_be32(sec + 0x04, agno);          /* seqno */
     memcpy(sec + 0x08, uuid, 16);        /* uuid */
     /* lsn[0x18] = 0 */
@@ -641,7 +641,7 @@ static int write_new_ag(int fd, uint32_t agno, uint32_t aglen,
     put_be32(rec + 0, free_start);  /* startblock */
     put_be32(rec + 4, freeblks);    /* blockcount */
 
-    write_btree_block(block, XFS_BNO_MAGIC, agno,
+    write_btree_block(block, MXFS_ABTB_CRC_MAGIC, agno,
                       (uint64_t)agno * sb->agblocks + 1,
                       1, rec, 8, uuid);
 
@@ -649,7 +649,7 @@ static int write_new_ag(int fd, uint32_t agno, uint32_t aglen,
         goto fail;
 
     /* Block 2: CNT btree root — same single free extent record */
-    write_btree_block(block, XFS_CNT_MAGIC, agno,
+    write_btree_block(block, MXFS_ABTC_CRC_MAGIC, agno,
                       (uint64_t)agno * sb->agblocks + 2,
                       1, rec, 8, uuid);
 
@@ -657,7 +657,7 @@ static int write_new_ag(int fd, uint32_t agno, uint32_t aglen,
         goto fail;
 
     /* Block 3: INO btree root — empty (no inodes in new AG) */
-    write_btree_block(block, XFS_INO_MAGIC, agno,
+    write_btree_block(block, MXFS_IBT_CRC_MAGIC, agno,
                       (uint64_t)agno * sb->agblocks + 3,
                       0, NULL, 0, uuid);
 
@@ -665,7 +665,7 @@ static int write_new_ag(int fd, uint32_t agno, uint32_t aglen,
         goto fail;
 
     /* Block 4: FINO btree root — empty (no inode chunks, so no free inodes) */
-    write_btree_block(block, XFS_FINO_MAGIC, agno,
+    write_btree_block(block, MXFS_FIBT_CRC_MAGIC, agno,
                       (uint64_t)agno * sb->agblocks + 4,
                       0, NULL, 0, uuid);
 
@@ -872,11 +872,11 @@ int main(int argc, char *argv[])
 
     parse_xfs_sb(xfs_sb_raw, &sb);
 
-    if (sb.magic != XFS_SB_MAGIC) {
+    if (sb.magic != MXFS_SB_MAGIC) {
         pr_err("resize_mxfs: %s: bad XFS magic at offset %llu "
                "(0x%08x, expected 0x%08x)\n",
                device, (unsigned long long)msup.xfs_data_offset,
-               sb.magic, XFS_SB_MAGIC);
+               sb.magic, MXFS_SB_MAGIC);
         close(fd);
         return 1;
     }

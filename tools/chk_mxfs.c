@@ -92,17 +92,17 @@
 #define MXFS_MEPOCH_F_PREPARED_C        0x0001
 #define MXFS_MEPOCH_F_VOTERS5_C         0x0002
 
-/* XFS on-disk constants */
-#define XFS_SB_MAGIC            0x58465342  /* "XFSB" */
-#define XFS_AGF_MAGIC           0x58414746  /* "XAGF" */
-#define XFS_AGI_MAGIC           0x58414749  /* "XAGI" */
-#define XFS_DINODE_MAGIC        0x494E      /* "IN" */
+/* MXFS on-disk constants (XFS-derived structures) */
+#define MXFS_SB_MAGIC            0x4D585342  /* "MXSB" */
+#define MXFS_AGF_MAGIC           0x4D414746  /* "MAGF" */
+#define MXFS_AGI_MAGIC           0x4D414749  /* "MAGI" */
+#define MXFS_DINODE_MAGIC        0x4D4E      /* "MN" */
 
 /* V5 CRC btree magic numbers (from kernel xfs_format.h) */
-#define XFS_ABTB_CRC_MAGIC     0x41423342  /* "AB3B" bnobt */
-#define XFS_ABTC_CRC_MAGIC     0x41423343  /* "AB3C" cntbt */
-#define XFS_IBT_CRC_MAGIC      0x49414233  /* "IAB3" inobt */
-#define XFS_FIBT_CRC_MAGIC     0x46494233  /* "FIB3" finobt */
+#define MXFS_ABTB_CRC_MAGIC     0x4D413342  /* "MA3B" bnobt */
+#define MXFS_ABTC_CRC_MAGIC     0x4D413343  /* "MA3C" cntbt */
+#define MXFS_IBT_CRC_MAGIC      0x4D494133  /* "MIA3" inobt */
+#define MXFS_FIBT_CRC_MAGIC     0x4D464933  /* "MFI3" finobt */
 
 /* V5 btree short-form block header: 56 bytes
  * [0x00] magic    (be32)
@@ -2994,9 +2994,9 @@ static int check_xfs_superblock(int fd, const struct mxfs_ondisk_super *super,
     uint8_t uuid[16];
     memcpy(uuid, buf + 0x20, 16);
 
-    if (sb_magic != XFS_SB_MAGIC) {
+    if (sb_magic != MXFS_SB_MAGIC) {
         err("XFS superblock magic: expected 0x%08X, got 0x%08X",
-            XFS_SB_MAGIC, sb_magic);
+            MXFS_SB_MAGIC, sb_magic);
         printf("XFS superblock .......... ERRORS\n");
         return -1;
     }
@@ -3146,9 +3146,9 @@ static void check_xfs_ag_headers(int fd, const struct xfs_geo *geo,
     uint32_t agf_magic = get_be32(buf + 0);
     uint32_t agf_seqno = get_be32(buf + 8);
 
-    if (agf_magic != XFS_AGF_MAGIC) {
+    if (agf_magic != MXFS_AGF_MAGIC) {
         err("AG %u: AGF magic expected 0x%08X, got 0x%08X",
-            agno, XFS_AGF_MAGIC, agf_magic);
+            agno, MXFS_AGF_MAGIC, agf_magic);
         agf_errors++;
     }
 
@@ -3163,7 +3163,7 @@ static void check_xfs_ag_headers(int fd, const struct xfs_geo *geo,
         err("AG %u: AGF CRC stored=0x%08X, verification failed", agno, stored);
         agf_errors++;
 
-        if (can_repair() && agf_magic == XFS_AGF_MAGIC) {
+        if (can_repair() && agf_magic == MXFS_AGF_MAGIC) {
             if (xfs_fix_crc_and_write(fd, buf, 512, 0xD8, agf_off) == 0) {
                 printf("  REPAIRED: AG %u AGF CRC recomputed\n", agno);
                 repaired++;
@@ -3196,9 +3196,9 @@ static void check_xfs_ag_headers(int fd, const struct xfs_geo *geo,
     uint32_t agi_magic = get_be32(buf + 0);
     uint32_t agi_seqno = get_be32(buf + 8);
 
-    if (agi_magic != XFS_AGI_MAGIC) {
+    if (agi_magic != MXFS_AGI_MAGIC) {
         err("AG %u: AGI magic expected 0x%08X, got 0x%08X",
-            agno, XFS_AGI_MAGIC, agi_magic);
+            agno, MXFS_AGI_MAGIC, agi_magic);
         agi_errors++;
     }
 
@@ -3213,7 +3213,7 @@ static void check_xfs_ag_headers(int fd, const struct xfs_geo *geo,
         err("AG %u: AGI CRC stored=0x%08X, verification failed", agno, stored);
         agi_errors++;
 
-        if (can_repair() && agi_magic == XFS_AGI_MAGIC) {
+        if (can_repair() && agi_magic == MXFS_AGI_MAGIC) {
             if (xfs_fix_crc_and_write(fd, buf, 512, 0x138, agi_off) == 0) {
                 printf("  REPAIRED: AG %u AGI CRC recomputed\n", agno);
                 repaired++;
@@ -3627,7 +3627,7 @@ static int rebuild_freespace_btrees(int fd, const struct xfs_geo *geo,
         return -1;
 
     /* Write BNO root leaf at block 1 */
-    put_be32(blk + 0x00, XFS_ABTB_CRC_MAGIC);
+    put_be32(blk + 0x00, MXFS_ABTB_CRC_MAGIC);
     /* level=0, numrecs=1 */
     put_be32(blk + 0x04, 0x00000001);  /* level(be16)=0, numrecs(be16)=1 */
     put_be32(blk + 0x08, 0xFFFFFFFF);  /* leftsib = null */
@@ -3650,7 +3650,7 @@ static int rebuild_freespace_btrees(int fd, const struct xfs_geo *geo,
 
     /* Write CNT root leaf at block 2 — same record, different magic */
     memset(blk, 0, geo->blocksize);
-    put_be32(blk + 0x00, XFS_ABTC_CRC_MAGIC);
+    put_be32(blk + 0x00, MXFS_ABTC_CRC_MAGIC);
     put_be32(blk + 0x04, 0x00000001);  /* level=0, numrecs=1 */
     put_be32(blk + 0x08, 0xFFFFFFFF);
     put_be32(blk + 0x0C, 0xFFFFFFFF);
@@ -3704,7 +3704,7 @@ static void check_freespace_btrees(int fd, const struct xfs_geo *geo,
         err("AG %u BNO btree: level is 0 (must be >= 1)", agno);
     } else {
         bno_total = walk_freespace_btree(fd, geo, agno, agi->bno_root,
-                                         XFS_ABTB_CRC_MAGIC, "BNO", true,
+                                         MXFS_ABTB_CRC_MAGIC, "BNO", true,
                                          agi->bno_level - 1, agi->agf_length);
     }
 
@@ -3716,7 +3716,7 @@ static void check_freespace_btrees(int fd, const struct xfs_geo *geo,
         err("AG %u CNT btree: level is 0 (must be >= 1)", agno);
     } else {
         cnt_total = walk_freespace_btree(fd, geo, agno, agi->cnt_root,
-                                         XFS_ABTC_CRC_MAGIC, "CNT", false,
+                                         MXFS_ABTC_CRC_MAGIC, "CNT", false,
                                          agi->cnt_level - 1, agi->agf_length);
     }
 
@@ -4062,7 +4062,7 @@ static void check_inode_btrees(int fd, const struct xfs_geo *geo,
         err("AG %u inobt: level is 0 (must be >= 1)", agno);
     } else {
         walk_inobt(fd, geo, agno, agi->ino_root,
-                   XFS_IBT_CRC_MAGIC, "inobt",
+                   MXFS_IBT_CRC_MAGIC, "inobt",
                    agi->ino_level - 1, agi->agi_length,
                    &inobt_totals);
     }
@@ -4118,7 +4118,7 @@ static void check_inode_btrees(int fd, const struct xfs_geo *geo,
         inobt_totals.num_records > 0 &&
         agi->ino_root < agi->agi_length) {
         if (reset_inobt_root(fd, geo, agno, agi->ino_root,
-                             XFS_IBT_CRC_MAGIC) == 0) {
+                             MXFS_IBT_CRC_MAGIC) == 0) {
             printf("  REPAIRED: AG %u inobt root reset to empty leaf (%u garbage records cleared)\n",
                    agno, inobt_totals.num_records);
             repaired++;
@@ -4153,7 +4153,7 @@ static void check_inode_btrees(int fd, const struct xfs_geo *geo,
             err("AG %u finobt: level is 0 (must be >= 1)", agno);
         } else {
             walk_inobt(fd, geo, agno, agi->fino_root,
-                       XFS_FIBT_CRC_MAGIC, "finobt",
+                       MXFS_FIBT_CRC_MAGIC, "finobt",
                        agi->fino_level - 1, agi->agi_length,
                        &finobt_totals);
         }
@@ -4175,7 +4175,7 @@ static void check_inode_btrees(int fd, const struct xfs_geo *geo,
             finobt_totals.num_records > 0 &&
             agi->fino_root < agi->agi_length) {
             if (reset_inobt_root(fd, geo, agno, agi->fino_root,
-                                 XFS_FIBT_CRC_MAGIC) == 0) {
+                                 MXFS_FIBT_CRC_MAGIC) == 0) {
                 printf("  REPAIRED: AG %u finobt root reset to empty leaf (%u garbage records cleared)\n",
                        agno, finobt_totals.num_records);
                 repaired++;
@@ -4244,9 +4244,9 @@ static int check_one_inode(int fd, const struct xfs_geo *geo,
 
     /* Validate magic */
     uint16_t di_magic = get_be16(ibuf + 0x00);
-    if (di_magic != XFS_DINODE_MAGIC) {
+    if (di_magic != MXFS_DINODE_MAGIC) {
         err("inode %llu (%s): magic expected 0x%04X, got 0x%04X",
-            (unsigned long long)ino, label, XFS_DINODE_MAGIC, di_magic);
+            (unsigned long long)ino, label, MXFS_DINODE_MAGIC, di_magic);
         return -1;
     }
 
@@ -4496,7 +4496,7 @@ static void orphan_walk_chain(int fd, const struct xfs_geo *geo,
                 agno, bucket, agino);
             break;
         }
-        if (get_be16(ibuf + 0x00) != XFS_DINODE_MAGIC) {
+        if (get_be16(ibuf + 0x00) != MXFS_DINODE_MAGIC) {
             err("AG %u unlinked bucket %d: agino %u has bad inode magic 0x%04X",
                 agno, bucket, agino, get_be16(ibuf + 0x00));
             break;
@@ -4573,7 +4573,7 @@ static void orphan_collect_leaf(int fd, const struct xfs_geo *geo,
             if (free_mask & (1ULL << i))
                 continue;                       /* free */
             (*scanned)++;
-            if (get_be16(dip + 0x00) != XFS_DINODE_MAGIC) {
+            if (get_be16(dip + 0x00) != MXFS_DINODE_MAGIC) {
                 err("AG %u orphan audit: allocated agino %u bad magic 0x%04X",
                     agno, startino + i, get_be16(dip + 0x00));
                 continue;
@@ -4625,7 +4625,7 @@ static void orphan_walk_inobt(int fd, const struct xfs_geo *geo,
         return;
     }
     if (read_ag_block(fd, geo, agno, agbno, blk) < 0 ||
-        get_be32(blk + 0x00) != XFS_IBT_CRC_MAGIC) {
+        get_be32(blk + 0x00) != MXFS_IBT_CRC_MAGIC) {
         free(blk);
         return;
     }
@@ -4703,7 +4703,7 @@ static void check_orphan_inodes(int fd, const struct xfs_geo *geo)
         struct orphan_list members = { 0 }, cand = { 0 };
 
         if (read_at(fd, agi_buf, 512, agi_off) < 0 ||
-            get_be32(agi_buf + 0x00) != XFS_AGI_MAGIC) {
+            get_be32(agi_buf + 0x00) != MXFS_AGI_MAGIC) {
             incomplete = true;
             continue;           /* AGI errors already reported upstream */
         }
@@ -5083,7 +5083,7 @@ static int ds_read_dinode(int fd, const struct xfs_geo *geo, uint64_t ino,
         return -1;
     if (read_at(fd, dip, geo->inodesize, inode_disk_offset(geo, agno, agino)) < 0)
         return -1;
-    if (get_be16(dip + 0x00) != XFS_DINODE_MAGIC)
+    if (get_be16(dip + 0x00) != MXFS_DINODE_MAGIC)
         return -1;
     return 0;
 }
@@ -5186,7 +5186,7 @@ static void ds_collect_leaf(int fd, const struct xfs_geo *geo, uint32_t agno,
                 continue;
             if (free_mask & (1ULL << i))
                 continue;
-            if (get_be16(dip + 0x00) != XFS_DINODE_MAGIC)
+            if (get_be16(dip + 0x00) != MXFS_DINODE_MAGIC)
                 continue;
             if (get_be16(dip + DS_DI_MODE) == 0)
                 continue;
@@ -5223,7 +5223,7 @@ static void ds_walk_inobt(int fd, const struct xfs_geo *geo, uint32_t agno,
         return;
     }
     if (read_ag_block(fd, geo, agno, agbno, blk) < 0 ||
-        get_be32(blk + 0x00) != XFS_IBT_CRC_MAGIC) {
+        get_be32(blk + 0x00) != MXFS_IBT_CRC_MAGIC) {
         free(blk);
         return;
     }
@@ -5489,7 +5489,7 @@ static void check_dirshard(int fd, const struct xfs_geo *geo)
         uint32_t ino_root, ino_level;
 
         if (read_at(fd, agi_buf, 512, agi_off) < 0 ||
-            get_be32(agi_buf + 0x00) != XFS_AGI_MAGIC)
+            get_be32(agi_buf + 0x00) != MXFS_AGI_MAGIC)
             continue;
         ino_root  = get_be32(agi_buf + 0x14);
         ino_level = get_be32(agi_buf + 0x18);
@@ -5571,9 +5571,9 @@ out:
  * bestfree table and the leaf hash index, and it destroys the evidence the
  * pass exists to surface.
  */
-#define DE_DIR3_BLOCK_MAGIC   0x58444233u   /* XDB3 */
-#define DE_DIR3_DATA_MAGIC    0x58444433u   /* XDD3 */
-#define DE_BMAP_CRC_MAGIC     0x424d4133u   /* BMA3 */
+#define MXFS_DIR3_BLOCK_MAGIC   0x4D444233u   /* MDB3 */
+#define MXFS_DIR3_DATA_MAGIC    0x4D444433u   /* MDD3 */
+#define MXFS_BMAP_CRC_MAGIC     0x4D424D33u   /* MBM3 */
 #define DE_DATA_HDR_SIZE      64            /* struct xfs_dir3_data_hdr */
 #define DE_BLK_HDR_OWNER_OFF  40            /* xfs_dir3_blk_hdr.owner */
 #define DE_BLK_HDR_CRC_OFF    4
@@ -5730,7 +5730,7 @@ static void de_walk_bmbt(int fd, const struct xfs_geo *geo, uint64_t dirino,
         return;
     }
     if (read_at(fd, blk, geo->blocksize, off) < 0 ||
-        get_be32(blk) != DE_BMAP_CRC_MAGIC) {
+        get_be32(blk) != MXFS_BMAP_CRC_MAGIC) {
         err("dirents: directory %llu bmbt block fsb %llu unreadable or not BMA3",
             (unsigned long long)dirino, (unsigned long long)fsbno);
         free(blk);
@@ -6004,7 +6004,7 @@ static void de_walk_data_block(int fd, const struct xfs_geo *geo,
     uint32_t magic = get_be32(blk);
     size_t data_end = dbsize, p;
 
-    if (magic != DE_DIR3_BLOCK_MAGIC && magic != DE_DIR3_DATA_MAGIC) {
+    if (magic != MXFS_DIR3_BLOCK_MAGIC && magic != MXFS_DIR3_DATA_MAGIC) {
         st->blocks_bad++;
         de_report(st, "directory %llu: data block at offset %llu has magic "
                   "0x%08x, not XDB3/XDD3 (not walked)",
@@ -6034,7 +6034,7 @@ static void de_walk_data_block(int fd, const struct xfs_geo *geo,
                   (unsigned long long)dirino, (unsigned long long)dboff);
         return;
     }
-    if (magic == DE_DIR3_BLOCK_MAGIC) {
+    if (magic == MXFS_DIR3_BLOCK_MAGIC) {
         /* block format: leaf entries (8 bytes each) and the tail
          * (count, stale: two be32) sit at the end of the block; count
          * includes the stale slots */
@@ -6258,7 +6258,7 @@ static void de_collect_leaf(int fd, const struct xfs_geo *geo, uint32_t agno,
             if (have_chunk) {
                 const uint8_t *dip = chunk + (size_t)i * geo->inodesize;
 
-                if (get_be16(dip) == XFS_DINODE_MAGIC &&
+                if (get_be16(dip) == MXFS_DINODE_MAGIC &&
                     (get_be16(dip + DS_DI_MODE) & DS_S_IFMT) == DS_S_IFDIR)
                     de_push(dirs, ino);
             }
@@ -6281,7 +6281,7 @@ static void de_walk_inobt(int fd, const struct xfs_geo *geo, uint32_t agno,
         return;
     }
     if (read_ag_block(fd, geo, agno, agbno, blk) < 0 ||
-        get_be32(blk + 0x00) != XFS_IBT_CRC_MAGIC) {
+        get_be32(blk + 0x00) != MXFS_IBT_CRC_MAGIC) {
         free(blk);
         return;
     }
@@ -6333,7 +6333,7 @@ static void check_dirents(int fd, const struct xfs_geo *geo)
         uint32_t ino_root, ino_level;
 
         if (read_at(fd, agi_buf, 512, agi_off) < 0 ||
-            get_be32(agi_buf + 0x00) != XFS_AGI_MAGIC)
+            get_be32(agi_buf + 0x00) != MXFS_AGI_MAGIC)
             continue;
         ino_root  = get_be32(agi_buf + 0x14);
         ino_level = get_be32(agi_buf + 0x18);
@@ -7729,7 +7729,7 @@ static int do_upgrade_protogate(int fd)
     xfs_off = sup.xfs_data_offset;
     if (read_at(fd, sec, 512, xfs_off) < 0)
         return 4;
-    if (get_be32(sec + 0) != XFS_SB_MAGIC) {
+    if (get_be32(sec + 0) != MXFS_SB_MAGIC) {
         fprintf(stderr, "upgrade: no XFS superblock at data offset\n");
         return 4;
     }
@@ -7747,7 +7747,7 @@ static int do_upgrade_protogate(int fd)
 
         if (read_at(fd, sec, 512, off) < 0)
             return 4;
-        if (get_be32(sec + 0) != XFS_SB_MAGIC) {
+        if (get_be32(sec + 0) != MXFS_SB_MAGIC) {
             fprintf(stderr, "upgrade: AG %u superblock bad magic — run a "
                     "full check first\n", agno);
             return 4;
@@ -7802,7 +7802,7 @@ static int do_ino_offset(const char *device, unsigned long long ino)
         return 4;
     }
     close(fd);
-    if (get_be32(sb + 0) != 0x58465342) {
+    if (get_be32(sb + 0) != MXFS_SB_MAGIC) {
         fprintf(stderr, "ino-offset: no XFS superblock at %llu\n",
                 (unsigned long long)sup.xfs_data_offset);
         return 4;
@@ -7958,7 +7958,7 @@ static int do_free_query_live(const char *device)
         check_xfs_ag_headers(fd, &geo, agno, &agi);
         if (agi.agf_ok && agi.bno_root < agi.agf_length && agi.bno_level >= 1)
             walk_freespace_btree(fd, &geo, agno, agi.bno_root,
-                                 XFS_ABTB_CRC_MAGIC, "BNO", true,
+                                 MXFS_ABTB_CRC_MAGIC, "BNO", true,
                                  agi.bno_level - 1, agi.agf_length);
         else
             printf("  AG %u: BNO btree not walked (AGF errors); its queries "

@@ -155,13 +155,13 @@ xfs_bmbt_to_bmdr(
 	__be64			*tpp;
 
 	if (xfs_has_crc(mp)) {
-		ASSERT(rblock->bb_magic == cpu_to_be32(XFS_BMAP_CRC_MAGIC));
+		ASSERT(rblock->bb_magic == cpu_to_be32(MXFS_BMAP_CRC_MAGIC));
 		ASSERT(uuid_equal(&rblock->bb_u.l.bb_uuid,
 		       &mp->m_sb.sb_meta_uuid));
 		ASSERT(rblock->bb_u.l.bb_blkno ==
 		       cpu_to_be64(XFS_BUF_DADDR_NULL));
 	} else
-		ASSERT(rblock->bb_magic == cpu_to_be32(XFS_BMAP_MAGIC));
+		ASSERT(rblock->bb_magic == cpu_to_be32(MXFS_BMAP_MAGIC));
 	ASSERT(rblock->bb_u.l.bb_leftsib == cpu_to_be64(NULLFSBLOCK));
 	ASSERT(rblock->bb_u.l.bb_rightsib == cpu_to_be64(NULLFSBLOCK));
 	ASSERT(rblock->bb_level != 0);
@@ -518,8 +518,8 @@ xfs_bmbt_write_verify(
 
 const struct xfs_buf_ops xfs_bmbt_buf_ops = {
 	.name = "xfs_bmbt",
-	.magic = { cpu_to_be32(XFS_BMAP_MAGIC),
-		   cpu_to_be32(XFS_BMAP_CRC_MAGIC) },
+	.magic = { cpu_to_be32(MXFS_BMAP_MAGIC),
+		   cpu_to_be32(MXFS_BMAP_CRC_MAGIC) },
 	.verify_read = xfs_bmbt_read_verify,
 	.verify_write = xfs_bmbt_write_verify,
 	.verify_struct = xfs_bmbt_verify,

@@ -477,7 +477,7 @@ mxfs_dlm_dir_modify_reload_prelock(struct xfs_inode *dp)
 				bool disk_ahead = false;
 				int incore_cnt = -1, disk_cnt = -1;
 
-				if (be16_to_cpu(dip->di_magic) == XFS_DINODE_MAGIC &&
+				if (be16_to_cpu(dip->di_magic) == MXFS_DINODE_MAGIC &&
 				    be32_to_cpu(dip->di_gen) ==
 					VFS_I(dp)->i_generation) {
 					/* in-core shortform entry count */
@@ -607,7 +607,7 @@ mxfs_dlm_dir_modify_reload_prelock(struct xfs_inode *dp)
 				 * (the durable single-entry loss).  Same incarnation only.
 				 * No ILOCK held (pre-xfs_trans_alloc); reload is safe. */
 				if (be16_to_cpu(dip->di_magic) ==
-					XFS_DINODE_MAGIC &&
+					MXFS_DINODE_MAGIC &&
 				    be32_to_cpu(dip->di_gen) ==
 					VFS_I(dp)->i_generation &&
 				    dip->di_format == XFS_DINODE_FMT_EXTENTS) {
@@ -651,7 +651,7 @@ mxfs_dlm_dir_modify_reload_prelock(struct xfs_inode *dp)
 						return;
 					}
 				} else if (be16_to_cpu(dip->di_magic) ==
-					XFS_DINODE_MAGIC &&
+					MXFS_DINODE_MAGIC &&
 				    be32_to_cpu(dip->di_gen) ==
 					VFS_I(dp)->i_generation &&
 				    dip->di_format == XFS_DINODE_FMT_BTREE &&
@@ -937,7 +937,7 @@ mxfs_dir_rebase_shortform(struct xfs_inode *dp)
 		ict, icl) != 0)
 		goto out;
 	dip = (struct xfs_dinode *)((char *)ict + dp->i_imap.im_boffset);
-	if (be16_to_cpu(dip->di_magic) != XFS_DINODE_MAGIC)
+	if (be16_to_cpu(dip->di_magic) != MXFS_DINODE_MAGIC)
 		goto out;
 	/*
 	 * NON-PERTURBING instrumentation: atomic counters (no
@@ -1585,7 +1585,7 @@ mxfs_dir_modify_adopt_disk_format(struct xfs_inode *dp, unsigned int lock_flags)
 	}
 	dip = (struct xfs_dinode *)((char *)tmp + dp->i_imap.im_boffset);
 	disk_magic = be16_to_cpu(dip->di_magic);
-	if (disk_magic != XFS_DINODE_MAGIC) {
+	if (disk_magic != MXFS_DINODE_MAGIC) {
 		kfree(tmp);
 		return false;
 	}
@@ -1935,14 +1935,14 @@ mxfs_dir_merge_peer_blocks(struct xfs_inode *dp)
 			if (rrc != 0)
 				continue;
 			magic = *(__be32 *)blk;
-			if (magic == cpu_to_be32(XFS_DIR2_BLOCK_MAGIC) ||
-			    magic == cpu_to_be32(XFS_DIR3_BLOCK_MAGIC)) {
+			if (magic == cpu_to_be32(MXFS_DIR2_BLOCK_MAGIC) ||
+			    magic == cpu_to_be32(MXFS_DIR3_BLOCK_MAGIC)) {
 				struct xfs_dir2_data_hdr   *hdr = (void *)blk;
 				struct xfs_dir2_block_tail *btp =
 					xfs_dir2_block_tail_p(geo, hdr);
 				end = (unsigned int)((char *)btp - blk);
-			} else if (magic == cpu_to_be32(XFS_DIR2_DATA_MAGIC) ||
-				   magic == cpu_to_be32(XFS_DIR3_DATA_MAGIC)) {
+			} else if (magic == cpu_to_be32(MXFS_DIR2_DATA_MAGIC) ||
+				   magic == cpu_to_be32(MXFS_DIR3_DATA_MAGIC)) {
 				end = blksize;
 			} else {
 				continue;	/* leaf/free/node — no dirents */
@@ -2196,14 +2196,14 @@ mxfs_dir_merge_peer_into_tp(struct xfs_trans *tp, struct xfs_inode *dp,
 			if (rrc != 0)
 				continue;
 			magic = *(__be32 *)blk;
-			if (magic == cpu_to_be32(XFS_DIR2_BLOCK_MAGIC) ||
-			    magic == cpu_to_be32(XFS_DIR3_BLOCK_MAGIC)) {
+			if (magic == cpu_to_be32(MXFS_DIR2_BLOCK_MAGIC) ||
+			    magic == cpu_to_be32(MXFS_DIR3_BLOCK_MAGIC)) {
 				struct xfs_dir2_data_hdr   *hdr = (void *)blk;
 				struct xfs_dir2_block_tail *btp =
 					xfs_dir2_block_tail_p(geo, hdr);
 				end = (unsigned int)((char *)btp - blk);
-			} else if (magic == cpu_to_be32(XFS_DIR2_DATA_MAGIC) ||
-				   magic == cpu_to_be32(XFS_DIR3_DATA_MAGIC)) {
+			} else if (magic == cpu_to_be32(MXFS_DIR2_DATA_MAGIC) ||
+				   magic == cpu_to_be32(MXFS_DIR3_DATA_MAGIC)) {
 				end = blksize;
 			} else {
 				continue;	/* leaf/free/node — no dirents */
@@ -2436,14 +2436,14 @@ mxfs_dir_reconcile_stale_data_blocks(struct xfs_trans *tp, struct xfs_inode *dp)
 			if (rrc != 0)
 				continue;
 			magic = *(__be32 *)blk;
-			if (magic == cpu_to_be32(XFS_DIR2_BLOCK_MAGIC) ||
-			    magic == cpu_to_be32(XFS_DIR3_BLOCK_MAGIC)) {
+			if (magic == cpu_to_be32(MXFS_DIR2_BLOCK_MAGIC) ||
+			    magic == cpu_to_be32(MXFS_DIR3_BLOCK_MAGIC)) {
 				struct xfs_dir2_data_hdr   *hdr = (void *)blk;
 				struct xfs_dir2_block_tail *btp =
 					xfs_dir2_block_tail_p(geo, hdr);
 				end = (unsigned int)((char *)btp - blk);
-			} else if (magic == cpu_to_be32(XFS_DIR2_DATA_MAGIC) ||
-				   magic == cpu_to_be32(XFS_DIR3_DATA_MAGIC)) {
+			} else if (magic == cpu_to_be32(MXFS_DIR2_DATA_MAGIC) ||
+				   magic == cpu_to_be32(MXFS_DIR3_DATA_MAGIC)) {
 				end = blksize;
 			} else {
 				continue;
@@ -2610,8 +2610,8 @@ mxfs_dir_postrmw_probe(struct xfs_inode *dp)
 				continue;
 			}
 			magic = *(__be32 *)rb;
-			dkbf = (magic == cpu_to_be32(XFS_DIR2_BLOCK_MAGIC) ||
-				magic == cpu_to_be32(XFS_DIR3_BLOCK_MAGIC));
+			dkbf = (magic == cpu_to_be32(MXFS_DIR2_BLOCK_MAGIC) ||
+				magic == cpu_to_be32(MXFS_DIR3_BLOCK_MAGIC));
 			de_n = mxfs_dir3_disk_has_extra_inum(mp, dbp->b_addr, rb,
 							     blksize, icbf, dkbf);
 			nblk++;

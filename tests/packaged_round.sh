@@ -191,7 +191,14 @@ case $FAM in
     *)    inst="DEBIAN_FRONTEND=noninteractive apt-get install -y --reinstall --allow-downgrades $files" ;;
 esac
 t0=$(now)
-if both install $INSTALL_S "grep -q ' mxfs ' /proc/mounts && umount $MNT; modprobe -r mxfs 2>/dev/null; dkms remove mxfs/$V --all >/dev/null 2>&1; $inst"; then
+# The old module must really be gone before the install: a modprobe -r that
+# failed silently left the previous build loaded, the install then succeeded,
+# and the round stopped at "did not load the DKMS build" with the new build
+# installed but not running (rhel9 0.89.93, alma9-2).  Retried for 10 s, and
+# the outcome is printed either way.
+UNLOAD="for i in 1 2 3 4 5 6 7 8 9 10; do lsmod | grep -q '^mxfs ' || break; modprobe -r mxfs 2>/dev/null && break; sleep 1; done
+        lsmod | grep -q '^mxfs ' && { echo \"UNLOAD_FAILED refcnt=\$(cat /sys/module/mxfs/refcnt) mounts=\$(grep -c ' mxfs ' /proc/mounts)\"; exit 1; }; echo UNLOADED"
+if both install $INSTALL_S "grep -q ' mxfs ' /proc/mounts && umount $MNT; $UNLOAD; dkms remove mxfs/$V --all >/dev/null 2>&1; $inst"; then
     pass "install on both ($(since $t0) s)"
 else
     die "install (see $EV/install_*.log; rc 124 = over the ${INSTALL_S} s budget)"

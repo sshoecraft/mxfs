@@ -1256,7 +1256,7 @@ xlog_cil_build_trans_hdr(
 	hdr->oph[1].oh_len = cpu_to_be32(sizeof(struct xfs_trans_header));
 
 	/* transaction header in host byte order format */
-	hdr->thdr.th_magic = XFS_TRANS_HEADER_MAGIC;
+	hdr->thdr.th_magic = MXFS_TRANS_HEADER_MAGIC;
 	hdr->thdr.th_type = XFS_TRANS_CHECKPOINT;
 	hdr->thdr.th_tid = tic->t_tid;
 	hdr->thdr.th_num_items = num_iovecs;

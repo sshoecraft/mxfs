@@ -498,7 +498,7 @@ xchk_xattr_rec(
 	int				hdrsize;
 	int				error;
 
-	ASSERT(blk->magic == XFS_ATTR_LEAF_MAGIC);
+	ASSERT(blk->magic == MXFS_ATTR_LEAF_MAGIC);
 
 	ent = xfs_attr3_leaf_entryp(blk->bp->b_addr) + blk->index;
 

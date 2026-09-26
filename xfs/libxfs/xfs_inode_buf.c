@@ -214,7 +214,7 @@ mxfs_inode_buf_write_dirlog(
 
 			if (m == 0)
 				zero_mask |= (1ULL << i);
-			else if (m == XFS_DINODE_MAGIC &&
+			else if (m == MXFS_DINODE_MAGIC &&
 				 be16_to_cpu(d->di_mode) != 0)
 				alloc_mask |= (1ULL << i);
 		}
@@ -242,7 +242,7 @@ mxfs_inode_buf_write_dirlog(
 		int			nl;
 
 		dip = xfs_buf_offset(bp, (i << mp->m_sb.sb_inodelog));
-		if (be16_to_cpu(dip->di_magic) != XFS_DINODE_MAGIC)
+		if (be16_to_cpu(dip->di_magic) != MXFS_DINODE_MAGIC)
 			continue;
 		mode = be16_to_cpu(dip->di_mode);
 		if (!S_ISDIR(mode))
@@ -294,16 +294,16 @@ xfs_inode_buf_write_verify(
 
 const struct xfs_buf_ops xfs_inode_buf_ops = {
 	.name = "xfs_inode",
-	.magic16 = { cpu_to_be16(XFS_DINODE_MAGIC),
-		     cpu_to_be16(XFS_DINODE_MAGIC) },
+	.magic16 = { cpu_to_be16(MXFS_DINODE_MAGIC),
+		     cpu_to_be16(MXFS_DINODE_MAGIC) },
 	.verify_read = xfs_inode_buf_read_verify,
 	.verify_write = xfs_inode_buf_write_verify,
 };
 
 const struct xfs_buf_ops xfs_inode_buf_ra_ops = {
 	.name = "xfs_inode_ra",
-	.magic16 = { cpu_to_be16(XFS_DINODE_MAGIC),
-		     cpu_to_be16(XFS_DINODE_MAGIC) },
+	.magic16 = { cpu_to_be16(MXFS_DINODE_MAGIC),
+		     cpu_to_be16(MXFS_DINODE_MAGIC) },
 	.verify_read = xfs_inode_buf_readahead_verify,
 	.verify_write = xfs_inode_buf_write_verify,
 };
@@ -597,7 +597,7 @@ xfs_inode_to_disk(
 {
 	struct inode		*inode = VFS_I(ip);
 
-	to->di_magic = cpu_to_be16(XFS_DINODE_MAGIC);
+	to->di_magic = cpu_to_be16(MXFS_DINODE_MAGIC);
 	if (xfs_is_metadir_inode(ip))
 		to->di_metatype = cpu_to_be16(ip->i_metatype);
 	else
@@ -929,7 +929,7 @@ xfs_dinode_verify(
 	xfs_extnum_t		naextents;
 	xfs_filblks_t		nblocks;
 
-	if (dip->di_magic != cpu_to_be16(XFS_DINODE_MAGIC))
+	if (dip->di_magic != cpu_to_be16(MXFS_DINODE_MAGIC))
 		return __this_address;
 
 	/* Verify v3 integrity information first */

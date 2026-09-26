@@ -191,7 +191,7 @@ void mxfs_iunl_store_retire_range(struct xfs_mount *mp, xfs_daddr_t daddr,
 		 * discriminator), and wrong-incarnation images are
 		 * ungraftable by design.  Only a SAME-GEN value mismatch is
 		 * a true fossil write — record kept, alarm raised. */
-		if (be16_to_cpu(dip->di_magic) != XFS_DINODE_MAGIC ||
+		if (be16_to_cpu(dip->di_magic) != MXFS_DINODE_MAGIC ||
 		    be32_to_cpu(dip->di_gen) != r->gen ||
 		    be32_to_cpu(dip->di_next_unlinked) == r->next_agino) {
 			r->wr_epoch = fe;
@@ -273,7 +273,7 @@ static void mxfs_iunl_discrim(struct xfs_mount *mp, xfs_daddr_t daddr,
 	fdip = (struct xfs_dinode *)((char *)fb + boffset);
 	pnext = be32_to_cpu(pdip->di_next_unlinked);
 	fnext = frc ? 0xdead : be32_to_cpu(fdip->di_next_unlinked);
-	if (be16_to_cpu(pdip->di_magic) != XFS_DINODE_MAGIC ||
+	if (be16_to_cpu(pdip->di_magic) != MXFS_DINODE_MAGIC ||
 	    be32_to_cpu(pdip->di_gen) != gen ||
 	    (!frc && be32_to_cpu(fdip->di_gen) != gen))
 		verdict = "OTHER-INCARNATION";
@@ -330,7 +330,7 @@ int mxfs_iunl_store_overlay(struct xfs_mount *mp, xfs_daddr_t daddr,
 		if (r->boffset + sizeof(struct xfs_dinode) > len)
 			continue;
 		dip = (struct xfs_dinode *)((char *)base + r->boffset);
-		if (be16_to_cpu(dip->di_magic) != XFS_DINODE_MAGIC)
+		if (be16_to_cpu(dip->di_magic) != MXFS_DINODE_MAGIC)
 			continue;
 		if (be32_to_cpu(dip->di_gen) != r->gen) {
 			/* v3 (384 ring, GENDROP rec_gen=img_gen+1

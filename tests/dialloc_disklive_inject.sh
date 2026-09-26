@@ -67,12 +67,12 @@ X=$(rs 40 "$NODE" "rm -rf $D; mkdir $D && cd $D && dd if=/dev/zero of=f0 bs=4k c
 echo "  INFO seed ino X=$X dir=$D"
 rs 30 "$NODE" "python3 /src/mxfs/tests/dinode_inject.py $DEV $XOFF $X show" > "$OUT/show_before.txt" 2>&1
 sed 's/^/  INFO show: /' "$OUT/show_before.txt"
-grep -aq 'before magic=494e mode=00 ' "$OUT/show_before.txt" || { echo "ABORT: X=$X is not FREE on the platter (free image not published yet, or not an IN slot) — refusing to inject over it"; cat "$OUT/show_before.txt"; exit 2; }
+grep -aq 'before magic=4d4e mode=00 ' "$OUT/show_before.txt" || { echo "ABORT: X=$X is not FREE on the platter (free image not published yet, or not an IN slot) — refusing to inject over it"; cat "$OUT/show_before.txt"; exit 2; }
 # 2. plant the live image
 GEN=$(( (RANDOM << 15 | RANDOM) & 0x7fffffff ))
 rs 30 "$NODE" "python3 /src/mxfs/tests/dinode_inject.py $DEV $XOFF $X setlive $GEN" > "$OUT/inject.txt" 2>&1
 sed 's/^/  INFO inject: /' "$OUT/inject.txt"
-grep -aq "after magic=494e mode=0100644 nlink=1 gen=$GEN crc=0x[0-9a-f]* crc_ok=1" "$OUT/inject.txt" || { echo "  FAIL injection did not verify"; fails=$((fails+1)); }
+grep -aq "after magic=4d4e mode=0100644 nlink=1 gen=$GEN crc=0x[0-9a-f]* crc_ok=1" "$OUT/inject.txt" || { echo "  FAIL injection did not verify"; fails=$((fails+1)); }
 # 2b. drop the seed's cached shell (s437pre on 0.39.2: with the shell still
 #     cached the create took the cache-HIT recycle path, never read the
 #     platter, and silently clobbered the planted live image — the data-loss

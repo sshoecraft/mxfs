@@ -52,7 +52,7 @@ def main():
 
     f.seek(data_off)
     sb = f.read(512)
-    assert sb[0:4] == b'XFSB', "no XFS sb at data offset"
+    assert sb[0:4] == b'MXSB', "no XFS sb at data offset"
     blksz   = be32(sb, 4)
     agblocks = be32(sb, 84)
     agcount  = be32(sb, 88)
@@ -75,7 +75,7 @@ def main():
     di_addr = data_off + (agno * agblocks + agbno) * blksz + ioff * isize
     f.seek(di_addr)
     di = f.read(isize)
-    assert di[0:2] == b'IN', f"dinode magic bad at {di_addr}: {di[0:2]!r}"
+    assert di[0:2] == b'MN', f"dinode magic bad at {di_addr}: {di[0:2]!r}"
     di_mode = be16(di, 2)
     di_version = di[4]
     di_format = di[5]
@@ -118,8 +118,8 @@ def main():
             m = be16(blk, 8)
             m0 = be32(blk, 0)
             print(f"leaf block off={soff + j} byte={addr} magic@8={m:#x} "
-                  f"({'LEAF1' if m == 0x3DF1 else 'LEAFN' if m == 0x3DFF else 'NODE' if m == 0x3EBE else f'??? (m0={m0:#x})'})")
-            if m not in (0x3DF1, 0x3DFF):
+                  f"({'LEAF1' if m == 0x4D31 else 'LEAFN' if m == 0x4D3F else 'NODE' if m == 0x4D3E else f'??? (m0={m0:#x})'})")
+            if m not in (0x4D31, 0x4D3F):
                 continue
             owner = be64(blk, 48)
             count = be16(blk, 56)

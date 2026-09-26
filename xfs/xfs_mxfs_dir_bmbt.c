@@ -1281,7 +1281,7 @@ mxfs_iflush_force_bmbt_durable(struct xfs_inode *ip)
 					be32_to_cpu(odip->di_nextents);
 
 				if (be16_to_cpu(odip->di_magic) ==
-					XFS_DINODE_MAGIC &&
+					MXFS_DINODE_MAGIC &&
 				    odip->di_format == XFS_DINODE_FMT_BTREE &&
 				    disk_nx > ip->i_df.if_nextents)
 					mxfs_probe_ratelimited(
@@ -2219,8 +2219,8 @@ mxfs_dir_evict_bmbt_by_root(struct xfs_inode *ip)
 				uint32_t cmagic = (frc == 0) ?
 					be32_to_cpu(*(__be32 *)fbuf) : 0;
 
-				if (frc == 0 && cmagic != XFS_BMAP_CRC_MAGIC &&
-				    cmagic != XFS_BMAP_MAGIC) {
+				if (frc == 0 && cmagic != MXFS_BMAP_CRC_MAGIC &&
+				    cmagic != MXFS_BMAP_MAGIC) {
 					uint32_t clen = (uint32_t)
 						ip->i_imap.im_len << BBSHIFT;
 					void	*cbuf = clen ?

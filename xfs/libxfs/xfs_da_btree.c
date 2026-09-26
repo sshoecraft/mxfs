@@ -174,7 +174,7 @@ xfs_da3_node_hdr_from_disk(
 		to->count = be16_to_cpu(from3->hdr.__count);
 		to->level = be16_to_cpu(from3->hdr.__level);
 		to->btree = from3->__btree;
-		ASSERT(to->magic == XFS_DA3_NODE_MAGIC);
+		ASSERT(to->magic == MXFS_DA3_NODE_MAGIC);
 	} else {
 		to->forw = be32_to_cpu(from->hdr.info.forw);
 		to->back = be32_to_cpu(from->hdr.info.back);
@@ -182,7 +182,7 @@ xfs_da3_node_hdr_from_disk(
 		to->count = be16_to_cpu(from->hdr.__count);
 		to->level = be16_to_cpu(from->hdr.__level);
 		to->btree = from->__btree;
-		ASSERT(to->magic == XFS_DA_NODE_MAGIC);
+		ASSERT(to->magic == MXFS_DA_NODE_MAGIC);
 	}
 }
 
@@ -195,14 +195,14 @@ xfs_da3_node_hdr_to_disk(
 	if (xfs_has_crc(mp)) {
 		struct xfs_da3_intnode	*to3 = (struct xfs_da3_intnode *)to;
 
-		ASSERT(from->magic == XFS_DA3_NODE_MAGIC);
+		ASSERT(from->magic == MXFS_DA3_NODE_MAGIC);
 		to3->hdr.info.hdr.forw = cpu_to_be32(from->forw);
 		to3->hdr.info.hdr.back = cpu_to_be32(from->back);
 		to3->hdr.info.hdr.magic = cpu_to_be16(from->magic);
 		to3->hdr.__count = cpu_to_be16(from->count);
 		to3->hdr.__level = cpu_to_be16(from->level);
 	} else {
-		ASSERT(from->magic == XFS_DA_NODE_MAGIC);
+		ASSERT(from->magic == MXFS_DA_NODE_MAGIC);
 		to->hdr.info.forw = cpu_to_be32(from->forw);
 		to->hdr.info.back = cpu_to_be32(from->back);
 		to->hdr.info.magic = cpu_to_be16(from->magic);
@@ -284,7 +284,7 @@ xfs_da3_node_header_check(
 	if (xfs_has_crc(mp)) {
 		struct xfs_da3_blkinfo *hdr3 = bp->b_addr;
 
-		if (hdr3->hdr.magic != cpu_to_be16(XFS_DA3_NODE_MAGIC))
+		if (hdr3->hdr.magic != cpu_to_be16(MXFS_DA3_NODE_MAGIC))
 			return __this_address;
 
 		if (be64_to_cpu(hdr3->owner) != owner)
@@ -306,12 +306,12 @@ xfs_da3_header_check(
 		return NULL;
 
 	switch (hdr->magic) {
-	case cpu_to_be16(XFS_ATTR3_LEAF_MAGIC):
+	case cpu_to_be16(MXFS_ATTR3_LEAF_MAGIC):
 		return xfs_attr3_leaf_header_check(bp, owner);
-	case cpu_to_be16(XFS_DA3_NODE_MAGIC):
+	case cpu_to_be16(MXFS_DA3_NODE_MAGIC):
 		return xfs_da3_node_header_check(bp, owner);
-	case cpu_to_be16(XFS_DIR3_LEAF1_MAGIC):
-	case cpu_to_be16(XFS_DIR3_LEAFN_MAGIC):
+	case cpu_to_be16(MXFS_DIR3_LEAF1_MAGIC):
+	case cpu_to_be16(MXFS_DIR3_LEAFN_MAGIC):
 		return xfs_dir3_leaf_header_check(bp, owner);
 	}
 
@@ -357,7 +357,7 @@ xfs_da3_node_read_verify(
 	xfs_failaddr_t		fa;
 
 	switch (be16_to_cpu(info->magic)) {
-		case XFS_DA3_NODE_MAGIC:
+		case MXFS_DA3_NODE_MAGIC:
 			if (!xfs_buf_verify_cksum(bp, XFS_DA3_NODE_CRC_OFF)) {
 #ifdef __KERNEL__
 				/*  torn-read forensics
@@ -373,18 +373,18 @@ xfs_da3_node_read_verify(
 				break;
 			}
 			fallthrough;
-		case XFS_DA_NODE_MAGIC:
+		case MXFS_DA_NODE_MAGIC:
 			fa = xfs_da3_node_verify(bp);
 			if (fa)
 				xfs_verifier_error(bp, -EFSCORRUPTED, fa);
 			return;
-		case XFS_ATTR_LEAF_MAGIC:
-		case XFS_ATTR3_LEAF_MAGIC:
+		case MXFS_ATTR_LEAF_MAGIC:
+		case MXFS_ATTR3_LEAF_MAGIC:
 			bp->b_ops = &xfs_attr3_leaf_buf_ops;
 			bp->b_ops->verify_read(bp);
 			return;
-		case XFS_DIR2_LEAFN_MAGIC:
-		case XFS_DIR3_LEAFN_MAGIC:
+		case MXFS_DIR2_LEAFN_MAGIC:
+		case MXFS_DIR3_LEAFN_MAGIC:
 			bp->b_ops = &xfs_dir3_leafn_buf_ops;
 			bp->b_ops->verify_read(bp);
 			return;
@@ -410,15 +410,15 @@ xfs_da3_node_verify_struct(
 	struct xfs_da_blkinfo	*info = bp->b_addr;
 
 	switch (be16_to_cpu(info->magic)) {
-	case XFS_DA3_NODE_MAGIC:
-	case XFS_DA_NODE_MAGIC:
+	case MXFS_DA3_NODE_MAGIC:
+	case MXFS_DA_NODE_MAGIC:
 		return xfs_da3_node_verify(bp);
-	case XFS_ATTR_LEAF_MAGIC:
-	case XFS_ATTR3_LEAF_MAGIC:
+	case MXFS_ATTR_LEAF_MAGIC:
+	case MXFS_ATTR3_LEAF_MAGIC:
 		bp->b_ops = &xfs_attr3_leaf_buf_ops;
 		return bp->b_ops->verify_struct(bp);
-	case XFS_DIR2_LEAFN_MAGIC:
-	case XFS_DIR3_LEAFN_MAGIC:
+	case MXFS_DIR2_LEAFN_MAGIC:
+	case MXFS_DIR3_LEAFN_MAGIC:
 		bp->b_ops = &xfs_dir3_leafn_buf_ops;
 		return bp->b_ops->verify_struct(bp);
 	default:
@@ -428,8 +428,8 @@ xfs_da3_node_verify_struct(
 
 const struct xfs_buf_ops xfs_da3_node_buf_ops = {
 	.name = "xfs_da3_node",
-	.magic16 = { cpu_to_be16(XFS_DA_NODE_MAGIC),
-		     cpu_to_be16(XFS_DA3_NODE_MAGIC) },
+	.magic16 = { cpu_to_be16(MXFS_DA_NODE_MAGIC),
+		     cpu_to_be16(MXFS_DA3_NODE_MAGIC) },
 	.verify_read = xfs_da3_node_read_verify,
 	.verify_write = xfs_da3_node_write_verify,
 	.verify_struct = xfs_da3_node_verify_struct,
@@ -445,16 +445,16 @@ xfs_da3_node_set_type(
 	struct xfs_da_blkinfo	*info = bp->b_addr;
 
 	switch (be16_to_cpu(info->magic)) {
-	case XFS_DA_NODE_MAGIC:
-	case XFS_DA3_NODE_MAGIC:
+	case MXFS_DA_NODE_MAGIC:
+	case MXFS_DA3_NODE_MAGIC:
 		xfs_trans_buf_set_type(tp, bp, XFS_BLFT_DA_NODE_BUF);
 		return 0;
-	case XFS_ATTR_LEAF_MAGIC:
-	case XFS_ATTR3_LEAF_MAGIC:
+	case MXFS_ATTR_LEAF_MAGIC:
+	case MXFS_ATTR3_LEAF_MAGIC:
 		xfs_trans_buf_set_type(tp, bp, XFS_BLFT_ATTR_LEAF_BUF);
 		return 0;
-	case XFS_DIR2_LEAFN_MAGIC:
-	case XFS_DIR3_LEAFN_MAGIC:
+	case MXFS_DIR2_LEAFN_MAGIC:
+	case MXFS_DIR3_LEAFN_MAGIC:
 		xfs_trans_buf_set_type(tp, bp, XFS_BLFT_DIR_LEAFN_BUF);
 		return 0;
 	default:
@@ -568,12 +568,12 @@ xfs_da3_node_create(
 		struct xfs_da3_node_hdr *hdr3 = bp->b_addr;
 
 		memset(hdr3, 0, sizeof(struct xfs_da3_node_hdr));
-		ichdr.magic = XFS_DA3_NODE_MAGIC;
+		ichdr.magic = MXFS_DA3_NODE_MAGIC;
 		hdr3->info.blkno = cpu_to_be64(xfs_buf_daddr(bp));
 		hdr3->info.owner = cpu_to_be64(args->owner);
 		uuid_copy(&hdr3->info.uuid, &mp->m_sb.sb_meta_uuid);
 	} else {
-		ichdr.magic = XFS_DA_NODE_MAGIC;
+		ichdr.magic = MXFS_DA_NODE_MAGIC;
 	}
 	ichdr.level = level;
 
@@ -615,8 +615,8 @@ xfs_da3_split(
 	 */
 	max = state->path.active - 1;
 	ASSERT((max >= 0) && (max < XFS_DA_NODE_MAXDEPTH));
-	ASSERT(state->path.blk[max].magic == XFS_ATTR_LEAF_MAGIC ||
-	       state->path.blk[max].magic == XFS_DIR2_LEAFN_MAGIC);
+	ASSERT(state->path.blk[max].magic == MXFS_ATTR_LEAF_MAGIC ||
+	       state->path.blk[max].magic == MXFS_DIR2_LEAFN_MAGIC);
 
 	addblk = &state->path.blk[max];		/* initial dummy value */
 	for (i = max; (i >= 0) && addblk; state->path.active--, i--) {
@@ -630,7 +630,7 @@ xfs_da3_split(
 		 *     We split on the last layer, must we split the node?
 		 */
 		switch (oldblk->magic) {
-		case XFS_ATTR_LEAF_MAGIC:
+		case MXFS_ATTR_LEAF_MAGIC:
 			error = xfs_attr3_leaf_split(state, oldblk, newblk);
 			if (error < 0)
 				return error;	/* GROT: attr is inconsistent */
@@ -661,13 +661,13 @@ xfs_da3_split(
 				return error;	/* GROT: attr inconsistent */
 			addblk = newblk;
 			break;
-		case XFS_DIR2_LEAFN_MAGIC:
+		case MXFS_DIR2_LEAFN_MAGIC:
 			error = xfs_dir2_leafn_split(state, oldblk, newblk);
 			if (error)
 				return error;
 			addblk = newblk;
 			break;
-		case XFS_DA_NODE_MAGIC:
+		case MXFS_DA_NODE_MAGIC:
 			error = xfs_da3_node_split(state, oldblk, newblk, addblk,
 							 max - i, &action);
 			addblk->bp = NULL;
@@ -697,7 +697,7 @@ xfs_da3_split(
 	 * we can't be here if the attr fork only has a single leaf block.
 	 */
 	ASSERT(state->extravalid == 0 ||
-	       state->path.blk[max].magic == XFS_DIR2_LEAFN_MAGIC);
+	       state->path.blk[max].magic == MXFS_DIR2_LEAFN_MAGIC);
 
 	/*
 	 * Split the root node.
@@ -795,8 +795,8 @@ xfs_da3_root_split(
 		return error;
 	node = bp->b_addr;
 	oldroot = blk1->bp->b_addr;
-	if (oldroot->hdr.info.magic == cpu_to_be16(XFS_DA_NODE_MAGIC) ||
-	    oldroot->hdr.info.magic == cpu_to_be16(XFS_DA3_NODE_MAGIC)) {
+	if (oldroot->hdr.info.magic == cpu_to_be16(MXFS_DA_NODE_MAGIC) ||
+	    oldroot->hdr.info.magic == cpu_to_be16(MXFS_DA3_NODE_MAGIC)) {
 		struct xfs_da3_icnode_hdr icnodehdr;
 
 		xfs_da3_node_hdr_from_disk(dp->i_mount, &icnodehdr, oldroot);
@@ -809,8 +809,8 @@ xfs_da3_root_split(
 		leaf = (xfs_dir2_leaf_t *)oldroot;
 		xfs_dir2_leaf_hdr_from_disk(dp->i_mount, &leafhdr, leaf);
 
-		ASSERT(leafhdr.magic == XFS_DIR2_LEAFN_MAGIC ||
-		       leafhdr.magic == XFS_DIR3_LEAFN_MAGIC);
+		ASSERT(leafhdr.magic == MXFS_DIR2_LEAFN_MAGIC ||
+		       leafhdr.magic == MXFS_DIR3_LEAFN_MAGIC);
 		size = (int)((char *)&leafhdr.ents[leafhdr.count] -
 			(char *)leaf);
 		level = 0;
@@ -848,8 +848,8 @@ xfs_da3_root_split(
 	xfs_da3_node_hdr_to_disk(dp->i_mount, node, &nodehdr);
 
 #ifdef DEBUG
-	if (oldroot->hdr.info.magic == cpu_to_be16(XFS_DIR2_LEAFN_MAGIC) ||
-	    oldroot->hdr.info.magic == cpu_to_be16(XFS_DIR3_LEAFN_MAGIC)) {
+	if (oldroot->hdr.info.magic == cpu_to_be16(MXFS_DIR2_LEAFN_MAGIC) ||
+	    oldroot->hdr.info.magic == cpu_to_be16(MXFS_DIR3_LEAFN_MAGIC)) {
 		ASSERT(blk1->blkno >= args->geo->leafblk &&
 		       blk1->blkno < args->geo->freeblk);
 		ASSERT(blk2->blkno >= args->geo->leafblk &&
@@ -911,7 +911,7 @@ xfs_da3_node_split(
 		if (error)
 			return error;	/* GROT: dir is inconsistent */
 		newblk->blkno = blkno;
-		newblk->magic = XFS_DA_NODE_MAGIC;
+		newblk->magic = MXFS_DA_NODE_MAGIC;
 		xfs_da3_node_rebalance(state, oldblk, newblk);
 		error = xfs_da3_blk_link(state, oldblk, newblk);
 		if (error)
@@ -1176,9 +1176,9 @@ xfs_da3_join(
 
 	drop_blk = &state->path.blk[ state->path.active-1 ];
 	save_blk = &state->altpath.blk[ state->path.active-1 ];
-	ASSERT(state->path.blk[0].magic == XFS_DA_NODE_MAGIC);
-	ASSERT(drop_blk->magic == XFS_ATTR_LEAF_MAGIC ||
-	       drop_blk->magic == XFS_DIR2_LEAFN_MAGIC);
+	ASSERT(state->path.blk[0].magic == MXFS_DA_NODE_MAGIC);
+	ASSERT(drop_blk->magic == MXFS_ATTR_LEAF_MAGIC ||
+	       drop_blk->magic == MXFS_DIR2_LEAFN_MAGIC);
 
 	/*
 	 * Walk back up the tree joining/deallocating as necessary.
@@ -1193,7 +1193,7 @@ xfs_da3_join(
 		 *   (action == 2) => block empty, unlink it
 		 */
 		switch (drop_blk->magic) {
-		case XFS_ATTR_LEAF_MAGIC:
+		case MXFS_ATTR_LEAF_MAGIC:
 			error = xfs_attr3_leaf_toosmall(state, &action);
 			if (error)
 				return error;
@@ -1201,7 +1201,7 @@ xfs_da3_join(
 				return 0;
 			xfs_attr3_leaf_unbalance(state, drop_blk, save_blk);
 			break;
-		case XFS_DIR2_LEAFN_MAGIC:
+		case MXFS_DIR2_LEAFN_MAGIC:
 			error = xfs_dir2_leafn_toosmall(state, &action);
 			if (error)
 				return error;
@@ -1209,7 +1209,7 @@ xfs_da3_join(
 				return 0;
 			xfs_dir2_leafn_unbalance(state, drop_blk, save_blk);
 			break;
-		case XFS_DA_NODE_MAGIC:
+		case MXFS_DA_NODE_MAGIC:
 			/*
 			 * Remove the offending node, fixup hashvals,
 			 * check for a toosmall neighbor.
@@ -1253,13 +1253,13 @@ xfs_da_blkinfo_onlychild_validate(struct xfs_da_blkinfo *blkinfo, __u16 level)
 	__be16	magic = blkinfo->magic;
 
 	if (level == 1) {
-		ASSERT(magic == cpu_to_be16(XFS_DIR2_LEAFN_MAGIC) ||
-		       magic == cpu_to_be16(XFS_DIR3_LEAFN_MAGIC) ||
-		       magic == cpu_to_be16(XFS_ATTR_LEAF_MAGIC) ||
-		       magic == cpu_to_be16(XFS_ATTR3_LEAF_MAGIC));
+		ASSERT(magic == cpu_to_be16(MXFS_DIR2_LEAFN_MAGIC) ||
+		       magic == cpu_to_be16(MXFS_DIR3_LEAFN_MAGIC) ||
+		       magic == cpu_to_be16(MXFS_ATTR_LEAF_MAGIC) ||
+		       magic == cpu_to_be16(MXFS_ATTR3_LEAF_MAGIC));
 	} else {
-		ASSERT(magic == cpu_to_be16(XFS_DA_NODE_MAGIC) ||
-		       magic == cpu_to_be16(XFS_DA3_NODE_MAGIC));
+		ASSERT(magic == cpu_to_be16(MXFS_DA_NODE_MAGIC) ||
+		       magic == cpu_to_be16(MXFS_DA3_NODE_MAGIC));
 	}
 	ASSERT(!blkinfo->forw);
 	ASSERT(!blkinfo->back);
@@ -1288,7 +1288,7 @@ xfs_da3_root_join(
 
 	trace_xfs_da_root_join(state->args);
 
-	ASSERT(root_blk->magic == XFS_DA_NODE_MAGIC);
+	ASSERT(root_blk->magic == MXFS_DA_NODE_MAGIC);
 
 	args = state->args;
 	oldroot = root_blk->bp->b_addr;
@@ -1510,17 +1510,17 @@ xfs_da3_fixhashpath(
 	level = path->active-1;
 	blk = &path->blk[ level ];
 	switch (blk->magic) {
-	case XFS_ATTR_LEAF_MAGIC:
+	case MXFS_ATTR_LEAF_MAGIC:
 		lasthash = xfs_attr_leaf_lasthash(blk->bp, &count);
 		if (count == 0)
 			return;
 		break;
-	case XFS_DIR2_LEAFN_MAGIC:
+	case MXFS_DIR2_LEAFN_MAGIC:
 		lasthash = xfs_dir2_leaf_lasthash(dp, blk->bp, &count);
 		if (count == 0)
 			return;
 		break;
-	case XFS_DA_NODE_MAGIC:
+	case MXFS_DA_NODE_MAGIC:
 		lasthash = xfs_da3_node_lasthash(dp, blk->bp, &count);
 		if (count == 0)
 			return;
@@ -1729,34 +1729,34 @@ xfs_da3_node_lookup_int(
 		curr = blk->bp->b_addr;
 		magic = be16_to_cpu(curr->magic);
 
-		if (magic == XFS_ATTR_LEAF_MAGIC ||
-		    magic == XFS_ATTR3_LEAF_MAGIC) {
+		if (magic == MXFS_ATTR_LEAF_MAGIC ||
+		    magic == MXFS_ATTR3_LEAF_MAGIC) {
 			fa = xfs_attr3_leaf_header_check(blk->bp, args->owner);
 			if (fa) {
 				__xfs_buf_mark_corrupt(blk->bp, fa);
 				xfs_da_mark_sick(args);
 				return -EFSCORRUPTED;
 			}
-			blk->magic = XFS_ATTR_LEAF_MAGIC;
+			blk->magic = MXFS_ATTR_LEAF_MAGIC;
 			blk->hashval = xfs_attr_leaf_lasthash(blk->bp, NULL);
 			break;
 		}
 
-		if (magic == XFS_DIR2_LEAFN_MAGIC ||
-		    magic == XFS_DIR3_LEAFN_MAGIC) {
+		if (magic == MXFS_DIR2_LEAFN_MAGIC ||
+		    magic == MXFS_DIR3_LEAFN_MAGIC) {
 			fa = xfs_dir3_leaf_header_check(blk->bp, args->owner);
 			if (fa) {
 				__xfs_buf_mark_corrupt(blk->bp, fa);
 				xfs_da_mark_sick(args);
 				return -EFSCORRUPTED;
 			}
-			blk->magic = XFS_DIR2_LEAFN_MAGIC;
+			blk->magic = MXFS_DIR2_LEAFN_MAGIC;
 			blk->hashval = xfs_dir2_leaf_lasthash(args->dp,
 							      blk->bp, NULL);
 			break;
 		}
 
-		if (magic != XFS_DA_NODE_MAGIC && magic != XFS_DA3_NODE_MAGIC) {
+		if (magic != MXFS_DA_NODE_MAGIC && magic != MXFS_DA3_NODE_MAGIC) {
 			xfs_buf_mark_corrupt(blk->bp);
 			xfs_da_mark_sick(args);
 			return -EFSCORRUPTED;
@@ -1769,7 +1769,7 @@ xfs_da3_node_lookup_int(
 			return -EFSCORRUPTED;
 		}
 
-		blk->magic = XFS_DA_NODE_MAGIC;
+		blk->magic = MXFS_DA_NODE_MAGIC;
 
 		/*
 		 * Search an intermediate node for a match.
@@ -1860,10 +1860,10 @@ xfs_da3_node_lookup_int(
 	 * next leaf and keep searching.
 	 */
 	for (;;) {
-		if (blk->magic == XFS_DIR2_LEAFN_MAGIC) {
+		if (blk->magic == MXFS_DIR2_LEAFN_MAGIC) {
 			retval = xfs_dir2_leafn_lookup_int(blk->bp, args,
 							&blk->index, state);
-		} else if (blk->magic == XFS_ATTR_LEAF_MAGIC) {
+		} else if (blk->magic == MXFS_ATTR_LEAF_MAGIC) {
 			retval = xfs_attr3_leaf_lookup_int(blk->bp, args);
 			blk->index = args->index;
 			args->blkno = blk->blkno;
@@ -1880,7 +1880,7 @@ xfs_da3_node_lookup_int(
 				return error;
 			if (retval == 0) {
 				continue;
-			} else if (blk->magic == XFS_ATTR_LEAF_MAGIC) {
+			} else if (blk->magic == MXFS_ATTR_LEAF_MAGIC) {
 				/* path_shift() gives ENOENT */
 				retval = -ENOATTR;
 			}
@@ -1953,18 +1953,18 @@ xfs_da3_blk_link(
 	ASSERT(args != NULL);
 	old_info = old_blk->bp->b_addr;
 	new_info = new_blk->bp->b_addr;
-	ASSERT(old_blk->magic == XFS_DA_NODE_MAGIC ||
-	       old_blk->magic == XFS_DIR2_LEAFN_MAGIC ||
-	       old_blk->magic == XFS_ATTR_LEAF_MAGIC);
+	ASSERT(old_blk->magic == MXFS_DA_NODE_MAGIC ||
+	       old_blk->magic == MXFS_DIR2_LEAFN_MAGIC ||
+	       old_blk->magic == MXFS_ATTR_LEAF_MAGIC);
 
 	switch (old_blk->magic) {
-	case XFS_ATTR_LEAF_MAGIC:
+	case MXFS_ATTR_LEAF_MAGIC:
 		before = xfs_attr_leaf_order(old_blk->bp, new_blk->bp);
 		break;
-	case XFS_DIR2_LEAFN_MAGIC:
+	case MXFS_DIR2_LEAFN_MAGIC:
 		before = xfs_dir2_leafn_order(dp, old_blk->bp, new_blk->bp);
 		break;
-	case XFS_DA_NODE_MAGIC:
+	case MXFS_DA_NODE_MAGIC:
 		before = xfs_da3_node_order(dp, old_blk->bp, new_blk->bp);
 		break;
 	}
@@ -2059,9 +2059,9 @@ xfs_da3_blk_unlink(
 	ASSERT(args != NULL);
 	save_info = save_blk->bp->b_addr;
 	drop_info = drop_blk->bp->b_addr;
-	ASSERT(save_blk->magic == XFS_DA_NODE_MAGIC ||
-	       save_blk->magic == XFS_DIR2_LEAFN_MAGIC ||
-	       save_blk->magic == XFS_ATTR_LEAF_MAGIC);
+	ASSERT(save_blk->magic == MXFS_DA_NODE_MAGIC ||
+	       save_blk->magic == MXFS_DIR2_LEAFN_MAGIC ||
+	       save_blk->magic == MXFS_ATTR_LEAF_MAGIC);
 	ASSERT(save_blk->magic == drop_blk->magic);
 	ASSERT((be32_to_cpu(save_info->forw) == drop_blk->blkno) ||
 	       (be32_to_cpu(save_info->back) == drop_blk->blkno));
@@ -2211,12 +2211,12 @@ xfs_da3_path_shift(
 		blk->bp = bp;
 
 		info = blk->bp->b_addr;
-		ASSERT(info->magic == cpu_to_be16(XFS_DA_NODE_MAGIC) ||
-		       info->magic == cpu_to_be16(XFS_DA3_NODE_MAGIC) ||
-		       info->magic == cpu_to_be16(XFS_DIR2_LEAFN_MAGIC) ||
-		       info->magic == cpu_to_be16(XFS_DIR3_LEAFN_MAGIC) ||
-		       info->magic == cpu_to_be16(XFS_ATTR_LEAF_MAGIC) ||
-		       info->magic == cpu_to_be16(XFS_ATTR3_LEAF_MAGIC));
+		ASSERT(info->magic == cpu_to_be16(MXFS_DA_NODE_MAGIC) ||
+		       info->magic == cpu_to_be16(MXFS_DA3_NODE_MAGIC) ||
+		       info->magic == cpu_to_be16(MXFS_DIR2_LEAFN_MAGIC) ||
+		       info->magic == cpu_to_be16(MXFS_DIR3_LEAFN_MAGIC) ||
+		       info->magic == cpu_to_be16(MXFS_ATTR_LEAF_MAGIC) ||
+		       info->magic == cpu_to_be16(MXFS_ATTR3_LEAF_MAGIC));
 
 
 		/*
@@ -2224,15 +2224,15 @@ xfs_da3_path_shift(
 		 * don't have to compare against crc/non-crc types elsewhere.
 		 */
 		switch (be16_to_cpu(info->magic)) {
-		case XFS_DA_NODE_MAGIC:
-		case XFS_DA3_NODE_MAGIC:
+		case MXFS_DA_NODE_MAGIC:
+		case MXFS_DA3_NODE_MAGIC:
 			fa = xfs_da3_node_header_check(blk->bp, args->owner);
 			if (fa) {
 				__xfs_buf_mark_corrupt(blk->bp, fa);
 				xfs_da_mark_sick(args);
 				return -EFSCORRUPTED;
 			}
-			blk->magic = XFS_DA_NODE_MAGIC;
+			blk->magic = MXFS_DA_NODE_MAGIC;
 			xfs_da3_node_hdr_from_disk(dp->i_mount, &nodehdr,
 						   bp->b_addr);
 			btree = nodehdr.btree;
@@ -2243,28 +2243,28 @@ xfs_da3_path_shift(
 				blk->index = nodehdr.count - 1;
 			blkno = be32_to_cpu(btree[blk->index].before);
 			break;
-		case XFS_ATTR_LEAF_MAGIC:
-		case XFS_ATTR3_LEAF_MAGIC:
+		case MXFS_ATTR_LEAF_MAGIC:
+		case MXFS_ATTR3_LEAF_MAGIC:
 			fa = xfs_attr3_leaf_header_check(blk->bp, args->owner);
 			if (fa) {
 				__xfs_buf_mark_corrupt(blk->bp, fa);
 				xfs_da_mark_sick(args);
 				return -EFSCORRUPTED;
 			}
-			blk->magic = XFS_ATTR_LEAF_MAGIC;
+			blk->magic = MXFS_ATTR_LEAF_MAGIC;
 			ASSERT(level == path->active-1);
 			blk->index = 0;
 			blk->hashval = xfs_attr_leaf_lasthash(blk->bp, NULL);
 			break;
-		case XFS_DIR2_LEAFN_MAGIC:
-		case XFS_DIR3_LEAFN_MAGIC:
+		case MXFS_DIR2_LEAFN_MAGIC:
+		case MXFS_DIR3_LEAFN_MAGIC:
 			fa = xfs_dir3_leaf_header_check(blk->bp, args->owner);
 			if (fa) {
 				__xfs_buf_mark_corrupt(blk->bp, fa);
 				xfs_da_mark_sick(args);
 				return -EFSCORRUPTED;
 			}
-			blk->magic = XFS_DIR2_LEAFN_MAGIC;
+			blk->magic = MXFS_DIR2_LEAFN_MAGIC;
 			ASSERT(level == path->active-1);
 			blk->index = 0;
 			blk->hashval = xfs_dir2_leaf_lasthash(args->dp,
@@ -2541,8 +2541,8 @@ xfs_da3_swap_lastblock(
 	/*
 	 * Get values from the moved block.
 	 */
-	if (dead_info->magic == cpu_to_be16(XFS_DIR2_LEAFN_MAGIC) ||
-	    dead_info->magic == cpu_to_be16(XFS_DIR3_LEAFN_MAGIC)) {
+	if (dead_info->magic == cpu_to_be16(MXFS_DIR2_LEAFN_MAGIC) ||
+	    dead_info->magic == cpu_to_be16(MXFS_DIR3_LEAFN_MAGIC)) {
 		struct xfs_dir3_icleaf_hdr leafhdr;
 		struct xfs_dir2_leaf_entry *ents;
 
@@ -2992,7 +2992,7 @@ xfs_da_get_buf(
 		__u16 dimode = 0;
 
 		if ((bp->b_flags & XBF_DONE) &&
-		    be16_to_cpu(*m) == XFS_DINODE_MAGIC) {
+		    be16_to_cpu(*m) == MXFS_DINODE_MAGIC) {
 			/* locally-cached inode cluster aliased as a dir block */
 			inode_here = true;
 			dimode = be16_to_cpu(*(__be16 *)((char *)bp->b_addr + 2));
@@ -3013,7 +3013,7 @@ xfs_da_get_buf(
 					mp->m_ddev_targp->bt_sector_offset;
 				if (mxfs_pal_bdev_read_plain_bdev(
 				    mp->m_ddev_targp->bt_bdev, lba, probe, 512) == 0 &&
-				    be16_to_cpu(*(__be16 *)probe) == XFS_DINODE_MAGIC) {
+				    be16_to_cpu(*(__be16 *)probe) == MXFS_DINODE_MAGIC) {
 					inode_here = true;
 					dimode = be16_to_cpu(*(__be16 *)((char *)probe + 2));
 				}
@@ -3062,8 +3062,8 @@ mxfs_dir_data_buf_owner_mismatch(struct xfs_buf *bp, xfs_ino_t ino)
 	if (!bp || !bp->b_addr)
 		return false;
 	magic = *(__be32 *)bp->b_addr;
-	if (magic != cpu_to_be32(XFS_DIR3_DATA_MAGIC) &&
-	    magic != cpu_to_be32(XFS_DIR3_BLOCK_MAGIC))
+	if (magic != cpu_to_be32(MXFS_DIR3_DATA_MAGIC) &&
+	    magic != cpu_to_be32(MXFS_DIR3_BLOCK_MAGIC))
 		return false;	/* v4 (no owner) or non-dirent block type */
 	h3 = bp->b_addr;
 	return be64_to_cpu(h3->owner) != ino;
@@ -3444,9 +3444,9 @@ xfs_da_read_buf(
 								struct xfs_dir3_blk_hdr *p5r_h =
 									p5r_tmp;
 								if ((p5r_h->magic ==
-								     cpu_to_be32(XFS_DIR3_BLOCK_MAGIC) ||
+								     cpu_to_be32(MXFS_DIR3_BLOCK_MAGIC) ||
 								     p5r_h->magic ==
-								     cpu_to_be32(XFS_DIR3_DATA_MAGIC)) &&
+								     cpu_to_be32(MXFS_DIR3_DATA_MAGIC)) &&
 								    xfs_verify_cksum(p5r_tmp,
 									p5r_len,
 									offsetof(struct xfs_dir3_blk_hdr,
@@ -4354,8 +4354,8 @@ xfs_da_read_buf(
 			struct xfs_dir3_blk_hdr *h = tmp;
 			__be32	magic = h->magic;
 			uint64_t owner = be64_to_cpu(h->owner);
-			int	magic_ok = (magic == cpu_to_be32(XFS_DIR3_BLOCK_MAGIC) ||
-					    magic == cpu_to_be32(XFS_DIR3_DATA_MAGIC));
+			int	magic_ok = (magic == cpu_to_be32(MXFS_DIR3_BLOCK_MAGIC) ||
+					    magic == cpu_to_be32(MXFS_DIR3_DATA_MAGIC));
 			int	crc_ok = xfs_verify_cksum(tmp, blen,
 					offsetof(struct xfs_dir3_blk_hdr, crc));
 
@@ -4743,8 +4743,8 @@ xfs_da_read_buf(
 				uint16_t dmag =
 					be16_to_cpu(dh->info.hdr.magic);
 
-				if ((dmag == XFS_DIR3_LEAF1_MAGIC ||
-				     dmag == XFS_DIR3_LEAFN_MAGIC) &&
+				if ((dmag == MXFS_DIR3_LEAF1_MAGIC ||
+				     dmag == MXFS_DIR3_LEAFN_MAGIC) &&
 				    bcnt < dcnt)
 					mxfs_probe("mxfs: P-LEAFREADSTALE ino=%llu blk=%u daddr=%llu buf_cnt=%u disk_cnt=%u dlm_mode=%d gen=%u bufgen=%u realns=%llu\n",
 						(unsigned long long)dp->i_ino,

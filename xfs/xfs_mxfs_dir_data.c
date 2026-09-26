@@ -126,8 +126,8 @@ mxfs_dir_platter_audit(struct xfs_inode *ip)
 					uint16_t lmag = be16_to_cpu(
 						((struct xfs_da3_blkinfo *)
 						 lbuf)->hdr.magic);
-					if (lmag != XFS_DIR3_LEAF1_MAGIC &&
-					    lmag != XFS_DIR3_LEAFN_MAGIC)
+					if (lmag != MXFS_DIR3_LEAF1_MAGIC &&
+					    lmag != MXFS_DIR3_LEAFN_MAGIC)
 						continue;
 				}
 				{
@@ -401,8 +401,8 @@ mxfs_dir_data_release_verify(struct xfs_inode *ip)
 					   &dbp) != 0 || !dbp)
 				continue;
 			imag = ((struct xfs_dir3_blk_hdr *)dbp->b_addr)->magic;
-			isdata = (imag == cpu_to_be32(XFS_DIR3_DATA_MAGIC));
-			isblk = (imag == cpu_to_be32(XFS_DIR3_BLOCK_MAGIC));
+			isdata = (imag == cpu_to_be32(MXFS_DIR3_DATA_MAGIC));
+			isblk = (imag == cpu_to_be32(MXFS_DIR3_BLOCK_MAGIC));
 			if (!isdata && !isblk) {
 				xfs_buf_relse(dbp);
 				continue;
@@ -420,9 +420,9 @@ mxfs_dir_data_release_verify(struct xfs_inode *ip)
 				__be32 dmag =
 				    ((struct xfs_dir3_blk_hdr *)tmp)->magic;
 				bool ddata = (dmag ==
-					cpu_to_be32(XFS_DIR3_DATA_MAGIC));
+					cpu_to_be32(MXFS_DIR3_DATA_MAGIC));
 				bool dblk = (dmag ==
-					cpu_to_be32(XFS_DIR3_BLOCK_MAGIC));
+					cpu_to_be32(MXFS_DIR3_BLOCK_MAGIC));
 
 				if ((ddata || dblk) && (isblk == dblk)) {
 					dc = mxfs_dir3_data_fingerprint(mp, tmp,
@@ -695,14 +695,14 @@ mxfs_dir_block_names(struct xfs_inode *ip, struct xfs_buf *bp,
 	if (!blk)
 		return;
 	magic = *(__be32 *)blk;
-	if (magic == cpu_to_be32(XFS_DIR2_BLOCK_MAGIC) ||
-	    magic == cpu_to_be32(XFS_DIR3_BLOCK_MAGIC)) {
+	if (magic == cpu_to_be32(MXFS_DIR2_BLOCK_MAGIC) ||
+	    magic == cpu_to_be32(MXFS_DIR3_BLOCK_MAGIC)) {
 		struct xfs_dir2_data_hdr  *hdr = (void *)blk;
 		struct xfs_dir2_block_tail *btp =
 			xfs_dir2_block_tail_p(geo, hdr);
 		end = (unsigned int)((char *)btp - blk);
-	} else if (magic == cpu_to_be32(XFS_DIR2_DATA_MAGIC) ||
-		   magic == cpu_to_be32(XFS_DIR3_DATA_MAGIC)) {
+	} else if (magic == cpu_to_be32(MXFS_DIR2_DATA_MAGIC) ||
+		   magic == cpu_to_be32(MXFS_DIR3_DATA_MAGIC)) {
 		end = geo->blksize;
 	} else {
 		scnprintf(out, outsz, "magic=0x%x", be32_to_cpu(magic));
@@ -1236,8 +1236,8 @@ mxfs_dir_refresh_stale_data_blocks(struct xfs_inode *ip)
 						lba, tmp, blen) == 0) {
 				bblk = (dbp->b_ops == &xfs_dir3_block_buf_ops);
 				dh = tmp;
-				dblk = (dh->magic == cpu_to_be32(XFS_DIR3_BLOCK_MAGIC));
-				ddata = (dh->magic == cpu_to_be32(XFS_DIR3_DATA_MAGIC));
+				dblk = (dh->magic == cpu_to_be32(MXFS_DIR3_BLOCK_MAGIC));
+				ddata = (dh->magic == cpu_to_be32(MXFS_DIR3_DATA_MAGIC));
 				if ((dblk || ddata) && (bblk == dblk) &&
 				    be64_to_cpu(dh->owner) == ip->i_ino) {
 					bcnt = mxfs_dir3_data_fingerprint(mp,
@@ -1693,14 +1693,14 @@ mxfs_dir_flush_one_daddr(struct xfs_inode *ip, xfs_daddr_t d,
 					__be16 m16 = *(__be16 *)((char *)dbp->b_addr + 8);
 					uint64_t owner = 0;
 
-					if (m32 == cpu_to_be32(XFS_DIR3_DATA_MAGIC) ||
-					    m32 == cpu_to_be32(XFS_DIR3_BLOCK_MAGIC) ||
-					    m32 == cpu_to_be32(XFS_DIR3_FREE_MAGIC))
+					if (m32 == cpu_to_be32(MXFS_DIR3_DATA_MAGIC) ||
+					    m32 == cpu_to_be32(MXFS_DIR3_BLOCK_MAGIC) ||
+					    m32 == cpu_to_be32(MXFS_DIR3_FREE_MAGIC))
 						owner = be64_to_cpu(((struct xfs_dir3_blk_hdr *)
 								     dbp->b_addr)->owner);
-					else if (m16 == cpu_to_be16(XFS_DIR3_LEAF1_MAGIC) ||
-						 m16 == cpu_to_be16(XFS_DIR3_LEAFN_MAGIC) ||
-						 m16 == cpu_to_be16(XFS_DA3_NODE_MAGIC))
+					else if (m16 == cpu_to_be16(MXFS_DIR3_LEAF1_MAGIC) ||
+						 m16 == cpu_to_be16(MXFS_DIR3_LEAFN_MAGIC) ||
+						 m16 == cpu_to_be16(MXFS_DA3_NODE_MAGIC))
 						owner = be64_to_cpu(((struct xfs_da3_blkinfo *)
 								     dbp->b_addr)->owner);
 					content_ok = (owner == ip->i_ino);
@@ -1798,8 +1798,8 @@ mxfs_dir_flush_one_daddr(struct xfs_inode *ip, xfs_daddr_t d,
 						if (rrc == 0) {
 							bool icbf = (dbp->b_ops == &xfs_dir3_block_buf_ops);
 							__be32 dm = *(__be32 *)rb;
-							bool dkbf = (dm == cpu_to_be32(XFS_DIR2_BLOCK_MAGIC) ||
-								     dm == cpu_to_be32(XFS_DIR3_BLOCK_MAGIC));
+							bool dkbf = (dm == cpu_to_be32(MXFS_DIR2_BLOCK_MAGIC) ||
+								     dm == cpu_to_be32(MXFS_DIR3_BLOCK_MAGIC));
 							int de_n = mxfs_dir3_disk_has_extra_inum(
 								mp, dbp->b_addr, rb, blksz, icbf, dkbf);
 							uint32_t mep = (mp->m_mxfs_dlm &&
@@ -2956,7 +2956,7 @@ mxfs_dir_stale_clean_data_blocks_relsafe(struct xfs_inode *ip)
 						BBTOB(dbp->b_length),
 						((struct xfs_dir3_blk_hdr *)
 						 dbp->b_addr)->magic ==
-						cpu_to_be32(XFS_DIR3_BLOCK_MAGIC),
+						cpu_to_be32(MXFS_DIR3_BLOCK_MAGIC),
 						&fs, &fx);
 				mxfs_probe("mxfs: P4R-RELSTALE ino=%llu daddr=%lld staled=%d dirty=%d in_ail=%d pin=%d delwri=%d undest=%d done=%d in_cil=%d fcnt=%u fsum=0x%x fxor=0x%x comm=%s realns=%llu\n",
 					(unsigned long long)ip->i_ino,

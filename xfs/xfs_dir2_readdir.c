@@ -130,8 +130,8 @@ mxfs_dirblk_platter_active(
 		struct xfs_dir3_blk_hdr *ph = tmp;
 		uint32_t magic = be32_to_cpu(ph->magic);
 
-		if (magic == XFS_DIR3_DATA_MAGIC ||
-		    magic == XFS_DIR3_BLOCK_MAGIC)
+		if (magic == MXFS_DIR3_DATA_MAGIC ||
+		    magic == MXFS_DIR3_BLOCK_MAGIC)
 			n = mxfs_dirblk_count_active(mp, tmp, blen);
 		else
 			n = -2;

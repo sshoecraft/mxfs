@@ -80,17 +80,17 @@
                            STRINGIFY(MXFS_VERSION_MINOR) "." \
                            STRINGIFY(MXFS_VERSION_PATCH)
 
-/* ─── XFS on-disk constants ─── */
+/* ─── MXFS on-disk constants (XFS-derived structures) ─── */
 
-#define XFS_SB_MAGIC            0x58465342  /* "XFSB" */
-#define XFS_AGF_MAGIC           0x58414746  /* "XAGF" */
-#define XFS_AGI_MAGIC           0x58414749  /* "XAGI" */
-#define XFS_AGFL_MAGIC          0x5841464C  /* "XAFL" */
-#define XFS_BNO_MAGIC           0x41423342  /* "AB3B" */
-#define XFS_CNT_MAGIC           0x41423343  /* "AB3C" */
-#define XFS_INO_MAGIC           0x49414233  /* "IAB3" */
-#define XFS_FINO_MAGIC          0x46494233  /* "FIB3" */
-#define XFS_DINODE_MAGIC        0x494E      /* "IN" */
+#define MXFS_SB_MAGIC            0x4D585342  /* "MXSB" */
+#define MXFS_AGF_MAGIC           0x4D414746  /* "MAGF" */
+#define MXFS_AGI_MAGIC           0x4D414749  /* "MAGI" */
+#define MXFS_AGFL_MAGIC          0x4D41464C  /* "MAFL" */
+#define MXFS_ABTB_CRC_MAGIC           0x4D413342  /* "MA3B" */
+#define MXFS_ABTC_CRC_MAGIC           0x4D413343  /* "MA3C" */
+#define MXFS_IBT_CRC_MAGIC           0x4D494133  /* "MIA3" */
+#define MXFS_FIBT_CRC_MAGIC          0x4D464933  /* "MFI3" */
+#define MXFS_DINODE_MAGIC        0x4D4E      /* "MN" */
 
 #define XFS_BLOCKSIZE           4096
 #define XFS_BLOCKLOG            12
@@ -970,7 +970,7 @@ static void write_sb_sector(uint8_t *sec, const struct xfs_geom *geom,
     memset(sec, 0, 512);
 
     /* [0] magic */
-    put_be32(sec + 0, XFS_SB_MAGIC);
+    put_be32(sec + 0, MXFS_SB_MAGIC);
     /* [4] blocksize */
     put_be32(sec + 4, XFS_BLOCKSIZE);
     /* [8] dblocks */
@@ -1092,7 +1092,7 @@ static void write_agf_sector(uint8_t *sec, const struct xfs_geom *geom,
      */
 
     /* [0x00] magic */
-    put_be32(sec + 0x00, XFS_AGF_MAGIC);
+    put_be32(sec + 0x00, MXFS_AGF_MAGIC);
     /* [0x04] versionnum = 1 */
     put_be32(sec + 0x04, 1);
     /* [0x08] seqno */
@@ -1148,7 +1148,7 @@ static void write_agi_sector(uint8_t *sec, const struct xfs_geom *geom,
     memset(sec, 0, 512);
 
     /* [0x00] magic */
-    put_be32(sec + 0x00, XFS_AGI_MAGIC);
+    put_be32(sec + 0x00, MXFS_AGI_MAGIC);
     /* [0x04] versionnum = 1 */
     put_be32(sec + 0x04, 1);
     /* [0x08] seqno */
@@ -1198,7 +1198,7 @@ static void write_agfl_sector(uint8_t *sec, const struct xfs_geom *geom,
     memset(sec, 0, 512);
 
     /* [0x00] magic */
-    put_be32(sec + 0x00, XFS_AGFL_MAGIC);
+    put_be32(sec + 0x00, MXFS_AGFL_MAGIC);
     /* [0x04] seqno */
     put_be32(sec + 0x04, agno);
     /* [0x08] uuid */
@@ -1285,7 +1285,7 @@ static void write_inode(uint8_t *buf, uint64_t ino, const uint8_t *uuid,
     memset(buf, 0, XFS_INODESIZE);
 
     /* [0x00] magic */
-    put_be16(buf + 0x00, XFS_DINODE_MAGIC);
+    put_be16(buf + 0x00, MXFS_DINODE_MAGIC);
     /* [0x04] version = 3 (V3 inode, always for CRC-enabled XFS) */
     buf[0x04] = 3;
 
@@ -1648,7 +1648,7 @@ static int format_xfs_native(int fd, uint64_t data_size, uint64_t base_offset,
             put_be32(rec2 + 8, free2_start);   /* extent 2: startblock */
             put_be32(rec2 + 12, free2_len);    /* extent 2: blockcount */
 
-            write_btree_block(block, XFS_BNO_MAGIC, agno,
+            write_btree_block(block, MXFS_ABTB_CRC_MAGIC, agno,
                               (uint64_t)agno * geom.agblocks + 1,
                               2, rec2, 16, geom.uuid);
         } else {
@@ -1658,7 +1658,7 @@ static int format_xfs_native(int fd, uint64_t data_size, uint64_t base_offset,
             put_be32(rec + 0, free_start);     /* startblock */
             put_be32(rec + 4, free_len);       /* blockcount */
 
-            write_btree_block(block, XFS_BNO_MAGIC, agno,
+            write_btree_block(block, MXFS_ABTB_CRC_MAGIC, agno,
                               (uint64_t)agno * geom.agblocks + 1,
                               1, rec, 8, geom.uuid);
         }
@@ -1678,7 +1678,7 @@ static int format_xfs_native(int fd, uint64_t data_size, uint64_t base_offset,
             put_be32(rec2 + 8, free2_start);   /* extent 2: startblock (larger) */
             put_be32(rec2 + 12, free2_len);    /* extent 2: blockcount */
 
-            write_btree_block(block, XFS_CNT_MAGIC, agno,
+            write_btree_block(block, MXFS_ABTC_CRC_MAGIC, agno,
                               (uint64_t)agno * geom.agblocks + 2,
                               2, rec2, 16, geom.uuid);
         } else {
@@ -1688,7 +1688,7 @@ static int format_xfs_native(int fd, uint64_t data_size, uint64_t base_offset,
             put_be32(rec + 0, free_start);     /* startblock */
             put_be32(rec + 4, free_len);       /* blockcount */
 
-            write_btree_block(block, XFS_CNT_MAGIC, agno,
+            write_btree_block(block, MXFS_ABTC_CRC_MAGIC, agno,
                               (uint64_t)agno * geom.agblocks + 2,
                               1, rec, 8, geom.uuid);
         }
@@ -1712,12 +1712,12 @@ static int format_xfs_native(int fd, uint64_t data_size, uint64_t base_offset,
             /* free bitmap: 0xFFFFFFFFFFFFFFF8 (inodes 0-2 allocated, 3-63 free) */
             put_be64(ino_rec + 8, 0xFFFFFFFFFFFFFFF8ULL);
 
-            write_btree_block(block, XFS_INO_MAGIC, agno,
+            write_btree_block(block, MXFS_IBT_CRC_MAGIC, agno,
                               (uint64_t)agno * geom.agblocks + 3,
                               1, ino_rec, 16, geom.uuid);
         } else {
             /* Other AGs: empty inobt */
-            write_btree_block(block, XFS_INO_MAGIC, agno,
+            write_btree_block(block, MXFS_IBT_CRC_MAGIC, agno,
                               (uint64_t)agno * geom.agblocks + 3,
                               0, NULL, 0, geom.uuid);
         }
@@ -1741,12 +1741,12 @@ static int format_xfs_native(int fd, uint64_t data_size, uint64_t base_offset,
             /* free bitmap: 0xFFFFFFFFFFFFFFF8 (inodes 0-2 allocated, 3-63 free) */
             put_be64(fino_rec + 8, 0xFFFFFFFFFFFFFFF8ULL);
 
-            write_btree_block(block, XFS_FINO_MAGIC, agno,
+            write_btree_block(block, MXFS_FIBT_CRC_MAGIC, agno,
                               (uint64_t)agno * geom.agblocks + 4,
                               1, fino_rec, 16, geom.uuid);
         } else {
             /* Other AGs: empty finobt (no inode chunks, so no free inodes) */
-            write_btree_block(block, XFS_FINO_MAGIC, agno,
+            write_btree_block(block, MXFS_FIBT_CRC_MAGIC, agno,
                               (uint64_t)agno * geom.agblocks + 4,
                               0, NULL, 0, geom.uuid);
         }

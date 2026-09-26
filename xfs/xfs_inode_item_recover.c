@@ -383,7 +383,7 @@ xlog_recover_inode_commit_pass2(
 		goto out_release;
 	}
 	ldip = item->ri_buf[1].iov_base;
-	if (XFS_IS_CORRUPT(mp, ldip->di_magic != XFS_DINODE_MAGIC)) {
+	if (XFS_IS_CORRUPT(mp, ldip->di_magic != MXFS_DINODE_MAGIC)) {
 		xfs_alert(mp,
 			"%s: Bad inode log record, rec ptr "PTR_FMT", ino %lld",
 			__func__, item, in_f->ilf_ino);

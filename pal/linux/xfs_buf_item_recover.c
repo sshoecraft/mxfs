@@ -244,36 +244,36 @@ xlog_recover_validate_buf_type(
 	switch (xfs_blft_from_flags(buf_f)) {
 	case XFS_BLFT_BTREE_BUF:
 		switch (magic32) {
-		case XFS_ABTB_CRC_MAGIC:
-		case XFS_ABTB_MAGIC:
+		case MXFS_ABTB_CRC_MAGIC:
+		case MXFS_ABTB_MAGIC:
 			bp->b_ops = &xfs_bnobt_buf_ops;
 			break;
-		case XFS_ABTC_CRC_MAGIC:
-		case XFS_ABTC_MAGIC:
+		case MXFS_ABTC_CRC_MAGIC:
+		case MXFS_ABTC_MAGIC:
 			bp->b_ops = &xfs_cntbt_buf_ops;
 			break;
-		case XFS_IBT_CRC_MAGIC:
-		case XFS_IBT_MAGIC:
+		case MXFS_IBT_CRC_MAGIC:
+		case MXFS_IBT_MAGIC:
 			bp->b_ops = &xfs_inobt_buf_ops;
 			break;
-		case XFS_FIBT_CRC_MAGIC:
-		case XFS_FIBT_MAGIC:
+		case MXFS_FIBT_CRC_MAGIC:
+		case MXFS_FIBT_MAGIC:
 			bp->b_ops = &xfs_finobt_buf_ops;
 			break;
-		case XFS_BMAP_CRC_MAGIC:
-		case XFS_BMAP_MAGIC:
+		case MXFS_BMAP_CRC_MAGIC:
+		case MXFS_BMAP_MAGIC:
 			bp->b_ops = &xfs_bmbt_buf_ops;
 			break;
-		case XFS_RTRMAP_CRC_MAGIC:
+		case MXFS_RTRMAP_CRC_MAGIC:
 			bp->b_ops = &xfs_rtrmapbt_buf_ops;
 			break;
-		case XFS_RMAP_CRC_MAGIC:
+		case MXFS_RMAP_CRC_MAGIC:
 			bp->b_ops = &xfs_rmapbt_buf_ops;
 			break;
-		case XFS_REFC_CRC_MAGIC:
+		case MXFS_REFC_CRC_MAGIC:
 			bp->b_ops = &xfs_refcountbt_buf_ops;
 			break;
-		case XFS_RTREFC_CRC_MAGIC:
+		case MXFS_RTREFC_CRC_MAGIC:
 			bp->b_ops = &xfs_rtrefcountbt_buf_ops;
 			break;
 		default:
@@ -282,21 +282,21 @@ xlog_recover_validate_buf_type(
 		}
 		break;
 	case XFS_BLFT_AGF_BUF:
-		if (magic32 != XFS_AGF_MAGIC) {
+		if (magic32 != MXFS_AGF_MAGIC) {
 			warnmsg = "Bad AGF block magic!";
 			break;
 		}
 		bp->b_ops = &xfs_agf_buf_ops;
 		break;
 	case XFS_BLFT_AGFL_BUF:
-		if (magic32 != XFS_AGFL_MAGIC) {
+		if (magic32 != MXFS_AGFL_MAGIC) {
 			warnmsg = "Bad AGFL block magic!";
 			break;
 		}
 		bp->b_ops = &xfs_agfl_buf_ops;
 		break;
 	case XFS_BLFT_AGI_BUF:
-		if (magic32 != XFS_AGI_MAGIC) {
+		if (magic32 != MXFS_AGI_MAGIC) {
 			warnmsg = "Bad AGI block magic!";
 			break;
 		}
@@ -306,7 +306,7 @@ xlog_recover_validate_buf_type(
 	case XFS_BLFT_PDQUOT_BUF:
 	case XFS_BLFT_GDQUOT_BUF:
 #ifdef CONFIG_XFS_QUOTA
-		if (magic16 != XFS_DQUOT_MAGIC) {
+		if (magic16 != MXFS_DQUOT_MAGIC) {
 			warnmsg = "Bad DQUOT block magic!";
 			break;
 		}
@@ -318,14 +318,14 @@ xlog_recover_validate_buf_type(
 #endif
 		break;
 	case XFS_BLFT_DINO_BUF:
-		if (magic16 != XFS_DINODE_MAGIC) {
+		if (magic16 != MXFS_DINODE_MAGIC) {
 			warnmsg = "Bad INODE block magic!";
 			break;
 		}
 		bp->b_ops = &xfs_inode_buf_ops;
 		break;
 	case XFS_BLFT_SYMLINK_BUF:
-		if (magic32 != XFS_SYMLINK_MAGIC) {
+		if (magic32 != MXFS_SYMLINK_MAGIC) {
 			warnmsg = "Bad symlink block magic!";
 			break;
 		}
@@ -340,70 +340,70 @@ xlog_recover_validate_buf_type(
 		bp->b_ops = &mxfs_dirshard_buf_ops;
 		break;
 	case XFS_BLFT_DIR_BLOCK_BUF:
-		if (magic32 != XFS_DIR2_BLOCK_MAGIC &&
-		    magic32 != XFS_DIR3_BLOCK_MAGIC) {
+		if (magic32 != MXFS_DIR2_BLOCK_MAGIC &&
+		    magic32 != MXFS_DIR3_BLOCK_MAGIC) {
 			warnmsg = "Bad dir block magic!";
 			break;
 		}
 		bp->b_ops = &xfs_dir3_block_buf_ops;
 		break;
 	case XFS_BLFT_DIR_DATA_BUF:
-		if (magic32 != XFS_DIR2_DATA_MAGIC &&
-		    magic32 != XFS_DIR3_DATA_MAGIC) {
+		if (magic32 != MXFS_DIR2_DATA_MAGIC &&
+		    magic32 != MXFS_DIR3_DATA_MAGIC) {
 			warnmsg = "Bad dir data magic!";
 			break;
 		}
 		bp->b_ops = &xfs_dir3_data_buf_ops;
 		break;
 	case XFS_BLFT_DIR_FREE_BUF:
-		if (magic32 != XFS_DIR2_FREE_MAGIC &&
-		    magic32 != XFS_DIR3_FREE_MAGIC) {
+		if (magic32 != MXFS_DIR2_FREE_MAGIC &&
+		    magic32 != MXFS_DIR3_FREE_MAGIC) {
 			warnmsg = "Bad dir3 free magic!";
 			break;
 		}
 		bp->b_ops = &xfs_dir3_free_buf_ops;
 		break;
 	case XFS_BLFT_DIR_LEAF1_BUF:
-		if (magicda != XFS_DIR2_LEAF1_MAGIC &&
-		    magicda != XFS_DIR3_LEAF1_MAGIC) {
+		if (magicda != MXFS_DIR2_LEAF1_MAGIC &&
+		    magicda != MXFS_DIR3_LEAF1_MAGIC) {
 			warnmsg = "Bad dir leaf1 magic!";
 			break;
 		}
 		bp->b_ops = &xfs_dir3_leaf1_buf_ops;
 		break;
 	case XFS_BLFT_DIR_LEAFN_BUF:
-		if (magicda != XFS_DIR2_LEAFN_MAGIC &&
-		    magicda != XFS_DIR3_LEAFN_MAGIC) {
+		if (magicda != MXFS_DIR2_LEAFN_MAGIC &&
+		    magicda != MXFS_DIR3_LEAFN_MAGIC) {
 			warnmsg = "Bad dir leafn magic!";
 			break;
 		}
 		bp->b_ops = &xfs_dir3_leafn_buf_ops;
 		break;
 	case XFS_BLFT_DA_NODE_BUF:
-		if (magicda != XFS_DA_NODE_MAGIC &&
-		    magicda != XFS_DA3_NODE_MAGIC) {
+		if (magicda != MXFS_DA_NODE_MAGIC &&
+		    magicda != MXFS_DA3_NODE_MAGIC) {
 			warnmsg = "Bad da node magic!";
 			break;
 		}
 		bp->b_ops = &xfs_da3_node_buf_ops;
 		break;
 	case XFS_BLFT_ATTR_LEAF_BUF:
-		if (magicda != XFS_ATTR_LEAF_MAGIC &&
-		    magicda != XFS_ATTR3_LEAF_MAGIC) {
+		if (magicda != MXFS_ATTR_LEAF_MAGIC &&
+		    magicda != MXFS_ATTR3_LEAF_MAGIC) {
 			warnmsg = "Bad attr leaf magic!";
 			break;
 		}
 		bp->b_ops = &xfs_attr3_leaf_buf_ops;
 		break;
 	case XFS_BLFT_ATTR_RMT_BUF:
-		if (magic32 != XFS_ATTR3_RMT_MAGIC) {
+		if (magic32 != MXFS_ATTR3_RMT_MAGIC) {
 			warnmsg = "Bad attr remote magic!";
 			break;
 		}
 		bp->b_ops = &xfs_attr3_rmt_buf_ops;
 		break;
 	case XFS_BLFT_SB_BUF:
-		if (magic32 != XFS_SB_MAGIC) {
+		if (magic32 != MXFS_SB_MAGIC) {
 			warnmsg = "Bad SB block magic!";
 			break;
 		}
@@ -411,14 +411,14 @@ xlog_recover_validate_buf_type(
 		break;
 #ifdef CONFIG_XFS_RT
 	case XFS_BLFT_RTBITMAP_BUF:
-		if (xfs_has_rtgroups(mp) && magic32 != XFS_RTBITMAP_MAGIC) {
+		if (xfs_has_rtgroups(mp) && magic32 != MXFS_RTBITMAP_MAGIC) {
 			warnmsg = "Bad rtbitmap magic!";
 			break;
 		}
 		bp->b_ops = xfs_rtblock_ops(mp, XFS_RTGI_BITMAP);
 		break;
 	case XFS_BLFT_RTSUMMARY_BUF:
-		if (xfs_has_rtgroups(mp) && magic32 != XFS_RTSUMMARY_MAGIC) {
+		if (xfs_has_rtgroups(mp) && magic32 != MXFS_RTSUMMARY_MAGIC) {
 			warnmsg = "Bad rtsummary magic!";
 			break;
 		}
@@ -981,53 +981,53 @@ xlog_recover_get_buf_lsn(
 
 	magic32 = be32_to_cpu(*(__be32 *)blk);
 	switch (magic32) {
-	case XFS_RTSUMMARY_MAGIC:
-	case XFS_RTBITMAP_MAGIC: {
+	case MXFS_RTSUMMARY_MAGIC:
+	case MXFS_RTBITMAP_MAGIC: {
 		struct xfs_rtbuf_blkinfo	*hdr = blk;
 
 		lsn = be64_to_cpu(hdr->rt_lsn);
 		uuid = &hdr->rt_uuid;
 		break;
 	}
-	case XFS_ABTB_CRC_MAGIC:
-	case XFS_ABTC_CRC_MAGIC:
-	case XFS_ABTB_MAGIC:
-	case XFS_ABTC_MAGIC:
-	case XFS_RMAP_CRC_MAGIC:
-	case XFS_REFC_CRC_MAGIC:
-	case XFS_FIBT_CRC_MAGIC:
-	case XFS_FIBT_MAGIC:
-	case XFS_IBT_CRC_MAGIC:
-	case XFS_IBT_MAGIC: {
+	case MXFS_ABTB_CRC_MAGIC:
+	case MXFS_ABTC_CRC_MAGIC:
+	case MXFS_ABTB_MAGIC:
+	case MXFS_ABTC_MAGIC:
+	case MXFS_RMAP_CRC_MAGIC:
+	case MXFS_REFC_CRC_MAGIC:
+	case MXFS_FIBT_CRC_MAGIC:
+	case MXFS_FIBT_MAGIC:
+	case MXFS_IBT_CRC_MAGIC:
+	case MXFS_IBT_MAGIC: {
 		struct xfs_btree_block *btb = blk;
 
 		lsn = be64_to_cpu(btb->bb_u.s.bb_lsn);
 		uuid = &btb->bb_u.s.bb_uuid;
 		break;
 	}
-	case XFS_RTRMAP_CRC_MAGIC:
-	case XFS_RTREFC_CRC_MAGIC:
-	case XFS_BMAP_CRC_MAGIC:
-	case XFS_BMAP_MAGIC: {
+	case MXFS_RTRMAP_CRC_MAGIC:
+	case MXFS_RTREFC_CRC_MAGIC:
+	case MXFS_BMAP_CRC_MAGIC:
+	case MXFS_BMAP_MAGIC: {
 		struct xfs_btree_block *btb = blk;
 
 		lsn = be64_to_cpu(btb->bb_u.l.bb_lsn);
 		uuid = &btb->bb_u.l.bb_uuid;
 		break;
 	}
-	case XFS_AGF_MAGIC:
+	case MXFS_AGF_MAGIC:
 		lsn = be64_to_cpu(((struct xfs_agf *)blk)->agf_lsn);
 		uuid = &((struct xfs_agf *)blk)->agf_uuid;
 		break;
-	case XFS_AGFL_MAGIC:
+	case MXFS_AGFL_MAGIC:
 		lsn = be64_to_cpu(((struct xfs_agfl *)blk)->agfl_lsn);
 		uuid = &((struct xfs_agfl *)blk)->agfl_uuid;
 		break;
-	case XFS_AGI_MAGIC:
+	case MXFS_AGI_MAGIC:
 		lsn = be64_to_cpu(((struct xfs_agi *)blk)->agi_lsn);
 		uuid = &((struct xfs_agi *)blk)->agi_uuid;
 		break;
-	case XFS_SYMLINK_MAGIC:
+	case MXFS_SYMLINK_MAGIC:
 		lsn = be64_to_cpu(((struct xfs_dsymlink_hdr *)blk)->sl_lsn);
 		uuid = &((struct xfs_dsymlink_hdr *)blk)->sl_uuid;
 		break;
@@ -1036,13 +1036,13 @@ xlog_recover_get_buf_lsn(
 		lsn = be64_to_cpu(((struct mxfs_dirshard_blk *)blk)->lsn);
 		uuid = (uuid_t *)((struct mxfs_dirshard_blk *)blk)->uuid;
 		break;
-	case XFS_DIR3_BLOCK_MAGIC:
-	case XFS_DIR3_DATA_MAGIC:
-	case XFS_DIR3_FREE_MAGIC:
+	case MXFS_DIR3_BLOCK_MAGIC:
+	case MXFS_DIR3_DATA_MAGIC:
+	case MXFS_DIR3_FREE_MAGIC:
 		lsn = be64_to_cpu(((struct xfs_dir3_blk_hdr *)blk)->lsn);
 		uuid = &((struct xfs_dir3_blk_hdr *)blk)->uuid;
 		break;
-	case XFS_ATTR3_RMT_MAGIC:
+	case MXFS_ATTR3_RMT_MAGIC:
 		/*
 		 * Remote attr blocks are written synchronously, rather than
 		 * being logged. That means they do not contain a valid LSN
@@ -1051,7 +1051,7 @@ xlog_recover_get_buf_lsn(
 		 * block we should simply do so.
 		 */
 		goto recover_immediately;
-	case XFS_SB_MAGIC:
+	case MXFS_SB_MAGIC:
 		/*
 		 * superblock uuids are magic. We may or may not have a
 		 * sb_meta_uuid on disk, but it will be set in the in-core
@@ -1077,10 +1077,10 @@ xlog_recover_get_buf_lsn(
 
 	magicda = be16_to_cpu(((struct xfs_da_blkinfo *)blk)->magic);
 	switch (magicda) {
-	case XFS_DIR3_LEAF1_MAGIC:
-	case XFS_DIR3_LEAFN_MAGIC:
-	case XFS_ATTR3_LEAF_MAGIC:
-	case XFS_DA3_NODE_MAGIC:
+	case MXFS_DIR3_LEAF1_MAGIC:
+	case MXFS_DIR3_LEAFN_MAGIC:
+	case MXFS_ATTR3_LEAF_MAGIC:
+	case MXFS_DA3_NODE_MAGIC:
 		lsn = be64_to_cpu(((struct xfs_da3_blkinfo *)blk)->lsn);
 		uuid = &((struct xfs_da3_blkinfo *)blk)->uuid;
 		break;
@@ -1107,8 +1107,8 @@ xlog_recover_get_buf_lsn(
 	 */
 	magic16 = be16_to_cpu(*(__be16 *)blk);
 	switch (magic16) {
-	case XFS_DQUOT_MAGIC:
-	case XFS_DINODE_MAGIC:
+	case MXFS_DQUOT_MAGIC:
+	case MXFS_DINODE_MAGIC:
 		goto recover_immediately;
 	default:
 		break;
@@ -1331,7 +1331,7 @@ xlog_recover_buf_commit_pass2(
 	 */
 	lsn = xlog_recover_get_buf_lsn(mp, bp, buf_f);
 	if (xlog_is_mxfs_foreign_replay(log) &&
-	    be16_to_cpu(*((__be16 *)xfs_buf_offset(bp, 0))) == XFS_DINODE_MAGIC) {
+	    be16_to_cpu(*((__be16 *)xfs_buf_offset(bp, 0))) == MXFS_DINODE_MAGIC) {
 		static atomic_t fr_dino_n = ATOMIC_INIT(0);
 		bool skip = lsn && lsn != -1 && XFS_LSN_CMP(lsn, current_lsn) >= 0;
 
@@ -1541,7 +1541,7 @@ out_writebuf:
 	 * the buffer out of the buffer cache so that the buffer won't
 	 * overlap with future reads of those inodes.
 	 */
-	if (XFS_DINODE_MAGIC ==
+	if (MXFS_DINODE_MAGIC ==
 	    be16_to_cpu(*((__be16 *)xfs_buf_offset(bp, 0))) &&
 	    (BBTOB(bp->b_length) != M_IGEO(log->l_mp)->inode_cluster_size)) {
 		xfs_buf_stale(bp);

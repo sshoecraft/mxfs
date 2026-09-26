@@ -23,7 +23,7 @@ typedef uint32_t xlog_tid_t;
 
 #define XLOG_MIN_ICLOGS		2
 #define XLOG_MAX_ICLOGS		8
-#define XLOG_HEADER_MAGIC_NUM	0xFEEDbabe	/* Invalid cycle number */
+#define MXFS_LOG_HEADER_MAGIC_NUM	0xFEED4d58	/* Invalid cycle number */
 #define XLOG_VERSION_1		1
 #define XLOG_VERSION_2		2		/* Large IClogs, Log sunit */
 #define XLOG_VERSION_OKBITS	(XLOG_VERSION_1 | XLOG_VERSION_2)
@@ -62,7 +62,7 @@ static inline xfs_lsn_t xlog_assign_lsn(uint cycle, uint block)
 
 static inline uint xlog_get_cycle(char *ptr)
 {
-	if (be32_to_cpu(*(__be32 *)ptr) == XLOG_HEADER_MAGIC_NUM)
+	if (be32_to_cpu(*(__be32 *)ptr) == MXFS_LOG_HEADER_MAGIC_NUM)
 		return be32_to_cpu(*((__be32 *)ptr + 1));
 	else
 		return be32_to_cpu(*(__be32 *)ptr);
@@ -202,7 +202,7 @@ struct xfs_trans_header {
 	uint		th_num_items;		/* num items logged by trans */
 };
 
-#define	XFS_TRANS_HEADER_MAGIC	0x5452414e	/* TRAN */
+#define	MXFS_TRANS_HEADER_MAGIC	0x4d54524e	/* MTRN */
 
 /*
  * The only type valid for th_type in CIL-enabled file system logs:
@@ -424,7 +424,7 @@ struct xfs_log_legacy_timestamp {
  * kept identical to struct xfs_dinode except for the endianness annotations.
  */
 struct xfs_log_dinode {
-	uint16_t	di_magic;	/* inode magic # = XFS_DINODE_MAGIC */
+	uint16_t	di_magic;	/* inode magic # = MXFS_DINODE_MAGIC */
 	uint16_t	di_mode;	/* mode and type of file */
 	int8_t		di_version;	/* inode version */
 	int8_t		di_format;	/* format of di_c data */

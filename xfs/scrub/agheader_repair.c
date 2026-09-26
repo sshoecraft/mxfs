@@ -206,7 +206,7 @@ xrep_agf_init_header(
 
 	memcpy(old_agf, agf, sizeof(*old_agf));
 	memset(agf, 0, BBTOB(agf_bp->b_length));
-	agf->agf_magicnum = cpu_to_be32(XFS_AGF_MAGIC);
+	agf->agf_magicnum = cpu_to_be32(MXFS_AGF_MAGIC);
 	agf->agf_versionnum = cpu_to_be32(XFS_AGF_VERSION);
 	agf->agf_seqno = cpu_to_be32(pag_agno(pag));
 	agf->agf_length = cpu_to_be32(pag_group(pag)->xg_block_count);
@@ -686,7 +686,7 @@ xrep_agfl_init_header(
 	 */
 	agfl = XFS_BUF_TO_AGFL(agfl_bp);
 	memset(agfl, 0xFF, BBTOB(agfl_bp->b_length));
-	agfl->agfl_magicnum = cpu_to_be32(XFS_AGFL_MAGIC);
+	agfl->agfl_magicnum = cpu_to_be32(MXFS_AGFL_MAGIC);
 	agfl->agfl_seqno = cpu_to_be32(pag_agno(sc->sa.pag));
 	uuid_copy(&agfl->agfl_uuid, &mp->m_sb.sb_meta_uuid);
 
@@ -899,7 +899,7 @@ xrep_agi_init_header(
 
 	memcpy(old_agi, agi, sizeof(*old_agi));
 	memset(agi, 0, BBTOB(agi_bp->b_length));
-	agi->agi_magicnum = cpu_to_be32(XFS_AGI_MAGIC);
+	agi->agi_magicnum = cpu_to_be32(MXFS_AGI_MAGIC);
 	agi->agi_versionnum = cpu_to_be32(XFS_AGI_VERSION);
 	agi->agi_seqno = cpu_to_be32(pag_agno(pag));
 	agi->agi_length = cpu_to_be32(pag_group(pag)->xg_block_count);

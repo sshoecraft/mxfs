@@ -241,7 +241,7 @@ bool mxfs_freepub_claim_valid(struct xfs_inode *ip, struct xfs_buf *bp,
 		w = "obligation";
 		goto fail;
 	}
-	if (!img || be16_to_cpu(img->di_magic) != XFS_DINODE_MAGIC ||
+	if (!img || be16_to_cpu(img->di_magic) != MXFS_DINODE_MAGIC ||
 	    img->di_mode != 0 ||
 	    be32_to_cpu(img->di_gen) != READ_ONCE(ip->i_mxfs_freepub_gen)) {
 		w = "image";
@@ -437,11 +437,11 @@ mxfs_ag_meta_payload_lsn(struct xfs_buf *bp)
 		return 0;
 	magic = *(__be32 *)bp->b_addr;
 	switch (be32_to_cpu(magic)) {
-	case XFS_AGF_MAGIC:
+	case MXFS_AGF_MAGIC:
 		return be64_to_cpu(((struct xfs_agf *)bp->b_addr)->agf_lsn);
-	case XFS_AGI_MAGIC:
+	case MXFS_AGI_MAGIC:
 		return be64_to_cpu(((struct xfs_agi *)bp->b_addr)->agi_lsn);
-	case XFS_AGFL_MAGIC:
+	case MXFS_AGFL_MAGIC:
 		return be64_to_cpu(((struct xfs_agfl *)bp->b_addr)->agfl_lsn);
 	default:
 		/* short-pointer (AG) btree blocks: bnobt/cntbt/inobt/finobt/rmap */

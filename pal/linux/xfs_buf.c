@@ -338,8 +338,8 @@ xfs_buf_stale(
 		struct xfs_buf_log_item *sbip = bp->b_log_item;
 		bool in_ail = sbip && test_bit(XFS_LI_IN_AIL,
 					&sbip->bli_item.li_flags);
-		if ((m == cpu_to_be32(XFS_DIR3_BLOCK_MAGIC) ||
-		     m == cpu_to_be32(XFS_DIR3_DATA_MAGIC))) {
+		if ((m == cpu_to_be32(MXFS_DIR3_BLOCK_MAGIC) ||
+		     m == cpu_to_be32(MXFS_DIR3_DATA_MAGIC))) {
 			static atomic_t pds = ATOMIC_INIT(0);
 			bool undest = (bp->b_flags & XBF_DONE) ?
 				mxfs_dir_buf_is_undestaged(bp) : false;
@@ -566,8 +566,8 @@ xfs_buf_free(
 	    bp->b_addr && bp->b_mount && bp->b_mount->m_mxfs_dlm &&
 	    !mxfs_v5_dlm_is_single_node(bp->b_mount->m_mxfs_dlm)) {
 		__be32 m = *(__be32 *)bp->b_addr;
-		if (m == cpu_to_be32(XFS_DIR3_BLOCK_MAGIC) ||
-		    m == cpu_to_be32(XFS_DIR3_DATA_MAGIC)) {
+		if (m == cpu_to_be32(MXFS_DIR3_BLOCK_MAGIC) ||
+		    m == cpu_to_be32(MXFS_DIR3_DATA_MAGIC)) {
 			static atomic_t pdf = ATOMIC_INIT(0);
 			if (atomic_inc_return(&pdf) <= 300) {
 				mxfs_probe("mxfs: P-DIRFREE daddr=%lld magic=0x%x has_bli=%d flags=0x%x hold=%d — freeing dir3 buffer (content destroyed)\n",
@@ -1429,7 +1429,7 @@ mxfs_recov_slot_refresh(
 		return rc;
 	}
 	if (((struct xfs_dinode *)(tmp + (size_t)slot * isz))->di_magic ==
-	    cpu_to_be16(XFS_DINODE_MAGIC)) {
+	    cpu_to_be16(MXFS_DINODE_MAGIC)) {
 		memcpy(bp->b_addr + (size_t)slot * isz,
 		       tmp + (size_t)slot * isz, isz);
 		atomic64_inc(&mxfs_recov_slot_refreshed);
@@ -3242,7 +3242,7 @@ __xfs_buf_ioend(
 							im, mm, same,
 							mbb[0], mbb[1], mbb[2], mbb[3],
 							mbb[4], mbb[5], mbb[6], mbb[7],
-							mm == XFS_BMAP_CRC_MAGIC ?
+							mm == MXFS_BMAP_CRC_MAGIC ?
 							"MEDIUM-VALID-BMBT(in-core-torn=R-b)" :
 							"MEDIUM-NOT-BMBT(coherent-medium-inconsistent=R-a)");
 					} else if (mb) {
@@ -3330,7 +3330,7 @@ __xfs_buf_ioend(
 					bp->b_addr + p136_off;
 
 				if (be16_to_cpu(p136_d->di_magic) !=
-					XFS_DINODE_MAGIC)
+					MXFS_DINODE_MAGIC)
 					continue;
 				/* LOCAL (shortform) dirs were
 				 * silently SKIPPED here, hiding exactly the
@@ -4144,7 +4144,7 @@ xfs_buf_bio_end_io(
 	 */
 	if ((bp->b_flags & XBF_WRITE) && bp->b_addr) {
 		const unsigned char *p = bp->b_addr;
-		if (p[0] == 0x58 && p[1] == 0x44 && p[2] == 0x42 && p[3] == 0x33) {
+		if (get_unaligned_be32(p) == MXFS_DIR3_BLOCK_MAGIC) {
 			mxfs_idbg("mxfs: P-H27-COMPLETE-DIR3 daddr=%lld bi_status=%d bp=%p realns=%llu\n",
 				(long long)bp->b_maps[0].bm_bn,
 				bio->bi_status, bp,
@@ -4328,7 +4328,7 @@ mxfs_iwr_dir_probe(struct xfs_buf *bp, const char *reason)
 	for (o = 0; o + isize <= BBTOB(bp->b_length); o += isize) {
 		struct xfs_dinode *d = bp->b_addr + o;
 
-		if (be16_to_cpu(d->di_magic) != XFS_DINODE_MAGIC)
+		if (be16_to_cpu(d->di_magic) != MXFS_DINODE_MAGIC)
 			continue;
 		if ((be16_to_cpu(d->di_mode) & S_IFMT) != S_IFDIR)
 			continue;
@@ -4453,8 +4453,8 @@ mxfs_dino_clobber_probe(
 			uint64_t mcc, dcc, slotbits = 0;
 			unsigned int k;
 
-			if (mc->di_magic != cpu_to_be16(XFS_DINODE_MAGIC) ||
-			    dk->di_magic != cpu_to_be16(XFS_DINODE_MAGIC) ||
+			if (mc->di_magic != cpu_to_be16(MXFS_DINODE_MAGIC) ||
+			    dk->di_magic != cpu_to_be16(MXFS_DINODE_MAGIC) ||
 			    mc->di_version < 3 || dk->di_version < 3)
 				continue;
 			mcc = be64_to_cpu(mc->di_changecount);
@@ -4886,7 +4886,7 @@ mxfs_submit_partial_inode_write(
 
 		/* FREE (di_mode==0) on the buffer = a prior-tenure freed inode;
 		 * writing it back reverts a peer's reallocation (BUG1). */
-		is_free = (be16_to_cpu(d->di_magic) == XFS_DINODE_MAGIC &&
+		is_free = (be16_to_cpu(d->di_magic) == MXFS_DINODE_MAGIC &&
 			   d->di_mode == 0);
 		ip = radix_tree_lookup(&pag->pag_ici_root, base_agino + s);
 		if (ip) {
@@ -5891,7 +5891,7 @@ mxfs_submit_partial_inode_write(
 				int slot = o >> inodelog;
 				struct xfs_inode *ip2;
 
-				if (be16_to_cpu(d->di_magic) != XFS_DINODE_MAGIC)
+				if (be16_to_cpu(d->di_magic) != MXFS_DINODE_MAGIC)
 					continue;
 				if (d->di_mode != 0)
 					continue;
@@ -6178,8 +6178,8 @@ mxfs_dir3_data_fingerprint(struct xfs_mount *mp, const void *blk,
 	if (!blk || blklen < sizeof(*h3))
 		return 0;
 	magic = h3->hdr.magic;
-	if (magic != cpu_to_be32(XFS_DIR3_DATA_MAGIC) &&
-	    magic != cpu_to_be32(XFS_DIR3_BLOCK_MAGIC))
+	if (magic != cpu_to_be32(MXFS_DIR3_DATA_MAGIC) &&
+	    magic != cpu_to_be32(MXFS_DIR3_BLOCK_MAGIC))
 		return 0;
 	p = (const char *)blk + sizeof(struct xfs_dir3_data_hdr);
 	if (block_form) {
@@ -6281,7 +6281,7 @@ mxfs_wrtr_record(struct xfs_buf *bp)
 				((char *)bp->b_addr + i * isz);
 			u16 mode;
 
-			if (be16_to_cpu(d->di_magic) != XFS_DINODE_MAGIC)
+			if (be16_to_cpu(d->di_magic) != MXFS_DINODE_MAGIC)
 				continue;
 			if (!owner)
 				owner = be64_to_cpu(d->di_ino);
@@ -6428,11 +6428,11 @@ mxfs_dir3_disk_has_extra_inum(struct xfs_mount *mp, const void *incore,
 
 	if (!incore || !disk || blklen < sizeof(*hi))
 		return 0;
-	if (hi->hdr.magic != cpu_to_be32(XFS_DIR3_DATA_MAGIC) &&
-	    hi->hdr.magic != cpu_to_be32(XFS_DIR3_BLOCK_MAGIC))
+	if (hi->hdr.magic != cpu_to_be32(MXFS_DIR3_DATA_MAGIC) &&
+	    hi->hdr.magic != cpu_to_be32(MXFS_DIR3_BLOCK_MAGIC))
 		return 0;
-	if (hd->hdr.magic != cpu_to_be32(XFS_DIR3_DATA_MAGIC) &&
-	    hd->hdr.magic != cpu_to_be32(XFS_DIR3_BLOCK_MAGIC))
+	if (hd->hdr.magic != cpu_to_be32(MXFS_DIR3_DATA_MAGIC) &&
+	    hd->hdr.magic != cpu_to_be32(MXFS_DIR3_BLOCK_MAGIC))
 		return 0;
 	cap = blklen / 16 + 1;
 	ino_in = kmalloc_array(cap, sizeof(*ino_in), GFP_NOFS);
@@ -6572,11 +6572,11 @@ mxfs_dir3_reintro_free_count(struct xfs_mount *mp, void *incore,
 		*live_extra = 0;
 	if (!incore || !disk || blklen < sizeof(*hi))
 		return 0;
-	if (hi->hdr.magic != cpu_to_be32(XFS_DIR3_DATA_MAGIC) &&
-	    hi->hdr.magic != cpu_to_be32(XFS_DIR3_BLOCK_MAGIC))
+	if (hi->hdr.magic != cpu_to_be32(MXFS_DIR3_DATA_MAGIC) &&
+	    hi->hdr.magic != cpu_to_be32(MXFS_DIR3_BLOCK_MAGIC))
 		return 0;
-	if (hd->hdr.magic != cpu_to_be32(XFS_DIR3_DATA_MAGIC) &&
-	    hd->hdr.magic != cpu_to_be32(XFS_DIR3_BLOCK_MAGIC))
+	if (hd->hdr.magic != cpu_to_be32(MXFS_DIR3_DATA_MAGIC) &&
+	    hd->hdr.magic != cpu_to_be32(MXFS_DIR3_BLOCK_MAGIC))
 		return 0;
 	/* sized from the block (an entry is at least 16 bytes); without it
 	 * nothing can be proven free, and 0 trims and suppresses nothing */
@@ -6723,7 +6723,7 @@ mxfs_dir3_reintro_free_count(struct xfs_mount *mp, void *incore,
 								   imap.im_boffset);
 
 								if (be16_to_cpu(dd->di_magic)
-								    == XFS_DINODE_MAGIC)
+								    == MXFS_DINODE_MAGIC)
 									isfree = (dd->di_mode == 0);
 							}
 							kfree(ctmp);
@@ -6926,7 +6926,7 @@ mxfs_dir3_data_writemerge(struct xfs_buf *bp)
 	if (!blen || (blen & 511))
 		return 0;
 	hi = bp->b_addr;
-	if (hi->hdr.magic != cpu_to_be32(XFS_DIR3_DATA_MAGIC))
+	if (hi->hdr.magic != cpu_to_be32(MXFS_DIR3_DATA_MAGIC))
 		return 0;
 
 	dsk = kmalloc(blen, GFP_NOFS);
@@ -6947,7 +6947,7 @@ mxfs_dir3_data_writemerge(struct xfs_buf *bp)
 		goto out;
 	hd = dsk;
 	/* same block, current incarnation, structurally a data block? */
-	if (hd->hdr.magic != cpu_to_be32(XFS_DIR3_DATA_MAGIC) ||
+	if (hd->hdr.magic != cpu_to_be32(MXFS_DIR3_DATA_MAGIC) ||
 	    hd->hdr.owner != hi->hdr.owner)
 		goto out;
 	if (memcmp(dsk, bp->b_addr, blen) == 0)
@@ -7192,7 +7192,7 @@ mxfs_dir3_data_drain_merge(struct xfs_inode *dp, struct xfs_buf *bp)
 	if (!blen || (blen & 511))
 		return 0;
 	hi = bp->b_addr;
-	if (hi->hdr.magic != cpu_to_be32(XFS_DIR3_DATA_MAGIC))
+	if (hi->hdr.magic != cpu_to_be32(MXFS_DIR3_DATA_MAGIC))
 		return 0;
 
 	dsk = kmalloc(blen, GFP_NOFS);
@@ -7209,7 +7209,7 @@ mxfs_dir3_data_drain_merge(struct xfs_inode *dp, struct xfs_buf *bp)
 	if (mxfs_pal_bdev_read_plain_bdev(bp->b_target->bt_bdev, lba, dsk, blen) != 0)
 		goto out;
 	hd = dsk;
-	if (hd->hdr.magic != cpu_to_be32(XFS_DIR3_DATA_MAGIC) ||
+	if (hd->hdr.magic != cpu_to_be32(MXFS_DIR3_DATA_MAGIC) ||
 	    hd->hdr.owner != hi->hdr.owner)
 		goto out;
 	if (memcmp(dsk, bp->b_addr, blen) == 0)
@@ -7674,9 +7674,9 @@ xfs_buf_submit_bio(
 				uint16_t dmode, bmode;
 
 				if (be16_to_cpu(db->di_magic) !=
-					XFS_DINODE_MAGIC ||
+					MXFS_DINODE_MAGIC ||
 				    be16_to_cpu(bb->di_magic) !=
-					XFS_DINODE_MAGIC)
+					MXFS_DINODE_MAGIC)
 					continue;
 				dmode = be16_to_cpu(db->di_mode);
 				bmode = be16_to_cpu(bb->di_mode);
@@ -7883,7 +7883,7 @@ xfs_buf_submit_bio(
 						&xfs_dir3_block_buf_ops;
 					bool dkbf = ((struct xfs_dir3_blk_hdr *)
 						dsk)->magic == cpu_to_be32(
-						XFS_DIR3_BLOCK_MAGIC);
+						MXFS_DIR3_BLOCK_MAGIC);
 					int disk_extra = mxfs_dir3_disk_has_extra_inum(
 						bp->b_mount, bp->b_addr, dsk,
 						wlen, icbf, dkbf);
@@ -8026,7 +8026,7 @@ xfs_buf_submit_bio(
 							&xfs_dir3_block_buf_ops;
 						bool dkbf = ((struct xfs_dir3_blk_hdr *)
 							rdsk)->magic == cpu_to_be32(
-							XFS_DIR3_BLOCK_MAGIC);
+							MXFS_DIR3_BLOCK_MAGIC);
 						uint64_t downer = be64_to_cpu(
 							((struct xfs_dir3_blk_hdr *)
 							rdsk)->owner);
@@ -8601,9 +8601,9 @@ xfs_buf_submit_bio(
 						    ((struct xfs_dir3_blk_hdr *)
 						     dco_tmp)->magic;
 						bool dblk = (dmag == cpu_to_be32(
-						    XFS_DIR3_BLOCK_MAGIC));
+						    MXFS_DIR3_BLOCK_MAGIC));
 						bool ddata = (dmag == cpu_to_be32(
-						    XFS_DIR3_DATA_MAGIC));
+						    MXFS_DIR3_DATA_MAGIC));
 						uint64_t downer = be64_to_cpu(
 						    ((struct xfs_dir3_blk_hdr *)
 						     dco_tmp)->owner);
@@ -8666,10 +8666,10 @@ xfs_buf_submit_bio(
 						uint64_t downer = be64_to_cpu(
 						    dh->info.owner);
 
-						if ((bmag == XFS_DIR3_LEAF1_MAGIC ||
-						     bmag == XFS_DIR3_LEAFN_MAGIC) &&
-						    (dmag == XFS_DIR3_LEAF1_MAGIC ||
-						     dmag == XFS_DIR3_LEAFN_MAGIC) &&
+						if ((bmag == MXFS_DIR3_LEAF1_MAGIC ||
+						     bmag == MXFS_DIR3_LEAFN_MAGIC) &&
+						    (dmag == MXFS_DIR3_LEAF1_MAGIC ||
+						     dmag == MXFS_DIR3_LEAFN_MAGIC) &&
 						    downer == dsi.owner) {
 							const __be32 *be = (const __be32 *)
 							    ((char *)bh + sizeof(*bh));
@@ -8826,7 +8826,7 @@ xfs_buf_submit_bio(
 							bool ri_dkbf =
 							    (((struct xfs_dir3_blk_hdr *)
 							      dco_tmp)->magic == cpu_to_be32(
-							      XFS_DIR3_BLOCK_MAGIC));
+							      MXFS_DIR3_BLOCK_MAGIC));
 							int ri_disk_extra =
 							    mxfs_dir3_disk_has_extra_inum(
 							    bp->b_mount, bp->b_addr, dco_tmp,
@@ -8861,7 +8861,7 @@ xfs_buf_submit_bio(
 							    &xfs_dir3_block_buf_ops);
 							bool dkbf = (((struct xfs_dir3_blk_hdr *)
 							    dco_tmp)->magic == cpu_to_be32(
-							    XFS_DIR3_BLOCK_MAGIC));
+							    MXFS_DIR3_BLOCK_MAGIC));
 							sg_extra = mxfs_dir3_disk_has_extra_inum(
 							    bp->b_mount, bp->b_addr, dco_tmp,
 							    dco_len, icbf, dkbf);
@@ -8993,7 +8993,7 @@ xfs_buf_submit_bio(
 				struct xfs_dinode *p56_d = p56_tmp + p56_off;
 
 				if (be16_to_cpu(p56_d->di_magic) ==
-				    XFS_DINODE_MAGIC) {
+				    MXFS_DINODE_MAGIC) {
 					static atomic_t p56_n = ATOMIC_INIT(0);
 
 					if (atomic_inc_return(&p56_n) <= 200)
@@ -9046,10 +9046,10 @@ xfs_buf_submit_bio(
 				 * (count-short OR fingerprint mismatch).  ents start
 				 * right after the dir3 leaf hdr; each ent is
 				 * {__be32 hashval; __be32 address} = 8 bytes. */
-				if ((p56_dmag == XFS_DIR3_LEAF1_MAGIC ||
-				     p56_dmag == XFS_DIR3_LEAFN_MAGIC) &&
-				    (p56_bmag == XFS_DIR3_LEAF1_MAGIC ||
-				     p56_bmag == XFS_DIR3_LEAFN_MAGIC)) {
+				if ((p56_dmag == MXFS_DIR3_LEAF1_MAGIC ||
+				     p56_dmag == MXFS_DIR3_LEAFN_MAGIC) &&
+				    (p56_bmag == MXFS_DIR3_LEAF1_MAGIC ||
+				     p56_bmag == MXFS_DIR3_LEAFN_MAGIC)) {
 					const __be32 *bent = (const __be32 *)
 						((char *)p56_bh + sizeof(*p56_bh));
 					const __be32 *dent = (const __be32 *)
@@ -9175,7 +9175,7 @@ xfs_buf_submit_bio(
 				__be32 dmag = ((struct xfs_dir3_blk_hdr *)
 						p56_tmp)->magic;
 				bool dblk = (dmag ==
-					cpu_to_be32(XFS_DIR3_BLOCK_MAGIC));
+					cpu_to_be32(MXFS_DIR3_BLOCK_MAGIC));
 				uint32_t bsum = 0, bxor = 0, dsum = 0, dxor = 0;
 				uint32_t bcnt = mxfs_dir3_data_fingerprint(
 					bp->b_mount, bp->b_addr, p56_len, bblk,
@@ -9243,14 +9243,14 @@ xfs_buf_submit_bio(
 		 len, (long long)bp->b_target->bt_sector_offset);
 	/*
 	 * P-H27: log WRITE submissions of dir3 blocks (magic XDB3
-	 * = 0x58 0x44 0x42 0x33 in bp->b_addr[0..3]). Filter aggressively
+	 * = MXFS_DIR3_BLOCK_MAGIC in bp->b_addr[0..3]). Filter aggressively
 	 * to keep noise down. Goal: confirm whether test2 actually
 	 * submits a write bio for the dir3 buf at LBA 8388408.
 	 */
 	if ((bp->b_flags & XBF_WRITE) && bp->b_addr) {
 		const unsigned char *p = bp->b_addr;
 		long long lba = bp->b_maps[map].bm_bn;
-		if (p[0] == 0x58 && p[1] == 0x44 && p[2] == 0x42 && p[3] == 0x33) {
+		if (get_unaligned_be32(p) == MXFS_DIR3_BLOCK_MAGIC) {
 			mxfs_idbg("mxfs: P-H27-SUBMIT-DIR3 daddr=%lld len=%u "
 				"first8=%02x%02x%02x%02x%02x%02x%02x%02x bp=%p realns=%llu\n",
 				lba, len,
@@ -9377,29 +9377,29 @@ mxfs_buf_ops_from_magic(struct xfs_buf *bp)
 	m32 = *(__be32 *)bp->b_addr;
 	m16 = *(__be16 *)bp->b_addr;
 
-	if (m16 == cpu_to_be16(XFS_DINODE_MAGIC))
+	if (m16 == cpu_to_be16(MXFS_DINODE_MAGIC))
 		return &xfs_inode_buf_ops;
-	if (m32 == cpu_to_be32(XFS_AGI_MAGIC))
+	if (m32 == cpu_to_be32(MXFS_AGI_MAGIC))
 		return &xfs_agi_buf_ops;
-	if (m32 == cpu_to_be32(XFS_AGF_MAGIC))
+	if (m32 == cpu_to_be32(MXFS_AGF_MAGIC))
 		return &xfs_agf_buf_ops;
-	if (m32 == cpu_to_be32(XFS_AGFL_MAGIC))
+	if (m32 == cpu_to_be32(MXFS_AGFL_MAGIC))
 		return &xfs_agfl_buf_ops;
-	if (m32 == cpu_to_be32(XFS_ABTB_CRC_MAGIC))
+	if (m32 == cpu_to_be32(MXFS_ABTB_CRC_MAGIC))
 		return &xfs_bnobt_buf_ops;
-	if (m32 == cpu_to_be32(XFS_ABTC_CRC_MAGIC))
+	if (m32 == cpu_to_be32(MXFS_ABTC_CRC_MAGIC))
 		return &xfs_cntbt_buf_ops;
-	if (m32 == cpu_to_be32(XFS_IBT_CRC_MAGIC))
+	if (m32 == cpu_to_be32(MXFS_IBT_CRC_MAGIC))
 		return &xfs_inobt_buf_ops;
-	if (m32 == cpu_to_be32(XFS_FIBT_CRC_MAGIC))
+	if (m32 == cpu_to_be32(MXFS_FIBT_CRC_MAGIC))
 		return &xfs_finobt_buf_ops;
-	if (m32 == cpu_to_be32(XFS_BMAP_CRC_MAGIC))
+	if (m32 == cpu_to_be32(MXFS_BMAP_CRC_MAGIC))
 		return &xfs_bmbt_buf_ops;
-	if (m32 == cpu_to_be32(XFS_DIR3_BLOCK_MAGIC))
+	if (m32 == cpu_to_be32(MXFS_DIR3_BLOCK_MAGIC))
 		return &xfs_dir3_block_buf_ops;
-	if (m32 == cpu_to_be32(XFS_DIR3_DATA_MAGIC))
+	if (m32 == cpu_to_be32(MXFS_DIR3_DATA_MAGIC))
 		return &xfs_dir3_data_buf_ops;
-	if (m32 == cpu_to_be32(XFS_DIR3_FREE_MAGIC))
+	if (m32 == cpu_to_be32(MXFS_DIR3_FREE_MAGIC))
 		return &xfs_dir3_free_buf_ops;
 	return NULL;
 }
@@ -10152,8 +10152,8 @@ xfs_buf_submit_ex(
 	    (bp->b_flags & XBF_WRITE) && bp->b_addr) {
 		const unsigned char *p35 = bp->b_addr;
 
-		if (p35[0] == 0x58 && p35[1] == 0x44 &&
-		    (p35[2] == 0x42 || p35[2] == 0x44) && p35[3] == 0x33) {
+		if (get_unaligned_be32(p35) == MXFS_DIR3_BLOCK_MAGIC ||
+		    get_unaligned_be32(p35) == MXFS_DIR3_DATA_MAGIC) {
 			/* dump dirent names in the block being written so a
 			 * concurrent-RMW clobber is visible (one node writes blk=0
 			 * WITHOUT the peer's just-added entry). */
@@ -10165,7 +10165,8 @@ xfs_buf_submit_ex(
 
 			names[0] = '\0';
 			if (geo) {
-				if (p35[2] == 0x42) {	/* XDB3 block-format */
+				if (get_unaligned_be32(p35) ==
+				    MXFS_DIR3_BLOCK_MAGIC) {	/* block-format */
 					struct xfs_dir2_data_hdr *hdr =
 						(void *)bp->b_addr;
 					struct xfs_dir2_block_tail *btp =
@@ -10818,7 +10819,7 @@ xfs_buf_submit_ex(
 			static atomic_t p133_wn = ATOMIC_INIT(0);
 			static atomic_t p133_rn = ATOMIC_INIT(0);
 
-			if (be16_to_cpu(p133_d->di_magic) != XFS_DINODE_MAGIC)
+			if (be16_to_cpu(p133_d->di_magic) != MXFS_DINODE_MAGIC)
 				continue;
 
 			/*
@@ -10930,7 +10931,7 @@ xfs_buf_submit_ex(
 					p133_tmp + p133_off;
 
 				if (be16_to_cpu(p133_dd->di_magic) ==
-					XFS_DINODE_MAGIC &&
+					MXFS_DINODE_MAGIC &&
 				    p133_dd->di_ino == p133_d->di_ino &&
 				    (be64_to_cpu(p133_d->di_size) <
 					be64_to_cpu(p133_dd->di_size) ||
@@ -11116,7 +11117,7 @@ xfs_buf_submit_ex(
 						clwr_i * clwr_isz);
 
 				if (be16_to_cpu(clwr_d->di_magic) !=
-				    XFS_DINODE_MAGIC) {
+				    MXFS_DINODE_MAGIC) {
 					clwr_sp += scnprintf(clwr_s + clwr_sp,
 						sizeof(clwr_s) - clwr_sp, "x,");
 					continue;
@@ -11317,7 +11318,7 @@ xfs_buf_submit_ex(
 	 * but our in-core copy has di_size==0, we are CLOBBERING a peer's
 	 * inode (our cluster buffer is stale — a peer wrote that inode's
 	 * di_size while we held a different inode's DLM in the same cluster,
-	 * and we never refreshed the shared cluster).  di_magic 'IN'=0x494e
+	 * and we never refreshed the shared cluster).  di_magic MXFS_DINODE_MAGIC
 	 * at off 0, di_size (__be64) at off 0x38.  Ratelimited; fires only on
 	 * the anomaly.
 	 */
@@ -11348,7 +11349,7 @@ xfs_buf_submit_ex(
 					__u16 dmagic = be16_to_cpup((const __be16 *)dk);
 					__u64 dsz, icsz;
 
-					if (dmagic != 0x494e)
+					if (dmagic != MXFS_DINODE_MAGIC)
 						continue;
 					dsz = be64_to_cpup((const __be64 *)(dk + 0x38));
 					icsz = be64_to_cpup((const __be64 *)(ic + 0x38));
@@ -11454,8 +11455,8 @@ xfs_buf_submit_ex(
 					__u8 dcnt = 0, iccnt = 0;
 					bool regress;
 
-					if (be16_to_cpup((const __be16 *)dk) != 0x494e ||
-					    be16_to_cpup((const __be16 *)ic) != 0x494e)
+					if (be16_to_cpup((const __be16 *)dk) != MXFS_DINODE_MAGIC ||
+					    be16_to_cpup((const __be16 *)ic) != MXFS_DINODE_MAGIC)
 						continue;
 					dmode = be16_to_cpup((const __be16 *)(dk + 0x2));
 					if (!S_ISDIR(dmode))
@@ -11564,8 +11565,8 @@ xfs_buf_submit_ex(
 
 			/* Only a populated on-disk dir3 leaf can be a victim; a
 			 * freshly-zeroed / newly-allocated block is not. */
-			if ((dk_magic == XFS_DIR3_LEAF1_MAGIC ||
-			     dk_magic == XFS_DIR3_LEAFN_MAGIC) &&
+			if ((dk_magic == MXFS_DIR3_LEAF1_MAGIC ||
+			     dk_magic == MXFS_DIR3_LEAFN_MAGIC) &&
 			    ic_act < dk_act) {
 				struct xfs_buf_log_item *bip = bp->b_log_item;
 				pr_warn_ratelimited("mxfs: P-DIR-LEAF-CLOBBER daddr=%lld incore_active=%d disk_active=%d incore_count=%u incore_stale=%u disk_count=%u disk_stale=%u node_slot=%u dirty=%d in_ail=%d pin=%d delwri=%d done=%d fua_fresh=%d\n",
@@ -11919,12 +11920,12 @@ xfs_buf_submit_ex(
 					__be32 magic = *(__be32 *)bp->b_addr;
 					/* dir3 data/block: owner in xfs_dir3_blk_hdr @ +24.
 					 * dir3 leaf/free: owner in xfs_da3_blkinfo @ +24 too. */
-					if (magic == cpu_to_be32(XFS_DIR3_DATA_MAGIC) ||
-					    magic == cpu_to_be32(XFS_DIR3_BLOCK_MAGIC))
+					if (magic == cpu_to_be32(MXFS_DIR3_DATA_MAGIC) ||
+					    magic == cpu_to_be32(MXFS_DIR3_BLOCK_MAGIC))
 						owner = be64_to_cpu(((struct xfs_dir3_blk_hdr *)bp->b_addr)->owner);
-					else if (magic == cpu_to_be32(XFS_DIR3_LEAF1_MAGIC) ||
-						 magic == cpu_to_be32(XFS_DIR3_LEAFN_MAGIC) ||
-						 magic == cpu_to_be32(XFS_DIR3_FREE_MAGIC))
+					else if (magic == cpu_to_be32(MXFS_DIR3_LEAF1_MAGIC) ||
+						 magic == cpu_to_be32(MXFS_DIR3_LEAFN_MAGIC) ||
+						 magic == cpu_to_be32(MXFS_DIR3_FREE_MAGIC))
 						owner = be64_to_cpu(((struct xfs_da3_blkinfo *)bp->b_addr)->owner);
 				}
 				if (atomic_inc_return(&p15p) <= 8000)
@@ -12310,7 +12311,7 @@ xfs_buf_submit_ex(
 						(struct xfs_dinode *)
 						((char *)bp->b_addr + off);
 					if (be16_to_cpu(sd->di_magic) ==
-						XFS_DINODE_MAGIC &&
+						MXFS_DINODE_MAGIC &&
 					    (be16_to_cpu(sd->di_mode) & S_IFMT)
 						== S_IFDIR) {
 						static atomic_t p3ds =

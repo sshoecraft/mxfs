@@ -68,11 +68,11 @@ xfs_dir3_leafn_check(
 
 	xfs_dir2_leaf_hdr_from_disk(dp->i_mount, &leafhdr, leaf);
 
-	if (leafhdr.magic == XFS_DIR3_LEAFN_MAGIC) {
+	if (leafhdr.magic == MXFS_DIR3_LEAFN_MAGIC) {
 		struct xfs_dir3_leaf_hdr *leaf3 = bp->b_addr;
 		if (be64_to_cpu(leaf3->info.blkno) != xfs_buf_daddr(bp))
 			return __this_address;
-	} else if (leafhdr.magic != XFS_DIR2_LEAFN_MAGIC)
+	} else if (leafhdr.magic != MXFS_DIR2_LEAFN_MAGIC)
 		return __this_address;
 
 	return xfs_dir3_leaf_check_int(dp->i_mount, &leafhdr, leaf, false);
@@ -166,8 +166,8 @@ xfs_dir3_free_write_verify(
 
 const struct xfs_buf_ops xfs_dir3_free_buf_ops = {
 	.name = "xfs_dir3_free",
-	.magic = { cpu_to_be32(XFS_DIR2_FREE_MAGIC),
-		   cpu_to_be32(XFS_DIR3_FREE_MAGIC) },
+	.magic = { cpu_to_be32(MXFS_DIR2_FREE_MAGIC),
+		   cpu_to_be32(MXFS_DIR3_FREE_MAGIC) },
 	.verify_read = xfs_dir3_free_read_verify,
 	.verify_write = xfs_dir3_free_write_verify,
 	.verify_struct = xfs_dir3_free_verify,
@@ -260,7 +260,7 @@ xfs_dir2_free_hdr_from_disk(
 		to->nused = be32_to_cpu(from3->hdr.nused);
 		to->bests = from3->bests;
 
-		ASSERT(to->magic == XFS_DIR3_FREE_MAGIC);
+		ASSERT(to->magic == MXFS_DIR3_FREE_MAGIC);
 	} else {
 		to->magic = be32_to_cpu(from->hdr.magic);
 		to->firstdb = be32_to_cpu(from->hdr.firstdb);
@@ -268,7 +268,7 @@ xfs_dir2_free_hdr_from_disk(
 		to->nused = be32_to_cpu(from->hdr.nused);
 		to->bests = from->bests;
 
-		ASSERT(to->magic == XFS_DIR2_FREE_MAGIC);
+		ASSERT(to->magic == MXFS_DIR2_FREE_MAGIC);
 	}
 }
 
@@ -281,14 +281,14 @@ xfs_dir2_free_hdr_to_disk(
 	if (xfs_has_crc(mp)) {
 		struct xfs_dir3_free	*to3 = (struct xfs_dir3_free *)to;
 
-		ASSERT(from->magic == XFS_DIR3_FREE_MAGIC);
+		ASSERT(from->magic == MXFS_DIR3_FREE_MAGIC);
 
 		to3->hdr.hdr.magic = cpu_to_be32(from->magic);
 		to3->hdr.firstdb = cpu_to_be32(from->firstdb);
 		to3->hdr.nvalid = cpu_to_be32(from->nvalid);
 		to3->hdr.nused = cpu_to_be32(from->nused);
 	} else {
-		ASSERT(from->magic == XFS_DIR2_FREE_MAGIC);
+		ASSERT(from->magic == MXFS_DIR2_FREE_MAGIC);
 
 		to->hdr.magic = cpu_to_be32(from->magic);
 		to->hdr.firstdb = cpu_to_be32(from->firstdb);
@@ -351,13 +351,13 @@ xfs_dir3_free_get_buf(
 	if (xfs_has_crc(mp)) {
 		struct xfs_dir3_free_hdr *hdr3 = bp->b_addr;
 
-		hdr.magic = XFS_DIR3_FREE_MAGIC;
+		hdr.magic = MXFS_DIR3_FREE_MAGIC;
 
 		hdr3->hdr.blkno = cpu_to_be64(xfs_buf_daddr(bp));
 		hdr3->hdr.owner = cpu_to_be64(args->owner);
 		uuid_copy(&hdr3->hdr.uuid, &mp->m_sb.sb_meta_uuid);
 	} else
-		hdr.magic = XFS_DIR2_FREE_MAGIC;
+		hdr.magic = MXFS_DIR2_FREE_MAGIC;
 	xfs_dir2_free_hdr_to_disk(mp, bp->b_addr, &hdr);
 	*bpp = bp;
 	return 0;
@@ -376,8 +376,8 @@ xfs_dir2_free_log_bests(
 {
 	struct xfs_dir2_free	*free = bp->b_addr;
 
-	ASSERT(free->hdr.magic == cpu_to_be32(XFS_DIR2_FREE_MAGIC) ||
-	       free->hdr.magic == cpu_to_be32(XFS_DIR3_FREE_MAGIC));
+	ASSERT(free->hdr.magic == cpu_to_be32(MXFS_DIR2_FREE_MAGIC) ||
+	       free->hdr.magic == cpu_to_be32(MXFS_DIR3_FREE_MAGIC));
 	xfs_trans_log_buf(args->trans, bp,
 			  (char *)&hdr->bests[first] - (char *)free,
 			  (char *)&hdr->bests[last] - (char *)free +
@@ -396,8 +396,8 @@ xfs_dir2_free_log_header(
 	xfs_dir2_free_t		*free;		/* freespace structure */
 
 	free = bp->b_addr;
-	ASSERT(free->hdr.magic == cpu_to_be32(XFS_DIR2_FREE_MAGIC) ||
-	       free->hdr.magic == cpu_to_be32(XFS_DIR3_FREE_MAGIC));
+	ASSERT(free->hdr.magic == cpu_to_be32(MXFS_DIR2_FREE_MAGIC) ||
+	       free->hdr.magic == cpu_to_be32(MXFS_DIR3_FREE_MAGIC));
 #endif
 	xfs_trans_log_buf(args->trans, bp, 0,
 			  args->geo->free_hdr_size - 1);
@@ -482,10 +482,10 @@ xfs_dir2_leaf_to_node(
 	 * it's less work (and less code) than decoding the header to host
 	 * format and back again.
 	 */
-	if (leaf->hdr.info.magic == cpu_to_be16(XFS_DIR2_LEAF1_MAGIC))
-		leaf->hdr.info.magic = cpu_to_be16(XFS_DIR2_LEAFN_MAGIC);
+	if (leaf->hdr.info.magic == cpu_to_be16(MXFS_DIR2_LEAF1_MAGIC))
+		leaf->hdr.info.magic = cpu_to_be16(MXFS_DIR2_LEAFN_MAGIC);
 	else
-		leaf->hdr.info.magic = cpu_to_be16(XFS_DIR3_LEAFN_MAGIC);
+		leaf->hdr.info.magic = cpu_to_be16(MXFS_DIR3_LEAFN_MAGIC);
 	lbp->b_ops = &xfs_dir3_leafn_buf_ops;
 	xfs_trans_buf_set_type(tp, lbp, XFS_BLFT_DIR_LEAFN_BUF);
 	xfs_dir3_leaf_log_header(args, lbp);
@@ -614,10 +614,10 @@ xfs_dir2_leaf_lasthash(
 
 	xfs_dir2_leaf_hdr_from_disk(dp->i_mount, &leafhdr, bp->b_addr);
 
-	ASSERT(leafhdr.magic == XFS_DIR2_LEAFN_MAGIC ||
-	       leafhdr.magic == XFS_DIR3_LEAFN_MAGIC ||
-	       leafhdr.magic == XFS_DIR2_LEAF1_MAGIC ||
-	       leafhdr.magic == XFS_DIR3_LEAF1_MAGIC);
+	ASSERT(leafhdr.magic == MXFS_DIR2_LEAFN_MAGIC ||
+	       leafhdr.magic == MXFS_DIR3_LEAFN_MAGIC ||
+	       leafhdr.magic == MXFS_DIR2_LEAF1_MAGIC ||
+	       leafhdr.magic == MXFS_DIR3_LEAF1_MAGIC);
 
 	if (count)
 		*count = leafhdr.count;
@@ -675,8 +675,8 @@ xfs_dir2_leafn_lookup_for_addname(
 		curbp = state->extrablk.bp;
 		curfdb = state->extrablk.blkno;
 		free = curbp->b_addr;
-		ASSERT(free->hdr.magic == cpu_to_be32(XFS_DIR2_FREE_MAGIC) ||
-		       free->hdr.magic == cpu_to_be32(XFS_DIR3_FREE_MAGIC));
+		ASSERT(free->hdr.magic == cpu_to_be32(MXFS_DIR2_FREE_MAGIC) ||
+		       free->hdr.magic == cpu_to_be32(MXFS_DIR3_FREE_MAGIC));
 	}
 	length = xfs_dir2_data_entsize(mp, args->namelen);
 	/*
@@ -769,7 +769,7 @@ out:
 		 * buffer type information and therefore only the free/data type
 		 * matters here, not whether CRCs are enabled or not.
 		 */
-		state->extrablk.magic = XFS_DIR2_FREE_MAGIC;
+		state->extrablk.magic = MXFS_DIR2_FREE_MAGIC;
 	} else {
 		state->extravalid = 0;
 	}
@@ -904,7 +904,7 @@ xfs_dir2_leafn_lookup_for_entry(
 			state->extrablk.blkno = curdb;
 			state->extrablk.index = (int)((char *)dep -
 							(char *)curbp->b_addr);
-			state->extrablk.magic = XFS_DIR2_DATA_MAGIC;
+			state->extrablk.magic = MXFS_DIR2_DATA_MAGIC;
 			curbp->b_ops = &xfs_dir3_data_buf_ops;
 			xfs_trans_buf_set_type(tp, curbp, XFS_BLFT_DIR_DATA_BUF);
 			if (cmp == XFS_CMP_EXACT)
@@ -919,7 +919,7 @@ xfs_dir2_leafn_lookup_for_entry(
 			state->extrablk.bp = curbp;
 			state->extrablk.index = -1;
 			state->extrablk.blkno = curdb;
-			state->extrablk.magic = XFS_DIR2_DATA_MAGIC;
+			state->extrablk.magic = MXFS_DIR2_DATA_MAGIC;
 			curbp->b_ops = &xfs_dir3_data_buf_ops;
 			xfs_trans_buf_set_type(tp, curbp, XFS_BLFT_DIR_DATA_BUF);
 		} else {
@@ -1441,7 +1441,7 @@ xfs_dir2_leafn_split(
 	 */
 	args = state->args;
 	dp = args->dp;
-	ASSERT(oldblk->magic == XFS_DIR2_LEAFN_MAGIC);
+	ASSERT(oldblk->magic == MXFS_DIR2_LEAFN_MAGIC);
 	error = xfs_da_grow_inode(args, &blkno);
 	if (error) {
 		return error;
@@ -1450,12 +1450,12 @@ xfs_dir2_leafn_split(
 	 * Initialize the new leaf block.
 	 */
 	error = xfs_dir3_leaf_get_buf(args, xfs_dir2_da_to_db(args->geo, blkno),
-				      &newblk->bp, XFS_DIR2_LEAFN_MAGIC);
+				      &newblk->bp, MXFS_DIR2_LEAFN_MAGIC);
 	if (error)
 		return error;
 
 	newblk->blkno = blkno;
-	newblk->magic = XFS_DIR2_LEAFN_MAGIC;
+	newblk->magic = MXFS_DIR2_LEAFN_MAGIC;
 	/*
 	 * Rebalance the entries across the two leaves, link the new
 	 * block into the leaves.
@@ -1638,8 +1638,8 @@ xfs_dir2_leafn_unbalance(
 	struct xfs_inode	*dp = state->args->dp;
 
 	args = state->args;
-	ASSERT(drop_blk->magic == XFS_DIR2_LEAFN_MAGIC);
-	ASSERT(save_blk->magic == XFS_DIR2_LEAFN_MAGIC);
+	ASSERT(drop_blk->magic == MXFS_DIR2_LEAFN_MAGIC);
+	ASSERT(save_blk->magic == MXFS_DIR2_LEAFN_MAGIC);
 	drop_leaf = drop_blk->bp->b_addr;
 	save_leaf = save_blk->bp->b_addr;
 
@@ -2258,8 +2258,8 @@ restart:
 					 * the "occupied" bytes are stale pre-alloc
 					 * content at a freshly-grown daddr (benign;
 					 * we legitimately overwrite garbage). */
-					bool pcur = (pmagic == XFS_DIR3_DATA_MAGIC ||
-						     pmagic == XFS_DIR3_BLOCK_MAGIC) &&
+					bool pcur = (pmagic == MXFS_DIR3_DATA_MAGIC ||
+						     pmagic == MXFS_DIR3_BLOCK_MAGIC) &&
 						    powner == dp->i_ino;
 					bool plive = (ptag != cpu_to_be16(
 						    XFS_DIR2_DATA_FREE_TAG)) &&
@@ -2421,7 +2421,7 @@ xfs_dir2_node_addname(
 		goto done;
 	}
 	blk = &state->path.blk[state->path.active - 1];
-	ASSERT(blk->magic == XFS_DIR2_LEAFN_MAGIC);
+	ASSERT(blk->magic == MXFS_DIR2_LEAFN_MAGIC);
 	/*
 	 * Add the new leaf entry.
 	 */
@@ -2605,7 +2605,7 @@ xfs_dir2_node_removename(
 	}
 
 	blk = &state->path.blk[state->path.active - 1];
-	ASSERT(blk->magic == XFS_DIR2_LEAFN_MAGIC);
+	ASSERT(blk->magic == MXFS_DIR2_LEAFN_MAGIC);
 	ASSERT(state->extravalid);
 	/*
 	 * Remove the leaf and data entries.
@@ -2683,7 +2683,7 @@ xfs_dir2_node_replace(
 		 * Find the leaf entry.
 		 */
 		blk = &state->path.blk[state->path.active - 1];
-		ASSERT(blk->magic == XFS_DIR2_LEAFN_MAGIC);
+		ASSERT(blk->magic == MXFS_DIR2_LEAFN_MAGIC);
 		ASSERT(state->extravalid);
 
 		xfs_dir2_leaf_hdr_from_disk(state->mp, &leafhdr,
@@ -2692,8 +2692,8 @@ xfs_dir2_node_replace(
 		 * Point to the data entry.
 		 */
 		hdr = state->extrablk.bp->b_addr;
-		ASSERT(hdr->magic == cpu_to_be32(XFS_DIR2_DATA_MAGIC) ||
-		       hdr->magic == cpu_to_be32(XFS_DIR3_DATA_MAGIC));
+		ASSERT(hdr->magic == cpu_to_be32(MXFS_DIR2_DATA_MAGIC) ||
+		       hdr->magic == cpu_to_be32(MXFS_DIR3_DATA_MAGIC));
 		dep = (xfs_dir2_data_entry_t *)
 		      ((char *)hdr +
 		       xfs_dir2_dataptr_to_off(args->geo,

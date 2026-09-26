@@ -266,7 +266,7 @@ xfs_qm_init_dquot_blk(
 	curid = id - (id % q->qi_dqperchunk);
 	memset(d, 0, BBTOB(q->qi_dqchunklen));
 	for (i = 0; i < q->qi_dqperchunk; i++, d++, curid++) {
-		d->dd_diskdq.d_magic = cpu_to_be16(XFS_DQUOT_MAGIC);
+		d->dd_diskdq.d_magic = cpu_to_be16(MXFS_DQUOT_MAGIC);
 		d->dd_diskdq.d_version = XFS_DQUOT_VERSION;
 		d->dd_diskdq.d_id = cpu_to_be32(curid);
 		d->dd_diskdq.d_type = type;
@@ -667,7 +667,7 @@ xfs_dquot_to_disk(
 	struct xfs_disk_dquot	*ddqp,
 	struct xfs_dquot	*dqp)
 {
-	ddqp->d_magic = cpu_to_be16(XFS_DQUOT_MAGIC);
+	ddqp->d_magic = cpu_to_be16(MXFS_DQUOT_MAGIC);
 	ddqp->d_version = XFS_DQUOT_VERSION;
 	ddqp->d_type = dqp->q_type;
 	ddqp->d_id = cpu_to_be32(dqp->q_id);

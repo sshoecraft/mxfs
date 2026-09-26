@@ -52,7 +52,7 @@ import subprocess
 import sys
 
 BBSIZE = 512
-XLOG_HEADER_MAGIC_NUM = 0xFEEDBABE
+MXFS_LOG_HEADER_MAGIC_NUM = 0xFEED4D58
 XLOG_HEADER_CYCLE_SIZE = 32 * 1024
 XLOG_CYCLE_DATA_SIZE = XLOG_HEADER_CYCLE_SIZE // BBSIZE
 
@@ -125,8 +125,8 @@ def read_geom(path):
     (g.rman_offset, g.rman_size) = struct.unpack_from("<QQ", sup, 112)
 
     sb = direct_read(path, g.xfs_data_offset, 4096)
-    if sb[0:4] != b"XFSB":
-        raise SystemExit("no XFSB at xfs_data_offset=%d" % g.xfs_data_offset)
+    if sb[0:4] != b"MXSB":
+        raise SystemExit("no MXSB at xfs_data_offset=%d" % g.xfs_data_offset)
     g.blocksize = struct.unpack_from(">I", sb, 4)[0]
     g.dblocks = struct.unpack_from(">Q", sb, 8)[0]
     g.uuid = sb[32:48]
@@ -193,7 +193,7 @@ def parse_records(slice_bytes):
     while blk < nbb:
         off = blk * BBSIZE
         magic = struct.unpack_from(">I", slice_bytes, off)[0]
-        if magic != XLOG_HEADER_MAGIC_NUM:
+        if magic != MXFS_LOG_HEADER_MAGIC_NUM:
             blk += 1
             continue
         r = Rec()
@@ -451,7 +451,7 @@ def main():
                 dino = struct.unpack_from(">Q", buf, i + 152)[0]
                 extra = " cc=%d lsn=0x%x di_ino=%d" % (cc, lsn, dino)
             print("  +%5d: magic=0x%04x%s mode=0%o v%d nlink=%d gen=%u next_unlinked=0x%x%s  first16=%s" % (
-                i, magic, "" if magic == 0x494e else " (NOT IN)", mode, ver, nlink, gen, nunl, extra,
+                i, magic, "" if magic == 0x4D4E else " (NOT IN)", mode, ver, nlink, gen, nunl, extra,
                 buf[i:i + 16].hex()))
         return
 

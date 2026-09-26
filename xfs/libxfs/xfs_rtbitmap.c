@@ -111,7 +111,7 @@ const struct xfs_buf_ops xfs_rtbuf_ops = {
 
 const struct xfs_buf_ops xfs_rtbitmap_buf_ops = {
 	.name		= "xfs_rtbitmap",
-	.magic		= { 0, cpu_to_be32(XFS_RTBITMAP_MAGIC) },
+	.magic		= { 0, cpu_to_be32(MXFS_RTBITMAP_MAGIC) },
 	.verify_read	= xfs_rtbuf_verify_read,
 	.verify_write	= xfs_rtbuf_verify_write,
 	.verify_struct	= xfs_rtbuf_verify,
@@ -119,7 +119,7 @@ const struct xfs_buf_ops xfs_rtbitmap_buf_ops = {
 
 const struct xfs_buf_ops xfs_rtsummary_buf_ops = {
 	.name		= "xfs_rtsummary",
-	.magic		= { 0, cpu_to_be32(XFS_RTSUMMARY_MAGIC) },
+	.magic		= { 0, cpu_to_be32(MXFS_RTSUMMARY_MAGIC) },
 	.verify_read	= xfs_rtbuf_verify_read,
 	.verify_write	= xfs_rtbuf_verify_write,
 	.verify_struct	= xfs_rtbuf_verify,
@@ -1406,9 +1406,9 @@ xfs_rtfile_initialize_block(
 		struct xfs_rtbuf_blkinfo	*hdr = bp->b_addr;
 
 		if (type == XFS_RTGI_BITMAP)
-			hdr->rt_magic = cpu_to_be32(XFS_RTBITMAP_MAGIC);
+			hdr->rt_magic = cpu_to_be32(MXFS_RTBITMAP_MAGIC);
 		else
-			hdr->rt_magic = cpu_to_be32(XFS_RTSUMMARY_MAGIC);
+			hdr->rt_magic = cpu_to_be32(MXFS_RTSUMMARY_MAGIC);
 		hdr->rt_owner = cpu_to_be64(ip->i_ino);
 		hdr->rt_blkno = cpu_to_be64(XFS_FSB_TO_DADDR(mp, fsbno));
 		hdr->rt_lsn = 0;

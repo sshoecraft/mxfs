@@ -343,7 +343,7 @@ xrep_quota_block(
 
 		trace_xrep_disk_dquot(sc->mp, dqtype, id + i);
 
-		ddq->d_magic = cpu_to_be16(XFS_DQUOT_MAGIC);
+		ddq->d_magic = cpu_to_be16(MXFS_DQUOT_MAGIC);
 		ddq->d_version = XFS_DQUOT_VERSION;
 		ddq->d_type = dqtype;
 		ddq->d_id = cpu_to_be32(id + i);

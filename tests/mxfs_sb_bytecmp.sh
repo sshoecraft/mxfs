@@ -40,7 +40,7 @@ def fields(x):
 excl = set(range(128, 152)) | set(range(224, 228)) | set(range(240, 248))
 diff = [i for i in range(512) if a[i] != b[i]]
 out = [i for i in diff if i not in excl]
-magic = a[:4] == b'XFSB' and b[:4] == b'XFSB'
+magic = a[:4] == b'MXSB' and b[:4] == b'MXSB'
 pa = fields(a); pb = fields(b)
 print(f"  SB-BYTECMP lap={label} magic_ok={int(magic)} diff_total={len(diff)} "
       f"diff_outside_counters_crc_lsn={len(out)} offsets_outside={out[:48]} "

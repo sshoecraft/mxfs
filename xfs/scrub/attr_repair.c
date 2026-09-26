@@ -588,7 +588,7 @@ xrep_xattr_recover_block(
 	 * If the buffer has the right magic number for an attr leaf block and
 	 * passes a structure check (we don't care about checksums), salvage
 	 * as much as we can from the block. */
-	if (info->magic == cpu_to_be16(XFS_ATTR3_LEAF_MAGIC) &&
+	if (info->magic == cpu_to_be16(MXFS_ATTR3_LEAF_MAGIC) &&
 	    xrep_buf_verify_struct(bp, &xfs_attr3_leaf_buf_ops) &&
 	    xfs_attr3_leaf_header_check(bp, rx->sc->ip->i_ino) == NULL)
 		error = xrep_xattr_recover_leaf(rx, bp);

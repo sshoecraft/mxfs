@@ -223,12 +223,12 @@ mxfs_sb_summary_recount_uncached(struct xfs_mount *mp, unsigned int *ags_read)
 		struct xfs_agi	*agi;
 
 		error = mxfs_sb_summary_read_hdr(mp, agno, XFS_AGF_DADDR(mp),
-				cpu_to_be32(XFS_AGF_MAGIC), XFS_AGF_CRC_OFF,
+				cpu_to_be32(MXFS_AGF_MAGIC), XFS_AGF_CRC_OFF,
 				&agfbp, "AGF");
 		if (error)
 			return error;
 		error = mxfs_sb_summary_read_hdr(mp, agno, XFS_AGI_DADDR(mp),
-				cpu_to_be32(XFS_AGI_MAGIC), XFS_AGI_CRC_OFF,
+				cpu_to_be32(MXFS_AGI_MAGIC), XFS_AGI_CRC_OFF,
 				&agibp, "AGI");
 		if (error) {
 			xfs_buf_relse(agfbp);

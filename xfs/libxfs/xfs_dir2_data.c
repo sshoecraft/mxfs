@@ -131,8 +131,8 @@ __xfs_dir3_data_check(
 	offset = geo->data_entry_offset;
 
 	switch (hdr->magic) {
-	case cpu_to_be32(XFS_DIR3_BLOCK_MAGIC):
-	case cpu_to_be32(XFS_DIR2_BLOCK_MAGIC):
+	case cpu_to_be32(MXFS_DIR3_BLOCK_MAGIC):
+	case cpu_to_be32(MXFS_DIR2_BLOCK_MAGIC):
 		btp = xfs_dir2_block_tail_p(geo, hdr);
 		lep = xfs_dir2_block_leaf_p(btp);
 
@@ -140,8 +140,8 @@ __xfs_dir3_data_check(
 		    xfs_dir2_data_max_leaf_entries(geo))
 			return __this_address;
 		break;
-	case cpu_to_be32(XFS_DIR3_DATA_MAGIC):
-	case cpu_to_be32(XFS_DIR2_DATA_MAGIC):
+	case cpu_to_be32(MXFS_DIR3_DATA_MAGIC):
+	case cpu_to_be32(MXFS_DIR2_DATA_MAGIC):
 		break;
 	default:
 		return __this_address;
@@ -253,8 +253,8 @@ __xfs_dir3_data_check(
 			return __this_address;
 		count++;
 		lastfree = 0;
-		if (hdr->magic == cpu_to_be32(XFS_DIR2_BLOCK_MAGIC) ||
-		    hdr->magic == cpu_to_be32(XFS_DIR3_BLOCK_MAGIC)) {
+		if (hdr->magic == cpu_to_be32(MXFS_DIR2_BLOCK_MAGIC) ||
+		    hdr->magic == cpu_to_be32(MXFS_DIR3_BLOCK_MAGIC)) {
 			addr = xfs_dir2_db_off_to_dataptr(geo, geo->datablk,
 						(xfs_dir2_data_aoff_t)
 						((char *)dep - (char *)hdr));
@@ -276,8 +276,8 @@ __xfs_dir3_data_check(
 	 */
 	if (freeseen != 7)
 		return __this_address;
-	if (hdr->magic == cpu_to_be32(XFS_DIR2_BLOCK_MAGIC) ||
-	    hdr->magic == cpu_to_be32(XFS_DIR3_BLOCK_MAGIC)) {
+	if (hdr->magic == cpu_to_be32(MXFS_DIR2_BLOCK_MAGIC) ||
+	    hdr->magic == cpu_to_be32(MXFS_DIR3_BLOCK_MAGIC)) {
 		for (i = stale = 0; i < be32_to_cpu(btp->count); i++) {
 			if (lep[i].address ==
 			    cpu_to_be32(XFS_DIR2_NULL_DATAPTR))
@@ -345,13 +345,13 @@ xfs_dir3_data_reada_verify(
 	struct xfs_dir2_data_hdr *hdr = bp->b_addr;
 
 	switch (hdr->magic) {
-	case cpu_to_be32(XFS_DIR2_BLOCK_MAGIC):
-	case cpu_to_be32(XFS_DIR3_BLOCK_MAGIC):
+	case cpu_to_be32(MXFS_DIR2_BLOCK_MAGIC):
+	case cpu_to_be32(MXFS_DIR3_BLOCK_MAGIC):
 		bp->b_ops = &xfs_dir3_block_buf_ops;
 		bp->b_ops->verify_read(bp);
 		return;
-	case cpu_to_be32(XFS_DIR2_DATA_MAGIC):
-	case cpu_to_be32(XFS_DIR3_DATA_MAGIC):
+	case cpu_to_be32(MXFS_DIR2_DATA_MAGIC):
+	case cpu_to_be32(MXFS_DIR3_DATA_MAGIC):
 		bp->b_ops = &xfs_dir3_data_buf_ops;
 		bp->b_ops->verify_read(bp);
 		return;
@@ -576,8 +576,8 @@ xfs_dir3_data_write_verify(
 
 const struct xfs_buf_ops xfs_dir3_data_buf_ops = {
 	.name = "xfs_dir3_data",
-	.magic = { cpu_to_be32(XFS_DIR2_DATA_MAGIC),
-		   cpu_to_be32(XFS_DIR3_DATA_MAGIC) },
+	.magic = { cpu_to_be32(MXFS_DIR2_DATA_MAGIC),
+		   cpu_to_be32(MXFS_DIR3_DATA_MAGIC) },
 	.verify_read = xfs_dir3_data_read_verify,
 	.verify_write = xfs_dir3_data_write_verify,
 	.verify_struct = xfs_dir3_data_verify,
@@ -585,8 +585,8 @@ const struct xfs_buf_ops xfs_dir3_data_buf_ops = {
 
 static const struct xfs_buf_ops xfs_dir3_data_reada_buf_ops = {
 	.name = "xfs_dir3_data_reada",
-	.magic = { cpu_to_be32(XFS_DIR2_DATA_MAGIC),
-		   cpu_to_be32(XFS_DIR3_DATA_MAGIC) },
+	.magic = { cpu_to_be32(MXFS_DIR2_DATA_MAGIC),
+		   cpu_to_be32(MXFS_DIR3_DATA_MAGIC) },
 	.verify_read = xfs_dir3_data_reada_verify,
 	.verify_write = xfs_dir3_data_write_verify,
 };
@@ -601,7 +601,7 @@ xfs_dir3_data_header_check(
 	if (xfs_has_crc(mp)) {
 		struct xfs_dir3_data_hdr *hdr3 = bp->b_addr;
 
-		if (hdr3->hdr.magic != cpu_to_be32(XFS_DIR3_DATA_MAGIC))
+		if (hdr3->hdr.magic != cpu_to_be32(MXFS_DIR3_DATA_MAGIC))
 			return __this_address;
 
 		if (be64_to_cpu(hdr3->hdr.owner) != owner)
@@ -760,10 +760,10 @@ xfs_dir2_data_freeinsert(
 {
 	xfs_dir2_data_free_t	new;		/* new bestfree entry */
 
-	ASSERT(hdr->magic == cpu_to_be32(XFS_DIR2_DATA_MAGIC) ||
-	       hdr->magic == cpu_to_be32(XFS_DIR2_BLOCK_MAGIC) ||
-	       hdr->magic == cpu_to_be32(XFS_DIR3_DATA_MAGIC) ||
-	       hdr->magic == cpu_to_be32(XFS_DIR3_BLOCK_MAGIC));
+	ASSERT(hdr->magic == cpu_to_be32(MXFS_DIR2_DATA_MAGIC) ||
+	       hdr->magic == cpu_to_be32(MXFS_DIR2_BLOCK_MAGIC) ||
+	       hdr->magic == cpu_to_be32(MXFS_DIR3_DATA_MAGIC) ||
+	       hdr->magic == cpu_to_be32(MXFS_DIR3_BLOCK_MAGIC));
 
 	new.length = dup->length;
 	new.offset = cpu_to_be16((char *)dup - (char *)hdr);
@@ -803,10 +803,10 @@ xfs_dir2_data_freeremove(
 	int			*loghead)	/* out: log data header */
 {
 
-	ASSERT(hdr->magic == cpu_to_be32(XFS_DIR2_DATA_MAGIC) ||
-	       hdr->magic == cpu_to_be32(XFS_DIR2_BLOCK_MAGIC) ||
-	       hdr->magic == cpu_to_be32(XFS_DIR3_DATA_MAGIC) ||
-	       hdr->magic == cpu_to_be32(XFS_DIR3_BLOCK_MAGIC));
+	ASSERT(hdr->magic == cpu_to_be32(MXFS_DIR2_DATA_MAGIC) ||
+	       hdr->magic == cpu_to_be32(MXFS_DIR2_BLOCK_MAGIC) ||
+	       hdr->magic == cpu_to_be32(MXFS_DIR3_DATA_MAGIC) ||
+	       hdr->magic == cpu_to_be32(MXFS_DIR3_BLOCK_MAGIC));
 
 	/*
 	 * It's the first entry, slide the next 2 up.
@@ -848,10 +848,10 @@ xfs_dir2_data_freescan(
 	unsigned int			offset = geo->data_entry_offset;
 	unsigned int			end;
 
-	ASSERT(hdr->magic == cpu_to_be32(XFS_DIR2_DATA_MAGIC) ||
-	       hdr->magic == cpu_to_be32(XFS_DIR3_DATA_MAGIC) ||
-	       hdr->magic == cpu_to_be32(XFS_DIR2_BLOCK_MAGIC) ||
-	       hdr->magic == cpu_to_be32(XFS_DIR3_BLOCK_MAGIC));
+	ASSERT(hdr->magic == cpu_to_be32(MXFS_DIR2_DATA_MAGIC) ||
+	       hdr->magic == cpu_to_be32(MXFS_DIR3_DATA_MAGIC) ||
+	       hdr->magic == cpu_to_be32(MXFS_DIR2_BLOCK_MAGIC) ||
+	       hdr->magic == cpu_to_be32(MXFS_DIR3_BLOCK_MAGIC));
 
 	/*
 	 * Start by clearing the table.
@@ -1050,8 +1050,8 @@ xfs_dir3_data_init(
 				    tmp, blen) == 0) {
 					struct xfs_dir3_blk_hdr *h3 = tmp;
 					uint32_t m = be32_to_cpu(h3->magic);
-					bool isdir = (m == XFS_DIR3_DATA_MAGIC ||
-						      m == XFS_DIR3_BLOCK_MAGIC);
+					bool isdir = (m == MXFS_DIR3_DATA_MAGIC ||
+						      m == MXFS_DIR3_BLOCK_MAGIC);
 					uint64_t down = be64_to_cpu(h3->owner);
 					int live = 0;
 					unsigned int off = p31e_mp->m_dir_geo->data_entry_offset;
@@ -1234,8 +1234,8 @@ xfs_dir3_data_init(
 					uint64_t downer = be64_to_cpu(
 						*(__be64 *)((char *)dbuf + 0x28));
 					uint32_t m = be32_to_cpu(dmagic);
-					if (m == XFS_DIR3_BLOCK_MAGIC ||
-					    m == XFS_DIR3_DATA_MAGIC) {
+					if (m == MXFS_DIR3_BLOCK_MAGIC ||
+					    m == MXFS_DIR3_DATA_MAGIC) {
 						mxfs_probe("mxfs: P-DBLALLOC-BIRTH ino=%llu daddr=%lld disk_magic=0x%x disk_owner=%llu foreign=%d — allocating dir block0 over a %s on-disk dir block\n",
 							(unsigned long long)dp->i_ino,
 							(long long)xfs_buf_daddr(bp),
@@ -1325,13 +1325,13 @@ xfs_dir3_data_init(
 		struct xfs_dir3_blk_hdr *hdr3 = bp->b_addr;
 
 		memset(hdr3, 0, sizeof(*hdr3));
-		hdr3->magic = cpu_to_be32(XFS_DIR3_DATA_MAGIC);
+		hdr3->magic = cpu_to_be32(MXFS_DIR3_DATA_MAGIC);
 		hdr3->blkno = cpu_to_be64(xfs_buf_daddr(bp));
 		hdr3->owner = cpu_to_be64(args->owner);
 		uuid_copy(&hdr3->uuid, &mp->m_sb.sb_meta_uuid);
 
 	} else
-		hdr->magic = cpu_to_be32(XFS_DIR2_DATA_MAGIC);
+		hdr->magic = cpu_to_be32(MXFS_DIR2_DATA_MAGIC);
 
 	bf = xfs_dir2_data_bestfree_p(mp, hdr);
 	bf[0].offset = cpu_to_be16(geo->data_entry_offset);
@@ -1426,10 +1426,10 @@ xfs_dir2_data_log_entry(
 	struct xfs_mount	*mp = bp->b_mount;
 	struct xfs_dir2_data_hdr *hdr = bp->b_addr;
 
-	ASSERT(hdr->magic == cpu_to_be32(XFS_DIR2_DATA_MAGIC) ||
-	       hdr->magic == cpu_to_be32(XFS_DIR3_DATA_MAGIC) ||
-	       hdr->magic == cpu_to_be32(XFS_DIR2_BLOCK_MAGIC) ||
-	       hdr->magic == cpu_to_be32(XFS_DIR3_BLOCK_MAGIC));
+	ASSERT(hdr->magic == cpu_to_be32(MXFS_DIR2_DATA_MAGIC) ||
+	       hdr->magic == cpu_to_be32(MXFS_DIR3_DATA_MAGIC) ||
+	       hdr->magic == cpu_to_be32(MXFS_DIR2_BLOCK_MAGIC) ||
+	       hdr->magic == cpu_to_be32(MXFS_DIR3_BLOCK_MAGIC));
 
 	xfs_trans_log_buf(args->trans, bp, (uint)((char *)dep - (char *)hdr),
 		(uint)((char *)(xfs_dir2_data_entry_tag_p(mp, dep) + 1) -
@@ -1594,8 +1594,8 @@ xfs_dir2_data_log_entry(
 			struct xfs_dir3_blk_hdr *dhdr = (void *)tmp;
 			uint32_t dmagic = be32_to_cpu(dhdr->magic);
 			uint64_t downer = be64_to_cpu(dhdr->owner);
-			int disk_is_ourdir = (dmagic == XFS_DIR3_DATA_MAGIC ||
-					      dmagic == XFS_DIR3_BLOCK_MAGIC) &&
+			int disk_is_ourdir = (dmagic == MXFS_DIR3_DATA_MAGIC ||
+					      dmagic == MXFS_DIR3_BLOCK_MAGIC) &&
 					     downer == args->dp->i_ino;
 
 			/* 0xffff freetag => free on disk (no collision). */
@@ -1757,10 +1757,10 @@ xfs_dir2_data_log_header(
 #ifdef DEBUG
 	struct xfs_dir2_data_hdr *hdr = bp->b_addr;
 
-	ASSERT(hdr->magic == cpu_to_be32(XFS_DIR2_DATA_MAGIC) ||
-	       hdr->magic == cpu_to_be32(XFS_DIR3_DATA_MAGIC) ||
-	       hdr->magic == cpu_to_be32(XFS_DIR2_BLOCK_MAGIC) ||
-	       hdr->magic == cpu_to_be32(XFS_DIR3_BLOCK_MAGIC));
+	ASSERT(hdr->magic == cpu_to_be32(MXFS_DIR2_DATA_MAGIC) ||
+	       hdr->magic == cpu_to_be32(MXFS_DIR3_DATA_MAGIC) ||
+	       hdr->magic == cpu_to_be32(MXFS_DIR2_BLOCK_MAGIC) ||
+	       hdr->magic == cpu_to_be32(MXFS_DIR3_BLOCK_MAGIC));
 #endif
 
 	xfs_trans_log_buf(args->trans, bp, 0, args->geo->data_entry_offset - 1);
@@ -1782,10 +1782,10 @@ xfs_dir2_data_log_unused(
 {
 	xfs_dir2_data_hdr_t	*hdr = bp->b_addr;
 
-	ASSERT(hdr->magic == cpu_to_be32(XFS_DIR2_DATA_MAGIC) ||
-	       hdr->magic == cpu_to_be32(XFS_DIR3_DATA_MAGIC) ||
-	       hdr->magic == cpu_to_be32(XFS_DIR2_BLOCK_MAGIC) ||
-	       hdr->magic == cpu_to_be32(XFS_DIR3_BLOCK_MAGIC));
+	ASSERT(hdr->magic == cpu_to_be32(MXFS_DIR2_DATA_MAGIC) ||
+	       hdr->magic == cpu_to_be32(MXFS_DIR3_DATA_MAGIC) ||
+	       hdr->magic == cpu_to_be32(MXFS_DIR2_BLOCK_MAGIC) ||
+	       hdr->magic == cpu_to_be32(MXFS_DIR3_BLOCK_MAGIC));
 
 	/*
 	 * Log the first part of the unused entry.
@@ -2021,10 +2021,10 @@ xfs_dir2_data_check_free(
 	xfs_dir2_data_aoff_t		offset,
 	xfs_dir2_data_aoff_t		len)
 {
-	if (hdr->magic != cpu_to_be32(XFS_DIR2_DATA_MAGIC) &&
-	    hdr->magic != cpu_to_be32(XFS_DIR3_DATA_MAGIC) &&
-	    hdr->magic != cpu_to_be32(XFS_DIR2_BLOCK_MAGIC) &&
-	    hdr->magic != cpu_to_be32(XFS_DIR3_BLOCK_MAGIC))
+	if (hdr->magic != cpu_to_be32(MXFS_DIR2_DATA_MAGIC) &&
+	    hdr->magic != cpu_to_be32(MXFS_DIR3_DATA_MAGIC) &&
+	    hdr->magic != cpu_to_be32(MXFS_DIR2_BLOCK_MAGIC) &&
+	    hdr->magic != cpu_to_be32(MXFS_DIR3_BLOCK_MAGIC))
 		return __this_address;
 	if (be16_to_cpu(dup->freetag) != XFS_DIR2_DATA_FREE_TAG)
 		return __this_address;
@@ -2185,8 +2185,8 @@ mxfs_dir_addname_coherent_refresh(
 	if (mxfs_pal_scsi_read_fua_bdev(mp->m_ddev_targp->bt_bdev, lba,
 					tmp, blen) == 0) {
 		ph = tmp;
-		pcur = (be32_to_cpu(ph->magic) == XFS_DIR3_DATA_MAGIC ||
-			be32_to_cpu(ph->magic) == XFS_DIR3_BLOCK_MAGIC) &&
+		pcur = (be32_to_cpu(ph->magic) == MXFS_DIR3_DATA_MAGIC ||
+			be32_to_cpu(ph->magic) == MXFS_DIR3_BLOCK_MAGIC) &&
 		       be64_to_cpu(ph->owner) == dp->i_ino;
 		/* capped (NOT ratelimited -> real counts) instrument: does the
 		 * helper reach the FUA read for the storm dir, and does the in-core
@@ -2456,12 +2456,12 @@ xfs_dir3_data_end_offset(
 	void				*p;
 
 	switch (hdr->magic) {
-	case cpu_to_be32(XFS_DIR3_BLOCK_MAGIC):
-	case cpu_to_be32(XFS_DIR2_BLOCK_MAGIC):
+	case cpu_to_be32(MXFS_DIR3_BLOCK_MAGIC):
+	case cpu_to_be32(MXFS_DIR2_BLOCK_MAGIC):
 		p = xfs_dir2_block_leaf_p(xfs_dir2_block_tail_p(geo, hdr));
 		return p - (void *)hdr;
-	case cpu_to_be32(XFS_DIR3_DATA_MAGIC):
-	case cpu_to_be32(XFS_DIR2_DATA_MAGIC):
+	case cpu_to_be32(MXFS_DIR3_DATA_MAGIC):
+	case cpu_to_be32(MXFS_DIR2_DATA_MAGIC):
 		return geo->blksize;
 	default:
 		return 0;
