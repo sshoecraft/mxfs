@@ -267,7 +267,10 @@ ck "after the cut the owner key is unchanged" "$(bs_field "$OUT/rec_2_aftercut.t
 # ---- 5. the arms.  Each is: bring the contender up, let it mount, and grade
 #         the refusal and what it did NOT write.
 arm_run() {     # <node> <arm-name> <tag>
-    local n=$1 name=$2 tag=$3 j="$OUT/${tag}_journal.txt" ante
+    # j on its own line: every word of one `local` is expanded before any of
+    # them is assigned, so ${tag} beside tag=$3 read an unset variable
+    local n=$1 name=$2 tag=$3 j ante
+    j="$OUT/${tag}_journal.txt"
     local m0 mstate mterm mowner mkey
 
     m0="$OUT/rec_${tag}_before.txt"

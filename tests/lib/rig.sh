@@ -663,13 +663,21 @@ d=json.load(open(sys.argv[1])); print((d.get(sys.argv[2]) or {}).get("task_retir
 # A rig that declares no contract gets the plain arguments, and its module
 # refuses to certify a boot succession — which is the intended state, not a
 # harness failure to paper over.
+#
+# The transport follows MXFS_TRANSPORT (tcp unless it says caw), as the prep's
+# does.  It used to be force_transport=1 always, so a lap that reloads the
+# module after a reboot put a CAW node back on TCP, and the mount was refused
+# as a transport mismatch before the path under test was reached
+# (tests/evidence/20260926T065606Z_btk_btk_caw_s1: P-TRANSPORT-MISMATCH-REFUSED
+# forced=tcp platter=caw).
 mxfs_rig_modargs() {
-    local c
+    local c ft=1
+    [ "${MXFS_TRANSPORT:-tcp}" = caw ] && ft=0
     c=$(mxfs_rig_retirement_contract)
     if [ -n "$c" ]; then
-        printf '%s\n' "target_cache_protected=1 force_transport=1 'target_retire_contract=\"$c\"'"
+        printf '%s\n' "target_cache_protected=1 force_transport=$ft 'target_retire_contract=\"$c\"'"
     else
-        printf '%s\n' "target_cache_protected=1 force_transport=1"
+        printf '%s\n' "target_cache_protected=1 force_transport=$ft"
     fi
 }
 

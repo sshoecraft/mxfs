@@ -1,3 +1,36 @@
+## 2026-09-26 — 0.89.93 — the bootstrap-owner takeover is driven live on CAW for the first time
+
+`tests/bootstrap_takeover_2n.sh` had never reached a takeover on this rig: its
+only transport is CAW, and the CAW device it defaulted to belongs to the old
+SCST rig.  On the QNAP LUN (`MXFS_DEV` by-id, `MXFS_TRANSPORT=caw`) it now runs
+end to end, after two harness faults that only a lap reaching those stages
+could show:
+
+- `mxfs_rig_modargs` (`tests/lib/rig.sh`) always said `force_transport=1`, so
+  any harness that reloads the module after a reboot put a CAW node back on
+  TCP, and the mount was refused as a transport mismatch
+  (`P-TRANSPORT-MISMATCH-REFUSED forced=tcp platter=caw`) before the path
+  under test.  It now follows `MXFS_TRANSPORT`, as the prep does; unset or
+  `tcp` is unchanged for every other caller.
+- `arm_run` declared `tag=$3` and `j=…${tag}…` in one `local`; bash expands
+  every word before assigning any, so `set -u` stopped the lap at the first
+  arm.
+
+`btk_caw_s3` (build `023BCBA38B30E7662B22216`), both arms, PASS fails=0:
+
+- **`D-BOOTSTRAP-TAKEOVER-MINTS-A-FENCE-KIND-WITH-NO-PROOF` is removed.** The
+  owner claimed the term with its key registered on the target, was cut
+  mid-CLAIMED, rebooted and contended for its own previous boot's term.  The
+  refusal printed `would_have_minted=SELF-SUCCESSION` — the deleted branch's
+  antecedent held, so the defect's precondition was reproduced — and created
+  no authority of any class: no certificate, no fence kind, no inheritance, no
+  reseal, no lease, no recovery descriptor, the record unchanged.
+- **`D-BOOTSTRAP-TAKEOVER-NO-PROOF-LEAVES-VOLUME-UNMOUNTABLE` is now measured
+  and stays open.** Repeat mounts on both nodes were refused the same way and
+  the record stayed CLAIMED by a key that cannot come back: the volume is
+  unmountable until an operator clears it.  The fix is a fencing-protocol
+  design and has not been made.
+
 ## 2026-09-25 — 0.89.92 — mxfs.ko carries its version; a Debian 13 verification pair; the per-task I/O deadline fires on CAW
 
 ### 2-node CAW runs again, on the QNAP LUN
