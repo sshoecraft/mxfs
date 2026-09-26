@@ -17,6 +17,11 @@ ccflags-y += -I $(src)/xfs/libxfs
 ccflags-y += -I $(src)/mxfs_clayer
 ccflags-y += -I $(src)/include
 ccflags-y += -DMXFS_MODULE
+# The module carries its version.  Without MODULE_VERSION, a kernel built
+# without CONFIG_MODULE_SRCVERSION_ALL (Debian's) gives mxfs.ko no srcversion
+# either, and nothing on the node says which build is loaded.
+MXFS_KMOD_VERSION := $(shell tr -d ' \t\r\n' < $(src)/VERSION 2>/dev/null)
+ccflags-y += -DMXFS_KMOD_VERSION=\"$(if $(MXFS_KMOD_VERSION),$(MXFS_KMOD_VERSION),unknown)\"
 
 # Feature disabling done via #undef in xfs_platform.h (after autoconf.h)
 

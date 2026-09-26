@@ -1013,6 +1013,34 @@ static int mxfs_pal_scsi_read_fua_bdev_body(struct block_device *bdev,
 					     uint32_t len);
 
 /*
+ * TEST ONLY.  The next N attempts of the FUA-read retry loop made by a task
+ * holding an I/O budget fail as a short transfer without the command being
+ * issued, so the budgeted retry path runs on a healthy target: with a short
+ * dlm_verify_deadline_ms the budget expires inside the loop's own backoff and
+ * P302-FUA-READ-DEADLINE must fire.  Unbudgeted reads are never touched.
+ * Each injected attempt logs P302-INJECT.  0 = off.
+ */
+static int mxfs_dbg_fua_read_fail_budgeted;
+module_param_named(dbg_fua_read_fail_budgeted, mxfs_dbg_fua_read_fail_budgeted, int, 0644);
+MODULE_PARM_DESC(dbg_fua_read_fail_budgeted,
+		 "TEST: fail the next N budgeted FUA-read attempts as a short "
+		 "transfer without issuing them (0 = off)");
+
+static bool mxfs_dbg_fua_read_fail_take(void)
+{
+	int n = READ_ONCE(mxfs_dbg_fua_read_fail_budgeted);
+
+	while (n > 0) {
+		int o = cmpxchg(&mxfs_dbg_fua_read_fail_budgeted, n, n - 1);
+
+		if (o == n)
+			return true;
+		n = o;
+	}
+	return false;
+}
+
+/*
  * (D-32NODE-SHARED-DIR-CREATE-PACE): node-wide count and wall of
  * every synchronous FUA passthrough read.  The create-cost probe samples both
  * around its existence lookup so the in-tenure lookup term can be attributed
@@ -1150,9 +1178,21 @@ static int mxfs_pal_scsi_read_fua_bdev_body(struct block_device *bdev,
 			}
 			resid = (int)len;
 			args.resid = &resid;
-			ret = scsi_execute_cmd(sdev, cdb, REQ_OP_DRV_IN,
-					       buf, len, cmd_j, cmd_retries,
-					       &args);
+			if (budget_ms > 0 && mxfs_dbg_fua_read_fail_take()) {
+				static atomic_t p_fuainj_n = ATOMIC_INIT(0);
+
+				if (atomic_inc_return(&p_fuainj_n) <= 200)
+					mxfs_probe("mxfs: P302-INJECT lba=%llu try=%d budget_ms=%ld comm=%s pid=%d — test failure of a budgeted FUA read, command not issued\n",
+						(unsigned long long)lba_512,
+						fua_try + 1, budget_ms,
+						current->comm, current->pid);
+				memset(&sshdr, 0, sizeof(sshdr));
+				ret = 0;		/* a short transfer: retryable */
+			} else {
+				ret = scsi_execute_cmd(sdev, cdb, REQ_OP_DRV_IN,
+						       buf, len, cmd_j, cmd_retries,
+						       &args);
+			}
 			/*
 			 * v0.3.108 (root-cause): scsi_execute_cmd can
 			 * return 0 (success) but transfer LESS than requested

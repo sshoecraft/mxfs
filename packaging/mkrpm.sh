@@ -174,6 +174,11 @@ fi
 # anything else was reported as a successful install with no module.  RPM
 # cannot undo an install from %post; a non-zero exit is what makes rpm and
 # dnf report the failure.
+# An upgrade leaves the old version registered (%preun removes only on erase,
+# below), so every other version is removed here, before this one is added.
+for old in \$(dkms status mxfs 2>/dev/null | sed -n 's|^mxfs[/, ]*\([^,:]*\).*|\1|p' | sort -u); do
+    [ "\$old" = "%{version}" ] || dkms remove -m mxfs -v "\$old" --all >/dev/null 2>&1 || true
+done
 dkms add -m mxfs -v %{version} 2>/dev/null || true
 # Build for every installed kernel that has headers, not only the running
 # one: Requires: kernel-devel installs the NEWEST kernel's headers, which is
@@ -200,7 +205,13 @@ if [ ! -e "/lib/modules/\$(uname -r)/build/Makefile" ]; then
 fi
 
 %preun
-dkms remove -m mxfs -v %{version} --all 2>/dev/null || true
+# \$1 is 0 on erase.  On a reinstall of the same version this scriptlet runs
+# AFTER the new copy's %post has built and installed the module, and removing
+# mxfs/%{version} then deleted that build: 'dnf reinstall mxfs' left the node
+# with no module at all.
+if [ "\$1" = 0 ]; then
+    dkms remove -m mxfs -v %{version} --all 2>/dev/null || true
+fi
 
 %postun
 udevadm control --reload-rules 2>/dev/null || true

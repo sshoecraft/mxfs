@@ -7135,14 +7135,48 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 					   cur_slot->holders_cr) &
 					  ctx->node_bit;
 
+			/*
+			 * The same cancellation, for a second reason: this
+			 * mount's own authority closed while the acquire was
+			 * waiting.  Nothing re-asked that either — the wait's
+			 * only other exits are the timeout and ctx->running —
+			 * so a task parked here after its mount withdrew
+			 * waited on the holder's liveness alone.  It leaves the
+			 * way the quarantine cancel does (own waiter dropped,
+			 * a raced handoff adopted), with -ESHUTDOWN, the code
+			 * the TCP acquire returns for the same closure.
+			 */
+			int cancel = 0;		/* 1 quarantine, 2 authority */
+
 			if (quar_skip_lap) {
 				/* One lap owed to the ADOPT arm — see below. */
 				quar_skip_lap = false;
-			} else if (qrf && !self_h &&
-				   qrf(ctx->wait_refuse_data, resource) > 0) {
+			} else if (!self_h) {
+				if (qrf && qrf(ctx->wait_refuse_data, resource) > 0)
+					cancel = 1;
+				else if (ctx->authority_lost_fn &&
+					 ctx->authority_lost_fn(ctx->authority_lost_data))
+					cancel = 2;
+			}
+			if (cancel == 2) {
+				static int acw_n;
+
+				if (acw_n++ < 500)
+					mxfs_pal_log(MXFS_LOG_WARN,
+					    "mxfs: P292-ACQ-AUTH-CLOSED transport=caw "
+					    "type=%u ino=%llu ag=%u mode=%u el_ms=%llu — "
+					    "this incarnation's authority closed while "
+					    "the acquire was waiting; the wait is ENDED "
+					    "instead of waiting on the holder",
+					    resource->type,
+					    (unsigned long long)resource->ino,
+					    resource->ag_number, mode,
+					    (unsigned long long)(mxfs_pal_time_ms() - start));
+			}
+			if (cancel) {
 				static int qwc_n;
 
-				if (qwc_n++ < 500)
+				if (cancel == 1 && qwc_n++ < 500)
 					mxfs_pal_log(MXFS_LOG_WARN,
 					    "mxfs: P240-QUAR-WAITCANCEL type=%u "
 					    "ino=%llu ag=%u mode=%u el_ms=%llu — "
@@ -7203,7 +7237,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 					quar_skip_lap = true;
 					continue;
 				}
-				rc = -EIO;
+				rc = (cancel == 2) ? -ESHUTDOWN : -EIO;
 				goto out;
 			}
 		}
@@ -16786,6 +16820,15 @@ void mxfs_dlm_caw_set_holders_alive_fn(struct mxfs_dlm_caw_ctx *ctx,
 }
 
 /* (ruling part 1): wait-cancellation oracle — see dlm_caw.h. */
+void mxfs_dlm_caw_set_authority_lost_fn(struct mxfs_dlm_caw_ctx *ctx,
+					 int (*fn)(void *data), void *data)
+{
+	if (!ctx)
+		return;
+	ctx->authority_lost_fn = fn;
+	ctx->authority_lost_data = data;
+}
+
 void mxfs_dlm_caw_set_wait_refuse_fn(struct mxfs_dlm_caw_ctx *ctx,
 				     int (*fn)(void *data,
 					       const struct mxfs_resource_id *res),

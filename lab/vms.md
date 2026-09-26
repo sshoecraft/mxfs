@@ -19,7 +19,7 @@ disagree.
 | `ubuntu2404` | `ubuntu-24.04.3-x86_64` | 2 | boot the GA kernel `platforms.json` claims, not an HWE one | runtime |
 | `pve9` | `proxmox-ve-9.1-x86_64` | 2 | install `proxmox-default-kernel` so both claimed kernels are present; `proxmox-headers-<krel>` for each | runtime, one round per claimed kernel |
 | `rhel9` | `alma-9.7-x86_64`, then updated to 9.8 | 2 | `dnf -y update` to 9.8 and boot the claimed kernel; enable EPEL (DKMS comes from there); firewalld running, SELinux enforcing | runtime |
-| `debian13` | `debian-13.5-x86_64` | 2 | | runtime |
+| `debian13` | `debian-13.3-x86_64` (the local DVD), then upgraded | 2 | replace the DVD-only `sources.list` with deb.debian.org `trixie`, `trixie-updates` and `trixie-security`; `apt full-upgrade` and boot the claimed kernel; install `linux-headers-amd64 dkms open-iscsi sg3-utils` | runtime |
 | `ubuntu2604` | `ubuntu-26.04-x86_64` | 2 | | runtime |
 | `rhel10` | `alma-10.1-x86_64` | 2 | enable EPEL; firewalld running, SELinux enforcing | runtime |
 | `debian12` | `debian-12.13-x86_64` | 2 | | runtime |
@@ -39,6 +39,14 @@ the pair is built from the 9.7 spec and updated in place. AlmaLinux's
 repositories serve the current minor release, so the update lands on 9.8; the
 claimed kernel must then be installed by its exact version if the update brought a
 newer one. A 9.8 spec in osimager would remove the update step.
+
+**`debian13` from the DVD ends with no mirror.** The install uses only the
+DVD, so the node's `sources.list` names the DVD and nothing else; until the
+mirror lines replace it, `apt` can neither upgrade nor install the headers.
+An unattended osimager build of this spec has also stopped at "apt
+configuration problem": its `early_command` found no `/media/debian.fix`
+(the `media` CD was not mounted when it ran), so the stock media scan ran and
+failed. Watch the build's VNC console if it waits on SSH past the install.
 
 **Firewalls.** Where the row says firewalld is running, open only what MXFS
 uses: 7600/tcp (DLM), 7601/udp (discovery), 7603/udp (lease heartbeat). Verifying with the

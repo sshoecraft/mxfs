@@ -230,7 +230,16 @@ for n in "$H" "$W"; do
     # because a build without it is a build older than the selection probe.
     [[ "$info" == *"sv=$TREESV"* ]] || { echo "ABORT: $n srcversion != tree '$TREESV' ($info)"; exit 2; }
     [[ "$info" == *"m=1"* ]] || { echo "ABORT: $n not mounted ($info)"; exit 2; }
+    [[ "$info" == *"ft=0"* ]] && ncaw=$(( ${ncaw:-0} + 1 ))
 done
+# CAW has no lock master: grants live in on-disk slots, so no node logs a
+# master's blocking notification and "which node masters the target" has no
+# answer.  Both nodes on force_transport=0 selects the CAW lap: the target is
+# the first candidate, the master-side notification budget is not scored, and
+# the wait is witnessed by CAW's own probes (P-WAIT-EXTEND past the 120 s base,
+# P-LKWAIT-LIVE past the 480 s cap).  Everything else scores the same.
+CAW=0; [ "${ncaw:-0}" = 2 ] && CAW=1
+echo "  INFO transport=$([ $CAW = 1 ] && echo caw || echo tcp)"
 if [ "$GAP_MS" -gt 0 ]; then
     g=$(timeout 15 $SSH "$W" "test -w $P/dl_acq_gap_ino && test -w $P/dl_acq_gap_ms && echo 1 || echo 0" 2>/dev/null | filt | tr -dc '0-9')
     [ "${g:-0}" = "1" ] || { echo "ABORT: $W has no writable dl_acq_gap_ino/dl_acq_gap_ms knob (build older than 0.84.0)"; exit 2; }
@@ -293,7 +302,10 @@ fi
     clear_knobs; exit 2; }
 
 ino=""; CAND=""; MLOC=""
-while read -r idx cino <&3; do
+if [ "$CAW" = 1 ]; then
+    read -r CAND ino < "$OUT/h_cands.txt"; MLOC=caw
+fi
+[ -n "$ino" ] || while read -r idx cino <&3; do
     [ -n "$cino" ] || continue
     cf="$MNT/.livewait_${LABEL}_$idx"
     # H holds a conflicting grant, W reads: the MASTER of this inode is the
@@ -764,6 +776,18 @@ if [ "$TCP_FAULT_S" -gt 0 ]; then
 fi
 if [ "$KILL_AFTER_S" -gt 0 ]; then
     echo "  INFO P-LKWAIT-LIVE=$lkwait not scored with KILL_AFTER_S=$KILL_AFTER_S (the reader left before the budget)"
+elif [ "$CAW" = 1 ]; then
+    wext=$(grep -a 'P-WAIT-EXTEND' "$OUT/dmesg_$W.txt" | grep -ac "ino=$ino ")
+    echo "  INFO CAW wait witnesses on $W for ino=$ino: P-WAIT-EXTEND=$wext P-LKWAIT-LIVE=$lkwait"
+    [ "$PAUSE_MS" -gt 120000 ] && ck "W extended its wait past CAW's 120 s base while the holder was alive (P-WAIT-EXTEND >= 1)" "$([ "$wext" -ge 1 ] && echo 1 || echo 0)" "1"
+    # The 480 s cap bounds ONE attempt: ilock_begin makes three before the
+    # timeout classifier runs (measured caw0912_s2: timed out at 480 s, the
+    # second attempt was granted at 547 s when the pause ended).  So the
+    # classifier -- the code the old self-shutdown lived in -- is reached only
+    # past 3 x 480 s.
+    capped=$(grep -ac 'disk lock acquisition timed out after' "$OUT/dmesg_$W.txt")
+    echo "  INFO CAW per-attempt caps reached on $W: $capped (the classifier runs after 3)"
+    [ "$PAUSE_MS" -gt 1440000 ] && ck "W parked behind the live holder after all three CAW attempts (P-LKWAIT-LIVE >= 1)" "$([ "$lkwait" -ge 1 ] && echo 1 || echo 0)" "1"
 elif [ "$PAUSE_MS" -gt 180000 ] && [ "$GAP_MS" -eq 0 ]; then
     ck "W parked behind the live holder (P-LKWAIT-LIVE >= 1)" "$([ "$lkwait" -ge 1 ] && echo 1 || echo 0)" "1"
 elif [ "$GAP_MS" -gt 0 ]; then
@@ -829,6 +853,9 @@ fi
 #
 # The budget is derived, not chosen: one fire per 10 s re-fire interval across
 # the pause, plus 5 for the opening fire and ordinary jitter.
+if [ "$CAW" = 1 ]; then
+    echo "  INFO master-side notification budget not scored on CAW (no lock master; P7S-BAST-FIRE H=$(grep -ac "P7S-BAST-FIRE ino=$ino " "$OUT/dmesg_$H.txt") W=$(grep -ac "P7S-BAST-FIRE ino=$ino " "$OUT/dmesg_$W.txt"); holder P7B-BASTNOTIFY=$(grep -ac "P7B-BASTNOTIFY ino=$ino " "$OUT/dmesg_$H.txt"))"
+else
 MNODE=$([ "$MLOC" = "remote" ] && echo "$H" || echo "$W")
 OTHER=$([ "$MLOC" = "remote" ] && echo "$W" || echo "$H")
 fire_h=$(grep -ac "P7S-BAST-FIRE ino=$ino " "$OUT/dmesg_$H.txt")
@@ -859,6 +886,7 @@ if [ "$MLOC" = "remote" ]; then
     ck "the waiter's recorded age grew past one re-send interval" "$([ "${waitage:-0}" -gt 5000 ] && echo 1 || echo 0)" "1"
 fi
 ck "one wait cost the holder no more than its derived notification budget" "$([ "$bastfire" -le "$bastbudget" ] && echo 1 || echo 0)" "1"
+fi
 
 # The three ways the requester's acquisition table can lose a live wait's
 # history.  Each degrades to the behaviour that predates the table — a fresh

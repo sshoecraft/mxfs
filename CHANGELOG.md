@@ -1,3 +1,121 @@
+## 2026-09-25 — 0.89.92 — mxfs.ko carries its version; a Debian 13 verification pair; the per-task I/O deadline fires on CAW
+
+### 2-node CAW runs again, on the QNAP LUN
+
+The SCST target that the CAW conditions were built on has not started since
+clyde's boot of 2026-09-21: `/etc/scst.conf` names `/home/steve/disk-1.img`
+and `disk-2.img`, and neither file exists.  It is left as it is.  The QNAP
+LUN the TCP rig already uses implements COMPARE AND WRITE (`sg_vpd -p bl`:
+maximum compare and write length 1 block, 512-byte logical blocks; it rejects
+the FUA bit on READ(16), which MXFS already falls back from), and
+`run.sh` takes its device from `MXFS_DEV` for every condition, so
+`MXFS_DEV=/dev/disk/by-id/wwn-0x6e843b6393a5a6ed918bd4f4fdb8e7d6 ./run.sh 2 cawd`
+brings up two nodes on the CAW transport (`force_transport=0`), mounted and
+converged at `active_count=2`.
+
+### D-THE-PER-TASK-IO-DEADLINE-IS-UNSIGNED-AND-CAN-NEVER-FIRE is removed
+
+Fixed in 0.89.59 and proven then only by the compiler; now exercised live.
+The only budgeted FUA read is the CAW cached-grant verify, and on a healthy
+target it never retries, so the path could not be reached.
+
+- `dbg_fua_read_fail_budgeted=N` (TEST ONLY, `pal/linux/kern.c`) fails the
+  next N attempts of the FUA-read retry loop made by a task holding an I/O
+  budget, as a short transfer without issuing the command, and logs
+  `P302-INJECT`.  Unbudgeted reads are never touched.
+- `tests/fua_deadline_lap.sh` arms it with a 20 ms verify deadline on one
+  node of a CAW cluster, drives cached-grant verifies with a cross-node read
+  workload, and asserts that the expired budget ends the read, that no retry
+  sees the unsigned value, that no read runs out all 21 tries, that the
+  verify breaker opens and that both mounts stay healthy.  Two laps on
+  2/cawd, both PASS: the budget counted down 20 → 12 ms across the retries and
+  `P302-FUA-READ-DEADLINE` ended the read; no `budget_ms=4294967295`, no
+  `tries=21`, `P303-VERIFY-BREAKER` opened, no shutdown or splat.
+
+### A CAW waiter did not leave when its mount's authority closed
+
+`D-A-REVOKED-MOUNTS-BLOCKED-DLM-WAITERS-ARE-NOT-ABORTED` item (4), the last
+one open, is removed.  `tests/caw_acquire_closure.sh` parks a reader in the
+CAW acquire behind a live paused holder, then parks the reader's heartbeat so
+its 30 s lease closes under it.  On the build before the fix the lease closed,
+the mount withdrew and shut down, and 190 s later the reader was still in
+`caw_wait_for_grant` extending its wait on the holder's liveness: the loop's
+only exits were its timeout and `ctx->running`.
+
+- The CAW context gains `authority_lost_fn`, wired to the same oracle the TCP
+  acquire has asked since 0.89.21.  The poll loop's per-lap cancellation,
+  which already ended a wait a quarantine overtook, now also ends one whose
+  mount's authority closed: it drops its own waiter from the slot, adopts a
+  handoff that raced the drop, logs `P292-ACQ-AUTH-CLOSED transport=caw` and
+  returns `-ESHUTDOWN`.
+- Two laps on the fixed build, both PASS: the wait ended in the same
+  millisecond as the closure and 169 ms after it; the reader got `EIO`;
+  the holder kept serving; no BUG/Oops.
+
+### A reader behind a live holder on CAW parks instead of shutting down
+
+`D-ACQUIRE-TIMEOUT-BEHIND-LIVE-HOLDER-FAILSTOPS-REQUESTER-0912` is removed:
+its TCP leg was closed earlier, and its CAW leg is now measured.
+`tests/live_holder_wait.sh` gained a CAW mode (both nodes on
+`force_transport=0`): CAW has no lock master, so no node logs a master's
+blocking notification and the master-selection probe and the notification
+budget do not apply; the wait is witnessed by CAW's own probes instead.
+
+- The first CAW lap showed the classifier is reached only after three 480 s
+  attempts, not after one: at a 540 s pause the first attempt hit its cap and
+  the second was granted at 547 s.
+- At a 1560 s pause all three attempts ran out and the classifier parked the
+  wait (`P-LKWAIT-LIVE`) where the old code shut the filesystem down; the read
+  returned the holder's bytes after its pause ended; no shutdown, no splat.
+- New, not blocking: the holder received about 13 blocking notifications a
+  second for the whole wait (20,164 in 1587 s), where TCP bounds the same
+  cost to one per 10 s — `D-CAW-WAITER-NOTIFIES-A-DRAINING-HOLDER-13-TIMES-A-SECOND`.
+
+### `dnf reinstall mxfs` left the node with no module
+
+The RPM's `%preun` removed the DKMS registration whatever `$1` was.  On a
+reinstall of the same version it runs after the new copy's `%post` has built
+the module, so it deleted that build: `modprobe: FATAL: Module mxfs not
+found`.  It surfaced because the packaged round now forces a reinstall of a
+same-version candidate.  `%preun` now removes only on erase; `%post` removes
+any other registered version first, so an upgrade still leaves one.
+`tests/rpm_lifecycle.sh NODE OLD NEW` checks erase, install, upgrade,
+reinstall and erase again.
+
+### Harness
+
+- `tests/packaged_round.sh` forces the reinstall (apt `--reinstall`,
+  `dnf reinstall`) after removing `mxfs/$V` from DKMS: a rebuilt candidate of
+  an already-installed version was otherwise "already installed" and the round
+  tested the earlier build.  Multicast is blocked with nftables where there is
+  no iptables command (Debian 13).
+- `tests/full_verify.sh VERSION [STALL_LAPS]` runs everything a version must
+  pass before publishing: a clean-copy build, tools, user-mode tests and
+  audit, the 2-node TCP suite, the packages, every platform's round, the RHEL
+  pair tests and stall laps, and the Debian hung-node test.
+
+### The module now says which build it is
+
+`mxfs.ko` declared no `MODULE_VERSION`.  Ubuntu and Proxmox kernels are built
+with `CONFIG_MODULE_SRCVERSION_ALL`, which gives every module a srcversion
+anyway, and the harnesses identify the loaded build by it.  Debian's is not:
+there `mxfs.ko` had no srcversion at all, and the first Debian 13 packaged
+round stopped at "did not load the DKMS build" with the right module loaded.
+`Kbuild` now reads `VERSION` into `MODULE_VERSION`, so `modinfo -F version`
+and `/sys/module/mxfs/version` answer on every kernel, and modpost emits a
+srcversion for it on Debian too.
+
+### Debian 13
+
+- `debian13-1` / `debian13-2` (Debian 13.7, `6.12.107+deb13-amd64`), recorded
+  in `lab/vms.md` with the steps a DVD install needs afterwards: its only
+  `apt` source is the DVD, so the mirror lines have to replace it before the
+  headers can be installed.  The claimed kernel, verify environment and tests
+  are in `data/platforms.json`.
+- `scripts/qmp_screendump.py` saves a QEMU guest's screen through its QMP
+  socket.  While Packer holds that socket it gets no answer; an installer
+  stuck behind Packer was read through its VNC port instead.
+
 ## 2026-09-25 — 0.89.91 — MAP_SYNC is refused on non-DAX files before 6.19; the module builds for Debian 13; the RHEL SELinux checks read the audit log
 
 ### MAP_SYNC was accepted on ordinary files (Proxmox VE 9 on 6.17)

@@ -651,6 +651,15 @@ struct mxfs_dlm_caw_ctx {
 	int                     (*wait_refuse_fn)(void *data,
 						  const struct mxfs_resource_id *res);
 	void                    *wait_refuse_data;
+	/* Has this incarnation's authority over the shared LUN closed?  The
+	 * wait asks every poll lap, as it asks wait_refuse_fn, and ends with
+	 * -ESHUTDOWN when it has: nothing a closed mount is granted can be
+	 * completed under it.  Before this a task parked here after its
+	 * mount withdrew waited on the holder's liveness alone (measured
+	 * 190 s and counting, tests/caw_acquire_closure.sh).  Must be cheap
+	 * and I/O-free.  NULL = never asked. */
+	int                     (*authority_lost_fn)(void *data);
+	void                    *authority_lost_data;
 	/* (design-consult review items 2+3): SKIP-ONLY candidate hint — bit i set
 	 * iff this mount has imported a terminal AG_MASK refusal for heartbeat
 	 * slot i.  Published by v5 on every outcome import; read with no I/O.
@@ -1868,6 +1877,10 @@ void mxfs_dlm_caw_set_holders_alive_fn(struct mxfs_dlm_caw_ctx *ctx,
 /* Registers the wait-cancellation oracle (see wait_refuse_fn in the ctx).
  * The callback MUST be lockless and must not do I/O: it runs on every poll
  * lap of every blocking acquire. */
+/* Registers the authority oracle (see authority_lost_fn in the ctx). */
+void mxfs_dlm_caw_set_authority_lost_fn(struct mxfs_dlm_caw_ctx *ctx,
+					 int (*fn)(void *data), void *data);
+
 void mxfs_dlm_caw_set_wait_refuse_fn(struct mxfs_dlm_caw_ctx *ctx,
 				     int (*fn)(void *data,
 					       const struct mxfs_resource_id *res),

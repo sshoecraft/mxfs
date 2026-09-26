@@ -17559,6 +17559,8 @@ bootstrap_again:
 	mxfs_dlm_caw_set_closure_scrub_fn(ctx->dlm_caw, v5_closure_scrub, ctx);
 	/* (ruling part 1): cancel waits the quarantine overtakes. */
 	mxfs_dlm_caw_set_wait_refuse_fn(ctx->dlm_caw, v5_wait_refuse, ctx);
+	/* the same authority oracle the TCP acquire asks */
+	mxfs_dlm_caw_set_authority_lost_fn(ctx->dlm_caw, v5_authority_lost_cb, ctx);
 
 	/*
 	 * 4. Reclaim our own stale locks — a previous instance of us may have
@@ -18464,6 +18466,7 @@ void mxfs_v5_dlm_shutdown_defer_release(struct mxfs_v5_dlm *ctx,
 			mxfs_dlm_caw_stop(ctx->dlm_caw);
 			mxfs_dlm_caw_set_closure_scrub_fn(ctx->dlm_caw, NULL, NULL);
 			mxfs_dlm_caw_set_wait_refuse_fn(ctx->dlm_caw, NULL, NULL);
+			mxfs_dlm_caw_set_authority_lost_fn(ctx->dlm_caw, NULL, NULL);
 			mxfs_dlm_caw_set_closure_cand_mask(ctx->dlm_caw, 0);
 			mxfs_dlm_caw_set_holders_alive_fn(ctx->dlm_caw, NULL, NULL);
 		}

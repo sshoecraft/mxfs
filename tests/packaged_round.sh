@@ -182,19 +182,23 @@ for h in $A $B; do
     for p in $PKGS; do "$SSH" "$(addr $h)" SCP "$DIST/$p" /root/ > /dev/null 2>&1 || die "scp $p to $h"; done
 done
 files=""; for p in $PKGS; do files="$files /root/$p"; done
+# A rebuilt candidate can carry a version the node already has.  Then apt and
+# dnf would call it installed and do nothing, and DKMS would keep the module it
+# built from the earlier source under the same version, so the round would test
+# that one.  The DKMS registration of $V goes first and the install is forced.
 case $FAM in
-    rpm) inst="dnf install -y $files" ;;
-    *)    inst="DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-downgrades $files" ;;
+    rpm) inst="dnf reinstall -y $files 2>/dev/null || dnf install -y $files" ;;
+    *)    inst="DEBIAN_FRONTEND=noninteractive apt-get install -y --reinstall --allow-downgrades $files" ;;
 esac
 t0=$(now)
-if both install $INSTALL_S "grep -q ' mxfs ' /proc/mounts && umount $MNT; modprobe -r mxfs 2>/dev/null; $inst"; then
+if both install $INSTALL_S "grep -q ' mxfs ' /proc/mounts && umount $MNT; modprobe -r mxfs 2>/dev/null; dkms remove mxfs/$V --all >/dev/null 2>&1; $inst"; then
     pass "install on both ($(since $t0) s)"
 else
     die "install (see $EV/install_*.log; rc 124 = over the ${INSTALL_S} s budget)"
 fi
-# The module declares no MODULE_VERSION, so which build is loaded is read by
-# srcversion: the loaded module's must be the installed file's, and that must
-# be the one DKMS built for $V on the running kernel.
+# Which build is loaded is read by srcversion, which tells two builds of one
+# version apart: the loaded module's must be the installed file's, and that
+# must be the one DKMS built for $V on the running kernel.
 MODID="echo path=\$(modinfo -n mxfs)
     echo srcversion=\$(cat /sys/module/mxfs/srcversion 2>/dev/null)
     echo modinfo_srcversion=\$(modinfo -F srcversion mxfs)
@@ -285,8 +289,12 @@ grep -q "chk_rc=0" "$EV/chk_$A.log" && pass "chk_mxfs clean" || fail "chk_mxfs (
 case $FAM in
     rpm)  blk="firewall-cmd --direct --add-rule ipv4 filter INPUT 0 -d 224.0.0.0/4 -j DROP && firewall-cmd --direct --add-rule ipv4 filter OUTPUT 0 -d 224.0.0.0/4 -j DROP"
           unblk="firewall-cmd --direct --remove-rule ipv4 filter INPUT 0 -d 224.0.0.0/4 -j DROP; firewall-cmd --direct --remove-rule ipv4 filter OUTPUT 0 -d 224.0.0.0/4 -j DROP" ;;
-    *)    blk="iptables -I INPUT -d 224.0.0.0/4 -j DROP && iptables -I OUTPUT -d 224.0.0.0/4 -j DROP"
-          unblk="iptables -D INPUT -d 224.0.0.0/4 -j DROP; iptables -D OUTPUT -d 224.0.0.0/4 -j DROP" ;;
+    # Debian 13 has nftables and no iptables command; its own table is
+    # dropped whole to undo it
+    *)    blk="if command -v iptables >/dev/null; then iptables -I INPUT -d 224.0.0.0/4 -j DROP && iptables -I OUTPUT -d 224.0.0.0/4 -j DROP;
+            else nft add table inet mxfs_mcast && nft add chain inet mxfs_mcast in { type filter hook input priority 0 \; } && nft add chain inet mxfs_mcast out { type filter hook output priority 0 \; } && nft add rule inet mxfs_mcast in ip daddr 224.0.0.0/4 drop && nft add rule inet mxfs_mcast out ip daddr 224.0.0.0/4 drop; fi"
+          unblk="if command -v iptables >/dev/null; then iptables -D INPUT -d 224.0.0.0/4 -j DROP; iptables -D OUTPUT -d 224.0.0.0/4 -j DROP;
+            else nft delete table inet mxfs_mcast; fi" ;;
 esac
 MCAST_BLOCKED=1
 both mcast_block 20 "$blk" || die "blocking multicast"

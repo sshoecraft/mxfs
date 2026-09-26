@@ -142,7 +142,7 @@
       "status": "development",
       "priority": 4,
       "kernels": [
-        "6.12.x (trixie)"
+        "6.12.107+deb13-amd64 (Debian 13.7)"
       ],
       "packages": [
         "mxfs_<v>_amd64.deb"
@@ -151,7 +151,9 @@
       "arch": [
         "amd64"
       ],
-      "build_check": "scripts/debian_kbuild_check.sh -i debian:13"
+      "build_check": "scripts/debian_kbuild_check.sh -i debian:13",
+      "verify_env": "two Debian 13 nodes on the claimed kernel built as lab/vms.md describes (debian13), sharing one iSCSI LUN that supports SCSI persistent reservations, attached in-guest; which nodes and which LUN come from this site's lab file (tools/mxfs_lab.sh), for the packaged round (tests/packaged_round.sh debian13)",
+      "verify_tests": "install the .deb from the built packages with a DKMS build and a module loaded from updates/dkms; mount with no options on both nodes; cross-node checksums; create/remote-delete counts; chk_mxfs clean; peer= with multicast blocked; O_DIRECT read on a stable-writes device; reboot, module auto-loaded, remount, earlier data intact"
     },
     "sles16": {
       "name": "SUSE Linux Enterprise Server 16",
