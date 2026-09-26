@@ -76,7 +76,7 @@ parallel_ssh_quiet "${NODES[*]}" "
 parallel_ssh_quiet "${NODES[*]}" "
     mkdir -p /src
     for try in 1 2 3 4 5; do
-        mountpoint -q /src || mount -t nfs 192.168.1.4:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null
+        mountpoint -q /src || mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null
         [ -f $MXFS_MODULE ] && break
         sleep 2
     done

@@ -1445,6 +1445,13 @@ static int mxfs_ilock_acquire_from_dlm(struct xfs_inode *ip,
 			 * another descent would only wait it out again. */
 			if (rc == -EREMCHG)
 				break;
+			/* 0.90.6: a peer died during this mount and only the
+			 * mount's barrier can replay it; another attempt would
+			 * wait a full budget on its frozen grant.  The
+			 * classifier below hands the fallible caller -EAGAIN. */
+			if (mxfs_acqfall_armed_for(ip->i_ino) &&
+			    mxfs_dlm_mount_late_death_recorded(ip->i_mount))
+				break;
 			/* bounded acquire (lock_two's
 			 * second inode) — first timeout bails to the caller's
 			 * backoff loop; do not burn 3 blocking attempts. */
@@ -1815,6 +1822,38 @@ static int mxfs_ilock_acquire_from_dlm(struct xfs_inode *ip,
 				mounting ? 1 : 0, current->comm);
 			msleep(min(500 * trans_laps, 5000));
 			{ block_outcome = MXFS_BLOCK_GOTO + 0; goto mxfs_ilock_acquire_from_dlm_exit; }
+		}
+		/*
+		 * 0.90.6 (D-PEER-DEATH-AFTER-ADMISSION-BARRIER-STALLS-MOUNT-
+		 * THEN-SHUTDOWN): the budget ended while a peer that died
+		 * during this mount waits in the mount-phase death record.
+		 * Its grants stay frozen until its slice is replayed, and
+		 * before xfs_mountfs returns only the mount's own barrier can
+		 * do that — so neither waiting nor the shutdown in arm (3) can
+		 * end this.  A fallible caller (the mount's root lookup) fails
+		 * with -EAGAIN; the mount re-runs the barrier, which replays
+		 * and publishes the slice, and retries the lookup.
+		 */
+		if (rc && rc != -EINTR && !xfs_is_shutdown(ip->i_mount) &&
+		    mxfs_acqfall_armed_for(ip->i_ino) &&
+		    mxfs_dlm_mount_late_death_recorded(ip->i_mount)) {
+			spin_lock(&ip->i_dlm_lock);
+			if (ip->i_dlm_state == MXFS_DLM_ISTATE_ACQUIRING)
+				{ u8 dtr_om = ip->i_dlm_mode, dtr_os = ip->i_dlm_state;
+				ip->i_dlm_state = MXFS_DLM_ISTATE_NONE;
+				mxfs_dlmtr_rec(ip, dtr_om, dtr_os, MXFS_SITE); }
+			if (ip->i_dlm_acq_inflight)
+				ip->i_dlm_acq_inflight--;
+			spin_unlock(&ip->i_dlm_lock);
+			wake_up_all(&ip->i_dlm_wait);
+			mxfs_acqfall_give_up_rc(ip->i_ino, -EAGAIN);
+			pr_warn(
+			    "mxfs: P-MPHASE-ACQ-GIVEUP ino=%llu mode=%u rc=%d comm=%s — a peer that died during this mount holds the grant and only the mount's barrier can replay it; failing THIS acquire with -EAGAIN so the mount re-runs its barrier, not shutting down\n",
+				(unsigned long long)ip->i_ino, mode, rc,
+				current->comm);
+			mxfs_v5_dlm_inode_acq_abandon(ip->i_mount->m_mxfs_dlm,
+						      ip->i_ino, mode);
+			{ block_outcome = MXFS_BLOCK_RETURN; goto mxfs_ilock_acquire_from_dlm_exit; }
 		}
 		if (rc == -EHOSTDOWN) {
 			/* 0.75.33 (D-0915): make the denial visible to the

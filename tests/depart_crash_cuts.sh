@@ -233,7 +233,7 @@ if [ "$up" = 1 ]; then
     # yet and prep_node.sh lives there — restore it first (run.sh:517 idiom,
     # tests/caw_pw_selftest.sh:194); without this the admission verdict was
     # never MXFS's, it was "No such file or directory".
-    timeout 150 "$SSH" "$VICTIM" "mountpoint -q /src || { mkdir -p /src; timeout 12 mount -t nfs 192.168.1.4:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp; echo NFS_RC=\$?; }; MXFS_DEV=$DEV timeout 120 bash /src/mxfs/tests/setup/prep_node.sh $TRANSPORT; echo PREP_RC=\$?; dmesg" > "$OUT/victim_remount.log" 2>&1
+    timeout 150 "$SSH" "$VICTIM" "mountpoint -q /src || { mkdir -p /src; timeout 12 mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp; echo NFS_RC=\$?; }; MXFS_DEV=$DEV timeout 120 bash /src/mxfs/tests/setup/prep_node.sh $TRANSPORT; echo PREP_RC=\$?; dmesg" > "$OUT/victim_remount.log" 2>&1
     grep -q NODE_PREP_OK "$OUT/victim_remount.log" && admitted=1
     p305=$(grep -ac 'P305-PR-PREDECESSOR-KEY-PRESENT\|P305-PR-SAME-BOOT-DIRTY-PREDECESSOR\|P-PR-QUARANTINE-REFUSED' "$OUT/victim_remount.log")
     newslot=$(grep -a 'claimed heartbeat slot' "$OUT/victim_remount.log" | tail -1 | grep -oE 'claimed heartbeat slot [0-9]+' | grep -oE '[0-9]+$')

@@ -360,6 +360,22 @@ void mxfs_dlm_mount_recovery_settle(struct xfs_mount *mp);
 int mxfs_dlm_mount_recovery_barrier(struct xfs_mount *mp);
 
 /*
+ * 0.90.6 (D-PEER-DEATH-AFTER-ADMISSION-BARRIER-STALLS-MOUNT-THEN-SHUTDOWN):
+ * the mount's root-inode lookup failed while a peer that died AFTER the
+ * barrier admitted is recorded in the mount-phase death record.  Nothing but
+ * the barrier can replay that slice before xfs_mountfs returns, so run it
+ * again (the late-death drain and the replay rounds, not the step-6.5 cohort
+ * it already resolved) and tell the caller to retry the lookup.  Returns 0 to
+ * retry, or the error the mount must fail with.  *laps counts the re-runs.
+ */
+int mxfs_dlm_mount_late_death_rebarrier(struct xfs_mount *mp, int error,
+					int *laps);
+bool mxfs_dlm_mount_late_death_recorded(struct xfs_mount *mp);
+/* ... and is THIS task's acquire for `ino` the fallible root lookup it
+ * blocks?  Only that caller may be failed for it. */
+bool mxfs_dlm_mount_late_death_blocks(struct xfs_mount *mp, xfs_ino_t ino);
+
+/*
  * 0.85.0 (D-FOREIGN-SLICE-INTENTS-ABANDONED): the OBLIGATION FREEZE and the
  * completion engine (xfs_mxfs_recov_obl.c).  Design: docs/dlm-protocol.md
  * "Item 5 — the TCP custody model".

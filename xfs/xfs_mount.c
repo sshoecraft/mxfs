@@ -1187,7 +1187,25 @@ xfs_mountfs(
 	 * joining.  Measured before this: a joiner arriving inside the
 	 * bootstrap node's takeover of a dead authority's ledger pages.
 	 */
-	error = mxfs_iget_root_fallible(mp, sbp->sb_rootino, &rip);
+	/*
+	 * MXFS 0.90.6: a peer that died after the barrier admitted can hold a
+	 * grant this lookup needs, and only the barrier can replay it before
+	 * xfs_mountfs returns — see mxfs_dlm_mount_late_death_rebarrier().
+	 */
+	{
+		int	rebarrier_laps = 0;
+
+		for (;;) {
+			error = mxfs_iget_root_fallible(mp, sbp->sb_rootino,
+							&rip);
+			if (!error)
+				break;
+			error = mxfs_dlm_mount_late_death_rebarrier(mp, error,
+								    &rebarrier_laps);
+			if (error)
+				break;
+		}
+	}
 	if (error) {
 		xfs_warn(mp,
 			"Failed to read root inode 0x%llx, error %d%s",

@@ -20,7 +20,7 @@
 set -u
 
 SRC=/src/mxfs
-NFS_SERVER="${NFS_SERVER:-192.168.1.4:/src}"
+NFS_SERVER="${NFS_SERVER:-192.168.120.1:/src}"
 
 fail() { echo "PVE_DKMS_FAIL: $*" >&2; exit 1; }
 

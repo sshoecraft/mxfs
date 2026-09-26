@@ -3722,6 +3722,14 @@ static const struct mxfs_lu_reset_audited_kernel mxfs_lu_reset_audited[] = {
  * 7.0.14-19-pve (scripts/pve_libiscsi_crosscheck.sh; 7.0.14-19-pve's three
  * iSCSI headers are byte-identical to the read tree, 6.17.2-1-pve's libiscsi.h
  * differs only in the return type of iscsi_queuecommand).
+ *
+ * 0.90.1: measured the same way on the two other released platforms' build
+ * headers, taken from the lab's own nodes — 5.14.0-687.49.1.el9_8.x86_64
+ * (RHEL 9.8 family) and 6.12.107+deb13-amd64 (Debian 13, from
+ * linux-headers-6.12.107+deb13-common) — both give the value below.  Their
+ * libiscsi.h differs from the read tree only in the return types of
+ * iscsi_queuecommand and (RHEL) the constness of iscsi_host_alloc's template
+ * argument, neither of which is a TMF declaration.
  */
 static const char *const mxfs_lu_reset_audited_fp[] = {
 	"d5ee9d1ecdea95baf6f96d4321cab4c9fce04c32854e8ed646e58bec9598c3a1",

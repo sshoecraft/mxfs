@@ -372,7 +372,7 @@ rejoin() {
     # A freshly booted node has no module: the join is exactly what the fleet
     # prep does per node (NFS-mount the tree, copy and insmod its mxfs.ko
     # with force_transport=1, mount).  prep_node.sh does not format.
-    measure "$n" 200 "$OUT/rv_vm_$n.txt" '^prep_rc=' "the remount of $n" "mountpoint -q /src || { mkdir -p /src; mount -t nfs 192.168.1.4:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp; }; echo '$MARK' > /dev/kmsg 2>/dev/null; t=\$(date +%s%N); MXFS_DEV='$MXFS_DEV' MXFS_KO_MD5='$KO_MD5' timeout 180 bash /src/mxfs/tests/setup/prep_node.sh tcp > /tmp/prep_node_$LABEL.log 2>&1; rc=\$?; echo prep_rc=\$rc prep_ms=\$(( (\$(date +%s%N)-t)/1000000 )) mounted=\$(grep -c ' $MNT mxfs ' /proc/mounts); tail -3 /tmp/prep_node_$LABEL.log | tr '\n' ' '"; vm=$(tr '\n' ' ' < "$OUT/rv_vm_$n.txt")
+    measure "$n" 200 "$OUT/rv_vm_$n.txt" '^prep_rc=' "the remount of $n" "mountpoint -q /src || { mkdir -p /src; mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp; }; echo '$MARK' > /dev/kmsg 2>/dev/null; t=\$(date +%s%N); MXFS_DEV='$MXFS_DEV' MXFS_KO_MD5='$KO_MD5' timeout 180 bash /src/mxfs/tests/setup/prep_node.sh tcp > /tmp/prep_node_$LABEL.log 2>&1; rc=\$?; echo prep_rc=\$rc prep_ms=\$(( (\$(date +%s%N)-t)/1000000 )) mounted=\$(grep -c ' $MNT mxfs ' /proc/mounts); tail -3 /tmp/prep_node_$LABEL.log | tr '\n' ' '"; vm=$(tr '\n' ' ' < "$OUT/rv_vm_$n.txt")
     echo "  MEASURED $n remount (prep_node.sh tcp): $vm"
     if [ "$MODE" = custodian_kill ] && [[ "$vm" != *"mounted=1"* ]] &&
        [ "$(rs 20 "$n" "dmesg | sed -n \"/$MARK/,\\\$p\" | grep -ac 'P-PR-DEADGATE-LIVE'")" -ge 1 ] 2>/dev/null; then

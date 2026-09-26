@@ -114,7 +114,7 @@ MODULE_PARM_DESC(recov_complete_inject,
 int mxfs_bootstrap_inject;
 module_param_named(bootstrap_inject, mxfs_bootstrap_inject, int, 0644);
 MODULE_PARM_DESC(bootstrap_inject,
-		 "TEST ONLY: fail the bootstrap owner's mount at 1=after phase 3 2=after escrow PREPARED 3=after K claimed (one-shot)");
+		 "TEST ONLY: fail the bootstrap owner's mount at 1=after phase 3 2=after escrow PREPARED 3=after K claimed 5=takeover contender elected 6=takeover old owner fenced (one-shot; +10 holds instead)");
 #else
 int mxfs_rman_inject;
 int mxfs_rman_test_mutate;
@@ -5161,12 +5161,9 @@ static void v5_tk_id_from_identity(struct mxfs_bootstrap_takeover_id *o,
 /*
  * Fence a slotless key (the old owner when K was never adopted, or a stale
  * contender): present ⇒ our own PREEMPT AND ABORT, certified only as
- * PREEMPT_ABORT_DONE, ledger FENCED.  Absent ⇒ explained only by (a) the
- * ledger already FENCED (a certified fencer removed it), (b) our own ledger
- * entry succeeding it (self-succession of this host's previous boot, bound
- * by host + old boot; §6.8.3), or (c) a clean RETIRED entry for a contender
- * (it unregistered itself: nothing of its remained in flight).  Anything
- * else is FENCE_UNPROVEN.
+ * PREEMPT_ABORT_PROVEN_V1, ledger FENCED.  Absent ⇒ the witnessed LU reset,
+ * certified only as LU_RESET_WITNESSED_V1, ledger FENCED; a reset that does
+ * not certify refuses the takeover with -ENOKEY.
  */
 static int v5_boot_tk_fence_key(struct mxfs_v5_dlm *ctx,
 				const struct mxfs_bootstrap_takeover_id *who,
@@ -5176,10 +5173,11 @@ static int v5_boot_tk_fence_key(struct mxfs_v5_dlm *ctx,
 	const struct mxfs_host_identity *hid;
 	struct mxfs_prledger_entry *le;
 	struct mxfs_fence_result fres;
+	struct mxfs_lu_reset_fence *lf;
 	const char *antecedent;
-	bool same_host, boot_moved, ours_present;
+	bool same_host, boot_moved, ours_present, certified;
 	uint32_t lstate;
-	int rc;
+	int rc, ledger_rc, lrc;
 
 	*kind_out = 0;
 	*gen_out = 0;
@@ -5252,6 +5250,8 @@ static int v5_boot_tk_fence_key(struct mxfs_v5_dlm *ctx,
 	 * makes a refusal here evidence rather than an outcome.
 	 */
 	lstate = rc == 0 ? le->state : 0;
+	ledger_rc = rc;
+	mxfs_pal_free(le);
 	hid = mxfs_host_identity();
 	same_host = hid && hid->host_valid &&
 		    memcmp(who->host_uuid, hid->host_uuid, 16) == 0;
@@ -5259,32 +5259,95 @@ static int v5_boot_tk_fence_key(struct mxfs_v5_dlm *ctx,
 		     memcmp(who->boot_uuid, hid->boot_uuid, 16) != 0;
 	ours_present = ctx->pr_key &&
 		       mxfs_scsipr_key_present(ctx->scsipr, ctx->pr_key);
-	if (rc == 0 && lstate == MXFS_PRLEDGER_FENCED)
+	if (ledger_rc == 0 && lstate == MXFS_PRLEDGER_FENCED)
 		antecedent = "LEDGER-FENCED";
 	else if (boot_moved && ours_present)
 		antecedent = "SELF-SUCCESSION";
-	else if (contender && rc == 0 && lstate == MXFS_PRLEDGER_RETIRED)
+	else if (contender && ledger_rc == 0 && lstate == MXFS_PRLEDGER_RETIRED)
 		antecedent = "LEDGER-RETIRED";
 	else
 		antecedent = "none";
-	mxfs_pal_log(MXFS_LOG_ERR,
-		     "mxfs: P-BOOT-TAKEOVER-FENCE-UNPROVEN what=%s key=0x%llx "
-		     "node=%u contender=%d ledger_rc=%d state=%u "
-		     "would_have_minted=%s same_host=%d boot_moved=%d "
-		     "ours_present=%d — REFUSED: the "
-		     "victim's key is absent from the target, so no PREEMPT AND "
-		     "ABORT can name it, and nothing else here certifies its "
-		     "removal.  A ledger status (FENCED, RETIRED) is our own "
-		     "bookkeeping and not a target-side fact, and a boot boundary "
-		     "is not one either; only a completed operation of a supported "
-		     "proof contract, or a durable certificate of one revalidated "
-		     "as such, authorises this takeover", what,
+
+	/*
+	 * 0.90.1 — THE ABSENT KEY IS FENCED BY THE WITNESSED LU RESET.
+	 *
+	 * The target purged the victim's registration (the QNAP drops a lost
+	 * initiator's key with its session), so no PREEMPT AND ABORT can name it.
+	 * Refusing here left the term CLAIMED and every later mount repeating the
+	 * refusal — measured on the rig: after the first node back from a total
+	 * outage was power-cut, no node could mount the volume again.
+	 *
+	 * The supported profile for exactly this victim already exists and has one
+	 * producer: one LOGICAL UNIT RESET, issued as the sole registrant under an
+	 * excluding reservation, witnessed by the target's task-management
+	 * response, with the post-reset barrier held.  The reset terminates the
+	 * tasks of every nexus on the unit, so the victim's accepted-but-unfinished
+	 * writes are aborted whatever its registration state, and the reservation
+	 * this contender placed at mount keeps the unregistered victim from
+	 * starting any more.  The contender registered and reserved at mount,
+	 * before the bootstrap ran, so it is the registrant the admission gate
+	 * requires; any other registrant on the unit refuses the reset.
+	 *
+	 * The barrier's authority half is this contender's takeover journal: it
+	 * is the write rival contenders watch to decide abandonment, so a journal
+	 * CAW issued after the reset and landed is the proof that nobody can have
+	 * taken the term from under us across it.
+	 *
+	 * The durable intent is the journal stage already on the platter —
+	 * CONTENDER for a stale contender, OLD_FENCE_INTENT for the old owner — so
+	 * no arm callback is passed.  A contender that dies after the reset and
+	 * before certifying is a stale contender to the next one, which fences it
+	 * the same way.
+	 */
+	lf = mxfs_pal_alloc(sizeof(*lf));
+	if (!lf)
+		return -ENOMEM;
+	lrc = mxfs_v5_dlm_fence_by_lu_reset(ctx, who->node_id, who->pr_key,
+					    NULL, NULL, lf);
+	if (lrc) {
+		mxfs_pal_log(MXFS_LOG_ERR,
+			     "mxfs: P-BOOT-TAKEOVER-FENCE-LURESET-UNASKED what=%s "
+			     "key=0x%llx node=%u rc=%d — the witnessed LU-reset route "
+			     "could not be asked at all; NO verdict was reached and "
+			     "the takeover is refused (record left as it stands)",
+			     what, (unsigned long long)who->pr_key, who->node_id, lrc);
+		mxfs_pal_free(lf);
+		return lrc;
+	}
+	certified = lf->certified &&
+		    lf->result.kind == MXFS_FENCE_KIND_LU_RESET_WITNESSED_V1;
+	mxfs_pal_log(certified ? MXFS_LOG_WARN : MXFS_LOG_ERR,
+		     "mxfs: P-BOOT-TAKEOVER-FENCE-LURESET what=%s key=0x%llx "
+		     "node=%u inc=%llu contender=%d certified=%d verdict=%s "
+		     "issued=%d kind=%s(%d) gen=%u krel=%s total_ms=%u "
+		     "ledger_rc=%d state=%u antecedent=%s same_host=%d "
+		     "boot_moved=%d ours_present=%d — %s: %s", what,
 		     (unsigned long long)who->pr_key, who->node_id,
-		     contender ? 1 : 0, rc, lstate, antecedent,
-		     same_host ? 1 : 0, boot_moved ? 1 : 0, ours_present ? 1 : 0);
-	rc = -ENOKEY;
-	mxfs_pal_free(le);
-	return rc;
+		     (unsigned long long)who->epoch, contender ? 1 : 0,
+		     certified ? 1 : 0,
+		     mxfs_lu_reset_fence_verdict_name(lf->verdict),
+		     lf->reset_issued ? 1 : 0,
+		     mxfs_fence_kind_name(lf->result.kind), (int)lf->result.kind,
+		     lf->result.pr_generation, lf->krel[0] ? lf->krel : "?",
+		     lf->total_ms, ledger_rc, lstate, antecedent,
+		     same_host ? 1 : 0, boot_moved ? 1 : 0, ours_present ? 1 : 0,
+		     certified ?
+		     "the victim's key is absent and the witnessed LU reset "
+		     "retired its tasks; certified" :
+		     "REFUSED: the victim's key is absent from the target and "
+		     "the witnessed LU reset did not certify; a ledger status or "
+		     "a boot boundary is not a target-side fact, so nothing else "
+		     "authorises this takeover (record left as it stands)",
+		     lf->why);
+	if (!certified) {
+		mxfs_pal_free(lf);
+		return -ENOKEY;
+	}
+	mxfs_prledger_mark_fenced(ctx->prledger, who->pr_key, ctx->node_id);
+	*kind_out = MXFS_FENCE_KIND_LU_RESET_WITNESSED_V1;
+	*gen_out = lf->result.pr_generation;
+	mxfs_pal_free(lf);
+	return 0;
 }
 
 /* End the fenced term for the operator: reseal as T+1 REFUSED. */
@@ -5520,6 +5583,12 @@ static int v5_bootstrap_takeover_run(struct mxfs_v5_dlm *ctx,
 	mxfs_disklock_predraw_epoch(ctx->disklock);
 	id.epoch = ctx->disklock->epoch;
 	ctx->boot_hb_lost = 0;
+	/* TEST ONLY hold 15: an elected contender parked before it fences anyone,
+	 * so a harness can cut it and the next contender finds it stale */
+	if (v5_bootstrap_inject_fire(5)) {
+		rc = -EIO;
+		goto out;
+	}
 
 	/* ── step 3: a stale contender is fenced BEFORE any recovery mutation ── */
 	if (have_pred) {
@@ -5650,22 +5719,38 @@ static int v5_bootstrap_takeover_run(struct mxfs_v5_dlm *ctx,
 		goto out;
 	v5_note_dead_inc(ctx, owner.node_id, owner.epoch);
 	v5_note_dead_node(ctx, owner.node_id);
+	/* TEST ONLY hold 16: the old owner is fenced and the journal says so,
+	 * nothing is resealed yet — the crash point between fence and reseal */
+	if (v5_bootstrap_inject_fire(6)) {
+		rc = -EIO;
+		goto out;
+	}
 
 	/* ── steps 7-8: re-read; the fenced owner cannot write, so this image is
 	 * final — but it may have moved before the P&A landed ── */
 	rc = mxfs_bootstrap_read(ctx->bootstrap, r);
 	if (rc)
 		goto out;
-	if (r->term != r0->term || r->owner_nonce != r0->owner_nonce ||
+	/*
+	 * 0.90.1: the sequence too.  A contender owns no record, so nothing it
+	 * does moves the record's sequence before the reseal — but an old owner's
+	 * same-boot resume does (its resume is a compare-and-write), and a resume
+	 * that landed before this read must end the takeover, not be resealed
+	 * over.
+	 */
+	if (r->seq != r0->seq ||
+	    r->term != r0->term || r->owner_nonce != r0->owner_nonce ||
 	    r->owner_node != r0->owner_node || r->owner_epoch != r0->owner_epoch ||
 	    r->state != r0->state || r->manifest_hash != r0->manifest_hash ||
 	    r->victim_bitmap != r0->victim_bitmap ||
 	    r->escrow.state != r0->escrow.state ||
 	    r->escrow.slot != r0->escrow.slot) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-BOOT-TAKEOVER-MOVED term=%llu->%llu state=%s->%s "
-			     "escrow=%s->%s — the record's identity changed across the "
+			     "mxfs: P-BOOT-TAKEOVER-MOVED seq=%llu->%llu "
+			     "term=%llu->%llu state=%s->%s "
+			     "escrow=%s->%s — the record changed across the "
 			     "fence; refusing this attempt",
+			     (unsigned long long)r0->seq, (unsigned long long)r->seq,
 			     (unsigned long long)r0->term, (unsigned long long)r->term,
 			     mxfs_bootstrap_state_name(r0->state),
 			     mxfs_bootstrap_state_name(r->state),
@@ -20656,7 +20741,12 @@ int mxfs_v5_dlm_lu_reset_barrier(struct mxfs_v5_dlm *ctx,
 			 * that keeps a caller that somehow reached here without a term
 			 * from waiting on a beat nothing will ever produce.
 			 */
-			if (ctx->boot_hb_lost)
+			/*
+			 * 0.90.1: a takeover contender's beat is its journal write,
+			 * and another contender's CAW landing on the journal is its
+			 * term-lost signal, exactly as the record's is the owner's.
+			 */
+			if (ctx->boot_hb_lost || ctx->boot_tk_lost)
 				break;
 			if (mxfs_pal_time_ms() - beat_ms >= MXFS_BOOTSTRAP_ABANDON_MS)
 				break;
@@ -20708,6 +20798,7 @@ int mxfs_v5_dlm_lu_reset_barrier(struct mxfs_v5_dlm *ctx,
 	 */
 	if (boot_arm)
 		auth_live = beat_landed && !ctx->boot_hb_lost &&
+			    !ctx->boot_tk_lost &&
 			    now - ctx->bootstrap->last_ok_ms < MXFS_BOOTSTRAP_ABANDON_MS;
 	else
 		auth_live = beat_landed && mxfs_disklock_authority_ok(dl);
@@ -20716,14 +20807,14 @@ int mxfs_v5_dlm_lu_reset_barrier(struct mxfs_v5_dlm *ctx,
 		     "mxfs: P307-LURESET-BARRIER node %u victim=%u held=%d arm=%s "
 		     "beat_landed=%d beat_ms=%llu reset_issued_ms=%llu wait_ms=%u "
 		     "deadline_ms=%llu incarnation=%llu boot_hb_lost=%d "
-		     "storage=%s — %s",
+		     "boot_tk_lost=%d storage=%s — %s",
 		     dl->local_node, victim_node, (int)auth_live,
 		     boot_arm ? "bootstrap-term" : "disklock-slot",
 		     (int)beat_landed, (unsigned long long)beat_ms,
 		     (unsigned long long)reset_issued_ms, auth_ms,
 		     (unsigned long long)dl->auth->deadline_ms,
 		     (unsigned long long)dl->auth->incarnation,
-		     (int)ctx->boot_hb_lost,
+		     (int)ctx->boot_hb_lost, (int)ctx->boot_tk_lost,
 		     mxfs_lu_reset_convergence_name(conv->refusal),
 		     auth_live ?
 		     "a coordination write issued after the reset has landed, so "

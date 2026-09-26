@@ -197,7 +197,7 @@ mode_kill() {
 
     say "kill: rejoining $VICTIM via prep_node.sh"
     # fresh boot has no NFS /src yet and prep_node.sh lives there (run.sh:517 idiom)
-    timeout 120 "$SSH" "$VICTIM" "mountpoint -q /src || { mkdir -p /src; timeout 12 mount -t nfs 192.168.1.4:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp; }; MXFS_DEV='$DEV' bash /src/mxfs/tests/setup/prep_node.sh caw" > "$OUT/rejoin.log" 2>&1
+    timeout 120 "$SSH" "$VICTIM" "mountpoint -q /src || { mkdir -p /src; timeout 12 mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp; }; MXFS_DEV='$DEV' bash /src/mxfs/tests/setup/prep_node.sh caw" > "$OUT/rejoin.log" 2>&1
     grep -q NODE_PREP_OK "$OUT/rejoin.log" || { say "kill: FAIL — rejoin: $(tail -2 "$OUT/rejoin.log" | tr '\n' ' ')"; FAILS=$((FAILS+1)); return; }
 
     say "kill: re-running selftest on $VICTIM with the EXPLICIT pre-kill key $kv"

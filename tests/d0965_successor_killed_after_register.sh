@@ -193,7 +193,7 @@ if [ $up = 1 ]; then
   # the preparation's own record (NODE_PREP_OK/FAIL) is required: a missing
   # /src, an absent prep script or a failed mount is an ABORT, never a
   # count of zero refusals
-  measure "$A" 200 "$OUT/rv_o_3.txt" '^[0-9]+$' "the re-prep and remount of $A" "for try in 1 2 3 4 5 6; do mountpoint -q /src && break; mkdir -p /src; timeout 12 mount -t nfs 192.168.1.4:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; sleep 4; done; mountpoint -q /src || echo SRC_NOT_MOUNTED; MXFS_DEV=$DEV timeout 120 /src/mxfs/tests/setup/prep_node.sh tcp 2>&1 | tail -3; dmesg | grep -ac 'mount REFUSED\|P305-PR-PREDECESSOR-KEY-PRESENT' || [ \$? = 1 ]"
+  measure "$A" 200 "$OUT/rv_o_3.txt" '^[0-9]+$' "the re-prep and remount of $A" "for try in 1 2 3 4 5 6; do mountpoint -q /src && break; mkdir -p /src; timeout 12 mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; sleep 4; done; mountpoint -q /src || echo SRC_NOT_MOUNTED; MXFS_DEV=$DEV timeout 120 /src/mxfs/tests/setup/prep_node.sh tcp 2>&1 | tail -3; dmesg | grep -ac 'mount REFUSED\|P305-PR-PREDECESSOR-KEY-PRESENT' || [ \$? = 1 ]"
   prep_require "$OUT/rv_o_3.txt" "the node preparation on $A"
   o=$(cat "$OUT/rv_o_3.txt")
   echo "$o" | sed 's/^/  INFO prep: /'

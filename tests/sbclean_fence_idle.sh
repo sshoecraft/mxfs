@@ -195,7 +195,7 @@ while [ "$SECONDS" -lt "$dl" ]; do
 done
 if [ "$up" -eq 1 ]; then
     timeout 70 "$SSH" "$V" "
-        mountpoint -q /src || { mkdir -p /src; timeout 12 mount -t nfs 192.168.1.4:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; }
+        mountpoint -q /src || { mkdir -p /src; timeout 12 mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; }
         iscsiadm -m discovery -t st -p 192.168.120.1:3260 >/dev/null 2>&1
         iscsiadm -m discovery -t st -p 192.168.120.2:3260 >/dev/null 2>&1
         iscsiadm -m node --login >/dev/null 2>&1

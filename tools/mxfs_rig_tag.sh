@@ -22,7 +22,13 @@
 #                                  the moment the rig identity is actually
 #                                  established.  Survives later invocations
 #                                  that reuse the cluster without touching the
-#                                  device.
+#                                  device.  Skipped when MXFS_RIG_TAG_FRESH=1:
+#                                  the prep that is establishing the identity
+#                                  must not read it back from the marker it is
+#                                  about to replace, or a cluster moved to a
+#                                  new LUN keeps the old rig's tag (it did: the
+#                                  clyde SCST LUN was recorded as 'qnap' after
+#                                  the QNAP was retired).
 #   3. the device spelling       — MXFS_DEV or the marker's dev, for a by-path
 #                                  name that names its vendor.
 #   4. the LUN's own SCSI vendor — read from a prepped node.  This is the one
@@ -70,7 +76,7 @@ emit() { [ -n "${1:-}" ] && { sanitise "$1"; exit 0; }; return 0; }
 emit "${MXFS_RIG_TAG:-}"
 
 # 2. recorded when the cluster was prepped
-emit "$(mk rig)"
+[ "${MXFS_RIG_TAG_FRESH:-0}" = 1 ] || emit "$(mk rig)"
 
 # 3. a device name that carries the vendor
 DEV="${1:-${MXFS_DEV:-}}"

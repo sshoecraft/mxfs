@@ -83,7 +83,7 @@ timeout 200 "$SSH" "$NODE" "
 # precisely the "this rig cannot fence" condition, obtained honestly rather
 # than by faking a return code.
 setup=$(timeout 180 "$SSH" "$NODE" "
-    mountpoint -q /src || { mkdir -p /src; timeout 12 mount -t nfs 192.168.1.4:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; }
+    mountpoint -q /src || { mkdir -p /src; timeout 12 mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; }
     mountpoint -q /src || { echo SRC_MISSING; exit 1; }
     losetup -D 2>/dev/null
     rm -f $IMG

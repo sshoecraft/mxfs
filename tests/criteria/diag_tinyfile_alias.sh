@@ -328,7 +328,7 @@ if [ "$RUN_C" = "1" ]; then
     # re-mkfs's; instead just mount N2 against the live FS.
     rssh "$N2" "
         for try in 1 2 3 4 5; do
-            mountpoint -q /src || { mkdir -p /src; mount -t nfs 192.168.1.4:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; }
+            mountpoint -q /src || { mkdir -p /src; mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; }
             [ -f $MXFS_MODULE ] && break
             sleep 2
         done

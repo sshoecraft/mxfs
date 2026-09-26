@@ -106,3 +106,42 @@ minute.
 Harness: `tests/d0980_barrier_killable.sh` (a SIGTERM into a barrier holding
 on a frozen record; the control mount's overrun against its last round; the
 retry after cancellation).
+
+## A death after admission: the barrier runs again (0.90.6)
+
+A clean cut says nothing about the next minute. A peer that is still
+heartbeating when the barrier looks — or was power-cut a second earlier, so
+its record has not yet stopped advancing as far as this node's monitor can
+tell — leaves the cut clean, and the mount is admitted. Its death is then
+declared during the rest of `xfs_mountfs` (the dead window is 31 × 2 s), fenced,
+and only **recorded** in the mount-phase death record, because the
+slice-replay hook is registered after `xfs_mountfs` returns. Nothing on this
+node can replay that slice until then, so any grant the dead peer held stays
+frozen, and the mount's first acquire of it can never complete. Measured on
+the Ubuntu pair: the root inode's acquire burned three 120 s budgets and then
+shut the filesystem down.
+
+- **Who may give up.** Only a fallible boundary: the mount's root lookup
+  (nothing dirty, no transaction, nothing published). When its acquire's
+  budget ends while the mount-phase record holds a death, it stops retrying
+  and fails with `-EAGAIN` (`P-MPHASE-ACQ-GIVEUP`; the AG acquire inside the
+  untrusted iget, `P-MPHASE-AGLOCK-GIVEUP`, fails the lookup with `-EIO`). A
+  caller that cannot be failed is not changed by this.
+- **What the mount does then.** It runs the barrier again
+  (`P-MPHASE-REBARRIER`): the late-death drain, the platter sweep, the replay
+  rounds and the admission gate, exactly as the first pass would have handled
+  a death that landed inside it. The re-run skips the step-6.5 cohort and its
+  residue gate (the first pass resolved and judged them; confirming them again
+  would pay the dead window twice for a verdict already made) and the own-slot
+  reclaim (the first pass closed the adopt window; every bit of ours set since
+  is a tracked grant of this incarnation). The cached-view invalidation around
+  each replay is legal for the reason it is legal in the first pass: nothing on
+  this mount is dirty, and the failed lookup released what it held.
+- **Then the lookup is retried**, at most four re-runs. A re-run that cannot
+  replay the slice refuses the mount the way the first pass would have; it
+  never shuts the filesystem down, and it never admits over an unreplayed
+  slice.
+
+Harness: `tests/mount_postbarrier_peer_death_2n.sh` (a one-shot hold right
+after admission, `mxfs.dbg_barrier_admit_hold_ms`; the peer holding the root
+inode is destroyed during it).

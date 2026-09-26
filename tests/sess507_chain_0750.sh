@@ -81,7 +81,7 @@ restart_node() {  # <node>: virsh start (if off) + wait ssh + restore /src
         timeout 8 $SSH "$n" "echo SSH_UP" 2>/dev/null | grep -q SSH_UP && break
         sleep 5
     done
-    timeout 20 $SSH "$n" "mountpoint -q /src || mount -t nfs 192.168.1.4:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp; echo /src_ok=\$?" 2>/dev/null | grep -a src_ok | tee -a "$LOG"
+    timeout 20 $SSH "$n" "mountpoint -q /src || mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp; echo /src_ok=\$?" 2>/dev/null | grep -a src_ok | tee -a "$LOG"
 }
 
 if want 1; then prep 300 || { say "ABORT: prep failed"; exit 1; }; fi

@@ -9,7 +9,7 @@
 # Usage (on the node):  tests/setup/prep_fs.sh
 # Env (defaults):
 #   MXFS_REPO   /src/mxfs            MXFS_DEV   /dev/sda
-#   NFS_SERVER  192.168.1.4:/src     NFS_MOUNT  /src       MXFS_MOUNT /mnt/shared
+#   NFS_SERVER  192.168.120.1:/src     NFS_MOUNT  /src       MXFS_MOUNT /mnt/shared
 #
 # Prints FS_PREP_OK on success, FS_PREP_FAIL: <reason> + exit 1 on failure.
 
@@ -18,7 +18,7 @@ set -u
 MXFS_REPO="${MXFS_REPO:-/src/mxfs}"
 MXFS_DEV="${MXFS_DEV:-/dev/sda}"
 MXFS_MOUNT="${MXFS_MOUNT:-/mnt/shared}"
-NFS_SERVER="${NFS_SERVER:-192.168.1.4:/src}"
+NFS_SERVER="${NFS_SERVER:-192.168.120.1:/src}"
 NFS_MOUNT="${NFS_MOUNT:-/src}"
 MKFS="$MXFS_REPO/tools/mkfs_mxfs"
 CHK="$MXFS_REPO/tools/chk_mxfs"

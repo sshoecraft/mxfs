@@ -49,8 +49,9 @@ configuration problem": its `early_command` found no `/media/debian.fix`
 failed. Watch the build's VNC console if it waits on SSH past the install.
 
 **Firewalls.** Where the row says firewalld is running, open only what MXFS
-uses: 7600/tcp (DLM), 7601/udp (discovery), 7603/udp (lease heartbeat). Verifying with the
-firewall on is the point: a user's RHEL node has it on.
+uses: 7600/tcp (DLM), 7601/udp (discovery), 7602/udp (CAW lock-release requests),
+7603/udp (lease heartbeat). Verifying with the firewall on is the point: a
+user's RHEL node has it on.
 
 ## The development rig
 

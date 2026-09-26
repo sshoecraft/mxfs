@@ -136,7 +136,7 @@ done
 echo "  INFO $B ssh $([ $up = 1 ] && echo "up after $((SECONDS - T0)) s" || echo "NOT up after $BOOT_BOUND s")"
 ck "$B rebooted and answers ssh inside ${BOOT_BOUND}s" "$up" "1"
 if [ $up = 1 ]; then
-  measure "$B" 200 "$OUT/b_prep.txt" '^NODE_PREP_(OK|FAIL)' "the re-prep and remount of $B" "for try in 1 2 3 4 5 6; do mountpoint -q /src && break; mkdir -p /src; timeout 12 mount -t nfs 192.168.1.4:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; sleep 4; done; mountpoint -q /src || echo SRC_NOT_MOUNTED; MXFS_DEV=$DEV timeout 150 /src/mxfs/tests/setup/prep_node.sh tcp 2>&1 | tail -3"
+  measure "$B" 200 "$OUT/b_prep.txt" '^NODE_PREP_(OK|FAIL)' "the re-prep and remount of $B" "for try in 1 2 3 4 5 6; do mountpoint -q /src && break; mkdir -p /src; timeout 12 mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; sleep 4; done; mountpoint -q /src || echo SRC_NOT_MOUNTED; MXFS_DEV=$DEV timeout 150 /src/mxfs/tests/setup/prep_node.sh tcp 2>&1 | tail -3"
   prep_require "$OUT/b_prep.txt" "the node preparation on $B"
   ck "$B re-prepped and mounted (NODE_PREP_OK)" "$(grep -ac NODE_PREP_OK "$OUT/b_prep.txt")" "1"
   rs 20 "$A" "echo $LABEL-$$ > $D/after_fence.txt && sync -f $D/after_fence.txt && echo w" | grep -q w || { echo "  FAIL write on $A"; fails=$((fails+1)); }

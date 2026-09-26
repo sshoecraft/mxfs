@@ -106,7 +106,7 @@ done
 [ "$ok" = 1 ] || { echo UNLOAD_FAIL; exit 1; }
 if ! mountpoint -q /src; then
     mkdir -p /src
-    mount -t nfs 192.168.1.4:/src /src \
+    mount -t nfs 192.168.120.1:/src /src \
         -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp,rsize=1048576,wsize=1048576 \
         || { echo NFS_FAIL; exit 1; }
 fi

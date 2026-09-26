@@ -123,7 +123,7 @@ restore_victim() { # remount through prep_node (insmod+mount); prints admitted=0
     # virsh-destroyed comes back with no NFS /src, so prep_node.sh is not
     # there to run — restore the export first (same fix as
     # depart_crash_cuts.sh sess462), and keep the whole dmesg as evidence.
-    timeout 160 "$SSH" "$VICTIM" "mountpoint -q /src || { mkdir -p /src; timeout 12 mount -t nfs 192.168.1.4:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp; echo NFS_RC=\$?; }; dmesg --clear; MXFS_DEV=$DEV timeout 120 bash /src/mxfs/tests/setup/prep_node.sh caw; echo PREP_RC=\$?; dmesg" > "$OUT/victim_restore.log" 2>&1
+    timeout 160 "$SSH" "$VICTIM" "mountpoint -q /src || { mkdir -p /src; timeout 12 mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp; echo NFS_RC=\$?; }; dmesg --clear; MXFS_DEV=$DEV timeout 120 bash /src/mxfs/tests/setup/prep_node.sh caw; echo PREP_RC=\$?; dmesg" > "$OUT/victim_restore.log" 2>&1
     grep -q NODE_PREP_OK "$OUT/victim_restore.log" && echo 1 || echo 0
 }
 hb_scan_host() { # <machine-id-hex> -> every occupied slot, ' MATCH' on the victim's host_uuid

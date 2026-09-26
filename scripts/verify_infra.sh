@@ -51,7 +51,7 @@ restart_nodes() {
           for try in $(seq 1 20); do
               timeout 8 "$MXFS_SSH" "$n" "$MXFS_PASS" "
                   mkdir -p /src
-                  mountpoint -q /src || mount -t nfs 192.168.1.4:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null
+                  mountpoint -q /src || mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null
                   [ -x $CAW ]" >/dev/null 2>&1 && break
               sleep 3
           done ) &

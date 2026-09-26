@@ -408,7 +408,7 @@ proutsettle)
     # sess468 (chain 86 proutsettle: 'victim 2 not readmitted', PREP_RC=127):
     # a fresh boot has no NFS /src — restore the export before prep_node
     # (depart_crash_cuts.sh sess462 fix); keep dmesg for the admission proof.
-    if [ "$up" = 1 ]; then timeout 160 "$SSH" "$V2" "mountpoint -q /src || { mkdir -p /src; timeout 12 mount -t nfs 192.168.1.4:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp; echo NFS_RC=\$?; }; MXFS_DEV=$DEV timeout 120 bash /src/mxfs/tests/setup/prep_node.sh caw; echo PREP_RC=\$?; dmesg | tail -60" > "$OUT/v2_restore.log" 2>&1; grep -q NODE_PREP_OK "$OUT/v2_restore.log" || fail "victim 2 not readmitted"; else fail "victim 2 did not come back"; fi
+    if [ "$up" = 1 ]; then timeout 160 "$SSH" "$V2" "mountpoint -q /src || { mkdir -p /src; timeout 12 mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp; echo NFS_RC=\$?; }; MXFS_DEV=$DEV timeout 120 bash /src/mxfs/tests/setup/prep_node.sh caw; echo PREP_RC=\$?; dmesg | tail -60" > "$OUT/v2_restore.log" 2>&1; grep -q NODE_PREP_OK "$OUT/v2_restore.log" || fail "victim 2 not readmitted"; else fail "victim 2 did not come back"; fi
     # sess468: chain 86's remount here failed rc=32 'already mounted or mount
     # point busy' (= mount(2) EBUSY) with nothing else captured — record the
     # mount table and the kernel's own reason this time.

@@ -31,6 +31,21 @@ MODULE_PARM_DESC(dbg_barrier_hold_ms,
  * claims that recovery, and its orphan sweep must leave the victim's ledger
  * records alone until the replay has passed its manifest judgement.
  */
+/*
+ * 0.90.6 — TEST ONLY, one-shot, self-clears: hold the mount for this many
+ * ms right AFTER its first-pass barrier has admitted it, before the root
+ * lookup.  A peer killed while it runs was live when the barrier looked, so
+ * the barrier's cut was clean; its death is declared during the mount and
+ * only recorded (P233-MPHASE-DEATH).  That is the shape measured on the
+ * Ubuntu pair, made deterministic for
+ * tests/mount_postbarrier_peer_death_2n.sh.  0 = off (default).
+ */
+static int mxfs_dbg_barrier_admit_hold_ms;
+module_param_named(dbg_barrier_admit_hold_ms, mxfs_dbg_barrier_admit_hold_ms,
+		   int, 0644);
+MODULE_PARM_DESC(dbg_barrier_admit_hold_ms,
+	"TEST: one-shot hold (ms) after the mount barrier admits, before the root lookup; self-clears");
+
 static int mxfs_dbg_barrier_refuse_after_claim;
 module_param_named(dbg_barrier_refuse_after_claim,
 		   mxfs_dbg_barrier_refuse_after_claim, int, 0644);
@@ -121,9 +136,10 @@ mxfs_barrier_clock(
 		last_round_ms, jiffies_to_msecs(jiffies - t_entry));
 }
 
-int
-mxfs_dlm_mount_recovery_barrier(
-	struct xfs_mount	*mp)
+static int
+mxfs_mount_barrier_run(
+	struct xfs_mount	*mp,
+	bool			rerun)
 {
 	uint64_t		cohort = 0;
 	uint64_t		todo = 0;
@@ -286,7 +302,15 @@ mxfs_dlm_mount_recovery_barrier(
 	 *     samples (~62 s at the shipped 31 × 2 s) and is paid on the
 	 *     mount path by design — see TIMEOUT_BUDGETS.md.  It is only
 	 *     paid when a peer was ALREADY frozen when we mounted.
+	 *
+	 *     A re-run (mxfs_dlm_mount_late_death_rebarrier) skips (b) and
+	 *     (b2): the first pass already resolved the step-6.5 cohort and
+	 *     judged its residue, and what is left of that residue is exactly
+	 *     what the first pass admitted over.  Confirming it again would
+	 *     pay the ~62 s window a second time for a verdict already made.
 	 */
+	if (rerun)
+		goto replay_rounds;
 	error = mxfs_v5_dlm_mount_recovery_cohort(mp->m_mxfs_dlm, &cohort);
 	if (error)
 		xfs_alert(mp,
@@ -326,6 +350,7 @@ mxfs_dlm_mount_recovery_barrier(
 			"post-mount settle can fence it",
 			(unsigned long long)residue);
 
+replay_rounds:
 	/*
 	 * (c) Replay each confirmed slice inline.  This mirrors
 	 *     mxfs_dlm_foreign_replay_work_fn, minus its log-force/AIL-push
@@ -1256,8 +1281,12 @@ barrier_slice_replayed:
 	 *     every foreign replay above may consult the CAW table, and
 	 *     because anything our own recovery genuinely needed has by now
 	 *     adopted (xfs_log_mount ran in step (a)'s predecessor).
+	 *
+	 *     The first pass did this and closed the adopt window; a re-run
+	 *     leaves it alone, since every bit of ours set since then is a
+	 *     tracked grant of this incarnation.
 	 */
-	error = mxfs_v5_dlm_settle_own_slot(mp->m_mxfs_dlm);
+	error = rerun ? 0 : mxfs_v5_dlm_settle_own_slot(mp->m_mxfs_dlm);
 	if (error)
 		xfs_alert(mp,
 			"MXFS mount settle incomplete (%d) — some authority "
@@ -1281,8 +1310,9 @@ barrier_slice_replayed:
 	mxfs_barrier_clock(mp, "admitted", t_entry, t_loop, wait_bound, round,
 			   last_round_ms);
 	xfs_notice(mp,
-		"MXFS mount recovery barrier complete: cohort=0x%llx "
+		"MXFS mount recovery barrier complete%s: cohort=0x%llx "
 		"late=0x%llx replayed=%d published=0x%llx quarantined=0x%llx",
+		rerun ? " (re-run for a late death)" : "",
 		(unsigned long long)cohort, (unsigned long long)drained,
 		nreplayed, (unsigned long long)published,
 		(unsigned long long)terminal);
@@ -1357,6 +1387,113 @@ abort_fswide:
 		"remount",
 		(unsigned long long)terminal);
 	return -EIO;
+}
+
+int
+mxfs_dlm_mount_recovery_barrier(
+	struct xfs_mount	*mp)
+{
+	int			error = mxfs_mount_barrier_run(mp, false);
+
+	if (!error && unlikely(mxfs_dbg_barrier_admit_hold_ms > 0)) {
+		int	hold = mxfs_dbg_barrier_admit_hold_ms, slept = 0;
+
+		mxfs_dbg_barrier_admit_hold_ms = 0;	/* one shot */
+		xfs_alert(mp,
+			"MXFS mount barrier: P-DBG-ADMIT-HOLD start ms=%d — TEST hold after admission, before the root lookup",
+			hold);
+		while (slept < hold && !xfs_is_shutdown(mp)) {
+			msleep(1000);
+			slept += 1000;
+		}
+		xfs_alert(mp,
+			"MXFS mount barrier: P-DBG-ADMIT-HOLD released after %d ms (mphase_pending=0x%llx)",
+			slept,
+			(unsigned long long)(mp->m_mxfs_dlm ?
+				mxfs_v5_dlm_mount_peek_late_deaths(
+						mp->m_mxfs_dlm) : 0));
+	}
+	return error;
+}
+
+/* Is a peer that died during this mount still waiting for its replay? */
+bool
+mxfs_dlm_mount_late_death_recorded(
+	struct xfs_mount	*mp)
+{
+	return mp && mp->m_mxfs_dlm &&
+	       mxfs_v5_dlm_mount_peek_late_deaths(mp->m_mxfs_dlm) != 0;
+}
+
+bool
+mxfs_dlm_mount_late_death_blocks(
+	struct xfs_mount	*mp,
+	xfs_ino_t		ino)
+{
+	return mxfs_acqfall_armed_for(ino) &&
+	       mxfs_dlm_mount_late_death_recorded(mp);
+}
+
+/*
+ * 0.90.6 (D-PEER-DEATH-AFTER-ADMISSION-BARRIER-STALLS-MOUNT-THEN-SHUTDOWN).
+ *
+ * Measured on the Ubuntu 2-node CAW pair: the peer was still heartbeating
+ * when the barrier looked, so the cut was clean and the mount was admitted;
+ * the peer had in fact just been power-cycled, and it held the root inode
+ * EX.  Its death was declared 62 s later, fenced, and only RECORDED
+ * (P233-MPHASE-DEATH), because the slice-replay hook is registered after
+ * xfs_mountfs returns.  The root acquire therefore waited on a grant that
+ * nothing could release, and after three 120 s attempts it shut the
+ * filesystem down.
+ *
+ * The root lookup is a fallible boundary — nothing dirty, no transaction,
+ * the mount not yet published — so its acquire now gives up as soon as its
+ * budget ends with such a death recorded, and the mount runs the barrier
+ * again.  The re-run drains the record, replays and publishes the slice
+ * exactly as a late death during the first pass would have been (the
+ * cached-view invalidation around each replay is legal here for the same
+ * reason it is in the first pass: nothing on this mount is dirty, and the
+ * failed lookup released everything it held), and the lookup is retried.
+ * A slice the re-run cannot replay fails the mount the way the first pass
+ * would have: refused, not shut down.
+ */
+#define MXFS_MOUNT_LATE_DEATH_RERUNS	4
+
+int
+mxfs_dlm_mount_late_death_rebarrier(
+	struct xfs_mount	*mp,
+	int			error,
+	int			*laps)
+{
+	uint64_t		mask;
+	int			rc;
+
+	if (!error || xfs_is_shutdown(mp))
+		return error;
+	if (error != -EAGAIN && error != -EREMCHG && error != -EIO &&
+	    error != -ETIMEDOUT)
+		return error;
+	if (!mxfs_dlm_mount_late_death_recorded(mp))
+		return error;
+	if (*laps >= MXFS_MOUNT_LATE_DEATH_RERUNS) {
+		xfs_alert(mp,
+			"MXFS mount: P-MPHASE-REBARRIER-EXHAUSTED laps=%d error=%d — peers keep dying during this mount; refusing it",
+			*laps, error);
+		return error;
+	}
+	(*laps)++;
+	mask = mxfs_v5_dlm_mount_peek_late_deaths(mp->m_mxfs_dlm);
+	xfs_warn(mp,
+		"MXFS mount: P-MPHASE-REBARRIER lap=%d error=%d late=0x%llx — the root lookup gave up on a grant held by a peer that died during this mount; running the recovery barrier again to replay it, then retrying the lookup",
+		*laps, error, (unsigned long long)mask);
+	rc = mxfs_mount_barrier_run(mp, true);
+	if (rc) {
+		xfs_alert(mp,
+			"MXFS mount: P-MPHASE-REBARRIER-FAILED lap=%d rc=%d — the late death could not be replayed; the mount is refused",
+			*laps, rc);
+		return rc;
+	}
+	return 0;
 }
 
 void

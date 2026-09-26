@@ -570,6 +570,24 @@ and an empty barrier cut.
   before its ledger entry is durable) is permanently unprovable by design
   and needs an operator repair path; it is filed separately, not guessed
   around.
+- **The dead owner's key is gone from the target.**  A target that drops a
+  lost initiator's registration with its session leaves nothing for a
+  PREEMPT AND ABORT to name, and an absent key proves nothing about whether
+  its holder is dead (the ruling in
+  `docs/rulings/bootstrap-dead-end-needs-an-authoritative-fence.md`).  The
+  takeover fences such an owner — or a stale contender whose registration
+  went the same way — with the witnessed LOGICAL UNIT RESET that slice
+  recovery uses on these targets (proof kind 24,
+  `P-BOOT-TAKEOVER-FENCE-LURESET`): the contender is by then the only
+  registrant, under its own excluding reservation, and the reset aborts
+  every other nexus's outstanding commands.  Only a CERTIFIED reset lets the
+  takeover reseal the term; one that does not certify refuses (`-ENOKEY`)
+  exactly as before, so the absence of a key is never itself taken as proof.
+  The old owner's same-boot RESUME and a takeover contend for the record
+  with one compare-and-write from the exact image each read, so they cannot
+  both win.  Measured on 2 nodes: `tests/bootstrap_takeover_2n.sh` (arms
+  `self`, `foreign`, `foreign` with a frozen-then-resumed owner, and a stale
+  contender held after its election or after it fenced the old owner).
 
 ### Build order
 

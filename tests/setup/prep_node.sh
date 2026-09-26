@@ -12,7 +12,7 @@
 #   caw           -> insmod mxfs.ko                     (auto/CAW; needs SCST)
 # Env (defaults):
 #   MXFS_REPO /src/mxfs   MXFS_DEV /dev/sda   MXFS_MOUNT /mnt/shared
-#   NFS_SERVER 192.168.1.4:/src   NFS_MOUNT /src   SCSI_TIMEOUT 180
+#   NFS_SERVER 192.168.120.1:/src   NFS_MOUNT /src   SCSI_TIMEOUT 180
 #
 # Prints NODE_PREP_OK on success, NODE_PREP_FAIL: <reason> + exit 1 otherwise.
 
@@ -22,7 +22,7 @@ TRANSPORT="${1:-tcp}"
 MXFS_REPO="${MXFS_REPO:-/src/mxfs}"
 MXFS_DEV="${MXFS_DEV:-/dev/sda}"
 MXFS_MOUNT="${MXFS_MOUNT:-/mnt/shared}"
-NFS_SERVER="${NFS_SERVER:-192.168.1.4:/src}"
+NFS_SERVER="${NFS_SERVER:-192.168.120.1:/src}"
 NFS_MOUNT="${NFS_MOUNT:-/src}"
 SCSI_TIMEOUT="${SCSI_TIMEOUT:-180}"
 MODULE="$MXFS_REPO/mxfs.ko"

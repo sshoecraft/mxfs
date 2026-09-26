@@ -1282,9 +1282,41 @@ static void mxfs_reload_adopt_disk_fork(struct xfs_inode *ip,
 				 be16_to_cpu(dip->di_mode) == 0 ||
 				 (be16_to_cpu(dip->di_mode) & S_IFMT) != old_ifmt);
 
+			uint8_t sk = 0;
+			uint16_t sc = 0;
+			uint32_t sg = 0;
+			uint64_t se = 0;
+
 			xfs_iflags_clear(ip, MXFS_IF_LOCAL_UNLINK |
 					     MXFS_IF_ADOPTED_UNLINK);
-			if (new_incarn && xfs_iflags_test(ip, MXFS_IF_PUBOB)) {
+
+			/*
+			 * A FREE obligation says the committed mode-0 image must
+			 * still reach home.  "The platter holds a different
+			 * incarnation" is not proof that it did: only a free home
+			 * dinode is, the same proof a FREE completion or P55C's
+			 * home-free carries.  A LIVE image at home under a
+			 * committed FREE is either the predecessor the free never
+			 * overwrote or a peer's allocation of a number whose free
+			 * was never published; and the adopt above has just put
+			 * that live image in core.  Discharging drops a FREE whose
+			 * image never landed (the peer double-allocation exposure);
+			 * keeping it would let a later flush of this now-live
+			 * in-core image stand in for the free.  Neither is sound,
+			 * so the mount stops here.
+			 */
+			if (new_incarn && xfs_iflags_test(ip, MXFS_IF_PUBOB) &&
+			    be16_to_cpu(dip->di_mode) != 0 &&
+			    mxfs_pubob_lookup(mp, ip->i_ino, &sk, &sg, &se, &sc) &&
+			    sk == MXFS_PUBOB_FREE) {
+				pr_alert(
+				    "mxfs: P177-PUBOB-SUPERSEDED-FREE-UNPROVEN ino=%llu old_gen=%u disk_gen=%u disk_mode=0%o free_gen=%u epoch=%llu chain=%u — reload met a live image at home under a committed FREE whose image is not proven landed; shutting down rather than dropping or re-flushing it\n",
+					(unsigned long long)ip->i_ino,
+					p68_old_incarn, be32_to_cpu(dip->di_gen),
+					be16_to_cpu(dip->di_mode), sg,
+					(unsigned long long)se, sc);
+				xfs_force_shutdown(mp, SHUTDOWN_CORRUPT_INCORE);
+			} else if (new_incarn && xfs_iflags_test(ip, MXFS_IF_PUBOB)) {
 				extern void mxfs_pubob_discharge(struct xfs_mount *,
 								 struct xfs_inode *,
 								 const char *);

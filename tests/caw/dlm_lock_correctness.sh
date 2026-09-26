@@ -33,11 +33,18 @@ emit(){ echo "RESULT: $1 | test=$SUITE_TEST_NAME | nodes=$NODES | measured=$2 | 
 
 LBA="${SCRATCH_LBA:-}"
 if [ -z "$LBA" ]; then
-    dloff=$("$CHK" -v "$DEV" 2>/dev/null | sed -n 's/.*disklock_offset=\([0-9][0-9]*\).*/\1/p' | head -1)
+    # --geometry, never -v: the full check opens the device O_EXCL (0.89.7) and
+    # this row runs on a MOUNTED node, so -v answered rc 4 "held open
+    # exclusively" and the row SKIPped on every CAW run since; --geometry
+    # reads the mkfs-time envelope offsets with a plain read-only open.  The
+    # checker's answer is kept so a SKIP says what it said.
+    chkout=$("$CHK" --geometry "$DEV" 2>&1)
+    chkrc=$?
+    dloff=$(printf '%s\n' "$chkout" | sed -n 's/.*disklock_offset=\([0-9][0-9]*\).*/\1/p' | head -1)
     if [ -n "$dloff" ] && [ "$dloff" -ge 4608 ] 2>/dev/null; then
         LBA=$(( dloff / 512 - 1 ))
     else
-        emit SKIP "scratch=underivable" "no readable MXFS super on $DEV — refusing to write a guessed LBA"
+        emit SKIP "scratch=underivable chk_rc=$chkrc" "no readable MXFS super on $DEV — refusing to write a guessed LBA; checker said: $(printf '%s\n' "$chkout" | head -4 | tr '\n' '|' | cut -c1-300)"
         exit 0
     fi
 fi

@@ -12,7 +12,7 @@
 # mxfs.ko on the QNAP-exported NFS /src is reachable.
 set -u
 
-NFS_SERVER="192.168.1.4:/src"
+NFS_SERVER="192.168.120.1:/src"
 NFS_MOUNT="/src"
 QNAP_PORTAL="192.168.1.4"
 QNAP_TGT="iqn.2004-04.com.qnap:ts-453pro:iscsi.target-0.f35772"

@@ -163,7 +163,12 @@ module (\fBmodprobe mxfs\fR \fIname\fR\fB=\fR\fIvalue\fR, or
 lists them all; the ones an administrator is most likely to set:
 .TP
 .BI force_transport= N
-DLM transport: 0 = automatic (CAW when the device supports it), 1 = TCP.
+DLM transport a new cluster forms on: 1 = TCP (the default, and what the
+release packages set), 0 = CAW (locks on the shared device via SCSI COMPARE
+AND WRITE; a device without it is refused at mount).  It only chooses when
+a cluster forms: a force_transport=0 mount of a volume that already has
+members joins their transport, and a force_transport=1 mount of a volume
+with CAW members is refused.  Both are released for two-node clusters.
 .TP
 .BI cache_mem_pct= N
 Percentage of host RAM available as the total cache budget (1\(en50,

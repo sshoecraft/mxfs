@@ -45,7 +45,16 @@
 #   REBOOT_S   Ubuntu 24.04 logged in to the LUN takes ~3 min to reboot whether
 #              or not mxfs is loaded (lvm2-monitor, platforms.json note) -> 420 s.
 #
-# Usage: [KERNEL=<krel>] tests/packaged_round.sh <platform> [version]
+# TRANSPORT=caw runs the round on the CAW transport, configured the way the
+# README tells a user to: after the install, force_transport=1 in the
+# package's /etc/modprobe.d/mxfs.conf becomes force_transport=0, so the module
+# forms the cluster on CAW, and it keeps doing so after the reboot.  Every
+# mount must then announce transport=CAW (P-DOMAIN-ADMITTED) on both nodes, and
+# the loaded module must carry force_transport=0.  The file is put back on
+# every exit.  The LUN must implement COMPARE AND WRITE (clyde's SCST
+# vdisk_fileio targets do).
+#
+# Usage: [TRANSPORT=tcp|caw] [KERNEL=<krel>] tests/packaged_round.sh <platform> [version]
 #   version defaults to VERSION; the packages come from dist/<version>/.
 #   KERNEL (pve only): pin that installed kernel with proxmox-boot-tool, reboot
 #   into it, and run the round there, its reboot step included; unpinned when
@@ -59,6 +68,12 @@ PLAT="${1:?usage: packaged_round.sh <platform> [version]}"
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 V="${2:-$(cat "$HERE/VERSION")}"
 KERNEL="${KERNEL:-}"
+TRANSPORT="${TRANSPORT:-tcp}"
+case "$TRANSPORT" in
+    tcp) FT=1; TNAME=TCP ;;
+    caw) FT=0; TNAME=CAW ;;
+    *) echo "TRANSPORT must be tcp or caw" >&2; exit 2 ;;
+esac
 DIST="$HERE/dist/$V"
 SSH="$HERE/tools/mxfs_sshpass.sh"
 MNT=/mnt/mxfs
@@ -81,7 +96,7 @@ case "$PLAT" in
     *) echo "no package family for platform '$PLAT'" >&2; exit 2 ;;
 esac
 
-EV="$HERE/tests/evidence/packaged_round/${PLAT}_${V}_$(date +%Y%m%dT%H%M%S)"
+EV="$HERE/tests/evidence/packaged_round/${PLAT}_${V}_${TRANSPORT}_$(date +%Y%m%dT%H%M%S)"
 mkdir -p "$EV"
 exec > >(tee -a "$EV/run.log") 2>&1
 say() { echo "[$(date +%T)] $*"; }
@@ -138,13 +153,16 @@ reboot_pair() {  # reboot A and B and wait until both answer again
 # find its peer, and a kernel pin would keep the nodes off their default kernel.
 MCAST_BLOCKED=0
 PINNED=0
+CONF_CAW=0
+MODCONF=/etc/modprobe.d/mxfs.conf
 cleanup() {
     [ $MCAST_BLOCKED = 1 ] && { both mcast_unblock 20 "$unblk" || say "WARN: restoring multicast failed"; }
+    [ $CONF_CAW = 1 ] && { both conf_restore 20 "sed -i 's/^options mxfs force_transport=0\$/options mxfs force_transport=1/' $MODCONF" || say "WARN: restoring force_transport=1 in $MODCONF failed"; }
     [ $PINNED = 1 ] && { both unpin 30 "proxmox-boot-tool kernel unpin" || say "WARN: unpinning $KERNEL failed"; }
 }
 trap cleanup EXIT
 
-say "platform=$PLAT pair=$A/$B version=$V evidence=$EV"
+say "platform=$PLAT pair=$A/$B version=$V transport=$TRANSPORT evidence=$EV"
 say "host load: $(cat /proc/loadavg)"
 for p in $PKGS; do [ -f "$DIST/$p" ] || die "missing $DIST/$p"; done
 (cd "$DIST" && sha256sum -c --ignore-missing SHA256SUMS) > "$EV/sha256_clyde.log" 2>&1 || die "dist/$V does not match its SHA256SUMS"
@@ -164,10 +182,17 @@ for h in $A $B; do
     on $h 15 "uname -r; cat /etc/os-release | grep PRETTY_NAME" > "$EV/os_$h.log" || die "$h is not answering over ssh"
     say "$h: $(tr '\n' ' ' < "$EV/os_$h.log")"
 done
-if [ -n "$KERNEL" ] && ! { grep -qx "$KERNEL" "$EV/os_$A.log" && grep -qx "$KERNEL" "$EV/os_$B.log"; }; then
+# A named kernel is pinned for the whole round even when the pair already runs
+# it: the round reboots again later, and an unpinned node comes back on its
+# default kernel.  Measured 0.90.6: the 6.17 TCP round pinned, unpinned at its
+# exit and left both nodes on 6.17, so the 6.17 CAW round skipped the pin and
+# its reboot check found both on 7.0.
+if [ -n "$KERNEL" ]; then
     [ $FAM = pve ] || die "KERNEL= selects a kernel only on Proxmox (proxmox-boot-tool)"
     PINNED=1
     both pin 30 "proxmox-boot-tool kernel pin $KERNEL" || die "pinning $KERNEL"
+fi
+if [ -n "$KERNEL" ] && ! { grep -qx "$KERNEL" "$EV/os_$A.log" && grep -qx "$KERNEL" "$EV/os_$B.log"; }; then
     reboot_pair
     for h in $A $B; do
         on $h 15 "uname -r; cat /etc/os-release | grep PRETTY_NAME" > "$EV/os_$h.log" || die "$h is not answering over ssh"
@@ -220,9 +245,26 @@ is_dkms_build() {
         || { say "$1: loaded srcversion '$s1', installed '$s2', DKMS $V '$s3'; $(grep '^dkms=' "$2")"; return 1; }
     say "$1: $(grep path= "$2") srcversion=$s1"
 }
-both modload 30 "modprobe mxfs; $MODID" || die "modprobe mxfs"
+if [ $TRANSPORT = caw ]; then
+    CONF_CAW=1
+    both conf_caw 20 "sed -i 's/^options mxfs force_transport=1\$/options mxfs force_transport=0/' $MODCONF && grep -x 'options mxfs force_transport=0' $MODCONF" \
+        || die "setting force_transport=0 in $MODCONF (see conf_caw_*.log)"
+    pass "force_transport=0 set in $MODCONF on both"
+fi
+MODID="$MODID
+    echo force_transport=\$(cat /sys/module/mxfs/parameters/force_transport 2>/dev/null)"
+# A CAW round switches the transport the way the README tells a user to: edit
+# the file, then reload.  A plain modprobe is a no-op on a module the package
+# already loaded, and the RPM's install leaves it loaded with the file's old
+# value (measured on alma9: force_transport=1 after the edit).
+if [ $TRANSPORT = caw ]; then
+    both modload 30 "modprobe -r mxfs; modprobe mxfs; $MODID" || die "modprobe -r mxfs && modprobe mxfs"
+else
+    both modload 30 "modprobe mxfs; $MODID" || die "modprobe mxfs"
+fi
 for h in $A $B; do is_dkms_build $h "$EV/modload_$h.log" || die "$h did not load the DKMS build of $V"; done
-pass "the DKMS-built module is loaded on both"
+for h in $A $B; do grep -qx "force_transport=$FT" "$EV/modload_$h.log" || die "$h loaded mxfs with $(grep '^force_transport=' "$EV/modload_$h.log"), not force_transport=$FT"; done
+pass "the DKMS-built module is loaded on both (force_transport=$FT)"
 
 # --- 2. free the LUN and format
 # a node that does not answer is not running, so it holds nothing
@@ -254,6 +296,11 @@ mount_pair() {  # label opts-for-A opts-for-B
     on $B $MOUNT_S "mount -t mxfs ${3:+-o $3} $LUN $MNT; echo mount_rc=\$?" > "$EV/${lbl}_mount_$B.log" 2>&1
     if grep -q mount_rc=0 "$EV/${lbl}_mount_$A.log" && grep -q mount_rc=0 "$EV/${lbl}_mount_$B.log"; then
         pass "$lbl: both mounted ($(since $t0) s)"
+        # the transport each node actually runs, from this mount's own line
+        both "${lbl}_transport" 15 "dmesg | grep 'P-DOMAIN-ADMITTED' | tail -1 | grep -o 'transport=[A-Z]*'" || true
+        for h in $A $B; do
+            grep -qx "transport=$TNAME" "$EV/${lbl}_transport_$h.log" || fail "$lbl: $h mounted on $(grep -o 'transport=[A-Z]*' "$EV/${lbl}_transport_$h.log" || echo 'no P-DOMAIN-ADMITTED line'), not transport=$TNAME"
+        done
     else
         die "$lbl mount (see ${lbl}_mount_*.log)"
     fi
@@ -396,6 +443,11 @@ for h in $A $B; do
     grep -q "module=1" "$EV/postboot_$h.log" || fail "$h: module not auto-loaded"
     is_dkms_build $h "$EV/postboot_$h.log" || fail "$h: the module auto-loaded at boot is not the DKMS build of $V"
     grep -q "lun=ok" "$EV/postboot_$h.log" || fail "$h: LUN not back after boot"
+    grep -qx "force_transport=$FT" "$EV/postboot_$h.log" || fail "$h: auto-loaded with $(grep '^force_transport=' "$EV/postboot_$h.log"), not force_transport=$FT"
+    # the README's firewall line opens 7602/udp for CAW's lock-release requests
+    if [ $TRANSPORT = caw ] && grep -q '^firewalld=active' "$EV/postboot_$h.log"; then
+        grep -q 'ports=.*7602/udp' "$EV/postboot_$h.log" || fail "$h: firewalld is active and 7602/udp (CAW lock-release requests) is not open"
+    fi
 done
 mount_pair postboot "" ""
 ya=$(on $A $IO_S "md5sum < $MNT/marker | cut -d' ' -f1"); yb=$(on $B $IO_S "md5sum < $MNT/marker | cut -d' ' -f1")

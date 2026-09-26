@@ -83,7 +83,7 @@ echo "--- all $N nodes down (fs preserved) ---"
 #     2026-09-12).  Mount it the way scripts/rig.sh and rig_recover.sh do.
 for n in $(seq 1 "$N"); do
   (
-    timeout 60 "$SSH" "test$n" "mountpoint -q /src || { mkdir -p /src; mount -t nfs 192.168.1.4:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; }; test -f /src/mxfs/mxfs.ko && echo SRC_OK || echo SRC_FAIL" 2>/dev/null \
+    timeout 60 "$SSH" "test$n" "mountpoint -q /src || { mkdir -p /src; mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; }; test -f /src/mxfs/mxfs.ko && echo SRC_OK || echo SRC_FAIL" 2>/dev/null \
       | grep -E 'SRC_OK|SRC_FAIL' > "$tmpd/src.$n"
   ) &
 done

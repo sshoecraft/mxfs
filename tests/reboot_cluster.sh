@@ -28,7 +28,7 @@ while [ ${#pending[@]} -gt 0 ] && [ $SECONDS -lt $deadline ]; do
     sleep 8
     still=()
     for n in "${pending[@]}"; do
-        ok=$(timeout 8 $SSH "$n" "$PF" 'mountpoint -q /src && [ -f /src/mxfs/mxfs.ko ] && echo UP || (mkdir -p /src; mount -t nfs 192.168.1.4:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; [ -f /src/mxfs/mxfs.ko ] && echo UP)' 2>/dev/null | grep -c UP)
+        ok=$(timeout 8 $SSH "$n" "$PF" 'mountpoint -q /src && [ -f /src/mxfs/mxfs.ko ] && echo UP || (mkdir -p /src; mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; [ -f /src/mxfs/mxfs.ko ] && echo UP)' 2>/dev/null | grep -c UP)
         [ "${ok:-0}" = "1" ] || still+=("$n")
     done
     pending=("${still[@]}")

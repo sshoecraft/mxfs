@@ -102,23 +102,25 @@ MNT="${MXFS_MOUNT:-/mnt/shared}"
 #   caw  -> the multipathd-assembled map (2 paths).
 #   cawd -> the stable by-path node for the single-portal login; identical on
 #           every node regardless of sdX ordering.
-#   tcp  -> the 2/tcp rig's LUN (data/rigs.json "qnap") by its WWN.  Never
-#           /dev/sda: the nodes also see the LIO bench target on test32, and
-#           which of the two enumerates as sda is not fixed — the 2/tcp suite
-#           ran on the bench target for a day that way, and a PREEMPT AND
-#           ABORT that deadlocked LIO read as an MXFS recovery failure.
+#   tcp  -> the same by-path LUN as cawd: clyde's SCST target (data/rigs.json
+#           "scst-fio") has served both transports since the QNAP was retired
+#           (2026-09-26).  Never /dev/sda: the nodes also see the LIO bench
+#           target on test32, and which of the two enumerates as sda is not
+#           fixed — the 2/tcp suite ran on the bench target for a day that way,
+#           and a PREEMPT AND ABORT that deadlocked LIO read as an MXFS recovery
+#           failure.
 #   cawp -> the XML-wired guest disk (virsh target dev=sda).
 #   xfs  -> whatever LUN the live rig presents at sda (baseline only).
 case "$DLM" in
     caw)  DEV_DEFAULT=/dev/mapper/mpatha ;;
     cawd) DEV_DEFAULT="/dev/disk/by-path/ip-192.168.120.1:3260-iscsi-iqn.2026-05.local.mxfs:shared-lun-0" ;;
-    tcp)  TCP_RIG_WWID=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["qnap"]["lun_wwid"])' \
-                         "$REPO/data/rigs.json" 2>/dev/null)
-          [ -n "$TCP_RIG_WWID" ] || { echo "data/rigs.json has no qnap lun_wwid; set MXFS_DEV"; exit 2; }
-          DEV_DEFAULT="/dev/disk/by-id/wwn-0x${TCP_RIG_WWID#naa.}" ;;
+    tcp)  DEV_DEFAULT="/dev/disk/by-path/ip-192.168.120.1:3260-iscsi-iqn.2026-05.local.mxfs:shared-lun-0" ;;
     *)    DEV_DEFAULT=/dev/sda ;;
 esac
 DEV="${MXFS_DEV:-$DEV_DEFAULT}"
+# The rig's own iSCSI target, so prep can tell a platform pair on a LUN of its
+# own from a leftover node on this one.
+RIG_TGT="${MXFS_RIG_TGT:-iqn.2026-05.local.mxfs:shared}"
 # Cells are keyed "<N>/<dlm>" with no rig dimension, so running the same
 # condition against a DIFFERENT rig overwrites the board in place.  Point
 # MXFS_CRIT at a separate file to keep a second rig's results off the primary
@@ -180,7 +182,7 @@ marker_write() {  # nodes dlm srcver — node_list records WHICH hosts were prep
     # yardstick unselectable and its measurement unscored.  Resolve it once,
     # here, while a prepped node is available to be asked, and let every
     # consumer read the answer instead of re-deriving it.
-    local rig; rig=$(MXFS_DEV="${DEV:-}" "$REPO/tools/mxfs_rig_tag.sh" "${DEV:-}" 2>/dev/null || true)
+    local rig; rig=$(MXFS_RIG_TAG_FRESH=1 MXFS_DEV="${DEV:-}" "$REPO/tools/mxfs_rig_tag.sh" "${DEV:-}" 2>/dev/null || true)
     # `wwid`/`fsid`/`gen` record WHICH LUN and WHICH FORMAT this cluster was
     # formed on, read from the first node by identity (tests/setup/dev_identity.sh)
     # rather than from the device's spelling: a harness that resolves its device
@@ -667,14 +669,14 @@ power_cycle_node() {  # <node>  -> 0 once node is reachable and DEV present
                     iscsiadm -m session --rescan >/dev/null 2>&1' ;;
             esac
             timeout 70 "$SSH" "$n" "$PASS" "
-                mountpoint -q /src || { mkdir -p /src; mount -t nfs 192.168.1.4:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; }
+                mountpoint -q /src || { mkdir -p /src; mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; }
                 $restore_iscsi" >/dev/null 2>&1
             local dl2=$(( SECONDS + 90 ))
             local retry_mp=''
             [ "$DLM" = caw ] && retry_mp='multipath >/dev/null 2>&1'
             while [ "$SECONDS" -lt "$dl2" ]; do
                 timeout 8 "$SSH" "$n" "$PASS" "[ -e '$DEV' ] && mountpoint -q /src && echo DEV_UP" 2>/dev/null | grep -q DEV_UP && return 0
-                timeout 20 "$SSH" "$n" "$PASS" "mountpoint -q /src || { mkdir -p /src; timeout 12 mount -t nfs 192.168.1.4:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; }; $retry_mp" >/dev/null 2>&1
+                timeout 20 "$SSH" "$n" "$PASS" "mountpoint -q /src || { mkdir -p /src; timeout 12 mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; }; $retry_mp" >/dev/null 2>&1
                 sleep 3
             done
             echo "    WARN: $n booted but $DEV never appeared"
@@ -703,8 +705,30 @@ prep_cluster() {
     #    skip it rather than pay the virsh round-trip for nothing.
     if [ -z "${MXFS_NODE_LIST:-}" ]; then
     local v extras=() epids=() dirty=""
+    # A platform verification pair (tools/mxfs_lab.sh) can be test VMs too —
+    # Ubuntu's is test3/test4 — and it verifies on a LUN of its own
+    # (scripts/scst_platform_targets.sh).  Tearing it down here does not
+    # protect this LUN, it kills that pair's round: a 2/cawd prep unmounted
+    # test4 in the middle of a platform mount and power-cycled test3
+    # (tests/evidence/unmount_agrelease/20260926T112315_uaw_caw_s6c/prep.log).
+    # So a pair node is left alone unless it holds MXFS on this rig's target
+    # or on a device it cannot name by iSCSI path; any other extra is torn
+    # down as before.
+    local pairnodes lunprobe
+    pairnodes=" $("$REPO/tools/mxfs_lab.sh" lun-nodes 2>/dev/null | tr '\n' ' ') "
+    lunprobe='for s in $(awk '"'"'$3 == "mxfs" {print $1}'"'"' /proc/mounts); do d=$(readlink -f "$s"); w=unknown; for p in /dev/disk/by-path/*-iscsi-*; do [ "$(readlink -f "$p")" = "$d" ] || continue; case "$p" in *-iscsi-'"$RIG_TGT"'-lun-*) w=rig ;; *) w=elsewhere ;; esac; done; echo "MXFS_ON $w"; done; echo PROBE_DONE'
     for v in $(timeout 60 virsh -c qemu:///system list --name 2>/dev/null | grep -E '^test[0-9]+$'); do
-        case " ${NODES[*]} " in *" $v "*) ;; *) extras+=("$v") ;; esac
+        case " ${NODES[*]} " in *" $v "*) continue ;; esac
+        case "$pairnodes" in
+            *" $v "*)
+                local po
+                po=$(timeout 30 "$SSH" "$v" "$PASS" "$lunprobe" 2>/dev/null)
+                if grep -q PROBE_DONE <<<"$po" && ! grep -q 'MXFS_ON \(rig\|unknown\)' <<<"$po"; then
+                    echo "--- prep: $v is a platform pair node, not on this rig's LUN — left alone ---"
+                    continue
+                fi ;;
+        esac
+        extras+=("$v")
     done
     if [ "${#extras[@]}" -gt 0 ]; then
         for v in "${extras[@]}"; do
@@ -739,7 +763,7 @@ prep_cluster() {
     #    below can't tell a stale same-build mount from a fresh one).
     local n pids=() td; td=$(mktemp -d)
     for n in "${NODES[@]}"; do
-        ( timeout 150 "$SSH" "$n" "$PASS" "for try in 1 2 3 4 5 6; do mountpoint -q /src && break; mkdir -p /src; timeout 12 mount -t nfs 192.168.1.4:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; sleep 4; done
+        ( timeout 150 "$SSH" "$n" "$PASS" "for try in 1 2 3 4 5 6; do mountpoint -q /src && break; mkdir -p /src; timeout 12 mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; sleep 4; done
                          mountpoint -q /src && echo SRC_OK || echo SRC_MISSING
                          ${TEARDOWN//MNTPT/$MNT}
                          mkdir -p /etc/systemd/journald.conf.d
@@ -789,7 +813,7 @@ prep_cluster() {
     local -a sp_pids=()
     sp_tmpd=$(mktemp -d)
     for sp_n in "${NODES[@]}"; do
-        ( timeout 40 "$SSH" "$sp_n" "$PASS" "mountpoint -q /src || { mkdir -p /src; mount -t nfs 192.168.1.4:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; }; mountpoint -q /src && echo SRC_OK" 2>/dev/null \
+        ( timeout 40 "$SSH" "$sp_n" "$PASS" "mountpoint -q /src || { mkdir -p /src; mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; }; mountpoint -q /src && echo SRC_OK" 2>/dev/null \
               | grep -q SRC_OK || echo bad > "$sp_tmpd/$sp_n" ) &
         sp_pids+=($!)
     done
@@ -997,7 +1021,7 @@ prep_cluster_xfs() {
     out=$(ssh_node "$NODE1" "
         mountpoint -q '$MNT' && { fuser -km '$MNT' 2>/dev/null; umount '$MNT' 2>/dev/null; }
         lsmod | grep -q '^mxfs ' && { umount '$MNT' 2>/dev/null; rmmod mxfs 2>/dev/null; }
-        mountpoint -q /src || { mkdir -p /src; mount -t nfs 192.168.1.4:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; }
+        mountpoint -q /src || { mkdir -p /src; mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; }
         # Clear stale SCSI PR left by the prior CAW cluster run (see
         # tests/setup/prep_fs.sh 3b) — otherwise mkfs.xfs fails 'Device or
         # resource busy' against a still-reserved LUN.

@@ -373,7 +373,7 @@ if [ "$A_PRESENT" = 1 ] && [ "$B_PRESENT" = 0 ] && [ -n "$RESV1" ]; then
     waitboot "$B"
     KO_MD5=$(md5sum mxfs.ko 2>/dev/null | awk '{print $1}')
     measure "$B" 240 "$OUT/B_rejoin.txt" '^PREP_RC=' "the re-prep of $B" \
-        "for try in 1 2 3 4 5 6; do mountpoint -q /src && break; mkdir -p /src; timeout 12 mount -t nfs 192.168.1.4:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; sleep 4; done; mountpoint -q /src || echo SRC_NOT_MOUNTED; MXFS_DEV='$MXFS_DEV' MXFS_KO_MD5='$KO_MD5' timeout 200 bash /src/mxfs/tests/setup/prep_node.sh tcp > /tmp/trpr_prep.log 2>&1; echo PREP_RC=\$?"
+        "for try in 1 2 3 4 5 6; do mountpoint -q /src && break; mkdir -p /src; timeout 12 mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; sleep 4; done; mountpoint -q /src || echo SRC_NOT_MOUNTED; MXFS_DEV='$MXFS_DEV' MXFS_KO_MD5='$KO_MD5' timeout 200 bash /src/mxfs/tests/setup/prep_node.sh tcp > /tmp/trpr_prep.log 2>&1; echo PREP_RC=\$?"
     measure "$B" 210 "$OUT/B_mount.txt" '^MOUNT_RC=' "the mount on $B after the recovery" \
         "if mountpoint -q $MNT; then echo MOUNT_RC=0; else timeout 150 mount -t mxfs $MXFS_DEV $MNT; echo MOUNT_RC=\$?; fi"
     MRC=$(field "$OUT/B_mount.txt" MOUNT_RC)

@@ -78,7 +78,7 @@ umount_node() { # <node> -> rc
 boot_wait_into() {
     local w=0
     until [ "$(rs 15 "$2" 'test -e /run/nologin && echo booting || echo ready' | tail -1)" = ready ] || [ $w -ge 40 ]; do w=$((w+1)); sleep 5; done
-    value_now_into "$1" "$2" 150 "$OUT/boot_$2.txt" '^SRC_(OK|NOT_MOUNTED)$' "the tree mount on $2 after boot" "for try in 1 2 3 4 5 6; do mountpoint -q /src && break; mkdir -p /src; timeout 12 mount -t nfs 192.168.1.4:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; sleep 4; done; mountpoint -q /src && echo SRC_OK || echo SRC_NOT_MOUNTED"
+    value_now_into "$1" "$2" 150 "$OUT/boot_$2.txt" '^SRC_(OK|NOT_MOUNTED)$' "the tree mount on $2 after boot" "for try in 1 2 3 4 5 6; do mountpoint -q /src && break; mkdir -p /src; timeout 12 mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; sleep 4; done; mountpoint -q /src && echo SRC_OK || echo SRC_NOT_MOUNTED"
 }
 
 # Both nodes need the tree (the probes, prep scripts and dump tool live on

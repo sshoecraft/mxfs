@@ -1,3 +1,232 @@
+## 2026-09-26 — 0.90.7 — 2-node CAW is released on Proxmox VE 9, RHEL 9.8, Ubuntu 24.04 and Debian 13
+
+The CAW transport is now released for two-node clusters, alongside TCP, on
+exactly the kernels TCP is released for: Proxmox VE 9 (6.17.2-1-pve and
+7.0.14-19-pve), RHEL / AlmaLinux / Rocky 9.8 (5.14.0-687.49.1.el9_8), Ubuntu
+24.04 LTS (6.8.0-101-generic) and Debian 13 (6.12.107+deb13-amd64).  Nothing
+in the defect queue blocks a 2-node CAW release (`tools/defects.py 2 caw
+--release`).
+
+What 0.90.7 passed (`tests/full_verify.sh 0.90.7`, module srcversion
+`07C5251EBF337507407FC9A` on the rig):
+
+- a build from a clean copy of the tree, 0 warnings; the userspace tools, the
+  user-mode ledger tests (0 failures) and the extern-declaration audit
+- both 2-node rig suites: TCP 29 of 29 PASS; CAW 28 PASS, 0 FAIL, now
+  including the crash-recovery audit and the allocator witness on CAW.  Of
+  the two CAW SKIPs, `fio_perf_vs_xfs` has no native-XFS baseline captured
+  on this rig, and `dlm_lock_correctness` could not derive its scratch sector
+  (fixed below; it then PASSed on the same build, `fua=ok caw=ok`).
+- the CAW board grades `alloc_witness`, `chk_clean` and `crash_audit` FLAKY,
+  not PASS: each failed in this campaign's first CAW runs, and each failure
+  was the harness (below), not MXFS.  The board keeps a failure for eleven
+  runs and has no way to discount a harness defect, so they read FLAKY until
+  the window is clean.
+- the release packages, built in the oldest container each targets, after the
+  Proxmox and RHEL kernel build checks
+- on every platform pair, each on a LUN of its own, on each transport: the
+  packaged round (install from the packages, DKMS build, mount with no
+  options, cross-node checksums, create and remote delete, `chk_mxfs` clean,
+  `peer=` with multicast dropped, reboot with the configured transport, data
+  intact), Proxmox on both kernels; the hung-node test (a node frozen
+  mid-write, declared dead, fenced, replayed, the survivor writing again);
+  on RHEL, SELinux enforcing with sVirt
+- on CAW the hung-node test declared the frozen node dead at +65-66 s and the
+  survivor wrote again at +72-74 s on all four pairs (budgets 120 s and 180 s)
+
+### A peer that dies while the other node mounts no longer shuts the mounting node down
+
+Measured on the Ubuntu pair (2-node CAW): test3 held the root inode and was
+power-cycled a second before test4's mount read the heartbeat table.  It still
+read as live, so test4's recovery barrier found nothing to recover and
+admitted the mount.  test4's monitor declared test3 dead 62 s later and fenced
+it, but could only record the death: the hook that replays a dead node's
+journal slice exists only after the mount returns.  The root inode's lock
+acquire waited three 120 s budgets on a grant nothing could release, and then
+shut the filesystem down.
+
+- The mount's root lookup is a point where nothing is dirty and nothing is
+  published, so its acquire may fail.  When its budget ends while a death
+  recorded during the mount is still waiting for its replay, it now fails with
+  `-EAGAIN` (`P-MPHASE-ACQ-GIVEUP`; the AG lock inside the lookup,
+  `P-MPHASE-AGLOCK-GIVEUP`) instead of trying again and then shutting down.
+- The mount then runs its recovery barrier again (`P-MPHASE-REBARRIER`).  The
+  re-run drains the death record and replays and publishes the dead node's
+  slice exactly as the first pass would have, then the lookup is retried.  It
+  skips what the first pass already settled: the peers found dead before the
+  mount, and the reclaim of this node's own leftover locks.
+- At most four re-runs.  A re-run that cannot replay the slice refuses the
+  mount; it never shuts the filesystem down and never admits the mount over an
+  unreplayed slice.
+- `mxfs.dbg_barrier_admit_hold_ms` (test only, one-shot) holds a mount right
+  after its barrier admits it, so the shape can be reproduced on demand:
+  `tests/mount_postbarrier_peer_death_2n.sh`.
+
+Verified on 2-node CAW with the reproducer: `pbd_s8a` and `pbd_s8b` (build
+`DF261A97803D9C20A290139`) and `pbd_s9a` on the released module
+(`07C5251EBF337507407FC9A`) each PASS.  The mount succeeded after the re-run,
+nothing shut down, all 32 files the dead peer had fsynced read back identical,
+and `chk_mxfs` was clean.
+
+### The whole-cluster restart no longer dead-ends when the target drops the dead owner's key
+
+The first node back after a total outage takes the bootstrap term.  If it is
+power-cut while holding it and the storage target drops its SCSI registration
+with its session, no PREEMPT AND ABORT can name the dead owner, and the
+takeover used to refuse.  Every later mount by any node refused the same way:
+the volume could not be mounted until an operator cleared the record.
+
+- The takeover now fences a purged owner (or a purged stale contender) with
+  the witnessed LOGICAL UNIT RESET that ordinary slice recovery already uses
+  on such targets (proof kind 24), and continues only on a certified reset
+  (`P-BOOT-TAKEOVER-FENCE-LURESET`).  A reset that does not certify still
+  refuses.
+- A resume by the old owner's own boot and a takeover by another node now
+  contend for the record with one compare-and-write, so both cannot succeed.
+- `bootstrap_inject` 15 and 16 (test only) hold a contender after its election
+  or after it has fenced the old owner, for the stale-contender arms.
+
+Verified on 2-node CAW, `tests/bootstrap_takeover_2n.sh`, every arm PASS:
+the owner rebooting to take its own term back (`lur_self_s6c`), another node
+taking it over from a power-cut owner (`lur_foreign_s8a`) and from a frozen
+owner that later resumes (`CUT=freeze`, `lur_freeze_s8a`), a stale contender
+held after its election and after its fence (`STALE_POINT=15`/`16`,
+`lur_stale15_s6c`, `lur_stale16_s6c`), and the native PREEMPT AND ABORT
+takeover on a target that keeps the old owner's key (`PURGE=none`,
+`preempt_foreign_s7a`).
+
+### A freed inode number could be lost for good, and a create then stalled holding the directory
+
+Measured on 2-node CAW (`tests/d0524_freeob_race_2n.sh`): an inode's free
+image was written to disk in the few milliseconds between the transaction
+that freed it and the step that records the free as owed to the peers.  At
+that moment the write passed no publication gate and credited nothing.  The
+inode came out of the write clean, so nothing flushed it again, and the owed
+free could never be settled.  That number was withheld from reuse, and the
+next create on the node looped in the inode allocator
+(`P946-DIALLOC-PUBPEND-STORM`) for its whole lock budget while holding the
+shared directory, stalling the peer behind it.  On an 8-node board the same
+stuck entry was later refused at the AG release and shut the node down.
+
+- The inode flush now keeps a free image dirty while its free is still being
+  recorded (`P55C-FREE-PENDING-DEFER`), so the next push writes it through the
+  same gate and credit as every other free image.
+
+Verified on 2-node CAW (build `07C5251EBF337507407FC9A`) with the harness
+unchanged: two runs, `d0524_s8b` and `d0524_s9a`, 6 of 6 laps with the window
+widened (`freeob_commit_delay_ms=50`) and 4 of 4 without it, every
+`dir_reuse_coherency` lap PASS, the window hit 330 times per run, no shutdown.
+Before the fix the same harness failed 2 of 5 laps in each of two runs.
+
+### On RHEL, switching a node to CAW now survives a reboot
+
+`/etc/modules-load.d/mxfs.conf` made dracut copy `mxfs.ko` and the current
+`/etc/modprobe.d/mxfs.conf` into the initramfs, so the module loaded at boot
+with the options it had when the image was built.  A node switched to
+`force_transport=0` came back on TCP after every reboot (measured on
+AlmaLinux 9.8).  The RPM now installs `/etc/dracut.conf.d/mxfs.conf`
+(`omit_drivers+=" mxfs "`), and on install rebuilds any initramfs that still
+contains mxfs.  Nothing mounts MXFS before the real root.
+
+Verified on the AlmaLinux 9.8 pair (5.14.0-687.49.1.el9_8) with the 0.90.7
+RPM: the CAW packaged round switched the transport the README's way and
+rebooted, and both nodes came back with `force_transport=0` and mounted on CAW
+(`tests/evidence/packaged_round/rhel9_0.90.7_caw_20260926T144201`).
+
+### Other fixes
+
+- **A mount's cleanup of its own leftover lock bits could clear a bit another
+  thread was adopting.**  The cleanup relied on the in-memory list of held
+  locks, and an adopting thread enters it only after validating the slot.  The
+  cleanup now takes the same per-slot clear window every other clear takes and
+  skips a lock with a live local attempt or holder (`P226-SETTLE-LIVE-SKIP`).
+  Verified with 12 injected cleanups inside the adopt window
+  (`caw_inject_adopt_settle`, `tests/adopt_settle_window_2n.sh`): every adopted
+  bit survived.
+- **Unmount on CAW** (the CAW leg of the 0.69.3 fix): with `sync_fs`'s per-AG
+  push off, so that the unmount itself carries the metadata work, the unmount
+  wrote 3 metadata blocks and 1 inode cluster before handing its AG locks to
+  the peer, and nothing after (`tests/unmount_agrelease_window.sh uaw_caw_s6c`,
+  chk_mxfs clean).
+- **A reload that finds a live inode at home while a committed free is still
+  owed** now shuts the mount down (`P177-PUBOB-SUPERSEDED-FREE-UNPROVEN`)
+  instead of silently dropping the free.  A free home dinode still discharges
+  it.
+
+### Removed from the defect queue
+
+Each was removed with the evidence named in its section above.
+
+- `D-FREEOB-COMMIT-VS-FLUSHED-DISCHARGE-RACE-PENDING-STUCK-FAILCLOSED-SHUTDOWN-0524`
+  — fixed and verified (the free image written before its free was recorded)
+- `D-PEER-DEATH-AFTER-ADMISSION-BARRIER-STALLS-MOUNT-THEN-SHUTDOWN` — fixed and
+  verified
+- `D-BOOTSTRAP-TAKEOVER-NO-PROOF-LEAVES-VOLUME-UNMOUNTABLE` — fixed and
+  verified
+- `D-RHEL-INITRAMFS-BAKES-MXFS-MODULE-OPTIONS-TRANSPORT-SWITCH-LOST-AT-BOOT` —
+  fixed and verified
+- `D-TRACK-PUBLISH-ORDERING` — fixed and verified (the adopt-window cleanup)
+- `D-UNMOUNT-AG-RELEASE-SKIPS-DRAIN-PIPELINE-INVARIANT1-482` — fixed and
+  verified (the CAW leg of the unmount ordering)
+- `D-AG-RETAINED-OWN-BIT-ADOPTION-MOUNT-WINDOW-ONLY-NO-ACQUIRE-RECONCILIATION-0528`
+  — disproved by measurement and by the code it described
+
+Found this release and still open, none of them blocking a 2-node release:
+`D-MOUNT-WAITS-OUT-ACQUIRE-BUDGET-AFTER-PEER-DEATH-IS-DECLARED` (the mount in
+the peer-death case waits out its 120 s lock budget although the death is
+declared about 60 s earlier).
+
+### Test infrastructure
+
+- The QNAP is retired.  The rig and every platform pair now use SCST targets
+  on the dev host, and each platform pair has its own LUN
+  (`scripts/scst_platform_targets.sh`, a lab file per pair), so the four
+  platforms verify in parallel with each other and with the rig.
+- `tests/full_verify.sh` runs both 2-node rig suites (TCP and CAW) and every
+  platform's packaged round and hung-node test on both transports.
+- `tests/packaged_round.sh` switches a CAW round the way the README tells a
+  user to (edit the file, reload the module).
+- **The hung-node test graded every CAW pair "death never declared".**  Its
+  CAW pattern named a debug probe (`P236-FENCE-INTENT`) that a packaged
+  module, loaded without `dyndbg`, never prints.  On all four pairs the
+  survivor had logged its WARN-level declaration (`node in slot 1 is no
+  longer responding (heartbeat expired after 31 checks)`), fenced the frozen
+  node with a certified PREEMPT AND ABORT about 62 s after the freeze, and
+  written again at +65 s.  The pattern now includes that declaration.  Its
+  evidence directory now carries the pair's name: `tests/full_verify.sh` runs
+  every pair at once, and three that started in the same second shared one.
+- **`dlm_lock_correctness` has skipped on every mounted CAW run since
+  0.89.7.**  It derived its scratch sector from `chk_mxfs -v`, which since
+  0.89.7 opens the device exclusively and refuses a node that has it mounted
+  (rc 4), so the row found no offset and skipped.  It now reads the envelope
+  offsets with `chk_mxfs --geometry`, the read-only mode made for live
+  nodes, and records the checker's answer in any SKIP.
+- `tests/packaged_round.sh KERNEL=...` pins the named Proxmox kernel for the
+  whole round even when the pair already runs it.  The 6.17 TCP round pinned,
+  unpinned at its exit and left the pair on 6.17, so the 6.17 CAW round skipped
+  the pin and its mid-round reboot came up on the default 7.0 kernel.
+- **The 2-node CAW suite now grades crash recovery.**  `crash_audit` (a node
+  destroyed mid-way through an fsynced stream, the survivor's fence and
+  foreign replay, every acknowledged file verified, then a cold `chk_mxfs` of
+  the platter) used an oracle that refused to start on CAW, so the row could
+  never pass there.  The oracle's plain arm (`tests/tcp_death_replay.sh`) now
+  runs on either transport; only the TCP authority ledger's seal, collect and
+  ledger-flagged manifest are asserted on TCP alone, and on CAW the
+  fence-time manifest snapshot must exist instead.  Every injection arm still
+  requires TCP.  The manifest-load check now matches the replay's own
+  `P-RMAN-LOAD victim_slot=` line: the bare prefix also matched the
+  disklock's `P-RMAN-LOADED`, which on CAW lands after it, so the check read
+  the wrong line.
+- **`alloc_witness` counted the fill phase's carve in one AG of the node's
+  partition.**  A node owns every AG with `agno mod stride == slot mod
+  stride`, and the allocator may place the fill directory in any of them.  On
+  2-node CAW test1 (slot 0, stride 32) filled AG 32 and carved there, while
+  the loop watched AG 0 only, ran all 8192 creates and aborted the row, which
+  also left `chk_clean` with no witness to audit.  The carve is now summed
+  over the whole partition, the model the partition floor already grades,
+  and so is the `own_ag` floor (it read 0 for a node that carved 17 times in
+  AG 32).
+
 ## 2026-09-26 — 0.90.0 — MXFS has its own on-disk magic numbers (format break)
 
 A reviewer on the linux-xfs list asked that MXFS use different magic numbers,

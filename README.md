@@ -10,37 +10,51 @@
 > Everything that turns XFS into a filesystem many machines can mount at once
 > is AI-authored.
 
-> ## ⚠️ Released configuration: 2 nodes, TCP transport — nothing else
+> ## ⚠️ Released configuration: 2 nodes, TCP or CAW transport — nothing else
 >
-> **The only supported configuration is a 2-node cluster using the TCP DLM
-> transport.** For that configuration no known defect has been shown to
-> corrupt or lose data, or to crash, hang or shut down a node, and the full
-> test suite passes. That is not the same as having no defects: the public
-> queue (`data/defects.json`, read with `tools/defects.py`) holds **93 open
-> defects**, and **23 of them reach the released configuration** (1 critical,
-> 3 high, 16 major, 2 medium, 1 minor). Each of the 23 is classified as not
-> crossing the data-loss or crash bar, most of them as slowness. Each record
-> carries its own evidence, and for 20 of them the reach to 2-node TCP has not
-> been examined individually. Read them before relying on MXFS:
-> `tools/defects.py 2 tcp -d`.
+> **The supported configurations are a 2-node cluster on either DLM
+> transport:**
+>
+> - **TCP** — the lock manager talks over the network between the two nodes.
+>   Works on any shared block device. The release packages default to it.
+> - **CAW** — the lock state lives on the shared LUN itself and is claimed
+>   with SCSI COMPARE AND WRITE. Needs a storage target that implements
+>   COMPARE AND WRITE atomically (see "Choosing the transport" below).
+>
+> For both configurations no known defect has been shown to corrupt or lose
+> data, or to crash, hang or shut down a node, with the one exception named
+> below, and the full test suite passes on each. That is not the same as having
+> no defects: the public queue (`data/defects.json`, read with
+> `tools/defects.py`) holds **87 open defects**. **24 of them reach
+> 2-node TCP** and **7 reach 2-node CAW**; apart from the exception below,
+> each is classified as not crossing the data-loss or crash bar, most of them as
+> slowness. Each record carries its own evidence. Read them before relying on
+> MXFS: `tools/defects.py 2 tcp -d`, `tools/defects.py 2 caw -d`.
+>
+> **The exception, on TCP:** once, in 39 attempts on RHEL 9.8, a file create on
+> the surviving node stalled for about 60 s after its peer was declared dead,
+> fenced and replayed and then resumed
+> (`D-SURVIVOR-CREATE-STALLS-60S-AFTER-PEER-DEATH-UNTIL-RESUMED-VICTIM-UNMOUNTS`).
+> Its cause is not known, it has not recurred since, and it is shipped open by
+> the owner's decision.
 >
 > **In development — do not use:**
-> - **More than 2 nodes** (3 to 32), on any transport.
-> - **The CAW transport** (disk-based locking over SCSI COMPARE AND WRITE),
->   at any cluster size, including 2 nodes.
+> - **More than 2 nodes** (3 to 32), on either transport.
 >
-> Those configurations still have open defects in the queue, including ones
-> that can lose data or hang a node. Performance work is also still open on
-> every configuration.
+> That configuration still has open defects in the queue, including ones that
+> can lose data or hang a node. Performance work is also still open on every
+> configuration.
 >
 > **Released for exactly these kernels**, each installed from the release
-> packages and verified on two x86-64 nodes sharing an iSCSI LUN:
+> packages and verified on two x86-64 nodes sharing an iSCSI LUN, on both
+> transports:
 >
 > | platform | kernel verified |
 > |---|---|
 > | Proxmox VE 9 | 6.17.2-1-pve, 7.0.14-19-pve |
 > | Ubuntu 24.04 LTS | 6.8.0-101-generic (the GA kernel) |
 > | RHEL / AlmaLinux / Rocky 9.8 | 5.14.0-687.49.1.el9_8 |
+> | Debian 13 | 6.12.107+deb13-amd64 (Debian 13.7) |
 >
 > **Any other kernel is untested, even on the same distribution.** MXFS builds
 > against each kernel's own API, and a distribution's kernels differ: every
@@ -63,12 +77,13 @@
 > Building from source, load the module with
 > `modprobe mxfs target_cache_protected=1`: without it a clustered mount is
 > refused. The module forms a new cluster on TCP by default; CAW has to be
-> asked for with `force_transport=0`. To see what still blocks each configuration:
+> asked for with `force_transport=0` (see "Choosing the transport"). To see
+> what still blocks each configuration:
 >
 > ```
-> tools/defects.py 2 tcp --release   # the released configuration
-> tools/defects.py 2 caw             # CAW, in development
-> tools/defects.py 32 tcp            # 32 nodes, in development
+> tools/defects.py 2 tcp --release   # released
+> tools/defects.py 2 caw --release   # released
+> tools/defects.py 32 caw            # 32 nodes, in development
 > ```
 
 ---
@@ -106,11 +121,11 @@ overlay.
   cluster. It is not a patch series against upstream today.
 - **Distributed lock manager (`dlm/`).** Two transports can carry lock state:
   - **TCP (released, 2 nodes)** — a network DLM spoken over TCP between nodes.
-  - **CAW (in development)** — lock state lives *in-band on the shared disk*,
-    claimed with the SCSI **COMPARE AND WRITE** (opcode `0x89`) atomic
+  - **CAW (released, 2 nodes)** — lock state lives *in-band on the shared
+    disk*, claimed with the SCSI **COMPARE AND WRITE** (opcode `0x89`) atomic
     primitive plus SCSI Persistent Reservations. No separate lock network is
     required, which is what lets it scale past the point where a network DLM
-    stops keeping up.
+    stops keeping up (more than 2 nodes is still in development).
 
   The module parameter `force_transport` picks the transport a new cluster
   forms on: `1` (the default) is TCP, `0` is CAW. The release packages also
@@ -211,10 +226,11 @@ resize.mxfs [-v] [-n] [-V] DEVICE               # -n = dry run
 
 ## Quick start
 
-The released configuration is **two nodes on the TCP transport**. Install the
-release package on both nodes (it loads the module with `force_transport=1
-target_cache_protected=1`), or load a source build with
-`modprobe mxfs force_transport=1 target_cache_protected=1` on both.
+The released configurations are **two nodes on the TCP or the CAW
+transport**. Install the release package on both nodes (it loads the module
+with `force_transport=1 target_cache_protected=1`, i.e. TCP), or load a source
+build with `modprobe mxfs force_transport=1 target_cache_protected=1` on both.
+For CAW, see "Choosing the transport" below before the first mount.
 
 ```
 apt install ./mxfs_<version>_amd64.deb                  # Ubuntu 24.04, Proxmox VE 9
@@ -222,8 +238,11 @@ dnf install epel-release kernel-devel-$(uname -r)       # RHEL / AlmaLinux / Roc
 dnf install ./mxfs-<version>-1.el8.x86_64.rpm
 ```
 
-With firewalld on, open the DLM and discovery ports on both nodes:
-`firewall-cmd --permanent --add-port=7600/tcp --add-port=7601/udp --add-port=7603/udp && firewall-cmd --reload`.
+With firewalld on, open the DLM, discovery, lock-hint and heartbeat ports on
+both nodes:
+`firewall-cmd --permanent --add-port=7600/tcp --add-port=7601/udp --add-port=7602/udp --add-port=7603/udp && firewall-cmd --reload`.
+(7600/tcp carries the TCP transport's locks; 7602/udp carries the CAW
+transport's lock-release requests and grant notices between the nodes.)
 
 On the first node, format and mount the shared device:
 
@@ -253,6 +272,53 @@ mount -t mxfs -o peer=10.0.0.11 /dev/sdX /mnt/shared      # on 10.0.0.12
 `peer=` adds unicast to multicast discovery and may be repeated;
 `peers=A/B/...` replaces multicast with exactly that list and drops every
 other sender. See `mxfs(5)` and [`docs/discovery.md`](docs/discovery.md).
+
+### Choosing the transport
+
+Both transports are released for two nodes. Pick one per cluster, before its
+first mount:
+
+| | TCP | CAW |
+|---|---|---|
+| Where the locks live | messages between the two nodes | slots on the shared LUN, claimed with SCSI COMPARE AND WRITE |
+| Storage it needs | any shared block device with SCSI Persistent Reservations | a target that implements COMPARE AND WRITE **atomically**, plus Persistent Reservations |
+| Network it needs | a reliable low-latency link between the nodes | discovery and lock-release notices only (UDP) |
+| How to select it | the package default (`force_transport=1`) | `force_transport=0` |
+
+To run CAW, change the line in `/etc/modprobe.d/mxfs.conf` on **both** nodes
+before the first mount, then reload the module (or reboot):
+
+```
+options mxfs force_transport=0
+```
+
+```
+modprobe -r mxfs && modprobe mxfs
+cat /sys/module/mxfs/parameters/force_transport     # 0
+```
+
+The setting survives a reboot on every released platform. On RHEL the RPM
+keeps `mxfs` out of the initramfs (`/etc/dracut.conf.d/mxfs.conf`), so the
+module is always loaded with the file on the root filesystem rather than a
+copy baked into the boot image; an initramfs built by an earlier MXFS
+package is rebuilt when the package is installed.
+
+The setting only chooses the transport of a **new** cluster: a node that mounts
+a volume the other node already has mounted joins on that cluster's
+transport, and a mount that asks for TCP on a volume that already has CAW
+members is refused. On a device that does not implement COMPARE AND WRITE a
+CAW mount is refused at admission (`P311-CAW-ADMISSION-REFUSED`), so nothing is
+written. Each mount logs which transport it runs:
+
+```
+dmesg | grep P-DOMAIN-ADMITTED       # ... transport=CAW)
+```
+
+**Not every target that accepts COMPARE AND WRITE honours it.** The Linux LIO
+target reports success without an atomic compare-and-swap; on LIO use TCP.
+This release's CAW verification ran on an SCST `vdisk_fileio` iSCSI target.
+For any other target, prove it first with `caw_verify` from both nodes
+([`docs/iscsi_setup.md`](docs/iscsi_setup.md) §4).
 
 **Before trusting data, verify the storage.** The shared LUN must honor durable
 (FUA) writes and SCSI Persistent Reservations, which MXFS uses to fence a failed

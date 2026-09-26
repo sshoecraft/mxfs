@@ -194,7 +194,7 @@ teardown_all() {
               for try in $(seq 1 15); do
                   if timeout 8 "$MXFS_SSH" "$n" "$MXFS_PASS" "
                       mkdir -p /src
-                      mountpoint -q /src || mount -t nfs 192.168.1.4:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null
+                      mountpoint -q /src || mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null
                       [ -f $MXFS_MODULE ]
                   " >/dev/null 2>&1; then
                       break
@@ -227,7 +227,7 @@ fresh_cluster_mount() {
     # ssh with a clear ENV_FAIL marker if it can't get the module.
     local ENSURE_NFS='
         for try in 1 2 3 4 5; do
-            mountpoint -q /src || { mkdir -p /src; mount -t nfs 192.168.1.4:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; }
+            mountpoint -q /src || { mkdir -p /src; mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; }
             [ -f '"$MXFS_MODULE"' ] && break
             sleep 2
         done

@@ -9,8 +9,11 @@
 #     <key> field=value field=value ...
 #
 #   storage portal=<ip[:port]> target=<iqn> lun=/dev/disk/by-id/<id> [also=<n1,n2>]
-#       the iSCSI LUN every pair shares.  also= names nodes outside the pairs
-#       that attach to it (the rig), which must be unmounted before a format.
+#       the iSCSI LUN the pairs in this file share.  also= names nodes outside
+#       the pairs that attach to it (the rig), which must be unmounted before a
+#       format.  To give each pair a LUN of its own, keep one lab file per pair
+#       (only that pair's line and its own storage line) and point $MXFS_LAB
+#       at it; scripts/scst_platform_targets.sh builds them on clyde.
 #   pair <platform>=<nodeA>,<nodeB> ...
 #       a platform's verification pair, keyed as in data/platforms.json.
 #   addr <node>=<ipv4> ...

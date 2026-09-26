@@ -147,6 +147,13 @@ done
 # Module auto-load
 mkdir -p %{buildroot}/etc/modules-load.d
 echo "mxfs" > %{buildroot}/etc/modules-load.d/mxfs.conf
+# ... from the root filesystem only.  dracut copies every modules-load.d entry
+# into the initramfs together with /etc/modprobe.d as it stood when the image
+# was built, so early boot loaded mxfs with a stale copy of the options: a
+# node switched to force_transport=0 came back on TCP after every reboot
+# (measured on AlmaLinux 9.8).  Nothing mounts MXFS before the real root.
+mkdir -p %{buildroot}/etc/dracut.conf.d
+echo 'omit_drivers+=" mxfs "' > %{buildroot}/etc/dracut.conf.d/mxfs.conf
 
 # udev rule: blkid/lsblk/mount (no -t) recognize MXFS by its on-disk magic
 mkdir -p %{buildroot}/etc/udev/rules.d
@@ -198,6 +205,17 @@ if [ "\$built" = 0 ]; then
     echo "ERROR: no installed kernel has headers; install kernel-devel for your kernel" >&2
     exit 1
 fi
+# An initramfs built before the omit above (an earlier install) still carries
+# mxfs and a stale copy of its options; rebuild exactly those.
+if command -v lsinitrd >/dev/null 2>&1 && command -v dracut >/dev/null 2>&1; then
+    for kdir in /lib/modules/*; do
+        k=\${kdir##*/}
+        lsinitrd -k "\$k" 2>/dev/null | grep -q '/mxfs\.ko' || continue
+        echo "Rebuilding the initramfs for \$k without mxfs ..."
+        dracut -f --kver "\$k" >/dev/null 2>&1 ||
+            echo "mxfs: dracut -f --kver \$k failed; the initramfs still loads mxfs with its old options" >&2
+    done
+fi
 if [ ! -e "/lib/modules/\$(uname -r)/build/Makefile" ]; then
     echo "NOTE: the running kernel \$(uname -r) has no headers, so MXFS was built for the"
     echo "      other installed kernels only. Reboot into one of them, or install"
@@ -232,6 +250,7 @@ fi
 /usr/share/man/man5/*.5.gz
 /usr/share/man/man8/*.8.gz
 /etc/modules-load.d/mxfs.conf
+/etc/dracut.conf.d/mxfs.conf
 /etc/udev/rules.d/60-mxfs-blkid.rules
 %config(noreplace) /etc/modprobe.d/mxfs.conf
 /usr/share/selinux/packages/mxfs.cil

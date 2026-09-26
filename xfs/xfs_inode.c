@@ -9266,6 +9266,32 @@ xfs_iflush(
 	 * The ifree is in our journal by construction here (in-AIL items only
 	 * reach a flush after their log write completed).
 	 */
+	/*
+	 * 0.90.6 (D-0524, 2-node CAW, freeob_commit_delay_ms=50, d0524_s8a):
+	 * the ifree has committed (its ILOCK is released and the CIL checkpoint
+	 * unpinned the item) but the obligation is still FREE_PENDING — the
+	 * commit transition to FREE has not run yet.  The P55C gate below keys
+	 * on FREE and so does the copy-in token (mxfs_pubob_stage_flush), so a
+	 * free image copied in now was written with no token and no gate: the
+	 * completion credited nothing, the inode came out of the write clean,
+	 * and the FREE entry the transition then created could never be
+	 * discharged.  Measured: ino 148 P82-REM, xfsaild's P240-COPYIN-ID 6 ms
+	 * later, then no P55C and no discharge — the number stayed excluded from
+	 * reuse and test1's create livelocked in P946-DIALLOC-PUBPEND-STORM for
+	 * the rest of the lap holding the shared directory.  Keep the item dirty
+	 * (the same -EAGAIN the P55C denial uses): the window closes when the
+	 * ifree's own transition runs, and the next push takes the image through
+	 * P55C and its token like every other free image.
+	 */
+	if (mp->m_mxfs_dlm && !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm) &&
+	    !mxfs_cores_commit_flush && READ_ONCE(ip->i_mxfs_freeob) == 1 &&
+	    xfs_iflags_test(ip, MXFS_IF_PUBOB) && VFS_I(ip)->i_mode == 0 &&
+	    VFS_I(ip)->i_nlink == 0) {
+		mxfs_probe_ratelimited("mxfs: P55C-FREE-PENDING-DEFER ino=%llu gen=%u comm=%s — the free image is committed but its obligation is still FREE_PENDING; keeping it dirty until the commit transition, so it is written through the FREE-PUBLISH gate\n",
+			(unsigned long long)ip->i_ino, VFS_I(ip)->i_generation,
+			current->comm);
+		return -EAGAIN;
+	}
 	if (mp->m_mxfs_dlm && !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm) &&
 	    !mxfs_cores_commit_flush && READ_ONCE(ip->i_mxfs_freeob) == 2 &&
 	    xfs_iflags_test(ip, MXFS_IF_PUBOB) && VFS_I(ip)->i_mode == 0 &&

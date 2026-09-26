@@ -4,7 +4,7 @@
 # Returns: exit 0 + prints PREP_OK, or exit 1 + prints PREP_FAIL
 
 ISCSI_TARGET="192.168.120.1:3260"
-NFS_SERVER="192.168.1.4:/src"
+NFS_SERVER="192.168.120.1:/src"
 NFS_MOUNT="/src"
 MODULE="/src/mxfs/mxfs.ko"
 DEVICE=""  # auto-detected after iSCSI login

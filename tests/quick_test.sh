@@ -11,7 +11,7 @@ MXFS_SSHPASS="$(dirname $(dirname $0))/tools/mxfs_sshpass.sh"
 echo "Testing on $VM..."
 
 $MXFS_SSHPASS $VM $PASS_FILE "
-mount -t nfs 192.168.1.4:/src /src 2>/dev/null
+mount -t nfs 192.168.120.1:/src /src 2>/dev/null
 rmmod mxfs 2>/dev/null; umount /mnt/mxfs 2>/dev/null
 dd if=/dev/zero of=/tmp/t.img bs=1M count=500 2>/dev/null
 losetup -d /dev/loop0 2>/dev/null; losetup /dev/loop0 /tmp/t.img

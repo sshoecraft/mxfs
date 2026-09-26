@@ -166,7 +166,7 @@ for i in $(seq 1 24); do
     sleep 5
 done
 [ "$up" = 1 ] || { echo "RESULT INCONCLUSIVE recovreuse: $V not back on ssh within 120 s out=$OUT"; exit 3; }
-rsx 90 "$V" "mountpoint -q /src || mount -t nfs 192.168.1.4:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp; MXFS_DEV='$DEV' MXFS_KO_MD5='$KO_MD5' bash /src/mxfs/tests/setup/prep_node.sh tcp 2>&1" > "$OUT/v_rejoin.txt"
+rsx 90 "$V" "mountpoint -q /src || mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp; MXFS_DEV='$DEV' MXFS_KO_MD5='$KO_MD5' bash /src/mxfs/tests/setup/prep_node.sh tcp 2>&1" > "$OUT/v_rejoin.txt"
 prep_require "$OUT/v_rejoin.txt" "the rejoin preparation on $V"
 echo "  INFO $V rejoined at +$(el)s"
 rs 12 "$V" "echo '$MARK' > /dev/kmsg" >/dev/null

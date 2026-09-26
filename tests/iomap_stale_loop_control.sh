@@ -38,7 +38,7 @@ case "$NODE" in
 esac
 echo "=== iomap_stale_loop_control label=$LABEL node=$NODE mb=$MB $(date -u +%FT%TZ) ==="
 
-rsx 60 "$NODE" "mountpoint -q /src || { mkdir -p /src && mount -t nfs 192.168.1.4:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp; }; mountpoint -q /src && echo SRC_OK; uname -r; test -d $TR/events/xfs/xfs_iomap_invalid && echo TP_OK; echo end=1" > "$OUT/node.txt" 2>&1
+rsx 60 "$NODE" "mountpoint -q /src || { mkdir -p /src && mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp; }; mountpoint -q /src && echo SRC_OK; uname -r; test -d $TR/events/xfs/xfs_iomap_invalid && echo TP_OK; echo end=1" > "$OUT/node.txt" 2>&1
 capture_require "$OUT/node.txt" '^SRC_OK$' "the /src export on $NODE"
 capture_require "$OUT/node.txt" '^TP_OK$' "the xfs_iomap_invalid tracepoint on $NODE"
 echo "NODE $NODE kernel=$(grep -a '^[0-9]' "$OUT/node.txt" | head -1)"

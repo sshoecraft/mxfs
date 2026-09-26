@@ -874,8 +874,34 @@ int mxfs_bootstrap_resume(struct mxfs_bootstrap *b,
 		rc = -EBUSY;
 		goto out;
 	}
-	b->owned = true;
+	/*
+	 * 0.90.1 — RESUME IS A WRITE, NOT A READ.
+	 *
+	 * A takeover contender fences an owner whose key the target purged with a
+	 * LOGICAL UNIT RESET, admitted only while it is the sole registrant.  This
+	 * boot re-registered at mount, so if it resumed after that admission on
+	 * the strength of a read alone, it would go on to write recovery bytes
+	 * while the contender reseals the term as its own.  A compare-and-write
+	 * from the exact image just read makes resume and takeover contend for
+	 * one sector: whichever lands second finds the record moved and stops
+	 * before writing anything else.  The contender re-reads the record after
+	 * its fence and reseals from that image, and it treats a moved sequence
+	 * as a moved record.
+	 */
 	b->img = *cur;
+	rc = bs_cas_locked(b, cur, &b->img);
+	if (rc) {
+		mxfs_pal_log(MXFS_LOG_ERR,
+			     "mxfs: P-BOOT-RESUME-CAS rc=%d term=%llu seq=%llu — the "
+			     "record moved between the read and the resume write (a "
+			     "takeover contender resealed it, or another writer); "
+			     "this boot does not resume the term", rc,
+			     (unsigned long long)cur->term,
+			     (unsigned long long)cur->seq);
+		rc = -EBUSY;
+		goto out;
+	}
+	b->owned = true;
 	b->nonce = cur->owner_nonce;
 	*node_out = cur->owner_node;
 	*epoch_out = cur->owner_epoch;
@@ -1544,6 +1570,15 @@ int mxfs_bootstrap_takeover_cas(struct mxfs_bootstrap *b,
 	rc = mxfs_pal_bdev_compare_and_write(b->dev, bs_tk_off(b), cur, want);
 	if (rc == -EOPNOTSUPP)
 		rc = mxfs_pal_bdev_write_fua(b->dev, bs_tk_off(b), want, sizeof(*want));
+	/*
+	 * 0.90.1: a takeover contender owns no record yet, and its journal is
+	 * the write rival contenders watch to decide abandonment — so a journal
+	 * write of ours that landed is the same evidence a record write is: a
+	 * compare-and-write issued at stamp_ms reached the LUN and nobody had
+	 * taken the sector from under us.  The post-LU-reset barrier reads it.
+	 */
+	if (rc == 0)
+		b->last_ok_ms = want->stamp_ms;
 	return rc;
 }
 

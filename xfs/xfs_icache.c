@@ -2472,6 +2472,19 @@ xfs_iget_cache_miss(
 			    "mxfs: P-IMAP-UNTRUSTED-AGLOCK-FAIL ino=%llu agno=%u rc=%d comm=%s budget=%d — untrusted iget: AG DLM acquire failed; refusing (not 'free')\n",
 				(unsigned long long)ino, pag_agno(pag), error,
 				current->comm, budgets);
+			/* 0.90.6: the mount's root lookup, with a peer that
+			 * died during this mount still waiting for the replay
+			 * only the mount's barrier can run: more budgets would
+			 * wait on its frozen grant.  Fail the lookup (EIO, which
+			 * xfs_iget does not retry) so the mount re-runs its
+			 * barrier and looks again. */
+			if (mxfs_dlm_mount_late_death_blocks(mp, ino)) {
+				mxfs_probe("mxfs: P-MPHASE-AGLOCK-GIVEUP ino=%llu agno=%u rc=%d budgets=%d comm=%s — a peer that died during this mount holds the AG; failing the root lookup so the mount re-runs its barrier\n",
+					(unsigned long long)ino, pag_agno(pag),
+					error, budgets, current->comm);
+				error = -EIO;
+				goto out_destroy;
+			}
 			if (error == -EAGAIN &&
 			    budgets < MXFS_UNTRUSTED_AGLOCK_BUDGETS &&
 			    !fatal_signal_pending(current))

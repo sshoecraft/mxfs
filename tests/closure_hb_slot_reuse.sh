@@ -220,7 +220,7 @@ for a in $(seq 1 24); do
 done
 [ "$booted" -eq 1 ] || { echo "PRECONDITION-NOT-MET: $VICTIM never came back on ssh"; exit 2; }
 timeout 90 "$SSH" "$VICTIM" "
-    mountpoint -q /src || { mkdir -p /src; mount -t nfs 192.168.1.4:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; }
+    mountpoint -q /src || { mkdir -p /src; mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; }
     iscsiadm -m discovery -t st -p 192.168.120.1:3260 >/dev/null 2>&1
     iscsiadm -m discovery -t st -p 192.168.120.2:3260 >/dev/null 2>&1
     iscsiadm -m node --login >/dev/null 2>&1
@@ -229,7 +229,7 @@ timeout 90 "$SSH" "$VICTIM" "
 devup=0
 for a in $(seq 1 20); do
     timeout 8 "$SSH" "$VICTIM" "[ -e $DEV ] && mountpoint -q /src && echo DEV_UP" 2>/dev/null | grep -q DEV_UP && { devup=1; break; }
-    timeout 20 "$SSH" "$VICTIM" "mountpoint -q /src || { mkdir -p /src; timeout 12 mount -t nfs 192.168.1.4:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; }; multipath >/dev/null 2>&1" >/dev/null 2>&1
+    timeout 20 "$SSH" "$VICTIM" "mountpoint -q /src || { mkdir -p /src; timeout 12 mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; }; multipath >/dev/null 2>&1" >/dev/null 2>&1
     sleep 3
 done
 [ "$devup" -eq 1 ] || { echo "PRECONDITION-NOT-MET: $DEV / /src never came up on $VICTIM"; exit 2; }

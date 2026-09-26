@@ -352,7 +352,7 @@ require_epoch() {
 ensure_src_or_abort() {
     local n r
     for n in "$@"; do
-        r=$(rs 150 "$n" "for try in 1 2 3 4 5 6; do mountpoint -q /src && break; mkdir -p /src; timeout 12 mount -t nfs 192.168.1.4:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; sleep 4; done; mountpoint -q /src && [ -r /src/mxfs/tools/slice_image.py ] && [ -r /src/mxfs/tests/setup/prep_node.sh ] && echo SRC_OK" | tail -1)
+        r=$(rs 150 "$n" "for try in 1 2 3 4 5 6; do mountpoint -q /src && break; mkdir -p /src; timeout 12 mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; sleep 4; done; mountpoint -q /src && [ -r /src/mxfs/tools/slice_image.py ] && [ -r /src/mxfs/tests/setup/prep_node.sh ] && echo SRC_OK" | tail -1)
         [ "$r" = SRC_OK ] || { echo "ABORT: /src with the tree is not reachable on $n, so nothing from the tree can run there"; echo "RESULT: ABORT label=${LABEL:-?} stage=src_mount node=$n evidence=${OUT:-?}"; exit 2; }
     done
 }
@@ -664,15 +664,18 @@ d=json.load(open(sys.argv[1])); print((d.get(sys.argv[2]) or {}).get("task_retir
 # refuses to certify a boot succession — which is the intended state, not a
 # harness failure to paper over.
 #
-# The transport follows MXFS_TRANSPORT (tcp unless it says caw), as the prep's
-# does.  It used to be force_transport=1 always, so a lap that reloads the
-# module after a reboot put a CAW node back on TCP, and the mount was refused
-# as a transport mismatch before the path under test was reached
-# (tests/evidence/20260926T065606Z_btk_btk_caw_s1: P-TRANSPORT-MISMATCH-REFUSED
-# forced=tcp platter=caw).
+# The transport follows MXFS_TRANSPORT (tcp unless it names a CAW rig: caw,
+# cawd or cawp), as the prep's does.  It used to be force_transport=1 always,
+# so a lap that reloads the module after a reboot put a CAW node back on TCP,
+# and the mount was refused as a transport mismatch before the path under test
+# was reached (tests/evidence/20260926T065606Z_btk_btk_caw_s1:
+# P-TRANSPORT-MISMATCH-REFUSED forced=tcp platter=caw).  Matching only the
+# exact word `caw` did the same thing again once the takeover harness moved to
+# the SCST direct rig, `cawd`
+# (tests/evidence/20260926T160431Z_btk_preempt_foreign_s6b).
 mxfs_rig_modargs() {
     local c ft=1
-    [ "${MXFS_TRANSPORT:-tcp}" = caw ] && ft=0
+    case "${MXFS_TRANSPORT:-tcp}" in caw*) ft=0 ;; esac
     c=$(mxfs_rig_retirement_contract)
     if [ -n "$c" ]; then
         printf '%s\n' "target_cache_protected=1 force_transport=$ft 'target_retire_contract=\"$c\"'"

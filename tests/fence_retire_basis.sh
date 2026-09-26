@@ -206,7 +206,7 @@ $VIRSH start "$B" > "$OUT/start.txt" 2>&1
 waitboot "$B"
 KO_MD5=$(md5sum mxfs.ko 2>/dev/null | awk '{print $1}')
 measure "$B" "$BOOT_BOUND" "$OUT/B_rejoin.txt" '^PREP_RC=' "the re-prep of $B" \
-    "for try in 1 2 3 4 5 6; do mountpoint -q /src && break; mkdir -p /src; timeout 12 mount -t nfs 192.168.1.4:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; sleep 4; done; mountpoint -q /src || echo SRC_NOT_MOUNTED; echo $MARK > /dev/kmsg; MXFS_DEV='$MXFS_DEV' MXFS_KO_MD5='$KO_MD5' MXFS_RETIRE_CONTRACT='$CONTRACT' timeout $(( BOOT_BOUND - 40 )) bash /src/mxfs/tests/setup/prep_node.sh tcp > /tmp/frb_prep.log 2>&1; echo PREP_RC=\$?; grep -a 'MXFS_RETIRE_CONTRACT=' /tmp/frb_prep.log | head -1; tail -2 /tmp/frb_prep.log"
+    "for try in 1 2 3 4 5 6; do mountpoint -q /src && break; mkdir -p /src; timeout 12 mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; sleep 4; done; mountpoint -q /src || echo SRC_NOT_MOUNTED; echo $MARK > /dev/kmsg; MXFS_DEV='$MXFS_DEV' MXFS_KO_MD5='$KO_MD5' MXFS_RETIRE_CONTRACT='$CONTRACT' timeout $(( BOOT_BOUND - 40 )) bash /src/mxfs/tests/setup/prep_node.sh tcp > /tmp/frb_prep.log 2>&1; echo PREP_RC=\$?; grep -a 'MXFS_RETIRE_CONTRACT=' /tmp/frb_prep.log | head -1; tail -2 /tmp/frb_prep.log"
 PREP_RC=$(field "$OUT/B_rejoin.txt" PREP_RC)
 # THE DECISIVE MOUNT.  The prep script's own mount gives up at the admission
 # barrier's bound, and on a healthy lap the certificate lands within a second

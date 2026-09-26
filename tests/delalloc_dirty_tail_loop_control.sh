@@ -71,7 +71,7 @@ echo "=== delalloc_dirty_tail_loop_control label=$LABEL node=$NODE race_s=$RACE_
 
 # The node must see the tree (module, tools, the reproducer) and hold no MXFS
 # mount of its own: this lap loads the tree's module itself.
-rsx 60 "$NODE" "mountpoint -q /src || { mkdir -p /src && mount -t nfs 192.168.1.4:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp; }; mountpoint -q /src && echo SRC_OK; uname -r; grep -c ' mxfs ' /proc/mounts; echo end=1" > "$OUT/node.txt" 2>&1
+rsx 60 "$NODE" "mountpoint -q /src || { mkdir -p /src && mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp; }; mountpoint -q /src && echo SRC_OK; uname -r; grep -c ' mxfs ' /proc/mounts; echo end=1" > "$OUT/node.txt" 2>&1
 capture_require "$OUT/node.txt" '^SRC_OK$' "the /src export on $NODE"
 KREL=$(grep -a '^[0-9]' "$OUT/node.txt" | head -1)
 NMX=$(grep -aoE '^[0-9]+$' "$OUT/node.txt" | tail -1)

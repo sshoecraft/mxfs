@@ -190,7 +190,7 @@ cycle_vms() {  # node...
     [ -z "$bad" ] || { say "ERROR: VMs did not come back after cycle:$bad"; return 1; }
     # restore /src on the cycled nodes (NFS deliberately not an fstab automount)
     for n in "$@"; do
-        ( ssh_n "$n" 'mountpoint -q /src || { mkdir -p /src; mount -t nfs 192.168.1.4:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; }; mountpoint -q /src && echo SRC_OK' 60 | grep -q SRC_OK ) &
+        ( ssh_n "$n" 'mountpoint -q /src || { mkdir -p /src; mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; }; mountpoint -q /src && echo SRC_OK' 60 | grep -q SRC_OK ) &
     done
     wait
     return 0

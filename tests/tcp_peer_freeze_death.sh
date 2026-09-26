@@ -49,6 +49,18 @@
 #   file, which is what virsh suspend sends underneath.
 #   Leaves the victim resumed and the cluster as it ended, for inspection.
 #
+# TRANSPORT=caw runs the same freeze on the CAW transport (the name is
+# historical: the harness began on TCP).  PREP=rig forms the cluster with
+# ./run.sh 2 cawd; a platform pair loads its packaged module and sets
+# force_transport=0 before mounting, and each mount must announce
+# transport=CAW.  On CAW there is no TCP socket to lose: the survivor sees the
+# victim's disk heartbeat stop, declares it dead (P236-FENCE-INTENT), fences it
+# with SCSI PR and replays its journal slice (P163-RECOVERED); the death line
+# is the fence intent.  The budgets hold as derived: the CAW dead window is
+# ~62 s (heartbeat staleness, measured on the rig) + the fence and an idle
+# slice's replay in seconds, inside DEATH_BUDGET_S=120 and WRITE_BUDGET_S=180.
+# The TCP death worker's scheduling trace is not taken on CAW.
+#
 set -u
 
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
@@ -57,6 +69,19 @@ WATCH_S="${3:-300}"
 DEATH_BUDGET_S=120
 WRITE_BUDGET_S=180
 PREP="${PREP:-rig}"
+TRANSPORT="${TRANSPORT:-tcp}"
+case "$TRANSPORT" in
+    tcp) TNAME=TCP; RIGDLM=tcp; FT=1
+         DEATH_RE="did not reconnect within|has left the cluster" ;;
+    # "is no longer responding (heartbeat expired" is the heartbeat monitor's
+    # WARN-level declaration and prints on every build.  P236-FENCE-INTENT is
+    # a debug probe: a packaged module loaded without dyndbg never prints it,
+    # so on every platform pair the death read as "never" while the fence
+    # certified at +62 s and the survivor wrote at +65 s (0.90.7, all four).
+    caw) TNAME=CAW; RIGDLM=cawd; FT=0
+         DEATH_RE="is no longer responding \(heartbeat expired|P236-FENCE-INTENT|declar(ed|ing) dead" ;;
+    *) echo "TRANSPORT must be tcp or caw" >&2; exit 2 ;;
+esac
 if [ "$PREP" = rig ]; then
     PACKAGED=0; MNT=/mnt/shared
     V="${1:-test2}"; S="${2:-test1}"; LUN=${MXFS_LUN:-}
@@ -72,7 +97,9 @@ fi
 
 SSH="$HERE/tools/mxfs_sshpass.sh"
 VIRSH="virsh -c qemu:///system"
-EV="$HERE/tests/evidence/tcp_peer_freeze_death/$(date +%Y%m%dT%H%M%S)"
+# the pair's name is part of the directory: tests/full_verify.sh runs every
+# platform's pair at once, and three started in one second shared a directory
+EV="$HERE/tests/evidence/tcp_peer_freeze_death/$(date +%Y%m%dT%H%M%S)_${PREP}_$TRANSPORT"
 mkdir -p "$EV"
 exec > >(tee -a "$EV/run.log") 2>&1
 say() { echo "[$(date +%T)] $*"; }
@@ -105,12 +132,12 @@ vm_freeze() { if is_domain "$1"; then $VIRSH suspend "$1" >/dev/null; else qmp "
 vm_thaw() { if is_domain "$1"; then $VIRSH resume "$1" >/dev/null; else qmp "$1" cont | grep -q '"return"'; fi; }
 on() { local h t=$2; h=$(addr "$1"); shift 2; timeout "$t" "$SSH" "$h" "$@" 2>&1 | grep --line-buffered -v -E "^Warning: Permanently|^$|Unauthorized access|authorized user, disconnect"; return "${PIPESTATUS[0]}"; }
 
-say "victim=$V survivor=$S watch=${WATCH_S}s evidence=$EV"
+say "victim=$V survivor=$S transport=$TRANSPORT watch=${WATCH_S}s evidence=$EV"
 vm_running "$V" || fail "$V is not running"
 
-# --- 1. a fresh 2/tcp cluster on the shared LUN
+# --- 1. a fresh 2-node cluster on the shared LUN
 if [ "$PREP" = rig ]; then
-    (cd "$HERE" && ./run.sh 2 tcp prep_cluster) > "$EV/prep_cluster.log" 2>&1 || { tail -20 "$EV/prep_cluster.log"; fail "prep_cluster"; }
+    (cd "$HERE" && ./run.sh 2 $RIGDLM prep_cluster) > "$EV/prep_cluster.log" 2>&1 || { tail -20 "$EV/prep_cluster.log"; fail "prep_cluster"; }
 else
     # free the LUN: no other node may hold it while it is reformatted; one
     # that does not answer is not running, so it holds nothing
@@ -131,6 +158,7 @@ else
             for i in 1 2 3 4 5 6 7 8 9 10; do [ -b $LUN ] && break; sleep 1; done
             [ -b $LUN ] && echo lun_ok
             lsmod | grep -q '^mxfs' || modprobe mxfs
+            echo $FT > /sys/module/mxfs/parameters/force_transport
             cat /sys/module/mxfs/version /sys/module/mxfs/srcversion; uname -r
         " | tee "$EV/prep_$h.txt"
         grep -q lun_ok "$EV/prep_$h.txt" || fail "$h: the shared LUN is not present"
@@ -141,8 +169,9 @@ else
     on $V 120 "mkdir -p $MNT && mount -t mxfs -o peer=$(addr $S) $LUN $MNT; echo mount_rc=\$?" | tee "$EV/mount_$V.txt"
 fi
 for h in $S $V; do
-    on $h 20 "mountpoint -q $MNT && echo mounted; cat /sys/module/mxfs/srcversion; grep MEMBERSHIP /dev/null; dmesg | grep MXFS-MEMBERSHIP | tail -1" | tee "$EV/node_$h.txt"
+    on $h 20 "mountpoint -q $MNT && echo mounted; cat /sys/module/mxfs/srcversion; grep MEMBERSHIP /dev/null; dmesg | grep MXFS-MEMBERSHIP | tail -1; dmesg | grep P-DOMAIN-ADMITTED | tail -1 | grep -o 'transport=[A-Z]*'" | tee "$EV/node_$h.txt"
     grep -q mounted "$EV/node_$h.txt" || fail "$h not mounted after prep_cluster"
+    grep -qx "transport=$TNAME" "$EV/node_$h.txt" || fail "$h is not on transport=$TNAME"
 done
 
 # --- 2. both nodes write, so the victim holds grants and journal content
@@ -152,16 +181,21 @@ on $S 60 "for i in \$(seq 1 20); do dd if=/dev/urandom of=$MNT/freeze/s\$i bs=64
 on $V 10 "nohup setsid bash -c 'while :; do dd if=/dev/urandom of=$MNT/freeze/busy bs=64k count=16 conv=fsync status=none; done' >/dev/null 2>&1 < /dev/null & echo \$! > /root/freeze_busy.pid; echo busy_started"
 
 # --- 3. survivor instruments
-DW=$(on $S 20 "for p in /proc/[0-9]*; do grep -q v5_tcp_death_worker_fn \$p/stack 2>/dev/null && { echo \${p#/proc/}; break; }; done")
-[ -n "$DW" ] || fail "death worker thread not found on $S"
-say "survivor death worker pid=$DW"
 BG=""
+DW=""
+if [ "$TRANSPORT" = tcp ]; then
+    DW=$(on $S 20 "for p in /proc/[0-9]*; do grep -q v5_tcp_death_worker_fn \$p/stack 2>/dev/null && { echo \${p#/proc/}; break; }; done")
+    [ -n "$DW" ] || fail "death worker thread not found on $S"
+    say "survivor death worker pid=$DW"
+fi
 # -W follows only messages printed from now on: replaying the ring (-w) let a
 # death line left by an earlier run satisfy the death check at +0 s.
 on $S $(( WATCH_S + 120 )) "dmesg -W" > "$EV/dmesg_$S.log" &
 BG="$BG $!"
-on $S $(( WATCH_S + 120 )) "while :; do echo \"\$(date +%s.%N) \$(cut -d' ' -f1 /proc/uptime) \$(awk '/^nr_switches/{print \$3}' /proc/$DW/sched) \$(cut -d' ' -f3 /proc/$DW/stat)\"; sleep 1; done" > "$EV/deathworker_$S.log" &
-BG="$BG $!"
+if [ -n "$DW" ]; then
+    on $S $(( WATCH_S + 120 )) "while :; do echo \"\$(date +%s.%N) \$(cut -d' ' -f1 /proc/uptime) \$(awk '/^nr_switches/{print \$3}' /proc/$DW/sched) \$(cut -d' ' -f3 /proc/$DW/stat)\"; sleep 1; done" > "$EV/deathworker_$S.log" &
+    BG="$BG $!"
+fi
 # the target's registrations, read by the survivor every 2 s: when (if ever)
 # the frozen victim's key leaves the target decides whether PREEMPT can fence it
 KEYDEV=$MNT; [ $PACKAGED = 1 ] && KEYDEV=$LUN
@@ -183,7 +217,7 @@ while [ $(( $(date +%s) - T0 )) -lt "$WATCH_S" ]; do
     else
         echo "+${e}s write BLOCKED/FAILED" >> "$EV/survivor_write_probe.log"
     fi
-    if [ -z "$death_at" ] && grep -q -E "did not reconnect within|has left the cluster" "$EV/dmesg_$S.log"; then
+    if [ -z "$death_at" ] && grep -q -E "$DEATH_RE" "$EV/dmesg_$S.log"; then
         death_at=$e; say "death declared by +${e}s"
     fi
     sleep 5
@@ -228,7 +262,7 @@ kill_tree $BG
 on $V 30 "dmesg | tail -80" > "$EV/dmesg_${V}_after_resume.log"
 on $S 20 "grep ' mxfs ' /proc/mounts; ls $MNT/freeze | wc -l" > "$EV/survivor_state_at_end.txt"
 
-python3 - "$EV/deathworker_$S.log" <<'EOF' | tee "$EV/deathworker_rate.txt"
+[ -n "$DW" ] && python3 - "$EV/deathworker_$S.log" <<'EOF' | tee "$EV/deathworker_rate.txt"
 import sys
 rows = [l.split() for l in open(sys.argv[1]) if len(l.split()) >= 3 and l.split()[2].isdigit()]
 flat, run = 0, 0
@@ -241,11 +275,11 @@ if len(rows) > 1:
     rate = (int(rows[-1][2]) - int(rows[0][2])) / (float(rows[-1][0]) - float(rows[0][0]))
     print("death worker: %d samples, %.2f switches/s overall, longest flat stretch %.1f s" % (len(rows), rate, flat))
 EOF
-grep -h -E "TCP peer .* (disconnected|reconnected)|did not reconnect|grace expired|has left the cluster|P309-DEATH|P238-FENCE|PREEMPT|foreign replay|RECOVERY-COMPLETE|P131-SELF-FENCE|P-D8-TICK" "$EV/dmesg_$S.log" | cut -c1-200
+grep -h -E "TCP peer .* (disconnected|reconnected)|did not reconnect|grace expired|has left the cluster|P309-DEATH|P238-FENCE|P236-FENCE|P-PR-FENCE|P163-RECOVERED|PREEMPT|foreign replay|RECOVERY-COMPLETE|P131-SELF-FENCE|P-D8-TICK" "$EV/dmesg_$S.log" | cut -c1-200
 
 v=PASS
 [ -n "$death_at" ] && [ "$death_at" -le "$DEATH_BUDGET_S" ] || v=FAIL
 [ -n "$write_at" ] && [ "$write_at" -le "$WRITE_BUDGET_S" ] || v=FAIL
-say "VERDICT $v: death declared at +${death_at:-never}s (budget ${DEATH_BUDGET_S}s), survivor wrote at +${write_at:-never}s (budget ${WRITE_BUDGET_S}s)"
+say "VERDICT $v ($TRANSPORT): death declared at +${death_at:-never}s (budget ${DEATH_BUDGET_S}s), survivor wrote at +${write_at:-never}s (budget ${WRITE_BUDGET_S}s)"
 say "done: $EV"
 [ "$v" = PASS ]

@@ -13,13 +13,13 @@
         "pve-storage-mxfs_<v>_all.deb"
       ],
       "build_check": "scripts/pve_kbuild_check.sh 6.17.2-1-pve",
-      "verify_env": "two Proxmox VE 9 nodes built as lab/vms.md describes (pve9), sharing one iSCSI LUN that supports SCSI persistent reservations, attached in-guest; which nodes and which LUN come from this site's lab file (tools/mxfs_lab.sh)",
-      "verify_tests": "install both .debs from the built packages; DKMS builds on every installed PVE kernel; for EACH claimed kernel (pinned with proxmox-boot-tool, rebooted into): mount with no options on both nodes; cross-node checksums; create/remote-delete counts; chk_mxfs clean; peer= with multicast blocked; peers=; pvesm add/status/remove holds one mount; O_DIRECT read on a stable-writes device; reboot on that kernel, module auto-loaded, remount, earlier data intact (KERNEL=<krel> tests/packaged_round.sh pve9, once per claimed kernel)",
+      "verify_env": "two Proxmox VE 9 nodes built as lab/vms.md describes (pve9), sharing one iSCSI LUN that supports SCSI persistent reservations and COMPARE AND WRITE (clyde's SCST target since 2026-09-26), attached in-guest; which nodes and which LUN come from this site's lab file (tools/mxfs_lab.sh)",
+      "verify_tests": "install both .debs from the built packages; DKMS builds on every installed PVE kernel; for EACH claimed kernel (pinned with proxmox-boot-tool, rebooted into) and EACH transport: mount with no options on both nodes, transport announced by every mount; cross-node checksums; create/remote-delete counts; chk_mxfs clean; peer= with multicast blocked; peers=; pvesm add/status/remove holds one mount; O_DIRECT read on a stable-writes device; reboot on that kernel, module auto-loaded with the configured transport, remount, earlier data intact ([TRANSPORT=caw] KERNEL=<krel> tests/packaged_round.sh pve9, once per claimed kernel per transport); hung-node freeze on each transport (TRANSPORT=tcp|caw PREP=pve9 tests/tcp_peer_freeze_death.sh): death declared, fence certified, replay, survivor writing",
       "verified": {
         "amd64": {
-          "version": "0.90.0",
+          "version": "0.90.7",
           "date": "2026-09-26",
-          "evidence": "tests/evidence/packaged_round/pve9_0.90.0_20260926T075243 tests/evidence/packaged_round/pve9_0.90.0_20260926T080007 tests/evidence/full_verify_0.90.0.log"
+          "evidence": "tests/evidence/packaged_round/pve9_0.90.7_tcp_20260926T143323 tests/evidence/packaged_round/pve9_0.90.7_caw_20260926T144006 tests/evidence/packaged_round/pve9_0.90.7_tcp_20260926T144555 tests/evidence/packaged_round/pve9_0.90.7_caw_20260926T145156 tests/evidence/tcp_peer_freeze_death/20260926T145717_tcp tests/evidence/tcp_peer_freeze_death/20260926T151719_pve9_caw tests/evidence/full_verify_0.90.7.log tests/evidence/rerun2_caw_freeze_0.90.7_pve9.log"
         }
       },
       "priority": 1,
@@ -37,14 +37,14 @@
         "mxfs_<v>_amd64.deb"
       ],
       "build_check": "make modules -j16",
-      "verify_env": "two Ubuntu 24.04 nodes on the GA kernel built as lab/vms.md describes (ubuntu2404), sharing one iSCSI LUN that supports SCSI persistent reservations, attached in-guest; which nodes and which LUN come from this site's lab file (tools/mxfs_lab.sh), for the packaged round (tests/packaged_round.sh ubuntu2404); the development rig for the 2/tcp suite",
-      "verify_tests": "the full 2/tcp suite (run.sh 2 tcp) on the rig; install the .deb from the built packages with a DKMS build and a module loaded from updates/dkms; mount with no options on both nodes; cross-node checksums; create/remote-delete counts; chk_mxfs clean; peer= with multicast blocked; reboot, module auto-loaded, remount, earlier data intact",
+      "verify_env": "two Ubuntu 24.04 nodes on the GA kernel built as lab/vms.md describes (ubuntu2404), sharing one iSCSI LUN that supports SCSI persistent reservations and COMPARE AND WRITE (clyde's SCST target since 2026-09-26), attached in-guest; which nodes and which LUN come from this site's lab file (tools/mxfs_lab.sh), for the packaged round (tests/packaged_round.sh ubuntu2404); the development rig for the 2/tcp suite",
+      "verify_tests": "the full 2/tcp suite (run.sh 2 tcp) and the full 2/cawd suite (run.sh 2 cawd) on the rig; on each transport: install the .deb from the built packages with a DKMS build and a module loaded from updates/dkms; mount with no options on both nodes, transport announced by every mount; cross-node checksums; create/remote-delete counts; chk_mxfs clean; peer= with multicast blocked; reboot, module auto-loaded with the configured transport, remount, earlier data intact ([TRANSPORT=caw] tests/packaged_round.sh ubuntu2404); hung-node freeze on each transport (TRANSPORT=tcp|caw PREP=ubuntu2404 tests/tcp_peer_freeze_death.sh)",
       "notes": "The development rig's platform.",
       "verified": {
         "amd64": {
-          "version": "0.90.0",
+          "version": "0.90.7",
           "date": "2026-09-26",
-          "evidence": "tests/evidence/packaged_round/ubuntu2404_0.90.0_20260926T074501 tests/evidence/full_verify_0.90.0.log"
+          "evidence": "tests/evidence/packaged_round/ubuntu2404_0.90.7_tcp_20260926T143324 tests/evidence/packaged_round/ubuntu2404_0.90.7_caw_20260926T144024 tests/evidence/tcp_peer_freeze_death/20260926T144719_tcp tests/evidence/tcp_peer_freeze_death/20260926T151045_caw tests/evidence/full_verify_0.90.7.log tests/evidence/rerun_caw_freeze_0.90.7_ubuntu2404.log"
         }
       },
       "priority": 3,
@@ -62,15 +62,15 @@
         "mxfs-<v>-1.el8.x86_64.rpm (DKMS; EPEL dkms)"
       ],
       "build_check": "scripts/rhel_kbuild_check.sh -i almalinux:9 && scripts/rhel_kbuild_check.sh -i rockylinux:9",
-      "verify_env": "two AlmaLinux 9.8 nodes built as lab/vms.md describes (rhel9), on kernel 5.14.0-687.49.1.el9_8, firewalld active, SELinux enforcing, sharing one iSCSI LUN that supports SCSI persistent reservations, attached in-guest; which nodes and which LUN come from this site's lab file (tools/mxfs_lab.sh). AlmaLinux and Rocky rebuild Red Hat's kernel for each minor release; runtime runs on AlmaLinux, build checks on AlmaLinux and Rocky.",
-      "verify_tests": "install the .rpm from the built packages with a DKMS build and the module loaded from /lib/modules/<krel>/extra; firewalld with only 7600/tcp 7601/udp 7603/udp opened; mount with no options on both nodes; cross-node checksums; create/remote-delete counts; chk_mxfs clean; peer= with multicast dropped; reboot, module auto-loaded, remount, earlier data intact; SELinux enforcing: mount, cross-node writes, no AVC denials; hung-node freeze (PREP=rhel9 tests/tcp_peer_freeze_death.sh): death declared, fence certified, replay, survivor writing (tests/packaged_round.sh rhel9)",
+      "verify_env": "two AlmaLinux 9.8 nodes built as lab/vms.md describes (rhel9), on kernel 5.14.0-687.49.1.el9_8, firewalld active, SELinux enforcing, sharing one iSCSI LUN that supports SCSI persistent reservations and COMPARE AND WRITE (clyde's SCST target since 2026-09-26), attached in-guest; which nodes and which LUN come from this site's lab file (tools/mxfs_lab.sh). AlmaLinux and Rocky rebuild Red Hat's kernel for each minor release; runtime runs on AlmaLinux, build checks on AlmaLinux and Rocky.",
+      "verify_tests": "on each transport: install the .rpm from the built packages with a DKMS build and the module loaded from /lib/modules/<krel>/extra; firewalld with only 7600/tcp 7601/udp 7602/udp 7603/udp opened; mount with no options on both nodes, transport announced by every mount; cross-node checksums; create/remote-delete counts; chk_mxfs clean; peer= with multicast dropped; reboot, module auto-loaded with the configured transport, remount, earlier data intact; SELinux enforcing: mount, cross-node writes, no AVC denials ([TRANSPORT=caw] tests/packaged_round.sh rhel9); hung-node freeze on each transport (TRANSPORT=tcp|caw PREP=rhel9 tests/tcp_peer_freeze_death.sh): death declared, fence certified, replay, survivor writing",
       "notes": "Ported in 0.89.82: kernel APIs are probed at build time (pal/linux/kcompat_probe.sh), since RHEL 9 reports 5.14 for every minor release while carrying backports, so each minor is a different build. The claim is 9.8 only. Runtime runs on AlmaLinux 9.8, which rebuilds Red Hat's kernel, so verifying it needs no Red Hat subscription; a claim for another minor needs a pair on that minor.",
       "priority": 2,
       "verified": {
         "amd64": {
-          "version": "0.90.0",
+          "version": "0.90.7",
           "date": "2026-09-26",
-          "evidence": "tests/evidence/packaged_round/rhel9_0.90.0_20260926T080723 tests/evidence/full_verify_0.90.0.log"
+          "evidence": "tests/evidence/packaged_round/rhel9_0.90.7_tcp_20260926T143323 tests/evidence/packaged_round/rhel9_0.90.7_caw_20260926T144201 tests/evidence/tcp_peer_freeze_death/20260926T144957_tcp tests/evidence/tcp_peer_freeze_death/20260926T151718_rhel9_caw tests/evidence/full_verify_0.90.7.log tests/evidence/rerun_caw_freeze_0.90.7_rhel9.log tests/evidence/rerun2_caw_freeze_0.90.7_rhel9.log"
         }
       },
       "arch": [
@@ -152,13 +152,13 @@
         "amd64"
       ],
       "build_check": "scripts/debian_kbuild_check.sh -i debian:13",
-      "verify_env": "two Debian 13 nodes on the claimed kernel built as lab/vms.md describes (debian13), sharing one iSCSI LUN that supports SCSI persistent reservations, attached in-guest; which nodes and which LUN come from this site's lab file (tools/mxfs_lab.sh), for the packaged round (tests/packaged_round.sh debian13)",
-      "verify_tests": "install the .deb from the built packages with a DKMS build and a module loaded from updates/dkms; mount with no options on both nodes; cross-node checksums; create/remote-delete counts; chk_mxfs clean; peer= with multicast blocked; O_DIRECT read on a stable-writes device; reboot, module auto-loaded, remount, earlier data intact",
+      "verify_env": "two Debian 13 nodes on the claimed kernel built as lab/vms.md describes (debian13), sharing one iSCSI LUN that supports SCSI persistent reservations and COMPARE AND WRITE (clyde's SCST target since 2026-09-26), attached in-guest; which nodes and which LUN come from this site's lab file (tools/mxfs_lab.sh), for the packaged round (tests/packaged_round.sh debian13)",
+      "verify_tests": "on each transport: install the .deb from the built packages with a DKMS build and a module loaded from updates/dkms; mount with no options on both nodes, transport announced by every mount; cross-node checksums; create/remote-delete counts; chk_mxfs clean; peer= with multicast blocked; O_DIRECT read on a stable-writes device; reboot, module auto-loaded with the configured transport, remount, earlier data intact ([TRANSPORT=caw] tests/packaged_round.sh debian13); hung-node freeze on each transport (TRANSPORT=tcp|caw PREP=debian13 tests/tcp_peer_freeze_death.sh)",
       "verified": {
         "amd64": {
-          "version": "0.90.0",
+          "version": "0.90.7",
           "date": "2026-09-26",
-          "evidence": "tests/evidence/packaged_round/debian13_0.90.0_20260926T082036 tests/evidence/full_verify_0.90.0.log"
+          "evidence": "tests/evidence/packaged_round/debian13_0.90.7_tcp_20260926T143323 tests/evidence/packaged_round/debian13_0.90.7_caw_20260926T144005 tests/evidence/tcp_peer_freeze_death/20260926T144638_tcp tests/evidence/tcp_peer_freeze_death/20260926T151719_debian13_caw tests/evidence/full_verify_0.90.7.log tests/evidence/rerun2_caw_freeze_0.90.7_debian13.log"
         }
       }
     },

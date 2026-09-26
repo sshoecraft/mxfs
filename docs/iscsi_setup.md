@@ -12,34 +12,42 @@ nodes and you will get silent corruption. **Read this before formatting a LUN.**
 
 ---
 
-## 1. Pick a transport: CAW (default) vs TCP DLM
+## 1. Pick a transport: TCP DLM or CAW
 
 MXFS coordinates nodes with a distributed lock manager (DLM) that runs over one
-of two transports:
+of two transports. Both are released for 2-node clusters.
 
 | Transport | How locks travel | What the LUN must support | Node-to-node network |
 |---|---|---|---|
-| **CAW** (default) | In-band, on the shared disk itself, via SCSI **COMPARE AND WRITE** | CAW (0x89) + Persistent Reservations + durable writes | Not required for locking |
-| **TCP DLM** (fallback) | Out-of-band, over TCP between nodes | Only a plain shared block device | Required (low-latency LAN) |
+| **TCP DLM** (package default) | Out-of-band, over TCP between nodes | A shared block device + Persistent Reservations + durable writes | Required (low-latency LAN) |
+| **CAW** | In-band, on the shared disk itself, via SCSI **COMPARE AND WRITE** | CAW (0x89), honoured atomically + Persistent Reservations + durable writes | UDP only: discovery and lock-release notices |
 
-- **CAW is the primary, recommended transport.** It needs no separate lock
-  network — the lock state lives on the LUN — and it scales past the point where
-  TCP DLM's per-node coordination cost dominates (>16 nodes).
-- **TCP DLM is the fallback** for storage that does *not* honour SCSI CAW/PR
-  (see §2). It works over any shared block device but requires a fast, reliable
-  node-to-node network and has a lower node-count ceiling.
+- **TCP DLM** works over any shared block device that fences (§2.2) but needs
+  a fast, reliable node-to-node network.
+- **CAW** keeps the lock state on the LUN, so the lock traffic rides the
+  storage path. It needs a target that really implements COMPARE AND WRITE
+  (§2.1, §3); prove it with `caw_verify` (§4.2) before choosing it. It is the
+  transport meant to scale past two nodes, which is still in development.
 
-**Transport selection rules** (also in the module):
+**Transport selection rules** (as the module applies them):
 
-1. **Joining an existing cluster:** you get whatever transport the existing
-   peers use. No choice — a joining node conforms.
-2. **Forming a new cluster:** MXFS probes CAW first; if the probe fails it falls
-   back to TCP DLM.
-3. **Override** `mxfs.force_transport=1` (force TCP) applies **only** when
-   forming a new cluster. Once membership exists, transport is fixed.
+1. **The module parameter `force_transport` picks the transport of a NEW
+   cluster:** `1` = TCP (the module's default, and what the release packages'
+   `/etc/modprobe.d/mxfs.conf` sets), `0` = CAW. There is no automatic probing
+   or fallback between them.
+2. **Joining an existing cluster:** the transport is a property of the volume's
+   live members. A node loaded with `force_transport=0` joins whichever
+   transport they use; a node loaded with `force_transport=1` is **refused** on
+   a volume whose members run CAW (`P-TRANSPORT-MISMATCH-REFUSED`). Set the
+   same value on every node.
+3. **A CAW mount on a device without a working COMPARE AND WRITE is refused**
+   at admission (`P311-CAW-ADMISSION-REFUSED`), before anything is written.
 
-If you know your target can't do CAW reliably, form the cluster with
-`insmod mxfs.ko force_transport=1` on the first node.
+To form a CAW cluster, set `options mxfs force_transport=0` in
+`/etc/modprobe.d/mxfs.conf` on every node and reload the module before the
+first mount; from a source build, `insmod mxfs.ko force_transport=0
+target_cache_protected=1`. Each mount prints its transport in its
+`P-DOMAIN-ADMITTED` kernel line (`transport=CAW` or `transport=TCP`).
 
 ---
 

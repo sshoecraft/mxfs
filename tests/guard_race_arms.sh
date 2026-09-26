@@ -125,7 +125,7 @@ boot_rejoin() { # boot_rejoin <node> — start VM if down, restore, prep+mount
     sleep 5; t=$((t+5))
   done
   $SSH "$node" "
-    mountpoint -q /src || { mkdir -p /src; mount -t nfs 192.168.1.4:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; }
+    mountpoint -q /src || { mkdir -p /src; mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; }
     iscsiadm -m discovery -t st -p 192.168.120.1:3260 >/dev/null 2>&1
     iscsiadm -m discovery -t st -p 192.168.120.2:3260 >/dev/null 2>&1
     iscsiadm -m node --login >/dev/null 2>&1

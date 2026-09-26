@@ -10,7 +10,7 @@
 # No such file or directory") or the DEV wait.  This pre-flight guarantees,
 # BEFORE run.sh, that every node in the set is:
 #   - mxfs UNLOADED (wedged nodes power-cycled),
-#   - /src (192.168.1.4:/src) mounted,
+#   - /src (192.168.120.1:/src) mounted,
 #   - /dev/mapper/mpatha present with >=2 paths (via mpath_up.sh up N).
 # Then run.sh's own teardown succeeds cleanly and it never power-cycles.
 #
@@ -80,7 +80,7 @@ fi
 
 # 3. Mount /src on every node (reboots lose it; mkfs/prep_node need it).
 echo "=== mounting /src on all $N ==="
-for n in "${NODES[@]}"; do ( ssh_q "$n" 40 'mountpoint -q /src || { mkdir -p /src; mount -t nfs 192.168.1.4:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp; }' >/dev/null 2>&1 ) & done
+for n in "${NODES[@]}"; do ( ssh_q "$n" 40 'mountpoint -q /src || { mkdir -p /src; mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp; }' >/dev/null 2>&1 ) & done
 wait
 
 # 4. Assemble /dev/mapper/mpatha (2 paths) on every node — idempotent, retries.

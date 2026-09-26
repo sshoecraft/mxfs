@@ -3,48 +3,31 @@
 # nodes over CAW (see THE TRANSPORT IS CAW below), against a target that purges
 # a registration with its session.
 #
-# WHAT IS UNDER TEST.  Until 0.89.16 the takeover answered an ABSENT owner key
-# with a fence kind derived from bookkeeping: the node's own PR ledger saying
-# FENCED, the ledger saying RETIRED, or a boot boundary showing this boot's key
-# had replaced the old one on our own nexus.  None of the three ran an
-# operation, and all three stamped a kind whose whole contract is that one did.
-# They were deleted; the absent case now refuses with
-# P-BOOT-TAKEOVER-FENCE-UNPROVEN and mints nothing.  No lap on this rig has
-# ever driven a bootstrap takeover at all, so the refusal has never been
-# observed from outside the source.
+# WHAT IS UNDER TEST.  The first node back from a whole-cluster outage claims
+# the bootstrap term and is then cut.  The target purges its registration with
+# its session, so no PREEMPT AND ABORT can name it.  Until 0.90.1 the takeover
+# refused that absent key and every later mount repeated the refusal: after the
+# cut, no node could mount the volume again (measured on this rig).  From
+# 0.90.1 the absent key is fenced by the witnessed LOGICAL UNIT RESET (proof
+# kind 24, the same producer ordinary slice recovery uses on this target), and
+# the takeover must complete: the term resealed as T+1, the dead slices
+# recovered, the mount up, every file both nodes fsynced before the outage read
+# back identical, the other node able to join, both able to leave, and the
+# volume checking clean.
 #
-# WHY THE COUNTERFACTUAL IS THE HARD PART (design-consult ruling, session 86,
-# docs/rulings/bootstrap-takeover-closure-and-the-recovery-dead-end.md).  A lap
-# that only shows this build refusing an absent key proves nothing on its own.
-# If none of the three antecedents held, the build that still HAD the branches
-# would also have refused — by falling off the end of the same chain — so the
-# lap would exercise the new refusal without ever reproducing the defect, while
-# reading like a regression test for it.  The module therefore prints
-# would_have_minted=<antecedent> on the refusal line, evaluated at the moment
-# of the decision, and this harness grades that field.  An arm whose refusal
-# says would_have_minted=none is reported as NOT REPRODUCING and is not
-# credited.
-#
-# TWO ARMS, and they differ in exactly that field:
+# THREE ARMS:
 #   self     A CLAIMs the term, is power-cut, REBOOTS, and mounts again.  Its
-#            new boot contends for its own previous boot's term.  Same host
-#            uuid, different boot uuid, our own key registered, the old key
-#            purged with the old session — which is the SELF-SUCCESSION
-#            antecedent by construction, and the one the deleted branch (b)
-#            read.  This is the arm that reproduces the defect deterministically.
-#   foreign  B mounts instead and contends for A's term.  Different host, so
-#            self-succession cannot hold; the ledger antecedents decide, and
-#            whatever they are is recorded rather than assumed.
-# 'both' runs self and then foreign, in one lap: a refusal leaves the record
-# exactly as it stands, so the second arm starts from the same state.
-#
-# WHAT A REFUSAL MUST NOT DO.  Absence of kind 16 is not the assertion —
-# absence of AUTHORITY is, because substituting any other unsupported class, or
-# a spuriously "proven" one, preserves the defect exactly.  So: no certificate
-# of ANY kind minted for this attempt, no P-BOOT-INHERIT, no P-BOOT-TAKEOVER
-# reseal, no lineage entry, no manifest sealed, no execution lease, no recovery
-# descriptor written for A1, and the durable record's owner, term, state and
-# protected contents unchanged across the whole attempt.
+#            new boot contends for its own previous boot's term (same host,
+#            new boot, the old key purged with the old session).  B then joins.
+#   foreign  B contends for A's term.  A then reboots and joins.  With
+#            CUT=freeze A is SUSPENDED instead of destroyed, left long enough
+#            (PURGE_WAIT) for the target to purge its key, and resumed after
+#            B's takeover: the stalled-but-alive owner, which must find the
+#            term lost and land no write.
+#   stale    B contends, is elected, and is destroyed at a TEST-ONLY hold
+#            (STALE_POINT 15 = elected, nothing fenced; 16 = the old owner
+#            fenced, nothing resealed).  A's next boot must fence B as a stale
+#            contender AND its own previous boot as the old owner.
 #
 # THE OBSERVER.  B stays UP and UNMOUNTED for the whole bootstrap phase, which
 # is what makes the pre-cut and post-cut platter reads possible at all: once A
@@ -54,29 +37,19 @@
 # It reads the record with `chk_mxfs --bootstrap` (read-only, O_DIRECT, no
 # O_EXCL) and the target's key table with `chk_mxfs --pr-keys`.
 #
-# THE DEAD END IS EXPECTED AND IS A SEPARATE RECORD.  A refused takeover leaves
-# the term CLAIMED and owned by a key that can never come back, so every later
-# mount repeats the same contend-wait-refuse.  That is filed as its own defect;
-# this lap MEASURES it (the permanence arm below) rather than treating it as
-# this lap's failure.  The refusal itself is the required safe behaviour.
-#
 # the budget rule (derived): prep <= 300 (measured 45-58) + payload ~15 +
 # destroy ~10 + boot both 60-150 + module copy ~30 + A's bootstrap mount to
 # P-BOOT-CLAIMED (one frozen survivor scan: 62 s dead window + 2.5 s poll,
 # measured 65-75) bound 200 + captures ~40 + destroy ~10 + A boot 60-150 +
-# mount attempt (abandon window 6 s + fence + unwind) bound 300 + captures ~60
-# + the foreign arm (B mount attempt bound 300 + captures ~60) + the
-# permanence arm (two more attempts, bound 300 each).  Summed at the BOUNDS
-# rather than at the measured refusal (a refused mount took 40.5 s on the
-# sibling crash-cut lap, not its 300 s bound): 60 prep + 40 payload + 15
-# destroy + 150 boot + 60 module copy + 20 insmod + 200 claim + 60 captures +
-# 50 cut and re-read + 640 self arm + 460 foreign arm + 240 permanence + 40
-# final = 2035, and the two arms' mount attempts are the only parts that can
-# grow.  Caller bound 1800 s for 'self' or 'foreign', 2600 s for 'both'.
-#
-# IT LEAVES THE RECORD CLAIMED AND THE FLEET UNMOUNTED.  That is the state
-# under test and the harness must not clear it; the next prep's mkfs rewrites
-# the record IDLE.
+# takeover mount (abandon window 6 s + LU reset + barrier + two-slice recovery)
+# bound 300 + captures ~60 + the join mount bound 300 + read-back ~20 + two
+# unmounts ~20 + chk_mxfs ~60.  Summed at the BOUNDS: 60 prep + 40 payload +
+# 15 destroy + 150 boot + 60 module copy + 20 insmod + 200 claim + 60
+# captures + 50 cut and re-read + 480 takeover arm + 390 join + 40 read-back
+# + 100 unmount and check = 1665.  Caller bound 1700 s for 'self' and
+# 'foreign'; 'stale' adds the held contender (bound 300) and a second reboot
+# (~200), 2200 s; CUT=freeze adds PURGE_WAIT, the 30 s resume watch and a
+# reboot, 2000 s.
 #
 # THE TRANSPORT IS CAW, AND THAT IS A MEASURED FACT RATHER THAN A PREFERENCE.
 # The whole-cluster bootstrap does not run on TCP at all.  v5_bootstrap_run has
@@ -91,17 +64,47 @@
 # harness can only ever report VACUOUS, and it refuses up front rather than
 # spend 430 s discovering it again.
 #
-# Usage: tests/bootstrap_takeover_2n.sh <label> [self|foreign|both]
+# THE TARGET'S PURGE, AND WHICH FENCE ROUTE A LAP MEASURES.  The absent-key
+# route exists for a target that drops a lost initiator's registration with its
+# session (the retired QNAP; data/rigs.json pr_registration_on_session_loss =
+# purged).  A target that keeps the registration ('persists': clyde's SCST LUN)
+# never shows the takeover an absent key after a cut; there the old owner's key
+# is still present and the takeover's route is the exact-key PREEMPT AND ABORT.
+# PURGE selects what the lap measures:
+#   target   the target itself purges (a 'purged' rig only; its default)
+#   emulate  the observer removes every registration left in the table once no
+#            node is mounted (after the cut; after the held contender is cut),
+#            with a PREEMPT from a temporary key it then unregisters.  The table
+#            the takeover reads is then the one a purging target leaves: the
+#            dead keys absent, no registrant, the reservation gone with them.
+#            The PR generation moves, which a target-internal purge does not do;
+#            nothing in the takeover reads the generation as evidence of how a
+#            key left.  The default on a 'persists' rig.
+#   none     nothing removes them: the takeover must fence the present owner
+#            key with a certified PREEMPT AND ABORT (a 'persists' rig only).
+#
+# Usage: tests/bootstrap_takeover_2n.sh <label> [self|foreign|stale]
 # Env:   MXFS_NODE_LIST (default test1,test2), MXFS_DEV, NFILES (32),
-#        CLAIM_BOUND (200), JOIN_BOUND (300), MXFS_TRANSPORT (caw)
+#        CLAIM_BOUND (200), JOIN_BOUND (300), MXFS_TRANSPORT (cawd),
+#        STALE_POINT (15|16, stale arm), CUT (destroy|freeze), PURGE_WAIT (60),
+#        PURGE (target|emulate|none; default from the rig's declared class)
 # Exit 0 PASS, 1 FAIL, 2 ABORT/INFRA, 3 VACUOUS.
 set -u
 LABEL=${1:?label}
-ARM=${2:-both}
-case $ARM in self|foreign|both) ;; *) echo "arm must be self, foreign or both"; exit 2;; esac
+ARM=${2:-self}
+case $ARM in self|foreign|stale) ;; *) echo "arm must be self, foreign or stale"; exit 2;; esac
+# the stale arm's hold point on the first contender: 15 = elected, nothing
+# fenced; 16 = the old owner fenced, nothing resealed
+STALE=
+[ "$ARM" = stale ] && STALE=${STALE_POINT:-15}
+case "$STALE" in ''|15|16) ;; *) echo "STALE_POINT must be 15 or 16"; exit 2;; esac
+PURGE_WAIT=${PURGE_WAIT:-60}
 cd "$(dirname "$0")/.." || exit 2
 export MXFS_NODE_LIST=${MXFS_NODE_LIST:-test1,test2}
-export MXFS_TRANSPORT=${MXFS_TRANSPORT:-caw}
+# the run.sh condition the prep uses: cawd (direct in-guest iSCSI) is the
+# 2-node rig's CAW condition; 'caw' is the multipath map, which only a
+# multipath rig presents
+export MXFS_TRANSPORT=${MXFS_TRANSPORT:-cawd}
 if [ "$MXFS_TRANSPORT" = tcp ]; then
     echo "ABORT: the whole-cluster bootstrap is a CAW path — v5_bootstrap_run has one"
     echo "       call site and it is in the CAW arm of mxfs_v5_dlm_init, after the TCP"
@@ -139,8 +142,11 @@ HOLD_K=${HOLD_K:-0}
 # resumed and must find itself excluded.
 CUT=${CUT:-destroy}
 case "$CUT" in destroy|freeze) ;; *) echo "CUT must be destroy or freeze"; exit 2;; esac
-if [ "$CUT" = freeze ] && { [ "$HOLD_K" != 1 ] || [ "$ARM" != foreign ]; }; then
-    echo "ABORT: CUT=freeze needs HOLD_K=1 and the foreign arm (the owner is frozen, not rebooted)"; exit 2
+if [ "$CUT" = freeze ] && [ "$ARM" != foreign ]; then
+    echo "ABORT: CUT=freeze needs the foreign arm (the owner is frozen, not rebooted)"; exit 2
+fi
+if [ "$HOLD_K" = 1 ] && [ "$ARM" = stale ]; then
+    echo "ABORT: the stale arm runs on the slotless route; HOLD_K=1 is a separate lap"; exit 2
 fi
 HOLD_BOUND=${HOLD_BOUND:-300}
 KACCEPT=0
@@ -151,8 +157,17 @@ mkdir -p "$OUT"
 fails=0
 . "$(dirname "$0")/lib/rig.sh"
 VIRSH="timeout 30 virsh -c qemu:///system"
+PRCLASS=$(mxfs_rig_pr_class) || exit 2
+case "$PRCLASS" in
+    purged)   PURGE=${PURGE:-target} ;;
+    persists) PURGE=${PURGE:-emulate} ;;
+esac
+case "$PRCLASS/$PURGE" in
+    purged/target|persists/emulate|persists/none) ;;
+    *) echo "ABORT: PURGE=$PURGE does not apply to a rig whose target's registrations are '$PRCLASS' on session loss"; exit 2 ;;
+esac
 MODARGS=${MXFS_MODARGS:-$(mxfs_rig_modargs)}
-echo "=== bootstrap_takeover_2n arm=$ARM label=$LABEL A(owner)=$A B(observer)=$B $(date -u +%FT%TZ) ==="
+echo "=== bootstrap_takeover_2n arm=$ARM label=$LABEL A(owner)=$A B(observer)=$B cut=$CUT pr_class=$PRCLASS purge=$PURGE $(date -u +%FT%TZ) ==="
 s0=$(date +%s)
 el() { echo $(( $(date +%s) - s0 )); }
 # a field is read wherever it sits on the line, not only at its start: an
@@ -174,7 +189,7 @@ waitboot() {
 deploy_ko() {
     local n=$1
     value_now_into got "$n" 150 "$OUT/${n}_md5_$2.txt" '^[0-9a-f]{32}$' "the module copy on $n" \
-        "for try in 1 2 3 4 5 6; do mountpoint -q /src && break; mkdir -p /src; timeout 12 mount -t nfs 192.168.1.4:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; sleep 4; done; cp /src/mxfs/mxfs.ko $KO && md5sum $KO | cut -c1-32"
+        "for try in 1 2 3 4 5 6; do mountpoint -q /src && break; mkdir -p /src; timeout 12 mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; sleep 4; done; cp /src/mxfs/mxfs.ko $KO && md5sum $KO | cut -c1-32"
     ck "$n holds the tree build (md5)" "$got" "$MD5"
 }
 # the durable bootstrap record, read from an UNMOUNTED node, O_DIRECT
@@ -186,12 +201,35 @@ keys_into() {   # <node> <file> <what>
 }
 key_present() { grep -aoE '^  0x[0-9a-f]+' "$1" | tr -d ' ' | grep -ac "^$2$"; }
 normkey() { printf '0x%016x' "$(( $1 ))"; }
+# PURGE=emulate: from <node>, which is mounted nowhere, remove every
+# registration in the table (only dead incarnations' keys can be there at the
+# points this runs), then read the table back.  <tag> names the evidence files.
+# The node registers with REGISTER AND IGNORE EXISTING KEY: after a whole-
+# cluster outage its own nexus can still be registered under its previous
+# incarnation's key (SCST keeps a lost session's registration, and a rebooted
+# initiator comes back on the same I_T nexus), and a plain REGISTER from a
+# registered nexus is a reservation conflict — measured lur_foreign_s6c:
+# REGISTER_RC=24, nothing purged, the takeover took the PREEMPT route.  That
+# stale key is purged with the rest, as a purging target would have done.
+purge_emulate() {   # <node> <tag>
+    local n=$1 tag=$2
+    measure "$n" 60 "$OUT/purge_${tag}.txt" '^PURGE_END$' "the emulated purge ($tag)" \
+        "T=0x4d58465055524745; ks=\$(sg_persist -n -i -k $MXFS_DEV 2>/dev/null | grep -aoE '^ +0x[0-9a-f]+' | tr -d ' ')
+         echo KEYS_BEFORE \$ks
+         sg_persist -n --out --register-ignore --param-sark=\$T $MXFS_DEV >/dev/null 2>&1; echo REGISTER_RC=\$?
+         for k in \$ks; do sg_persist -n --out --preempt --param-rk=\$T --param-sark=\$k --prout-type=7 $MXFS_DEV >/dev/null 2>&1; echo PREEMPT \$k RC=\$?; done
+         sg_persist -n --out --register --param-rk=\$T --param-sark=0 $MXFS_DEV >/dev/null 2>&1; echo UNREGISTER_RC=\$?
+         echo PURGE_END"
+    sed 's/^/    /' "$OUT/purge_${tag}.txt" | grep -v PURGE_END
+    keys_into "$n" "$OUT/K_purged_${tag}.txt" "READ KEYS after the emulated purge ($tag)"
+    ck "emulated purge ($tag): no registration is left on the target" "$(grep -acE '^  0x[0-9a-f]+' "$OUT/K_purged_${tag}.txt")" 0
+}
 
 # ---- 0. the build, and the instrument this lap grades
-if [ "$(strings -a mxfs.ko | grep -c 'would_have_minted')" = 0 ]; then
-    echo "ABORT: mxfs.ko carries no would_have_minted antecedent field on the"
-    echo "       takeover refusal, so this lap cannot tell a reproduced defect"
-    echo "       from a refusal that the OLD build would also have given."
+if [ "$(strings -a mxfs.ko | grep -c 'P-BOOT-TAKEOVER-FENCE-LURESET what=')" = 0 ]; then
+    echo "ABORT: mxfs.ko has no witnessed-LU-reset route in the takeover's"
+    echo "       absent-key arm (0.90.1+), so this lap would grade a build that"
+    echo "       can only refuse."
     echo "RESULT: ABORT label=$LABEL stage=build evidence=$OUT"; exit 2
 fi
 if [ "$(strings -a tools/chk_mxfs | grep -c 'BOOTSTRAP state=')" = 0 ]; then
@@ -251,9 +289,15 @@ if [ "$claimed" = timeout ]; then
     # its bound.  That is the diagnosis, and it was two greps away from the
     # VACUOUS verdict, so it is printed here.
     echo "  what the mount did instead:"
-    grep -a 'claimed heartbeat slot\|MXFS mount ABORTED\|recovery barrier failed\|NOT replayed' \
+    grep -a 'claimed heartbeat slot\|MXFS mount ABORTED\|recovery barrier failed\|NOT replayed\|P-TRANSPORT-MISMATCH-REFUSED\|DLM init failed' \
         "$OUT/A_window_noclaim.txt" | sed 's/.*: /    /' | cut -c1-180 | head -4
     echo "  ($(cnt "$OUT/A_window_noclaim.txt" 'NOT replayed') inline replay refusals in this window)"
+    # A mount refused at DLM init never reached the bootstrap, so it measured
+    # nothing about the takeover: the lap's own setup was wrong (measured
+    # s6b: the module reloaded after the outage on the wrong transport).
+    if grep -aq 'DLM init failed' "$OUT/A_window_noclaim.txt"; then
+        echo "RESULT: ABORT label=$LABEL stage=claim-dlm-init evidence=$OUT"; exit 2
+    fi
     echo "RESULT: VACUOUS label=$LABEL stage=claim evidence=$OUT"; exit 3
 fi
 window_into "$OUT/A_at_claim.txt" "$A" 20 "$MARK"
@@ -315,6 +359,9 @@ else
     echo "STAGE destroyed $A at +$(el)s (mid-CLAIMED)"
 fi
 rec_into "$B" "$OUT/rec_2_aftercut.txt" "the durable record after the cut"
+if [ "$PURGE" = emulate ] && [ "$CUT" = destroy ]; then
+    purge_emulate "$B" aftercut
+fi
 ck "after the cut the record's state is unchanged" "$(bs_field "$OUT/rec_2_aftercut.txt" state)" "$R1_STATE"
 ck "after the cut the term is unchanged" "$(bs_field "$OUT/rec_2_aftercut.txt" term)" "$R1_TERM"
 ck "after the cut the owner is unchanged" "$(bs_field "$OUT/rec_2_aftercut.txt" owner)" "$R1_OWNER"
@@ -359,105 +406,168 @@ arm_run() {     # <node> <arm-name> <tag>
             sed 's/^/    /' "$OUT/rec_${tag}_after.txt" | cut -c1-260 | head -2
             return
         fi
-    else
-    ckge "$name: the refusal is the absent-key fence refusal" "$(cnt "$j" 'P-BOOT-TAKEOVER-FENCE-UNPROVEN')" 1
+    elif [ "$PURGE" = none ]; then
+    # THE OLD OWNER'S KEY IS STILL REGISTERED, AND ITS OWN PREEMPT AND ABORT FENCES IT
     ck "$name: it took the slotless branch (no per-slot K fence ran)" "$(cnt "$j" 'P-BOOT-TAKEOVER-FENCE-K ')" 0
-    ck "$name: no PREEMPT AND ABORT was issued against the owner key (it was absent)" "$(cnt "$j" 'P-BOOT-TAKEOVER-FENCE-REG')" 0
-    ck "$name: the mount did NOT complete" "$(grep -ac '^MOUNTED' "$OUT/${tag}_mount.txt")" 0
-
-    # THE COUNTERFACTUAL: which antecedent the deleted chain would have read
-    ante=$(grep -a 'P-BOOT-TAKEOVER-FENCE-UNPROVEN' "$j" | head -1 | grep -ao 'would_have_minted=[A-Z-]*' | head -1 | cut -d= -f2)
-    echo "STAGE $name arm counterfactual: would_have_minted=${ante:-?} $(grep -a 'P-BOOT-TAKEOVER-FENCE-UNPROVEN' "$j" | head -1 | grep -ao 'ledger_rc=[-0-9]* state=[0-9]* [a-z_]*=[A-Za-z-]* same_host=[01] boot_moved=[01] ours_present=[01]' | head -1)"
-    case "$name" in
-        self)
-            # same host, later boot, our key registered, the old one purged:
-            # this is branch (b)'s antecedent by construction, so a 'none' here
-            # is a broken experiment, not a passing one
-            ck "$name: the refusal reproduces the deleted self-succession branch" "${ante:-none}" "SELF-SUCCESSION" ;;
-        foreign)
-            if [ "${ante:-none}" = none ]; then
-                echo "  NOT REPRODUCING: no deleted branch's antecedent held on this arm, so the"
-                echo "  build that still had them would have refused this history too.  The arm is"
-                echo "  recorded as refusal coverage only and credits nothing to the fix."
-            else
-                echo "  this arm reproduces the deleted '${ante}' branch"
-            fi ;;
-    esac
+    ckge "$name: the old owner's present key was fenced by a certified PREEMPT AND ABORT" "$(cnt "$j" 'P-BOOT-TAKEOVER-FENCE-REG what=old-owner .*kind=PREEMPT_ABORT_PROVEN_V1.* rc=0')" 1
+    ck "$name: no LU reset was needed" "$(cnt "$j" 'P-BOOT-TAKEOVER-FENCE-LURESET what=')" 0
+    echo "STAGE $name arm fence: $(grep -a 'P-BOOT-TAKEOVER-FENCE-REG what=old-owner' "$j" | head -1 | sed 's/.*mxfs: //' | cut -c1-200)"
+    else
+    # THE OLD OWNER'S KEY IS ABSENT, AND THE WITNESSED LU RESET FENCES IT
+    ck "$name: it took the slotless branch (no per-slot K fence ran)" "$(cnt "$j" 'P-BOOT-TAKEOVER-FENCE-K ')" 0
+    ck "$name: no PREEMPT AND ABORT was issued against the owner key (it was absent)" "$(cnt "$j" 'P-BOOT-TAKEOVER-FENCE-REG what=old-owner')" 0
+    ckge "$name: the old owner was fenced by a CERTIFIED witnessed LU reset" "$(cnt "$j" 'P-BOOT-TAKEOVER-FENCE-LURESET what=old-owner .*certified=1 ')" 1
+    if [ -n "$STALE" ]; then
+        ckge "$name: the stale contender was fenced by a CERTIFIED witnessed LU reset" "$(cnt "$j" 'P-BOOT-TAKEOVER-FENCE-LURESET what=stale-contender .*certified=1 ')" 1
+    fi
+    ck "$name: no LU reset refused to certify" "$(cnt "$j" 'P-BOOT-TAKEOVER-FENCE-LURESET .*certified=0 ')" 0
+    ck "$name: the LU-reset route was never unaskable" "$(cnt "$j" 'P-BOOT-TAKEOVER-FENCE-LURESET-UNASKED')" 0
+    ckge "$name: the post-reset barrier held on the bootstrap-term arm" "$(cnt "$j" 'P307-LURESET-BARRIER .*held=1 arm=bootstrap-term')" 1
+    ck "$name: the barrier never refused" "$(cnt "$j" 'P307-LURESET-BARRIER .*held=0')" 0
+    ante=$(grep -a 'P-BOOT-TAKEOVER-FENCE-LURESET what=old-owner' "$j" | head -1 | grep -ao 'antecedent=[A-Z-]*' | head -1 | cut -d= -f2)
+    echo "STAGE $name arm fence: $(grep -a 'P-BOOT-TAKEOVER-FENCE-LURESET what=old-owner' "$j" | head -1 | grep -ao 'certified=[01] verdict=[^ ]* issued=[01] kind=[^ ]* gen=[0-9]* krel=[^ ]* total_ms=[0-9]*' | head -1) antecedent=${ante:-?}"
     fi
 
-    # NO AUTHORITY WAS CREATED — of any class, not merely the retired one
-    ck "$name: no certificate of any kind was minted" "$(cnt "$j" 'P236-FENCE-CERTIFIED')" 0
-    ck "$name: no fence kind was stamped on a takeover outcome" "$(cnt "$j" 'P-BOOT-TAKEOVER-FENCE-DONE\|P-BOOT-TAKEOVER-KIND')" 0
-    ck "$name: the term was not inherited" "$(cnt "$j" 'P-BOOT-INHERIT')" 0
-    ck "$name: the record was not resealed by the takeover" "$(cnt "$j" 'P-BOOT-TAKEOVER term=')" 0
-    ck "$name: nothing was sealed" "$(cnt "$j" 'P-BOOT-SEALED')" 0
-    ck "$name: no execution lease was granted" "$(cnt "$j" 'P238-RECOV-LEASE')" 0
-    ck "$name: no replay ran" "$(cnt "$j" 'P163-RECOVERY-COMPLETE')" 0
+    # THE TERM WAS TAKEN OVER, RECOVERED, AND THE MOUNT COMPLETED
+    ckge "$name: the record was resealed by the takeover (T+1)" "$(cnt "$j" 'P-BOOT-TAKEOVER term=')" 1
+    ck "$name: the takeover never saw the record move under it" "$(cnt "$j" 'P-BOOT-TAKEOVER-MOVED')" 0
+    ck "$name: the mount completed" "$(grep -ac '^MOUNTED' "$OUT/${tag}_mount.txt")" 1
     ck "$name: zero shutdown / BUG / Oops" "$(bad_lines "$j")" 0
-
-    # THE DURABLE RECORD DID NOT MOVE
     rec_into "$B" "$OUT/rec_${tag}_after.txt" "the record after the $name arm"
-    ck "$name: the record's state is unchanged" "$(bs_field "$OUT/rec_${tag}_after.txt" state)" "$mstate"
-    ck "$name: the record's term is unchanged" "$(bs_field "$OUT/rec_${tag}_after.txt" term)" "$mterm"
-    ck "$name: the record's owner is unchanged" "$(bs_field "$OUT/rec_${tag}_after.txt" owner)" "$mowner"
-    ck "$name: the record's owner key is unchanged" "$(bs_field "$OUT/rec_${tag}_after.txt" key)" "$mkey"
-    ck "$name: no lineage entry was appended" "$(bs_field "$OUT/rec_${tag}_after.txt" lineage)" "$(bs_field "$m0" lineage)"
-    ck "$name: prev_kind (the last fence kind the record carries) is unchanged" "$(bs_field "$OUT/rec_${tag}_after.txt" prev_kind)" "$(bs_field "$m0" prev_kind)"
-    dump_slots=$(rsx 60 "$B" "python3 $DUMP $MXFS_DEV 2>/dev/null | grep -ac 'desc v'" | grep -aoE '^[0-9]+' | head -1)
-    echo "STAGE $name arm: $dump_slots recovery descriptor(s) on the platter afterwards"
+    echo "STAGE $name arm record after: $(grep -a '^BOOTSTRAP' "$OUT/rec_${tag}_after.txt" | cut -c1-230)"
+    ckge "$name: the term advanced past the dead owner's" "$(( $(bs_field "$OUT/rec_${tag}_after.txt" term) > R1_TERM ))" 1
+    ck "$name: the record's crc validates" "$(bs_field "$OUT/rec_${tag}_after.txt" crc)" "OK"
+    ckge "$name: a lineage entry was appended for the dead term" "$(( $(bs_field "$OUT/rec_${tag}_after.txt" lineage) > $(bs_field "$m0" lineage) ))" 1
+    verify_data "$n" "${tag}"
 }
 
-if [ "$ARM" = self ] || [ "$ARM" = both ]; then
+# every file both nodes fsynced before the outage is read back, bit for bit,
+# through the mount on <node>
+verify_data() {     # <node> <tag>
+    local n=$1 tag=$2 src
+    for src in "$A" "$B"; do
+        measure "$n" 60 "$OUT/${tag}_verify_${src}.txt" '^VERIFY_END$' "the $src payload read through $n" \
+            "cd $MNT/btk_${LABEL}_$src && sha256sum f* | sort; echo VERIFY_END"
+        grep -av '^VERIFY_END' "$OUT/${tag}_verify_${src}.txt" > "$OUT/${tag}_verify_${src}_sha.txt"
+        ck "$tag: every file $src fsynced before the outage reads back identical through $n" \
+            "$(cmp -s "$OUT/${tag}_verify_${src}_sha.txt" "$OUT/${src}_files_sha.txt" && echo same || echo DIFFERENT)" same
+    done
+}
+
+# an ordinary mount after the takeover: the volume is not a dead end
+join_run() {        # <node> <tag>
+    local n=$1 tag=$2 j
+    j="$OUT/${tag}_journal.txt"
+    rsx $((JOIN_BOUND + 90)) "$n" "echo $MARK-$tag > /dev/kmsg; lsmod | grep -q '^mxfs ' || insmod $KO dyndbg=+p $MODARGS; echo INSMOD_RC=\$?; T0=\$(date +%s%N); timeout $JOIN_BOUND mount -t mxfs $MXFS_DEV $MNT; echo MOUNT_RC=\$?; echo WALL_MS=\$(( (\$(date +%s%N) - T0) / 1000000 )); mountpoint -q $MNT && echo MOUNTED || echo NOT_MOUNTED" > "$OUT/${tag}_mount.txt"
+    capture_require "$OUT/${tag}_mount.txt" '^(MOUNTED|NOT_MOUNTED)$' "the $tag mount"
+    measure "$n" 60 "$j" '^JOURNAL_END$' "the kernel journal for the $tag mount" \
+        "dmesg | sed -n '/$MARK-$tag/,\$p' | cut -c1-600; echo JOURNAL_END"
+    echo "STAGE $tag: mount on $n rc=$(field "$OUT/${tag}_mount.txt" MOUNT_RC) wall=$(field "$OUT/${tag}_mount.txt" WALL_MS)ms $(grep -ao '^MOUNTED\|^NOT_MOUNTED' "$OUT/${tag}_mount.txt") at +$(el)s"
+    ck "$tag: the mount on $n completed" "$(grep -ac '^MOUNTED' "$OUT/${tag}_mount.txt")" 1
+    ck "$tag: zero shutdown / BUG / Oops on $n" "$(bad_lines "$j")" 0
+    verify_data "$n" "$tag"
+}
+
+umount_node() {     # <node> <tag>
+    measure "$1" 90 "$OUT/${2}_umount.txt" '^UMOUNT_RC=' "the unmount on $1" \
+        "timeout 60 umount $MNT; echo UMOUNT_RC=\$?"
+    ck "$2: $1 unmounted cleanly" "$(field "$OUT/${2}_umount.txt" UMOUNT_RC)" 0
+}
+
+case "$ARM" in
+self)
     $VIRSH start "$A" > /dev/null 2>&1
     waitboot "$A"
     deploy_ko "$A" 2
     arm_run "$A" self self
-fi
-if [ "$ARM" = foreign ] || [ "$ARM" = both ]; then
+    [ "$HOLD_K" = 1 ] || join_run "$B" join
+    ;;
+foreign)
+    if [ "$CUT" = freeze ] && [ "$HOLD_K" != 1 ]; then
+        # the owner is alive but stalled: its session is gone only once the
+        # target has purged its key, which is the case the LU reset exists for
+        if [ "$PURGE" = target ]; then
+            echo "STAGE waiting ${PURGE_WAIT}s for the target to purge the frozen owner's key"
+            sleep "$PURGE_WAIT"
+        elif [ "$PURGE" = emulate ]; then
+            purge_emulate "$B" frozen
+        fi
+        keys_into "$B" "$OUT/K_before_foreign.txt" "READ KEYS before the foreign arm"
+        if [ "$PURGE" = none ]; then
+            ck "the frozen owner's key is still registered (this target keeps it)" "$(key_present "$OUT/K_before_foreign.txt" "$(normkey "$AKEY")")" 1
+        else
+            ck "the frozen owner's key has been purged" "$(key_present "$OUT/K_before_foreign.txt" "$(normkey "$AKEY")")" 0
+        fi
+    fi
     arm_run "$B" foreign foreign
-fi
-if [ "$CUT" = freeze ]; then
-    # the frozen owner resumes into a term another node took over: it must be
-    # excluded -- its key preempted, its writes refused, the mount withdrawn --
-    # and it must not overwrite the record or the takeover's state
+    ;;
+stale)
+    # B contends, is elected, and dies at the chosen point; A's next boot must
+    # fence B as a stale contender AND its own previous boot as the old owner
+    rsx 60 "$B" "echo $MARK-stalehold > /dev/kmsg; echo $STALE > /sys/module/mxfs/parameters/bootstrap_inject; nohup timeout $((JOIN_BOUND + HOLD_BOUND)) mount -t mxfs $MXFS_DEV $MNT > /run/btk_stale.log 2>&1 & echo LAUNCHED" > "$OUT/B_stale_launch.txt"
+    capture_require "$OUT/B_stale_launch.txt" '^LAUNCHED$' "the contender's held mount launch"
+    wait_for_into held "$B" "$HOLD_BOUND" "$MARK-stalehold" "P-BOOT-INJECT-HOLD point=$STALE"
+    if [ "$held" = timeout ]; then
+        window_into "$OUT/B_window_nohold.txt" "$B" 30 "$MARK-stalehold"
+        grep -a 'P-BOOT' "$OUT/B_window_nohold.txt" | sed 's/.*mxfs: /    /' | cut -c1-180 | tail -8
+        echo "RESULT: VACUOUS label=$LABEL stage=stale-hold (the contender never reached hold $STALE) evidence=$OUT"; exit 3
+    fi
+    window_into "$OUT/B_at_stalehold.txt" "$B" 20 "$MARK-stalehold"
+    grep -a 'P-BOOT-CONTENDER-ELECTED\|P-BOOT-TAKEOVER-FENCE\|P-BOOT-INJECT-HOLD' "$OUT/B_at_stalehold.txt" | sed 's/.*mxfs: /    /' | cut -c1-200 | head -4
+    $VIRSH destroy "$B" > /dev/null 2>&1
+    echo "STAGE destroyed the held contender $B at hold $STALE at +$(el)s"
+    $VIRSH start "$A" > /dev/null 2>&1
+    $VIRSH start "$B" > /dev/null 2>&1
+    waitboot "$A" "$B"
+    deploy_ko "$A" 2
+    deploy_ko "$B" 2
+    measure "$B" 60 "$OUT/B_insmod2.txt" '^INSMOD_RC=' "the observer's module load after its cut" \
+        "lsmod | grep -q '^mxfs ' || insmod $KO dyndbg=+p $MODARGS; echo INSMOD_RC=\$?"
+    [ "$PURGE" = emulate ] && purge_emulate "$B" stalecut
+    arm_run "$A" stale stale
+    join_run "$B" join
+    ;;
+esac
+
+if [ "$CUT" = freeze ] && [ "$HOLD_K" != 1 ]; then
+    # the stalled owner resumes into a term another node took over.  It must
+    # write nothing that lands: not the record (its compare-and-write finds it
+    # resealed), and not the volume (it is unregistered under the new owner's
+    # exclusive reservation).  Then the data is re-read through B.
     $VIRSH resume "$A" > /dev/null 2>&1
-    echo "STAGE resumed $A at +$(el)s; it must find itself fenced"
+    echo "STAGE resumed $A at +$(el)s; it must find the term lost and write nothing"
     sleep 30
     measure "$A" 60 "$OUT/A_after_resume.txt" '^JOURNAL_END$' "A's journal after the resume" \
-        "dmesg | sed -n '/$MARK/,\$p' | grep -a 'P131-SELF-FENCE\|P-WITHDRAW\|RESERVATION\|Shutting down\|P-BOOT\|BUG:\|Oops' | tail -20 | cut -c1-300; echo JOURNAL_END"
-    sed 's/^/    /' "$OUT/A_after_resume.txt" | cut -c1-200 | head -12
-    keys_into "$B" "$OUT/K_after_resume.txt" "READ KEYS after A resumed"
-    ck "the resumed owner's key is NOT on the target (it was preempted)" "$(key_present "$OUT/K_after_resume.txt" "$(normkey "$AKEY")")" 0
-    rec_into "$B" "$OUT/rec_after_resume.txt" "the record after A resumed"
-    echo "STAGE record after A resumed: $(grep -a '^BOOTSTRAP' "$OUT/rec_after_resume.txt" | cut -c1-230)"
+        "dmesg | sed -n '/$MARK/,\$p' | grep -a 'P131-SELF-FENCE\|P-WITHDRAW\|RESERVATION\|hutting down\|P-BOOT\|BUG:\|Oops' | tail -30 | cut -c1-300; echo JOURNAL_END"
+    sed 's/^/    /' "$OUT/A_after_resume.txt" | cut -c1-200 | tail -12
     ck "zero BUG / Oops on the resumed owner" "$(cnt "$OUT/A_after_resume.txt" 'BUG:\|Oops')" 0
+    keys_into "$B" "$OUT/K_after_resume.txt" "READ KEYS after A resumed"
+    ck "the resumed owner's key is NOT on the target" "$(key_present "$OUT/K_after_resume.txt" "$(normkey "$AKEY")")" 0
+    rec_into "$B" "$OUT/rec_after_resume.txt" "the record after A resumed"
+    ck "the resumed owner did not take the record back" "$(bs_field "$OUT/rec_after_resume.txt" term)" "$(bs_field "$OUT/rec_foreign_after.txt" term)"
+    verify_data "$B" after_resume
+    # the stalled owner's own mount is dead; a reboot is its way back in
+    $VIRSH destroy "$A" > /dev/null 2>&1
+    $VIRSH start "$A" > /dev/null 2>&1
+    waitboot "$A"
+    deploy_ko "$A" 3
+    join_run "$A" join
+elif [ "$ARM" = foreign ] && [ "$HOLD_K" != 1 ]; then
+    $VIRSH start "$A" > /dev/null 2>&1
+    waitboot "$A"
+    deploy_ko "$A" 2
+    join_run "$A" join
 fi
 
-# ---- 6. PERMANENCE: the dead end is a separate record, and this is where it
-#         is measured rather than asserted.  One more attempt on each node that
-#         has a module loaded; the prerequisite (a retirement proof for a key
-#         the target purged) cannot arrive by waiting, so the state-machine
-#         argument is: the term is unchanged, nothing produces a proof, and
-#         every ordinary mount returns to the same refusal.
-again=0
-[ "$HOLD_K" = 1 ] && echo "STAGE permanence not run in K mode (it presumes a refusal)"
-[ "$HOLD_K" = 1 ] || for n in "$A" "$B"; do
-    timeout 60 $SSH "$n" "lsmod | grep -q '^mxfs '" >/dev/null 2>&1 || continue
-    rsx $((JOIN_BOUND + 60)) "$n" "echo $MARK-again-$n > /dev/kmsg; timeout $JOIN_BOUND mount -t mxfs $MXFS_DEV $MNT; echo MOUNT_RC=\$?; mountpoint -q $MNT && echo MOUNTED || echo NOT_MOUNTED" > "$OUT/again_${n}.txt"
-    capture_require "$OUT/again_${n}.txt" '^(MOUNTED|NOT_MOUNTED)$' "the repeat mount on $n"
-    measure "$n" 60 "$OUT/again_${n}_journal.txt" '^JOURNAL_END$' "the journal for the repeat mount on $n" \
-        "dmesg | sed -n '/$MARK-again-$n/,\$p' | cut -c1-600; echo JOURNAL_END"
-    ck "permanence: the repeat mount on $n is refused the same way" "$(cnt "$OUT/again_${n}_journal.txt" 'P-BOOT-TAKEOVER-FENCE-UNPROVEN')" 1
-    ck "permanence: the repeat mount on $n did not complete" "$(grep -ac '^MOUNTED' "$OUT/again_${n}.txt")" 0
-    again=$((again + 1))
-done
-rec_into "$B" "$OUT/rec_final.txt" "the durable record at the end"
+# ---- 6. BOTH NODES LEAVE CLEANLY, AND THE VOLUME CHECKS CLEAN
 if [ "$HOLD_K" != 1 ]; then
-ck "permanence: the record is STILL CLAIMED by a key that cannot come back" "$(bs_field "$OUT/rec_final.txt" state | sed 's/(.*//')" "CLAIMED"
-ck "permanence: the term never moved across every attempt in this lap" "$(bs_field "$OUT/rec_final.txt" term)" "$R1_TERM"
+    umount_node "$A" final
+    umount_node "$B" final
+    rec_into "$B" "$OUT/rec_final.txt" "the durable record at the end"
+    echo "STAGE final record: $(grep -a '^BOOTSTRAP' "$OUT/rec_final.txt" | cut -c1-230)"
+    mxfs_chk_on_node "$B" "$OUT/chk_final.txt" "chk_mxfs on the unmounted volume"
+    ck "chk_mxfs finds the volume clean after the takeover" "$(mxfs_chk_rc "$OUT/chk_final.txt")" 0
 fi
-echo "STAGE permanence: $again repeat attempt(s), record $(bs_field "$OUT/rec_final.txt" state) term=$(bs_field "$OUT/rec_final.txt" term) owner=$(bs_field "$OUT/rec_final.txt" owner)"
-echo "STAGE the record is left CLAIMED on purpose — it IS the measured state; the next prep's mkfs rewrites it IDLE"
 
 if [ "$KACCEPT" = 1 ] && [ $fails = 0 ]; then
     echo "RESULT: EVIDENCE label=$LABEL arm=$ARM (the K route accepted; adjudicate the proof it used) fails=0 wall=$(el)s evidence=$OUT"

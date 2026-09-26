@@ -791,6 +791,19 @@ module_param_named(caw_inject_owed_pause_ms, mxfs_caw_inject_owed_pause_ms,
 MODULE_PARM_DESC(caw_inject_owed_pause_ms,
                  "TEST ONLY: pause the next owed-worker dispatch for N ms before "
                  "it derives its plan (one-shot; 0=off)");
+/* D-TRACK-PUBLISH-ORDERING: run the own-slot settle purge from inside the
+ * direct-handoff adopt, after the adopter has validated its image and before
+ * track_held records it — the one gap in which the settle used to see the bit
+ * as an untracked leftover.  One-shot. */
+static int mxfs_caw_inject_adopt_settle;
+module_param_named(caw_inject_adopt_settle, mxfs_caw_inject_adopt_settle,
+                   int, 0644);
+MODULE_PARM_DESC(caw_inject_adopt_settle,
+                 "TEST ONLY: run the own-slot settle purge inside the next "
+                 "direct-handoff adopt, between validation and track_held "
+                 "(one-shot; 0=off)");
+static int caw_purge_dead_nodes_body(struct mxfs_dlm_caw_ctx *ctx,
+				     uint64_t dead_mask, uint32_t flags);
 
 static int mxfs_caw_inject_gep_wrap;
 module_param_named(caw_inject_gep_wrap, mxfs_caw_inject_gep_wrap, int, 0644);
@@ -3762,6 +3775,29 @@ static bool lreq_clr_still_good(struct mxfs_dlm_caw_ctx *ctx,
 	ok = e && e->clr_active == 0 && e->clr_seq == s->seq;
 	mxfs_pal_mutex_unlock(ctx->lreq_lock);
 	return ok;
+}
+
+/*
+ * Is any local thread relying on this resource right now — a live acquire or
+ * convert attempt (which covers an adopter between its validation and its
+ * track_held, since it stays joined for the whole sequence), or a committed
+ * tenure at any mode?  Asked by a destructive clear from inside its own clear
+ * window, so an attempt that joins after the answer is caught by that window
+ * instead.
+ */
+static bool lreq_in_use(struct mxfs_dlm_caw_ctx *ctx, struct mxfs_caw_lreq *e)
+{
+	bool busy;
+	int m;
+
+	if (!e || !ctx || !ctx->lreq_lock)
+		return false;
+	mxfs_pal_mutex_lock(ctx->lreq_lock);
+	busy = e->attempts != 0;
+	for (m = 0; m < MXFS_LOCK_MODE_COUNT && !busy; m++)
+		busy = e->tenure[m] != 0;
+	mxfs_pal_mutex_unlock(ctx->lreq_lock);
+	return busy;
 }
 
 /*
@@ -7433,6 +7469,27 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 					caw_grant_result_fill(gres, resource, cur_slot,
 							      ad_held, true);
 					caw_grant_seq_prebump(ctx, resource);
+					if (unlikely(READ_ONCE(mxfs_caw_inject_adopt_settle) > 0)) {
+						struct mxfs_caw_lock_slot *probe;
+						int np, after = -1;
+
+						WRITE_ONCE(mxfs_caw_inject_adopt_settle, 0);
+						np = caw_purge_dead_nodes_body(ctx, ctx->node_bit,
+								MXFS_CAW_PURGE_SKIP_TRACKED);
+						probe = mxfs_pal_alloc(sizeof(*probe));
+						if (probe && !read_slot(ctx, slot_idx, probe))
+							after = ((probe->holders_ex | probe->holders_pw |
+								  probe->holders_pr | probe->holders_cr |
+								  probe->holders_cw) & ctx->node_bit) ? 1 : 0;
+						mxfs_pal_free(probe);
+						mxfs_pal_log(MXFS_LOG_WARN,
+							"mxfs: P250-INJECT-ADOPT-SETTLE type=%c id=%llu slot=%u held=%u purged=%d own_bit_after=%d — own-slot settle run between the adopt's validation and track_held",
+							resource->type == MXFS_LTYPE_INODE ? 'I' :
+							resource->type == MXFS_LTYPE_AG ? 'A' : 'O',
+							(unsigned long long)(resource->type == MXFS_LTYPE_INODE ?
+								resource->ino : (uint64_t)resource->ag_number),
+							slot_idx, ad_held, np, after);
+					}
 					track_held(ctx, slot_idx);
 					caw_grant_meta_store(ctx, resource,
 							     cur_slot->dir_epoch,
@@ -13485,6 +13542,9 @@ static int caw_purge_dead_nodes_body(struct mxfs_dlm_caw_ctx *ctx,
 	 */
 	int unread = 0;
 	int wfail = 0;
+	struct mxfs_caw_lreq *cw;
+	struct mxfs_resource_id res;
+	bool cleared;
 
 	if (!ctx || !dead_mask)
 		return 0;
@@ -13598,6 +13658,46 @@ static int caw_purge_dead_nodes_body(struct mxfs_dlm_caw_ctx *ctx,
 				}
 			}
 
+			/*
+			 * The own-slot settle (SKIP_TRACKED over our own bit)
+			 * strips THIS node's authority, so it is a destructive
+			 * local clear and must take the clear window like every
+			 * other one.  Without it the only guard was ctx->held,
+			 * which a direct-handoff adopt records only AFTER it has
+			 * validated the image it adopts on: a settle CAS landing
+			 * in that gap cleared the bit being adopted and left the
+			 * adopter holding a grant with no bit on the platter.
+			 * Inside the window, a resource some local thread is
+			 * still joined to or holds a tenure on is live, not a
+			 * leftover; an attempt that joins later sees the window
+			 * (or the committed clear) at its own validation and
+			 * re-reads.
+			 */
+			cw = NULL;
+			cleared = false;
+			if (skip_tracked && (dead_mask & ctx->node_bit)) {
+				res = batch_rc == 0 ? batch[i].resource
+						    : cur_slot->resource;
+				if (lreq_clr_begin_wait(ctx, &res, NULL, NULL, NULL,
+							&cw, 0) < 0) {
+					ctx->lreq_nomem++;
+					wfail++;
+					continue;
+				}
+				if (lreq_in_use(ctx, cw)) {
+					static int settle_live_n;
+
+					if (settle_live_n++ < 64)
+						mxfs_pal_log(MXFS_LOG_WARN,
+							"mxfs: P226-SETTLE-LIVE-SKIP slot=%u type=%u ino=%llu ag=%u — a local attempt or tenure is live on this resource; not a leftover, left in place",
+							sidx, res.type,
+							(unsigned long long)res.ino,
+							res.ag_number);
+					lreq_clr_end(ctx, cw, false);
+					continue;
+				}
+			}
+
 			/* Candidate — purge with an authoritative re-read +
 			 * CAS retry (identical to the original per-slot path;
 			 * the batch copy is only a candidacy hint). */
@@ -13611,6 +13711,12 @@ static int caw_purge_dead_nodes_body(struct mxfs_dlm_caw_ctx *ctx,
 					break;
 				}
 				if (cur_slot->magic != MXFS_CAW_MAGIC)
+					break;
+				/* the window covers the resource the candidacy
+				 * test saw; a slot recycled for another one since
+				 * is not what it protects */
+				if (cw && memcmp(&cur_slot->resource, &res,
+						 sizeof(res)))
 					break;
 				/* Re-confirm on the authoritative copy — a
 				 * concurrent purge may have cleared the bits.
@@ -13702,9 +13808,12 @@ static int caw_purge_dead_nodes_body(struct mxfs_dlm_caw_ctx *ctx,
 						    (unsigned long long)(cur_slot->holders_pr & dead_mask),
 						    (unsigned long long)ctx->node_bit);
 					purged++;
+					cleared = true;
 				}
 				break;
 			}
+			if (cw)
+				lreq_clr_end(ctx, cw, cleared);
 		}
 
 		slot += chunk;

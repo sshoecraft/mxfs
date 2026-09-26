@@ -248,15 +248,34 @@ t0=$(date +%s)
 
 echo "=== tcp_death_replay label=$LABEL W=$W V=$V kill_after=${KILL_AFTER}s size=$SIZE out=$OUT $(date -u +%FT%TZ) ==="
 
-# -- gates: same build as the tree, both on TCP, both mounted --
+# -- gates: same build as the tree, both on one transport, both mounted --
+# The PLAIN arm also runs on CAW (force_transport=0): the death, the fence,
+# the foreign replay and the verification of every acknowledged file are the
+# same on both transports; only the TCP authority ledger (the seal, the
+# ledger collect and the ledger-flagged manifest) does not exist on CAW, and
+# those assertions are TCP's alone below.  Every injection arm measures a TCP
+# mechanism and still requires TCP.
+PLAIN=1
+{ [ "$BLOCK_INJECT" != 0 ] || [ "$VERIFY_INJECT" != 0 ] || [ "$AGMASK_INJECT" != 0 ] || \
+  [ "$FALSE_APPLY" != 0 ] || [ "$VICTIM_INJECT" != 0 ] || [ "${TDR_REJOIN:-0}" = 1 ]; } && PLAIN=0
 TREESV=$(modinfo mxfs.ko 2>/dev/null | sed -n 's/^srcversion: *//p')
+FT=""
 for n in "$W" "$V"; do
     info=$(timeout 15 $SSH "$n" "echo sv=\$(cat /sys/module/mxfs/srcversion) ft=\$(cat $P/force_transport) m=\$(grep -c ' mxfs ' /proc/mounts)" 2>/dev/null | filt | tr -d '\r')
     echo "  INFO $n $info"
     [[ "$info" == *"sv=$TREESV"* ]] || { echo "ABORT: $n srcversion != tree '$TREESV' ($info)"; exit 2; }
-    [[ "$info" == *"ft=1"* ]] || { echo "ABORT: $n not on TCP ($info)"; exit 2; }
+    nft=$(printf '%s' "$info" | grep -ao 'ft=[0-9]*' | cut -d= -f2)
+    case $nft in
+        1) ;;
+        0) [ "$PLAIN" = 1 ] || { echo "ABORT: $n is on CAW and this arm measures a TCP mechanism ($info)"; exit 2; } ;;
+        *) echo "ABORT: $n force_transport unreadable ($info)"; exit 2 ;;
+    esac
+    [ -z "$FT" ] || [ "$FT" = "$nft" ] || { echo "ABORT: $W and $V are on different transports ($info)"; exit 2; }
+    FT=$nft
     [[ "$info" == *"m=1"* ]] || { echo "ABORT: $n not mounted ($info)"; exit 2; }
 done
+TRANSPORT=$([ "$FT" = 1 ] && echo tcp || echo caw)
+echo "  INFO transport=$TRANSPORT plain=$PLAIN"
 MARK="TDR-$LABEL-$$"
 timeout 12 $SSH "$W" "echo '$MARK' > /dev/kmsg" >/dev/null 2>&1
 
@@ -924,17 +943,27 @@ echo "  INFO fence: retries=$(grep -ac 'P304-FENCE-RETRY' "$OUT/dmesg_$W.txt") a
 ckge "fence certified exclusion (a P236-FENCEKIND with proves_excl=1)" "$(grep -a 'P236-FENCEKIND' "$OUT/dmesg_$W.txt" | grep -ac 'proves_excl=1')" 1
 
 # -- the authority chain, probe by probe --
-seal=$(grep -ac 'P-TAUTH-SEAL node=' "$OUT/dmesg_$W.txt")
-ckge "P-TAUTH-SEAL (victim sealed before the collect)" "$seal" 1
-coll=$(grep -a 'P-RMAN-COLLECT-TAUTH' "$OUT/dmesg_$W.txt" | tail -1)
-echo "  INFO $coll"
-ckge "P-RMAN-COLLECT-TAUTH present" "$(grep -ac 'P-RMAN-COLLECT-TAUTH' "$OUT/dmesg_$W.txt")" 1
-cent=$(echo "$coll" | grep -oE 'entries=[0-9]+' | head -1 | cut -d= -f2)
-ckge "ledger manifest has entries (the victim held EX at death)" "${cent:-0}" 1
 snap=$(grep -a 'P-RMAN-SNAPSHOT slot=' "$OUT/dmesg_$W.txt" | tail -1)
-echo "  INFO $snap"
-ck "P-RMAN-SNAPSHOT sealed with the ledger flag (flags=0x4)" "$(echo "$snap" | grep -ac 'flags=0x4')" "1"
-load=$(grep -a 'P-RMAN-LOAD' "$OUT/dmesg_$W.txt" | tail -1)
+if [ "$TRANSPORT" = tcp ]; then
+    seal=$(grep -ac 'P-TAUTH-SEAL node=' "$OUT/dmesg_$W.txt")
+    ckge "P-TAUTH-SEAL (victim sealed before the collect)" "$seal" 1
+    coll=$(grep -a 'P-RMAN-COLLECT-TAUTH' "$OUT/dmesg_$W.txt" | tail -1)
+    echo "  INFO $coll"
+    ckge "P-RMAN-COLLECT-TAUTH present" "$(grep -ac 'P-RMAN-COLLECT-TAUTH' "$OUT/dmesg_$W.txt")" 1
+    cent=$(echo "$coll" | grep -oE 'entries=[0-9]+' | head -1 | cut -d= -f2)
+    ckge "ledger manifest has entries (the victim held EX at death)" "${cent:-0}" 1
+    echo "  INFO $snap"
+    ck "P-RMAN-SNAPSHOT sealed with the ledger flag (flags=0x4)" "$(echo "$snap" | grep -ac 'flags=0x4')" "1"
+else
+    # CAW: the fence-time manifest is taken from the on-disk lock table, so
+    # there is no ledger seal or collect; the snapshot itself must exist
+    echo "  INFO $snap"
+    ckge "P-RMAN-SNAPSHOT taken for the victim's slot" "$(grep -ac 'P-RMAN-SNAPSHOT slot=' "$OUT/dmesg_$W.txt")" 1
+fi
+# 'P-RMAN-LOAD victim_slot=' and never the bare prefix: the disklock's own
+# 'P-RMAN-LOADED' line shares it, and on CAW one lands AFTER the replay's load
+# line, so a bare match's last line was the disklock's and read as a miss
+load=$(grep -a 'P-RMAN-LOAD victim_slot=' "$OUT/dmesg_$W.txt" | tail -1)
 echo "  INFO $load"
 ck "P-RMAN-LOAD rc=0 no_caw=0" "$(echo "$load" | grep -ac 'rc=0 .*no_caw=0')" "1"
 ev=$(grep -a 'P-RMAN-EVAL' "$OUT/dmesg_$W.txt" | tail -1)

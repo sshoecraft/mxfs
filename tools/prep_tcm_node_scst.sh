@@ -9,7 +9,7 @@
 # why MXFS CAW coordination works on this stack (the old LIO iblock stack
 # did not honor CAW reliably).  Device identifies as vendor "SCST_FIO".
 
-NFS_SERVER="192.168.1.4:/src"
+NFS_SERVER="192.168.120.1:/src"
 NFS_MOUNT="/src"
 MODULE="/src/mxfs/mxfs.ko"
 DEVICE=""

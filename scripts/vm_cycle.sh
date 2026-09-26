@@ -51,7 +51,7 @@ for n in "${want[@]}"; do
         sleep 3
     done
     if [ "$up" != 1 ]; then say "ERROR: $n did not answer ssh within 240 s"; rc=1; continue; fi
-    src=$(ssh_n "$n" 'mountpoint -q /src || { mkdir -p /src; mount -t nfs 192.168.1.4:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; }; mountpoint -q /src && echo SRC_OK || echo SRC_MISSING' 90 | tail -1)
+    src=$(ssh_n "$n" 'mountpoint -q /src || { mkdir -p /src; mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; }; mountpoint -q /src && echo SRC_OK || echo SRC_MISSING' 90 | tail -1)
     say "$n: up after cycle, /src=$src"
     [ "$src" = SRC_OK ] || rc=1
 done

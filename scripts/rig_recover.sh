@@ -34,7 +34,7 @@ REPO=$(cd -- "$SCRIPT_DIR/.." && pwd)
 SSH="$REPO/tools/mxfs_sshpass.sh"
 N="${1:-32}"
 MNT="${MXFS_MNT:-/mnt/shared}"
-SRCSRV="${MXFS_SRC_NFS:-192.168.1.4:/src}"
+SRCSRV="${MXFS_SRC_NFS:-192.168.120.1:/src}"
 
 echo "=== rig_recover: nodes=$N ==="
 

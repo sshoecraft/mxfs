@@ -95,7 +95,7 @@ timeout 90 virsh -c qemu:///system start "$D" || exit 1
 echo
 echo "$D started.  It has NO /src (NFS is deliberately not an fstab automount),"
 echo "so mount it before the node can run anything out of the tree:"
-echo "  tools/mxfs_sshpass.sh $D \"mkdir -p /src; mount -t nfs 192.168.1.4:/src /src \\"
+echo "  tools/mxfs_sshpass.sh $D \"mkdir -p /src; mount -t nfs 192.168.120.1:/src /src \\"
 echo "      -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp\""
 echo
 echo "The old image is still at $SRC and the stuck qemu still holds it."

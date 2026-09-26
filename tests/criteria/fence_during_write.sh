@@ -110,7 +110,7 @@ virsh -c qemu:///system start "$VICTIM" >/dev/null 2>&1
 for try in $(seq 1 30); do
     if timeout 8 "$MXFS_SSH" "$VICTIM" "$MXFS_PASS" "
         mkdir -p /src
-        mountpoint -q /src || mount -t nfs 192.168.1.4:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null
+        mountpoint -q /src || mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null
         [ -f $MXFS_MODULE ]
     " >/dev/null 2>&1; then break; fi
     sleep 2

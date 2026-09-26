@@ -62,8 +62,8 @@
 #   partition   every node's mount was multi-node with one common stride;
 #               every AG with a carve was carved by exactly ONE node, and that
 #               node owns it (agno mod stride == slot mod stride)
-#   own_ag      each node made >= 2 committed carves in its affine AG in
-#               phase 1
+#   own_ag      each node made >= 2 committed carves in phase 1 in the AGs it
+#               owns (its partition; the directory may land in any of them)
 #   overlap     the nodes' phase-1 carve spans overlap beyond the clock-offset
 #               error plus a 200 ppm drift allowance over the span
 #   breadth     carves in >= 2 AGs cluster-wide over the row
@@ -197,10 +197,26 @@ cqval(){ # <chunk line> <key>
 # directory until the witness shows its affine AG carve a chunk: the free
 # reserve is then gone and phase 1's creates must carve.  Bounded by FILL_MAX;
 # never reaching a carve inside it is a failure with its own reason, not a pass.
+#
+# The carve is counted over the node's whole partition (agno mod stride ==
+# slot mod stride, the model the verdict half grades), never over AG slot
+# alone: the allocator may place the fill directory in any AG of the
+# partition.  Measured 2/cawd, 0.90.6: test1 (slot 0, stride 32, agcount 63)
+# filled AG 32, carved there, and the loop, watching AG 0 only, ran all 8192
+# creates and aborted the row.
 D="$MNT/alloc_witness"
 FILL_MAX="${AW_FILL_MAX:-8192}"
 W0=$(cat "$WIT" 2>/dev/null)
 AFF=$(( $(field "$W0" slot) % $(field "$W0" agcount) ))
+FSTRIDE=$(field "$W0" stride)
+[ "${FSTRIDE:-0}" -ge 1 ] 2>/dev/null || FSTRIDE=$(field "$W0" agcount)
+partcarves(){ # <witness text>: carves summed over this node's partition
+    printf '%s\n' "$1" | awk -v s="$AFF" -v st="$FSTRIDE" '
+        $1 ~ /^ag=[0-9]+$/ { a = substr($1, 4) + 0
+            if (a % st == s % st)
+                for (i = 2; i <= NF; i++) if ($i ~ /^carves=[0-9]+$/) c += substr($i, 8) }
+        END { print c + 0 }'
+}
 mkdir -p "$D/fill_r$RANK" || fail_out "fill_mkdir=failed rank=$RANK" "mkdir of the node's fill directory failed"
 echo 1 > "$WIT" 2>/dev/null || fail_out "clear=failed rank=$RANK" "the witness counters could not be cleared before the fill"
 fill=0; fcarved=0; fstart=$(date +%s%N)
@@ -210,11 +226,11 @@ while [ "$fill" -lt "$FILL_MAX" ]; do
         : > "$D/fill_r$RANK/x$fill" || fail_out "fill_create=failed i=$fill rank=$RANK" "a create in the node's fill directory failed"
         fill=$((fill + 1)); j=$((j + 1))
     done
-    fcarved=$(agval "$(cat "$WIT" 2>/dev/null)" "$AFF" carves)
+    fcarved=$(partcarves "$(cat "$WIT" 2>/dev/null)")
     [ "${fcarved:-0}" -ge 1 ] && break
 done
-rec "FILL affine_ag=$AFF files=$fill carved=${fcarved:-0} wall_ms=$(( ($(date +%s%N) - fstart) / 1000000 ))"
-[ "${fcarved:-0}" -ge 1 ] || fail_out "fill=exhausted files=$fill affine_ag=$AFF rank=$RANK" "$fill creates in the affine AG never carved a chunk; the free reserve could not be exhausted inside AW_FILL_MAX"
+rec "FILL affine_ag=$AFF stride=$FSTRIDE files=$fill carved=${fcarved:-0} wall_ms=$(( ($(date +%s%N) - fstart) / 1000000 ))"
+[ "${fcarved:-0}" -ge 1 ] || fail_out "fill=exhausted files=$fill affine_ag=$AFF stride=$FSTRIDE rank=$RANK" "$fill creates in the node's AG partition never carved a chunk; the free reserve could not be exhausted inside AW_FILL_MAX"
 
 # ---- 0. clear, baseline, clock exchange -----------------------------------
 [ "$RANK" = 1 ] && { mkdir -p "$D/shared" 2>/dev/null; sync -f "$MNT" 2>/dev/null; }
@@ -467,10 +483,18 @@ if not unknown:
             if s > 1 and a % s != slot % s: breaches.append("AG %d carved by rank %d (slot %d) outside its stride %d" % (a, k, slot, s))
     floors["partition"] = "PASS" if multi_ok and len(strides) == 1 and not breaches else "FAIL"
     say("partition: multi=%s strides=%s carvers=%s breaches=%s" % (multi_ok, sorted(strides), {a: ks for a, ks in carvers.items() if ks}, breaches))
-    # own_ag: >= 2 phase-1 carves in each node's affine AG
-    own = {k: p1[k].get(int(node[k]["affine_ag"]), {}).get("carves", 0) for k in recs}
+    # own_ag: >= 2 phase-1 carves in each node's own AGs, i.e. its partition
+    # (agno mod stride == slot mod stride), not AG slot alone: the allocator
+    # may put the node's directory in any AG it owns (2/cawd 0.90.6: rank 1,
+    # slot 0, carved 17 times in AG 32 and the single-AG count read 0)
+    def owns(k, a):
+        s = int(node[k]["stride"]); slot = int(node[k]["slot"])
+        return a % s == slot % s if s > 1 else a == int(node[k]["affine_ag"])
+    own = {k: sum(d.get("carves", 0) for a, d in p1[k].items() if owns(k, a)) for k in recs}
     floors["own_ag"] = "PASS" if all(v >= 2 for v in own.values()) else "FAIL"
-    say("own_ag: phase-1 carves in each node's affine AG %s (affine %s)" % (own, {k: node[k]["affine_ag"] for k in recs}))
+    say("own_ag: phase-1 carves in each node's own AGs %s (slot %s, stride %s, by AG %s)" % (
+        own, {k: node[k]["slot"] for k in recs}, {k: node[k]["stride"] for k in recs},
+        {k: {a: d["carves"] for a, d in p1[k].items() if d.get("carves", 0) > 0} for k in recs}))
     # overlap: per node the phase-1 span over its AGs, in rank 1's clock
     lo, hi, err, span = None, None, 0, 0
     for k in recs:

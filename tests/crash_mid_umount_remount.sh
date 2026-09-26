@@ -56,7 +56,7 @@ MARK="MXFS_CMUR_$(date +%s)"
 # mount NODE LOGNAME — the fleet's own per-node join (no format); prints
 # prep_rc, the mount's wall and whether it is mounted
 join() {
-    on $1 200 "mountpoint -q /src || { mkdir -p /src; mount -t nfs 192.168.1.4:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp; }
+    on $1 200 "mountpoint -q /src || { mkdir -p /src; mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp; }
         echo '$MARK' > /dev/kmsg
         t=\$(date +%s%N); MXFS_DEV=$MXFS_DEV MXFS_KO_MD5=$KO_MD5 timeout 180 bash /src/mxfs/tests/setup/prep_node.sh tcp > /tmp/prep_node_cmur.log 2>&1; rc=\$?
         echo prep_rc=\$rc mount_ms=\$(( (\$(date +%s%N)-t)/1000000 )) mounted=\$(grep -c ' $MNT mxfs ' /proc/mounts)

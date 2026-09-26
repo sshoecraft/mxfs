@@ -103,13 +103,13 @@ $VIRSH start "$RM" >/dev/null 2>&1 || { fail "virsh start $RM"; echo "=== no_sur
 booted=0
 for a in $(seq 1 24); do sleep 5; sshq 8 "$RM" "echo SSH_UP" | grep -q SSH_UP && { booted=1; break; }; done
 [ $booted -eq 1 ] && info "$RM ssh up at +$(( $(date +%s) - TK ))s after the crash" || { fail "$RM never came back on ssh"; echo "=== no_survivor_crash_replay $LABEL: fails=$fails out=$OUT ==="; exit 1; }
-sshq 90 "$RM" "mountpoint -q /src || { mkdir -p /src; mount -t nfs 192.168.1.4:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; }
+sshq 90 "$RM" "mountpoint -q /src || { mkdir -p /src; mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; }
     iscsiadm -m discovery -t st -p 192.168.120.1:3260 >/dev/null 2>&1; iscsiadm -m discovery -t st -p 192.168.120.2:3260 >/dev/null 2>&1
     iscsiadm -m node --login >/dev/null 2>&1; iscsiadm -m session --rescan >/dev/null 2>&1; multipath >/dev/null 2>&1" >/dev/null
 devup=0
 for a in $(seq 1 20); do
     sshq 8 "$RM" "[ -e $DEV ] && mountpoint -q /src && echo DEV_UP" | grep -q DEV_UP && { devup=1; break; }
-    sshq 20 "$RM" "mountpoint -q /src || { mkdir -p /src; timeout 12 mount -t nfs 192.168.1.4:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; }; multipath >/dev/null 2>&1" >/dev/null
+    sshq 20 "$RM" "mountpoint -q /src || { mkdir -p /src; timeout 12 mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; }; multipath >/dev/null 2>&1" >/dev/null
     sleep 3
 done
 [ $devup -eq 1 ] || { fail "$DEV / /src never came up on $RM"; echo "=== no_survivor_crash_replay $LABEL: fails=$fails out=$OUT ==="; exit 1; }

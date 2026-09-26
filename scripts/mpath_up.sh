@@ -74,7 +74,7 @@ host_up() {
 NODE_ENSURE='
 set -u
 MP=/dev/mapper/mpatha
-mountpoint -q /src || { mkdir -p /src; mount -t nfs 192.168.1.4:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; }
+mountpoint -q /src || { mkdir -p /src; mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; }
 # The VM fleet was cloned from one image and many nodes still carry the
 # image stock InitiatorName.  Two hosts sharing an initiator IQN collide
 # in SCST session handling (same-IQN+ISID logins reinstate each other,
