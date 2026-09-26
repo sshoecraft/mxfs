@@ -1417,6 +1417,18 @@
       "next": "Find where the CAW waiter raises the notification (the slot poll on each P-WAIT-EXTEND lap vs a per-attempt raise) and whether the holder's bast work re-queues per notification. Measure the holder's CPU and log volume during a long drain. Bound it the way TCP does (re-fire interval) if the per-notification cost is real.",
       "impact": "noblock",
       "impact_why": "A cost that grows with a drain's length, not a correctness failure: no data loss, crash or hang was observed."
+    },
+    {
+      "id": "D-BOOTSTRAP-TAKEOVER-K-ROUTE-NEVER-DRIVEN",
+      "severity": "major",
+      "nodes": 2,
+      "dlm": "caw",
+      "opened": "2026-09-26",
+      "summary": "Whole-record closure of the bootstrap takeover (owner replacement requires sound fencing on EVERY route) is unmeasured on the escrowed-slot (K) route. The slotless route was driven live and its proofless branches are gone (D-BOOTSTRAP-TAKEOVER-MINTS-A-FENCE-KIND-WITH-NO-PROOF, removed 0.89.93). On the K route (dlm/v5_mount.c, escrow K_CLAIMED/K_REPLAY_OK) the takeover accepts the old owner as fenced from a recovery descriptor read through mxfs_v5_dlm_recovery_acquire plus the durable-kind classifier. No bootstrap lap has ever selected that route: btk_caw_s3 journaled escrow=NONE K=0.",
+      "evidence": "tests/evidence/20260926T070858Z_btk_btk_caw_s3 (0.89.93 lap): both arms took the slotless branch (P-BOOT-CONTENDER-ABANDONED ... escrow=NONE K=0). docs/rulings/bootstrap-takeover-closure-and-the-recovery-dead-end.md section 2: the K route needs to be driven, or shown unreachable in the supported configuration, and the 0.89.17 classifier arms do not establish that a bootstrap route calls the classifier.",
+      "next": "Per the ruling, section 2: move the cut to the first genuine protocol point where A1 still owns an open term, A1's exact boot and key have the heartbeat representation B will legally escrow as K, that representation is durable, and the term has not reached RECOVERY_COMPLETE. A controlled pause right after that real commit may land the fault; fabricating the owner-slot relationship may not. If the implementation only establishes that relationship after the term completes, K is unreachable on this schedule, and the disposition says so from the code rather than manufacturing a case. Descriptor consumption needs a legally reachable descriptor-producing case, or a complete durable fixture selected through the normal bootstrap route.",
+      "impact": "verify",
+      "impact_why": "Verification owed on a fencing route: whether bootstrap owner replacement is sound on the K route is unknown."
     }
   ]
 }

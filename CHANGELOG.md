@@ -25,6 +25,21 @@ could show:
   antecedent held, so the defect's precondition was reproduced — and created
   no authority of any class: no certificate, no fence kind, no inheritance, no
   reseal, no lease, no recovery descriptor, the record unchanged.
+
+  The lap hit one of the three deleted antecedents.  The other two are covered
+  by the code, read for this closure: in `v5_boot_tk_fence_key`
+  (`dlm/v5_mount.c`) an absent key evaluates LEDGER-FENCED, SELF-SUCCESSION and
+  LEDGER-RETIRED only to name one in the refusal line, then returns `-ENOKEY`
+  with `*kind_out = 0` on every one of them; nothing on that path writes the
+  ledger, a kind or a certificate.  Both callers (the stale-contender fence and
+  the slotless old-owner fence) `goto out` on a non-zero return before any
+  staging or certificate count.  So the refusal the lap measured for
+  SELF-SUCCESSION is the same control flow for the two ledger antecedents.
+- **The escrowed-slot (K) route is a separate record**,
+  `D-BOOTSTRAP-TAKEOVER-K-ROUTE-NEVER-DRIVEN`: it accepts the old owner as
+  fenced from a recovery descriptor, and no lap has selected it (both arms
+  journaled `escrow=NONE K=0`).  Closing the slotless producer does not close
+  owner replacement on every route.
 - **`D-BOOTSTRAP-TAKEOVER-NO-PROOF-LEAVES-VOLUME-UNMOUNTABLE` is now measured
   and stays open.** Repeat mounts on both nodes were refused the same way and
   the record stayed CLAIMED by a key that cannot come back: the volume is
