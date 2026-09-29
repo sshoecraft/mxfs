@@ -32,7 +32,7 @@ LOG=tests/evidence/sess447_chain55_0540_default_on_$LABEL.log
   timeout 300 ./run.sh 32 caw prep_cluster; prc=$?; echo "STAGE prep2 rc=$prc"
   if [ "$prc" -ne 0 ]; then echo "ABORT: prep2 failed"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
   T0=$(date +%s); timeout 900 ./run.sh 32 caw; echo "STAGE board rc=$? wall=$(( $(date +%s) - T0 ))s"
-  ./showstat.sh 32 caw 2>/dev/null | grep -a 'PASS\|FAIL\|SKIP\|PENDING' | cut -c1-140
+  tools/criteria.py 32 caw 2>/dev/null | grep -a 'PASS\|FAIL\|SKIP\|PENDING' | cut -c1-140
   for lap in $(seq 1 $NLAPS); do
     timeout 300 ./run.sh 32 caw prep_cluster; prc=$?; echo "STAGE prep_ndr$lap rc=$prc"
     if [ "$prc" -ne 0 ]; then echo "ABORT: prep failed"; break; fi

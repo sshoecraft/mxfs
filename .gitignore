@@ -74,6 +74,7 @@ tests/logs/
 /tests/tauth/formation_test
 /tests/tauth/ledger_test
 /tests/tauth/pageof
+/tests/tauth/stale_image_release_test
 /tests/tauth/tauth_test
 /tests/tauth/unowned_page_test
 /tests/tauth/view_format_test

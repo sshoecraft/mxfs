@@ -149,23 +149,50 @@
 # FAIL this record predicts.  A mount refused at the recovery barrier or the
 # claim before any transition is VACUOUS and names the gate.
 #
+# THE THREE-NODE ARM (MXFS_NODE_LIST of three nodes).  On two nodes neither
+# producer is reachable (the record's session-62 enumeration): the dead victim
+# keeps its pages, so every request on them fails fast on the transport, and
+# the master's own put_super finds the page it owns.  With a third node the
+# roles separate.  Every node's quiesce is read; the one whose line says
+# master_self=1 is M, the page's master, and it stays up.  Of the other two,
+# V is made the authority (its own quiesce runs last) and destroyed; C is the
+# third node.  The injector is armed on both survivors, since whichever fences
+# V is the prover whose snapshot must fail.  Then two legs, each an unmount
+# under the SIGKILL bound with its window read: C first — its summary-lock
+# request is mastered by the live M, whose own prepare is parked on the dead
+# authority under judgement, so M answers AUTH_TRANSITION and C waits
+# (producer (a)) — then M itself, whose page acquire parks on the refused
+# takeover (producer (b)).  A leg PASSes when the unmount ends by itself
+# after a transition wait and at least one stall observation (the SB summary
+# lock has been registered fallible since 0.89.69, so P960-AUTH-TRANSITION-
+# FAIL-SB is the expected exit); a leg whose unmount is still parked at the
+# bound FAILs; a leg that never entered a transition is VACUOUS and names the
+# rc it got instead.  The arm's budget is the two-node one plus a second leg
+# (UMOUNT_MAX 90 s + captures 60 s): caller bound 1150 s.
+#
 # Usage: tests/nonfallible_transition_stall.sh <label>
 # Env:   MXFS_NODE_LIST (default test1,test2 — the roles are chosen from the
 #        master_self line: the node that masters the summary page is the
 #        prover, which stays up throughout and whose unmount is measured; the
-#        other node is made the page's authority and destroyed), UMOUNT_MAX
-#        (90), NFILES (32), REMOUNT (0; 1 = the fresh-mount arm above),
-#        MOUNT_MAX (140).
+#        other node is made the page's authority and destroyed; three nodes =
+#        the three-node arm above), UMOUNT_MAX (90), NFILES (32), REMOUNT (0;
+#        1 = the fresh-mount arm above, two nodes only), MOUNT_MAX (140).
 # Exit 0 PASS, 1 FAIL, 2 ABORT/INFRA, 3 VACUOUS.
 set -u
 LABEL=${1:?label}
 cd "$(dirname "$0")/.." || exit 2
 export MXFS_NODE_LIST=${MXFS_NODE_LIST:-test1,test2}
 export MXFS_TRANSPORT=${MXFS_TRANSPORT:-tcp}
-N1=${MXFS_NODE_LIST%%,*}
-N2=${MXFS_NODE_LIST##*,}
+NODES=(${MXFS_NODE_LIST//,/ })
+NN=${#NODES[@]}
+[ "$NN" = 2 ] || [ "$NN" = 3 ] || { echo "ABORT: MXFS_NODE_LIST must name two or three nodes (got '$MXFS_NODE_LIST')"; exit 2; }
+N1=${NODES[0]}
+N2=${NODES[1]}
+N3=${NODES[2]:-}
+[ "${REMOUNT:-0}" = 1 ] && [ "$NN" = 3 ] && { echo "ABORT: REMOUNT=1 is the two-node arm"; exit 2; }
 V=                               # the victim: made the page's authority, destroyed (chosen in step 3)
-P=                               # the prover: masters the page; its unmount is the subject
+P=                               # the prover/master: masters the page; its unmount is the subject (2 nodes) or the second leg (3 nodes)
+C=                               # 3 nodes only: the third node — alive, not the master; its unmount is the first leg
 SSH=tools/mxfs_sshpass.sh
 MNT=/mnt/shared
 NFILES=${NFILES:-32}
@@ -189,26 +216,33 @@ vac() { echo "  VACUOUS $1"; echo "RESULT: VACUOUS label=$LABEL reason=$2 eviden
 # abort: a lap that dies half way must not leave the next one arming a knob it
 # did not set or waiting for a domain nobody started.
 CLEANED=0
-PWEDGED=0              # set when the prover's unmount had to be SIGKILLed
+WEDGED=""              # the survivors whose unmount had to be SIGKILLed
 cleanup() {
+    local n
     [ "$CLEANED" = 1 ] && return 0
     CLEANED=1
     [ -n "$P" ] || { echo "STAGE cleanup: the roles were never chosen; nothing was armed or destroyed"; return 0; }
-    if [ "$PWEDGED" = 1 ]; then
-        # A SIGKILLed umount leaves the mount half torn down with a DLM
-        # acquire still parked underneath it; the next prep would fight that
-        # rather than prepare a node.  Recycle the domain instead — it carries
-        # no evidence (every capture is already on this host) and the caller's
-        # prep then starts from a clean boot.
-        $VIRSH destroy "$P" >/dev/null 2>&1
-        sleep 3
-        $VIRSH start "$P" >/dev/null 2>&1
-        echo "STAGE cleanup: $P was recycled because its unmount had to be killed"
-    else
-        rs 20 "$P" "echo 0 > $PARM/rman_inject 2>/dev/null; cat $PARM/rman_inject" > "$OUT/P_inject_clear.txt" 2>/dev/null
-    fi
+    for n in $P $C; do
+        case " $WEDGED " in
+        *" $n "*)
+            # A SIGKILLed umount leaves the mount half torn down with a DLM
+            # acquire still parked underneath it; the next prep would fight that
+            # rather than prepare a node.  Recycle the domain instead — it carries
+            # no evidence (every capture is already on this host) and the caller's
+            # prep then starts from a clean boot.
+            $VIRSH destroy "$n" >/dev/null 2>&1
+            sleep 3
+            $VIRSH start "$n" >/dev/null 2>&1
+            echo "STAGE cleanup: $n was recycled because its unmount had to be killed"
+            ;;
+        *)
+            rs 20 "$n" "echo 0 > $PARM/rman_inject 2>/dev/null; cat $PARM/rman_inject" > "$OUT/${n}_inject_clear.txt" 2>/dev/null
+            echo "STAGE cleanup: rman_inject on $n now '$(tail -1 "$OUT/${n}_inject_clear.txt" 2>/dev/null)'"
+            ;;
+        esac
+    done
     $VIRSH start "$V" >/dev/null 2>&1
-    echo "STAGE cleanup: rman_inject on $P now '$(tail -1 "$OUT/P_inject_clear.txt" 2>/dev/null || echo 'cleared by the recycle')', $V started; the caller must prep_cluster before the next lap at +$(el)s"
+    echo "STAGE cleanup: $V started; the caller must prep_cluster before the next lap at +$(el)s"
 }
 trap cleanup EXIT
 
@@ -231,12 +265,12 @@ waitboot() {
     done
     echo "STAGE boot-wait $* polls=$w at +$(el)s"
 }
-waitboot "$N1" "$N2"
-MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2 tcp prep_cluster > "$OUT/prep.log" 2>&1
+waitboot "${NODES[@]}"
+MXFS_FORCE_PREP=1 timeout 300 ./run.sh "$NN" tcp prep_cluster > "$OUT/prep.log" 2>&1
 prc=$?
 echo "STAGE prep rc=$prc wall=$(el)s  $(grep -am1 'prep_cluster OK\|FAIL' "$OUT/prep.log" | cut -c1-140)"
 [ $prc = 0 ] || { echo "RESULT: ABORT label=$LABEL stage=prep evidence=$OUT"; exit 2; }
-for n in "$N1" "$N2"; do
+for n in "${NODES[@]}"; do
     value_now_into sv "$n" 30 "$OUT/${n}_srcversion.txt" '^[0-9A-F]{16,}$' "the loaded module's srcversion on $n" "cat /sys/module/mxfs/srcversion"
     ck "prep deployed the tree build on $n" "$sv" "$SV"
 done
@@ -244,22 +278,27 @@ done
 mxfs_dev_resolve "$N1"; MXFS_DEV=$MXFS_DEV_RESOLVED; export MXFS_DEV
 
 # ---- 1. identities
-for n in "$N1" "$N2"; do
+for n in "${NODES[@]}"; do
     value_now_into cl "$n" 30 "$OUT/${n}_claim.txt" '^claimed heartbeat slot [0-9]+' "the slot claim line on $n" "dmesg | grep -ao 'claimed heartbeat slot [0-9]*' | tail -1"
-    printf -v "slot_$n" '%s' "${cl##* }"
+    printf -v "slot_${n//-/_}" '%s' "${cl##* }"
 done
-eval "SLOT1=\$slot_$N1; SLOT2=\$slot_$N2"
-[ -n "$SLOT1" ] && [ -n "$SLOT2" ] && [ "$SLOT1" != "$SLOT2" ] || {
-    echo "ABORT: could not read two distinct slots ($N1 '$SLOT1', $N2 '$SLOT2')"
+slotof() { local v="slot_${1//-/_}"; printf '%s' "${!v}"; }
+SLOT1=$(slotof "$N1"); SLOT2=$(slotof "$N2"); SLOT3=none
+[ -z "$N3" ] || SLOT3=$(slotof "$N3")
+distinct=$(printf '%s\n' "$SLOT1" "$SLOT2" $( [ -z "$N3" ] || echo "$SLOT3" ) | grep -c .)
+[ -n "$SLOT1" ] && [ -n "$SLOT2" ] && { [ -z "$N3" ] || [ -n "$SLOT3" ]; } &&
+    [ "$(printf '%s\n' "$SLOT1" "$SLOT2" $( [ -z "$N3" ] || echo "$SLOT3" ) | sort -u | wc -l)" = "$distinct" ] &&
+    [ "$distinct" = "$NN" ] || {
+    echo "ABORT: could not read $NN distinct slots ($N1 '$SLOT1', $N2 '$SLOT2'${N3:+, $N3 '$SLOT3'})"
     echo "RESULT: ABORT label=$LABEL stage=identity evidence=$OUT"; exit 2; }
-echo "STAGE identities: $N1 slot $SLOT1, $N2 slot $SLOT2 at +$(el)s"
+echo "STAGE identities: $N1 slot $SLOT1, $N2 slot $SLOT2${N3:+, $N3 slot $SLOT3} at +$(el)s"
 
 # ---- 2. both mounts do real work, so the prover's departure has something to
 #         quiesce and the victim's slice is genuinely dirty when it dies.
-for n in "$N1" "$N2"; do
+for n in "${NODES[@]}"; do
     rs 120 "$n" "mkdir -p $MNT/nft_$n && for i in \$(seq 1 $NFILES); do dd if=/dev/urandom of=$MNT/nft_$n/f\$i bs=4096 count=8 status=none; done; sync -f $MNT/nft_$n; echo WORK_OK" > "$OUT/${n}_work.txt" 2>/dev/null &
 done; wait
-for n in "$N1" "$N2"; do
+for n in "${NODES[@]}"; do
     grep -qa '^WORK_OK' "$OUT/${n}_work.txt" || {
         echo "ABORT: the workload on $n did not complete: [$(tr '\n' ' ' < "$OUT/${n}_work.txt" | cut -c1-200)]"
         echo "RESULT: ABORT label=$LABEL stage=workload evidence=$OUT"; exit 2; }
@@ -292,6 +331,41 @@ freeze_thaw() {
     qmaster=$(grep -a "P-SB-SUMMARY-LOCK slot=$slot rc=0 .*at=quiesce" "$OUT/${tag}_quiesce.txt" | tail -1 | sed -n 's/.*master_self=\(-\?[0-9]*\).*/\1/p')
     qmaster=${qmaster:-none}
 }
+if [ "$NN" = 3 ]; then
+    # the three-node arm: every node's quiesce is read; exactly one masters the
+    # page and stays up; of the other two the first is the victim/authority and
+    # the second the third node whose unmount is the first leg
+    M=""
+    for n in "${NODES[@]}"; do
+        freeze_thaw "$n" "$(slotof "$n")" "$n"
+        if [ "$qlock" -lt 1 ]; then
+            echo "  $n's quiesce did not take the summary lock cleanly: [$(grep -a 'P-SB-SUMMARY-LOCK' "$OUT/${n}_quiesce.txt" | tail -2 | tr '\n' ' ' | cut -c1-240)]"
+            vac "$n's quiesce never took the SB summary page, so the master cannot be read" no-authority-move
+        fi
+        case $qmaster in
+            1)  [ -z "$M" ] || { echo "ABORT: two nodes read master_self=1 ($M and $n) — the view is not one view"
+                                 echo "RESULT: ABORT label=$LABEL stage=master evidence=$OUT"; exit 2; }
+                M=$n ;;
+            0)  ;;
+            *)  echo "ABORT: the summary lock line on $n carries no readable master_self (got '$qmaster') — the roles cannot be chosen on this build"
+                echo "RESULT: ABORT label=$LABEL stage=master evidence=$OUT"; exit 2 ;;
+        esac
+    done
+    [ -n "$M" ] || vac "no node's quiesce read master_self=1, so the summary page's master could not be identified" no-master
+    for n in "${NODES[@]}"; do
+        [ "$n" = "$M" ] && continue
+        if [ -z "$V" ]; then V=$n; else C=$n; fi
+    done
+    P=$M; PSLOT=$(slotof "$P"); VSLOT=$(slotof "$V"); CSLOT=$(slotof "$C")
+    echo "STAGE $M masters the summary page (master_self=1) and stays up; $V is the victim; $C is the third node at +$(el)s"
+    # the victim must be the AUTHORITY: its own quiesce, run last, moves the page to it
+    freeze_thaw "$V" "$VSLOT" "${V}_auth"
+    if [ "$qlock" -lt 1 ]; then
+        echo "  the victim's quiesce did not take the summary lock cleanly: [$(grep -a 'P-SB-SUMMARY-LOCK' "$OUT/${V}_auth_quiesce.txt" | tail -2 | tr '\n' ' ' | cut -c1-240)]"
+        vac "$V never became the SB summary page's authority, so no leg would meet a page under judgement" no-authority-move
+    fi
+    ck "the victim's own quiesce read the page as mastered elsewhere (master_self=0)" "$qmaster" 0
+else
 freeze_thaw "$N1" "$SLOT1" N1
 if [ "$qlock" -lt 1 ]; then
     echo "  $N1's quiesce did not take the summary lock cleanly: [$(grep -a 'P-SB-SUMMARY-LOCK' "$OUT/N1_quiesce.txt" | tail -2 | tr '\n' ' ' | cut -c1-240)]"
@@ -314,6 +388,7 @@ case $qmaster in
     *)  echo "ABORT: the summary lock line on $N1 carries no readable master_self (got '$qmaster'): [$(grep -a 'P-SB-SUMMARY-LOCK' "$OUT/N1_quiesce.txt" | tail -1 | cut -c1-200)] — the roles cannot be chosen on this build"
         echo "RESULT: ABORT label=$LABEL stage=master evidence=$OUT"; exit 2 ;;
 esac
+fi
 [ $fails = 0 ] || { echo "RESULT: ABORT label=$LABEL stage=roles evidence=$OUT"; exit 2; }
 # REMOUNT=1 inverts the roles.  The ledger page's authority is the node that
 # MASTERS it (the master owns the page it decides on; a remote requester's
@@ -326,11 +401,11 @@ if [ "${REMOUNT:-0}" = 1 ]; then
     t=$P; P=$V; V=$t; t=$PSLOT; PSLOT=$VSLOT; VSLOT=$t
     echo "STAGE REMOUNT arm: roles inverted — the summary page's master $V is the victim (its incarnation stays the page's authority), $P is the prover that will mount again"
 fi
-echo "STAGE roles: victim/authority $V (slot $VSLOT), prover/master $P (slot $PSLOT) at +$(el)s"
+echo "STAGE roles: victim/authority $V (slot $VSLOT), prover/master $P (slot $PSLOT)${C:+, third node $C (slot $CSLOT)} at +$(el)s"
 
-umount_measure() {   # <tag> — sets URC; the probe and rc files carry the tag
-    local tag=$1
-    rs $((UMOUNT_MAX + 40)) "$P" "rm -f /run/nft_umount.txt
+umount_measure() {   # <tag> <node> — sets URC; the probe and rc files carry the tag
+    local tag=$1 node=$2
+    rs $((UMOUNT_MAX + 40)) "$node" "rm -f /run/nft_umount.txt
 setsid sh -c 'timeout -s KILL $UMOUNT_MAX umount $MNT; echo UMOUNT_RC=\$?' > /run/nft_umount.txt 2>&1 < /dev/null &
 sleep 12
 for i in 1 2 3; do
@@ -341,19 +416,19 @@ done
 echo UMOUNT_PID=\${pid:-none}
 [ -n \"\$pid\" ] && { echo STACK_BEGIN; cat /proc/\$pid/stack 2>/dev/null; echo STACK_END; }
 echo PROBE_END" > "$OUT/${tag}_umount_probe.txt" 2>/dev/null
-    echo "STAGE unmount probe on $P ($tag): $(grep -a 'UMOUNT_PID' "$OUT/${tag}_umount_probe.txt" | head -1) at +$(el)s"
+    echo "STAGE unmount probe on $node ($tag): $(grep -a 'UMOUNT_PID' "$OUT/${tag}_umount_probe.txt" | head -1) at +$(el)s"
     if grep -qa '^STACK_BEGIN' "$OUT/${tag}_umount_probe.txt"; then
         echo "  parked-task stack while the unmount was still running:"
         sed -n '/^STACK_BEGIN/,/^STACK_END/p' "$OUT/${tag}_umount_probe.txt" | grep -a 'mxfs\|dlm\|xfs\|umount\|schedule' | head -12 | sed 's/^/    /'
     fi
     # the unmount either returned inside its bound or was killed at it
-    rs $((UMOUNT_MAX + 60)) "$P" "for i in \$(seq 1 $((UMOUNT_MAX + 30))); do grep -q UMOUNT_RC= /run/nft_umount.txt 2>/dev/null && break; sleep 1; done; cat /run/nft_umount.txt; echo READ_END" > "$OUT/${tag}_umount_rc.txt" 2>/dev/null
-    capture_require "$OUT/${tag}_umount_rc.txt" '^READ_END$' "the unmount result on $P ($tag)"
+    rs $((UMOUNT_MAX + 60)) "$node" "for i in \$(seq 1 $((UMOUNT_MAX + 30))); do grep -q UMOUNT_RC= /run/nft_umount.txt 2>/dev/null && break; sleep 1; done; cat /run/nft_umount.txt; echo READ_END" > "$OUT/${tag}_umount_rc.txt" 2>/dev/null
+    capture_require "$OUT/${tag}_umount_rc.txt" '^READ_END$' "the unmount result on $node ($tag)"
     URC=$(grep -ao 'UMOUNT_RC=[0-9]*' "$OUT/${tag}_umount_rc.txt" | head -1 | cut -d= -f2)
     # set here, not in the verdict: a lap that exits VACUOUS below still left a
     # killed unmount behind, and the cleanup has to know that whatever the verdict
-    [ "${URC:-none}" = 137 ] && PWEDGED=1
-    echo "STAGE unmount on $P ($tag) returned rc='${URC:-none}' at +$(el)s  [$(grep -av '^READ_END$' "$OUT/${tag}_umount_rc.txt" | tr '\n' ' ' | cut -c1-160)]"
+    [ "${URC:-none}" = 137 ] && WEDGED="$WEDGED $node"
+    echo "STAGE unmount on $node ($tag) returned rc='${URC:-none}' at +$(el)s  [$(grep -av '^READ_END$' "$OUT/${tag}_umount_rc.txt" | tr '\n' ' ' | cut -c1-160)]"
 }
 
 # ---- R. REMOUNT=1: the whole measurement, in the order that reaches the
@@ -376,7 +451,7 @@ echo PROBE_END" > "$OUT/${tag}_umount_probe.txt" 2>/dev/null
 if [ "${REMOUNT:-0}" = 1 ]; then
     MOUNT_MAX=${MOUNT_MAX_REMOUNT:-200}
     for n in "$V" "$P"; do rs 15 "$n" "echo $MARK > /dev/kmsg" >/dev/null 2>&1; done
-    umount_measure P
+    umount_measure P "$P"
     if [ "${URC:-none}" != 0 ]; then
         vac "the prover's clean unmount (victim alive) returned rc=${URC:-none}; there is no clean departure to mount again after" remount-setup-umount-failed
     fi
@@ -408,7 +483,7 @@ echo PROBE_END" > "$OUT/P_mount_probe.txt" 2>/dev/null
     rs $((MOUNT_MAX + 60)) "$P" "for i in \$(seq 1 $((MOUNT_MAX + 30))); do grep -q MOUNT_RC= /run/nft_mount.txt 2>/dev/null && break; sleep 1; done; cat /run/nft_mount.txt; echo READ_END" > "$OUT/P_mount_rc.txt" 2>/dev/null
     capture_require "$OUT/P_mount_rc.txt" '^READ_END$' "the mount result on $P"
     MRC=$(grep -ao 'MOUNT_RC=[0-9]*' "$OUT/P_mount_rc.txt" | head -1 | cut -d= -f2)
-    [ "${MRC:-none}" = 137 ] && PWEDGED=1
+    [ "${MRC:-none}" = 137 ] && WEDGED="$WEDGED $P"
     echo "STAGE mount on $P returned rc='${MRC:-none}' at +$(el)s  [$(grep -av '^READ_END$' "$OUT/P_mount_rc.txt" | tr '\n' ' ' | cut -c1-160)]"
     window_into "$OUT/P_window.txt" "$P" 60 "$MARK-REMOUNT"
     count_file_into twait  "$OUT/P_window.txt" 'P960-AUTH-TRANSITION-WAIT'
@@ -457,7 +532,7 @@ echo PROBE_END" > "$OUT/P_mount_probe.txt" 2>/dev/null
         case $gline in *RECOVERY_GUARD*) ;; *) vac "the victim's slot is not RECOVERY_GUARD after the parked snapshot, so v5_recovery_judging_cb has nothing to protect" no-guard ;; esac
         rs 15 "$P" "echo $MARK-UMOUNT2 > /dev/kmsg" >/dev/null 2>&1
         echo "STAGE unmounting the fresh incarnation of $P against the standing guard (bound ${UMOUNT_MAX}s) at +$(el)s"
-        umount_measure P2
+        umount_measure P2 "$P"
         U2RC=${URC:-none}
         window_into "$OUT/P2_window.txt" "$P" 60 "$MARK-UMOUNT2"
         count_file_into u2wait  "$OUT/P2_window.txt" 'P960-AUTH-TRANSITION-WAIT'
@@ -489,12 +564,16 @@ echo PROBE_END" > "$OUT/P_mount_probe.txt" 2>/dev/null
     exit $(( fails == 0 ? 0 : 1 ))
 fi
 
-# ---- 4. arm the manifest-snapshot injector on the prover and mark both rings
-value_now_into inj "$P" 20 "$OUT/P_inject_set.txt" '^1$' "the rman_inject knob after arming on $P" "echo 1 > $PARM/rman_inject; cat $PARM/rman_inject"
-echo "STAGE rman_inject=$inj armed on $P at +$(el)s"
-for n in "$V" "$P"; do rs 15 "$n" "echo $MARK > /dev/kmsg" >/dev/null 2>&1; done
+# ---- 4. arm the manifest-snapshot injector on every survivor (whichever
+#         fences the victim is the prover whose snapshot must fail) and mark
+#         every ring
+for n in $P $C; do
+    value_now_into inj "$n" 20 "$OUT/${n}_inject_set.txt" '^1$' "the rman_inject knob after arming on $n" "echo 1 > $PARM/rman_inject; cat $PARM/rman_inject"
+    echo "STAGE rman_inject=$inj armed on $n at +$(el)s"
+done
+for n in "${NODES[@]}"; do rs 15 "$n" "echo $MARK > /dev/kmsg" >/dev/null 2>&1; done
 
-# ---- 5. destroy the victim.  From here the prover must fence it, fail the
+# ---- 5. destroy the victim.  From here a survivor must fence it, fail the
 #         manifest snapshot and park the descriptor at SNAPSHOTTING.
 $VIRSH destroy "$V" >/dev/null 2>&1 || {
     echo "ABORT: virsh destroy $V failed"
@@ -502,14 +581,29 @@ $VIRSH destroy "$V" >/dev/null 2>&1 || {
 echo "STAGE destroyed $V at +$(el)s"
 
 # the dead window is 62 s and the fence follows it; the injected snapshot
-# failure is logged by the prover itself
-wait_for_into wsnap "$P" 140 "$MARK" "P-RMAN-INJECT slot=$VSLOT "
-if [ "$wsnap" = timeout ]; then
-    window_into "$OUT/P_nosnap.txt" "$P" 40 "$MARK"
-    echo "  $P logged no injected snapshot failure for slot $VSLOT within 140 s: [$(grep -a 'P-RMAN\|P2[0-9][0-9]-\|fenc' "$OUT/P_nosnap.txt" | tail -4 | tr '\n' ' ' | cut -c1-300)]"
-    vac "the prover never reached the manifest snapshot, so no guard was parked below IMAGES_REPLAYED" no-snapshot-attempt
+# failure is logged by the prover itself — whichever survivor that is.  The
+# poll only decides when to stop waiting; the count the stage is read from
+# crosses the capture boundary below.
+PROVER=""; wsnap=timeout; t0w=$(date +%s)
+while [ $(( $(date +%s) - t0w )) -lt 140 ] && [ -z "$PROVER" ]; do
+    for n in $P $C; do
+        c=$(rs 15 "$n" "dmesg | sed -n \"/$MARK/,\\\$p\" | grep -ac 'P-RMAN-INJECT slot=$VSLOT '" 2>/dev/null | tail -1)
+        case $c in ''|*[!0-9]*) c=0 ;; esac
+        [ "$c" -ge 1 ] && { PROVER=$n; wsnap=$(( $(date +%s) - t0w )); break; }
+    done
+    [ -n "$PROVER" ] || sleep 5
+done
+if [ -z "$PROVER" ]; then
+    for n in $P $C; do
+        window_into "$OUT/${n}_nosnap.txt" "$n" 40 "$MARK"
+        echo "  $n logged no injected snapshot failure for slot $VSLOT within 140 s: [$(grep -a 'P-RMAN\|P2[0-9][0-9]-\|fenc' "$OUT/${n}_nosnap.txt" | tail -4 | tr '\n' ' ' | cut -c1-300)]"
+    done
+    vac "no survivor reached the manifest snapshot, so no guard was parked below IMAGES_REPLAYED" no-snapshot-attempt
 fi
-echo "STAGE $P failed the injected manifest snapshot for slot $VSLOT, ${wsnap}s after the kill (+$(el)s)"
+window_into "$OUT/${PROVER}_snap.txt" "$PROVER" 40 "$MARK"
+count_file_into nsnap "$OUT/${PROVER}_snap.txt" "P-RMAN-INJECT slot=$VSLOT "
+[ "$nsnap" -ge 1 ] || vac "the poll saw an injected snapshot failure on $PROVER but the validated window holds none" no-snapshot-attempt
+echo "STAGE $PROVER (the prover) failed the injected manifest snapshot for slot $VSLOT, ${wsnap}s after the kill (+$(el)s)"
 
 # ---- 6. the platter must actually carry a standing guard BELOW
 #         IMAGES_REPLAYED for the victim.  This is read from the disk, not
@@ -525,77 +619,108 @@ stage=$(printf '%s' "$dline" | sed -n 's/.*stage=[A-Z_]*(\([0-9]*\)).*/\1/p')
 [ "$stage" -lt 4 ] || vac "the descriptor is at stage $stage, at or past IMAGES_REPLAYED — the judgement is complete and the page is releasable" guard-complete
 echo "STAGE the guard stands at stage $stage (below IMAGES_REPLAYED) at +$(el)s"
 
-# ---- 8. THE MEASUREMENT.  Unmount the prover.  put_super's SB summary lock is
-#         a caller v5_acq_fallible_cb does not name; the page it needs is the
-#         victim's, and the judgement above will not release it.
+# ---- 8-10. THE MEASUREMENT, one leg per measured node.  put_super's SB
+#         summary lock is the caller (a caller v5_acq_fallible_cb did not name
+#         until 0.89.69 registered it); the page it needs is the victim's, and
+#         the judgement above will not release it.  Two nodes: one leg, the
+#         prover/master's own unmount (producer (b)).  Three nodes: first the
+#         third node's unmount — its request reaches the live master, whose
+#         own prepare is parked on the dead authority (producer (a)) — then
+#         the master's own (producer (b)).
 #
-#         The unmount runs under an explicit SIGKILL bound because the wait it
+#         Each unmount runs under an explicit SIGKILL bound because the wait it
 #         may enter has no other exit; the rc distinguishes the two outcomes
 #         (137 = still parked when the instrument ended it).  The kernel stack
 #         of the parked task is captured WHILE it is parked — after the kill
 #         there is nothing to read.
-umount_measure P
+#
+#         The window the verdict is read from is the node's own ring from the
+#         lap mark.  dlm_takeover_page names the refusal it took
+#         (P-TAUTH-TAKEOVER-UNDER-JUDGEMENT); it is REPORTED rather than
+#         required, because a stall reached through any other refusal is the
+#         same defect in the retry loop and must not be scored VACUOUS just
+#         for arriving by a different door.  The rc the summary acquire
+#         returned is read too: s130c's whole window held one line for the
+#         probe and its rc was the verdict: -107 (-ENOTCONN) is the transport
+#         answering for a master that is not there, -112 (-EHOSTDOWN) is the
+#         pre-send deny for a dead master whose recovery reads as blocked
+#         (P-RBLK-DENY-DEAD-MASTER), and -32/-104 are the same send failing
+#         another way.  None of them is a transition, so none measures this
+#         record — and reporting them by name is what tells the next lap that
+#         the page's master was not alive.
+LEGRC=0
+LEG_SUMMARY=""
+leg() {  # <node> <slot> <tag> <what> — unmount <node>, read its window; LEGRC: 0 PASS, 1 FAIL, 3 VACUOUS
+    local node=$1 slot=$2 tag=$3 what=$4 twait tstall tstf0 tfsb sblock sbskip oops judg SBRC W
+    W="$OUT/${tag}_window.txt"
+    echo "STAGE leg $tag: unmounting $node — $what — against the standing guard (bound ${UMOUNT_MAX}s) at +$(el)s"
+    umount_measure "$tag" "$node"
+    window_into "$W" "$node" 60 "$MARK"
+    count_file_into twait  "$W" 'P960-AUTH-TRANSITION-WAIT'
+    count_file_into tstall "$W" 'P960-AUTH-TRANSITION-STALLED'
+    count_file_into tstf0  "$W" 'P960-AUTH-TRANSITION-STALLED.* fallible=0 '
+    count_file_into tfsb   "$W" 'P960-AUTH-TRANSITION-FAIL-SB'
+    count_file_into sblock "$W" "P-SB-SUMMARY-LOCK slot=$slot .*at=put_super"
+    count_file_into sbskip "$W" 'P-SB-SUMMARY-FINAL-SKIP'
+    count_file_into oops   "$W" 'BUG:\|Oops\|kernel NULL pointer'
+    count_file_into judg   "$W" 'P-TAUTH-TAKEOVER-UNDER-JUDGEMENT'
+    SBRC=$(grep -ao "P-SB-SUMMARY-LOCK slot=$slot rc=-\?[0-9]*" "$W" | tail -1 | sed -n 's/.*rc=//p')
+    echo "STAGE window on $node ($tag): transition-wait=$twait stalled=$tstall stalled(fallible=0)=$tstf0 fail-sb=$tfsb under-judgement=$judg sb-lock-at-put_super=$sblock sb-lock-rc='${SBRC:-none}' sb-skip=$sbskip oops=$oops urc='${URC:-none}'"
+    grep -a 'P-TAUTH-TAKEOVER-UNDER-JUDGEMENT\|P-RBLK-DENY-DEAD-MASTER\|P-SB-SUMMARY-LOCK' "$W" | tail -3 | cut -c1-230 | sed 's/^/    /'
+    grep -a 'P960-AUTH-TRANSITION' "$W" | tail -4 | cut -c1-230 | sed 's/^/    /'
+    LEG_SUMMARY="twait=$twait tstall=$tstall stall_fallible0=$tstf0 fail_sb=$tfsb urc=${URC:-none} sbrc=${SBRC:-none}"
+    if [ -z "${URC:-}" ]; then
+        echo "ABORT: the unmount of $node produced no rc at all; nothing was measured"
+        echo "RESULT: ABORT label=$LABEL stage=umount-$tag evidence=$OUT"; exit 2
+    fi
+    if [ "$oops" -ge 1 ]; then
+        echo "  FAIL leg $tag: BUG/Oops on $node across the unmount ($oops line(s))"; LEGRC=1; return 0
+    fi
+    if [ "${URC:-none}" = 137 ]; then
+        if [ "$twait" -ge 1 ]; then
+            echo "  FAIL leg $tag: the unmount of $node was STILL PARKED at the ${UMOUNT_MAX}s instrument bound and only a SIGKILL ended it, with $twait transition wait(s) and $tstf0 stall(s) that named the caller non-fallible — the transition wait is unbounded for this caller$( [ "$judg" -ge 1 ] && echo "; the refusal underneath it was the departed authority's open judgement ($judg x P-TAUTH-TAKEOVER-UNDER-JUDGEMENT)" || echo "; the refusal underneath it was NOT the judging one — read the window for which dlm_takeover_page path returned")"
+        else
+            echo "  FAIL leg $tag: the unmount of $node was STILL PARKED at ${UMOUNT_MAX}s with NO transition wait in its window — parked somewhere this lap did not predict; the sampled stack above says where"
+        fi
+        LEGRC=1; return 0
+    fi
+    if [ "$sbskip" -ge 1 ] && [ "$twait" -lt 1 ]; then
+        echo "  VACUOUS leg $tag: $node's put_super skipped the SB summary write (shutdown or read-only mount), so the caller never ran"; LEGRC=3; return 0
+    fi
+    if [ "$twait" -lt 1 ]; then
+        case ${SBRC:-none} in
+            -107|-112|-32|-104)
+                echo "  VACUOUS leg $tag: $node's put_super was refused rc=$SBRC before any transition — the summary page's master was not a live node, so the acquire failed fast on the transport instead of entering a takeover; read the quiesce windows for a mastership that moved after the roles were read"
+                LEGRC=3; return 0 ;;
+        esac
+        echo "  VACUOUS leg $tag: $node's SB summary lock never met a page in transition (rc='${SBRC:-none}') — the page it needed was not under a refused takeover, so nothing about a stalled transition was measured"
+        LEGRC=3; return 0
+    fi
+    # the stall detector must at least have SEEN the frozen counter — if it
+    # never fired, a bounded unmount proves nothing about a permanently refused page
+    if [ "$tstall" -lt 1 ]; then
+        echo "  VACUOUS leg $tag: the unmount of $node returned before the 30 s stall detector ever fired, so the refusal it met was not shown to be permanent"; LEGRC=3; return 0
+    fi
+    echo "  PASS leg $tag: the unmount of $node ended by itself (rc=$URC, summary lock rc=${SBRC:-none}, fail-sb=$tfsb) after entering the transition path $twait time(s) with $tstall stall observation(s); the wait is bounded on this route"
+    LEGRC=0
+}
 
-# ---- 9. the window the verdict is read from
-window_into "$OUT/P_window.txt" "$P" 60 "$MARK"
-count_file_into twait  "$OUT/P_window.txt" 'P960-AUTH-TRANSITION-WAIT'
-count_file_into tstall "$OUT/P_window.txt" 'P960-AUTH-TRANSITION-STALLED'
-count_file_into tstf0  "$OUT/P_window.txt" 'P960-AUTH-TRANSITION-STALLED.* fallible=0 '
-count_file_into sblock "$OUT/P_window.txt" "P-SB-SUMMARY-LOCK slot=$PSLOT .*at=put_super"
-count_file_into sbskip "$OUT/P_window.txt" 'P-SB-SUMMARY-FINAL-SKIP'
-count_file_into oops   "$OUT/P_window.txt" 'BUG:\|Oops\|kernel NULL pointer'
-# dlm_takeover_page names the refusal it took.  This is the one the lap set out
-# to produce; it is REPORTED rather than required, because a stall reached
-# through any other refusal is the same defect in the retry loop and must not
-# be scored VACUOUS just for arriving by a different door.
-count_file_into judg  "$OUT/P_window.txt" 'P-TAUTH-TAKEOVER-UNDER-JUDGEMENT'
-# the rc the non-fallible acquire actually returned.  s130c's whole window held
-# one line for the probe and its rc was the verdict: -107 (-ENOTCONN) is the
-# transport answering for a master that is not there, -112 (-EHOSTDOWN) is the
-# pre-send deny for a dead master whose recovery reads as blocked
-# (P-RBLK-DENY-DEAD-MASTER, dlm/dlm.c:6613-6620), and -32/-104 are the same
-# send failing another way.  None of them is a transition, so none measures
-# this record — and reporting them by name is what tells the next lap that the
-# page's master was not alive.
-SBRC=$(grep -ao "P-SB-SUMMARY-LOCK slot=$PSLOT rc=-\?[0-9]*" "$OUT/P_window.txt" | tail -1 | sed -n 's/.*rc=//p')
-echo "STAGE window on $P: transition-wait=$twait stalled=$tstall stalled(fallible=0)=$tstf0 under-judgement=$judg sb-lock-at-put_super=$sblock sb-lock-rc='${SBRC:-none}' sb-skip=$sbskip oops=$oops"
-grep -a 'P-TAUTH-TAKEOVER-UNDER-JUDGEMENT\|P-RBLK-DENY-DEAD-MASTER\|P-SB-SUMMARY-LOCK' "$OUT/P_window.txt" | tail -3 | cut -c1-230 | sed 's/^/    /'
-grep -a 'P960-AUTH-TRANSITION' "$OUT/P_window.txt" | tail -4 | cut -c1-230 | sed 's/^/    /'
-
-# ---- 10. the verdict
-if [ "$sbskip" -ge 1 ] && [ "$twait" -lt 1 ]; then
-    vac "the prover's put_super skipped the SB summary write (shutdown or read-only mount), so the non-fallible caller never ran" sb-skipped
+if [ "$NN" = 3 ]; then
+    leg "$C" "$CSLOT" C "the third node, a remote caller whose request is mastered by the live $P (producer a)"; rcC=$LEGRC; sumC=$LEG_SUMMARY
+    leg "$P" "$PSLOT" P "the master's own caller, whose page acquire parks on the refused takeover (producer b)"; rcP=$LEGRC; sumP=$LEG_SUMMARY
+    echo "=== nonfallible_transition_stall $LABEL (3-node arm): leg C($C)=$rcC leg P($P)=$rcP prover=$PROVER wall=$(el)s out=$OUT $(date -u +%FT%TZ) ==="
+    if [ "$rcC" = 1 ] || [ "$rcP" = 1 ]; then
+        echo "RESULT: FAIL label=$LABEL arm=3node legC=$rcC legP=$rcP C[$sumC] P[$sumP] evidence=$OUT"; exit 1
+    elif [ "$rcC" = 0 ] && [ "$rcP" = 0 ]; then
+        echo "RESULT: PASS label=$LABEL arm=3node fails=0 C[$sumC] P[$sumP] evidence=$OUT"; exit 0
+    else
+        echo "RESULT: VACUOUS label=$LABEL arm=3node reason=leg-vacuous legC=$rcC legP=$rcP C[$sumC] P[$sumP] evidence=$OUT"; exit 3
+    fi
 fi
-if [ "$twait" -lt 1 ]; then
-    case ${SBRC:-none} in
-        -107|-112|-32|-104)
-            vac "the prover's put_super was refused rc=$SBRC before any transition — the summary page's master was not a live node, so the acquire failed fast on the transport instead of entering a takeover; the roles were chosen from master_self, so read both quiesce windows for a mastership that moved after they were read" master-not-live
-            ;;
-    esac
-fi
-if [ "$twait" -lt 1 ]; then
-    vac "put_super's SB summary lock never met a page in transition (rc='${SBRC:-none}') — the page it needed was not under a refused takeover, so nothing about a stalled transition was measured" no-transition
-fi
-ck "no BUG/Oops on the prover" "$oops" 0
-if [ "${URC:-none}" = 137 ]; then
-    echo "  FAIL the unmount was STILL PARKED at the ${UMOUNT_MAX}s instrument bound and only a SIGKILL ended it, with $twait transition wait(s) and $tstf0 stall(s) that named the caller non-fallible — the transition wait is unbounded for a caller the fallible oracle does not name$( [ "$judg" -ge 1 ] && echo "; the refusal underneath it was the departed authority's open judgement ($judg x P-TAUTH-TAKEOVER-UNDER-JUDGEMENT)" || echo "; the refusal underneath it was NOT the judging one — read the window for which dlm_takeover_page path returned")"
-    fails=$((fails+1))
-elif [ -z "${URC:-}" ]; then
-    echo "ABORT: the unmount produced no rc at all; nothing was measured"
-    echo "RESULT: ABORT label=$LABEL stage=umount evidence=$OUT"; exit 2
-else
-    echo "  PASS the unmount ended by itself (rc=$URC) after entering the transition path $twait time(s); the wait is bounded on this route"
-fi
-# the stall detector must at least have SEEN the frozen counter — if it never
-# fired, a bounded unmount proves nothing about a permanently refused page
-if [ "${URC:-none}" != 137 ] && [ "$tstall" -lt 1 ]; then
-    vac "the unmount returned before the 30 s stall detector ever fired, so the refusal it met was not shown to be permanent" no-stall-observed
-fi
-
-echo "=== nonfallible_transition_stall $LABEL: fails=$fails wall=$(el)s out=$OUT $(date -u +%FT%TZ) ==="
-if [ $fails -eq 0 ]; then
-    echo "RESULT: PASS label=$LABEL fails=0 twait=$twait tstall=$tstall urc=$URC evidence=$OUT"
-else
-    echo "RESULT: FAIL label=$LABEL fails=$fails twait=$twait tstall=$tstall stall_fallible0=$tstf0 urc=$URC evidence=$OUT"
-fi
-[ $fails -eq 0 ]
+leg "$P" "$PSLOT" P "the prover/master's own caller (producer b)"
+echo "=== nonfallible_transition_stall $LABEL: leg=$LEGRC wall=$(el)s out=$OUT $(date -u +%FT%TZ) ==="
+case $LEGRC in
+    0) echo "RESULT: PASS label=$LABEL fails=0 $LEG_SUMMARY evidence=$OUT"; exit 0 ;;
+    1) echo "RESULT: FAIL label=$LABEL fails=1 $LEG_SUMMARY evidence=$OUT"; exit 1 ;;
+    *) echo "RESULT: VACUOUS label=$LABEL reason=see-leg $LEG_SUMMARY evidence=$OUT"; exit 3 ;;
+esac

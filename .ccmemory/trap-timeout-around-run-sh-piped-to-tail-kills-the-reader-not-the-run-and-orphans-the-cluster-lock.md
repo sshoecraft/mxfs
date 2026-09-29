@@ -37,7 +37,7 @@ had run, all reporting the same stale evidence path.
 - **Never pipe a `run.sh` invocation through `tail` under `timeout`.** Redirect
   to a file and read the file: `timeout N ./run.sh 2 tcp > "$LOG" 2>&1`.
 - **A run is finished when its own state says so**, not when the wrapper
-  returns: `.last_run.json` names the run id, and `showstat.sh <n> <dlm>` shows
+  returns: `.last_run.json` names the run id, and `tools/criteria.py <n> <dlm>` shows
   zero PENDING rows. Check one of those before concluding.
 - **If the lock is held, find out whether the holder is progressing before
   killing it.** `fuser` on the lock names the PIDs; `/proc/<pid>/stat` field 3

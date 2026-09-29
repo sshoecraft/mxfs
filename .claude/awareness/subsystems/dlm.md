@@ -2503,6 +2503,21 @@ Public surface added:
   `mxfs_v5_dlm_node_recovery_blocked(ctx, node)`,
   `mxfs_v5_dlm_inode_held_by_blocked(ctx, ino)` (TCP only; CAW answers 0);
   `mxfs_v5_dlm_opts.single_node_exclusive_live`.
+- `dlm.c` (0.90.12): `dlm_rblk_authority_deny(ctx, page, auth, where)` — in
+  `dlm_page_acquire`, a request on a ledger page whose departed AUTHORITY is
+  a dead node with a blocked recovery (`recovery_blocked_cb(auth_node)`) is
+  denied `-EHOSTDOWN` (`P-RBLK-DENY-DEAD-AUTHORITY`) instead of returning
+  `-EINPROGRESS` (the transition wait): the on-demand takeover is refused by
+  `v5_recovery_judging_cb` for as long as the block stands, and a caller the
+  fallible oracle does not name would otherwise park in
+  `mxfs_dlm_lock_retries` with no exit.  The master relays it as
+  `MXFS_ERR_RECOVERY_BLOCKED` (the requester's `P-RBLK-DENY-REMOTE`); a
+  release on such a page keeps its `MXFS_ERR_REMASTER` retry.  Module param
+  `dl_rblk_authority_deny` (default 1; 0 = TEST ONLY, the pre-0.90.12 wait,
+  for tests/tcp_death_replay.sh `TDR_BLOCK_REALIGN=1 TDR_REALIGN_DENY=0|1`).
+  The shape is reached by a view change while the dead member is still in
+  the view: `dlm_page_master_locked` is `active_nodes[page % N]`, so a clean
+  departure moves pages the dead incarnation authored onto live masters.
 - `disklock.h/.c`: `MXFS_RECOV_F_FENCE_BLOCKED` (0x40) on the FENCING
   descriptor; `mxfs_disklock_recovery_fence_mark_blocked(ctx, slot, auth)`
   (idempotent CAS under the attempt lease, `P304-FENCE-BLOCKED-DURABLE`);
@@ -3888,3 +3903,127 @@ to assume and were assumed wrong once:
 Its cadence is the thing to know: `V5_RESV_HEALTH_LEAD_MS=5000` for the elected
 maintainer (the lowest live heartbeat slot) but `V5_RESV_HEALTH_AUDIT_MS=60000`
 for an auditor — which in a two-node cluster the victim often is.
+
+## 0.90.11–0.90.13 — a non-proving fence series ends in a verdict every survivor imports; the TCP death path defers to the lease holder; the dead-authority deny stands in view
+
+- **FENCE_BLOCKED is durable and imported** (`v5_mount.c`). After
+  `V5_FENCE_RETRY_BACKOFF_N` non-proving attempts and
+  `mxfs_fence_blocked_after_ms` the prover writes the verdict on the FENCING
+  descriptor (`mxfs_disklock_recovery_fence_mark_blocked`,
+  `P304-FENCE-BLOCKED-DURABLE`) and sets the local state (`v5_blocked_set`,
+  which also names FENCE_BLOCKED in debugfs `recovery_blocked` when the
+  prover is the writer). `v5_fence_blocked_import` (PR worker tick, once a
+  second) re-reads the pending descriptors on every other survivor and adopts
+  (`P238-FENCE-BLOCKED-IMPORTED`) or lifts (`P238-FENCE-UNBLOCKED-IMPORTED`)
+  the verdict, so a resource master that is not the prover denies a request on
+  the dead node's grants (`P-RBLK-DENY-MASTER`) instead of parking it for the
+  acquire budget — at three or more nodes the masters never learned the
+  prover's verdict before. The series is re-driven every
+  `V5_FENCE_BLOCKED_REDRIVE_MS` (30 s); a certifying attempt lifts the block
+  (`P238-FENCE-UNBLOCKED`). Test-only `pr_fence_inject_key_absent`
+  (`dlm/scsipr.c`) reports the victim key absent at the classification, the
+  only way a key-retaining target (SCST, LIO) reaches the non-proving series.
+- **`v5_tcp_declare_dead` defers to the lease holder.** With more than one
+  other live member the death is noted and the fence is left to the survivor
+  holding the fencing-attempt lease (`P-TCPDEATH-DEFERRED node= slot=
+  nlive=`); the lease-less bare PREEMPT AND ABORT (`v5_pr_fence_dead_node`)
+  remains for a slotless member and for the sole other live member. Before:
+  the bare fence removed the key under no lease whenever this node's ledger
+  knew it, the lease holder then classified KEY_ABSENT_UNPROVEN and could
+  never certify (`P236-FENCE-ATTEMPT-BUSY` on the other survivor), and the
+  slice was never replayed.
+- **`dlm_rblk_authority_deny` stands in view** (0.90.13, extends the 0.90.12
+  entry above). It takes the node the request would wait on and stands at the
+  takeover AND at the handoff ask (`via=authority-in-view`). A dead member
+  stays in the membership view until its recovery completes
+  (`v5_refresh_active_nodes` filters no dead nodes), so the 0.90.12 deny,
+  which stood only in the not-in-view branch, never fired: the master asked
+  the dead authority and parked the request with REMASTER
+  (`P-TAUTH-REMASTER-PARKED`) until the 60-retry budget died.
+- **`mxfs_v5_dlm_any_recovery_pending(ctx)`** (`v5_mount.c`, `v5_mount.h`):
+  true while any peer's slice recovery is pending, read from the disklock
+  recovery-pending markers every node's monitor sets when it declares a
+  death. The ilock timeout classifier needs it (xfs.md 0.90.13) because
+  `mxfs_dlm_dead_node_notify` sets `m_mxfs_foreign_dead_slots` on the elected
+  replayer alone.
+- Laps: the 4/tcp blocked-probe lap (s4d/s4e), the 3/tcp stall lap
+  (s4d_3node), the 4/tcp realign laps (s7a, s8a) — tests.md, same heading.
+
+## A shared holder bit is owned by its slot's tenant (0.90.22)
+
+A shared-holder bit in the TCP authority ledger names a heartbeat SLOT and no
+incarnation, so whoever masters the page has to find a node to notify for it.
+Two sources name that node, and they are not equally fresh:
+
+- `slot_node_cb` (`v5_slot_node_cb`) is the monitor's tracking
+  (`slot_node_id[]`, `node_track[].last_epoch`): it learns of a claim one
+  monitor pass after the heartbeat table carries it.
+- `owners_settled_cb` (`v5_owners_settled_cb` ->
+  `mxfs_disklock_incarnations_settled`) reads the table itself.  Since 0.90.22
+  every answer also carries `tenant` / `tenant_inc` (`tenant_epoch` in
+  `struct mxfs_disklock_inc_query`): who holds the queried slot ACTIVE, by the
+  monitor's own first-sight test (this filesystem's generation, a node id, a
+  valid incarnation).
+
+Where the table's answer is used (`dlm/dlm.c`):
+
+| site | function | what it does |
+|---|---|---|
+| page import | `dlm_ledger_import_page` | tracking names nobody and `tenants[s]` is set: the bit is installed under the tenant (`P-TAUTH-IMPORT-TENANT`) |
+| release tick | `dlm_settled_rejudge_tick` -> `dlm_settle_attribute` | an imported shared entry with no owner, or with an owner no member carries that is not the slot's tenant, is given the tenant (`P-TAUTH-IMPORT-RESOLVED-ONTICK`) |
+| a served request | `dlm_resolve_unknown_holders` | unchanged: asks the tracking (`...-ONREQUEST`, `...-ONTIMEOUT`) |
+
+`dlm_settle_retire` fills `tenants[0..64)` only for slots it asked about that
+are not settled; `struct dlm_slot_tenant` is that table's element.  Counter:
+`ledger_tenant_attributed`.  Switch: module parameter `tauth_tenant_attribute`
+(default 1; 0 restores the tracking-only behaviour for a control arm).
+
+Things that bite:
+
+- Naming an owner does not notify it.  A re-send of a queued wait re-fires its
+  blocking notification only every `MXFS_DLM_ACQ_BAST_REFIRE_MS`, unless that
+  very re-send named the owner (`unk_resolved`).  `dlm_settle_attribute`
+  therefore zeroes `acq_bast_ms` on the waiting entries of the resource and
+  `bast_ms` on its acquisition records; without that the grant came 9 s after
+  the tick had named the tenant (user mode, `stale_image_release_test` lap 10).
+- The test injection `dl_inject_import_unresolvable` never applies to the
+  node's own slot (its lookup is answered from the mount's identity, so no
+  timing makes it name nobody), and `dlm_settle_candidates` reads it without
+  consuming it, so an injected bit is judged exactly as a bit the tracking
+  could not name.
+- An owner that a member of the view carries is never renamed, whatever the
+  table shows.
+- User mode: `tests/tauth/dlm_mesh.h` has `vslot_blind` (slots the tracking
+  has not sampled), `vhb_name_tenant` (0 = the oracle as it was) and the node
+  flag `nak_unheld` (answer a notification for a grant not held the way the
+  mount layer does, with `mxfs_dlm_release_orphan_if_unheld`).
+
+## The lock layer answers a notification for a grant it does not hold (0.90.22)
+
+`mxfs_dlm_answer_unheld(ctx, resource, master)` (`dlm/dlm.c`, declared in
+`dlm/dlm.h`) is called from the TCP transport's `MXFS_MSG_LOCK_BAST` arm in
+`dlm/v5_mount.c` BEFORE `v5_bast_dispatch`, and the dispatch still runs.
+
+- It sends only when `dlm_local_entry_any` and `dlm_pending_exists` both say
+  the node has nothing for the resource; otherwise `-EBUSY` and the
+  notification is the filesystem handler's.
+- The release carries `grant_gen = MXFS_DLM_GEN_UNHELD` (0xFFFFFFFF).
+  `dlm_next_gen` never issues that value.  `mxfs_dlm_process_remote_release`
+  is unchanged: its stale-generation test applies the release to an entry
+  whose `grant_gen` is 0 (a ledger import) and drops it against any entry
+  with a real generation.
+- Do not turn the call into "answer OR dispatch".  If the filesystem holds a
+  grant whose table entry was lost, only its handler can release it.
+- Why it exists: naming the owner of a residue bit does not make the owner
+  answer.  A mounting node parks notifications until its post-mountfs setup
+  (`P-BAST-PARKED`), and a mounted node's handler releases nothing for an
+  inode it never held.  Rig: `v22a_inj6` (three mounts refused at 70 s) and
+  `v22b_lap2` (three create bursts killed at 30 s), both on the build before
+  this call existed.
+- Switch: module parameter `tauth_unheld_answer` (default 1).  Counter:
+  `unheld_answers`.  Probe: `P-BAST-ANSWER-UNHELD`.
+- User mode: mesh node flag `answer_unheld` models the transport's step; a
+  node with neither `answer_unheld` nor `nak_unheld` is a mount with no
+  handler.  A control and its fixed lap must use DIFFERENT resources: the
+  control leaves its wait queued at the master, and a later request of the
+  same requester is a re-send that notifies only on the re-fire interval.

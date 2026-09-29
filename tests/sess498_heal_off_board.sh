@@ -26,7 +26,7 @@
 # valid; it is NOT by itself the bar for flipping the default.
 #
 # derived time budgets, derived: prep 300 (measured 107-146 s); board 1411 =
-# 1048 s of measured row walls (showstat 32/caw, 2026-09-04T13:04Z) + 12 s x 29
+# 1048 s of measured row walls (tools/criteria.py 32/caw, 2026-09-04T13:04Z) + 12 s x 29
 # rows of harness overhead + 15 s startup; sweep 90 s per node in parallel.
 #
 # Usage:  setsid nohup bash tests/sess498_heal_off_board.sh s498a &
@@ -83,7 +83,7 @@ done_exit() { echo "DONE $(date -u +%FT%TZ)"; exit "${1:-0}"; }
     done_exit 1
   fi
   echo "--- conditions (run_id=$post_id) ---"
-  timeout 120 ./showstat.sh 32 caw 2>&1 | grep -av '^\s*$'
+  timeout 120 tools/criteria.py 32 caw 2>&1 | grep -av '^\s*$'
 
   for n in $(nodes); do
     ( timeout 90 $SSH "$n" "journalctl -k --no-pager --since '$SINCE' 2>/dev/null | grep -aE 'P22-DATASCAN-HIT|P26-DSCAN|P26-LKERR|P21H-LEAFHOLE|P33-DSCAN-ONDISK|mxfs-cc-FAIL|lookup_fail|P285-F4-BLI-FREED-OPEN|P492-KEEP-UNDEST|P3R-RELAND|P3F-UNLANDED|P123-DIRFENCE-SKIP|P287-F4|shut down|Corruption|EUCLEAN|ESTALE'" 2>/dev/null | gzip > "$O/ctx_$n.gz" ) &

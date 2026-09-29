@@ -15,6 +15,6 @@ LOG=tests/evidence/sess447_chain57_pending_rows_$LABEL.log
   timeout 300 ./run.sh 32 caw prep_cluster; prc=$?; echo "STAGE prep rc=$prc"
   if [ "$prc" -ne 0 ]; then echo "ABORT: prep failed"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
   T0=$(date +%s); timeout 660 ./run.sh 32 caw ag_strand_repair sustained_load dirent_publish_integrity dirent_type_integrity dlm_lock_correctness open_defects; echo "STAGE rows rc=$? wall=$(( $(date +%s) - T0 ))s"
-  ./showstat.sh 32 caw 2>/dev/null | grep -a 'PASS\|FAIL\|SKIP\|PENDING\|Total' | cut -c1-140
+  tools/criteria.py 32 caw 2>/dev/null | grep -a 'PASS\|FAIL\|SKIP\|PENDING\|Total' | cut -c1-140
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

@@ -180,6 +180,126 @@ authority range is a valid shard or explicit UNKNOWN, and is published before
 any verdict uses it.  Post-seal: no incompatible grant on a sealed resource
 until replay/publication completes.
 
+### Holders that have left for good
+A record can outlive the mount it names without any crash: a release is
+re-sent a bounded number of times and then dropped, and when every member
+unmounts at once the masters those releases are addressed to are leaving too.
+The holder then belongs to no view.  It cannot be asked to let go, no
+departure or goodbye will ever name it, and the per-mount lists (purged
+owners, settled authorities) hold only what that mount watched leave.  A
+master that installs such a record as a live holder has created a wait that
+nothing ends.
+
+The record of how a tenancy ended is the heartbeat table, and the rule is the
+one a fresh claim of a slot already depends on.  A grant is recorded only for
+a member whose claim of its slot, under its own {node, incarnation}, was
+durable before its first request.  So a holder whose identity stands in no
+slot has ended its tenancy, and the slot the record names says how:
+
+| slot sector, read fresh | meaning | record |
+|---|---|---|
+| the tenant's own stamp under EMPTY | clean release; the log ended in an unmount record | retired |
+| zero record | recovery completed: fenced, slice replayed, purged | retired |
+| ACTIVE tenant whose claim was a fresh one | it consumed one of the two above | retired |
+| ACTIVE tenant that re-claimed its own stamp, or a bootstrap adoption | replaying the earlier tenancy's slice as its own log | kept |
+| WITHDRAWN, RETIRE_PENDING, recovery descriptor | still being settled | kept |
+| foreign generation, bad magic, unread | indeterminate | kept |
+
+The identity itself must stand in no slot in any state but its own release
+stamp, whatever the named slot holds.  A shared-holder bit names a slot and no
+incarnation, so it is judged by the slot alone and only a slot with no tenant
+(release stamp or zero record) settles it: a bit on an occupied slot may be
+the tenant's own and is attributed to the tenant instead.
+
+Order carries the safety argument.  The master reads the records, then makes
+ONE pass over the table, then retires in one page transition that leaves
+alone every record whose transition stamp moved after the read.  An exclusive
+holder's incarnation is a random value that never establishes a second
+tenancy, so its answer cannot change; a slot's state can, which is why the
+stamp is checked and why only exclusive answers are remembered.
+
+It runs in two places.  At page import, before anything is installed, so a
+holder that has left is never a blocker at all.  And once a second from the
+release tick, for imported holders that were kept because the tenancy was
+not settled yet: the node that has said goodbye and is still unmounting, the
+release waiting for its key to be proven absent.  The tick retires the
+record, drops the imported entry and grants whoever waited behind it through
+the ledger.  Every failure on the way — an unread table, a refused
+transition, a page that is not this node's — keeps the record as the blocker
+it was.
+
+Not covered by this: holders of a recovery that is still running (their
+records are the replay's evidence and their slot is not settled), a
+terminally refused victim (its slot stays frozen), and the owners the
+recovery purge already names.
+
+#### A shared bit on a slot that has a tenant
+Such a bit cannot be retired by the slot, so the tenant has to answer for it:
+by releasing a grant it holds, or by the unconditional release a node sends
+when it is notified about a grant it does not hold.  The master can only
+notify a node it can name, and there are two sources for the name.
+
+The monitor's tracking is the slot map each mount keeps from its own passes
+over the heartbeat table.  It learns of a claim one pass after the table
+carries it, and at a simultaneous mount pages are imported inside that pass.
+A bit imported then used to be installed with no owner, waiting for the first
+request for its resource to ask the tracking again.
+
+The table read the settled-owner judgement makes is the second source, and it
+is always at least as new: it is made after the records were read, for exactly
+the slots the tracking could not name.  It reports who holds each of those
+slots ACTIVE, by the test the monitor applies when it first baselines a slot
+(a record of this filesystem's generation carrying a node id and an
+incarnation).  So:
+
+| where | the tracking names nobody and the table read shows | the bit |
+|---|---|---|
+| page import | no tenant (release stamp, zero record) | retired by the slot |
+| page import | a tenant | installed under the tenant's identity |
+| page import | nothing (unread, or the slot was not asked about) | installed with no owner |
+| release tick | a tenant, and the entry has no owner, or an owner no member carries that is not that tenant | given the tenant's identity |
+| a request served for the resource | (asks the tracking) | given the owner the tracking names |
+
+Naming an owner retires nothing and drops nothing, so a tenant cannot lose a
+grant of its own to it.  An owner that a member of the view carries is never
+renamed, whatever the table shows.  The tick's renaming exists for the
+claimant that was named from the table and never became a member: once its
+slot has a later tenant, the entry follows the slot, because a notification
+sent to a node that is gone is answered by nobody.
+
+A holder that has just been named has never been notified of the waits
+already queued behind it, and a re-sent wait notifies on its own interval, not
+on every re-send.  Naming therefore re-arms the notification clock of every
+wait queued on the resource, so the next attempt of each notifies the owner.
+
+#### The tenant's answer
+Naming is half of it.  The named tenant must answer, and the filesystem's
+notification handler cannot be relied on to: a mount installs its handlers
+after its first cluster locks are taken, so a node that is still mounting
+parks what it receives, and a mounted node's handler acts on what the
+filesystem holds, which for a bit that was never its own is nothing.  Two
+mounts that each hold what the other's mount needs, one of them behind such
+a bit, wait until a budget refuses one of them.
+
+The lock layer can answer by itself, because what a node holds is exactly
+what its own table records: a mirror for a grant mastered elsewhere, a holder
+entry for one it masters, a waiting entry or a pending request for one in
+flight, and its own entries survive every membership change.  So the
+transport asks the lock layer before any handler.  A node with no entry of
+any state and no request in flight for the resource sends the notifier a
+release carrying a generation no grant ever carries.
+
+The master needs no new rule for it.  A release whose generation matches no
+generation it issued is applied to an entry that has none (a ledger import,
+never granted or re-affirmed by this master) and dropped as stale against
+any entry that has one.  That is what makes the answer safe when it crosses a
+request of the same node on the wire: if the request arrived first and the
+imported entry was re-affirmed as the node's grant, the answer finds a
+generation and is dropped; if the answer arrived first, the request is
+served as any first request.  The handler is told of the notification all
+the same, because if the filesystem holds something the table lost, only the
+filesystem can let go of it.
+
 ## Build order (each step lands, builds, and is rig-verified before the next)
 1. Token plumbing (no format change): TCP lock arms fill `mxfs_grant_result`
    (`grant_epoch := grant_seq`, `lineage := {master, seq}`); images become

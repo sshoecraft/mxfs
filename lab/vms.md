@@ -1,7 +1,7 @@
 # Test platforms: what to build
 
 One row per platform in `data/platforms.json`, keyed the same way. Each row is
-what it takes to stand up that platform's verification pair: the
+what it takes to stand up that platform's verification set: the
 [osimager](https://pypi.org/project/osimager/) spec that builds a node, and
 what to do to the node after the build. `README.md` has the procedure that
 applies to every row; this file has only what differs between them.
@@ -9,17 +9,22 @@ applies to every row; this file has only what differs between them.
 Nothing here is about any one site: node names, addresses and storage are
 yours, and go in your lab file (`README.md`, "Your lab file").
 
-The kernel a pair must run is the one `data/platforms.json` lists under
-`kernels` for that platform — a release claims exact kernels, so a pair on any
+The kernel a set must run is the one `data/platforms.json` lists under
+`kernels` for that platform — a release claims exact kernels, so a set on any
 other kernel verifies nothing. It is not repeated here, so the two cannot
 disagree.
 
+The `nodes` column is the size of the verification set: a release for N
+nodes is verified on N nodes of the platform, so the released platforms hold
+four (two built from the spec, two cloned from a built one with
+`scripts/lab_clone_node.sh`, all on one LUN of their own).
+
 | platform | osimager spec | nodes | after the build | role |
 |---|---|---|---|---|
-| `ubuntu2404` | `ubuntu-24.04.3-x86_64` | 2 | boot the GA kernel `platforms.json` claims, not an HWE one | runtime |
-| `pve9` | `proxmox-ve-9.1-x86_64` | 2 | install `proxmox-default-kernel` so both claimed kernels are present; `proxmox-headers-<krel>` for each | runtime, one round per claimed kernel |
-| `rhel9` | `alma-9.7-x86_64`, then updated to 9.8 | 2 | `dnf -y update` to 9.8 and boot the claimed kernel; enable EPEL (DKMS comes from there); firewalld running, SELinux enforcing | runtime |
-| `debian13` | `debian-13.3-x86_64` (the local DVD), then upgraded | 2 | replace the DVD-only `sources.list` with deb.debian.org `trixie`, `trixie-updates` and `trixie-security`; `apt full-upgrade` and boot the claimed kernel; install `linux-headers-amd64 dkms open-iscsi sg3-utils` | runtime |
+| `ubuntu2404` | `ubuntu-24.04.3-x86_64` | 4 | boot the GA kernel `platforms.json` claims, not an HWE one | runtime |
+| `pve9` | `proxmox-ve-9.1-x86_64` | 4 | install `proxmox-default-kernel` so both claimed kernels are present; `proxmox-headers-<krel>` for each | runtime, one round per claimed kernel |
+| `rhel9` | `alma-9.7-x86_64`, then updated to 9.8 | 4 | `dnf -y update` to 9.8 and boot the claimed kernel; enable EPEL (DKMS comes from there); firewalld running, SELinux enforcing; a clone is relabeled (`touch /.autorelabel`) before its first use | runtime |
+| `debian13` | `debian-13.3-x86_64` (the local DVD), then upgraded | 4 | replace the DVD-only `sources.list` with deb.debian.org `trixie`, `trixie-updates` and `trixie-security`; `apt full-upgrade` and boot the claimed kernel; install `linux-headers-amd64 dkms open-iscsi sg3-utils` | runtime |
 | `ubuntu2604` | `ubuntu-26.04-x86_64` | 2 | | runtime |
 | `rhel10` | `alma-10.1-x86_64` | 2 | enable EPEL; firewalld running, SELinux enforcing | runtime |
 | `debian12` | `debian-12.13-x86_64` | 2 | | runtime |
@@ -32,10 +37,10 @@ disagree.
 
 **Build checks need no VM.** Rocky 9 and the other rebuilds are compiled in a
 container by the platform's `build_check` (`scripts/rhel_kbuild_check.sh -i
-rockylinux:9`); only the runtime platform above gets a pair.
+rockylinux:9`); only the runtime platform above gets a set of nodes.
 
 **`rhel9` has no 9.8 spec yet.** osimager 1.9.1 ships AlmaLinux up to 9.7, so
-the pair is built from the 9.7 spec and updated in place. AlmaLinux's
+the set is built from the 9.7 spec and updated in place. AlmaLinux's
 repositories serve the current minor release, so the update lands on 9.8; the
 claimed kernel must then be installed by its exact version if the update brought a
 newer one. A 9.8 spec in osimager would remove the update step.
@@ -55,7 +60,7 @@ user's RHEL node has it on.
 
 ## The development rig
 
-Separate from the platform pairs: `run.sh` drives a fleet of Ubuntu 24.04
+Separate from the platform sets: `run.sh` drives a fleet of Ubuntu 24.04
 libvirt domains named `test1`..`testN` (up to 32), built from the `ubuntu2404`
 spec above. The name pattern is fixed — `run.sh` finds the fleet by it. The
 rig's storage conditions (LIO, SCST, multipath) are in `README.md`.

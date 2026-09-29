@@ -4,7 +4,7 @@
 # tooling script dir, and tooling results file.
 #
 # Usage:  tests/tooling/run_tooling.sh <N> [node1 node2 ...]
-# View:   ./showstat.sh tooling
+# View:   jq . .tooling_results.json   (not on the board; tools/criteria.py reads data/criteria.json only)
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 exec env MXFS_MANIFEST="$REPO/tests/tooling/manifest" \
          MXFS_SUITE_DIR="tests/tooling" \

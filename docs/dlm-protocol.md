@@ -314,13 +314,40 @@ Every mount incarnation carries one atomic word, `depart_state`:
   reports those as SKIP.  s419 32/caw: p1 13/13, p2 PASS.
 
 The TCP death path (`v5_tcp_declare_dead`, suspect grace expired) no longer
-purges a victim that owns a heartbeat slot.  It fences (a TCP-partitioned but
-disk-alive node must still be converted into a dead one) and then leaves the
-grants and mastership frozen (`P-TCPDEATH-DEFERRED`) until the disklock
-recovery path replays the slice and `v5_recovered_cb` /
-`mxfs_v5_dlm_recovery_complete` purge — the same deferred-purge protocol the
-disklock path has followed since sess9 D2.  Only a slotless identity (owns
-no journal slice) keeps the immediate purge.
+purges a victim that owns a heartbeat slot.  It leaves the grants and
+mastership frozen (`P-TCPDEATH-DEFERRED`) until the disklock recovery path
+replays the slice and `v5_recovered_cb` / `mxfs_v5_dlm_recovery_complete`
+purge — the same deferred-purge protocol the disklock path has followed since
+sess9 D2.  Only a slotless identity (owns no journal slice) keeps the
+immediate purge.
+
+Whether the TCP path also FENCES a slotted victim depends on the membership.
+The fence it can issue is the bare one — a PREEMPT AND ABORT naming the key
+from this node's PR ledger, under no fencing-attempt lease — and the
+certificate a slice replay needs is minted only by the survivor holding that
+lease on the disklock path.  With exactly one other live member, this node is
+that survivor: the bare fence runs at once (a TCP-partitioned but disk-alive
+peer is converted into a dead one, which a monitor that must watch the
+incarnation stop can never do), and the node's own later attempt certifies
+the now-absent key through the sole-survivor gate.  With more live members
+the lease holder may be another node, and a lease-less preempt would remove
+the very key its attempt has to name: the lease holder then classifies
+KEY_ABSENT_UNPROVEN, the gate refuses it (not the sole survivor), and the
+slice is never certified — measured at 3 nodes on 2026-09-28.  So with more
+than one other live member the TCP path notes the death, freezes, and leaves
+the fence to the lease holder (`P-TCPDEATH-DEFERRED ... no lease-less fence`).
+
+The RECOVERY_BLOCKED verdict a lease holder reaches (its bounded series of
+non-proving attempts exhausted, `P238-FENCE-BLOCKED`, durable as
+`MXFS_RECOV_F_FENCE_BLOCKED` on the descriptor) is imported by every other
+survivor: the PR worker on each node re-reads the descriptor of every
+pending slot about once a second (`v5_fence_blocked_import`) and adopts the
+flag (`P238-FENCE-BLOCKED-IMPORTED`), so the DLM predicate that denies a
+request behind a blocked victim's grant — consulted by the master and by the
+requester — answers the same on every node, and lifts it when the flag is
+gone (`P238-FENCE-UNBLOCKED-IMPORTED`).  Before this only the prover's own
+predicate answered, and a path operation from any other node, or one whose
+resource another node mastered, parked for the acquire budget.
 
 **NODE_ALIVE** — Piggybacked on lease renewal for efficiency
 
@@ -410,6 +437,34 @@ durable state:
   poll budget as before.  Operations whose grant is held by a live node, or by
   a dead node whose recovery is still in progress, are unaffected: they park
   as before.
+- **Fail-fast on a re-aligned page.**  A member's clean departure shrinks the
+  active view while the dead member stays in it until its recovery completes,
+  and page-aligned mastership (`active_nodes[page % N]`) then moves pages the
+  dead incarnation authored onto live masters.  A request on such a page needs
+  the master's takeover of the dead authority, which the retention judgement
+  refuses below `IMAGES_REPLAYED` — for as long as the block stands.  While
+  the authority's recovery is blocked the master denies the request
+  (`P-RBLK-DENY-DEAD-AUTHORITY`, `-EHOSTDOWN`; `MXFS_ERR_RECOVERY_BLOCKED` on
+  the wire to a remote requester) instead of answering a transition, so a
+  caller the fallible oracle does not name cannot park in the transition wait
+  with no exit.  Once the block lifts the judgement completes with the replay
+  and the takeover proceeds as before.  `mxfs.dl_rblk_authority_deny=0`
+  restores the wait, for measurement only.
+
+  The deny stands at every point a request would wait on that node: the
+  bootstrap's on-demand takeover, the ask sent to the bootstrap, and — the one
+  a re-aligned page actually meets, since the dead member is still in the
+  view — the ask the master would send to the authority itself.  Without it
+  that ask goes to a node that never answers and the master parks the request
+  with `REMASTER` until the requester's retry budget dies.
+- **A survivor that is not the elected replayer parks, never shuts down.**
+  An acquire whose retry budget dies while a peer's slice recovery is pending
+  parks in the XFS layer's acquire classifier (`P240-QUAR-PARK`) until the
+  recovery's verdict lands.  The classifier reads the DLM's pending-recovery
+  markers, which every node's monitor sets when it declares the death, and not
+  only its own replay-duty bitmap, which the elected replayer alone carries.
+  Before that, every other survivor answered the same failure with its
+  fail-fast shutdown.
 
 The operator's decision tree, from the debugfs file: read the fence kind.
 `KEY_ABSENT_UNPROVEN` with `P238-FENCE-GATE-NOTSOLE` in the log means the

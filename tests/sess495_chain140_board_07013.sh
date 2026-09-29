@@ -54,8 +54,8 @@ install_ko() {
   # its own last run.sh still holds the run lock.  Wait on the lock itself.
   bash tests/rig_wait_free.sh 7200 || { echo "ABORT: rig not free"; echo "DONE $(date -u +%FT%TZ)"; exit 1; }
   install_ko "$PROD_KO" "$PROD_SV" || { echo "ABORT: prod install"; echo "DONE $(date -u +%FT%TZ)"; exit 1; }
-  # Freshness gate (sess479): showstat.sh renders whatever .last_run.json points
-  # at, so a board that never ran would still print a previous run's table.
+  # Freshness gate (sess479): tools/criteria.py renders whatever the board last
+  # recorded, so a board that never ran would still print a previous run's table.
   # Pin the run id before the board and require it to have moved afterwards.
   pre_id=$(python3 -c "import json;print(json.load(open('.last_run.json'))['run_id'])" 2>/dev/null || echo none)
   echo "STAGE board pre_run_id=$pre_id"
@@ -69,11 +69,11 @@ install_ko() {
   post_id=$(python3 -c "import json;print(json.load(open('.last_run.json'))['run_id'])" 2>/dev/null || echo none)
   echo "STAGE board post_run_id=$post_id"
   if [ "$post_id" = "$pre_id" ] || [ "$post_id" = none ]; then
-    echo "FAIL: the board did NOT run (run_id unchanged at $pre_id, run.sh rc=$rc).  Refusing to print the conditions table: showstat would render the PREVIOUS run's verdict and it would read as this build's evidence."
+    echo "FAIL: the board did NOT run (run_id unchanged at $pre_id, run.sh rc=$rc).  Refusing to print the conditions table: tools/criteria.py would render the PREVIOUS run's verdict and it would read as this build's evidence."
     echo "DONE $(date -u +%FT%TZ)"
     exit 1
   fi
   echo "--- conditions (run_id=$post_id) ---"
-  timeout 120 ./showstat.sh 32 caw 2>&1 | grep -av '^\s*$'
+  timeout 120 tools/criteria.py 32 caw 2>&1 | grep -av '^\s*$'
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

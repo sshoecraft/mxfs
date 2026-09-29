@@ -4293,3 +4293,22 @@ the rejoined victim).  Now:
   `recov_slots_own`.
 
 Design record: `docs/foreign-replay-inode-ordering.md` (the fourth shape).
+
+## 0.90.14 — `xfs_file.c`: the file-operation gates return the incarnation gate's verdict
+
+`mxfs_inode_incarn_estale(ip)` answers -ESTALE for a poisoned shell and, since
+0.74.0, -EIO for the fail-fast verdicts (a grant held or mastered by a dead
+node under a blocked recovery, `mxfs_recovery_blocked_covers_ino`; a
+quarantined victim domain, `MXFS_IF_QUAR_EIO`). The entry gates in
+`xfs_file.c` — `xfs_file_read_iter`, the under-lock rechecks in
+`xfs_file_buffered_read` / `xfs_file_dio_read` / `xfs_file_splice_read`,
+`xfs_file_write_checks`, `xfs_file_write_iter`, `xfs_file_fallocate`,
+`xfs_file_remap_range`, `xfs_file_open`, `xfs_file_mmap_prepare` /
+`xfs_file_mmap` — truth-tested it and returned a hard-coded -ESTALE, so every
+fail-fast came back "Stale file handle" (4/tcp realign lap on 0.90.13: 13 of
+40 and 17 of 40 reads through held descriptors ESTALE in 3-5 ms with zero
+poison probes in either journal). Now `rc = mxfs_inode_incarn_estale(ip); if
+(rc) return rc;` at every gate; the page-fault gates (the `xfs_filemap_fault`
+family, which return a fault code) still truth-test. The iomap (`xfs_iomap.c`)
+and fsync gates already returned the verdict. Lesson:
+`trap-truth-testing-a-gate-that-returns-a-verdict-rewrites-every-verdict-into-one-errno`.

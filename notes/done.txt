@@ -20,7 +20,7 @@
   │ 32/caw │ 20 PASS, 0 FAIL (cc 3021/3021, dir_reuse 32/32 at 3417s) │
   └────────┴──────────────────────────────────────────────────────────┘
 
-  Verifiable evidence: criteria.json rows (ISO-stamped 2026-07-17), ./showstat.sh N caw for each rung, and tests/logs/ladder_rung_{1,2,4,8,16}caw.log.
+  Verifiable evidence: criteria.json rows (ISO-stamped 2026-07-17), tools/criteria.py N caw for each rung, and tests/logs/ladder_rung_{1,2,4,8,16}caw.log.
 
   What it took this session:
 

@@ -130,6 +130,16 @@ module_param_named(dbg_join_flip_delay_ms, mxfs_dbg_join_flip_delay_ms,
 		   uint, 0644);
 MODULE_PARM_DESC(dbg_join_flip_delay_ms,
 	"TEST: ms to hold between the join's cached-view drop and the view flip (0 = off)");
+/*
+ * TEST ONLY (tests/join_during_unmount.sh): hold this many ms between the
+ * sighting and the freeze's own s_umount trylock, so an unmount can be
+ * started inside the window that deadlocked before 0.90.16.  0 = off.
+ */
+static unsigned int mxfs_dbg_join_prefreeze_delay_ms;
+module_param_named(dbg_join_prefreeze_delay_ms, mxfs_dbg_join_prefreeze_delay_ms,
+		   uint, 0644);
+MODULE_PARM_DESC(dbg_join_prefreeze_delay_ms,
+	"TEST: ms to hold the join worker before its freeze (0 = off)");
 
 /*
  * Count the clean cached extent-tree (bmbt) blocks whose owner inode holds
@@ -199,6 +209,104 @@ mxfs_dlm_count_orphan_bmbt(
 	return orphans;
 }
 
+/*
+ * The join freeze's own superblock reference.
+ *
+ * freeze_super takes s_umount, and an unmount in progress holds s_umount for
+ * its whole teardown, which joins the join worker (v5_join_worker_stop, from
+ * xfs_fs_put_super).  A worker that waited for s_umount in freeze_super would
+ * therefore wait for the unmount while the unmount waited for the worker: the
+ * 0.90.14 4/tcp run had exactly that hung task (mxfs-worker in
+ * v5_join_worker_fn -> mxfs_dlm_join_prepare -> freeze_super -> down_write,
+ * umount holding the lock).
+ *
+ * So the freeze is entered only from a state no teardown can reach: s_umount
+ * is taken WITHOUT blocking, the superblock is checked live under it, and one
+ * active reference is taken while it is held.  A trylock that fails is a
+ * mount, remount, sync or unmount holding the lock; the caller retries the
+ * transition (v5_join_transition, 200 ms) and the unmount's stop ends it.
+ * With the reference held, an unmount that arrives during the transition
+ * drops its own reference and returns, and the teardown runs when this one is
+ * dropped — from a work item, never from the join worker, because the
+ * teardown joins the join worker.  (thaw_super's own drop of freeze_super's
+ * reference can then never be the last one either, so a teardown inside the
+ * thaw, on the worker, is ruled out as well.)
+ */
+static int
+mxfs_join_sb_get(
+	struct xfs_mount	*mp)
+{
+	struct super_block	*sb = mp->m_super;
+
+	if (!down_write_trylock(&sb->s_umount))
+		return -EBUSY;
+	if (!(sb->s_flags & SB_BORN) || !(sb->s_flags & SB_ACTIVE) ||
+	    !sb->s_root || !atomic_read(&sb->s_active) ||
+	    xfs_is_shutdown(mp)) {
+		up_write(&sb->s_umount);
+		return -EBUSY;
+	}
+	atomic_inc(&sb->s_active);
+	up_write(&sb->s_umount);
+	return 0;
+}
+
+struct mxfs_join_sbref_drop {
+	struct work_struct	work;
+	struct super_block	*sb;
+};
+
+/* The drops' own workqueue: a drop may run a whole unmount teardown, and
+ * destroying the queue at module exit waits for every drop still queued
+ * (a system-wide queue may not be flushed by a module). */
+static struct workqueue_struct	*mxfs_join_sbref_wq;
+
+int
+mxfs_join_sbref_init(void)
+{
+	mxfs_join_sbref_wq = alloc_workqueue("mxfs-join-sbref", WQ_UNBOUND, 1);
+	return mxfs_join_sbref_wq ? 0 : -ENOMEM;
+}
+
+void
+mxfs_join_sbref_exit(void)
+{
+	if (mxfs_join_sbref_wq)
+		destroy_workqueue(mxfs_join_sbref_wq);
+	mxfs_join_sbref_wq = NULL;
+}
+
+static void
+mxfs_join_sbref_drop_fn(
+	struct work_struct	*work)
+{
+	struct mxfs_join_sbref_drop	*d =
+		container_of(work, struct mxfs_join_sbref_drop, work);
+	struct super_block		*sb = d->sb;
+
+	kfree(d);
+	/*
+	 * Possibly the superblock's last active reference (an unmount ran
+	 * during the transition): the whole teardown then runs here, on this
+	 * worker, and frees the mount with it.  Nothing follows the call.
+	 */
+	deactivate_super(sb);
+}
+
+/* One request per drop, allocated here: a work item embedded in the mount
+ * could be re-queued after the drop that freed the mount. */
+static void
+mxfs_join_sb_put(
+	struct super_block	*sb)
+{
+	struct mxfs_join_sbref_drop	*d;
+
+	d = kmalloc(sizeof(*d), GFP_KERNEL | __GFP_NOFAIL);
+	d->sb = sb;
+	INIT_WORK(&d->work, mxfs_join_sbref_drop_fn);
+	queue_work(mxfs_join_sbref_wq, &d->work);
+}
+
 int
 mxfs_dlm_join_prepare(
 	void	*data)
@@ -216,12 +324,34 @@ mxfs_dlm_join_prepare(
 	if (!sb || !(sb->s_flags & SB_BORN))
 		return mxfs_dlm_peer_joined_flush(mp);
 
+	{
+		unsigned int	hold = READ_ONCE(mxfs_dbg_join_prefreeze_delay_ms);
+
+		if (hold) {
+			/* TEST (tests/join_during_unmount.sh): widen the
+			 * sighting-to-freeze window so an unmount can be started
+			 * inside it */
+			mxfs_pal_log(MXFS_LOG_WARN,
+				"mxfs: P-JOIN-PREFREEZE-DELAY ms=%u — TEST: holding the join worker before its freeze",
+				hold);
+			msleep(hold);
+		}
+	}
+	error = mxfs_join_sb_get(mp);
+	if (error) {
+		mxfs_pal_log(MXFS_LOG_DEBUG,
+			"mxfs: P-JOIN-FREEZE-BUSY — s_umount is held (a mount, "
+			"remount, sync or unmount in progress) or the superblock is "
+			"going away; the transition is retried, never waited for");
+		return error;
+	}
 	mxfs_pal_log(MXFS_LOG_DEBUG,
 		"mxfs: P-JOIN-FREEZE — peer sighted; freezing this mount for the "
 		"single→multi transition (data + log written back, cached views "
 		"dropped, view installed, then thaw)");
 	error = mxfs_freeze_super(sb, FREEZE_HOLDER_KERNEL);
 	if (error) {
+		mxfs_join_sb_put(sb);
 		xfs_warn(mp,
 			"mxfs: P-JOIN-FREEZE-FAIL freeze_super rc=%d — the peer stays "
 			"unadmitted; the transition will be retried", error);
@@ -296,6 +426,9 @@ mxfs_dlm_join_commit(
 		mxfs_pal_log(MXFS_LOG_DEBUG,
 			"mxfs: P-JOIN-THAW — single→multi transition installed; "
 			"mount thawed, every modification now takes a grant");
+	/* the freeze's reference (mxfs_join_sb_get); dropped last, off this
+	 * thread, because dropping it may run the teardown */
+	mxfs_join_sb_put(mp->m_super);
 }
 
 static int

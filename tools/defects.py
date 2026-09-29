@@ -279,7 +279,7 @@ def blocks(entry: dict, nodes: int, dlm, platform=None) -> bool:
 def parse_at(text: str) -> tuple:
     """`2/tcp`, `2/tcp@pve9`, or a bare `2` meaning every transport at that size.
 
-    Same notation as the board, the run keys and showstat.sh, with `@platform` for the operating
+    Same notation as the board and the run keys, with `@platform` for the operating
     system a release is for. A tool that spells the cluster a different way from the harness is
     one nobody types correctly the first time.
     """
@@ -307,7 +307,7 @@ def gate_label(gate: tuple) -> str:
 
 
 def lift_config(argv: list) -> list:
-    """Accept `defects.py 2 tcp` and `defects.py 2/tcp`, the way `showstat.sh 2 tcp` always has.
+    """Accept `defects.py 2 tcp` and `defects.py 2/tcp`.
 
     A session names the configuration far more often than it names a subcommand, and having to
     remember `--at` for the common case is how a tool stops being reached for. The leading

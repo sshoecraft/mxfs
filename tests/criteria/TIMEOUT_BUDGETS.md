@@ -487,7 +487,7 @@ chain 60 (tests/iclus_relmark_faults.sh, 4 arms): crash arms 420 s wrap
 360 s; matrix bound 2000 s.  Record measured walls after the first clean run.
 
 ## Full 32/caw board — re-derived from the last conditions (sess449, 0.54.0)
-`./showstat.sh 32 caw` ELAPSED column summed over the 29 rows (prep 111,
+`tools/criteria.py 32 caw` ELAPSED column summed over the 29 rows (prep 111,
 precond 2, fio 43, fio_vs_xfs 1, cache_coherency 27, strong 5, posix 7,
 mmap 5, zsl 35, dlm_fairness 14, dlm_membership 4, scaling_curve 9,
 dlm_scaling 14, rsync_paired 13, crash_consistency 88, dir_reuse 104,
@@ -592,6 +592,13 @@ victim destroyed — boot it before the next lap.
 | `tests/d0527_untrusted_iget_peer.sh C P` | 60 s | 200 creates on C (≈1 s) + 8 handle opens on P with 2 s / 1 s pacing (≈13 s) + 8 ssh round-trips |
 | `tests/d488_unlock_exit_arms.sh X Y arm` | 240 s | setup 8 creates + arm + Y 4 creates (healthy ≈1 s; REARM cadence bounded seconds; strand arm's readopt ≤ 3 s pending floor + 30 s latch watchdog) + 12 s re-verify settle + 16 + 2 creates + 4 dmesg captures + 2 slot dumps ≈ 90 s healthy; 240 s is the wedge bound, and any create past its own 70 s inner bound is the FAIL |
 | chain 109 cc `sharded16` lap | 160 s | the crash_consistency row's 90 s manifest budget + prep-free harness overhead (12 s) + ssh fan-out; measured 62-77 s on 0.64.6 |
+
+## 0.90.16 harnesses — measured
+
+| harness | per-step budget | measured |
+|---|---|---|
+| `tests/join_during_unmount.sh` (20 laps, HOLD_MS=3000) | A's umount 60 s (a lone member's unmount is 1-2.3 s; 60 s is a hang), B's mount 100 s (the cold-mount budget chk_clean allows a remount) | 20 laps in 3 min 8 s on the 2/tcp rig: umount 1.0-2.3 s off the window, 4.8-5.3 s inside it (the 3 s hold plus one retry cadence); mount 3.3-4.0 s off, 9.3-9.4 s inside |
+| `tests/alloclist_tail_pin.sh` (FILES=3000) | burst 74 s = 2 × the 37 s measured wall (3000 creates over one ssh; native ≈ 3 s, the 300 s of the first version was a wedge bound); idle window 120 s = two 30 s log-worker ticks, doubled | 0.90.16 (2/tcp, one peer mounted, `20260929T020119Z`): burst 37 s, the tail passed the burst-end head 25 s into the idle window; 0.90.17 (4/tcp rig, three peers mounted, `20260929T023658Z`): burst 25 s, the tail reached the burst-end head at 15 s idle, PASS |
 
 ---
 

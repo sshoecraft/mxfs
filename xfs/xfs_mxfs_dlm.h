@@ -439,6 +439,16 @@ int mxfs_dlm_invalidate_cached_views(struct xfs_mount *mp);
  * filesystem until commit). */
 int mxfs_dlm_join_prepare(void *data);
 void mxfs_dlm_join_commit(void *data);
+/* every AG's alloc buflist written, synchronously; what xfsaild cannot write
+ * must be written before any whole-AIL wait (put_super) */
+unsigned int mxfs_dlm_ag_drain_all_alloc_buflists(struct xfs_mount *mp);
+/* the alloc buflist leftover retry (xfs_ag.h pag_mxfs_alloc_retry) */
+void mxfs_alloclist_retry_fn(struct work_struct *work);
+void mxfs_alloclist_retry_kick(struct xfs_mount *mp);
+/* the freeze's superblock reference is dropped from a work item on a queue of
+ * its own: made at module init, destroyed (drops flushed) at module exit */
+int mxfs_join_sbref_init(void);
+void mxfs_join_sbref_exit(void);
 
 /*
  * Initialize per-inode DLM fields.

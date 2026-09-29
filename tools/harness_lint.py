@@ -65,14 +65,18 @@ def hl001(line):
 
 @rule(
     "HL002",
-    "unconditional render of a status artifact: showstat.sh renders whatever "
-    ".last_run.json points at, so calling it without first proving THIS run "
+    "unconditional render of a status artifact: tools/criteria.py renders whatever "
+    "the board last recorded, so calling it without first proving THIS run "
     "recorded a board prints a previous run's verdict.  Observed printing a board "
     "from the previous DAY, on an older build, one second after run.sh exited 3 on "
     "the run lock.  Pin run_id before, require it to have moved after.",
 )
 def hl002(line):
-    if "showstat.sh" not in line:
+    # Only a board render: criteria.py run with arguments that are not a
+    # subcommand (update, pending, rows, ...).  A subcommand is a write or a
+    # single-criterion read, and a bare path is an assignment or a mention.
+    if not re.search(r"criteria\.py[\"']?\s+(?!(show|add|update|remove|move|"
+                     r"pending|executing|finalize|rows)\b)[^|;&\s]", line):
         return False
     # A call that already names an explicit run/artifact is fine.
     return not re.search(r"run_id|RUN_ID|--run\b", line)

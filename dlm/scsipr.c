@@ -1783,6 +1783,41 @@ MODULE_PARM_DESC(pr_fence_submit_inject_victim,
 		 "to (0 = any). Naming the victim is what makes the injection "
 		 "deterministic rather than whichever attempt arrives first.");
 
+/*
+ * TEST ONLY: report the victim's registration ABSENT whatever READ KEYS said.
+ *
+ * The non-proving PRECOMMAND classification that D-FENCE-PRECOMMAND-RETRY-
+ * UNBOUNDED-NO-BLOCKED-STATE-0904 is about is KEY_ABSENT_UNPROVEN: the target
+ * purged the dead initiator's registration with its session (the QNAP TS-453
+ * Pro did, ~34 s after a power cut), so there is no key for a PREEMPT AND
+ * ABORT to name.  Every target this rig has run since (LIO, SCST) RETAINS the
+ * registration of a destroyed initiator, so on them the present-key preempt
+ * proves exclusion on the first attempt and the bounded series, the blocked
+ * state and the fail-fast behind it are unreachable by any rig operation —
+ * measured 2026-09-28 at 4 nodes on SCST: the prover certified
+ * PREEMPT_ABORT_PROVEN_V1 with retries=0 while the gate-refusal injection
+ * below was armed, and the lap that meant to measure the blocked state
+ * measured a healthy recovery.
+ *
+ * This knob is persistent, not one-shot, because the series needs every
+ * attempt for fence_blocked_after_ms to classify the same way; it is
+ * consulted at the one place the classification is made, after READ KEYS
+ * and before the reservation read, so everything downstream — the
+ * succession consumers, the sole-survivor gate, the retry arm — sees exactly
+ * the result the purging target produced.  Nothing is submitted while it is
+ * set; clearing it lets the next re-drive issue the real preempt.  Never
+ * enable in production.
+ */
+static int mxfs_pr_fence_inject_key_absent;
+module_param_named(pr_fence_inject_key_absent, mxfs_pr_fence_inject_key_absent,
+		   int, 0644);
+MODULE_PARM_DESC(pr_fence_inject_key_absent,
+		 "TEST ONLY: while non-zero every fencing attempt classifies the "
+		 "victim's registration ABSENT (KEY_ABSENT_UNPROVEN) after READ "
+		 "KEYS, submitting nothing — the shape a target that purges "
+		 "registrations with the session produces. 0=off. Never enable "
+		 "in production.");
+
 static int scsipr_fence_inject_take(mxfs_node_id_t victim_node)
 {
 	int mode = mxfs_pr_fence_submit_inject;
@@ -2028,6 +2063,17 @@ int mxfs_scsipr_fence_node(struct mxfs_scsipr_ctx *ctx,
 	out->resv_type = resv.type;
 	ctx->resv_type_seen = resv.type;
 
+	if (victim_present && mxfs_pr_fence_inject_key_absent) {
+		mxfs_pal_log(MXFS_LOG_WARN,
+			     "scsipr: P-PR-FENCE-INJECT-ABSENT '%s' victim=%u key=0x%llx "
+			     "gen=%u — TEST ONLY: the victim's registration IS present "
+			     "and is reported ABSENT; nothing was issued, the attempt "
+			     "stays PRECOMMAND and classifies KEY_ABSENT_UNPROVEN until "
+			     "pr_fence_inject_key_absent is cleared",
+			     ctx->dev_name, victim_node,
+			     (unsigned long long)victim_key, gen);
+		victim_present = false;
+	}
 	if (!victim_present) {
 		/*
 		 * this used to return 0 — "fenced elsewhere or never

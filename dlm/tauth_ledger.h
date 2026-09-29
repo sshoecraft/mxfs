@@ -106,6 +106,10 @@ struct mxfs_tauth_ledger {
 				purge_inc_spared, /* EX records carrying the departed node id under
 											   * ANOTHER incarnation, left alone because retiring
 											   * one revokes a tenure its holder still holds */
+				retired_named,  /* 0.90.21: records a named retirement changed
+								 * (mxfs_tauth_ledger_retire_page) */
+				retire_moved,   /* ... and records it left alone because they
+								 * had changed since the caller read them */
 							prepares, activates, authority_refusals,
 							stale_writes,   /* -ESTALE/-EBUSY from the store */
 							page_full,      /* (D-0348): no free entry on the home page */
@@ -334,6 +338,47 @@ int  mxfs_tauth_ledger_purge_owner_page_keep(struct mxfs_tauth_ledger *l, uint32
 					     uint64_t inc, int slot, uint64_t gen,
 					     uint64_t config_epoch, uint32_t page,
 					     mxfs_tauth_purge_keep_fn keep, void *keep_data);
+
+/*
+ * Retire NAMED holders on ONE page this node masters, as one durable
+ * transition: for each item, the exclusive holder {ex_node, ex_inc} of the
+ * record for `res` and/or the shared-holder slot bits in `bits` (with the
+ * open-holder marks in `open_bits`).  The purges above are keyed on an owner
+ * and walk every record that names it; this one touches exactly the records
+ * it is handed and exactly the holders it is handed, so a record of the same
+ * node id under another incarnation, or a bit of the same resource in
+ * another slot, is never reached.
+ *
+ * For holders the caller has PROVED gone for good: the recovery purge follows
+ * a fence and a replay, and this follows the heartbeat table's own record of
+ * how the holder's tenancy ended (mxfs_disklock_incarnations_settled).
+ *
+ * `tseq` is the record's transition_seq64 AS THE CALLER READ IT, before it
+ * asked whether the holder had left.  A shared-holder bit names a heartbeat
+ * slot and no incarnation, and a page is servable while this runs: a later
+ * tenant of the slot granted the same bit between the caller's read and this
+ * transition would lose a lock it holds.  Every transition stamps the records
+ * it changes, so a record that has moved since the read is left alone and
+ * judged again from its new image.
+ *
+ * Per item rc: 0 retired, -ESTALE the record no longer names that holder
+ * (nothing to do), -EAGAIN the record changed after the caller read it,
+ * -EINVAL the resource is not on `page`.  Returns the number retired, or a
+ * negative error with nothing written (-EPERM: not this node's page;
+ * -ESTALE: the page is not loaded under `gen`).
+ */
+struct mxfs_tauth_retire {
+	struct mxfs_resource_id res;
+	uint32_t                ex_node;    /* 0 = no exclusive holder to retire */
+	uint64_t                ex_inc;
+	uint64_t                bits;       /* shared-holder slot bits */
+	uint64_t                open_bits;  /* open-holder marks */
+	uint64_t                tseq;       /* the record's transition when read */
+	int                     rc;
+};
+int  mxfs_tauth_ledger_retire_page(struct mxfs_tauth_ledger *l, uint32_t page,
+				   uint64_t gen, uint64_t config_epoch,
+				   struct mxfs_tauth_retire *r, int n);
 
 /*
  * ─── step 4: page authority (docs/tcp-authority-ledger.md, ruling

@@ -428,6 +428,21 @@ struct xfs_buf {
 	 */
 	void			*b_lock_ip;
 
+	/*
+	 * Who last marked this buffer stale, and what it carried then: the
+	 * caller's return address, the flags before the stale, the number of
+	 * log items on b_li_list (counted to 64) and the time, in the event
+	 * ring's unit (ktime_get_real_ns() >> 20).  A stale ends the buffer's
+	 * delwri queueing, so a stale of an inode cluster buffer whose items
+	 * are flushing drops the write that would have completed them.  The
+	 * release drain's wedge report prints these, so the first occurrence
+	 * names the caller.  Written under b_sema; diagnostic only.
+	 */
+	void			*b_mxfs_stale_ip;
+	unsigned int		b_mxfs_stale_flags;
+	unsigned int		b_mxfs_stale_items;
+	uint32_t		b_mxfs_stale_ms;
+
 #if MXFS_HOLD_TRACE
 	/* sess-pve AGI umount-wedge hold/rele history — see MXFS_HOLD_TRACE above */
 	struct mxfs_hold_evt	b_mxfs_hold_ring[MXFS_HOLD_RING];

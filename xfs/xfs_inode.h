@@ -1424,10 +1424,15 @@ xfs_iflags_clear(xfs_inode_t *ip, unsigned long flags)
 	spin_unlock(&ip->i_flags_lock);
 }
 
+/*
+ * 0.90.14: a truth value, never the masked word.  i_flags is an unsigned
+ * long and MXFS_IF_ACQ_REFUSED is bit 32; the masked word narrowed to int
+ * dropped that bit and every test of it read false.
+ */
 static inline int
 __xfs_iflags_test(const struct xfs_inode *ip, unsigned long flags)
 {
-	return (ip->i_flags & flags);
+	return (ip->i_flags & flags) != 0;
 }
 
 static inline int
@@ -1446,7 +1451,7 @@ xfs_iflags_test_and_clear(xfs_inode_t *ip, unsigned long flags)
 	int ret;
 
 	spin_lock(&ip->i_flags_lock);
-	ret = ip->i_flags & flags;
+	ret = (ip->i_flags & flags) != 0;
 	if (ret)
 		ip->i_flags &= ~flags;
 	spin_unlock(&ip->i_flags_lock);
@@ -1459,7 +1464,7 @@ xfs_iflags_test_and_set(xfs_inode_t *ip, unsigned long flags)
 	int ret;
 
 	spin_lock(&ip->i_flags_lock);
-	ret = ip->i_flags & flags;
+	ret = (ip->i_flags & flags) != 0;
 	if (!ret)
 		ip->i_flags |= flags;
 	spin_unlock(&ip->i_flags_lock);
@@ -1872,7 +1877,15 @@ mxfs_quar_gate_op(struct xfs_inode *ip, const char *op)
  * every acquire is bypassed) — and the stale flag is cleared, never allowed
  * to refuse a directory for the rest of the mount.
  */
-#define MXFS_IF_ACQ_REFUSED	(1U << 28)
+/*
+ * 0.90.14 (D-INODE-FLAG-BIT-28-SHARED-BY-ACQ-REFUSED-AND-ADOPTED-UNLINK): this
+ * mark was 1U << 28, the bit MXFS_IF_ADOPTED_UNLINK owns, so a DLM denial read
+ * as adopted-freer authority in xfs_inactive and an adopted orphan read as a
+ * denial in the backstop below.  Bits 0..31 of i_flags are all taken; the word
+ * is an unsigned long, 64 bits wide on every target MXFS builds for (asserted
+ * next to XFS_IRECLAIM_RESET_FLAGS), so the denial mark takes bit 32.
+ */
+#define MXFS_IF_ACQ_REFUSED	(1UL << 32)
 
 /* dlm/v5_mount.h is not visible here (m_mxfs_dlm is a void pointer) and the
  * files that include this header declare the v5 predicate at block scope
@@ -2079,8 +2092,46 @@ static inline void mxfs_inc_nlink(struct xfs_inode *ip)
 	 XFS_EOFBLOCKS_RELEASED | XFS_ITRUNCATED | XFS_NEED_INACTIVE | \
 	 XFS_INACTIVATING | XFS_IQUOTAUNCHECKED | XFS_ISTALE_CAW | \
 	 MXFS_IF_LOCAL_UNLINK | MXFS_IF_ADOPTED_UNLINK | MXFS_IF_DIR_RELOAD | \
-	 MXFS_IF_INCARN_STALE | MXFS_IF_FREE_COMMITTED | \
+	 MXFS_IF_INCARN_STALE | MXFS_IF_FREE_COMMITTED | MXFS_IF_ACQ_REFUSED | \
 	 MXFS_IF_PUBOB | MXFS_IF_PUBOB_FLUSHED | MXFS_IF_FOREIGN_ZOMBIE)
+
+/*
+ * Every stored inode flag owns its bit.  The flags share one word and each
+ * is a hand-numbered `1 << N`; nothing but this check stops two of them
+ * naming the same N, and on 2026-09-28 two did (MXFS_IF_ACQ_REFUSED and
+ * MXFS_IF_ADOPTED_UNLINK, both 1U << 28).  The sum of single-bit values
+ * equals their OR exactly when no bit is shared.  XFS_IPINNED is left out
+ * of the upstream set on purpose: it is a wait-bit key on &ip->i_flags
+ * (wake_up_bit / DEFINE_WAIT_BIT), never stored in the word, and
+ * MXFS_IF_FOREIGN_ZOMBIE sits on that bit.  scripts/inode_flag_bits_audit.py
+ * makes the same check from the header text and names the pair.
+ */
+#define MXFS_IF_ALL_FLAGS						\
+	(MXFS_IF_FIRST_FLUSH | MXFS_IF_DLM_RELFLUSH | MXFS_IF_LOCAL_UNLINK |	\
+	 MXFS_IF_ADOPTED_UNLINK | MXFS_IF_QUAR_EIO | MXFS_IF_DIR_RELOAD |	\
+	 MXFS_IF_DIR_LEAF_STALE | MXFS_IF_DIR_DATA_STALE | MXFS_IF_RMC_ACCT |	\
+	 MXFS_IF_INCARN_STALE | MXFS_IF_ACQ_REFUSED | MXFS_IF_PUB_SKIPPED |	\
+	 MXFS_IF_CLMERGE_HIT | MXFS_IF_FREE_COMMITTED | MXFS_IF_PUBOB |		\
+	 MXFS_IF_PUBOB_FLUSHED | MXFS_IF_FOREIGN_ZOMBIE)
+#define MXFS_IF_ALL_FLAGS_SUM						\
+	((unsigned long)MXFS_IF_FIRST_FLUSH + MXFS_IF_DLM_RELFLUSH +		\
+	 MXFS_IF_LOCAL_UNLINK + MXFS_IF_ADOPTED_UNLINK + MXFS_IF_QUAR_EIO +	\
+	 MXFS_IF_DIR_RELOAD + MXFS_IF_DIR_LEAF_STALE + MXFS_IF_DIR_DATA_STALE +	\
+	 MXFS_IF_RMC_ACCT + MXFS_IF_INCARN_STALE + MXFS_IF_ACQ_REFUSED +	\
+	 MXFS_IF_PUB_SKIPPED + MXFS_IF_CLMERGE_HIT + MXFS_IF_FREE_COMMITTED +	\
+	 MXFS_IF_PUBOB + MXFS_IF_PUBOB_FLUSHED + MXFS_IF_FOREIGN_ZOMBIE)
+#define XFS_UPSTREAM_IFLAGS						\
+	(XFS_IRECLAIM | XFS_ISTALE | XFS_IRECLAIMABLE | XFS_INEW |		\
+	 XFS_IPRESERVE_DM_FIELDS | XFS_ITRUNCATED | XFS_EOFBLOCKS_RELEASED |	\
+	 XFS_IFLUSHING | XFS_IEOFBLOCKS | XFS_NEED_INACTIVE | XFS_IRECOVERY |	\
+	 XFS_ICOWBLOCKS | XFS_INACTIVATING | XFS_IQUOTAUNCHECKED |		\
+	 XFS_IREMAPPING | XFS_ISTALE_CAW)
+static_assert(sizeof(unsigned long) >= 8,
+	      "i_flags must be 64 bits wide: MXFS_IF_ACQ_REFUSED is bit 32");
+static_assert(MXFS_IF_ALL_FLAGS == MXFS_IF_ALL_FLAGS_SUM,
+	      "two MXFS inode flags share one bit of i_flags");
+static_assert((MXFS_IF_ALL_FLAGS & XFS_UPSTREAM_IFLAGS) == 0,
+	      "an MXFS inode flag shares a bit with an upstream XFS inode flag");
 int mxfs_iunlink_find_bucket(struct xfs_perag *pag, struct xfs_trans *tp,
 			     xfs_agino_t target, short *bucket);
 

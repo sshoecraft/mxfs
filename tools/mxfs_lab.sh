@@ -14,8 +14,15 @@
 #       format.  To give each pair a LUN of its own, keep one lab file per pair
 #       (only that pair's line and its own storage line) and point $MXFS_LAB
 #       at it; scripts/scst_platform_targets.sh builds them on clyde.
+#   nodes <platform>=<node1>,<node2>[,<node3>,...] ...
+#       a platform's verification set, keyed as in data/platforms.json: every
+#       node that verifies a release there, in the order the harnesses use
+#       them (the first is where a round formats and checks).  A release for
+#       N nodes needs N names here.
 #   pair <platform>=<nodeA>,<nodeB> ...
-#       a platform's verification pair, keyed as in data/platforms.json.
+#       the two-node form of the same line, kept for a lab that verifies only
+#       two-node releases.  `nodes` wins when both are present; `pair` alone
+#       is a set of two.
 #   addr <node>=<ipv4> ...
 #       a node no resolver knows.  peer= takes addresses, never names.
 #   qemu monitor_dir=<dir>
@@ -28,7 +35,8 @@
 #
 # Usage:
 #   mxfs_lab.sh get <key> <field>    # print a field
-#   mxfs_lab.sh pair <platform>      # print "A B"
+#   mxfs_lab.sh nodes <platform>     # print the verification set, "A B C D"
+#   mxfs_lab.sh pair <platform>      # print the first two of it, "A B"
 #   mxfs_lab.sh addr <node>          # print its IPv4 address
 #   mxfs_lab.sh lun-nodes            # every node that may attach to the LUN
 #   . tools/mxfs_lab.sh              # SOURCE it to get the functions only
@@ -52,13 +60,21 @@ lab_need() {  # <key> <field> — lab_get, or say which line is missing
     lab_get "$1" "$2" || { echo "mxfs_lab: no '$1 $2=' in $MXFS_LAB (see lab/README.md)" >&2; return 1; }
 }
 
-lab_pair() {  # <platform> -> "A B"
+lab_nodes() {  # <platform> -> "A B [C D ...]": the `nodes` line, else the `pair` line
     local p
-    p=$(lab_need pair "$1") || return 1
+    p=$(lab_get nodes "$1" 2>/dev/null) || p=$(lab_get pair "$1" 2>/dev/null) \
+        || { echo "mxfs_lab: no 'nodes $1=' or 'pair $1=' in $MXFS_LAB (see lab/README.md)" >&2; return 1; }
     case "$p" in
-        *,*) echo "${p%%,*} ${p#*,}" ;;
-        *) echo "mxfs_lab: pair $1=$p is not two nodes" >&2; return 1 ;;
+        *,*) echo "$p" | tr ',' ' ' | tr -s ' ' ;;
+        *) echo "mxfs_lab: nodes $1=$p is not at least two nodes" >&2; return 1 ;;
     esac
+}
+
+lab_pair() {  # <platform> -> "A B": the first two of the verification set
+    local n
+    n=$(lab_nodes "$1") || return 1
+    set -- $n
+    echo "$1 $2"
 }
 
 lab_addr() {  # <node> -> IPv4: the lab file first, then the resolver
@@ -70,7 +86,7 @@ lab_addr() {  # <node> -> IPv4: the lab file first, then the resolver
 
 lab_lun_nodes() {  # every node named by a pair, plus storage also=
     [ -r "$MXFS_LAB" ] || { echo "mxfs_lab: $MXFS_LAB is missing (see lab/README.md)" >&2; return 1; }
-    awk '$1=="pair" { for(i=2;i<=NF;i++){ n=index($i,"="); if(n) print substr($i,n+1) } }
+    awk '$1=="pair" || $1=="nodes" { for(i=2;i<=NF;i++){ n=index($i,"="); if(n) print substr($i,n+1) } }
          $1=="storage" { for(i=2;i<=NF;i++) if($i ~ /^also=/) print substr($i,6) }' "$MXFS_LAB" \
         | tr ',' '\n' | awk 'NF && !seen[$0]++'
 }
@@ -78,10 +94,11 @@ lab_lun_nodes() {  # every node named by a pair, plus storage also=
 mxfs_lab_dispatch() {
     case "${1:-}" in
         get)       lab_need "${2:?key}" "${3:?field}" ;;
+        nodes)     lab_nodes "${2:?platform}" ;;
         pair)      lab_pair "${2:?platform}" ;;
         addr)      lab_addr "${2:?node}" ;;
         lun-nodes) lab_lun_nodes ;;
-        *) echo "usage: mxfs_lab.sh {get <key> <field>|pair <platform>|addr <node>|lun-nodes}" >&2; return 2 ;;
+        *) echo "usage: mxfs_lab.sh {get <key> <field>|nodes <platform>|pair <platform>|addr <node>|lun-nodes}" >&2; return 2 ;;
     esac
 }
 

@@ -17,7 +17,11 @@ from drowning in the ~150-script repro pile.
 spec that builds its nodes and what to do to them after the build. Everything
 below is the part that is the same for every platform.
 
-### Building a platform's pair
+### Building a platform's verification set
+A release for N nodes is verified on N nodes of every platform it claims, and
+on nothing smaller: two nodes for the 2-node release, four for the 4-node
+release (`NODES=4 tests/full_verify.sh` refuses a set with fewer). The steps
+are per node; a set is as many of them as the release claims.
 1. **Install osimager** — `pip install osimager` (it drives HashiCorp Packer,
    which must be installed too). Run `mkosimage` with no arguments once: it
    says what to set up. Its documentation covers locations, credentials and
@@ -36,20 +40,30 @@ below is the part that is the same for every platform.
    each guest held about 5 GB. The script adds `discard='unmap'`, cold-starts
    the VM and trims it. If a build left the guest running inside Packer's
    QEMU instead of libvirt, `scripts/libvirt_adopt_qemu_guest.sh` moves it
-   under libvirt on the same disk, MAC and PCI layout.
+   under libvirt on the same disk, MAC and PCI layout. Once one node of a
+   platform is built and finished, `scripts/lab_clone_node.sh` clones it into
+   the set's further nodes (disk, hostname, address, iSCSI initiator name);
+   an SELinux-enforcing clone is relabeled afterwards, because a file the host
+   rewrote is a new unlabeled inode.
 3. **Do the row's "after the build" steps**, and boot the kernel
    `data/platforms.json` claims for the platform. Then on every node:
    - headers for the running kernel (DKMS compiles the module against them)
    - an iSCSI initiator and `sg3_utils`
    - root SSH with the password in your secrets store (below)
-4. **Give the pair a shared LUN.** An iSCSI LUN that supports SCSI persistent
-   reservations, reachable from both nodes. MXFS fences a dead node through
-   the reservation, so a target without one cannot verify a release. The
-   harness logs each node in to it.
-5. **Name the pair in your lab file** (next section).
+4. **Give the set a shared LUN of its own.** An iSCSI LUN that supports SCSI
+   persistent reservations (and COMPARE AND WRITE, for the CAW transport),
+   reachable from every node of the set. MXFS fences a dead node through the
+   reservation, so a target without one cannot verify a release. The harness
+   logs each node in to it. One LUN per platform lets the platforms verify in
+   parallel without one set's format touching another's;
+   `scripts/scst_platform_targets.sh setup` builds one SCST target per
+   platform on the dev host and writes each platform's own lab file.
+5. **Name the set in your lab file** (next section).
 6. **Verify:** `tests/packaged_round.sh <platform>` installs the release's
-   package on the pair and runs the checks the platform's `verify_tests`
-   lists; `tools/platforms.py verify` records the result.
+   package on every node of the set and runs the checks the platform's
+   `verify_tests` lists; `tests/tcp_peer_freeze_death.sh PREP=<platform>`
+   freezes the set's second node and measures the first;
+   `tools/platforms.py verify` records the result.
 
 ### Your lab file → `~/.config/mxfslab/lab`
 Which nodes verify each platform, their addresses and the shared LUN are this
@@ -58,12 +72,19 @@ site's alone, so they are never in the tree. The harness reads them from
 `tools/mxfs_lab.sh`, whose header is the format reference:
 ```
 storage portal=<ip> target=<iqn> lun=/dev/disk/by-id/<id> also=<nodes>
+nodes ubuntu2404=<n1>,<n2>,<n3>,<n4> rhel9=<n1>,<n2>,<n3>,<n4>
 pair ubuntu2404=<nodeA>,<nodeB> rhel9=<nodeA>,<nodeB>
 addr <node>=<ipv4>
 qemu monitor_dir=<dir>
 paths image=<file> delay_image=<file> vmdir=<dir> qemu_root=<dir>
 ```
-`also=` lists nodes outside the pairs that attach to the same LUN; they are
+`nodes` is a platform's verification set in the order the harnesses use it
+(the first node formats and checks); `pair` is the two-node form of the same
+line, for a lab that verifies only two-node releases, and `nodes` wins when
+both are present. With one lab file per platform (`~/.config/mxfslab/lab.<platform>`,
+selected with `$MXFS_LAB`), each file holds that platform's `nodes` line and
+its own `storage` line.
+`also=` lists nodes outside the sets that attach to the same LUN; they are
 unmounted before the harness formats it. `addr` is only for a node no
 resolver knows. `qemu monitor_dir` is only for a guest started outside
 libvirt, which `tests/tcp_peer_freeze_death.sh` freezes through its QMP
@@ -71,7 +92,8 @@ socket. `paths` names the build host's own files: the fileio image behind an
 SCST or LIO LUN, the dm-delay rig's image, the VM directory and the qemu
 guests' root; the rig-setup scripts and the host preflight read them from here
 unless an `MXFS_*` variable overrides them for one run. A platform with no
-`pair` line cannot be verified here, and the harness says so and stops.
+`nodes` (or `pair`) line, or with fewer nodes than the release claims, cannot
+be verified here, and the harness says so and stops.
 
 ## `run.sh` is virsh-coupled on the VM path (gated), with an external escape hatch
 - **VMs (default):** `prep_cluster()` **directly** `virsh list`s the `test[0-9]+`
@@ -113,10 +135,14 @@ the faithful CAW/FC emulation (the LIO stack is CAW-off, used only for `tcp`).
 - `run.sh <N> <cond>` — one test run (`xfs` baseline also accepted).
 - `scripts/ladder_rung.sh <N> <cond>` — full rung; `RULE0_CALIBRATE=0` enforces
   each test's time budget, so a run over budget fails.
-- `tests/packaged_round.sh <platform>` — a release installed on a platform's
-  pair as a user installs it, and verified there.
+- `tests/packaged_round.sh <platform>` — a release installed on every node of
+  a platform's verification set as a user installs it, and verified there.
+- `NODES=<N> tests/full_verify.sh <version>` — everything a version must pass
+  before it is published: the clean build and audits, both rig suites at N
+  nodes, the packages, and every platform's packaged round and hung-node test
+  on each transport.
 - `scripts/matrix_check.py --cond <c|all>` — 4-condition × node-count board.
-- `showstat.sh <N> <cond>` — recorded results; `criteria.json` = the board.
+- `tools/criteria.py <N> <cond>` — recorded results; `data/criteria.json` = the board.
 
 ## Credentials / test secrets → `~/.config/mxfslab/secrets`
 Testing secrets are **not** in the repo. The single source of truth is
@@ -134,8 +160,9 @@ then `chpasswd` the fleet.
 
 ## Physical / external hosts
 Real hardware, reached only through the `MXFS_NODE_LIST` escape hatch (no
-libvirt, so run.sh skips virsh recovery for these). A platform whose pair is
-real hardware (`vms.md` says so) is named in the lab file like any other.
+libvirt, so run.sh skips virsh recovery for these). A platform whose
+verification set is real hardware (`vms.md` says so) is named in the lab file
+like any other.
 
 ## Where the rest lives
 Open defects: `tools/defects.py`. Platforms and what each release claims:

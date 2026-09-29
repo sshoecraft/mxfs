@@ -291,7 +291,7 @@ this before trusting or "fixing" any board verdict.
    object) and "one node failed 16" (that node's own artifacts) — which need
    opposite investigations — were indistinguishable.  Now `faildist[1x31,16x1]`.
 
-**showstat.sh FLAKY semantics** (user directive): the status column is the
+**Board FLAKY semantics, `tools/criteria.py`** (user directive): the status column is the
 current run's verdict, and a cell whose history holds a GENUINE test-detected
 failure stays ⚠ FLAKY until root-caused — it is never laundered to PASS.
 Excluded from "genuine" because they are rig, not filesystem: `pre-assert`,
@@ -669,7 +669,7 @@ holds the fd), and systemd-machined's stale `qemu-<id>-<domain>` registration.
 **Deriving the outer wrapper timeout (RULE 0).** `run.sh` already enforces each
 row's `budget_s` from `tests/suite/manifest` as that row's hard timeout and flips
 PASS->FAIL on overrun, so the outer `timeout` only decides how many ROWS you get.
-Derive it from summed **elapsed** walls (`./showstat.sh N dlm`) + `12s x n_tests`
+Derive it from summed **elapsed** walls (`tools/criteria.py N dlm`) + `12s x n_tests`
 + `15s` startup, as RULE 0 says — but be aware that a row which stalls burns its
 full BUDGET, not its measured wall. `dirent_durability` measures ~66s against a
 240s budget; when it stalled, a wrapper sized on measured walls cut the chunk and
@@ -1431,7 +1431,7 @@ A wedged host's journal going quiet is the wedge, not the absence of one.
 
 - `tests/mxfs_sb_bytecmp.sh snap <img> <out> [xfs_data_offset]` / `cmp <label> <pre> <post>`: 512-byte XFS SB sector snapshot + byte-compare excluding icount/ifree/fdblocks/crc/lsn (GPT bar for D-0133).  chk_mxfs -v prints `xfs_data_offset=` (793497600 on the current image).
 - `tests/sess474_chain116_d0133_sb_recount.sh` now snapshots the SB around the fleet unmount and prints `SB-BYTECMP` + `SB-CHK-MATCH`.
-- `tests/sess475_chain116_d0133_sb_seal.sh` (chain 116 v2, 0.64.30): arms normal/adversarial/latedirty/holderfail; verdict = 32/32 lock rc=0 at put_super, distinct grant epochs, 32/32 P-SB-SEAL-OK, 0 seal violations, highest-epoch writer == chk, every node's last P-SB-WRITE-SUBMIT locked=1; adversarial = waiter's epoch == holder's + 1 and wall >= 0.8 x pause (+ D-0536 measurement from a bursting mounted peer); latedirty = dirty departure + peer P163 recovery; holderfail = virsh destroy inside the hold, waiter recounts fresh.
+- `tests/sess475_chain116_d0133_sb_seal.sh` (chain 116 v2, 0.64.30): arms normal/adversarial/latedirty/holderfail; verdict = 32/32 lock rc=0 at put_super, distinct grant epochs, 32/32 P-SB-SEAL-OK, 0 seal violations, highest-epoch writer == chk, every node's last P-SB-WRITE-SUBMIT locked=1; adversarial = waiter's epoch == holder's + 1 and wall >= 0.8 x pause (+ D-0536 measurement from a bursting mounted peer); latedirty = dirty departure + peer P163 recovery; holderfail = virsh destroy inside the hold, waiter recounts fresh.  `N=4 COND=tcp|cawd` runs it at four nodes (workers `test1:test2 test3:test4 test1:test3`, HF_X/HF_Y test3/test4).  0.90.12: the chain exports `MXFS_MKFS_OPTS=-D` — its normal-lap workload is the sharded-directory reuse harness, which is refused (EOPNOTSUPP) on a format made without `-D`, and a lap whose counters never moved (icount=64 every lap) verifies nothing; the lock-line grep now allows the `master_self=` field between `epoch=` and `at=`.  At 4/tcp the holderfail arm fails by design of the DLM today (D-UNMOUNT-DURING-DEAD-MASTERS-RECOVERY-DEPARTS-DIRTY-AT-3-PLUS-NODES: the waiter's put_super lock fails fast on the dead master and it departs DIRTY); the arm's assertions are the 2-node design and stay.
 - `tests/d_intents_undischarged_verify.sh` burst arm publishes the frag files through a peer (`INTENTS_PEER`, default test2) before the rm — chain 105 s472m was VACUOUS for fix A (try=7 UNPUB).
 - TRAP: a chain launched gated on a log that already has DONE starts immediately; re-gating = kill the waiter (its pid from `tools/mxfs_pgrep.sh 'bash tests/sess4'`) and relaunch.  `tools/mxfs_pgrep.sh <pat>` also matches the calling shell if the pattern appears in its command text — check `/proc/<pid>/cmdline`.
 
@@ -1576,6 +1576,26 @@ Three rules it encodes:
   the clear on this arm (`tref`), from the kill otherwise. It restores
   `fence_blocked_after_ms` at the end. Chain wrapper:
   `TDR_LAP_BOUND=400 TDR_BLOCK_INJECT=1 tests/tcp_2node_death_chain.sh <label> 1`.
+- `TDR_BLOCK_REALIGN=1` (0.90.12, with `TDR_BLOCK_INJECT=1` and
+  `TDR_PROBE_NODES`): the re-aligned-page arm for
+  D-A-STALLED-PAGE-TRANSITION-IS-AN-UNBOUNDED-WAIT-FOR-A-NON-FALLIBLE-CALLER.
+  After the probes, the first probe node that is neither the prover nor W
+  unmounts cleanly (bound 60 s, must return 0 within 20 s); the view shrinks
+  while the dead victim stays in it and `active_nodes[page % N]` moves pages
+  the victim authored onto live masters, whose takeover the judgement refuses
+  while the fence is blocked.  Every remaining survivor then makes 12 root
+  directories under a 45 s bound: each must return 0 or EIO with the run
+  inside 25 s, zero `P960-AUTH-TRANSITION-STALLED`, zero shutdowns.  The arm
+  is VACUOUS (exit 3, `reason=realign-no-page`) unless some survivor logged
+  `P-RBLK-DENY-DEAD-AUTHORITY`, `P-TAUTH-TAKEOVER-UNDER-JUDGEMENT` or a
+  transition wait.  `TDR_REALIGN_DENY=0|1` writes `dl_rblk_authority_deny`
+  on every survivor before the kill (0 = the pre-0.90.12 wait, must FAIL with
+  the park; 1 = the fix) and restores 1 after the workload.  The departed
+  node's injection is cleared and it leaves `SURVIVORS`/`PROBES`.  Chain
+  wrapper: `MXFS_NODE_LIST=test1,test2,test3,test4 TDR_BLOCK_INJECT=1
+  TDR_PROBE_NODES=test2,test3 TDR_BLOCK_REALIGN=1 TDR_REALIGN_DENY=1
+  TDR_LAP_BOUND=605 tests/tcp_2node_death_chain.sh <label> 1` (queue bound
+  920).
 - `tests/suite/precond_readiness.sh`'s D-state probe is a single `ps`
   sample: a kernel thread in a bounded `msleep` IS D state and fails it.
   That is the probe doing its job (0.73.3 fixed the thread, not the probe):
@@ -1960,3 +1980,117 @@ start and length are on the console.
 | `delayed_write_across_fence.sh` | old-epoch, schedule (B) | the request held BELOW the module in a single-path dm-multipath map (`queue_if_no_path`, the path failed by `dmsetup message`); NOT dm-delay — its `iterate_devices` hands `dm_pr_register` the same path three times, so the module's REGISTER conflicts with itself and is rolled back (s147c); the heartbeat FUA write is a bio too, so park it by the knob before the path is failed |
 | `post_closure_renewal_at_peer.sh` | post-closure renewal | `SUSPECT_FIRST=1` drops UDP 7603 inbound on the peer until the lease marks the sender SUSPECT (360 s, a module constant) |
 | `nonfallible_transition_stall.sh` | stalled transition | the page's MASTER must stay alive; the victim is chosen by `P-SB-SUMMARY-LOCK ... master_self=` |
+
+## 0.90.9–0.90.14 — the four-node release campaign: verification sets, the death oracle at N nodes, the realign arm
+
+**Verification sets replace pairs.** A release for N nodes is verified on N
+nodes of every platform, never fewer. Each platform has its own lab file
+(`~/.config/mxfslab/lab.<platform>`, so each set has a LUN of its own;
+`scripts/scst_platform_targets.sh setup` builds the SCST targets on clyde and
+removes initiators that left a set) carrying `nodes <platform>=<n1>,<n2>,...`;
+`tools/mxfs_lab.sh nodes <platform>` prints the set, `pair` its first two,
+`addr <node>` an address. The sets: ubuntu2404 = test5..test8, pve9 =
+pve9-1..4, rhel9 = alma9-1..4, debian13 = debian13-1..4 (the -3/-4 nodes are
+clones of a built node, `scripts/lab_clone_node.sh`).
+`tests/packaged_round.sh <platform> [version]` (`TRANSPORT=tcp|caw`, `KERNEL=`
+on pve) installs the packages on every node of the set, formats from the
+first node, mounts every node, cross-node checksums, create/remote-delete,
+chk, `peer=`/`peers=` with multicast dropped, dio, SELinux on rhel, and
+reboots every node. `tests/tcp_peer_freeze_death.sh` with `PREP=<platform>`
+freezes the set's second node and measures the first.
+
+`NODES=4 tests/full_verify.sh <version>` refuses to start unless every set
+holds N nodes; then: clean-copy build + tools + tauth + the extern and
+inode-flag audits, `./run.sh N tcp`, `./run.sh N cawd`, both boards read
+through `tools/criteria.py` (the board is the verdict, not the run's PASS
+lines), packages unless `dist/<version>` exists, then the four platforms in
+parallel (packaged round on each transport, both pve kernels, freeze-death on
+each transport, sVirt on rhel9), each to
+`tests/evidence/full_verify_<version>_<platform>.log`, merged into
+`full_verify_<version>.log`. Launch it `nohup setsid` (a background Bash task
+dies at a session relay) and never build the module while it runs: the
+packages are built from the tree after the boards.
+
+**Prep binds the device by identity.** `run.sh` ships the fresh format's fsid
+and wwid to every node and `tests/setup/prep_node.sh` rebinds or refuses. A
+node that sits in two sets (test3 in the rig and, then, the Ubuntu pair) once
+mounted the other set's LUN as `/dev/sda` and formed a cluster of one: device
+paths are session-ordered and mean nothing across a power cycle.
+
+**The death oracle at three or more nodes.** The prover (fence arm, certified
+kind, manifest snapshot) and the elected replayer can be ANY survivor, so
+`tests/tcp_death_replay.sh` takes `TDR_MEMBERS` (every member), merges every
+survivor's kernel log for the fence, snapshot and replay assertions, arms the
+blocked-arm injection (`pr_fence_inject_key_absent`, `fence_gate_inject_refuse`,
+`fence_blocked_after_ms`) on every survivor and finds the prover by its
+transition line. `tests/death/crash_audit.sh` derives all members and unmounts
+the peers before the cold audit; `tests/tcp_2node_death_chain.sh` takes N
+nodes (`MXFS_NODE_LIST`). The one 4/cawd `crash_audit` FAIL of the campaign
+was the oracle reading only W's log while test3 proved the fence;
+`tools/criteria.py amend <row> --at N/<dlm> --iso <run> --detector-defect
+"<why>"` keeps such a FAIL on the board annotated as the detector's, so it
+does not count in the flake window. `tests/board_4node_chain.sh <label> tcp
+cawd` captures the native-XFS yardstick and runs both boards; `NODES=2` runs
+the two-node ones, and `tcp:row,row` runs one lap of those rows on a freshly
+forced cluster under one run id — the unit a flake window is cleared with.
+
+**Clearing a flake window before a release.** A row whose newest genuine
+FAIL sits at window index k (0 = the live run, 11-run window) reads PASS
+again only after 11-k more runs of that row; the board run that closes the
+verification is one of them, so it takes 10-k single-row laps first, then the
+board. `tests/release_verify_chain.sh <version>` runs the whole sequence
+detached on one module: `W4_LAPS` laps of 4/tcp `alloc_witness,chk_clean`,
+`NODES=4 tests/full_verify.sh`, `W2TCP` laps of 2/tcp `fio_perf,guard_census`,
+`W2CAWD` laps of 2/cawd `alloc_witness,chk_clean,crash_audit`, then both
+two-node boards, each step to `tests/evidence/release_verify_<version>.log`
+with an `=== rc=N: <step> ===` line and `RELEASE_CHAIN_DONE` at the end. The
+lap counts are read from `data/criteria.json` (0.90.17: 4/tcp chk_clean k=6
+with two chain laps pending -> 2; 2/tcp fio_perf k=3 -> 7; 2/cawd crash_audit
+k=2 -> 8). A window lap's `board_4node_chain.sh` exits 1 while the board still
+reads FLAKY; that rc says nothing about the lap's rows, which the log's
+`Total:` line does.
+
+**The blocked-recovery probe arm at N nodes** (`TDR_BLOCK_INJECT=1
+TDR_PROBE_NODES=<n,n>`): after FENCE_BLOCKED the probes' path operations
+(`stat`, `mkdir` in the victim's directory) must fail fast EIO within a
+second of `P238-FENCE-BLOCKED-IMPORTED`, the prover's own within its bound;
+then the injection is cleared and the slow re-drive must certify, unblock and
+replay.
+
+**The realign arm** (`TDR_BLOCK_INJECT=1 TDR_BLOCK_REALIGN=1
+TDR_PROBE_NODES=<n,n> TDR_REALIGN_DENY=0|1 TDR_LAP_BOUND=645`): every stayer
+creates 40 files, every reader opens every other survivor's files, every owner
+rewrites its own (every reader's grant revoked), the victim is killed, and once
+the recovery is FENCE_BLOCKED one probe node departs cleanly, re-aligning page
+mastership (`dlm_page_master_locked` is `active_nodes[page % N]`) onto live
+masters; the stayers then read through the descriptors they hold. Assertions:
+every read returns inside 45 s, the pass at most 25 s, no read over 10 s,
+every read 0 or EIO, zero `P960-AUTH-TRANSITION-STALLED`, zero
+`P240-QUAR-PARK`, zero shutdowns; VACUOUS unless a dead-authority deny, a
+judging refusal or a transition wait proves a re-aligned page was met
+(`realign=measured`). Knob 0 is the control: both stayers' reads park until
+the recovery completes. Lap wall ~230 s; queue bound 960 s. Its first laps
+found two records the arm was not built for: the non-elected survivor's
+shutdown (xfs.md 0.90.13) and the ESTALE errno from the file-operation gates
+(pal.md 0.90.14).
+
+**The SB-seal chain at N nodes.** `tests/sess475_chain116_d0133_sb_seal.sh
+<N> <COND>` (normal / adversarial / latedirty / holderfail) formats with
+`MXFS_MKFS_OPTS=-D` so the dirshard reuse workload is live; a lap whose
+workload is refused (icount=64 every lap) is vacuous, whatever the verdict
+line says.
+
+## Host-coordinated rows pre-assert the cluster like coordinated rows (0.90.17)
+
+`run.sh` `run_host` (the runner for `coord=host` rows; `crash_audit` is the
+only one) now makes the same mount-and-readdir probe on every node that
+`run_coord` makes before launching, and records `FAIL "pre-assert"` when a
+node has no readable MXFS mount.  `tools/criteria.py` excludes that reason
+from the flake window (`RIG_NOISE`), so a row that inherits an unformed fleet
+from a budget-killed row before it is not counted as a genuine fault of the
+mechanism it tests.  Measured twice at 4/tcp before the change: `chk_clean`
+killed at its budget with the fleet unmounted, then `crash_audit`'s oracle
+aborting at its own member mount check and the row recording a failed death
+oracle (two genuine-looking FAILs in the window, amended with
+`tools/criteria.py amend`).  When a row fails in the same run as a
+budget-killed row before it, read the earlier row's evidence first.

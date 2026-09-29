@@ -1,3 +1,682 @@
+## 2026-09-29 — 0.90.24 — 4-node TCP and 4-node CAW are released on Proxmox VE 9, RHEL 9.8, Ubuntu 24.04 and Debian 13
+
+Clusters of four nodes are now released on both transports, alongside
+clusters of two, on exactly the kernels the two-node release names: Proxmox
+VE 9 (6.17.2-1-pve and 7.0.14-19-pve), RHEL / AlmaLinux / Rocky 9.8
+(5.14.0-687.49.1.el9_8), Ubuntu 24.04 LTS (6.8.0-101-generic) and Debian 13
+(6.12.107+deb13-amd64).  Three nodes, and more than four, are not claimed.
+Nothing in the defect queue blocks any of the four released configurations
+(`tools/defects.py 4 tcp --release`, `4 caw --release`, `2 tcp --release`,
+`2 caw --release`).
+
+This is the first release since 0.90.7.  It carries the changes recorded
+below under 0.90.17, 0.90.21 and 0.90.22, none of which was released on its
+own.
+
+What 0.90.24 passed (`tests/release_verify_chain.sh 0.90.24`, module
+srcversion `35EE411D214B22C3D4D15BE` on the rig; its log is
+`tests/evidence/release_verify_0.90.24.log`):
+
+- the gate chain described below: 37 of 37 four-node quiesce-and-remount laps
+- a build from a clean copy of the tree, 0 warnings, with the deployed
+  module's srcversion; the userspace tools, the user-mode ledger tests (0
+  failures), the extern-declaration audit and the inode flag audit
+- all four rig suites, every row PASS on this module, none FLAKY and none
+  SKIPped: 4-node TCP 31 of 31, 4-node CAW 30 of 30, 2-node TCP 31 of 31,
+  2-node CAW 30 of 30 (`tools/criteria.py 4 tcp --build
+  35EE411D214B22C3D4D15BE`, and the same for `4 cawd`, `2 tcp`, `2 cawd`)
+- the release packages, built in the oldest container each targets, after
+  each platform's kernel build check
+- on every platform, on four nodes sharing a LUN of their own, on each
+  transport: the packaged round (install from the packages, DKMS build, mount
+  with no options on all four, cross-node checksums, create and remote
+  delete, `chk_mxfs` clean, `peer=` with multicast dropped, every node
+  rebooted with the configured transport, data intact), Proxmox on both
+  kernels; the hung-node test (a node frozen mid-write, declared dead,
+  fenced, replayed, the other three writing again); on RHEL, SELinux
+  enforcing with sVirt
+- the hung-node test with four members: on TCP the frozen node was declared
+  dead at +60-62 s and the measured survivor wrote again at +73-74 s on three
+  platforms and at +101 s on Proxmox; on CAW at +65-66 s and +72-75 s
+  (budgets 120 s and 180 s)
+
+The two-node claim was earned again on this module rather than carried over
+from 0.90.7.  Three 2-node CAW rows (`alloc_witness`, `chk_clean`,
+`crash_audit`) still held failures of earlier builds in their eleven-run
+window; six laps of those rows ran first, every one passing, and the boards
+after them read PASS.  `fio_perf_vs_xfs`, which 0.90.7 SKIPped at two nodes
+for want of a native-XFS baseline on this storage target, has one now and
+passed on both transports.
+
+One record was missing from the view of the queue a CAW release reads:
+`D-DIRSHARD-REUSE-PEER-READDIR-EUCLEAN-ON-CAW-AT-4-NODES` was tagged `cawd`,
+the rig's name for how the LUN is attached, and `tools/defects.py 4 caw`
+matches the tag exactly.  It is tagged `caw` now.  It was already classified
+as not blocking, because directory sharding is experimental, off by default
+and part of no release, so the verdict is unchanged and the count for 4-node
+CAW is 10, not 9.  The README now names sharding among the things not to
+use.
+
+### The walk at a fresh AG grant no longer cancels the queued write of an inode cluster buffer
+
+A holder asked to give up an inode it had cached could take 5 s to answer,
+and an unmount could wait two minutes, behind inode items that had been
+flushed into their cluster buffer while the buffer's write never went out.
+On 0.90.22 the four-node rig met it in 4 laps of 31: three paid the 5 s
+(lock timeouts on the waiting nodes, two `stat` sweeps killed at their 30 s
+bound) and one unmount took 127 s.
+
+**Cause.**  The buffer-cache walk that runs at a fresh grant of an allocation
+group (`mxfs_dlm_invalidate_ag_meta`) stales the group's cached metadata so
+that it is read again, and it staled inode cluster buffers too, whatever
+inode items they carried.  `xfs_buf_stale` clears the delayed-write flag.
+When xfsaild had already flushed inodes into the buffer and queued it, the
+delayed-write pass then dropped the buffer unwritten, no completion ran, and
+the items stayed in the AIL marked flushing, which xfsaild passes over.
+Nothing pushed them again until a release drain's rescue wrote the buffer
+itself, 5 s into its wait, or an unmount's wait ended.
+
+**How it was established.**  0.90.23 was an instrument and never left the
+rig; what it added is in this version.  `xfs_buf_stale` records its caller,
+the buffer's flags before the stale, the number of attached items and the
+time in the buffer, and prints them when items are attached
+(`P-STALE-WITH-ITEMS`); the release drain prints them at its first wedge
+report (`P113-DRAIN-WEDGE-STALER`).  The prediction was written before the
+run: the staler is the walk, items are attached, and the prior flags carry
+the queued bit.  Chain `v23a`, lap 6, test4:
+
+| time (UTC) | what the log holds |
+|---|---|
+| 07:40:16 | the walk stales two cluster buffers, both queued for write, with 6 and 15 inode items attached |
+| 07:40:29 | every node unmounts; test4's unmount does not return inside 60 s |
+| 07:41:06 | the unmount's stuck-item report: six inode items flushing, all on the first of those buffers, which is stale, on no list and was never submitted; the buffer's own event ring ends with that stale |
+
+The same walk staled 16 to 84 cluster buffers a lap whose items had not been
+flushed yet, and none of those left an item behind: a stale before the flush
+is not this fault.
+
+**Fix.**  The walk keeps an inode cluster buffer that is queued for write.
+It decides under the buffer lock, which is what the flag is set and cleared
+under, and reports a kept buffer (`P91-WALK-PROTECT`).  A kept buffer counts
+in the walk's retained-view census like every other one.  Design:
+`docs/ag-metadata-coherency.md`, "The fresh-grant walk and inode cluster
+buffers".
+
+**Verification, 4-node TCP.**  Chain `v24a` (module
+`3C08A12A7D62485CED407FA`, the fix alone): 6 laps with the import injection
+armed and 31 natural ones, 37 of 37 clean.  No release drain wedged or was
+rescued, no stuck-item report, no stale of a queued buffer on any node of any
+lap; 296 unmounts, the slowest 5.3 s; 296 mounts, the slowest 9.3 s.  The
+builds before the fix met the fault in 5 of 47 laps, so a run like this one
+is expected from an unfixed module about once in a hundred.
+
+What that chain could not show is that the walk met a queued buffer at all:
+the report line sits on the locked check, and the unlocked check in front of
+it catches such a buffer first and prints nothing.  So the module counts
+them (read-only parameter `walk_kept_queued_n`), each lap prints how far the
+counter moved (`WALK ... kept_queued=`), and the gate chain ends `VACUOUS`
+instead of `PASS` when no lap of it kept a buffer.  The counter changes no
+behaviour; the module with it is `35EE411D214B22C3D4D15BE`.
+
+Chain `v24b` on that module, 6 injected and 31 natural laps
+(`tests/evidence/release_gate_v24b.log`, `GATE-LAPS verdict=PASS`):
+
+| what | measured |
+|---|---|
+| laps clean | 37 of 37, no failed check in any |
+| laps in which the walk met a buffer queued for write | 4 (laps 1, 2, 21 and 31) |
+| buffers it kept in those laps | 2, 10, 3 and 4: 19 |
+| release drains wedged or rescued, stuck-item reports, stales of a queued buffer | 0 on every node of every lap |
+| unmounts | 296, median 3.5 s, slowest 5.3 s |
+| mounts | 296, median 5.2 s, 99th percentile 9.0 s, slowest 9.2 s |
+
+Four laps in 37 is the rate at which the builds before the fix met the fault
+(5 in 47), and in each of the four the items behind the kept buffers
+completed.  Over both chains: 74 laps, 592 unmounts, none slower than 5.3 s.
+
+**The boards, on the same module.**  `tests/full_verify.sh` at four nodes
+(`tests/evidence/full_verify_0.90.24.log`): a build from a clean copy of the
+tree gave the deployed module's srcversion with no warnings; the user-mode
+tests, the extern declaration audit and the inode flag audit passed; every
+row of the 4-node TCP board (31) and of the 4-node CAW board passed in that
+one run, `chk_clean` among them (TCP: clean, four-way remount 5.0 s; CAW:
+clean, 5.9 s).
+
+**Removed from the defect queue**, each fixed and verified, with the evidence
+above:
+
+- `D-TCP-INODE-RELEASE-DRAIN-WEDGED-5S-PER-CONTENDED-INODE` — the cause, the
+  fix and the chains of this entry.
+- `D-4TCP-SIMULTANEOUS-REMOUNT-AG0-VS-ROOT-INODE-LOCK-CONVOY-REFUSES-ONE-MOUNT`
+  — its three causes were fixed in 0.90.18, 0.90.21 and 0.90.22; what it
+  still owed was a clean run on one module: 74 four-way remounts in chain
+  `v24b`, every mount inside 10 s (slowest 9.2 s), no lock timeout, no
+  refused mount, no holder imported without an owner, then the boards.  The
+  pace that remains (the last of four simultaneous mounts lands near 9 s,
+  because each mount keeps AG 0 for its whole mount phase) is
+  `D-AG-BAST-DROPPED-DURING-MOUNTFS-NO-CALLBACK-HOLDER-KEEPS-AG-FOR-THE-MOUNT`,
+  still open.
+
+The queue holds 89 records; none blocks a 4-node release on either
+transport (`tools/defects.py 4 tcp --release`, `4 caw --release`).
+
+**Harness.**  `tests/quiesce_remount_access.sh` fails a lap on any release
+drain wedged or rescued, any stuck-item report, and any stale of a queued
+buffer with items attached, from the remount on.  Its unmount no longer keeps
+the ssh session open while it hangs (a stuck unmount ended a lap as an abort
+with no logs), and a lock request the lock layer refused to avoid a deadlock
+and the caller then won is counted, not judged.  New:
+`tests/release_gate_chain.sh` (the laps a fix owes, then the release
+verification only if every one passed) and `tools/bufring_decode.py` (the
+event ring a buffer diagnostic line carries, decoded).
+
+**Not changed, and why.**  The inode reload's verify-retry loop
+(`xfs/xfs_mxfs_reload.c`) also stales a cluster buffer without looking at
+what it carries.  That loop ran in none of the 160 node logs of 40 laps, no
+stale by it has ever been recorded, and what it should do with a kept buffer
+depends on how each caller of the reload treats an abandoned one, which has
+not been read.  The instrument names it if it ever fires; it is not patched
+from reading.
+
+## 2026-09-29 — 0.90.22 — a shared holder bit a departed mount left behind is named for its slot's tenant, and the tenant answers for it (4-node TCP; not yet a release)
+
+A shared holder bit in the TCP authority ledger names a heartbeat slot, not a
+mount.  When a clean unmount leaves one behind and the slot has a new tenant,
+the bit cannot be retired by the slot (it could be the tenant's own), so the
+master that imports it has to name the tenant and the tenant has to answer.
+Both halves failed on the four-node rig, and this version changes both.
+
+**Naming.**  The master took the owner from the heartbeat monitor's tracking,
+which learns of a claim one pass after the table carries it.  At a
+simultaneous mount a page is imported inside that pass, and the bit was
+installed with no owner until a request for its resource asked again (one lap
+in 15 on 0.90.21).  The read of the heartbeat table that already judges
+whether a holder has left for good now also reports who holds each slot, and
+the import and the release tick use it (`P-TAUTH-IMPORT-TENANT`,
+`P-TAUTH-IMPORT-RESOLVED-ONTICK`).  Naming an owner re-arms the notification
+clock of every wait already queued on the resource.
+
+**Answering.**  A named tenant did not answer.  One that is still mounting
+has no handler and parks the notification; a mounted one finds nothing to
+release.  Measured on the first build of this version, before the answer
+existed:
+
+| lap | what waited | result |
+|---|---|---|
+| `v22a_inj6` | the root inode's master held AG 0 for its own mount and waited for the root inode behind a bit named for a node whose mount was waiting for AG 0 | three of four mounts refused after 70 s |
+| `v22b_lap2` (nothing injected) | three nodes' creates into one directory, behind two bits named for mounted nodes that had not touched it | three create bursts killed at 30 s |
+
+The transport's notification arm now asks the lock layer first
+(`mxfs_dlm_answer_unheld`).  A node that has no table entry of any state and
+no request in flight for the resource holds nothing, because its own entries
+survive every membership change; it answers with a release carrying a
+generation no grant can carry.  The master's existing stale-generation rule
+applies such a release only to an entry it never granted and drops it against
+any grant it made, so an answer that crosses a request on the wire takes
+nothing away.  The filesystem's handler is still told.
+
+Design: `docs/tcp-authority-ledger.md`, "A shared bit on a slot that has a
+tenant".  Debug switches for control arms: `tauth_tenant_attribute`,
+`tauth_unheld_answer`.  The test injection `dl_inject_import_unresolvable` no
+longer applies to a node's own slot.
+
+User mode: `tests/tauth`, nine programs, 394 checks, all pass
+(`stale_image_release_test` laps 9 to 14; laps 9 and 12 are controls that
+wait their whole budget and fail).
+
+Rig, 4/tcp, `tests/quiesce_remount_access.sh` (evidence under
+`tests/evidence/quiesce_remount_access/`), on the build WITHOUT the answer
+(module `8FAF55F921C7E160FDB867B`): no holder was imported without an owner
+in 12 laps with naming on (10 bits named at import under the injection), and
+2 were in the one lap with naming off; 9 of 12 laps were clean.  The build
+with the answer is module `253A7D3ABB0A2A8732538F3`; its laps are chain
+`v22c`.
+
+Also found, and open in the queue as its own record: a holder asked to give
+up a cached exclusive inode grant can take 5 s to do so (release drain wedged
+and rescued), which cost one lap its `stat` sweep (`v22a_inj4`).
+
+## 2026-09-29 — 0.90.21 — a lock record whose holder has left for good no longer blocks the next mounted era (4-node TCP; not yet a release)
+
+A clean four-way unmount leaves exclusive inode records in the TCP authority
+ledger: a release is re-sent ten times and then dropped, and at a simultaneous
+unmount the masters it is addressed to are leaving too.  The next era's master
+of such a page installed the record as a live holder.  Its owner is in no
+view, so nothing could ask it to let go and no departure would ever name it.
+Measured on 0.90.18: 39 records left, one imported, and a `stat` of that inode
+from another node killed at its 30 s bound after 24 lock timeouts.
+
+The master now asks the heartbeat table, from one fresh read, how the holder's
+tenancy ended, before the page is imported and once a second afterwards for
+the holders it kept.  A holder whose identity stands in no slot and whose own
+slot is a release stamp, a zero record or a later tenant's fresh claim is
+retired on the platter in one page transition; anything still being settled,
+or unreadable, stays the blocker it was.  Design:
+`docs/tcp-authority-ledger.md`, "Holders that have left for good".
+
+Measured on the rig (4/tcp, module `D2D7CAE3D7CF1B782B993B9`,
+`tests/quiesce_remount_access.sh`, evidence under
+`tests/evidence/quiesce_remount_access/`):
+
+| arm | laps | result |
+|---|---|---|
+| retirement switched off (`tauth_settled_retire=0`) | 1 | the hang reproduces: `stat` killed at 30 s, 12 access checks failed; switching it on under the mounted cluster ended the wait |
+| retirement on | 15 | every access step inside its bound, no lock timeout, no holder imported for a departed owner, every mount under 10 s (largest 9.3 s), 9 to 158 holders retired per lap |
+
+One of the 15 laps imported a shared holder with an unknown owner on one node
+during the remount; it was attributed to its slot's node by the first request
+five seconds later and nothing waited behind it.  The defect record stays
+open on that and on the board runs this module still owes.  Records on inodes
+nothing asks for stay on the platter until their page is next imported.
+
+User mode: `tests/tauth`, nine programs, 369 checks, all pass
+(`stale_image_release_test` laps 4 to 8 with a control arm, `ledger_test`
+group 18).
+
+## 2026-09-29 — 0.90.17 — four-node campaign fixes (NOT RELEASED: the four-way remount hang above was found on this build)
+
+This version was prepared as the four-node release and was never published:
+its verification found a mount refused behind a lock holder nobody could ask
+(0.90.18 and 0.90.21 above).  The kernels a four-node release will claim are
+the two-node release's: Proxmox VE 9 (6.17.2-1-pve and 7.0.14-19-pve), RHEL /
+AlmaLinux / Rocky 9.8 (5.14.0-687.49.1.el9_8), Ubuntu 24.04 LTS
+(6.8.0-101-generic) and Debian 13 (6.12.107+deb13-amd64).
+
+Everything below was found by running the two-node suites, harnesses and
+defect laps at four nodes for the first time: ten versions (0.90.8 to
+0.90.17) in one campaign, none of them installed anywhere before this one.
+
+### The four-node quiesce no longer wedges an unmount behind a fresh inode chunk
+
+At 4/tcp the `chk_clean` quiesce (all four nodes unmount at once, one audits
+cold, all remount) left one node's unmount looping for the whole 180 s row
+budget, twice on 0.90.14 and once on an instrumented 0.90.16: two
+inode-cluster buffers of one inode chunk sat in the AIL at one log sequence,
+unpinned, unlocked, and never pushed.  The extended AIL-stuck dump
+(`xfs/xfs_trans_ail.c`) named them: fresh cluster buffers that
+`xfs_ialloc_inode_init` diverts onto their AG's alloc buflist so the AG
+release drain publishes them before the on-disk unlock.  The lazy unlock
+drain (`mxfs_dlm_ag_drain_alloc_buflist_nowait`) had skipped both as pinned
+at one unlock, nine minutes before the unmount, and spliced them back "for
+the AG's next unlock cycle"; an AG this node kept holding but stopped using
+has no next cycle, xfsaild cannot take a buffer queued elsewhere (its push
+reports the item FLUSHING), and the unmount's whole-AIL wait in `put_super`
+ran before the per-AG force-release drain that would have written them.
+Proven by the instrument, not by reading code.
+
+- `put_super` drains every AG's alloc buflist synchronously
+  (`mxfs_dlm_ag_drain_all_alloc_buflists`, `P-UNMOUNT-ALLOCLIST-DRAIN`)
+  after its synchronous log force and before the whole-AIL wait.
+- A nowait drain that leaves pinned leftovers no longer waits for a further
+  unlock: it forces the log once (async, per leftover event) and re-arms a
+  bounded 100 ms delayed drain of that AG (`mxfs_alloclist_retry_fn`,
+  `m_mxfs_alloclist_retry`) until the list is clean, so the log tail is never
+  pinned for a tenure.  `put_super` cancels the work synchronously before its
+  own drains; a re-logged buffer is retried, never abandoned.
+
+Verified on 4/tcp, board run 20260929T013746Z (module `6598E65263EBF1CE71D8396`):
+30 of 30 rows PASS, `chk_clean` in 17 s of its 180 s budget with verdict
+CLEAN and every node remounted, `crash_audit` after it in 176 s with 760
+acknowledged files replayed and verified, `tcp_dlm_scaling` (blocked by the
+wedge on 0.90.14) in 12 s.  The direct measurement of the pinned tail is
+`tests/alloclist_tail_pin.sh`: PASS on this build (`tests/evidence/alloclist_tail_pin/20260929T023658Z`): after a
+3000-create burst on test1 with three peers mounted (25 s), the log tail (the
+AIL minimum) reached the burst-end head 15 s into the idle window, so
+everything the burst had logged was written and nothing stayed pinned; the
+harness's first run, on 0.90.16 (`20260929T020119Z`), measured the same (the
+tail passed the burst-end head 25 s after the burst) and failed only its own
+unattainable tail-equals-head criterion, corrected since.
+D-4TCP-QUIESCE-UNMOUNT-AIL-STUCK-INODE-BUFS-RELEASE-UNACKED-JOIN-FREEZE-WEDGE
+and D-LAZY-AG-UNLOCK-PINNED-ALLOCLIST-LEFTOVERS-PIN-LOG-TAIL-UNTIL-NEXT-UNLOCK
+are removed.  The unacknowledged inode releases the same capture exposed
+(3910 LOCK_RELEASE messages a node dropped from itself after mastership had
+moved to it) are their own record,
+D-TCP-SELF-RESEND-RELEASE-NO-GRANTED-ENTRY-NEVER-ACKED: the wait on them is
+bounded (3 s) and it does not cross the release bar.
+
+### A peer joining during an unmount no longer deadlocks the join worker
+
+`freeze_super` takes `s_umount`, and an unmount holds `s_umount` for its
+whole teardown, which joins the DLM join worker (`v5_join_worker_stop` from
+`put_super`).  A join sighting that reached the worker's freeze while an
+unmount held the lock therefore waited for the unmount while the unmount
+waited for the worker: the 0.90.14 4/tcp run had exactly that hung task, and
+the window (between the sighting and the freeze's lock) is milliseconds wide,
+so 20 random-delay laps never hit it and the `dbg_join_prefreeze_delay_ms`
+knob (test only) widens it deterministically.
+
+- The join prepare enters the freeze only from a state no teardown can reach
+  (`xfs/xfs_mxfs_join.c`, the kernel's own bdev-freeze pattern): `s_umount`
+  is taken with a trylock, the superblock is checked live under it (born,
+  active, rooted, referenced, not shut down), one active reference is taken,
+  and only then `freeze_super` runs.  A refused trylock is a mount, remount,
+  sync or unmount holding the lock; the transition retries
+  (`P-JOIN-FREEZE-BUSY`) and the unmount's stop ends it.
+- The reference is dropped last, from a work item on the module's own
+  workqueue (`mxfs-join-sbref`): the drop may run the whole teardown, which
+  joins the worker, so it never runs on the worker; and a system-wide queue
+  may not be flushed by a module.  An unmount landing mid-transition returns
+  before the teardown, which follows shortly.
+
+Verified on 2/tcp (`tests/join_during_unmount.sh`, build
+`600517A24708BD86C7035B0`, `tests/evidence/join_during_unmount/20260929T011008Z`):
+the worker held 3 s before its freeze and the lone member's unmount started
+inside the hold, 20 laps, 5 inside the window (`P-JOIN-FREEZE-BUSY`), every
+unmount returned (worst 5.3 s of a 60 s budget) and every mount (worst 9.4 s
+of 100 s), no hung task, module use count 0 before and after on both nodes.
+
+### A host-coordinated board row now checks that the cluster is formed
+
+`crash_audit` is the board's one host-coordinated row (its oracle needs
+virsh), and it was the only kind of row `run.sh` launched without the mount
+pre-assertion every coordinated row gets.  Twice at 4/tcp (runs
+20260928T221236Z and 20260929T004057Z) `chk_clean` was killed at its budget
+with the fleet unmounted, the oracle aborted at its own member mount check
+before any kill, and the row recorded a failed death oracle with no
+acknowledged files — which the board counted as two genuine crash-recovery
+faults for eleven runs, on a row that had measured nothing.
+
+- `run_host` makes the same mount-and-readdir probe `run_coord` makes and
+  records FAIL "pre-assert", the reason `tools/criteria.py` excludes from the
+  flake count as rig-formation noise.
+- **Board: crash_audit at 4/tcp, the FAIL of 2026-09-29T00:57:02Z was the
+  detector's** — the oracle aborted at its own precondition (test1 not
+  mounted) before any kill; the preceding chk_clean row had been killed at
+  its budget leaving the fleet unmounted; nothing about crash recovery was
+  measured.
+- **Board: crash_audit at 4/tcp, the FAIL of 2026-09-28T22:28:13Z was the
+  detector's** — the same shape, on 0.90.14.
+- `run.sh` includes `alloc_witness` whenever `chk_clean` is asked for by
+  name: chk_clean's release verdict needs the coverage witness alloc_witness
+  seals under the same run id, and a lone chk_clean run graded its CLEAN
+  audit INDETERMINATE and FAILed for want of it.
+- **Board: chk_clean at 4/tcp, the FAIL of 2026-09-29T02:06:07Z was the
+  detector's** — the audit was CLEAN on all four nodes (rc 0, no errors,
+  every node remounted); the row ran alone and had no sealed witness for its
+  run.
+
+### A fence series that cannot prove exclusion now ends in a verdict every survivor imports
+
+When a fence attempt classified KEY_ABSENT_UNPROVEN and the sole-survivor
+exclusive-write gate refused, the fence engine re-drove the identical attempt
+forever on a 0.25-7.8 s backoff: no retry cap, no terminal state, and every
+operation on the survivor that needed the dead node's grants waited its whole
+acquire budget while the retry spun.  At three or more nodes it was worse
+than the two-node measurement had shown: the resource masters never learned
+the prover's verdict at all, so every survivor's operation on the dead node's
+grants parked for the whole bound, not only the prover's.  Proven on 4/tcp
+with a test-only knob (`pr_fence_inject_key_absent`, `dlm/scsipr.c`) that
+reports the victim key absent at the classification, which is the only way a
+key-retaining target such as SCST reaches the shape.
+
+- The series ends in the durable FENCE_BLOCKED verdict on the descriptor
+  (`P304-FENCE-BLOCKED-DURABLE`, after `V5_FENCE_RETRY_BACKOFF_N` attempts
+  and `mxfs_fence_blocked_after_ms`).
+- Every survivor's PR worker re-reads the pending descriptors once a second
+  and imports or lifts the verdict (`v5_fence_blocked_import`:
+  `P238-FENCE-BLOCKED-IMPORTED` / `P238-FENCE-UNBLOCKED-IMPORTED`), so a
+  master that is not the prover fails a request on the dead node's grants
+  fast with EIO instead of parking it.
+- The verdict is re-driven every `V5_FENCE_BLOCKED_REDRIVE_MS`, and lifts by
+  itself once an attempt certifies.
+- debugfs `recovery_blocked` names FENCE_BLOCKED even when the prover is the
+  writer (`v5_blocked_set`).
+
+Verified on 4/tcp (build `20491955C95C1F9F6A5DE63`) by the death lap with the
+injector armed on every survivor (`tests/evidence/20260928T190018Z_tcpdr_s4e_0904probe_l1`,
+console `lapq_s4e_1.console`): FENCE_BLOCKED 88 s after the kill (7 attempts,
+series 22.8 s, last KEY_ABSENT_UNPROVEN), exactly one transition, durable,
+debugfs `reason=FENCE_BLOCKED rc=0`; the prover's path operation and the
+peers' `stat` and `mkdir` in the victim's directory all EIO with 8 fail-fast
+probes; test1 imported the verdict; zero shutdowns while blocked; unblocked
+once the re-drive certified PREEMPT_ABORT_PROVEN_V1; replay complete and 653
+of 653 acknowledged files verified.  The record
+D-FENCE-PRECOMMAND-RETRY-UNBOUNDED-NO-BLOCKED-STATE-0904 is removed.
+
+### At three or more nodes on TCP the death path leaves the fence to the lease holder
+
+`v5_tcp_declare_dead` issued the lease-less bare PREEMPT AND ABORT (the fence
+documented for a SLOTLESS member) for a slotted victim whenever this node's
+ledger knew the victim's key.  When a different survivor held the fencing
+attempt lease, that holder classified KEY_ABSENT_UNPROVEN, the sole-survivor
+gate refused, nothing consumed the bare proof, and the slice was never
+certified nor replayed: the victim's grants stayed frozen until FENCE_BLOCKED
+turned the waits into EIO, and the slice still never recovered.  Found
+because the three-node stall lap could never reach its snapshot.
+
+- With more than one other live member the death is noted and the fence is
+  left to the survivor holding the attempt lease (`P-TCPDEATH-DEFERRED
+  nlive=N`).  The bare fence remains for a slotless member and for the sole
+  other live member.
+
+Verified twice: the 3/tcp stall lap on build `3972F33B9812C9E7D854E97`
+(`tests/evidence/20260928T185439Z_nftstall_s4d_3node`: both survivors
+deferred, the lease holder alone proved and certified the fence, the other
+logged `P236-FENCE-ATTEMPT-BUSY` and issued nothing), and the 4/tcp death lap
+above (three deferrals, every fence-kind line carries the prover suffix, zero
+bare lines for the slotted victim, replay complete).
+D-TCP-DEATH-BARE-FENCE-RACES-THE-ATTEMPT-LEASE-AT-3-NODES-0928 is removed.
+
+### A request whose page authority is a dead node under a blocked recovery fails fast instead of waiting forever
+
+`mxfs_dlm_lock_retries` detects a page transition that has stopped advancing,
+but for any caller the fallible oracle does not name it reset the stall clock
+and waited again, so a permanently refused transition was an unbounded
+kernel wait with no exit but a fatal signal.  Enumerated on two nodes (not
+reachable: a dead member keeps its pages until its recovery completes and
+every request on them fails fast on the transport) and then on three and four
+nodes: the only durable non-completing recovery state is FENCE_BLOCKED, and
+under it a request on a page whose dead AUTHORITY is that node parked for
+good, because the master relayed AUTH_TRANSITION for a takeover the recovery
+judge refuses below IMAGES_REPLAYED, and the wait counted a progress counter
+nothing advances.  The recovery-blocked deny covered dead masters and dead
+holders, never a dead authority.
+
+- `dlm_rblk_authority_deny` (`dlm/dlm.c`) takes the node the request would
+  wait on and denies with -EHOSTDOWN (`P-RBLK-DENY-DEAD-AUTHORITY`; relayed as
+  MXFS_ERR_RECOVERY_BLOCKED, `P-RBLK-DENY-REMOTE` on the requester).  It
+  stands at the takeover and at the handoff ask (`via=authority-in-view`),
+  because a dead member stays in the membership view until its recovery
+  completes, so the first version, which only covered a node out of view,
+  never fired.  The XFS layer already maps -EHOSTDOWN to EIO with no shutdown.
+- A wait for a recovery that is merely in progress is kept; a release on such
+  a page keeps its REMASTER retry.
+- `dl_rblk_authority_deny` (1; 0 restores the wait, test only) for a
+  same-build comparison.
+
+Verified on 4/tcp (build `E359F7D5F90DCAB32854FA6`, lap `s8a_realignB_l1`,
+`tests/evidence/20260928T220430Z_tcpdr_s8a_realignB_l1`, console
+`lapq_s8a_1.console`): a probe node departed cleanly in 4 s while the
+victim's recovery was FENCE_BLOCKED, re-aligning page mastership; 20
+dead-authority denies on the master naming the victim's incarnation
+(`via=authority-in-view`), zero judging refusals, zero transition waits,
+zero stalls, zero parks, zero budget failures; each stayer's 40 reads
+through descriptors held on the dead node's files returned inside a 2 s pass
+(slowest 169 ms), every one 0 or EIO; zero shutdowns; the fence certified
+after the re-drive, replay complete in 30 s, 639 of 639 acknowledged files
+read back with their checksums.  Control: the same lap with the deny
+switched off parked both stayers' reads until the recovery completed.
+D-A-STALLED-PAGE-TRANSITION-IS-AN-UNBOUNDED-WAIT-FOR-A-NON-FALLIBLE-CALLER
+is removed.
+
+### A survivor that is not the elected replayer now parks instead of shutting down
+
+When an inode acquire exhausted its retry budget while a dead peer's recovery
+was pending, the ilock timeout classifier's "peer recovery pending" park was
+gated on a replay-duty bitmap that only the elected replayer sets.  On every
+other survivor the budget failure fell through to "DLM inode lock
+unrecoverable" and `xfs_force_shutdown(SHUTDOWN_CORRUPT_INCORE)`.  Measured
+on 4/tcp: the non-elected test3 shut its filesystem down in both control laps
+while the elected test1 parked.
+
+- The park (`P240-QUAR-PARK`, `xfs/xfs_mxfs_ilock.c`) now also asks the DLM
+  whether any peer's slice recovery is pending
+  (`mxfs_v5_dlm_any_recovery_pending`, read from the disklock
+  recovery-pending markers every node's monitor sets when it declares a
+  death).  The park line carries `duty=` so the two cases are told apart.
+
+Verified on 4/tcp (build `0EFDB5937A2C74A9EBA8EB8`, lap `s7a_realignA_l1`
+with the deny switched off so the wait is restored,
+`tests/evidence/20260928T212747Z_tcpdr_s7a_realignA_l1`): both stayers'
+reads parked, `duty=1` on the elected replayer and `duty=0` on the other,
+zero shutdowns, and the parks ended when the re-drive certified the fence and
+the replay completed, 644 of 644 acknowledged files read back with their
+checksums.  Control: the two 0.90.12 laps where test3 shut down.
+D-NON-ELECTED-SURVIVOR-SHUTS-DOWN-ON-ACQUIRE-BUDGET-DURING-PEER-RECOVERY is
+removed.
+
+### Two inode flags shared bit 28: a DLM denial read as adopted-freer authority
+
+`MXFS_IF_ACQ_REFUSED` (set when the acquire classifier's -EHOSTDOWN arm is
+denied a grant held by a dead node) and `MXFS_IF_ADOPTED_UNLINK` (set for a
+survivor-sweep ADOPTED orphan and read by `xfs_inactive`'s freer-authority
+decision) were both `1U << 28` in `xfs/xfs_inode.h`.  A node whose acquire
+the DLM denied under a blocked recovery therefore read as the adopted freer
+of a peer's unlinked inode at its inactivation, a path to a destructive
+double free; and an adopted orphan read as a denied acquire in the namespace
+backstop.  Found by reading the flag table; never driven on the rig.
+
+- `MXFS_IF_ACQ_REFUSED` is `1UL << 32` (`i_flags` is an unsigned long; a
+  compile-time check requires 64 bits), and it joins
+  `XFS_IRECLAIM_RESET_FLAGS` so a recycled shell carries no stale denial.
+- The flag-test helpers return truth values instead of a word narrowed to
+  32 bits.
+- `xfs/xfs_inode.h` carries compile-time checks that the sum of every
+  `MXFS_IF_` flag equals their OR (no shared bit) and that no MXFS flag
+  overlaps an upstream XFS flag.
+- `scripts/inode_flag_bits_audit.py` parses every stored `i_flags` bit in
+  the header and fails on a duplicate; it runs in `tests/full_verify.sh`.
+  On the pre-fix header it reported bit 28 shared by the two flags and
+  exited 1; on the fixed header, 34 flags, 33 stored bits, OK.
+
+D-INODE-FLAG-BIT-28-SHARED-BY-ACQ-REFUSED-AND-ADOPTED-UNLINK is removed.
+
+### The file-operation gates return the gate's own verdict, not always ESTALE
+
+Every file-operation entry gate in `pal/linux/xfs_file.c` (read, the
+under-lock rechecks in the buffered, direct and splice reads, the write
+checks, write, fallocate, reflink, open, mmap) tested
+`mxfs_inode_incarn_estale()` for truth and returned a hard-coded -ESTALE.
+The gate has answered more than one verdict since 0.74.0: -EIO for a grant
+held or mastered by a dead node whose recovery is blocked, and -EIO for a
+quarantined victim domain, which is what the protocol document promises for
+fail-fast.  So under a blocked recovery a read through an open descriptor
+failed "Stale file handle" instead of "Input/output error": the caller was
+told its descriptor was permanently dead when the condition was transient and
+lifted with the recovery.  Measured on 4/tcp: 13 of one stayer's 40 reads and
+17 of the other's returned ESTALE in 3-5 ms with no poison probe in either
+journal; the covering-recovery refusals the kernel logged named exactly the
+first ten ESTALE'd files in read order.
+
+- Every gate returns the verdict it was given: -ESTALE for a poisoned shell,
+  unchanged; -EIO for the fail-fast and quarantine verdicts.  The page-fault
+  gates, which cannot return an errno, still truth-test.
+
+Verified by the same lap as the deny above (`s8a_realignB_l1`, build
+`E359F7D5F90DCAB32854FA6`): "every read returned 0 or EIO" passed on both
+stayers, 19 of 40 and 18 of 40 reads succeeded and the rest were EIO, zero
+ESTALE, against the 0.90.13 control where the same arm returned 13 and 17
+ESTALE.  D-FILE-OP-GATES-ANSWER-ESTALE-FOR-THE-FAIL-FAST-EIO-VERDICT is
+removed.
+
+### The superblock lost-update record is verified at four nodes on both transports
+
+The whole-superblock lost-update (every SB transaction logs the whole sector
+from the logger's own in-core copy, so a peer's routine counter sync could
+revert another node's persistent change) was fixed in 0.64.30 by the SB
+summary critical section in `put_super` under the cluster-wide lock, the
+seal after its unlock, and the write witness at the submission chokepoint,
+and the record had stayed open for a four-node verification.
+`tests/sess475_chain116_d0133_sb_seal.sh` now takes a node count and a
+condition; its normal arm ran at N=4 on build `48C041CB5CEA3996DD43F7D` with
+the sharded-directory reuse workload live, three laps on each transport
+(`tests/evidence/sess475_chain116_d0133_s4f_4tcp_normal.log`,
+`..._4cawd_normal.log`, `RESULTS fails=0`): every lap, all four nodes took
+the summary lock at `put_super`, four seals, four distinct epochs, no late
+dirty, no seal violation, no post-unmount mismatch, 0 bytes changed outside
+counters/crc/lsn, `chk_mxfs` clean, and the highest-epoch writer's counters
+equalled the checker's totals with counters that had moved.  (An earlier
+four-node run whose workload was refused for want of the format-time sharding
+feature was vacuous and is not cited.)
+D-SB-PERNODE-DIVERGENT-WHOLE-LOG-LOST-UPDATE-0133 is removed.
+
+### The rig, the harnesses and the verification sets at four nodes
+
+- `tests/full_verify.sh` takes `NODES=N`: the suites run at that node count
+  and every platform's verification set must hold that many nodes, since a
+  claim for N nodes is verified on N nodes of each platform and nothing
+  smaller.  Each platform now verifies on a four-node set on a LUN of its
+  own: pve9-1..4, alma9-1..4, debian13-1..4 (`scripts/lab_clone_node.sh`
+  clones a built node) and test5..8 for Ubuntu.  `tools/mxfs_lab.sh nodes`,
+  `scripts/scst_platform_targets.sh` (which also removes initiators that
+  left a set), `tests/packaged_round.sh` and `tests/tcp_peer_freeze_death.sh`
+  work on node sets instead of pairs.
+- The rig's prep binds the shared device by identity: `run.sh` ships the
+  fresh format's fsid and wwid and `tests/setup/prep_node.sh` rebinds or
+  refuses, after a node that sits in two verification sets mounted the other
+  set's LUN as `/dev/sda` and formed a cluster of one.
+- At three or more nodes the prover and the replayer can be any survivor, so
+  the death oracle (`tests/tcp_death_replay.sh`, `TDR_MEMBERS`) merges every
+  survivor's log for the fence, snapshot and replay assertions and finds the
+  prover by its transition line; `tests/death/crash_audit.sh` derives all
+  four members and unmounts the peers before the cold audit;
+  `tests/tcp_2node_death_chain.sh` takes N nodes.  The one 4/cawd
+  `crash_audit` FAIL of this campaign was that oracle reading only the
+  writer's log while another node proved the fence; `tools/criteria.py
+  amend` records it as a detector defect so the board does not count it as
+  a flake, and the rerun on the same build passed.
+- `tests/board_4node_chain.sh` runs both boards after capturing the native
+  XFS yardstick for the rig; `tests/lap_queue.sh` queues are launched
+  detached so they survive a session relay.
+- The realign arm of the death lap (`TDR_BLOCK_REALIGN=1`,
+  `TDR_BLOCK_INJECT=1`): a probe node departs while the recovery is
+  FENCE_BLOCKED, re-aligning page mastership, and the stayers read through
+  descriptors they held on the dead node's files; every read must return 0
+  or EIO, zero parks, zero shutdowns, and the arm is vacuous unless a deny,
+  a judging refusal or a transition wait proves a re-aligned page was met.
+
+### Removed from the defect queue
+
+Each was removed with the evidence named in its section above.
+
+- `D-FENCE-PRECOMMAND-RETRY-UNBOUNDED-NO-BLOCKED-STATE-0904` — fixed and
+  verified (the durable, imported FENCE_BLOCKED verdict)
+- `D-TCP-DEATH-BARE-FENCE-RACES-THE-ATTEMPT-LEASE-AT-3-NODES-0928` — fixed
+  and verified (found and fixed in this campaign)
+- `D-A-STALLED-PAGE-TRANSITION-IS-AN-UNBOUNDED-WAIT-FOR-A-NON-FALLIBLE-CALLER`
+  — fixed and verified (the dead-authority deny)
+- `D-NON-ELECTED-SURVIVOR-SHUTS-DOWN-ON-ACQUIRE-BUDGET-DURING-PEER-RECOVERY`
+  — fixed and verified (found and fixed in this campaign)
+- `D-INODE-FLAG-BIT-28-SHARED-BY-ACQ-REFUSED-AND-ADOPTED-UNLINK` — fixed and
+  verified (found and fixed in this campaign)
+- `D-FILE-OP-GATES-ANSWER-ESTALE-FOR-THE-FAIL-FAST-EIO-VERDICT` — fixed and
+  verified (found and fixed in this campaign)
+- `D-SB-PERNODE-DIVERGENT-WHOLE-LOG-LOST-UPDATE-0133` — fixed and verified
+  at four nodes on both transports
+
+### Found this campaign and still open, none blocking a 4-node release
+
+- D-4TCP-SIMULTANEOUS-REMOUNT-AG0-VS-ROOT-INODE-LOCK-CONVOY-REFUSES-ONE-MOUNT
+  (4/tcp): when all four nodes mount at once after a cold audit, one node's
+  mount held the AG 0 lock exclusively for 63 s while it retried an exclusive
+  lock on the root inode, the other mounts queued behind AG 0 for their whole
+  60 s lock budget, one of them was refused (mount(2) returned an error) and
+  another completed only after 87 s.  Measured once in NLAPS four-way remounts
+  on the release build.  The refused mount returned; nothing crashed, hung or
+  was lost, and the platter audited clean.
+
+- D-UNMOUNT-DURING-DEAD-MASTERS-RECOVERY-DEPARTS-DIRTY-AT-3-PLUS-NODES
+  (4/tcp): a clean unmount that runs while the SB summary page's master is a
+  dead peer under recovery fails its final summary sync fast and departs
+  dirty with its slot and key retained, so the peers fence and replay a node
+  that had quiesced.  Nothing is lost or corrupted; the same arm passed on
+  CAW.
+- D-DIRSHARD-REUSE-PEER-READDIR-EUCLEAN-ON-CAW-AT-4-NODES (4/cawd): with the
+  experimental, off-by-default directory sharding formatted in, the peer's
+  readdir failed EUCLEAN on 3 of 10 reuse laps.  No node crashed, hung or
+  shut down and the platter was clean; what failed was the peer's cached
+  manifest block of a feature no release claims.
+
 ## 2026-09-26 — 0.90.7 — 2-node CAW is released on Proxmox VE 9, RHEL 9.8, Ubuntu 24.04 and Debian 13
 
 The CAW transport is now released for two-node clusters, alongside TCP, on

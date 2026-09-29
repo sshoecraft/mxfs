@@ -5,7 +5,7 @@ MXFS is validated against four deployment conditions — the "3+1" framing from
 no-CAW fallback, plus three distinct CAW deployment shapes (two no-mpath
 variants and the primary enterprise dm-multipath target). Each has a short
 code used throughout the test harness (`rig.sh`, `ladder_rung.sh`,
-`matrix_check.py`, `showstat.sh`):
+`matrix_check.py`, `tools/criteria.py`):
 
 | Code | Condition | Rig shape |
 |---|---|---|
@@ -20,5 +20,5 @@ Use the code with the test harness, e.g.:
 scripts/rig.sh mpath 32               # switch the 32-node rig to the caw condition
 scripts/ladder_rung.sh 32 caw         # run the full rung for caw @ 32 nodes
 python3 scripts/matrix_check.py --cond caw   # check matrix status for one condition
-./showstat.sh 32 caw                  # view recorded results for caw @ 32 nodes
+tools/criteria.py 32 caw              # view recorded results for caw @ 32 nodes
 ```

@@ -491,6 +491,10 @@ int  mxfs_v5_dlm_blocked_iter(struct mxfs_v5_dlm *ctx, int prev,
 int  mxfs_v5_dlm_any_recovery_blocked(struct mxfs_v5_dlm *ctx);
 int  mxfs_v5_dlm_node_recovery_blocked(struct mxfs_v5_dlm *ctx,
 				       mxfs_node_id_t node);
+/* 0.90.13: is any peer's slice recovery pending on this cluster, elected
+ * replayer or not (the disklock's pending markers, which every node's monitor
+ * sets)?  The acquire classifier parks on this rather than shutting down. */
+int  mxfs_v5_dlm_any_recovery_pending(struct mxfs_v5_dlm *ctx);
 /* 0.75.25: a victim whose slice replay was terminally refused (quarantine
  * imported for its slot) answers the node_ query the same way a blocked one
  * does, for the life of the mount.  victim 0 = resolve from the slot.

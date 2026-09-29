@@ -45,8 +45,8 @@ while ! grep -q "^DONE" "$GATE" 2>/dev/null; do sleep 30; done
   echo "STAGE install_prod sv=$sv want=$PROD_SV"
   [ "$sv" = "$PROD_SV" ] || { echo "ABORT: srcversion mismatch"; echo "DONE $(date -u +%FT%TZ)"; exit 1; }
 
-  # Same freshness gate as chain 119: showstat renders whatever .last_run.json
-  # points at, so a board that did not run would otherwise print the PREVIOUS
+  # Same freshness gate as chain 119: tools/criteria.py renders whatever the board last recorded,
+  # so a board that did not run would otherwise print the PREVIOUS
   # one's verdict and read as this build's evidence.
   pre_id=$(python3 -c "import json;print(json.load(open('.last_run.json'))['run_id'])" 2>/dev/null || echo none)
   echo "STAGE board pre_run_id=$pre_id"
@@ -63,6 +63,6 @@ while ! grep -q "^DONE" "$GATE" 2>/dev/null; do sleep 30; done
   fi
   echo "--- conditions (run_id=$post_id) ---"
   # harness-lint: ok - unreachable unless post_run_id != pre_run_id proved above that THIS run recorded a board
-  timeout 120 ./showstat.sh 32 caw 2>&1 | grep -av '^\s*$'
+  timeout 120 tools/criteria.py 32 caw 2>&1 | grep -av '^\s*$'
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

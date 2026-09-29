@@ -22,6 +22,18 @@ int mxfs_agmeta_inval_enforce = 1;
 module_param_named(agmeta_inval_enforce, mxfs_agmeta_inval_enforce, int, 0644);
 
 /*
+ * How many inode cluster buffers the fresh-grant walk kept because they were
+ * queued for write.  Read-only; a run that ends with no inode item stranded
+ * behind a cancelled write says something about the walk's rule only if this
+ * moved during it.  The unlocked check catches nearly all of them and prints
+ * nothing, so the report line of the locked one cannot be what is counted.
+ */
+static unsigned long mxfs_walk_kept_queued_n;
+module_param_named(walk_kept_queued_n, mxfs_walk_kept_queued_n, ulong, 0444);
+MODULE_PARM_DESC(walk_kept_queued_n,
+	"inode cluster buffers the fresh-grant walk kept because they were queued for write (read-only counter)");
+
+/*
  * (design review): the EX-HELD clobber FIX that the
  * gen/content suppression arms (dir_stale_incarn_skip, catastrophic) and the
  * mid-op re-read (hard-wedges) both failed to solve.
@@ -366,7 +378,8 @@ mxfs_dlm_invalidate_ag_meta(
 				 * Solution: stale ALL AG-meta bufs unconditionally.
 				 * For inode cluster bufs, keep the BLI-attached
 				 * skip (avoids racing concurrent iflush mid-pack);
-				 * we still stale even when b_li_list non-empty.
+				 * we still stale even when b_li_list non-empty,
+				 * unless the buffer is queued for write (below).
 				 *
 				 * If a BLI is attached at stale time, xfs_buf_stale
 				 * removes the BLI from AIL and frees it.  The
@@ -380,6 +393,30 @@ mxfs_dlm_invalidate_ag_meta(
 							(unsigned long long)ktime_get_real_ns(),
 							p14_slot, pag_agno(pag),
 							(unsigned long long)bp->b_maps[0].bm_bn);
+					ino_pres++;
+					continue;
+				}
+				/*
+				 * An inode cluster buffer queued for write
+				 * holds the only copy of what the flush of its
+				 * inode items put in it, and those items are
+				 * already marked flushing.  A stale ends the
+				 * queueing: the delwri pass drops the buffer
+				 * unwritten, no completion ever runs, and the
+				 * items stay flushing in the AIL until a
+				 * release drain's rescue finds them (5 s a
+				 * cluster, measured) or an unmount waits on
+				 * them (127 s, measured).  Inode items are
+				 * held under inode grants, not this AG's, so
+				 * a fresh grant of the AG says nothing about
+				 * them.  Keep the buffer until its write has
+				 * completed; the locked re-check below is the
+				 * one that decides.
+				 */
+				if (is_inode_buf &&
+				    (READ_ONCE(bp->b_flags) & _XBF_DELWRI_Q)) {
+					WRITE_ONCE(mxfs_walk_kept_queued_n,
+						   READ_ONCE(mxfs_walk_kept_queued_n) + 1);
 					ino_pres++;
 					continue;
 				}
@@ -559,9 +596,7 @@ mxfs_dlm_invalidate_ag_meta(
 			/*
 			 * Re-check under the buffer lock — the bli may
 			 * have been attached or delwri queue set after we
-			 * read the unlocked snapshot above.  Inode cluster
-			 * buffers are staled even with a non-empty
-			 * b_li_list: see commentary above.
+			 * read the unlocked snapshot above.
 			 */
 			/*
 			 * v0.3.36: the previous condition skipped AG-meta
@@ -594,6 +629,28 @@ mxfs_dlm_invalidate_ag_meta(
 							(unsigned long long)bp->b_maps[0].bm_bn,
 							bp->b_log_item,
 							bp->b_flags);
+					ino_pres++;
+					xfs_buf_unlock(bp);
+					xfs_buf_rele(bp);
+					continue;
+				}
+				/*
+				 * The same rule as the unlocked check above,
+				 * decided under the buffer lock, which is what
+				 * the delwri flag is set and cleared under.
+				 */
+				if (is_inode_buf &&
+				    (bp->b_flags & _XBF_DELWRI_Q)) {
+					mxfs_probe_ratelimited(
+						"mxfs: P91-WALK-PROTECT agno=%u daddr=%lld flags=0x%x li_empty=%d pin=%d comm=%s — cluster buffer is queued for write; kept\n",
+						pag_agno(pag),
+						(long long)bp->b_maps[0].bm_bn,
+						bp->b_flags,
+						list_empty(&bp->b_li_list) ? 1 : 0,
+						xfs_buf_ispinned(bp) ? 1 : 0,
+						current->comm);
+					WRITE_ONCE(mxfs_walk_kept_queued_n,
+						   READ_ONCE(mxfs_walk_kept_queued_n) + 1);
 					ino_pres++;
 					xfs_buf_unlock(bp);
 					xfs_buf_rele(bp);

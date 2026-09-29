@@ -28,7 +28,7 @@
 # another node published, so it only reaches zero once the fix is fleet-wide.
 #
 # budget: budgets are derived from MEASURED walls, never padded.  Re-derive
-# them from `./showstat.sh 32 caw` if the rig's numbers move; do not pad.
+# them from `tools/criteria.py 32 caw` if the rig's numbers move; do not pad.
 #
 # the unkillable-wedge rule: no `pgrep -f`, no unbounded ssh; every remote call is bounded and
 # captures its own per-node rc and output.

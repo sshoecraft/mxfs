@@ -58,6 +58,6 @@ MXFS_DEV=${MXFS_DEV:?this chain ran the tcpmp condition, TCP over the multipath 
   timeout 90 tests/dir_recreate_estale.sh "${LABEL}b" test5 test6 test7 test8 20 250; echo "STAGE dre2 rc=$?"; sweep dre2
   timeout 1900 bash tests/sess416_board_0286.sh; echo "STAGE boardchain rc=$?"
   sweep board
-  echo "STAGE board-rows: $(./showstat.sh 32 caw 2>/dev/null | grep -E 'FAIL|FLAKY|BLOCKED|Total|VERDICT' | cut -c1-160 | tr '\n' ';')"
+  echo "STAGE board-rows: $(tools/criteria.py 32 caw 2>/dev/null | grep -E 'FAIL|FLAKY|BLOCKED|Total|VERDICT' | cut -c1-160 | tr '\n' ';')"
   echo "DONE $(date -u +%FT%TZ)"
 } > "$E/sess428_${LABEL}.log" 2>&1

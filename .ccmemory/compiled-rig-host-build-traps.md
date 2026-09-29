@@ -44,7 +44,7 @@ finding against clyde's oops count before it goes on the RULE 6 ledger.
 [[board-32caw-chunking-measured-walls-and-harness-overhead]]: `wrapper =
 sum(measured test walls) + 12s × n_tests + 15s startup`. The `12s × n_tests`
 term is ssh fan-out + MQTT coord-broker sweep + criteria.json record — it's
-invisible in `showstat`'s `elapsed` column and is exactly what a naive
+invisible in the `elapsed` column of `tools/criteria.py` and is exactly what a naive
 "sum the walls" wrapper misses (confirmed both directions: omitting it
 overran a 254s wrapper on 193s of tests; including it correctly predicted
 88s for a chunk that ran 61s). For a test running near its budget ceiling,

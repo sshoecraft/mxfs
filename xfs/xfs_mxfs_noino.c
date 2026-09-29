@@ -369,20 +369,9 @@ mxfs_noino_drain_mxfs_buflists(
 	struct xfs_mount	*mp,
 	uint64_t		ino)
 {
-	xfs_agnumber_t		agno;
-	unsigned int		drained_ags = 0;
+	unsigned int		drained_ags;
 
-	for (agno = 0; agno < mp->m_sb.sb_agcount; agno++) {
-		struct xfs_perag *pag = xfs_perag_get(mp, agno);
-
-		if (!pag)
-			continue;
-		if (!list_empty_careful(&pag->pag_mxfs_alloc_buflist)) {
-			mxfs_dlm_ag_drain_alloc_buflist(mp, pag);
-			drained_ags++;
-		}
-		xfs_perag_put(pag);
-	}
+	drained_ags = mxfs_dlm_ag_drain_all_alloc_buflists(mp);
 	pr_warn("mxfs: P-NOINO-LISTDRAIN ino=%llu ags=%u — fence stalled; drained mxfs alloc buflists (xfsaild cannot write _XBF_MXFS_ALLOC_QUEUED bufs)\n",
 		(unsigned long long)ino, drained_ags);
 }

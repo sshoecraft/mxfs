@@ -2,7 +2,7 @@
 
 What happens on a mount when its first peer appears, why it is shaped the way
 it is, and what is still open. The code is `mxfs_dlm_join_prepare` /
-`mxfs_dlm_join_commit` (`xfs/xfs_mxfs_dlm.c`), the join worker in
+`mxfs_dlm_join_commit` (`xfs/xfs_mxfs_join.c`), the join worker in
 `dlm/v5_mount.c` (`v5_join_queue`, `v5_join_worker_fn`, `v5_join_transition`)
 and the membership-settle gate in `dlm/dlm.c` (`dlm_membership_settling`,
 `dlm_view_pending_live`, the gate at the top of `mxfs_dlm_lock`).
@@ -85,6 +85,39 @@ sighted before the XFS layer wired its callbacks) keeps the unfrozen destage
 rounds: it has modified nothing of the user's, and a freeze would block on
 `s_umount` for the whole mount while the incumbent waited on its beacon.
 
+### The freeze and an unmount in progress
+
+`freeze_super` takes `s_umount`. An unmount holds `s_umount` for its whole
+teardown, and that teardown joins the join worker (`v5_join_worker_stop`,
+reached from `xfs_fs_put_super`). A worker that waited for `s_umount` inside
+`freeze_super` would therefore wait for the unmount while the unmount waited
+for it — a deadlock that needs only a peer to appear while the lone member is
+unmounting (observed at 4 nodes on TCP: the peers remounted after a quiesce
+and the incumbent's join worker sat in `freeze_super` behind its own
+`umount`).
+
+So the prepare enters the freeze only from a state no teardown can reach. It
+takes `s_umount` with a trylock — a failure means a mount, remount, sync or
+unmount holds it, and the transition is retried on the worker's 200 ms cadence
+until the unmount's stop ends the worker — and, holding the lock, checks the
+superblock is born, active, rooted and referenced, then takes one active
+reference of its own and releases the lock. `freeze_super` may then wait for
+`s_umount` behind ordinary holders, but never behind a teardown: with the
+prepare's reference outstanding, an unmount that arrives during the transition
+drops its own reference and returns, and the teardown runs when the prepare's
+reference is dropped.
+
+That drop is made from a work item on a queue of the transition's own, never
+on the join worker, because the teardown joins the join worker; the request is
+allocated per drop, since a work item embedded in the mount could be re-queued
+after the drop that freed the mount. The same reference is what rules out the
+older hazard that `thaw_super`'s drop of `freeze_super`'s own reference could
+be the superblock's last, running the teardown inside the thaw on the worker.
+The cost is a documented one: an `umount` that lands during a transition
+returns before the filesystem is torn down (the kernel's own block-device
+freeze has the same property), and the teardown follows within the
+transition's remaining time.
+
 ### Newcomer: admission on positive readiness, not on a timer
 
 The lease beacon carries `{count, view-hash}`, and the incumbent's hash
@@ -129,3 +162,9 @@ per object. Expected on a correct transition: no shutdown, no loss, the
 newcomer's first cold read complete, `P-JOIN-FREEZE` → invalidation complete
 → `P-JOIN-INSTALLED` → `P-JOIN-THAW` on the incumbent, and a
 `P-D7-SETTLEGATE ... confirmed=1` on whichever node installed its view second.
+
+`tests/join_during_unmount.sh`: the incumbent mounts alone and writes, then
+unmounts at a random moment while the newcomer mounts; both must return inside
+their budgets on every lap, and the run counts only if at least one lap's
+kernel log shows the freeze attempted (`P-JOIN-FREEZE`, `P-JOIN-FREEZE-BUSY`)
+during the unmount — otherwise it is VACUOUS, not a pass.

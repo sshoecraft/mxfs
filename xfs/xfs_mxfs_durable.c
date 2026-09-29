@@ -388,6 +388,25 @@ mxfs_ail_drain_inode_to(struct xfs_inode *ip, u64 deadline_ns)
 				(unsigned long long)lb_bgen,
 				node_linked, licnt,
 				lb_holder);
+			/*
+			 * Who staled the cluster buffer, what it carried at
+			 * that moment and how long ago, then the buffer's own
+			 * history: a wedge behind a stale buffer is a write
+			 * that was cancelled, and these name the canceller.
+			 */
+			if (lbp) {
+				pr_warn("mxfs: P113-DRAIN-WEDGE-STALER ino=%llu iter=%u staler=%pS stale_pre=0x%x stale_items=%u stale_ms_ago=%u\n",
+					(unsigned long long)ip->i_ino, iter,
+					lbp->b_mxfs_stale_ip,
+					lbp->b_mxfs_stale_flags,
+					lbp->b_mxfs_stale_items,
+					lbp->b_mxfs_stale_ip ?
+					(uint32_t)(ktime_get_real_ns() >> 20) -
+						lbp->b_mxfs_stale_ms : 0);
+				if (iter == 256)
+					mxfs_buf_diag_dump("P113-DRAIN-WEDGE-BUF",
+							   ip->i_ino, lbp);
+			}
 		}
 		/*
 		 * v0.5.6: fine-grained poll for the first iterations — the

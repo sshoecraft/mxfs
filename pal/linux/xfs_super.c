@@ -826,6 +826,8 @@ xfs_init_mount_workqueues(
 		INIT_DELAYED_WORK(&mp->m_mxfs_destage_kick,
 				  mxfs_destage_kick_fn);
 	}
+	/* 0.90.16: the alloc buflist leftover retry (xfs_mxfs_ag_lock.c). */
+	INIT_DELAYED_WORK(&mp->m_mxfs_alloclist_retry, mxfs_alloclist_retry_fn);
 
 	/* F4: committed-never-submitted obligation registry. */
 	mxfs_f4_registry_init(mp);
@@ -2546,6 +2548,9 @@ restart_armsweep:
 		 */
 		mxfs_defer_reap_destroy(mp);
 		cancel_delayed_work_sync(&mp->m_mxfs_destage_kick);
+		/* 0.90.16: no retry drain may run beside the unmount's own
+		 * drains below; what it would have written, they write. */
+		cancel_delayed_work_sync(&mp->m_mxfs_alloclist_retry);
 		/*
 		 * the unmount's metadata work, under live grants.  The
 		 * prepare half of xfs_unmountfs performs, in upstream's words,
@@ -2588,7 +2593,27 @@ restart_armsweep:
 		 * push, exactly as they were when it ran after the sync.
 		 */
 		if (!xfs_is_shutdown(mp)) {
+			unsigned int	drained;
+
 			xfs_log_force(mp, XFS_LOG_SYNC);
+			/*
+			 * 0.90.16: before waiting for the AIL to empty, write what
+			 * only the AG drains can write.  A fresh inode chunk's
+			 * cluster buffers sit on their AG's alloc buflist, where
+			 * xfsaild cannot take them (queued elsewhere: FLUSHING);
+			 * the lazy unlock drain leaves any still pinned there for
+			 * the AG's next unlock, and an AG this node stopped using
+			 * never has one.  At 4/tcp two such buffers pinned the AIL
+			 * through this whole-AIL wait for the rest of the row's
+			 * budget: the force-release drain below, which does write
+			 * them, was never reached.  The log is forced, so nothing
+			 * is pinned now and the drain's submit completes.
+			 */
+			drained = mxfs_dlm_ag_drain_all_alloc_buflists(mp);
+			if (drained)
+				mxfs_pal_log(MXFS_LOG_INFO,
+					"mxfs: P-UNMOUNT-ALLOCLIST-DRAIN ags=%u — alloc buflists written before the whole-AIL wait",
+					drained);
 			xfs_ail_push_all_sync(mp->m_ail);
 			xfs_buftarg_wait(mp->m_ddev_targp);
 		}
@@ -2706,6 +2731,7 @@ restart_armsweep:
 	/*  stop the destage kick while mp->m_log is
 	 * still valid (same teardown-ordering family as foreign_replay). */
 	cancel_delayed_work_sync(&mp->m_mxfs_destage_kick);
+	cancel_delayed_work_sync(&mp->m_mxfs_alloclist_retry);
 
 	/*
 	 * (0.59.2, STOP-SHIP #2 blocker 5): the departure state
@@ -6732,9 +6758,14 @@ init_xfs_fs(void)
 	if (error)
 		goto out_destroy_caches;
 
-	error = xfs_mru_cache_init();
+	/* the join freeze's deferred superblock-reference drops (xfs_mxfs_join.c) */
+	error = mxfs_join_sbref_init();
 	if (error)
 		goto out_destroy_wq;
+
+	error = xfs_mru_cache_init();
+	if (error)
+		goto out_destroy_sbref_wq;
 
 	error = xfs_init_procfs();
 	if (error)
@@ -6818,6 +6849,8 @@ init_xfs_fs(void)
 	xfs_cleanup_procfs();
  out_mru_cache_uninit:
 	xfs_mru_cache_uninit();
+ out_destroy_sbref_wq:
+	mxfs_join_sbref_exit();
  out_destroy_wq:
 	xfs_destroy_workqueues();
  out_destroy_caches:
@@ -6833,6 +6866,7 @@ STATIC void __exit
 exit_xfs_fs(void)
 {
 	mxfs_v5_dlm_global_exit();	/* after the last put_super */
+	mxfs_join_sbref_exit();	/* a join freeze's deferred reference drops */
 	mxfs_depart_late_token_exit();	/* D4 injector's delayed work */
 	mxfs_lru_sweep_stop();	/* before teardown — the sweep touches sb inodes */
 	mxfs_net2_selftest_stop();

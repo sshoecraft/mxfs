@@ -10,26 +10,28 @@
 > Everything that turns XFS into a filesystem many machines can mount at once
 > is AI-authored.
 
-> ## ⚠️ Released configuration: 2 nodes, TCP or CAW transport — nothing else
+> ## ⚠️ Released configurations: clusters of 2 and of 4 nodes, TCP or CAW transport — nothing else
 >
-> **The supported configurations are a 2-node cluster on either DLM
-> transport:**
+> **The supported configurations are a cluster of two nodes or of four
+> nodes, on either DLM transport:**
 >
-> - **TCP** — the lock manager talks over the network between the two nodes.
+> - **TCP** — the lock manager talks over the network between the nodes.
 >   Works on any shared block device. The release packages default to it.
 > - **CAW** — the lock state lives on the shared LUN itself and is claimed
 >   with SCSI COMPARE AND WRITE. Needs a storage target that implements
 >   COMPARE AND WRITE atomically (see "Choosing the transport" below).
 >
-> For both configurations no known defect has been shown to corrupt or lose
-> data, or to crash, hang or shut down a node, with the one exception named
-> below, and the full test suite passes on each. That is not the same as having
-> no defects: the public queue (`data/defects.json`, read with
-> `tools/defects.py`) holds **87 open defects**. **24 of them reach
-> 2-node TCP** and **7 reach 2-node CAW**; apart from the exception below,
-> each is classified as not crossing the data-loss or crash bar, most of them as
-> slowness. Each record carries its own evidence. Read them before relying on
-> MXFS: `tools/defects.py 2 tcp -d`, `tools/defects.py 2 caw -d`.
+> For every released configuration no known defect has been shown to corrupt
+> or lose data, or to crash, hang or shut down a node, with the one exception
+> named below, and the full test suite passes on each, at two and at four
+> nodes. That is not the same as having no defects: the public queue
+> (`data/defects.json`, read with `tools/defects.py`) holds **89 open
+> defects**. **24 of them reach 2-node TCP**, **7 reach 2-node CAW**, **30
+> reach 4-node TCP** and **10 reach 4-node CAW**; apart from the exception
+> below, each is classified as not crossing the data-loss or crash bar, most
+> of them as slowness. Each record carries its own evidence. Read them before
+> relying on MXFS: `tools/defects.py 4 tcp -d`, `tools/defects.py 4 caw -d`
+> (`2 tcp` and `2 caw` for the two-node subsets).
 >
 > **The exception, on TCP:** once, in 39 attempts on RHEL 9.8, a file create on
 > the surviving node stalled for about 60 s after its peer was declared dead,
@@ -39,15 +41,22 @@
 > the owner's decision.
 >
 > **In development — do not use:**
-> - **More than 2 nodes** (3 to 32), on either transport.
+> - **Three nodes**, on either transport: unverified. A release claims
+>   exactly the cluster sizes it was verified at, and three has not been.
+> - **More than 4 nodes** (5 to 32), on either transport: still has open
+>   defects in the queue, including ones that can lose data or hang a node.
+> - **Directory sharding** (`mkfs.mxfs -D` with the module parameter
+>   `dirshard_mkdir_enable=1`): experimental, off by default and part of no
+>   release. At four nodes on CAW a node's listing of a sharded directory
+>   another node had just re-created failed with "Structure needs cleaning"
+>   in 3 of 10 laps
+>   (`D-DIRSHARD-REUSE-PEER-READDIR-EUCLEAN-ON-CAW-AT-4-NODES`).
 >
-> That configuration still has open defects in the queue, including ones that
-> can lose data or hang a node. Performance work is also still open on every
-> configuration.
+> Performance work is also still open on every configuration.
 >
 > **Released for exactly these kernels**, each installed from the release
-> packages and verified on two x86-64 nodes sharing an iSCSI LUN, on both
-> transports:
+> packages and verified on two and on four x86-64 nodes sharing an iSCSI LUN,
+> on both transports:
 >
 > | platform | kernel verified |
 > |---|---|
@@ -81,8 +90,8 @@
 > what still blocks each configuration:
 >
 > ```
-> tools/defects.py 2 tcp --release   # released
-> tools/defects.py 2 caw --release   # released
+> tools/defects.py 4 tcp --release   # released (4 nodes; `2 tcp` for two)
+> tools/defects.py 4 caw --release   # released (4 nodes; `2 caw` for two)
 > tools/defects.py 32 caw            # 32 nodes, in development
 > ```
 
@@ -120,12 +129,12 @@ overlay.
   metadata, the inode cache, the buffer cache — and coordinates them across the
   cluster. It is not a patch series against upstream today.
 - **Distributed lock manager (`dlm/`).** Two transports can carry lock state:
-  - **TCP (released, 2 nodes)** — a network DLM spoken over TCP between nodes.
-  - **CAW (released, 2 nodes)** — lock state lives *in-band on the shared
+  - **TCP (released, 2 and 4 nodes)** — a network DLM spoken over TCP between nodes.
+  - **CAW (released, 2 and 4 nodes)** — lock state lives *in-band on the shared
     disk*, claimed with the SCSI **COMPARE AND WRITE** (opcode `0x89`) atomic
     primitive plus SCSI Persistent Reservations. No separate lock network is
     required, which is what lets it scale past the point where a network DLM
-    stops keeping up (more than 2 nodes is still in development).
+    stops keeping up (more than 4 nodes is still in development).
 
   The module parameter `force_transport` picks the transport a new cluster
   forms on: `1` (the default) is TCP, `0` is CAW. The release packages also
@@ -226,8 +235,8 @@ resize.mxfs [-v] [-n] [-V] DEVICE               # -n = dry run
 
 ## Quick start
 
-The released configurations are **two nodes on the TCP or the CAW
-transport**. Install the release package on both nodes (it loads the module
+The released configurations are **two or four nodes on the TCP or the CAW
+transport**. Install the release package on every node (it loads the module
 with `force_transport=1 target_cache_protected=1`, i.e. TCP), or load a source
 build with `modprobe mxfs force_transport=1 target_cache_protected=1` on both.
 For CAW, see "Choosing the transport" below before the first mount.
@@ -239,7 +248,7 @@ dnf install ./mxfs-<version>-1.el8.x86_64.rpm
 ```
 
 With firewalld on, open the DLM, discovery, lock-hint and heartbeat ports on
-both nodes:
+every node:
 `firewall-cmd --permanent --add-port=7600/tcp --add-port=7601/udp --add-port=7602/udp --add-port=7603/udp && firewall-cmd --reload`.
 (7600/tcp carries the TCP transport's locks; 7602/udp carries the CAW
 transport's lock-release requests and grant notices between the nodes.)
@@ -251,14 +260,14 @@ mkfs.mxfs /dev/sdX
 mount -t mxfs /dev/sdX /mnt/shared
 ```
 
-On the second node, mount the **same** device — no reformat:
+On each other node, mount the **same** device — no reformat:
 
 ```
 mount -t mxfs /dev/sdX /mnt/shared
 ```
 
 The nodes discover each other and coordinate through the kernel module. Files
-written on one node are visible on the other.
+written on one node are visible on the others.
 
 Discovery uses multicast (`239.66.83.1`). Where multicast does not pass, such
 as Proxmox or ESXi nested inside VMware Workstation, or where one node sits on
@@ -275,12 +284,12 @@ other sender. See `mxfs(5)` and [`docs/discovery.md`](docs/discovery.md).
 
 ### Choosing the transport
 
-Both transports are released for two nodes. Pick one per cluster, before its
-first mount:
+Both transports are released for clusters of two and of four nodes. Pick one
+per cluster, before its first mount:
 
 | | TCP | CAW |
 |---|---|---|
-| Where the locks live | messages between the two nodes | slots on the shared LUN, claimed with SCSI COMPARE AND WRITE |
+| Where the locks live | messages between the nodes | slots on the shared LUN, claimed with SCSI COMPARE AND WRITE |
 | Storage it needs | any shared block device with SCSI Persistent Reservations | a target that implements COMPARE AND WRITE **atomically**, plus Persistent Reservations |
 | Network it needs | a reliable low-latency link between the nodes | discovery and lock-release notices only (UDP) |
 | How to select it | the package default (`force_transport=1`) | `force_transport=0` |

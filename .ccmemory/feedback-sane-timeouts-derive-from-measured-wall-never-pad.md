@@ -37,7 +37,7 @@ the arithmetic, you do not get to type the number.**
    padded outer `timeout` adds nothing but latency on a hang. The wrapper's
    ONLY job is catching a harness-level (not test-level) hang.
 2. **Derive from the MEASURED last-healthy wall, not from the budget.**
-   `./showstat.sh <N> <dlm>` prints `elapsed/budget` for every row. Sum the
+   `tools/criteria.py <N> <dlm>` prints `elapsed/budget` for every row. Sum the
    ELAPSED column for the tests in the chunk, add 20%, add 10s of ssh dispatch.
    That is the wrapper. Budgets are ceilings that were themselves set with
    slack; summing ceilings and then padding compounds slack twice.
@@ -50,7 +50,7 @@ the arithmetic, you do not get to type the number.**
 
 ## Measured reference walls — 32/caw, 0.14.11, 2026-08-20
 
-Use these to derive; refresh them from `./showstat.sh 32 caw` rather than
+Use these to derive; refresh them from `tools/criteria.py 32 caw` rather than
 trusting this list after it ages.
 
 | chunk | tests | budget sum | ACTUAL wall |

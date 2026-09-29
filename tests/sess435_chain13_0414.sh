@@ -36,7 +36,7 @@ mkdir -p "$EV"
   timeout 60 tests/quiet_console.sh 32 2>/dev/null; echo "STAGE quiet rc=$?"
   timeout 60 tests/cc_grantwait.sh mark 32; echo "STAGE mark rc=$?"
   timeout 130 ./run.sh 32 caw crash_consistency; echo "STAGE cc rc=$?"
-  ./showstat.sh 32 caw 2>/dev/null | grep -a 'crash_consistency'
+  tools/criteria.py 32 caw 2>/dev/null | grep -a 'crash_consistency'
   timeout 240 tests/cc_grantwait.sh report 32 > "$EV/grantwait_report.txt" 2>&1; echo "STAGE report rc=$?"
   head -60 "$EV/grantwait_report.txt"
   timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep_final rc=$?"

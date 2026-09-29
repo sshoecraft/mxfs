@@ -22,6 +22,7 @@
 #include "xfs_buf_item.h"
 #include "xfs_inode.h"
 #include "xfs_inode_item.h"
+#include <linux/sched/debug.h>	/* sched_show_task: xfsaild's stack in the P128 dump */
 
 /* mxfs log-wedge diagnostic gate (defined in xfs_mxfs_dlm.c, module param mxfs.instr) */
 extern int mxfs_instr_enabled;
@@ -839,6 +840,16 @@ xfs_ail_push_all_sync(
 						dbp ? dbp->b_flags : 0,
 						dbp ? (unsigned long long)xfs_buf_daddr(dbp) : 0,
 						dbp ? atomic_read(&dbp->b_pin_count) : -1);
+					/*
+					 * The flags alone cannot say why a queued buffer
+					 * is never written (0.90.14, 4/tcp chk_clean:
+					 * two BUF items sat here for 165 s with
+					 * _XBF_DELWRI_Q set, unpinned).  The diag line
+					 * carries what the submit path recorded: who
+					 * holds the lock, the hold count, and the
+					 * last delwri skip and its reason.
+					 */
+					mxfs_buf_diag_dump("P128-AILSTUCK-BUF", 0, dbp);
 				} else if (dlip->li_type == XFS_LI_INODE) {
 					struct xfs_inode_log_item *dili =
 						container_of(dlip,
@@ -858,6 +869,11 @@ xfs_ail_push_all_sync(
 						dili->ili_inode ?
 						  atomic_read(&dili->ili_inode->i_pincount) : -1,
 						dili->ili_fields);
+					if (dlip->li_buf)
+						mxfs_buf_diag_dump("P128-AILSTUCK-IBUF",
+							dili->ili_inode ?
+							  dili->ili_inode->i_ino : 0,
+							dlip->li_buf);
 				} else {
 					pr_warn("mxfs: P128-AILSTUCK  [%d] type=0x%x lsn=0x%llx liflags=0x%lx\n",
 						dk, dlip->li_type,
@@ -866,6 +882,18 @@ xfs_ail_push_all_sync(
 				}
 				if (++dk >= 6)
 					break;
+			}
+			/*
+			 * A buffer left on xfsaild's delwri list is written by
+			 * xfsaild alone, so an AIL that never empties may be an
+			 * xfsaild that never returns to its submit: name where it
+			 * is.  Every third dump (first at 30 s), so a long stall
+			 * costs a stack every ~100 s rather than every 30.
+			 */
+			if (ailp->ail_task && ((iter / 3000) % 3) == 1) {
+				pr_warn("mxfs: P128-AILSTUCK xfsaild pid=%d — its state and stack follow\n",
+					ailp->ail_task->pid);
+				sched_show_task(ailp->ail_task);
 			}
 		}
 		prepare_to_wait(&ailp->ail_empty, &wait, TASK_UNINTERRUPTIBLE);

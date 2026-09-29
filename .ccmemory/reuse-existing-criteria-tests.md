@@ -26,5 +26,5 @@ have (a) the proven workloads, (b) bench.json append in the README schema, and
 (c) cache methodology (drop host+guest caches; O_DIRECT). Adapt that. Perf tests
 (fio_perf, fio_vs_xfs_baseline, single_node_paired, rsync_paired, scaling_curve)
 ALL should append to bench.json. The new HARNESS (criteria.json status, category
-model, showstat) is the new value — test/bench BODIES should be lifted from the
+model, tools/criteria.py) is the new value — test/bench BODIES should be lifted from the
 existing scripts, not rewritten.

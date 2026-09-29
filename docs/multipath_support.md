@@ -163,6 +163,6 @@ TCP-era coherency pipeline):
 
 ## Verification state
 
-See `criteria.json` (`./showstat.sh N caw`) — the matrix ladder
+See `data/criteria.json` (`tools/criteria.py N caw`) — the matrix ladder
 1/2/4/8/16/32 nodes is tracked there; `.ccmemory/`
 `docs/history/docs/history/caw-multipath-matrix-progress.md` holds the session log.

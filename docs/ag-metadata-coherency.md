@@ -700,6 +700,17 @@ allocation group is done before that moment:
 3. The final superblock summary is written under its cluster lock and the
    mount is sealed; the log is forced, the whole AIL pushed and the buffer
    target waited, so no dirty AG-metadata or inode-cluster buffer survives.
+   The whole-AIL push has one precondition of its own (0.90.16): every AG's
+   alloc buflist is drained first.  A fresh inode chunk's cluster buffers
+   wait on that list for a drain — xfsaild cannot write a buffer queued
+   there — and the lazy unlock drain leaves a buffer it found pinned on the
+   list for the AG's next unlock, which an AG this node stopped using never
+   has.  Measured at 4/tcp: two such buffers held the AIL through this push
+   for the whole row budget, and step 4's drain, which does write them, was
+   never reached.  So the unmount writes the alloc lists itself, between the
+   log force and the AIL push, and the same drain now retries from a delayed
+   work whenever the lazy path leaves a pinned buffer behind, so the log tail
+   is never pinned for the rest of an AG's tenure either.
 4. The release itself drains every allocation group — fresh cluster buffers,
    inode clusters, AG metadata, pointee before pointer — forces the log,
    makes a second metadata pass, flushes the device once, and only then
@@ -715,6 +726,54 @@ counts every AG-metadata and inode-cluster write on both sides of the
 publication, every AG acquire and every inactivation enqueue after it, and
 prints them once per unmount; a nonzero on the after side is a violation of
 this ordering, whatever produced it.
+
+## The fresh-grant walk and inode cluster buffers
+
+The walk that runs at a fresh grant of an allocation group
+(`mxfs_dlm_invalidate_ag_meta`) exists for the group's own metadata: a peer
+held the group in between, so every cached AGF, AGI, AGFL and btree block may
+be behind the platter and is staled for a re-read.  It visits the group's
+inode cluster buffers too, and over those its authority is weaker.  What an
+inode holds is governed by the inode's own grant, not the group's; all a fresh
+grant of the group says about a cluster buffer is that the slots this node
+holds no grant for may have changed on the platter.  So the walk stales a
+cluster buffer when that costs nothing, and keeps it whenever the buffer
+carries something of this node's that the platter does not have yet:
+
+| state of the cluster buffer | the walk | why |
+|---|---|---|
+| a buffer log item is attached | keeps it | its content is logged and not home |
+| locked by someone else | keeps it | a flush or a write is in flight |
+| queued for write | keeps it | inode items were flushed into it and are marked flushing; the write is their only completion |
+| inode items attached, none flushed | stales it | the in-core inodes are the authority, and their flush still writes and completes through the same buffer |
+| clean | stales it | the next read is fresh |
+
+The third row was missing until 0.90.24.  `xfs_buf_stale` clears the delwri
+flag so that a stale buffer is never written; that is upstream's contract,
+and upstream stales a cluster buffer only together with its inodes.  Staled by
+the walk while queued, the buffer was dropped by the delwri pass unwritten, no
+completion ran, and the inode items it carried stayed in the AIL in flushing
+state, which xfsaild passes over.  Nothing pushes them again.  A holder asked
+to give up one of those inodes waited 5 s, until its release drain's rescue
+wrote the buffer itself; an unmount waited on the AIL for 127 s.
+
+How it was established: `xfs_buf_stale` records its caller, the buffer's
+flags before the stale and the number of attached items in the buffer, and
+prints them when items are attached (`P-STALE-WITH-ITEMS`).  At 4/tcp the walk
+staled two cluster buffers that were queued for write, with 6 and 15 items
+attached; 50 s later the unmount's stuck-item report named the first of them:
+stale, on no list, never submitted, six inode items flushing behind it.  The
+same walk staled 16 to 84 cluster buffers a lap whose items had not been
+flushed, and no item was left behind by any of those, which is the fourth row.
+
+A kept buffer counts in the walk's retained-view census like every other kept
+buffer (`P232-INVAL-INCOMPLETE`), so a caller that has to know the cached view
+is gone — the recovery barrier, the join barrier — still sees that it is not,
+and looks again after the write.  A reader that needs the platter's value of a
+slot this node holds no grant for does not depend on this walk either: the
+create path, which reads a free core's change count to continue it, stales a
+clean cached copy itself and reads a buffer carrying this node's own
+modifications as cached.
 
 ## 2026-09-02 (sess470-472): the untrusted iget reads the inobt unlocked — D-0527 (0.64.15)
 

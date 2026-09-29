@@ -281,6 +281,40 @@ xfs_buf_stale(
 	mxfs_buf_ev(bp, MXFS_BEV_STALE);
 
 	/*
+	 * Record the caller in the buffer, with what the buffer carried.  Log
+	 * items on b_li_list are inode (or dquot) items whose flush writes
+	 * through this buffer: clearing _XBF_DELWRI_Q below cancels a queued
+	 * write, and an item already flushing then has no completion coming.
+	 * The line is the event itself; the fields are read back by the
+	 * release drain when it finds such an item (P113-DRAIN-WEDGE).
+	 */
+	{
+		struct list_head	*pos;
+		unsigned int		items = 0;
+
+		list_for_each(pos, &bp->b_li_list) {
+			if (++items >= 64)
+				break;
+		}
+		bp->b_mxfs_stale_ip = __builtin_return_address(0);
+		bp->b_mxfs_stale_flags = bp->b_flags;
+		bp->b_mxfs_stale_items = items;
+		bp->b_mxfs_stale_ms = (uint32_t)(ktime_get_real_ns() >> 20);
+		if (items && bp->b_mount && bp->b_mount->m_mxfs_dlm &&
+		    !mxfs_v5_dlm_is_single_node(bp->b_mount->m_mxfs_dlm))
+			mxfs_probe_ratelimited(
+				"mxfs: P-STALE-WITH-ITEMS daddr=%lld ops=%s flags=0x%x items=%u delwri=%d onlist=%d pin=%d caller=%pS comm=%s\n",
+				(long long)bp->b_maps[0].bm_bn,
+				bp->b_ops && bp->b_ops->name ?
+					bp->b_ops->name : "?",
+				(unsigned int)bp->b_flags, items,
+				(bp->b_flags & _XBF_DELWRI_Q) ? 1 : 0,
+				list_empty(&bp->b_list) ? 0 : 1,
+				atomic_read(&bp->b_pin_count),
+				bp->b_mxfs_stale_ip, current->comm);
+	}
+
+	/*
 	 * stale-attribution probe (instrumented): the 32-node
 	 * dlm_scaling AG0 storm = inode-cluster buffers STALED (removed from
 	 * cache) then cold-FUA-re-read.  igstale/evict-ring/drain all ruled out,

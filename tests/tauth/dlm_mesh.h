@@ -41,6 +41,14 @@ struct vnode {
     /* knobs / observations */
     volatile int     drop_grants;       /* drop this many inbound GRANTs */
     volatile int     auto_release;      /* unlock on BAST */
+    volatile int     nak_unheld;        /* answer a BAST for a grant this node
+                                         * does not hold as the mount layer
+                                         * does: the unconditional release */
+    volatile int     answer_unheld;     /* the lock layer answers it itself,
+                                         * as the transport does on receipt;
+                                         * with neither flag the node is a
+                                         * mount that has no handler yet */
+    volatile int     answered;
     volatile int     basts;
     struct mxfs_resource_id last_bast_res;
     int              msgs_rx;
@@ -178,8 +186,17 @@ static void vrx_fn(void *arg)
 
                 me->basts++;
                 me->last_bast_res = b->resource;
+                /* the transport's own step, before any handler (the mount
+                 * layer's LOCK_BAST arm): the lock layer answers for a
+                 * grant this node does not hold */
+                if (me->answer_unheld &&
+                    mxfs_dlm_answer_unheld(me->dlm, &b->resource, hdr->sender) == 0)
+                    me->answered++;
                 if (me->auto_release)
                     mxfs_dlm_unlock(me->dlm, &b->resource);
+                else if (me->nak_unheld &&
+                         mxfs_dlm_held_mode(me->dlm, &b->resource) == MXFS_LOCK_NL)
+                    mxfs_dlm_release_orphan_if_unheld(me->dlm, &b->resource);
                 break;
             }
             default:
@@ -245,14 +262,22 @@ static mxfs_node_id_t vbootstrap_node(void *data, uint64_t *inc_out)
     return best ? best->id : 0;
 }
 
-/* the disklock heartbeat table: slot -> {node, inc} of the live occupant */
+/* the disklock heartbeat table: slot -> {node, inc} of the live occupant.
+ * vslot_blind is the slots the monitor's tracking has not sampled yet: their
+ * tenant has claimed (the platter carries it, see vhb below) and every other
+ * node's tracking still names nobody.  A node always knows its own slot. */
+static volatile uint64_t vslot_blind;
+
 static mxfs_node_id_t vslot_node(void *data, int slot, uint64_t *inc_out)
 {
+    struct vnode *me = data;
     int i;
 
-    (void)data;
     if (inc_out)
         *inc_out = 0;
+    if (slot >= 0 && slot < 64 && ((vslot_blind >> slot) & 1) &&
+        !(me && me->slot == slot))
+        return 0;
     for (i = 0; i < NNODES; i++)
         if (nodes[i].used && nodes[i].slot == slot) {
             if (inc_out)
@@ -268,6 +293,118 @@ static uint64_t vnode_inc(void *data, mxfs_node_id_t node)
 
     (void)data;
     return n ? n->inc : 0;
+}
+
+/*
+ * The heartbeat table AS THE PLATTER HOLDS IT, for the settled-owner oracle
+ * (owners_settled_cb): what each slot's sector says, which outlives the mount
+ * that wrote it.  vslot_node above is the other thing, the monitor's view of
+ * who is there now.  A test that uses the oracle writes the sectors itself
+ * (vhb_set) and sets vhb_oracle before node_up; the tests written before the
+ * oracle existed never set it and run without one.
+ *
+ * The answer follows the mount layer's rule (mxfs_disklock_incarnations_
+ * settled): the identity must stand in NO slot in any state but its own
+ * release stamp, and the slot the record names must be a zero record, a
+ * release stamp, or held by a later tenant whose claim was a fresh one.
+ */
+enum vhb_state {
+    VHB_ZERO = 0,           /* a completed recovery, or never claimed */
+    VHB_ACTIVE,
+    VHB_RELEASED,           /* the tenant's own stamp, flags EMPTY */
+    VHB_WITHDRAWN,
+    VHB_RETIRE_PENDING,
+    VHB_DESCRIPTOR,         /* a recovery descriptor */
+};
+
+struct vhb {
+    enum vhb_state  state;
+    mxfs_node_id_t  node;
+    uint64_t        inc;
+    int             fresh;              /* the claim consumed a released or
+                                         * zeroed sector */
+    int             bootstrap_pending;
+};
+
+static struct vhb vhb[64];
+static volatile int vhb_oracle;         /* node_up installs the oracle */
+static volatile int vhb_fail;           /* this many table reads fail */
+static volatile int vhb_reads;
+static volatile int vhb_name_tenant = 1;    /* 0 = the oracle as it was before it
+                                             * named an ACTIVE slot's tenant */
+
+static void vhb_set(int slot, enum vhb_state st, mxfs_node_id_t node, uint64_t inc,
+                    int fresh)
+{
+    vhb[slot].state = st;
+    vhb[slot].node = node;
+    vhb[slot].inc = inc;
+    vhb[slot].fresh = fresh;
+    vhb[slot].bootstrap_pending = 0;
+}
+
+static int vowners_settled(void *data, struct mxfs_dlm_owner_query *q, int n)
+{
+    int i, s, settled = 0;
+
+    (void)data;
+    for (i = 0; i < n; i++) {
+        q[i].settled = false;
+        q[i].why = "unread";
+        q[i].tenant = 0;
+        q[i].tenant_inc = 0;
+    }
+    vhb_reads++;
+    if (vhb_fail > 0) {
+        vhb_fail--;
+        return -EIO;
+    }
+    for (i = 0; i < n; i++) {
+        const struct vhb *r;
+
+        if (q[i].slot < 0 || q[i].slot >= 64) {
+            q[i].why = "invalid";
+            continue;
+        }
+        if (q[i].node != 0) {
+            if (!q[i].inc) {
+                q[i].why = "no-incarnation";
+                continue;
+            }
+            for (s = 0; s < 64; s++)
+                if (vhb[s].state != VHB_ZERO && vhb[s].state != VHB_RELEASED &&
+                    vhb[s].node == q[i].node && vhb[s].inc == q[i].inc)
+                    break;
+            if (s < 64) {
+                q[i].why = (s == q[i].slot) ? "present" : "present-elsewhere";
+                continue;
+            }
+        }
+        r = &vhb[q[i].slot];
+        if (vhb_name_tenant && r->state == VHB_ACTIVE && r->node != 0 && r->inc != 0) {
+            q[i].tenant = r->node;
+            q[i].tenant_inc = r->inc;
+        }
+        if (r->state == VHB_ZERO) {
+            q[i].settled = true;
+            q[i].why = "zero";
+        } else if (r->state == VHB_RELEASED) {
+            q[i].settled = true;
+            q[i].why = "released";
+        } else if (r->state == VHB_ACTIVE && q[i].node != 0 && r->fresh &&
+                   !r->bootstrap_pending) {
+            q[i].settled = true;
+            q[i].why = "successor-fresh-claim";
+        } else {
+            q[i].why = r->state == VHB_WITHDRAWN ? "withdrawn" :
+                       r->state == VHB_RETIRE_PENDING ? "retire-pending" :
+                       r->state == VHB_DESCRIPTOR ? "recovery-descriptor" :
+                       q[i].node ? "successor-unproven" : "tenant";
+        }
+        if (q[i].settled)
+            settled++;
+    }
+    return settled;
 }
 
 static void vtick_fn(void *arg)
@@ -305,6 +442,8 @@ static struct vnode *node_up(int idx, mxfs_node_id_t id, uint64_t inc, uint16_t 
     n->dlm->bootstrap_node_cb = vbootstrap_node;
     n->dlm->node_inc_cb = vnode_inc;
     n->dlm->slot_node_cb = vslot_node;
+    if (vhb_oracle)
+        n->dlm->owners_settled_cb = vowners_settled;
     n->dlm->ledger_required = true;
     if (with_ledger) {
         int rc = mxfs_tauth_ledger_open(&n->ledger, dev, base, MXFS_TAUTH_REGION_BYTES,

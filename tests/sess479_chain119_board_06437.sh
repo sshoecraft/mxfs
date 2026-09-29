@@ -46,7 +46,7 @@ install_ko() {
 {
   echo "=== sess479 chain119 START $(date -u +%FT%TZ) tree VERSION=$(cat VERSION) budget=${BOARD_BUDGET}s ==="
   install_ko "$PROD_KO" "$PROD_SV" || { echo "ABORT: prod install"; echo "DONE $(date -u +%FT%TZ)"; exit 1; }
-  # Freshness gate.  showstat.sh renders whatever .last_run.json points at, so
+  # Freshness gate.  tools/criteria.py renders whatever the board last recorded, so
   # it happily prints a board from a previous DAY when this run never executed
   # -- exactly what happened on the s480a attempt: run.sh exited 3 on the run
   # lock (a live peer run.sh held it) and the conditions table underneath still
@@ -67,11 +67,11 @@ install_ko() {
   post_id=$(python3 -c "import json;print(json.load(open('.last_run.json'))['run_id'])" 2>/dev/null || echo none)
   echo "STAGE board post_run_id=$post_id"
   if [ "$post_id" = "$pre_id" ] || [ "$post_id" = none ]; then
-    echo "FAIL: the board did NOT run (run_id unchanged at $pre_id, run.sh rc=$rc).  Refusing to print the conditions table: showstat would render the PREVIOUS run's verdict and it would read as this build's evidence.  Nothing here may be cited for criterion (2)."
+    echo "FAIL: the board did NOT run (run_id unchanged at $pre_id, run.sh rc=$rc).  Refusing to print the conditions table: tools/criteria.py would render the PREVIOUS run's verdict and it would read as this build's evidence.  Nothing here may be cited for criterion (2)."
     echo "DONE $(date -u +%FT%TZ)"
     exit 1
   fi
   echo "--- conditions (run_id=$post_id) ---"
-  timeout 120 ./showstat.sh 32 caw 2>&1 | grep -av '^\s*$'
+  timeout 120 tools/criteria.py 32 caw 2>&1 | grep -av '^\s*$'
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

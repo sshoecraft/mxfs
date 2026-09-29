@@ -672,6 +672,108 @@ int main(int argc, char **argv)
               "the fixture is not vacuous", prc, le.state);
     }
 
+    /* 18 the named retirement (holders the heartbeat table shows gone for
+     * good) touches exactly the holders it is handed, and only on a record
+     * that has not moved since the caller read it: a shared-holder bit names
+     * a slot, the page is servable while the caller asks about the slot, and
+     * a later tenant granted the same bit in between must keep it */
+    {
+        struct mxfs_resource_id a, b;
+        struct mxfs_tauth_entry ae, be, e2;
+        struct mxfs_tauth_retire rt[2];
+        uint64_t moved0 = L.retire_moved, named0 = L.retired_named;
+        uint64_t ino;
+        int found = 0, n;
+
+        memset(&a, 0, sizeof(a));
+        memset(&b, 0, sizeof(b));
+        for (ino = 900000; ino < 1900000 && found < 2; ino++) {
+            struct mxfs_resource_id c = mkres(ino, MXFS_LTYPE_INODE, 0);
+
+            if (tl_page(&c) != pageR)
+                continue;
+            if (found == 0)
+                a = c;
+            else
+                b = c;
+            found++;
+        }
+        CHECK(found == 2, "18 two more resources on page %u (found=%d)", pageR, found);
+        ops[0] = mkop(MXFS_TAUTH_OP_GRANT_EX, &a, 5, 200, 3, MXFS_LOCK_EX);
+        rc = mxfs_tauth_ledger_commit(&L, ops, 1, 1, 96);
+        ops[0] = mkop(MXFS_TAUTH_OP_GRANT_PR, &b, 6, 300, 4, MXFS_LOCK_PR);
+        rc |= mxfs_tauth_ledger_commit(&L, ops, 1, 1, 96);
+        ops[0] = mkop(MXFS_TAUTH_OP_GRANT_PR, &b, 7, 400, 5, MXFS_LOCK_PR);
+        rc |= mxfs_tauth_ledger_commit(&L, ops, 1, 1, 96);
+        rc |= mxfs_tauth_ledger_lookup(&L, &a, 1, &ae);
+        rc |= mxfs_tauth_ledger_lookup(&L, &b, 1, &be);
+        CHECK(rc == 0 && ae.ex_node == 5 && ae.ex_inc == 200 &&
+              be.holders == ((1ULL << 4) | (1ULL << 5)),
+              "18 a: EX 5/200, b: PR slots 4 and 5 rc=%d holders=%#llx", rc,
+              (unsigned long long)be.holders);
+
+        /* the same node id under another incarnation is not that holder */
+        memset(rt, 0, sizeof(rt));
+        rt[0].res = a;
+        rt[0].ex_node = 5;
+        rt[0].ex_inc = 201;
+        rt[0].tseq = ae.transition_seq64;
+        n = mxfs_tauth_ledger_retire_page(&L, pageR, 1, 96, rt, 1);
+        rc = mxfs_tauth_ledger_lookup(&L, &a, 1, &e2);
+        CHECK(n == 0 && rt[0].rc == -ESTALE && rc == 0 && e2.state == MXFS_TAUTH_ST_ACTIVE &&
+              e2.ex_node == 5 && e2.ex_inc == 200,
+              "18 naming inc 201 retires nothing of inc 200 (n=%d item rc=%d ex=%u/%llu)",
+              n, rt[0].rc, e2.ex_node, (unsigned long long)e2.ex_inc);
+
+        /* b moves after it was read: slot 6 is granted the same record */
+        ops[0] = mkop(MXFS_TAUTH_OP_GRANT_PR, &b, 8, 500, 6, MXFS_LOCK_PR);
+        rc = mxfs_tauth_ledger_commit(&L, ops, 1, 1, 96);
+        memset(rt, 0, sizeof(rt));
+        rt[0].res = b;
+        rt[0].bits = 1ULL << 4;
+        rt[0].tseq = be.transition_seq64;
+        n = mxfs_tauth_ledger_retire_page(&L, pageR, 1, 96, rt, 1);
+        rc |= mxfs_tauth_ledger_lookup(&L, &b, 1, &e2);
+        CHECK(rc == 0 && n == 0 && rt[0].rc == -EAGAIN && L.retire_moved == moved0 + 1 &&
+              e2.holders == ((1ULL << 4) | (1ULL << 5) | (1ULL << 6)),
+              "18 a record that moved since the read is left alone (n=%d item rc=%d "
+              "holders=%#llx)", n, rt[0].rc, (unsigned long long)e2.holders);
+
+        /* read again, then both retirements as ONE transition */
+        memset(rt, 0, sizeof(rt));
+        rt[0].res = a;
+        rt[0].ex_node = 5;
+        rt[0].ex_inc = 200;
+        rt[0].tseq = ae.transition_seq64;
+        rt[1].res = b;
+        rt[1].bits = 1ULL << 4;
+        rt[1].tseq = e2.transition_seq64;
+        n = mxfs_tauth_ledger_retire_page(&L, pageR, 1, 96, rt, 2);
+        rc = mxfs_tauth_ledger_lookup(&L, &a, 1, &ae);
+        rc |= mxfs_tauth_ledger_lookup(&L, &b, 1, &be);
+        CHECK(rc == 0 && n == 2 && rt[0].rc == 0 && rt[1].rc == 0 &&
+              ae.state == MXFS_TAUTH_ST_FREE && ae.ex_node == 0 &&
+              be.state == MXFS_TAUTH_ST_ACTIVE &&
+              be.holders == ((1ULL << 5) | (1ULL << 6)) &&
+              ae.transition_seq64 == be.transition_seq64 &&
+              L.retired_named == named0 + 2,
+              "18 a is FREE, b keeps slots 5 and 6, one transition (n=%d holders=%#llx "
+              "tseq %llu/%llu named +%llu)", n, (unsigned long long)be.holders,
+              (unsigned long long)ae.transition_seq64,
+              (unsigned long long)be.transition_seq64,
+              (unsigned long long)(L.retired_named - named0));
+
+        /* and it is on the platter: a fresh generation re-reads both copies */
+        mxfs_tauth_ledger_set_owner_gen(&L, 2);
+        rc = mxfs_tauth_ledger_ensure(&L, pageR, 2);
+        rc |= mxfs_tauth_ledger_lookup(&L, &a, 2, &ae);
+        rc |= mxfs_tauth_ledger_lookup(&L, &b, 2, &be);
+        CHECK(rc == 0 && ae.state == MXFS_TAUTH_ST_FREE &&
+              be.holders == ((1ULL << 5) | (1ULL << 6)),
+              "18 the retirement is durable (rc=%d a.state=%u b.holders=%#llx)", rc,
+              ae.state, (unsigned long long)be.holders);
+    }
+
     /* 15 UNKNOWN record refuses */
     {
         struct mxfs_tauth_page *raw = calloc(1, sizeof(*raw));

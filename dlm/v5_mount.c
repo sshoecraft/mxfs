@@ -1002,6 +1002,30 @@ struct mxfs_v5_dlm {
 	mxfs_v5_bast_notify_fn      iclus_bast_notify_fn;
 	void                        *iclus_bast_notify_data;
 	/*
+	 * 0.90.20: blocking notifications that arrived before the mount
+	 * installed the handler for their resource type.  The handlers are
+	 * installed by the filesystem's post-mountfs setup, while the mount
+	 * takes cluster locks inside xfs_mountfs (AG 0 for the root lookup, the
+	 * root inode) and keeps them cached; a peer's request for one of them
+	 * reached this node while nothing could act on it and was dropped, and
+	 * the holder kept the lock until the master's next re-send, about 10 s
+	 * later.  Measured on 4/tcp (chk_clean run 20260929T033948Z): four
+	 * simultaneous mounts took AG 0 one after another, each keeping it 10 s
+	 * past its own mount, and the last mount took 37 s.  A notification with
+	 * no handler is parked, one per resource, and handed to the handler the
+	 * moment it is installed.
+	 */
+#define MXFS_V5_BAST_PARK_MAX   64
+	mxfs_mutex_t                *bast_park_lock;
+	struct {
+		struct mxfs_resource_id res;
+		uint8_t                 mode;
+	} bast_parked[MXFS_V5_BAST_PARK_MAX];
+	unsigned int                bast_parked_n;
+	uint64_t                    bast_park_total;     /* every arrival, repeats too */
+	uint64_t                    bast_park_replayed;
+	uint64_t                    bast_park_overflow;
+	/*
 	 * (chain 90 harvest, D-SAMENODE-WAITER-CANCEL-COLLISION closure
 	 * vehicle): while the CAW same-node exerciser runs, inode BASTs for its
 	 * pseudo-inode are NOT dispatched to the XFS-layer cache handler.  The
@@ -1182,6 +1206,12 @@ struct mxfs_v5_dlm {
 		 * fence kind the last non-proving attempt observed (the refusal
 		 * reason the blocked record names). */
 		bool            blocked;
+		/* 0.90.11: blocked was IMPORTED from the descriptor another
+		 * survivor's series wrote (v5_fence_blocked_import) rather than
+		 * reached by a series of this node's own; import_ms paces the
+		 * descriptor read that keeps it current. */
+		bool            imported;
+		uint64_t        import_ms;
 		uint16_t        last_kind;
 		mxfs_node_id_t  victim;
 		mxfs_epoch_t    epoch;
@@ -1717,6 +1747,145 @@ static int  v5_depart_queue(struct mxfs_v5_dlm *ctx, mxfs_node_id_t node,
 static void v5_quarantine_add(struct mxfs_v5_dlm *ctx);
 static mxfs_node_id_t v5_slot_node_cb(void *data, int slot, uint64_t *inc_out);
 
+/*
+ * 0.90.20: hand a blocking notification to the filesystem's handler for its
+ * resource type, or park it until that handler is installed (see
+ * bast_parked in the context).  The test for the handler and the parking are
+ * one critical section with the installation, so a notification is either
+ * seen by the handler or found by the replay, never neither.
+ *
+ * Parking decides nothing about the lock: the handler that receives the
+ * replay is the one that would have received the notification, with the
+ * filesystem's own knowledge of what this node holds.  A repeat for a parked
+ * resource only refreshes the mode asked for.
+ */
+static void v5_bast_dispatch(struct mxfs_v5_dlm *ctx,
+			     const struct mxfs_resource_id *res, uint8_t mode)
+{
+	mxfs_v5_bast_notify_fn ino_fn = NULL;
+	mxfs_v5_ag_bast_notify_fn ag_fn = NULL;
+	void *fn_data = NULL;
+	unsigned int i, n = 0;
+	bool parked = false, overflow = false, known = true;
+
+	if (!ctx->bast_park_lock)
+		return;
+	mxfs_pal_mutex_lock(ctx->bast_park_lock);
+	switch (res->type) {
+	case MXFS_LTYPE_INODE:
+		ino_fn = ctx->bast_notify_fn;
+		fn_data = ctx->bast_notify_data;
+		break;
+	case MXFS_LTYPE_ICLUSTER:
+		ino_fn = ctx->iclus_bast_notify_fn;
+		fn_data = ctx->iclus_bast_notify_data;
+		break;
+	case MXFS_LTYPE_AG:
+		ag_fn = ctx->ag_bast_notify_fn;
+		fn_data = ctx->ag_bast_notify_data;
+		break;
+	default:
+		known = false;
+		break;
+	}
+	if (known && !ino_fn && !ag_fn) {
+		ctx->bast_park_total++;
+		for (i = 0; i < ctx->bast_parked_n; i++)
+			if (ctx->bast_parked[i].res.type == res->type &&
+			    ctx->bast_parked[i].res.ino == res->ino &&
+			    ctx->bast_parked[i].res.ag_number == res->ag_number)
+				break;
+		if (i < ctx->bast_parked_n) {
+			ctx->bast_parked[i].mode = mode;
+		} else if (ctx->bast_parked_n < MXFS_V5_BAST_PARK_MAX) {
+			ctx->bast_parked[ctx->bast_parked_n].res = *res;
+			ctx->bast_parked[ctx->bast_parked_n].mode = mode;
+			ctx->bast_parked_n++;
+			parked = true;
+		} else {
+			ctx->bast_park_overflow++;
+			overflow = true;
+		}
+		n = ctx->bast_parked_n;
+	}
+	mxfs_pal_mutex_unlock(ctx->bast_park_lock);
+
+	if (ino_fn) {
+		ino_fn(fn_data, res->ino, mode);
+	} else if (ag_fn) {
+		ag_fn(fn_data, res->ag_number, mode);
+	} else if (parked) {
+		mxfs_pal_log(MXFS_LOG_DEBUG,
+			     "mxfs: P-BAST-PARKED type=%u ino=%llu ag=%u mode=%u parked=%u — "
+			     "no handler is installed for this resource type yet (the "
+			     "mount has not reached its post-mountfs setup); kept for "
+			     "the replay at installation",
+			     res->type, (unsigned long long)res->ino, res->ag_number,
+			     mode, n);
+	} else if (overflow) {
+		mxfs_pal_log(MXFS_LOG_WARN,
+			     "mxfs: P-BAST-PARK-FULL type=%u ino=%llu ag=%u mode=%u parked=%u — "
+			     "the parking table is full; this notification waits for "
+			     "the master's re-send",
+			     res->type, (unsigned long long)res->ino, res->ag_number,
+			     mode, n);
+	}
+}
+
+/*
+ * 0.90.20: the handler for `type` has just been installed (the caller did so
+ * under bast_park_lock and took the parked entries of that type out in the
+ * same critical section); hand each one over.  Runs on the mount's thread,
+ * with no lock held, exactly as a notification arriving now would.
+ */
+static void v5_bast_replay(struct mxfs_v5_dlm *ctx, uint32_t type,
+			   mxfs_v5_bast_notify_fn ino_fn,
+			   mxfs_v5_ag_bast_notify_fn ag_fn, void *fn_data)
+{
+	struct {
+		struct mxfs_resource_id res;
+		uint8_t                 mode;
+	} *take;
+	unsigned int i, kept = 0, n = 0;
+
+	if (!ctx->bast_park_lock || (!ino_fn && !ag_fn))
+		return;
+	take = mxfs_pal_alloc(sizeof(*take) * MXFS_V5_BAST_PARK_MAX);
+	if (!take) {
+		mxfs_pal_log(MXFS_LOG_WARN,
+			     "mxfs: P-BAST-REPLAY-NOMEM type=%u — the parked "
+			     "notifications wait for the masters' re-sends", type);
+		return;
+	}
+	mxfs_pal_mutex_lock(ctx->bast_park_lock);
+	for (i = 0; i < ctx->bast_parked_n; i++) {
+		if (ctx->bast_parked[i].res.type == type) {
+			take[n].res = ctx->bast_parked[i].res;
+			take[n].mode = ctx->bast_parked[i].mode;
+			n++;
+		} else {
+			ctx->bast_parked[kept++] = ctx->bast_parked[i];
+		}
+	}
+	ctx->bast_parked_n = kept;
+	ctx->bast_park_replayed += n;
+	mxfs_pal_mutex_unlock(ctx->bast_park_lock);
+
+	for (i = 0; i < n; i++) {
+		mxfs_pal_log(MXFS_LOG_DEBUG,
+			     "mxfs: P-BAST-REPLAY type=%u ino=%llu ag=%u mode=%u (%u of %u) — "
+			     "a notification parked during the mount, handed to the "
+			     "handler at its installation",
+			     take[i].res.type, (unsigned long long)take[i].res.ino,
+			     take[i].res.ag_number, take[i].mode, i + 1, n);
+		if (ino_fn)
+			ino_fn(fn_data, take[i].res.ino, take[i].mode);
+		else
+			ag_fn(fn_data, take[i].res.ag_number, take[i].mode);
+	}
+	mxfs_pal_free(take);
+}
+
 static void v5_peer_msg_cb_tcp(void *data, mxfs_node_id_t sender,
 			       void *msg, size_t len)
 {
@@ -1863,20 +2032,18 @@ static void v5_peer_msg_cb_tcp(void *data, mxfs_node_id_t sender,
 		const struct mxfs_dlm_bast *bast = msg;
 		if (len < sizeof(*bast))
 			break;
-		/* Peer wants a lock we hold — invoke local notify path */
-		if (bast->resource.type == MXFS_LTYPE_INODE && ctx->bast_notify_fn)
-			ctx->bast_notify_fn(ctx->bast_notify_data,
-					    bast->resource.ino,
-					    bast->requested_mode);
-		else if (bast->resource.type == MXFS_LTYPE_ICLUSTER &&
-			 ctx->iclus_bast_notify_fn)
-			ctx->iclus_bast_notify_fn(ctx->iclus_bast_notify_data,
-						  bast->resource.ino,
-						  bast->requested_mode);
-		else if (bast->resource.type == MXFS_LTYPE_AG && ctx->ag_bast_notify_fn)
-			ctx->ag_bast_notify_fn(ctx->ag_bast_notify_data,
-					       bast->resource.ag_number,
-					       bast->requested_mode);
+		/* 0.90.22: a notification for a grant this node does not hold
+		 * is answered here, by the lock layer (mxfs_dlm_answer_unheld):
+		 * the sender imported a bit a departed incarnation left on our
+		 * slot's name, and neither a mount with no handler yet nor a
+		 * handler that finds nothing to release would ever clear it.
+		 * The handler is told all the same: if the filesystem holds
+		 * something the table lost, only it can let go of it, and the
+		 * answer changes nothing the master granted. */
+		(void)mxfs_dlm_answer_unheld(ctx->dlm, &bast->resource, sender);
+		/* Peer wants a lock we hold — invoke local notify path, or
+		 * park the notification for a mount that has not installed it */
+		v5_bast_dispatch(ctx, &bast->resource, bast->requested_mode);
 		break;
 	}
 	case MXFS_MSG_NODE_LEAVE:
@@ -2278,12 +2445,7 @@ static void v5_bast_cb_tcp(struct mxfs_dlm_ctx *dlm_ctx,
 			ctx->teardown_local_basts_dropped++;
 			return;
 		}
-		if (resource->type == MXFS_LTYPE_INODE && ctx->bast_notify_fn)
-			ctx->bast_notify_fn(ctx->bast_notify_data,
-					    resource->ino, requested_mode);
-		else if (resource->type == MXFS_LTYPE_AG && ctx->ag_bast_notify_fn)
-			ctx->ag_bast_notify_fn(ctx->ag_bast_notify_data,
-					       resource->ag_number, requested_mode);
+		v5_bast_dispatch(ctx, resource, requested_mode);
 		return;
 	}
 
@@ -2506,6 +2668,52 @@ static bool v5_occupant_cb(void *data, mxfs_node_id_t node, uint64_t inc)
 			return true;
 	}
 	return false;
+}
+
+/*
+ * 0.90.21: the DLM's settled-owner oracle (owners_settled_cb).  Every query
+ * is answered from ONE fresh pass over the heartbeat table — never from the
+ * monitor's tracking, which names only the tenants this mount has watched and
+ * keeps resolving a departed one — by the rule a fresh claim of a slot already
+ * depends on: a tenancy has ended with nothing left to replay when its sector
+ * is a release stamp, a zero record, or a later tenant's fresh claim
+ * (mxfs_disklock_incarnations_settled).  A failed read answers nothing.
+ */
+static int v5_owners_settled_cb(void *data, struct mxfs_dlm_owner_query *q, int n)
+{
+	struct mxfs_v5_dlm *ctx = data;
+	struct mxfs_disklock_inc_query *dq;
+	int i, rc;
+
+	if (!q || n <= 0)
+		return -EINVAL;
+	for (i = 0; i < n; i++) {
+		q[i].settled = false;
+		q[i].why = "no-table";
+		q[i].tenant = 0;
+		q[i].tenant_inc = 0;
+	}
+	if (!ctx || !ctx->disklock)
+		return -ENODEV;
+	dq = mxfs_pal_alloc(sizeof(*dq) * (size_t)n);
+	if (!dq)
+		return -ENOMEM;
+	for (i = 0; i < n; i++) {
+		dq[i].node = q[i].node;
+		dq[i].epoch = (mxfs_epoch_t)q[i].inc;
+		dq[i].slot = q[i].slot;
+	}
+	rc = mxfs_disklock_incarnations_settled(ctx->disklock, dq, n);
+	for (i = 0; i < n; i++) {
+		q[i].settled = rc >= 0 && dq[i].settled;
+		q[i].why = dq[i].why;
+		if (rc >= 0) {
+			q[i].tenant = dq[i].tenant;
+			q[i].tenant_inc = (uint64_t)dq[i].tenant_epoch;
+		}
+	}
+	mxfs_pal_free(dq);
+	return rc;
 }
 
 /*
@@ -2845,6 +3053,35 @@ int mxfs_depart_wire_release = 1;
 module_param_named(depart_wire_release, mxfs_depart_wire_release, int, 0644);
 MODULE_PARM_DESC(depart_wire_release,
     "DEBUG: release the remaining grants through the DLM at a clean departure (1=on, 0=leave them to the purge)");
+
+/* DEBUG: when 0, a ledger record whose holder no member carries is imported
+ * as a live holder whatever the heartbeat table says of its tenancy (the
+ * pre-0.90.21 shape), so the wait behind a holder that has left for good can
+ * be measured on the same build that ends it. */
+int mxfs_tauth_settled_retire = 1;
+module_param_named(tauth_settled_retire, mxfs_tauth_settled_retire, int, 0644);
+MODULE_PARM_DESC(tauth_settled_retire,
+    "DEBUG: retire ledger records of holders that have left for good (1=on, 0=import them as blockers)");
+
+/* DEBUG: when 0, a shared-holder bit takes its owner from the monitor's
+ * tracking alone (the pre-0.90.22 shape), so a bit imported before the
+ * tracking has seen its slot's tenant has no owner until a request for the
+ * resource names one; the import with no owner can then be measured on the
+ * same build that ends it. */
+int mxfs_tauth_tenant_attribute = 1;
+module_param_named(tauth_tenant_attribute, mxfs_tauth_tenant_attribute, int, 0644);
+MODULE_PARM_DESC(tauth_tenant_attribute,
+    "DEBUG: give a shared-holder bit the tenant the heartbeat table names for its slot (1=on, 0=the monitor's tracking only)");
+
+/* DEBUG: when 0, a blocking notification for a grant this node does not hold
+ * is left to the filesystem's handler alone (the pre-0.90.22 shape: parked
+ * while the mount has no handler, and unanswered by a handler that finds
+ * nothing to release), so the wait behind a named residue bit can be
+ * measured on the same build that ends it. */
+int mxfs_tauth_unheld_answer = 1;
+module_param_named(tauth_unheld_answer, mxfs_tauth_unheld_answer, int, 0644);
+MODULE_PARM_DESC(tauth_unheld_answer,
+    "DEBUG: the lock layer answers a notification for a grant this node does not hold (1=on, 0=leave it to the filesystem's handler)");
 
 static void v5_orphan_sweep_queue(struct mxfs_v5_dlm *ctx);
 
@@ -3669,6 +3906,8 @@ static void v5_quarantine_free(struct mxfs_v5_dlm *ctx)
 		mxfs_pal_mutex_destroy(ctx->mphase_lock);
 	if (ctx->closure_lock)
 		mxfs_pal_mutex_destroy(ctx->closure_lock);
+	if (ctx->bast_park_lock)
+		mxfs_pal_mutex_destroy(ctx->bast_park_lock);
 	{
 		int s;
 
@@ -7278,20 +7517,14 @@ static uint64_t v5_prkey_of_node(struct mxfs_v5_dlm *ctx, mxfs_node_id_t node)
 	return ctx->prledger ? mxfs_prledger_key_of_node(ctx->prledger, node) : 0;
 }
 
-static int v5_pr_fence_dead_node_rc(struct mxfs_v5_dlm *ctx,
-				    mxfs_node_id_t dead_node,
-				    uint64_t victim_key)
+/* live member count INCLUDING self, EXCLUDING the victim (the lease may still
+ * list a hard-dead node as ACTIVE during the TCP grace); never below 1. */
+static int v5_live_members_excluding(struct mxfs_v5_dlm *ctx,
+				     mxfs_node_id_t dead_node)
 {
 	mxfs_node_id_t live[MXFS_MAX_NODES];
-	struct mxfs_fence_result fres;
-	int nlive = 0, i, fret;
+	int nlive = 0, i;
 
-	memset(&fres, 0, sizeof(fres));
-
-	if (!ctx->scsipr)
-		return 0;
-	/* live member count INCLUDING self, EXCLUDING the victim (the lease
-	 * may still list a hard-dead node as ACTIVE during the TCP grace). */
 	if (ctx->lease) {
 		nlive = mxfs_lease_get_active_nodes(ctx->lease, live, MXFS_MAX_NODES);
 		for (i = 0; i < nlive; i++) {
@@ -7301,8 +7534,21 @@ static int v5_pr_fence_dead_node_rc(struct mxfs_v5_dlm *ctx,
 			}
 		}
 	}
-	if (nlive < 1)
-		nlive = 1;      /* self is always live here */
+	return nlive < 1 ? 1 : nlive;      /* self is always live here */
+}
+
+static int v5_pr_fence_dead_node_rc(struct mxfs_v5_dlm *ctx,
+				    mxfs_node_id_t dead_node,
+				    uint64_t victim_key)
+{
+	struct mxfs_fence_result fres;
+	int nlive, fret;
+
+	memset(&fres, 0, sizeof(fres));
+
+	if (!ctx->scsipr)
+		return 0;
+	nlive = v5_live_members_excluding(ctx, dead_node);
 	/* NULL arm: this is the BARE fence, for a node that owns no heartbeat slot
 	 * and therefore has no durable attempt record in which to make the
 	 * command-submission boundary durable.  Nothing downstream replays a
@@ -7413,6 +7659,12 @@ const char *mxfs_recov_blocked_reason(uint32_t reason)
  */
 #define V5_FENCE_RETRY_TICK_MS      250
 #define V5_FENCE_RETRY_FULLSCAN_MS  60000
+/* 0.90.11: how often a survivor that is NOT the prover re-reads a pending
+ * slot's descriptor for a FENCE_BLOCKED verdict (one priority read of one
+ * heartbeat sector per pending slot).  The fail-fast the verdict promises is
+ * asserted within 20 s of the transition; a 1 s poll bounds the import at
+ * about a second and costs nothing while no slot is pending. */
+#define V5_FENCE_IMPORT_MS          1000
 /* A refused gate restore is re-driven from the PR worker at this pace; each
  * attempt reads all 64 heartbeat sectors, so it is not per tick. */
 #define V5_GATE_RESTORE_REDRIVE_MS  2000
@@ -7495,6 +7747,12 @@ static int v5_pr_fence_prove_resume(struct mxfs_v5_dlm *ctx,
  * post-reset barrier never execute on the thread that renews the lease they
  * are all running under. */
 static void v5_death_fence_drain(struct mxfs_v5_dlm *ctx);
+/* 0.90.11: the blocked record (defined with the recovery-blocked reasons),
+ * written by the import sweep the PR worker runs for foreign verdicts. */
+static void v5_blocked_set(struct mxfs_v5_dlm *ctx, int slot, uint32_t reason,
+			   mxfs_node_id_t victim, mxfs_epoch_t victim_epoch,
+			   int rc, const struct mxfs_fence_result *fres);
+static void v5_blocked_clear(struct mxfs_v5_dlm *ctx, int slot);
 
 /*
  * THE EXCLUSIVE-WRITE GATE AND WHAT MAY LIFT IT.
@@ -7870,14 +8128,16 @@ static void v5_fence_retry_disarm(struct mxfs_v5_dlm *ctx, int slot)
 		mxfs_atomic32_dec(&ctx->recovery_blocked_n);
 		mxfs_pal_log(MXFS_LOG_WARN,
 			     "mxfs: P238-FENCE-UNBLOCKED slot=%d victim=%u attempts=%u "
-			     "blocked_for_ms=%llu — the standing attempt is no longer "
-			     "ours to re-drive; RECOVERY_BLOCKED is lifted and path "
-			     "operations on this node's grants no longer fail fast",
+			     "blocked_for_ms=%llu imported=%d — the standing attempt is "
+			     "no longer ours to re-drive; RECOVERY_BLOCKED is lifted and "
+			     "path operations on this node's grants no longer fail fast",
 			     slot, ctx->fence_retry[slot].victim,
 			     ctx->fence_retry[slot].attempts,
 			     (unsigned long long)(mxfs_pal_time_ms() -
-						  ctx->fence_retry[slot].series_ms));
+						  ctx->fence_retry[slot].series_ms),
+			     ctx->fence_retry[slot].imported ? 1 : 0);
 	}
+	ctx->fence_retry[slot].imported = false;
 	ctx->fence_retry[slot].armed = false;
 	ctx->fence_retry[slot].attempts = 0;
 	ctx->fence_retry[slot].series_ms = 0;
@@ -8092,6 +8352,105 @@ static int v5_fence_retry_arm(struct mxfs_v5_dlm *ctx, int slot,
 }
 
 /*
+ * 0.90.11 (D-FENCE-PRECOMMAND-RETRY-UNBOUNDED-NO-BLOCKED-STATE-0904, the open
+ * leg at 3+ nodes): THE BLOCKED VERDICT IS IMPORTED BY EVERY SURVIVOR.
+ *
+ * The bounded series runs on the survivor holding the attempt lease, and only
+ * its fence_retry[slot].blocked ever flipped.  mxfs_v5_dlm_node_recovery_blocked
+ * — the predicate the DLM master consults before queueing a request behind a
+ * dead holder's grant, and the requester before waiting out its budget — reads
+ * that local flag, so on every OTHER node the answer stayed "not blocked" and
+ * the fail-fast the verdict promises never reached it.  MEASURED 2026-09-28 at
+ * 4/tcp (tests/evidence/20260928T184427Z_tcpdr_s4c_0904probe_l1): test2
+ * proved and reached FENCE_BLOCKED 85 s after the kill; a stat of the victim's
+ * directory parked for the whole 40 s bound on test1, on test3 AND ON THE
+ * PROVER ITSELF, because the root inode's master (a non-prover) queued the
+ * request behind the frozen grant — 39 P-LKTIMEOUT-REMOTE lines on test1 and
+ * not one P-RBLK line anywhere.
+ *
+ * The verdict is durable (P304-FENCE-BLOCKED-DURABLE writes
+ * MXFS_RECOV_F_FENCE_BLOCKED on the descriptor under the attempt lease, and
+ * certify / takeover clear it), and the descriptor is the one channel every
+ * transport shares, so the PR worker on every node reads it for each slot
+ * whose recovery is pending and adopts what it says: blocked while a FOREIGN
+ * prover's series stands blocked, lifted the moment the flag is gone or the
+ * slot stops being pending.  An imported block is exactly the prover's own in
+ * every consumer (the DLM predicate, the xfs entry gates, debugfs); it only
+ * cannot be re-driven here, because the attempt is not this node's to drive.
+ */
+static void v5_fence_blocked_import(struct mxfs_v5_dlm *ctx, uint64_t now)
+{
+	int slot;
+
+	if (!ctx || !ctx->disklock)
+		return;
+	for (slot = 0; slot < MXFS_DISKLOCK_HB_SLOTS; slot++) {
+		struct mxfs_recov_desc desc;
+		bool pending = mxfs_disklock_recovery_is_pending(ctx->disklock, slot);
+		bool foreign_blocked = false;
+
+		/* this node's own series or verdict: not an import's business */
+		if (ctx->fence_retry[slot].armed ||
+		    (ctx->fence_retry[slot].blocked && !ctx->fence_retry[slot].imported))
+			continue;
+		if (!pending) {
+			if (!ctx->fence_retry[slot].imported)
+				continue;
+		} else {
+			if (now - ctx->fence_retry[slot].import_ms < V5_FENCE_IMPORT_MS)
+				continue;
+			ctx->fence_retry[slot].import_ms = now;
+			memset(&desc, 0, sizeof(desc));
+			if (mxfs_disklock_recovery_read(ctx->disklock, slot, &desc) != 0)
+				continue;       /* cannot tell: keep whatever stands */
+			foreign_blocked = desc.stage == MXFS_RECOV_STAGE_FENCING &&
+					  (desc.flags & MXFS_RECOV_F_FENCE_BLOCKED) &&
+					  desc.fence_prover_node &&
+					  desc.fence_prover_node != ctx->node_id &&
+					  desc.victim_node;
+		}
+		if (foreign_blocked && !ctx->fence_retry[slot].imported) {
+			ctx->fence_retry[slot].imported  = true;
+			ctx->fence_retry[slot].blocked   = true;
+			ctx->fence_retry[slot].victim    = desc.victim_node;
+			ctx->fence_retry[slot].epoch     = desc.victim_epoch;
+			ctx->fence_retry[slot].series_ms = now;
+			ctx->fence_retry[slot].last_kind = desc.fence_kind;
+			mxfs_atomic32_inc(&ctx->recovery_blocked_n);
+			v5_blocked_set(ctx, slot, MXFS_RBLK_FENCE_BLOCKED, desc.victim_node,
+				       desc.victim_epoch, 0, NULL);
+			mxfs_pal_log(MXFS_LOG_ERR,
+				     "mxfs: P238-FENCE-BLOCKED-IMPORTED slot=%d victim=%u "
+				     "epoch=%llu prover=%u term=%u — the survivor holding "
+				     "the attempt lease has declared this slice's recovery "
+				     "BLOCKED (its bounded series proved nothing) and made "
+				     "it durable; this node adopts the verdict: path "
+				     "operations that need the victim's grants now fail "
+				     "fast (EIO) here too, and requests this node masters "
+				     "for them are denied instead of queued.  The attempt "
+				     "is re-driven by the prover, not here",
+				     slot, desc.victim_node,
+				     (unsigned long long)desc.victim_epoch,
+				     desc.fence_prover_node, desc.fence_term);
+		} else if (!foreign_blocked && ctx->fence_retry[slot].imported) {
+			ctx->fence_retry[slot].imported = false;
+			ctx->fence_retry[slot].blocked  = false;
+			mxfs_atomic32_dec(&ctx->recovery_blocked_n);
+			v5_blocked_clear(ctx, slot);
+			mxfs_pal_log(MXFS_LOG_WARN,
+				     "mxfs: P238-FENCE-UNBLOCKED-IMPORTED slot=%d victim=%u "
+				     "blocked_for_ms=%llu pending=%d — the prover's blocked "
+				     "verdict is gone from the descriptor (certified, taken "
+				     "over, or the slice is no longer pending); the imported "
+				     "RECOVERY_BLOCKED is lifted on this node",
+				     slot, ctx->fence_retry[slot].victim,
+				     (unsigned long long)(now - ctx->fence_retry[slot].series_ms),
+				     pending ? 1 : 0);
+		}
+	}
+}
+
+/*
  * 0.74.0: the DLM's question — is `node` a dead member whose recovery this
  * prover has declared RECOVERY_BLOCKED?  Read on the acquire path, so it is
  * gated by the O(1) count before the slot walk.
@@ -8238,6 +8597,26 @@ int mxfs_v5_dlm_any_recovery_blocked(struct mxfs_v5_dlm *ctx)
 {
 	return ctx && (mxfs_atomic32_get(&ctx->recovery_blocked_n) > 0 ||
 		       mxfs_atomic32_get(&ctx->recovery_refused_n) > 0);
+}
+
+/*
+ * 0.90.13 (D-NON-ELECTED-SURVIVOR-SHUTS-DOWN-ON-ACQUIRE-BUDGET-DURING-PEER-
+ * RECOVERY): is ANY peer's slice recovery pending on this cluster?  Every
+ * node's monitor marks a dead slot recovery-pending when it declares the
+ * death; only the elected replayer also sets the XFS layer's replay-duty
+ * bitmap (v5_dispatch_slice_recovery -> dead_node_notify_fn), which is what
+ * the acquire classifier used to read as "a peer recovery is pending" — false
+ * on every other survivor, whose exhausted acquire then shut the filesystem
+ * down (measured 4/tcp, laps s6a_realignA/B).  The marker is per-mount
+ * volatile state, so this is a memory read on the acquire path.
+ */
+int mxfs_v5_dlm_any_recovery_pending(struct mxfs_v5_dlm *ctx)
+{
+	mxfs_node_id_t node;
+
+	if (!ctx || !ctx->disklock)
+		return 0;
+	return mxfs_disklock_recovery_pending_iter(ctx->disklock, -1, &node) >= 0;
 }
 
 /*
@@ -8871,6 +9250,9 @@ static void v5_fence_retry_worker_fn(void *arg)
 		}
 
 		now = mxfs_pal_time_ms();
+		/* 0.90.11: adopt (or lift) a FOREIGN prover's blocked verdict on
+		 * every pending slot — see v5_fence_blocked_import. */
+		v5_fence_blocked_import(ctx, now);
 
 		/* D-0904: a restore the recovery-complete ladder could not land, or
 		 * one refused because something still owed the gate.  Each attempt
@@ -9046,8 +9428,18 @@ static void v5_blocked_set(struct mxfs_v5_dlm *ctx, int slot, uint32_t reason,
 	 * Keep the standing verdict and refresh only the liveness fields, so the
 	 * revisit stays reachable for as long as the slice is unrecovered.
 	 */
+	/*
+	 * 0.90.11: FENCE_BLOCKED is the same kind of specific verdict.  MEASURED
+	 * 2026-09-28 at 4/tcp (tests/evidence/20260928T185129Z_tcpdr_s4d_0904probe_l1):
+	 * the prover was also the writer, its own workload kept visiting the
+	 * slot through the acquire path, and debugfs read
+	 * "reason=NO_CERTIFICATE ... another node is working on this recovery"
+	 * while the series stood blocked and every waiter was failing fast on
+	 * that verdict — the one reason an operator needed was the one erased.
+	 */
 	if (b->victim_node == victim &&
-	    b->reason == MXFS_RBLK_CERT_UNRECORDED &&
+	    (b->reason == MXFS_RBLK_CERT_UNRECORDED ||
+	     b->reason == MXFS_RBLK_FENCE_BLOCKED) &&
 	    reason == MXFS_RBLK_NO_CERTIFICATE) {
 		b->last_ms = now;
 		b->attempts++;
@@ -10994,19 +11386,60 @@ static int v5_pr_fence_prove_resume(struct mxfs_v5_dlm *ctx,
  */
 static void v5_tcp_declare_dead(struct mxfs_v5_dlm *ctx, mxfs_node_id_t node_id)
 {
-	int slot = -1;
+	int slot = -1, nlive;
 
+	if (ctx->disklock)
+		slot = mxfs_disklock_find_node_slot(ctx->disklock, node_id);
+	nlive = v5_live_members_excluding(ctx, node_id);
+	/*
+	 * D-TCP-DEATH-BARE-FENCE-RACES-THE-ATTEMPT-LEASE-AT-3-NODES-0928.
+	 *
+	 * The bare fence below runs under NO attempt lease: it names the
+	 * victim's key from this node's PR ledger and preempts it.  For a victim
+	 * that owns a heartbeat slot the certificate the replay needs is minted
+	 * only by the survivor holding the attempt lease (the disklock death
+	 * path, v5_node_death_fence_and_recover), and that survivor can be
+	 * ANOTHER node: MEASURED 2026-09-28 at 3 nodes (tests/evidence/
+	 * 20260928T182602Z_nftstall_s4_3node), test2's bare preempt removed the
+	 * key (PREEMPT_ABORT_PROVEN_V1, no lease), test3 held the lease, found
+	 * the key absent, was refused the sole-survivor gate (nlive=2), and the
+	 * slice was never certified — no snapshot, no replay, its grants frozen
+	 * for good.  A lease-less preempt proves exclusion to nobody who can
+	 * publish it.
+	 *
+	 * It is kept for exactly the shape where it cannot race: this node is
+	 * the ONLY other live member, so it is also the only possible lease
+	 * holder, and its own later attempt certifies an absent key through the
+	 * sole-survivor gate.  That is the two-node conversion of a
+	 * TCP-partitioned but disk-alive peer into a dead one, which the
+	 * disklock path (a monitor that must watch the incarnation STOP) can
+	 * never perform.  With more live members the fence waits for the lease
+	 * holder; a slotless victim (no slice, no certificate, no lease) keeps
+	 * the bare fence whatever the membership.
+	 */
+	if (slot >= 0 && nlive > 1) {
+		v5_note_dead_node(ctx, node_id);
+		mxfs_pal_log(MXFS_LOG_WARN,
+			     "mxfs: P-TCPDEATH-DEFERRED node=%u slot=%d nlive=%d — "
+			     "death declared, no lease-less fence: with more than "
+			     "one live member the PREEMPT AND ABORT is issued only "
+			     "by the survivor holding the attempt lease, so that "
+			     "the key it names is still there to name; grants and "
+			     "mastership stay FROZEN until its journal slice is "
+			     "replayed (recovery completion purges)",
+			     node_id, slot, nlive);
+		return;
+	}
 	if (!v5_pr_fence_dead_node(ctx, node_id))
 		return;
 	v5_note_dead_node(ctx, node_id);      /* fenced = retired */
-	if (ctx->disklock)
-		slot = mxfs_disklock_find_node_slot(ctx->disklock, node_id);
 	if (slot >= 0) {
 		mxfs_pal_log(MXFS_LOG_DEBUG,
-			     "mxfs: P-TCPDEATH-DEFERRED node=%u slot=%d — fenced; "
-			     "grants and mastership stay FROZEN until its journal "
-			     "slice is replayed (recovery completion purges)",
-			     node_id, slot);
+			     "mxfs: P-TCPDEATH-DEFERRED node=%u slot=%d nlive=%d — "
+			     "fenced as the sole other member; grants and mastership "
+			     "stay FROZEN until its journal slice is replayed "
+			     "(recovery completion purges)",
+			     node_id, slot, nlive);
 		return;
 	}
 	if (ctx->lease)
@@ -11639,23 +12072,11 @@ static void v5_bast_cb(struct mxfs_dlm_ctx *dlm_ctx,
 		return;
 	}
 
-	/* Dispatch inode BASTs to the XFS-layer cache handler */
-	if (resource->type == MXFS_LTYPE_INODE && ctx->bast_notify_fn) {
-		ctx->bast_notify_fn(ctx->bast_notify_data,
-				    resource->ino, requested_mode);
-	}
-
-	/* Dispatch AG BASTs to the cached-AG handler */
-	if (resource->type == MXFS_LTYPE_AG && ctx->ag_bast_notify_fn) {
-		ctx->ag_bast_notify_fn(ctx->ag_bast_notify_data,
-				       resource->ag_number, requested_mode);
-	}
-
-	/* ICLUSTER BAST: hand the cluster BASE ino to the fan-out handler */
-	if (resource->type == MXFS_LTYPE_ICLUSTER && ctx->iclus_bast_notify_fn) {
-		ctx->iclus_bast_notify_fn(ctx->iclus_bast_notify_data,
-					  resource->ino, requested_mode);
-	}
+	/* inode BASTs go to the XFS-layer cache handler, AG BASTs to the
+	 * cached-AG handler, ICLUSTER BASTs (the cluster BASE ino) to the
+	 * fan-out handler; one that arrives before its handler is installed
+	 * is parked for the replay */
+	v5_bast_dispatch(ctx, resource, requested_mode);
 }
 
 static void v5_discovery_peer_cb(void *data,
@@ -16385,6 +16806,21 @@ struct mxfs_v5_dlm *mxfs_v5_dlm_init(const struct mxfs_v5_dlm_opts *opts)
 		mxfs_pal_free(ctx);
 		return NULL;
 	}
+	/* 0.90.20: must exist before the transport can deliver a blocking
+	 * notification (v5_bast_dispatch) */
+	ctx->bast_park_lock = mxfs_pal_mutex_create();
+	if (!ctx->bast_park_lock) {
+		mxfs_pal_log(MXFS_LOG_ERR,
+			     "mxfs: DLM init: notification-parking lock alloc failed");
+		mxfs_pal_mutex_destroy(ctx->member_lock);
+		mxfs_pal_mutex_destroy(ctx->keystate_lock);
+		mxfs_pal_mutex_destroy(ctx->gate_lock);
+		mxfs_pal_mutex_destroy(ctx->join_lock);
+		mxfs_pal_mutex_destroy(ctx->mphase_lock);
+		mxfs_authority_put(ctx->authority);
+		mxfs_pal_free(ctx);
+		return NULL;
+	}
 	/* serializes closure_cand_mask read-modify-publish. */
 	ctx->closure_lock = mxfs_pal_mutex_create();
 	if (!ctx->closure_lock) {
@@ -17035,6 +17471,7 @@ tcp_bootstrap_again:
 						ctx->dlm->bootstrap_node_cb = v5_bootstrap_node_cb;
 						ctx->dlm->node_inc_cb = v5_node_inc_cb;
 						ctx->dlm->occupant_cb = v5_occupant_cb;     /* 0.75.69 */
+						ctx->dlm->owners_settled_cb = v5_owners_settled_cb; /* 0.90.21 */
 						ctx->dlm->recovery_judging_cb = v5_recovery_judging_cb; /* 0.89.3 */
 						ctx->dlm->recovery_blocked_cb = v5_recovery_blocked_cb;
 						ctx->dlm->refused_owner_cb = v5_refused_owner_cb;  /* 0.75.30 */
@@ -18017,6 +18454,8 @@ err_free:
 		mxfs_pal_mutex_destroy(ctx->mphase_lock);
 	if (ctx->closure_lock)
 		mxfs_pal_mutex_destroy(ctx->closure_lock);
+	if (ctx->bast_park_lock)
+		mxfs_pal_mutex_destroy(ctx->bast_park_lock);
 	mxfs_authority_put(ctx->authority);
 	mxfs_pal_free(ctx);
 	return NULL;
@@ -18310,7 +18749,11 @@ void mxfs_v5_dlm_shutdown_defer_release(struct mxfs_v5_dlm *ctx,
 	}
 	/* 0.83.4 (D-0959): the join worker checks join_stop between its retry
 	 * sleeps and releases any freeze it holds before it returns, so this
-	 * join is bounded by one prepare attempt. */
+	 * join is bounded by one prepare attempt.  0.90.16: this runs under
+	 * s_umount (put_super), so the prepare never waits for that lock: it
+	 * takes it with a trylock or returns and retries, and a freeze it has
+	 * entered holds its own superblock reference (mxfs_join_sb_get), which
+	 * is what keeps this teardown from having started under it. */
 	v5_join_worker_stop(ctx);
 	if (ctx->tcp_suspect_lock) {
 		mxfs_pal_mutex_destroy(ctx->tcp_suspect_lock);
@@ -18470,6 +18913,15 @@ void mxfs_v5_dlm_shutdown_defer_release(struct mxfs_v5_dlm *ctx,
 			     ctx->teardown_local_basts_dropped);
 		v5_depart_race_inject(ctx, 4);
 	}
+	/* 0.90.20: what the mount phase parked and what the installation of
+	 * the handlers replayed; `left` is a type whose handler never came */
+	mxfs_pal_log(MXFS_LOG_DEBUG,
+		     "mxfs: P-BAST-PARK-STATS node=%u arrivals=%llu replayed=%llu "
+		     "overflow=%llu left=%u",
+		     ctx->node_id, (unsigned long long)ctx->bast_park_total,
+		     (unsigned long long)ctx->bast_park_replayed,
+		     (unsigned long long)ctx->bast_park_overflow,
+		     ctx->bast_parked_n);
 
 	/*
 	 * Stop only: its own renew, monitor and UDP threads are joined here, but
@@ -18687,6 +19139,8 @@ void mxfs_v5_dlm_shutdown_defer_release(struct mxfs_v5_dlm *ctx,
 		mxfs_pal_mutex_destroy(ctx->mphase_lock);
 	if (ctx->closure_lock)
 		mxfs_pal_mutex_destroy(ctx->closure_lock);
+	if (ctx->bast_park_lock)
+		mxfs_pal_mutex_destroy(ctx->bast_park_lock);
 
 	mxfs_authority_put(ctx->authority);
 	mxfs_pal_free(ctx);
@@ -20238,8 +20692,11 @@ void mxfs_v5_dlm_set_iclus_bast_notify(struct mxfs_v5_dlm *ctx,
 {
 	if (!ctx)
 		return;
+	mxfs_pal_mutex_lock(ctx->bast_park_lock);
 	ctx->iclus_bast_notify_fn = fn;
 	ctx->iclus_bast_notify_data = data;
+	mxfs_pal_mutex_unlock(ctx->bast_park_lock);
+	v5_bast_replay(ctx, MXFS_LTYPE_ICLUSTER, fn, NULL, data);
 }
 
 /* instrumented concurrent-EX discriminator for INODE locks (mirrors
@@ -21705,13 +22162,21 @@ int mxfs_v5_dlm_inode_reserve_try(struct mxfs_v5_dlm *ctx, uint64_t ino,
 
 /* ─── BAST notification ─── */
 
+/*
+ * 0.90.20: each installation is one critical section with v5_bast_dispatch's
+ * handler test, and is followed by the replay of what was parked for that
+ * resource type while no handler stood.
+ */
 void mxfs_v5_dlm_set_bast_notify(struct mxfs_v5_dlm *ctx,
 				   mxfs_v5_bast_notify_fn fn, void *data)
 {
 	if (!ctx)
 		return;
+	mxfs_pal_mutex_lock(ctx->bast_park_lock);
 	ctx->bast_notify_fn = fn;
 	ctx->bast_notify_data = data;
+	mxfs_pal_mutex_unlock(ctx->bast_park_lock);
+	v5_bast_replay(ctx, MXFS_LTYPE_INODE, fn, NULL, data);
 }
 
 void mxfs_v5_dlm_set_ag_bast_notify(struct mxfs_v5_dlm *ctx,
@@ -21720,8 +22185,11 @@ void mxfs_v5_dlm_set_ag_bast_notify(struct mxfs_v5_dlm *ctx,
 {
 	if (!ctx)
 		return;
+	mxfs_pal_mutex_lock(ctx->bast_park_lock);
 	ctx->ag_bast_notify_fn = fn;
 	ctx->ag_bast_notify_data = data;
+	mxfs_pal_mutex_unlock(ctx->bast_park_lock);
+	v5_bast_replay(ctx, MXFS_LTYPE_AG, NULL, fn, data);
 }
 
 void mxfs_v5_dlm_set_fence_notify(struct mxfs_v5_dlm *ctx,

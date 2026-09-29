@@ -59,9 +59,17 @@ MNT=${MXFS_MNT:-/mnt/shared}
 cd /src/mxfs || { echo "RESULT: FAIL src=test | measured=setup | reason=not-on-clyde"; exit 1; }
 # shellcheck source=tests/lib/rig.sh
 . tests/lib/rig.sh
-NODES_CSV=${MXFS_NODE_LIST:-test1,test2}
+# every mounted member: the caller's list, else the rig fleet test1..testN
+# (run.sh hands a host-coordinated row MXFS_NODES, not the names).  W is the
+# first, V the last; at 3+ nodes the others are mounted peers that the oracle
+# must read too (the prover and the replayer can be any survivor) and that
+# must leave before the cold audit, since the counters the audit reconciles
+# are written by the LAST member's unmount.
+NODES_CSV=${MXFS_NODE_LIST:-$(seq -f 'test%g' 1 "$N" | paste -sd,)}
 W=${NODES_CSV%%,*}
 V=${NODES_CSV##*,}
+PEERS=$(for n in ${NODES_CSV//,/ }; do [ "$n" = "$W" ] || [ "$n" = "$V" ] || printf '%s ' "$n"; done)
+export TDR_MEMBERS=$NODES_CSV
 OUT=tests/evidence/board_${RUN}_crash_audit
 mkdir -p "$OUT"
 LABEL="ca_$RUN"
@@ -85,7 +93,7 @@ CAMARK="CA-MARK-$RUN"
 rs 20 "$W" "echo '$CAMARK' > /dev/kmsg" >/dev/null 2>&1
 
 # ---- 1. the death oracle -----------------------------------------------------
-echo "  INFO oracle: tests/tcp_death_replay.sh $LABEL $W $V (bound 240 s) at $(date -u +%T)"
+echo "  INFO oracle: tests/tcp_death_replay.sh $LABEL $W $V (members $NODES_CSV; bound 240 s) at $(date -u +%T)"
 timeout --kill-after=5 240 tests/tcp_death_replay.sh "$LABEL" "$W" "$V" > "$OUT/oracle.log" 2>&1
 orc=$?
 oline=$(grep -a '^RESULT:' "$OUT/oracle.log" | tail -1 | cut -c1-300)
@@ -147,7 +155,23 @@ ck "no namespace operation on W was refused by a quarantine in this lap (P240-QU
    "$nsquar" "0"
 ck "W never shut its filesystem down across the death and the replay" "$nsshut" "0"
 
-# ---- 3. W unmounts and audits the platter cold --------------------------------
+# ---- 3. the peers leave, then W unmounts last and audits the platter cold -----
+# At 3+ nodes the peers are still mounted after the oracle (it restarts only
+# the victim); each leaves under the same bound, and a peer that cannot leave
+# fails the row like a stuck W would, since a mounted peer keeps the counters
+# the audit reconciles in its own core.
+for pn in $PEERS; do
+    tp=$(date +%s)
+    measure "$pn" 130 "$OUT/umount_$pn.txt" '^UMOUNT_RC=[0-9]+ ms=[0-9]+ mounted=[01]$' "a peer's unmount on $pn" \
+        "sync; s=\$(date +%s%N); timeout 120 umount $MNT; rc=\$?; e=\$(date +%s%N); mountpoint -q $MNT && m=1 || m=0; echo UMOUNT_RC=\$rc ms=\$(( (e-s)/1000000 )) mounted=\$m"
+    pline=$(grep -a '^UMOUNT_RC=' "$OUT/umount_$pn.txt" | head -1)
+    echo "  INFO $pn unmount: $pline (wall $(( $(date +%s) - tp ))s)"
+    ck "peer $pn unmounted cleanly before the cold audit" "$(printf '%s' "$pline" | grep -ao 'UMOUNT_RC=[0-9]*.*mounted=[01]' | sed 's/ ms=[0-9]*//')" "UMOUNT_RC=0 mounted=0"
+    if ! printf '%s' "$pline" | grep -q 'mounted=0'; then
+        finish FAIL "oracle=PASS acked=$acked umount=stuck peer=$pn"
+        exit 1
+    fi
+done
 tu=$(date +%s)
 measure "$W" 130 "$OUT/umount_$W.txt" '^UMOUNT_RC=[0-9]+ ms=[0-9]+ mounted=[01]$' "the last member's unmount on $W" \
     "sync; s=\$(date +%s%N); timeout 120 umount $MNT; rc=\$?; e=\$(date +%s%N); mountpoint -q $MNT && m=1 || m=0; echo UMOUNT_RC=\$rc ms=\$(( (e-s)/1000000 )) mounted=\$m"

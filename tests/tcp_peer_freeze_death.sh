@@ -85,15 +85,23 @@ esac
 if [ "$PREP" = rig ]; then
     PACKAGED=0; MNT=/mnt/shared
     V="${1:-test2}"; S="${2:-test1}"; LUN=${MXFS_LUN:-}
+    SET="$S $V"
 else
+    # the platform's whole verification set forms the cluster (a `pair` line
+    # is a set of two): the survivor S is its first node unless named, the
+    # victim V its last, and every other member is a survivor that must keep
+    # serving after the death
     PACKAGED=1; MNT=/mnt/mxfs
-    PAIR=$(lab_pair "$PREP") || exit 2
-    read -r PA PB <<< "$PAIR"
+    SET=$(lab_nodes "$PREP") || exit 2
+    PA=${SET%% *}; PB=${SET##* }
     V="${1:-$PB}"; S="${2:-$PA}"
     PORTAL=$(lab_need storage portal) || exit 2
     TGT=$(lab_need storage target) || exit 2
     LUN=${MXFS_LUN:-$(lab_need storage lun)} || exit 2   # MXFS_LUN: another target (e.g. the LIO bench LUN)
 fi
+NN=$(echo $SET | wc -w)
+SURV=$(for h in $SET; do [ "$h" = "$V" ] || printf '%s ' "$h"; done)
+case " $SET " in *" $S "*" $V "*|*" $V "*" $S "*) ;; *) echo "survivor $S and victim $V must both be in the set [$SET]" >&2; exit 2 ;; esac
 
 SSH="$HERE/tools/mxfs_sshpass.sh"
 VIRSH="virsh -c qemu:///system"
@@ -132,8 +140,19 @@ vm_freeze() { if is_domain "$1"; then $VIRSH suspend "$1" >/dev/null; else qmp "
 vm_thaw() { if is_domain "$1"; then $VIRSH resume "$1" >/dev/null; else qmp "$1" cont | grep -q '"return"'; fi; }
 on() { local h t=$2; h=$(addr "$1"); shift 2; timeout "$t" "$SSH" "$h" "$@" 2>&1 | grep --line-buffered -v -E "^Warning: Permanently|^$|Unauthorized access|authorized user, disconnect"; return "${PIPESTATUS[0]}"; }
 
-say "victim=$V survivor=$S transport=$TRANSPORT watch=${WATCH_S}s evidence=$EV"
+say "victim=$V survivor=$S members=[$SET] transport=$TRANSPORT watch=${WATCH_S}s evidence=$EV"
 vm_running "$V" || fail "$V is not running"
+# the mount option that names a node's peers: two nodes name each other
+# (peer=), a larger set names every member (peers=)
+popt() {
+    local x r=""
+    if [ "$NN" = 2 ]; then
+        for x in $SET; do [ "$x" = "$1" ] || r="peer=$(addr $x)"; done
+    else
+        for x in $SET; do r="$r${r:+/}$(addr $x)"; done; r="peers=$r"
+    fi
+    echo "$r"
+}
 
 # --- 1. a fresh 2-node cluster on the shared LUN
 if [ "$PREP" = rig ]; then
@@ -142,14 +161,14 @@ else
     # free the LUN: no other node may hold it while it is reformatted; one
     # that does not answer is not running, so it holds nothing
     for h in $(lab_lun_nodes); do
-        case " $S $V " in *" $h "*) continue ;; esac
+        case " $SET " in *" $h "*) continue ;; esac
         on $h 5 true >/dev/null 2>&1 || continue
         on $h 90 "[ -f /root/freeze_busy.pid ] && kill \$(cat /root/freeze_busy.pid) 2>/dev/null; rm -f /root/freeze_busy.pid
             for i in 1 2 3; do grep -q \" /mnt/shared mxfs \" /proc/mounts || break; timeout 20 umount /mnt/shared || sleep 2; done
             grep -c ' mxfs ' /proc/mounts; true" > "$EV/rig_umount_$h.txt"
         [ "$(tail -1 "$EV/rig_umount_$h.txt")" = 0 ] || fail "$h still has MXFS mounted"
     done
-    for h in $S $V; do
+    for h in $SET; do
         on $h 60 "
             # /proc/mounts, not mountpoint(1): a fenced node's withdrawn mount
             # answers stat() with EIO, so mountpoint calls it unmounted
@@ -165,10 +184,14 @@ else
     done
     on $S 120 "mkfs.mxfs -f $LUN 2>&1 | tail -2; echo mkfs_rc=\${PIPESTATUS[0]}" | tee "$EV/format.txt"
     grep -q 'mkfs_rc=0' "$EV/format.txt" || fail "mkfs.mxfs"
-    on $S 60 "mkdir -p $MNT && mount -t mxfs -o peer=$(addr $V) $LUN $MNT; echo mount_rc=\$?" | tee "$EV/mount_$S.txt"
-    on $V 120 "mkdir -p $MNT && mount -t mxfs -o peer=$(addr $S) $LUN $MNT; echo mount_rc=\$?" | tee "$EV/mount_$V.txt"
+    # the survivor forms the cluster, then every other member joins it
+    on $S 60 "mkdir -p $MNT && mount -t mxfs -o $(popt $S) $LUN $MNT; echo mount_rc=\$?" | tee "$EV/mount_$S.txt"
+    for h in $SET; do
+        [ "$h" = "$S" ] && continue
+        on $h 120 "mkdir -p $MNT && mount -t mxfs -o $(popt $h) $LUN $MNT; echo mount_rc=\$?" | tee "$EV/mount_$h.txt"
+    done
 fi
-for h in $S $V; do
+for h in $SET; do
     on $h 20 "mountpoint -q $MNT && echo mounted; cat /sys/module/mxfs/srcversion; grep MEMBERSHIP /dev/null; dmesg | grep MXFS-MEMBERSHIP | tail -1; dmesg | grep P-DOMAIN-ADMITTED | tail -1 | grep -o 'transport=[A-Z]*'" | tee "$EV/node_$h.txt"
     grep -q mounted "$EV/node_$h.txt" || fail "$h not mounted after prep_cluster"
     grep -qx "transport=$TNAME" "$EV/node_$h.txt" || fail "$h is not on transport=$TNAME"
@@ -223,6 +246,20 @@ while [ $(( $(date +%s) - T0 )) -lt "$WATCH_S" ]; do
     sleep 5
 done
 say "--- window over: death_at=${death_at:-never} first_write_after_death=${write_at:-never}"
+# every other survivor must be serving again too, inside the same write budget
+# counted from the freeze: a member that neither declared the death nor ran the
+# recovery still has to come back from the dead node's frozen grants
+others_ok=1
+for h in $SURV; do
+    [ "$h" = "$S" ] && continue
+    e=$(( $(date +%s) - T0 ))
+    if on $h 20 "timeout 15 dd if=/dev/zero of=$MNT/freeze/probe_$h bs=4k count=1 conv=fsync status=none && echo W_OK" | grep -q W_OK; then
+        echo "+${e}s $h write ok" >> "$EV/survivor_write_probe.log"
+    else
+        echo "+${e}s $h write BLOCKED/FAILED" >> "$EV/survivor_write_probe.log"; others_ok=0
+    fi
+done
+[ "$NN" -gt 2 ] && say "--- other survivors writing after the death: $([ $others_ok = 1 ] && echo all || echo NOT ALL) ($(grep -c ' write ok' "$EV/survivor_write_probe.log") ok lines in survivor_write_probe.log)"
 
 # --- 5. resume the victim and collect
 BUSY_BEFORE=""
@@ -280,6 +317,7 @@ grep -h -E "TCP peer .* (disconnected|reconnected)|did not reconnect|grace expir
 v=PASS
 [ -n "$death_at" ] && [ "$death_at" -le "$DEATH_BUDGET_S" ] || v=FAIL
 [ -n "$write_at" ] && [ "$write_at" -le "$WRITE_BUDGET_S" ] || v=FAIL
-say "VERDICT $v ($TRANSPORT): death declared at +${death_at:-never}s (budget ${DEATH_BUDGET_S}s), survivor wrote at +${write_at:-never}s (budget ${WRITE_BUDGET_S}s)"
+[ "$others_ok" = 1 ] || v=FAIL
+say "VERDICT $v ($TRANSPORT, $NN members): death declared at +${death_at:-never}s (budget ${DEATH_BUDGET_S}s), survivor wrote at +${write_at:-never}s (budget ${WRITE_BUDGET_S}s), other survivors writing: $([ $others_ok = 1 ] && echo yes || echo no)"
 say "done: $EV"
 [ "$v" = PASS ]

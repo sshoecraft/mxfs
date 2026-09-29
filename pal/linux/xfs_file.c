@@ -412,10 +412,12 @@ xfs_file_dio_read(
 		return ret;
 	/* 0.89.0 (D-0977): re-check under the I/O lock — the acquire the lock
 	 * ride just ran may have found the platter naming another incarnation
-	 * and poisoned this shell; the entry gate ran before that. */
-	if (mxfs_inode_incarn_estale(ip)) {
+	 * and poisoned this shell; the entry gate ran before that.  The gate's
+	 * own verdict is returned (see xfs_file_read_iter). */
+	ret = mxfs_inode_incarn_estale(ip);
+	if (ret) {
 		xfs_iunlock(ip, XFS_IOLOCK_SHARED);
-		return -ESTALE;
+		return ret;
 	}
 #ifdef MXFS_DIO_READ_BOUNCE
 	if (mapping_stable_writes(iocb->ki_filp->f_mapping)) {
@@ -469,10 +471,12 @@ xfs_file_buffered_read(
 	/* 0.89.0 (D-0977): see xfs_file_dio_read — the gate at entry ran
 	 * before the coherency envelope's acquire, which is where a freed or
 	 * reused incarnation is discovered and the shell poisoned; a read that
-	 * went on would copy the successor file's blocks to the caller. */
-	if (mxfs_inode_incarn_estale(ip)) {
+	 * went on would copy the successor file's blocks to the caller.  The
+	 * gate's own verdict is returned (see xfs_file_read_iter). */
+	ret = mxfs_inode_incarn_estale(ip);
+	if (ret) {
 		xfs_iunlock(ip, XFS_IOLOCK_SHARED);
-		return -ESTALE;
+		return ret;
 	}
 	/*
 	 * NOTE: SIXTH and final VFS-layer trigger attempt — a di_size==0
@@ -504,9 +508,18 @@ xfs_file_read_iter(
 		return -EIO;
 
 	/* poisoned dead incarnation — its bmap's blocks belong to
-	 * another live file now (D-INCARN-STALE-SHELL-UNGATED-FILE-READS-512) */
-	if (mxfs_inode_incarn_estale(XFS_I(inode)))
-		return -ESTALE;
+	 * another live file now (D-INCARN-STALE-SHELL-UNGATED-FILE-READS-512).
+	 * 0.90.14 (D-FILE-OP-GATES-ANSWER-ESTALE-FOR-THE-FAIL-FAST-EIO-VERDICT):
+	 * the gate's own verdict is returned — -ESTALE for a poisoned shell,
+	 * -EIO for a grant held or mastered by a dead node in blocked or
+	 * refused recovery and for a quarantined victim domain.  A hard-coded
+	 * -ESTALE here answered the fail-fast EIO verdicts with "stale file
+	 * handle": measured 4/tcp (laps s7a_realignA/B), 13 and 17 of 40 reads
+	 * through held descriptors, each an inode the dead node mastered
+	 * (P-RBLK-COVERS-DEAD-MASTER).  Every gate in this file does the same. */
+	ret = mxfs_inode_incarn_estale(XFS_I(inode));
+	if (ret)
+		return ret;
 
 	/*
 	 * STICKY-PR coherency envelope (see coherency-sticky-pr-fix.md):
@@ -555,9 +568,10 @@ xfs_file_splice_read(
 	if (xfs_is_shutdown(mp))
 		return -EIO;
 
-	/* see xfs_file_read_iter */
-	if (mxfs_inode_incarn_estale(ip))
-		return -ESTALE;
+	/* see xfs_file_read_iter: the gate's own verdict is returned */
+	ret = mxfs_inode_incarn_estale(ip);
+	if (ret)
+		return ret;
 
 	trace_xfs_file_splice_read(ip, *ppos, len);
 
@@ -573,9 +587,10 @@ xfs_file_splice_read(
 		xfs_ilock(ip, XFS_IOLOCK_SHARED);
 	}
 	/* 0.89.0 (D-0977): re-check under the lock (see xfs_file_dio_read) */
-	if (mxfs_inode_incarn_estale(ip)) {
+	ret = mxfs_inode_incarn_estale(ip);
+	if (ret) {
 		xfs_iunlock(ip, XFS_IOLOCK_SHARED);
-		return -ESTALE;
+		return ret;
 	}
 	ret = filemap_splice_read(in, ppos, pipe, len, flags);
 	xfs_iunlock(ip, XFS_IOLOCK_SHARED);
@@ -687,8 +702,9 @@ xfs_file_write_checks(
 	 * ride; the acquire it ran may have found the platter naming another
 	 * incarnation and poisoned this shell.  A write that went on would
 	 * dirty pages against a bmap whose blocks belong to the successor. */
-	if (mxfs_inode_incarn_estale(XFS_I(inode)))
-		return -ESTALE;
+	error = mxfs_inode_incarn_estale(XFS_I(inode));
+	if (error)
+		return error;
 
 restart:
 	error = generic_write_checks(iocb, from);
@@ -1505,9 +1521,11 @@ xfs_file_write_iter(
 		return -EIO;
 
 	/* a poisoned shell must never dirty pages / write through
-	 * a stale bmap (D-INCARN-STALE-SHELL-UNGATED-FILE-READS-512) */
-	if (mxfs_inode_incarn_estale(ip))
-		return -ESTALE;
+	 * a stale bmap (D-INCARN-STALE-SHELL-UNGATED-FILE-READS-512); the
+	 * gate's own verdict is returned (see xfs_file_read_iter) */
+	ret = mxfs_inode_incarn_estale(ip);
+	if (ret)
+		return ret;
 	mxfs_dbg_incarn_racewin(ip, "write_iter");
 
 	if (iocb->ki_flags & IOCB_ATOMIC) {
@@ -1913,14 +1931,17 @@ xfs_file_fallocate(
 	loff_t			len)
 {
 	struct inode		*inode = file_inode(file);
+	int			gate;
 
 	if (!S_ISREG(inode->i_mode))
 		return -EINVAL;
 	if (mode & ~XFS_FALLOC_FL_SUPPORTED)
 		return -EOPNOTSUPP;
-	/* no allocation changes through a poisoned dead incarnation */
-	if (mxfs_inode_incarn_estale(XFS_I(inode)))
-		return -ESTALE;
+	/* no allocation changes through a poisoned dead incarnation; the
+	 * gate's own verdict is returned (see xfs_file_read_iter) */
+	gate = mxfs_inode_incarn_estale(XFS_I(inode));
+	if (gate)
+		return gate;
 
 	/*
 	 * For zoned file systems, zeroing the first and last block of a hole
@@ -1983,9 +2004,13 @@ xfs_file_remap_range(
 	if (remap_flags & ~(REMAP_FILE_DEDUP | REMAP_FILE_ADVISORY))
 		return -EINVAL;
 
-	/* neither side of a remap may be a poisoned dead incarnation */
-	if (mxfs_inode_incarn_estale(src) || mxfs_inode_incarn_estale(dest))
-		return -ESTALE;
+	/* neither side of a remap may be a poisoned dead incarnation; the
+	 * gate's own verdict is returned (see xfs_file_read_iter) */
+	ret = mxfs_inode_incarn_estale(src);
+	if (!ret)
+		ret = mxfs_inode_incarn_estale(dest);
+	if (ret)
+		return ret;
 
 	if (!xfs_has_reflink(mp))
 		return -EOPNOTSUPP;
@@ -2098,6 +2123,8 @@ xfs_file_open(
 	struct inode	*inode,
 	struct file	*file)
 {
+	int		rc;
+
 	if (xfs_is_shutdown(XFS_M(inode->i_sb)))
 		return -EIO;
 	if (unlikely(READ_ONCE(mxfs_dbg_incarn_poison_ino) != 0) &&
@@ -2110,9 +2137,12 @@ xfs_file_open(
 	}
 	/* never hand out an fd on a poisoned dead incarnation; the
 	 * -ESTALE makes the VFS re-walk with LOOKUP_REVAL → fresh lookup →
-	 * the retire arm re-igets the live incarnation. */
-	if (mxfs_inode_incarn_estale(XFS_I(inode)))
-		return -ESTALE;
+	 * the retire arm re-igets the live incarnation.  The gate's own
+	 * verdict is returned: its fail-fast and quarantine answers are -EIO,
+	 * and a re-walk would only meet the same refusal at the lookup. */
+	rc = mxfs_inode_incarn_estale(XFS_I(inode));
+	if (rc)
+		return rc;
 	/*
 	 * NOTE: an open-time mxfs_dlm_reload_inode for peer-AG regular
 	 * files was TRIED here (build F3CA2903) to trigger the reused-inode
@@ -2805,6 +2835,7 @@ xfs_file_mmap_prepare(
 	struct file		*file = desc->file;
 	struct inode		*inode = file_inode(file);
 	struct xfs_buftarg	*target = xfs_inode_buftarg(XFS_I(inode));
+	int			rc;
 
 	/* From 7.0 the descriptor's flags are a vma_flags_t behind helpers. */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 0, 0)
@@ -2817,9 +2848,11 @@ xfs_file_mmap_prepare(
 		return -EOPNOTSUPP;
 #endif
 
-	/* no new mapping of a poisoned dead incarnation */
-	if (mxfs_inode_incarn_estale(XFS_I(inode)))
-		return -ESTALE;
+	/* no new mapping of a poisoned dead incarnation; the gate's own
+	 * verdict is returned (see xfs_file_read_iter) */
+	rc = mxfs_inode_incarn_estale(XFS_I(inode));
+	if (rc)
+		return rc;
 
 	file_accessed(file);
 	desc->vm_ops = &xfs_file_vm_ops;
@@ -2838,6 +2871,7 @@ xfs_file_mmap(
 	struct vm_area_struct	*vma)
 {
 	struct inode		*inode = file_inode(file);
+	int			rc;
 
 	/*
 	 * MAP_SYNC promises that a write fault leaves the metadata needed to
@@ -2851,9 +2885,11 @@ xfs_file_mmap(
 	      dax_synchronous(xfs_inode_buftarg(XFS_I(inode))->bt_daxdev)))
 		return -EOPNOTSUPP;
 
-	/* no new mapping of a poisoned dead incarnation */
-	if (mxfs_inode_incarn_estale(XFS_I(inode)))
-		return -ESTALE;
+	/* no new mapping of a poisoned dead incarnation; the gate's own
+	 * verdict is returned (see xfs_file_read_iter) */
+	rc = mxfs_inode_incarn_estale(XFS_I(inode));
+	if (rc)
+		return rc;
 	file_accessed(file);
 	vma->vm_ops = &xfs_file_vm_ops;
 	return 0;

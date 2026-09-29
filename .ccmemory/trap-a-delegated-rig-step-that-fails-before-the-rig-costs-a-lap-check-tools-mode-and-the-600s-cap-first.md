@@ -30,6 +30,6 @@ each caught only when the rig-runner's report came back.
    blocking on `/proc/<run.sh pid>/comm`), or accept that the first agent's report is
    partial and read the log afterwards. Never re-launch: the lock holder is alive.
 
-Also: the state hook's "read it with ./showstat.sh" is stale — the reader is
+Also: the reader is
 `python3 tools/criteria.py 2 tcp`, whose FLAKY marks are cross-run (last 11 runs at
 that configuration), not rows of the board just run.

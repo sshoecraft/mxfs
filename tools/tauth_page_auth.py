@@ -11,11 +11,20 @@ NOT checked here, so a torn copy with a plausible header could be miscounted —
 this is a census tool for a quiescent LUN, not a repair tool.
 
 Usage:  tauth_page_auth.py <dev> <base_bytes> [--pages N] [--page P ...] [--entries]
+                                               [--holders [--limit N]]
         base_bytes is the region base printed by P-TAUTH-LEDGER-OPEN
         (mxfs: tauth: P-TAUTH-LEDGER-OPEN ... base=<bytes>) or the super's
         tauth_offset from chk_mxfs -v.  --page prints one page's tuple;
         --entries adds that page's non-EMPTY records (exclusive holder
         node/incarnation, shared-holder slot bitmap).
+        --holders is the census of what a later import would install: every
+        record of every page that still names an exclusive holder or carries
+        a shared-holder slot bit.  On a LUN every node has unmounted cleanly
+        it must find none: a clean departure releases everything it holds, so
+        a record left behind is a release that never reached the platter, and
+        the next mount's takeover imports it as a holder nobody can ask to
+        let go.  Prints one HOLDERS summary line (the last line of output)
+        and up to --limit records (default 40).
 Runs on a node (python3, read access to the device) or anywhere the LUN is
 visible.  Layout: [region hdr A][region hdr B][3 control pages][pages copy A]
 [pages copy B], 4 KiB each (mxfs_tauth_page_off in include/mxfs/mxfs_tauth.h).
@@ -120,10 +129,37 @@ def entries(buf):
     return out
 
 
+def holder_records(buf):
+    """Every record of one page that names a holder: (index, state, type, ag,
+    ino, ex_node, ex_inc, ex_slot, ex_mode, shared_mode, slots).  EMPTY and
+    FREE records hold nothing by definition; one that still carries a holder
+    field is reported with its state so the reader can tell."""
+    out = []
+    n = (PAGE - HDR_BYTES) // ENTRY_BYTES
+    for i in range(n):
+        o = HDR_BYTES + i * ENTRY_BYTES
+        state, res_type, shared_mode, ag = struct.unpack_from("<HBBI", buf, o)
+        if state == 0:
+            continue
+        ino, _off, holders = struct.unpack_from("<QQQ", buf, o + 8)
+        ex_node, ex_slot, ex_mode = struct.unpack_from("<IHB", buf, o + 40)
+        (ex_inc,) = struct.unpack_from("<Q", buf, o + 48)
+        if not holders and not ex_node and state != 3:
+            continue
+        slots = [s for s in range(64) if holders & (1 << s)]
+        out.append((i, ENTRY_STATE.get(state, str(state)), res_type, ag, ino,
+                    ex_node, ex_inc, ex_slot, ex_mode, shared_mode, slots))
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("dev")
     ap.add_argument("base", type=int)
+    ap.add_argument("--holders", action="store_true",
+                    help="census of every record that still names a holder")
+    ap.add_argument("--limit", type=int, default=40,
+                    help="with --holders: records to print (default 40)")
     ap.add_argument("--pages", type=int, default=0,
                     help="page count (default: from the region header)")
     ap.add_argument("--page", type=int, action="append", default=[],
@@ -145,6 +181,9 @@ def main():
         hist = Counter()
         invalid = both_invalid = 0
         want = set(a.page)
+        h_records = h_pages = h_shared = h_ex = h_unknown = h_free = 0
+        h_slots = Counter()
+        h_shown = 0
         for start in range(0, npages, a.chunk):
             n = min(a.chunk, npages - start)
             f.seek(off_a + start * PAGE)
@@ -169,10 +208,41 @@ def main():
                     if a.entries:
                         for line in entries(best[2]):
                             print(line)
+                if a.holders:
+                    recs = holder_records(best[2])
+                    if recs:
+                        h_pages += 1
+                    for (i, st, rtype, ag, ino, ex_node, ex_inc, ex_slot,
+                         ex_mode, shared_mode, slots) in recs:
+                        h_records += 1
+                        if st == "FREE":
+                            h_free += 1
+                        if st == "UNKNOWN":
+                            h_unknown += 1
+                        if ex_node:
+                            h_ex += 1
+                        h_shared += len(slots)
+                        for s in slots:
+                            h_slots[s] += 1
+                        if h_shown < a.limit:
+                            h_shown += 1
+                            print("holder page=%d seq=%d auth=%s:%d ent[%d] %s "
+                                  "type=%d ag=%d ino=%d ex=%d/%d slot=%d mode=%d "
+                                  "shared_mode=%d slots=%s" %
+                                  (pid, best[0], best[1][0], best[1][1], i, st,
+                                   rtype, ag, ino, ex_node, ex_inc, ex_slot,
+                                   ex_mode, shared_mode,
+                                   ",".join(str(s) for s in slots) or "-"))
         print("pages=%d one_copy_invalid=%d both_invalid=%d" %
               (npages, invalid, both_invalid))
         for tup, n in hist.most_common():
             print("%7d  state=%-8s auth=%u/%u target=%u/%u" % ((n,) + tup))
+        if a.holders:
+            print("HOLDERS records=%d pages=%d shared_bits=%d ex=%d unknown=%d "
+                  "free_with_holder=%d by_slot=%s scanned=%d" %
+                  (h_records, h_pages, h_shared, h_ex, h_unknown, h_free,
+                   ",".join("%d:%d" % kv for kv in sorted(h_slots.items())) or "-",
+                   npages))
     return 0
 
 

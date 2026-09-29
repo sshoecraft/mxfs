@@ -25,7 +25,7 @@ mkdir -p "$EV"
   timeout 60 tests/quiet_console.sh 32 2>/dev/null; echo "STAGE quiet rc=$?"
   timeout 60 tests/cc_stackprof.sh start 110 32; echo "STAGE prof_start rc=$?"
   timeout 130 ./run.sh 32 caw crash_consistency; echo "STAGE cc rc=$?"
-  ./showstat.sh 32 caw 2>/dev/null | grep -a 'crash_consistency'
+  tools/criteria.py 32 caw 2>/dev/null | grep -a 'crash_consistency'
   timeout 120 tests/cc_stackprof.sh agg 32 > "$EV/agg.txt" 2>&1; echo "STAGE prof_agg rc=$?"
   head -80 "$EV/agg.txt"
   timeout 120 tests/cc_stackprof.sh harvest 32 > "$EV/harvest.txt" 2>&1; echo "STAGE prof_harvest rc=$?"

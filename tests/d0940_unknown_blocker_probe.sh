@@ -194,7 +194,18 @@ ret=$(both 'P-TAUTH-IMPORT-RETIRE-VACANT-SLOT')
 dropped=$(grep -ah 'P-TAUTH-PURGE-OWNER' "$OUT"/A_journal.txt "$OUT"/B_journal.txt | grep -ao 'imported_dropped=[0-9]*' | cut -d= -f2 | awk '{s+=$1} END{print s+0}')
 res=$(both 'P-TAUTH-IMPORT-RESOLVED-ONTIMEOUT')
 unres=$(both 'P-TAUTH-IMPORT-UNRESOLVED-ONTIMEOUT')
-echo "--- import exits: UNKNOWN blockers installed=$unk; retired at import=$ret; dropped by the owner's purge=$dropped; RESOLVED-ONTIMEOUT=$res UNRESOLVED-ONTIMEOUT=$unres"
+# 0.90.21 and 0.90.22 added exits that are taken BEFORE a blocker is
+# installed or a waiter times out: a bit on a slot the heartbeat table shows
+# vacant is retired by the slot (P-TAUTH-SETTLED-RETIRE ... mode=shared), a
+# bit on a slot the table shows held is given that tenant at import
+# (P-TAUTH-IMPORT-TENANT), and one installed with no owner is named by the
+# release tick or by the first request served for its resource.
+sret=$(both 'P-TAUTH-SETTLED-RETIRE .*mode=shared')
+named=$(both 'P-TAUTH-IMPORT-TENANT ')
+late=$(( $(both 'P-TAUTH-IMPORT-RESOLVED-ONTICK ') + $(both 'P-TAUTH-IMPORT-RESOLVED-ONREQUEST ') ))
+ret=$(( ret + sret + named ))
+res=$(( res + late ))
+echo "--- import exits: UNKNOWN blockers installed=$unk; retired or named at import=$ret (by the slot=$sret, tenant named=$named); dropped by the owner's purge=$dropped; named later=$res (by tick or request=$late) UNRESOLVED-ONTIMEOUT=$unres"
 grep -ah 'P-TAUTH-IMPORT-ACTIVE' "$OUT"/A_journal.txt "$OUT"/B_journal.txt | grep -a '4294967295' | sed 's/.*mxfs: /    /' | cut -c1-170 | head -2
 grep -ah 'P-TAUTH-IMPORT-RETIRE-VACANT-SLOT\|imported_dropped=[1-9]\|ONTIMEOUT' "$OUT"/A_journal.txt "$OUT"/B_journal.txt | sed 's/.*mxfs: /    /' | cut -c1-170 | head -4
 ckge "the injected lookups took a designed exit: retired at import, or installed and then dropped/re-attributed (retired + dropped + resolved >= injections)" "$(( ret + dropped + res ))" "$inj"

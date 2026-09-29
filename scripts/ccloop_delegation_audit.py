@@ -24,7 +24,7 @@ Usage:
 
 Mechanical categories (delegable):
   fleet-ssh       tools/mxfs_sshpass.sh / virsh sweeps
-  harness-run     run.sh, showstat, tests/*.sh, bench/*
+  harness-run     run.sh, showstat/criteria.py, tests/*.sh, bench/*
   build-deploy    make, scp mxfs.ko, insmod/rmmod/modinfo
   text/listing    grep/sed -n/cat/head/tail/wc/ls/find/awk/diff as the command
   transcript      python3 parsing of ~/.claude/projects/*.jsonl
@@ -48,7 +48,7 @@ MECH = ("fleet-ssh", "harness-run", "build-deploy", "text/listing",
         "transcript", "ledger", "dmesg-local")
 
 R_FLEET = re.compile(r"mxfs_sshpass|\bvirsh\b")
-R_HARNESS = re.compile(r"\brun\.sh\b|showstat|run_tests|\btests/[A-Za-z0-9_]+\.sh|\bbench/")
+R_HARNESS = re.compile(r"\brun\.sh\b|showstat|criteria\.py|run_tests|\btests/[A-Za-z0-9_]+\.sh|\bbench/")
 R_BUILD = re.compile(r"\bmake\b|scp .*mxfs\.ko|\binsmod\b|\brmmod\b|\bmodinfo\b")
 R_LEDGER = re.compile(r"defects\.sh|OPEN_DEFECTS")
 R_DMESG = re.compile(r"\bdmesg\b|\bjournalctl\b")

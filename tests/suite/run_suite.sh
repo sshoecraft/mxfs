@@ -43,7 +43,7 @@ while read -r ph test coord minn _rest; do
     script="$REPO/$SUITE_DIR/$test.sh"
 
     if [ "$minn" -gt "$N" ]; then
-        # node-gating is per-run, NOT a stored result — don't record it; showstat
+        # node-gating is per-run, NOT a stored result — don't record it; tools/criteria.py
         # derives SKIPPED at display time from the requested node count.
         printf "  SKIPPED  %-22s (needs %s nodes — not recorded)\n" "$test" "$minn"
     elif [ ! -f "$script" ]; then

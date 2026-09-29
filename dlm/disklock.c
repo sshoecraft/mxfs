@@ -11141,6 +11141,141 @@ bool mxfs_disklock_slot_terminal_for(struct mxfs_disklock_ctx *ctx, int slot,
 	return term;
 }
 
+/* is this sector what a completed recovery leaves? */
+static bool hb_zero_record(const struct mxfs_disklock_heartbeat *hb)
+{
+	return hb->magic == 0 && hb->flags == MXFS_DISKLOCK_FLAG_EMPTY &&
+	       hb->node_id == 0 && hb->epoch == 0;
+}
+
+/* — see disklock.h. */
+int mxfs_disklock_incarnations_settled(struct mxfs_disklock_ctx *ctx,
+				       struct mxfs_disklock_inc_query *q, int n)
+{
+	struct mxfs_disklock_heartbeat *tab, *sec = NULL;
+	int slot, i, rc = 0, settled = 0;
+	bool tab_io = true;
+
+	if (!ctx || !ctx->dev || !q || n <= 0)
+		return -EINVAL;
+	for (i = 0; i < n; i++) {
+		q[i].settled = false;
+		q[i].why = "unread";
+		q[i].tenant = 0;
+		q[i].tenant_epoch = 0;
+	}
+	/*
+	 * The table is 32 KiB.  Read in one transfer it is one round trip and
+	 * one image; that needs a physically contiguous buffer, because the
+	 * device read path cannot map the vmalloc memory the general allocator
+	 * hands out above 16 KiB.  When the contiguous allocation fails the
+	 * table is read a sector at a time through a small buffer instead.
+	 */
+	tab = mxfs_pal_alloc_io(sizeof(*tab) * MXFS_DISKLOCK_HB_SLOTS);
+	if (!tab) {
+		tab_io = false;
+		tab = mxfs_pal_alloc(sizeof(*tab) * MXFS_DISKLOCK_HB_SLOTS);
+		sec = mxfs_pal_alloc(sizeof(*sec));
+		if (!tab || !sec) {
+			rc = -ENOMEM;
+			goto out;
+		}
+	}
+	if (tab_io) {
+		mxfs_pal_mutex_lock(ctx->lock);
+		rc = mxfs_pal_bdev_read_prio(ctx->dev, ctx->base_offset, tab,
+					     sizeof(*tab) * MXFS_DISKLOCK_HB_SLOTS);
+		mxfs_pal_mutex_unlock(ctx->lock);
+		if (rc < 0)
+			goto out;
+	} else {
+		/* one sector per lock hold, as the monitor pass reads them: the
+		 * heartbeat writer waits for one read at most */
+		for (slot = 0; slot < MXFS_DISKLOCK_HB_SLOTS; slot++) {
+			uint64_t off = ctx->base_offset +
+				       (uint64_t)slot * MXFS_DISKLOCK_RECORD_SIZE;
+
+			mxfs_pal_mutex_lock(ctx->lock);
+			rc = mxfs_pal_bdev_read_prio(ctx->dev, off, sec, sizeof(*sec));
+			mxfs_pal_mutex_unlock(ctx->lock);
+			if (rc < 0)
+				goto out;
+			memcpy(&tab[slot], sec, sizeof(*sec));
+		}
+	}
+	rc = 0;
+	for (i = 0; i < n; i++) {
+		const struct mxfs_disklock_heartbeat *r;
+		bool ours, same;
+
+		if (q[i].slot < 0 || q[i].slot >= MXFS_DISKLOCK_HB_SLOTS) {
+			q[i].why = "invalid";
+			continue;
+		}
+		if (q[i].node != 0) {
+			if (!inc_valid(q[i].epoch)) {
+				q[i].why = "no-incarnation";
+				continue;
+			}
+			for (slot = 0; slot < MXFS_DISKLOCK_HB_SLOTS; slot++) {
+				r = &tab[slot];
+				if (r->magic == MXFS_DISKLOCK_MAGIC &&
+				    !hb_gen_foreign(ctx, r) &&
+				    r->flags != MXFS_DISKLOCK_FLAG_EMPTY &&
+				    r->node_id == q[i].node &&
+				    inc_eq(r->epoch, q[i].epoch))
+					break;
+			}
+			if (slot < MXFS_DISKLOCK_HB_SLOTS) {
+				q[i].why = (slot == q[i].slot) ? "present" :
+							       "present-elsewhere";
+				continue;
+			}
+		}
+		r = &tab[q[i].slot];
+		ours = r->magic == MXFS_DISKLOCK_MAGIC && !hb_gen_foreign(ctx, r);
+		same = ours && q[i].node != 0 && r->node_id == q[i].node &&
+		       inc_eq(r->epoch, q[i].epoch);
+		if (ours && r->flags == MXFS_DISKLOCK_FLAG_ACTIVE && r->node_id != 0 &&
+		    inc_valid(r->epoch)) {
+			q[i].tenant = r->node_id;
+			q[i].tenant_epoch = r->epoch;
+		}
+		if (hb_zero_record(r)) {
+			q[i].settled = true;
+			q[i].why = "zero";
+		} else if (ours && r->flags == MXFS_DISKLOCK_FLAG_EMPTY) {
+			q[i].settled = true;
+			q[i].why = same ? "released" : "released-by-successor";
+		} else if (ours && r->flags == MXFS_DISKLOCK_FLAG_ACTIVE &&
+			   q[i].node != 0 && hb_victim_adopted(r) &&
+			   !(r->feat.feat_flags & MXFS_HB_FEAT_BOOTSTRAP_PENDING)) {
+			q[i].settled = true;
+			q[i].why = "successor-fresh-claim";
+		} else {
+			q[i].why = (r->magic != MXFS_DISKLOCK_MAGIC) ? "badmagic" :
+				   hb_gen_foreign(ctx, r) ? "foreign" :
+				   (r->flags == MXFS_DISKLOCK_FLAG_WITHDRAWN) ? "withdrawn" :
+				   (r->flags == MXFS_DISKLOCK_FLAG_RETIRE_PENDING) ?
+							"retire-pending" :
+				   (r->flags == MXFS_DISKLOCK_FLAG_RECOVERY_GUARD) ?
+							"recovery-descriptor" :
+				   (r->flags == MXFS_DISKLOCK_FLAG_ACTIVE) ?
+					(q[i].node ? "successor-unproven" : "tenant") :
+				   "other";
+		}
+		if (q[i].settled)
+			settled++;
+	}
+out:
+	if (tab_io)
+		mxfs_pal_free_io(tab);
+	else
+		mxfs_pal_free(tab);
+	mxfs_pal_free(sec);
+	return rc < 0 ? rc : settled;
+}
+
 int mxfs_disklock_lowest_live_slot(struct mxfs_disklock_ctx *ctx,
 				   int skip_slot)
 {

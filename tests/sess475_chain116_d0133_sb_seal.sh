@@ -40,33 +40,64 @@
 #              wall: umount wall >= the recovery latency), Y's epoch > X's, Y
 #              recounts fresh (P-SB-RECOUNT-DONE err=0) and SEAL-OK; the rest
 #              unmounts; chk 0.
-# derived time budgets: prep 300 (95-118 s measured); reuse 10 laps 150 (87 s);
-# umount 120 (1-2 s; adversarial = PAUSE_MS + 10 s); capture 60; chk 60;
-# latedirty recovery wait RECOVER_S=150 (stale window 62 s + fence/replay);
-# holderfail Y umount 240 s.
+# derived time budgets: prep 300 (95-118 s measured at 32 nodes, 65 s at 4);
+# reuse 10 laps 150 (87 s); umount 120 (1-2 s; adversarial = PAUSE_MS + 10 s);
+# capture 60; chk 60; latedirty recovery wait RECOVER_S=150 (stale window 62 s
+# + fence/replay); holderfail Y umount 240 s.
+#
+# The fleet is test1..testN (N, default 32) prepped on COND (default caw); the
+# same shape at 4 nodes is N=4 COND=cawd|tcp, with the worker pairs, the
+# burster and the late-dirty / holder-failure nodes drawn from those four.
+# PROD_KO/PROD_SV name a module to install into the tree first; unset, the
+# tree's own mxfs.ko is what the prep deploys.  GATE names a log whose ^DONE
+# line this chain waits for; unset, it starts at once.
 set -u
 cd /src/mxfs || exit 1
 LABEL=${1:-s475a}
-GATE=${GATE:-tests/evidence/sess468_chain105_intentsA_s475a.log}
+N=${N:-32}
+COND=${COND:-caw}
+GATE=${GATE:-}
 LOG=tests/evidence/sess475_chain116_d0133_$LABEL.log
-PROD_KO=${PROD_KO:?PROD_KO required}
-PROD_SV=${PROD_SV:?PROD_SV required}
+PROD_KO=${PROD_KO:-}
+PROD_SV=${PROD_SV:-$(modinfo mxfs.ko 2>/dev/null | awk '/srcversion/{print $2}')}
 LAPS=${LAPS:-3}
 REUSE_LAPS=${REUSE_LAPS:-10}
 ARMS=${ARMS:-"normal adversarial latedirty holderfail"}
-WORKERS=${WORKERS:-"test1:test2 test5:test6 test30:test31"}
+FLEET=$(seq -f 'test%g' 1 "$N" | tr '\n' ' ')
+# The normal laps' workload is the sharded-directory reuse harness, and a
+# sharded mkdir is refused (EOPNOTSUPP) on a filesystem not formatted with
+# mkfs_mxfs -D.  The rig prep formats without it, so on 2026-09-28 (4/tcp,
+# s4e_4tcp) every reuse lap created nothing: 110 harness failures per lap and
+# a fleet unmount whose counters had never moved (icount=64 on every lap),
+# which verifies nothing about the summary.  The prep reads this variable.
+export MXFS_MKFS_OPTS="${MXFS_MKFS_OPTS:--D}"
+if [ "$N" -ge 32 ]; then
+  WORKERS=${WORKERS:-"test1:test2 test5:test6 test30:test31"}
+  BURSTER=${BURSTER:-test9}
+  LATEDIRTY_X=${LATEDIRTY_X:-test3}
+  HF_X=${HF_X:-test4}; HF_Y=${HF_Y:-test5}
+else
+  WORKERS=${WORKERS:-"test1:test2 test3:test4 test1:test3"}
+  BURSTER=${BURSTER:-test3}
+  LATEDIRTY_X=${LATEDIRTY_X:-test3}
+  HF_X=${HF_X:-test3}; HF_Y=${HF_Y:-test4}
+fi
+fleet_minus() { local x=",$1," n; for n in $FLEET; do case "$x" in *",$n,"*) ;; *) printf '%s ' "$n" ;; esac; done; }
 PAUSE_MS=${PAUSE_MS:-20000}
 HOLD_MS=${HOLD_MS:-60000}
 RECOVER_S=${RECOVER_S:-150}
-BURSTER=${BURSTER:-test9}
 SSH=tools/mxfs_sshpass.sh
 MNT=/mnt/shared
 IMG=$(tools/mxfs_host_image.sh) || { echo "$IMG"; exit 2; }
-XFS_DATA_OFFSET=${XFS_DATA_OFFSET:-793497600}
+# the envelope's XFS data offset, read from the image itself: the SB
+# byte-compare snapshots the sector there, and the offset moved when the
+# envelope grew (793497600 is the slice-lifecycle region on today's mkfs)
+XFS_DATA_OFFSET=${XFS_DATA_OFFSET:-$(tools/chk_mxfs --geometry "$IMG" 2>/dev/null | sed -n 's/.*xfs_data_offset=\([0-9]*\).*/\1/p')}
+[ -n "$XFS_DATA_OFFSET" ] || { echo "cannot read xfs_data_offset from $IMG (tools/chk_mxfs --geometry)"; exit 2; }
 DM=tests/evidence/sess475_chain116_dmesg_$LABEL
 mkdir -p "$DM"
 OUT=$DM
-while ! grep -q "^DONE" "$GATE" 2>/dev/null; do sleep 30; done
+[ -z "$GATE" ] || while ! grep -q "^DONE" "$GATE" 2>/dev/null; do sleep 30; done
 fails=0
 ck() { if [ "$2" = "$3" ]; then echo "  PASS $1 ($2)"; else echo "  FAIL $1 got=$2 want=$3"; fails=$((fails+1)); fi; }
 # sess479: prep the fleet, and STOP the whole run if it fails.  s479a ran every
@@ -78,7 +109,7 @@ ck() { if [ "$2" = "$3" ]; then echo "  PASS $1 ($2)"; else echo "  FAIL $1 got=
 # so downstream chains reach the same clean stop instead of hanging forever.
 prep_arm() { # <tag>
   local t=$1 T0=$(date +%s) rc
-  timeout 300 ./run.sh 32 caw prep_cluster; rc=$?
+  timeout 300 ./run.sh "$N" "$COND" prep_cluster; rc=$?
   echo "STAGE prep $t rc=$rc wall=$(( $(date +%s) - T0 ))s"
   [ "$rc" = 0 ] && return 0
   echo "ABORT $t: prep_cluster rc=$rc — the fleet is not in a known state, so no arm can yield a verdict; scoring one would be fabricating evidence."
@@ -101,18 +132,18 @@ install_ko() {
 }
 SBPAT='P-SB-SYNC\|P-SB-RECOUNT\|P-SB-SUMMARY\|P-SB-SEAL\|P-SB-WRITE-SUBMIT\|P-SB-LATE\|P-SB-SEALED\|P-DBG-SB\|P30-QUIESCE-RECOUNT\|will fix summary\|P304-RETIRE\|slot retained\|DIRTY\|P163-RECOVERY-COMPLETE\|lease expired/died\|fenc\|P-UNMOUNT-ORDER'
 mark_fleet() { # <mark> — kmsg marker on every node (bounds the captures)
-  for i in $(seq 1 32); do ( timeout 15 $SSH "test$i" "echo '$1' > /dev/kmsg" >/dev/null 2>&1 ) & done; wait
+  local n; for n in $FLEET; do ( timeout 15 $SSH "$n" "echo '$1' > /dev/kmsg" >/dev/null 2>&1 ) & done; wait
 }
 capture() { # <tag> <mark> [nodes...] — dmesg from mark, SB-related lines only
-  local tag=$1 mk=$2; shift 2; local nodes=${*:-$(seq -f 'test%g' 1 32)}
+  local tag=$1 mk=$2; shift 2; local nodes=${*:-$FLEET}
   for n in $nodes; do ( timeout 40 $SSH "$n" "dmesg | sed -n \"/$mk/,\\\$p\" | grep -a '$SBPAT'" 2>/dev/null | grep -av '^Unauthorized\|^If you\|^$' > "$DM/${tag}_$n.txt" ) & done; wait
 }
 umount_node() { # <node> <bound_s> <outfile> — timestamped umount, own clock
   timeout "$2" $SSH "$1" "s=\$(date +%s%N); if grep -q ' $MNT mxfs ' /proc/mounts; then timeout $(( $2 - 10 )) umount $MNT; rc=\$?; else rc=0; fi; e=\$(date +%s%N); echo P-UNMOUNT-ORDER node=$1 start_ns=\$s end_ns=\$e rc=\$rc wall_ms=\$(( (e - s) / 1000000 ))" 2>/dev/null | grep -a '^P-UNMOUNT-ORDER' | tail -1 > "$3"
 }
 fleet_umount() { # <tag> [skip nodes csv]
-  local UM=$DM/umount_$1; mkdir -p "$UM"; local T1=$(date +%s) skip=",${2:-},"
-  for i in $(seq 1 32); do case "$skip" in *",test$i,"*) continue;; esac; umount_node "test$i" 120 "$UM/um_test$i.txt" & done; wait
+  local UM=$DM/umount_$1; mkdir -p "$UM"; local T1=$(date +%s) skip=",${2:-}," n
+  for n in $FLEET; do case "$skip" in *",$n,"*) continue;; esac; umount_node "$n" 120 "$UM/um_$n.txt" & done; wait
   echo "STAGE fleet_umount $1 wall=$(( $(date +%s) - T1 ))s rc0=$(grep -l 'rc=0' "$UM"/um_test*.txt | wc -l)/$(ls "$UM" | wc -l)"
 }
 epoch_of() { grep -a 'P-SB-SUMMARY-LOCK slot=[0-9]* rc=0' "$1" | grep -ao 'epoch=[0-9]*' | tail -1 | cut -d= -f2; }
@@ -120,9 +151,13 @@ slot_of() { grep -a 'P-SB-SUMMARY-LOCK slot=' "$1" | head -1 | grep -ao 'slot=[0
 verdict_lap() { # <tag> — the per-lap verdict over $DM/<tag>_test*.txt (+ chk file)
   local tag=$1 f n e best=-1 bestn= lock_ok=0 seal_ok=0 late=0 viol=0 mism=0 lfail=0 ffail=0 lastlocked=0 sealedw=0 recerr=0
   : > "$DM/${tag}_epochs.txt"
-  for i in $(seq 1 32); do
-    n=test$i; f="$DM/${tag}_$n.txt"; [ -s "$f" ] || continue
-    grep -aq 'P-SB-SUMMARY-LOCK slot=[0-9]* rc=0 epoch=[0-9]* at=put_super' "$f" && lock_ok=$((lock_ok+1))
+  for n in $FLEET; do
+    f="$DM/${tag}_$n.txt"; [ -s "$f" ] || continue
+    # the line has carried master_self= between epoch= and at= since 0.89.66
+    # ('P-SB-SUMMARY-LOCK slot=0 rc=0 epoch=10 master_self=1 at=put_super'):
+    # an exact epoch..at adjacency counted 0 of 4 locks on the 4/tcp chain
+    # (2026-09-28) while the seal and last-write witnesses counted all 4
+    grep -aq 'P-SB-SUMMARY-LOCK slot=[0-9]* rc=0 epoch=[0-9]* .*at=put_super' "$f" && lock_ok=$((lock_ok+1))
     grep -aq 'P-SB-SEAL-OK' "$f" && seal_ok=$((seal_ok+1))
     late=$((late + $(grep -ac 'P-SB-LATE-DIRTY-COVER' "$f")))
     viol=$((viol + $(grep -ac 'P-SB-SEAL-TRANS\|P-SB-SEAL-SYNCSB\|P-SB-WRITE-SUBMIT.*sealed=1' "$f")))
@@ -155,8 +190,12 @@ chk_stage() { # <tag>
   ck "$1: chk errors=0" "$(grep -ac 'ERROR' "$DM/chk_$1.txt")" "0"
 }
 {
-  echo "=== sess475 chain116v2 START $(date -u +%FT%TZ) tree VERSION=$(cat VERSION) LAPS=$LAPS ARMS='$ARMS' PAUSE_MS=$PAUSE_MS HOLD_MS=$HOLD_MS ==="
-  install_ko "$PROD_KO" "$PROD_SV" || { echo "ABORT: prod install"; echo "DONE $(date -u +%FT%TZ)"; exit 1; }
+  echo "=== sess475 chain116v2 START $(date -u +%FT%TZ) tree VERSION=$(cat VERSION) N=$N COND=$COND LAPS=$LAPS ARMS='$ARMS' PAUSE_MS=$PAUSE_MS HOLD_MS=$HOLD_MS workers='$WORKERS' burster=$BURSTER latedirty=$LATEDIRTY_X holderfail=$HF_X/$HF_Y xfs_data_offset=$XFS_DATA_OFFSET ==="
+  if [ -n "$PROD_KO" ]; then
+    install_ko "$PROD_KO" "$PROD_SV" || { echo "ABORT: prod install"; echo "DONE $(date -u +%FT%TZ)"; exit 1; }
+  else
+    echo "STAGE tree module sv=$PROD_SV (no PROD_KO: the prep deploys the tree's own mxfs.ko)"
+  fi
   set -- $WORKERS
   case " $ARMS " in *" normal "*)
   for L in $(seq 1 $LAPS); do
@@ -204,7 +243,7 @@ chk_stage() { # <tag>
     chk_stage "$tag"
   done;; esac
   case " $ARMS " in *" latedirty "*)
-    X=test3; tag=latedirty
+    X=$LATEDIRTY_X; tag=latedirty
     prep_arm "$tag"
     MK="SBSEAL-$LABEL-$tag"; mark_fleet "$MK"
     rs 15 "$X" "echo 1 > /sys/module/mxfs/parameters/dbg_sb_late_dirty; cat /sys/module/mxfs/parameters/dbg_sb_late_dirty" | grep -qx 1 || { echo "ABORT: late-dirty knob on $X"; fails=$((fails+1)); }
@@ -224,10 +263,10 @@ chk_stage() { # <tag>
     # peers must fence/recover the retained slot
     T0=$(date +%s); got=no
     while [ $(( $(date +%s) - T0 )) -lt "$RECOVER_S" ]; do
-      for n in test1 test2 test4 test5; do rs 15 "$n" "dmesg | sed -n \"/$MK/,\\\$p\" | grep -ac 'P163-RECOVERY-COMPLETE.*slot=${xs:-NONE}\b\|P163-RECOVERY-COMPLETE.*slot ${xs:-NONE}\b'" | grep -qv '^0$' && { got=yes; break 2; }; done; sleep 5; done
+      for n in $(fleet_minus "$X"); do rs 15 "$n" "dmesg | sed -n \"/$MK/,\\\$p\" | grep -ac 'P163-RECOVERY-COMPLETE.*slot=${xs:-NONE}\b\|P163-RECOVERY-COMPLETE.*slot ${xs:-NONE}\b'" | grep -qv '^0$' && { got=yes; break 2; }; done; sleep 5; done
     echo "  LATEDIRTY $tag X=$X slot=$xs recovered_by_peer=$got after=$(( $(date +%s) - T0 ))s"
     ck "$tag: a peer recovered $X's retained slot within ${RECOVER_S}s" "$got" "yes"
-    capture "${tag}peers" "$MK" test1 test2 test4 test5
+    capture "${tag}peers" "$MK" $(fleet_minus "$X")
     fleet_umount "$tag" "$X"
     chk_stage "$tag"
   ;; esac
@@ -243,7 +282,7 @@ chk_stage() { # <tag>
   # for X's recovery).  X's ring is captured (mark-bounded) right BEFORE the
   # destroy so the holder's own lines survive its death.
   for hfk in ${HF_KNOBS:-0 1}; do
-    X=test4; Y=test5; tag=holderfail$hfk
+    X=$HF_X; Y=$HF_Y; tag=holderfail$hfk
     prep_arm "$tag"
     MK="SBSEAL-$LABEL-$tag"; mark_fleet "$MK"
     rs 15 "$X" "echo $HOLD_MS > /sys/module/mxfs/parameters/dbg_sb_pause_ms; echo 2 > /sys/module/mxfs/parameters/dbg_sb_pause_point; echo $hfk > /sys/module/mxfs/parameters/sb_summary_bast_refuse; cat /sys/module/mxfs/parameters/dbg_sb_pause_point /sys/module/mxfs/parameters/sb_summary_bast_refuse | tr '\n' ' '" | grep -q "^2 $hfk " || { echo "ABORT: pause/refuse knobs on $X"; fails=$((fails+1)); }
@@ -258,7 +297,7 @@ chk_stage() { # <tag>
     T0=$(date +%s); sudo virsh -c qemu:///system destroy "$X" >/dev/null 2>&1; echo "  INFO virsh destroy $X rc=$? at +$(( $(date +%s) - T0 ))s (X ring lines captured pre-destroy: $(wc -l < "$DM/${tag}_${X}_predestroy.txt"))"
     wait
     cat "$DM/umount_$tag/um_$Y.txt" | sed 's/^/  /'
-    capture "$tag" "$MK" test1 test2 test3 "$Y" test6 test7 test8
+    capture "$tag" "$MK" $(fleet_minus "$X")
     ey=$(epoch_of "$DM/${tag}_$Y.txt"); wy=$(grep -ao 'wall_ms=[0-9]*' "$DM/umount_$tag/um_$Y.txt" | cut -d= -f2)
     rec=$(cat "$DM"/${tag}_test*.txt | grep -ac "P163-RECOVERY-COMPLETE.*slot[= ]${xs:-NONE}\b")
     xb=$(grep -a 'P-SB-SUMMARY-BAST' "$DM/${tag}_${X}_predestroy.txt" | tail -1 | cut -c1-200)

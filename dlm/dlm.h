@@ -196,6 +196,25 @@ typedef int (*mxfs_dlm_send_cb)(struct mxfs_dlm_ctx *ctx,
 /* Membership changed — all locks purged, caches must be invalidated */
 typedef void (*mxfs_dlm_membership_cb)(struct mxfs_dlm_ctx *ctx);
 
+/*
+ * 0.90.21: one holder a ledger record names, put to the mount layer's
+ * settled-owner oracle (owners_settled_cb in the context).  {node, inc} is
+ * the exclusive holder and `slot` the heartbeat slot the record gives it;
+ * node == 0 asks about a shared-holder bit, which names a slot and no
+ * incarnation.  `settled` and `why` are the answer; `tenant` / `tenant_inc`
+ * name who the same table read shows holding `slot` (0 = nobody), which is
+ * the node that answers for a shared-holder bit on it.
+ */
+struct mxfs_dlm_owner_query {
+	mxfs_node_id_t  node;
+	uint64_t        inc;
+	int             slot;
+	bool            settled;
+	const char      *why;
+	mxfs_node_id_t  tenant;
+	uint64_t        tenant_inc;
+};
+
 /* ─── Per-mount DLM context ─── */
 
 /* A grant a wait solicited that arrived between two of its attempts; see
@@ -547,7 +566,14 @@ struct mxfs_dlm_ctx {
 							 * re-committed alone / retirements the master
 							 * had to re-drive from the tick */
 							ledger_release_recommits, ledger_release_stuck,
-							ledger_release_redrives, ledger_local_orphans;
+							ledger_release_redrives, ledger_local_orphans,
+							/* 0.90.18: commits the ledger refused because the
+							 * page image was loaded under an older ownership
+							 * generation, re-read under the current one and
+							 * retried (a membership change stales every cached
+							 * page; a local release committed against one was
+							 * dropped as "remastered" and stayed on the platter) */
+							ledger_stale_image_retries;
 
 	/*
 	 * (tcp-authority-ledger step 4): ordered page handoff.  A page
@@ -586,6 +612,50 @@ struct mxfs_dlm_ctx {
 	 * classification at the takeover choke point (dlm_takeover_page). */
 	bool                    (*recovery_judging_cb)(void *data, mxfs_node_id_t node,
 						       uint64_t inc);
+	/*
+	 * 0.90.21: have these holders LEFT FOR GOOD, with nothing of their
+	 * journal slices left to replay?  A ledger record outlives the mount it
+	 * names whenever that mount's release never reached the platter (a
+	 * release dropped after its re-sends while every member was unmounting;
+	 * a crash recovered by members that have since left), and the master
+	 * that imports the page installs it as a live holder.  The per-mount
+	 * lists (purged_owners, settled_auth) name only what THIS mount saw
+	 * leave, and nothing can ask a holder that is in nobody's view to let
+	 * go.  Measured on 4/tcp (0.90.18, tests/quiesce_remount_access.sh): a
+	 * clean four-way unmount left 39 exclusive inode records, the next era's
+	 * master of one page imported one of them, and a stat of that inode from
+	 * another node queued behind it for as long as it was allowed to wait.
+	 *
+	 * The mount layer answers from ONE fresh pass over the heartbeat table
+	 * (mxfs_disklock_incarnations_settled has the rule and its reasons).
+	 * Returns the number answered settled, or a negative error with every
+	 * answer false.  NULL = no oracle: nothing is retired on this ground.
+	 */
+	int                     (*owners_settled_cb)(void *data,
+						     struct mxfs_dlm_owner_query *q,
+						     int n);
+	/* imported holders of owners in nobody's view are re-judged on the
+	 * release tick: a record kept at import because its holder's tenancy
+	 * was still being settled is retired once it has been */
+	uint64_t                settled_judge_ms;   /* the last re-judgement */
+	/* an import installed a holder no member carries (set under the table
+	 * write lock); the tick clears it before a pass that finds none left */
+	volatile bool           settled_scan_owed;
+	/* exclusive holders already answered settled.  An incarnation is a
+	 * random value that never establishes a second tenancy, so the answer
+	 * cannot change and the next page that names the same holder needs no
+	 * read of the heartbeat table.  A shared-holder bit names a slot, whose
+	 * state does change, and is never remembered.  Ring, table_rwlock. */
+	struct { mxfs_node_id_t node; uint64_t inc; } settled_owners[MXFS_MAX_NODES];
+	uint32_t                settled_owner_next;
+	uint64_t                ledger_settled_retired,     /* holders retired */
+				ledger_settled_kept,        /* judged, not settled */
+				ledger_settled_judgements,  /* oracle calls */
+				ledger_settled_errors,      /* oracle or commit failed */
+				ledger_tenant_attributed,   /* shared bits given the
+							     * tenant the table named */
+				unheld_answers;             /* notifications answered
+							     * by the lock layer */
 	volatile bool           handoff_scan;       /* eager pass owed */
 	/*
 	 * (D-0349): an EAGER per-page activation pass was tried here
@@ -895,6 +965,32 @@ int mxfs_dlm_send_unconditional_release(struct mxfs_dlm_ctx *ctx,
  * membership-change table purge (see dlm.c). */
 int mxfs_dlm_release_orphan_if_unheld(struct mxfs_dlm_ctx *ctx,
 				      const struct mxfs_resource_id *resource);
+
+/*
+ * 0.90.22: the lock layer's own answer to a blocking notification for a grant
+ * this node does not hold.  A master that imported a shared-holder bit a
+ * departed incarnation left on the platter names the slot's present tenant
+ * as its owner and notifies it; the tenant holds nothing, and what it holds
+ * is exactly what its own table records (its entries survive every
+ * membership change), so the answer needs no knowledge the filesystem has.
+ * Measured on 4/tcp before this existed: a tenant still mounting parked the
+ * notification and three mounts were refused after 70 s (v22a_inj6), and
+ * mounted tenants left two such bits standing on a directory while three
+ * create bursts were killed at 30 s (v22b_lap2).
+ *
+ * Sends a release carrying MXFS_DLM_GEN_UNHELD to `master` when this node has
+ * no entry of any state and no request in flight for the resource.  That
+ * generation is one no grant ever carries: the master applies the release to
+ * an entry it never granted or re-affirmed (generation 0: a ledger import)
+ * and drops it as stale against any grant it made, so an answer that crosses
+ * a request of ours on the wire cannot take away what that request was given.
+ * Returns 0 = answered, -EBUSY = this node holds or is asking for the
+ * resource (the notification is the filesystem's to act on), or an error.
+ */
+#define MXFS_DLM_GEN_UNHELD     0xFFFFFFFFu
+int mxfs_dlm_answer_unheld(struct mxfs_dlm_ctx *ctx,
+			   const struct mxfs_resource_id *resource,
+			   mxfs_node_id_t master);
 
 /* Gen-aware release: releases ONLY the tenure whose
  * grant_gen == expected_gen.  Returns -ESTALE (touching nothing) if a

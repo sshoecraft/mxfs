@@ -1617,6 +1617,128 @@ static int tauth_purge_page(struct mxfs_tauth_ledger *l, uint32_t p, uint32_t no
 	return changed;
 }
 
+/* — see tauth_ledger.h. */
+int mxfs_tauth_ledger_retire_page(struct mxfs_tauth_ledger *l, uint32_t page,
+				  uint64_t gen, uint64_t config_epoch,
+				  struct mxfs_tauth_retire *r, int n)
+{
+	struct mxfs_tauth_lpage *pg;
+	struct mxfs_tauth_page *img;
+	uint32_t touched_mask = 0;
+	int i, changed = 0, rc;
+
+	if (!l || !l->pages || page >= l->npages || !r || n <= 0)
+		return -EINVAL;
+	for (i = 0; i < n; i++)
+		r[i].rc = -ECANCELED;
+	rc = mxfs_tauth_ledger_ensure(l, page, gen);
+	if (rc)
+		return rc;
+	img = mxfs_pal_alloc(sizeof(*img));
+	if (!img)
+		return -ENOMEM;
+	pg = &l->pages[page];
+	mxfs_pal_mutex_lock(pg->lock);
+	if (!pg->img || pg->load_gen != gen || pg->poisoned) {
+		rc = -ESTALE;
+		goto out;
+	}
+	if (!lpage_mine_locked(l, pg)) {
+		l->authority_refusals++;
+		rc = -EPERM;
+		goto out;
+	}
+	memcpy(img, pg->img, sizeof(*img));
+	for (i = 0; i < n; i++) {
+		struct mxfs_tauth_entry *e;
+		int idx = -1, touched = 0;
+
+		if (mxfs_tauth_ledger_page(l, &r[i].res) != page) {
+			r[i].rc = -EINVAL;
+			continue;
+		}
+		e = page_find_entry(l, img, &r[i].res, false, &idx);
+		if (!e || e->state != MXFS_TAUTH_ST_ACTIVE) {
+			l->stale_ops++;
+			r[i].rc = -ESTALE;
+			continue;
+		}
+		if (e->transition_seq64 != r[i].tseq) {
+			/* the record moved after the caller read it: what it judged
+			 * is not what stands here now */
+			l->retire_moved++;
+			r[i].rc = -EAGAIN;
+			continue;
+		}
+		if (r[i].ex_node && e->ex_node == r[i].ex_node &&
+		    e->ex_inc == r[i].ex_inc) {
+			e->last_grant_seq64 = e->grant_seq64;
+			e->ex_node = 0;
+			e->ex_inc = 0;
+			e->ex_slot = 0;
+			e->ex_mode = 0;
+			e->grant_seq64 = 0;
+			touched = 1;
+		}
+		if (e->holders & r[i].bits) {
+			e->holders &= ~r[i].bits;
+			if (e->holders == 0)
+				e->shared_mode = 0;
+			touched = 1;
+		}
+		if (e->open_holders & r[i].open_bits) {
+			e->open_holders &= ~r[i].open_bits;
+			l->open_marks++;
+			touched = 1;
+		}
+		if (!touched) {
+			l->stale_ops++;
+			r[i].rc = -ESTALE;
+			continue;
+		}
+		if (e->ex_node == 0 && e->holders == 0)
+			e->state = MXFS_TAUTH_ST_FREE;
+		e->config_epoch = config_epoch;
+		touched_mask |= 1u << idx;
+		r[i].rc = 0;
+		changed++;
+	}
+	rc = 0;
+	if (changed) {
+		uint64_t tseq = img->hdr.transition_seq_next;
+
+		if (tseq == 0 || tseq == ~0ULL) {
+			l->exhausted++;
+			rc = -ENOSPC;
+		} else {
+			img->hdr.transition_seq_next = tseq + 1;
+			for (i = 0; i < (int)MXFS_TAUTH_ENTRIES_PER_PAGE; i++)
+				if (touched_mask & (1u << i))
+					img->ent[i].transition_seq64 = tseq;
+			if (l->fail_commit_once_rc && l->fail_commit_skip) {
+				l->fail_commit_skip--;
+				rc = lpage_commit_locked(l, pg, img, config_epoch);
+			} else if (l->fail_commit_once_rc) {
+				rc = l->fail_commit_once_rc;    /* usermode fault knob */
+				l->fail_commit_once_rc = 0;
+			} else {
+				rc = lpage_commit_locked(l, pg, img, config_epoch);
+			}
+		}
+	}
+out:
+	if (rc)
+		for (i = 0; i < n; i++)
+			if (r[i].rc == 0)
+				r[i].rc = rc;
+	mxfs_pal_mutex_unlock(pg->lock);
+	mxfs_pal_free(img);
+	if (rc)
+		return rc;
+	l->retired_named += changed;
+	return changed;
+}
+
 /*
  * 0.75.14 (D-...-0906 hand-on hole): retire holder `node`'s records on ONE
  * page — the page a takeover has just activated for this node.  Measured

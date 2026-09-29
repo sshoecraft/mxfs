@@ -20,15 +20,17 @@
 # discovery — which would record every target, and RHEL logs into discovered
 # targets at boot.
 #
-# For each `pair <platform>=<A>,<B>` in the lab file:
+# For each `nodes <platform>=<A>,<B>[,<C>,...]` (or the two-node `pair` line)
+# in the lab file:
 #   ~/disk-plat-<platform>.img  (sparse, PLAT_SIZE, created if absent)
 #     -> vdisk_fileio device mxfs<platform>
 #     -> target iqn.2026-05.local.mxfs:plat-<platform>, LUN 0 in ini_group pair
-#   ~/.config/mxfslab/lab.<platform>: the lab file with only that pair and its
+#        (the group's name is historical; it holds every node of the set)
+#   ~/.config/mxfslab/lab.<platform>: the lab file with only that set and its
 #     own storage line.  Run a round against it with
 #       MXFS_LAB=~/.config/mxfslab/lab.<platform> tests/packaged_round.sh <platform>
 #     (the format step checks that every node on the LUN is unmounted, and
-#     that set must be the pair alone).
+#     that set must be the platform's nodes alone).
 #
 # SCST objects are runtime-only: after a clyde reboot run scst_setup.sh setup
 # for the rig and then this script again.  Idempotent.
@@ -45,8 +47,9 @@ IMGDIR=$(dirname "$(lab_need paths image)") || exit 2
 T=/sys/kernel/scst_tgt/targets/iscsi
 LABDIR=$(dirname "$MXFS_LAB")
 
-platforms() {
-    awk '$1=="pair" { for (i = 2; i <= NF; i++) { n = index($i, "="); if (n) print substr($i, 1, n-1) } }' "$MXFS_LAB"
+platforms() {  # every platform with a nodes or pair line, once each
+    awk '$1=="nodes" || $1=="pair" { for (i = 2; i <= NF; i++) { n = index($i, "="); if (n) print substr($i, 1, n-1) } }' "$MXFS_LAB" \
+        | awk '!seen[$0]++'
 }
 
 initiator_of() {  # <node> -> its InitiatorName, or nothing
@@ -56,8 +59,8 @@ initiator_of() {  # <node> -> its InitiatorName, or nothing
 }
 
 setup_one() {
-    local p=$1 a b tgt dev img g i ini
-    read -r a b <<< "$(lab_pair "$p")" || return 1
+    local p=$1 set tgt dev img g i ini
+    set=$(lab_nodes "$p") || return 1
     tgt=iqn.2026-05.local.mxfs:plat-$p
     dev=mxfs$(echo "$p" | tr -cd 'a-z0-9')
     img=$IMGDIR/disk-plat-$p.img
@@ -67,19 +70,32 @@ setup_one() {
     g=$T/$tgt/ini_groups
     [ -d "$g/pair" ] || echo "create pair" | sudo tee "$g/mgmt" >/dev/null || return 1
     [ -d "$g/pair/luns/0" ] || echo "add $dev 0" | sudo tee "$g/pair/luns/mgmt" >/dev/null || return 1
-    for i in $a $b; do
+    local want=""
+    for i in $set; do
         ini=$(initiator_of "$i")
         [ -n "$ini" ] || { echo "$p: no initiator name from $i" >&2; return 1; }
+        want="$want $ini"
         [ -e "$g/pair/initiators/$ini" ] || echo "add $ini" | sudo tee "$g/pair/initiators/mgmt" >/dev/null || return 1
         timeout 30 "$SSH" "$(lab_addr "$i")" \
             "iscsiadm -m node -T $tgt -p $PORTAL:3260 >/dev/null 2>&1 || iscsiadm -m node -o new -T $tgt -p $PORTAL:3260 >/dev/null" \
             </dev/null >/dev/null 2>&1 || { echo "$p: node record on $i failed" >&2; return 1; }
     done
+    # An initiator that left the set is removed from the group, or it keeps
+    # seeing this LUN.  Measured 2026-09-28: test3/test4 stayed in the
+    # ubuntu2404 group after the set moved, kept logging in at boot, and on
+    # test3 the platform LUN came up as /dev/sda ahead of the rig LUN — the
+    # 4-node prep mounted it there and the cluster never formed.
+    for ini in $(ls "$g/pair/initiators" | grep -v mgmt); do
+        case " $want " in *" $ini "*) ;; *)
+            echo "del $ini" | sudo tee "$g/pair/initiators/mgmt" >/dev/null || return 1
+            echo "$p: removed initiator $ini (no longer in the set)" ;;
+        esac
+    done
     [ -d "$T/$tgt/luns/0" ] && { echo "del 0" | sudo tee "$T/$tgt/luns/mgmt" >/dev/null || return 1; }
     { grep -E '^#|^addr|^qemu|^paths' "$MXFS_LAB"
       echo "storage portal=$PORTAL target=$tgt lun=/dev/disk/by-path/ip-$PORTAL:3260-iscsi-$tgt-lun-0"
-      echo "pair $p=$a,$b"; } > "$LABDIR/lab.$p"
-    echo "$p: $tgt lun0=$dev in group pair [$(ls "$g/pair/initiators" | grep -v mgmt | tr '\n' ' ')] lab=$LABDIR/lab.$p"
+      echo "nodes $p=$(echo $set | tr ' ' ',')"; } > "$LABDIR/lab.$p"
+    echo "$p: $tgt lun0=$dev in group pair [$(ls "$g/pair/initiators" | grep -v mgmt | tr '\n' ' ')] nodes=[$set] lab=$LABDIR/lab.$p"
 }
 
 status() {

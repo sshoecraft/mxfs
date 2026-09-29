@@ -51,6 +51,6 @@ lap() { # <budget_s> <label> <cmd...>
   echo "=== laps done $(date -u +%FT%TZ); full board 32/caw ==="
   T0=$(date +%s)
   ./run.sh 32 caw > tests/evidence/sess455_chain78_board_$LABEL.log 2>&1; echo "STAGE board rc=$? wall=$(( $(date +%s) - T0 ))s"
-  ./showstat.sh 32 caw 2>&1 | tail -40
+  tools/criteria.py 32 caw 2>&1 | tail -40
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

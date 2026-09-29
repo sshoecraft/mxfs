@@ -16,7 +16,7 @@
 # (2) evidence for D-FOREIGN-REPLAY-UNGATED-IMAGES, and if any later stage takes
 # the lock before it is recorded, the harvest renders whatever ran last instead.
 #
-# derived time budgets, all from measured walls: board harvest 120 s (showstat only);
+# derived time budgets, all from measured walls: board harvest 120 s (tools/criteria.py only);
 # NDR streak 10 laps x (prep 88-112 s + row 333-392 s) plus slack = its own
 # script's per-lap timeouts, wrapper 6000 s; LAB build 1200 s (one object plus a
 # 69 MB relink); relmark matrix 2400 s (install 30 + prep 300 + matrix 1500 +
@@ -43,7 +43,7 @@ W=tests/rig_wait_free.sh
   if [ "$post_id" != "$pre_id" ] && [ "$post_id" != none ]; then
     echo "STAGE0 A NEW BOARD LANDED (run_id $pre_id -> $post_id) — this is criterion (2) evidence for D-FOREIGN-REPLAY-UNGATED-IMAGES on $SV"
     echo "--- conditions (run_id=$post_id) ---"
-    timeout 120 ./showstat.sh 32 caw 2>&1 | grep -av '^\s*$'
+    timeout 120 tools/criteria.py 32 caw 2>&1 | grep -av '^\s*$'
   else
     echo "STAGE0 NO new board recorded (run_id still $pre_id).  The in-flight run did not complete a board; nothing here may be cited for criterion (2)."
   fi

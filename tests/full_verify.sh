@@ -2,27 +2,32 @@
 #
 # full_verify.sh — everything a version must pass before it can be published
 #
-# Usage: tests/full_verify.sh VERSION [STALL_LAPS]
+# Usage: [NODES=N] tests/full_verify.sh VERSION [STALL_LAPS]
+#
+# NODES (default 2) is the cluster size the release claims: the rig suites run
+# at that node count, and every platform's verification set (the lab file's
+# `nodes` line) must hold that many nodes, since a claim for N nodes is
+# verified on N nodes of each platform and nothing smaller.
 #
 # In order, each step logged into tests/evidence/full_verify_<VERSION>.log with
 # its own "=== rc=N: <step> ===" line:
 #   1. a build from a clean copy of the tree (no objects), warnings counted;
 #      the userspace tools, the user-mode tests (tests/tauth) and the extern
 #      declaration audit
-#   2. both released 2-node suites on the rig: ./run.sh 2 tcp, then
-#      ./run.sh 2 cawd, alone on the host (they grade pace, and a loaded host
+#   2. both released suites on the rig at NODES: ./run.sh N tcp, then
+#      ./run.sh N cawd, alone on the host (they grade pace, and a loaded host
 #      has failed them before)
 #   3. the release packages (scripts/release.sh), unless dist/VERSION holds them
 #   4. every platform's packaged round on EACH transport (TRANSPORT=tcp, caw):
 #      ubuntu2404, pve9 on both claimed kernels, rhel9, debian13
 #   5. every platform's hung-node test on each transport, and on the rhel9
-#      pair the SELinux sVirt test, then STALL_LAPS laps of
+#      set the SELinux sVirt test, then STALL_LAPS laps of
 #      tests/svirt_stall_laps.sh (default 0)
 #
 # Steps 4-5 run the four platforms in parallel, each platform's own steps in
-# order: every pair verifies on a LUN of its own
+# order: every set verifies on a LUN of its own
 # (scripts/scst_platform_targets.sh, lab file ~/.config/mxfslab/lab.<platform>),
-# so no pair's format touches another's.  Each platform's steps also go to
+# so no set's format touches another's.  Each platform's steps also go to
 # tests/evidence/full_verify_<VERSION>_<platform>.log and are copied into the
 # main log when it finishes.
 #
@@ -36,13 +41,24 @@
 #
 set -u
 
-V="${1:?usage: full_verify.sh VERSION [STALL_LAPS]}"
+V="${1:?usage: [NODES=N] full_verify.sh VERSION [STALL_LAPS]}"
 LAPS="${2:-0}"
+NODES="${NODES:-2}"
+[[ "$NODES" =~ ^[0-9]+$ ]] && [ "$NODES" -ge 2 ] || { echo "NODES must be an integer >= 2 (got '$NODES')" >&2; exit 2; }
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$HERE" || exit 1
 L="$HERE/tests/evidence/full_verify_$V.log"
 : > "$L"
 SSH="$HERE/tools/mxfs_sshpass.sh"
+echo "=== full_verify $V nodes=$NODES $(date -u +%FT%TZ) ===" | tee -a "$L"
+# every platform's set must be the claimed size before anything runs: a
+# smaller set would verify a smaller claim
+for k in ubuntu2404 pve9 rhel9 debian13; do
+    lab="$HOME/.config/mxfslab/lab.$k"
+    [ -r "$lab" ] || { echo "no lab file $lab (scripts/scst_platform_targets.sh setup)" | tee -a "$L"; exit 2; }
+    n=$(MXFS_LAB=$lab tools/mxfs_lab.sh nodes "$k" 2>/dev/null | wc -w)
+    [ "$n" -ge "$NODES" ] || { echo "$k: its verification set has $n node(s), the claim needs $NODES" | tee -a "$L"; exit 2; }
+done
 
 run() {
     echo "=== $* ===" >> "$L"
@@ -53,9 +69,15 @@ run() {
     return $rc
 }
 
-unmount_pairs() {  # [node...] — default: every platform pair node
+all_platform_nodes() {  # every node named by a platform lab file
+    local k
+    for k in ubuntu2404 pve9 rhel9 debian13; do
+        MXFS_LAB="$HOME/.config/mxfslab/lab.$k" tools/mxfs_lab.sh nodes "$k" 2>/dev/null
+    done | tr ' ' '\n' | awk 'NF && !seen[$0]++' | tr '\n' ' '
+}
+unmount_pairs() {  # [node...] — default: every platform node
     local h
-    for h in ${*:-alma9-1 alma9-2 debian13-1 debian13-2 pve9-1 pve9-2}; do
+    for h in ${*:-$(all_platform_nodes)}; do
         (timeout 75 "$SSH" "$(tools/mxfs_lab.sh addr $h 2>/dev/null || echo $h)" \
             'for m in $(grep " mxfs " /proc/mounts | cut -d" " -f2); do timeout 60 umount $m; done; echo left=$(grep -c " mxfs " /proc/mounts)' \
             </dev/null 2>/dev/null | grep left= | sed "s/^/$h /") &
@@ -70,7 +92,7 @@ platform() {
     shift
     : > "$pl"
     [ -r "$lab" ] || { echo "=== rc=2: $key: no lab file $lab (scripts/scst_platform_targets.sh setup) ===" >> "$pl"; return; }
-    pair=$(MXFS_LAB=$lab tools/mxfs_lab.sh pair "$key")
+    pair=$(MXFS_LAB=$lab tools/mxfs_lab.sh nodes "$key")
     for step in "$@"; do
         MXFS_LAB=$lab unmount_pairs $pair >> "$pl"
         echo "=== $key: $step ===" >> "$pl"
@@ -92,13 +114,18 @@ grep -E 'warning:|error:' "$B/build.log" | grep -v 'compiler differs\|Clock skew
 ( cd "$B" && timeout 120 make -C tools > "$B/tools.log" 2>&1; echo "tools_rc=$? tool_warn=$(grep -ci warning "$B/tools.log")"
   timeout 240 make -C tests/tauth clean test > "$B/tauth.log" 2>&1; echo "tauth_rc=$? $(grep -aoE '=== tauth_test: fails=[0-9]+' "$B/tauth.log")" ) | tee -a "$L"
 timeout 120 python3 scripts/extern_decl_audit.py >> "$L" 2>&1; echo "extern_audit_rc=$?" | tee -a "$L"
+timeout 60 python3 scripts/inode_flag_bits_audit.py >> "$L" 2>&1; echo "inode_flag_audit_rc=$?" | tee -a "$L"
 
-# --- 2. both released 2-node suites on the rig
-run ./run.sh 2 tcp
+# --- 2. both released suites on the rig at the claimed node count
+run ./run.sh "$NODES" tcp
 echo "suite_tcp_pass=$(grep -cE '^\s+PASS' "$L") suite_tcp_fail=$(grep -cE '^\s+(FAIL|TIMEOUT)' "$L")" | tee -a "$L"
 n0=$(wc -l < "$L")
-run ./run.sh 2 cawd
+run ./run.sh "$NODES" cawd
 echo "suite_cawd_pass=$(tail -n +$n0 "$L" | grep -cE '^\s+PASS') suite_cawd_fail=$(tail -n +$n0 "$L" | grep -cE '^\s+(FAIL|TIMEOUT)')" | tee -a "$L"
+# the board is the verdict, not the run's own PASS lines: a row FLAKY or SKIP
+# on the board is not a pass, and the board is what tools/criteria.py reads
+run python3 tools/criteria.py "$NODES" tcp
+run python3 tools/criteria.py "$NODES" cawd
 
 # --- 3. packages
 if [ ! -d "dist/$V" ]; then
@@ -117,7 +144,7 @@ platform pve9 "KERNEL=6.17.2-1-pve TRANSPORT=tcp $PR pve9 $V" "KERNEL=6.17.2-1-p
 P2=$!
 platform rhel9 "TRANSPORT=tcp $PR rhel9 $V" "TRANSPORT=caw $PR rhel9 $V" \
     "TRANSPORT=tcp PREP=rhel9 $FZ" "TRANSPORT=caw PREP=rhel9 $FZ" \
-    "tests/selinux_svirt_mxfs.sh $(tools/mxfs_lab.sh addr alma9-1)" \
+    "PREP=rhel9 tests/selinux_svirt_mxfs.sh" \
     $( [ "$LAPS" -gt 0 ] && echo "tests/svirt_stall_laps.sh $V $LAPS" ) &
 P3=$!
 platform debian13 "TRANSPORT=tcp $PR debian13 $V" "TRANSPORT=caw $PR debian13 $V" \
@@ -129,4 +156,4 @@ for k in ubuntu2404 pve9 rhel9 debian13; do
     grep -a '^=== rc=' "$HERE/tests/evidence/full_verify_${V}_$k.log"
 done
 
-grep -E "=== rc=|RESULT|VERDICT|both nodes on kernel|suite_tcp_|suite_cawd_|clean_build_rc|tools_rc|tauth_rc|extern_audit_rc|all .* laps passed|STALL|STOP" "$L" | cut -c1-200
+grep -E "=== rc=|RESULT|VERDICT|both nodes on kernel|suite_tcp_|suite_cawd_|clean_build_rc|tools_rc|tauth_rc|extern_audit_rc|inode_flag_audit_rc|all .* laps passed|STALL|STOP" "$L" | cut -c1-200

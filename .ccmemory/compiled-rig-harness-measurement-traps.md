@@ -125,7 +125,7 @@ after the tool reports done, and the orphan holds `/tmp/mxfs_run.lock`, so
 every later `run.sh` invocation refuses and a driver that reads "newest
 evidence dir" re-scores the previous lap's artifacts across multiple A/B laps.
 Rule: redirect to a file and check `.last_run.json` + zero PENDING rows in
-`showstat.sh`, never a wrapper's exit code, to decide a run is finished
+`tools/criteria.py`, never a wrapper's exit code, to decide a run is finished
 ([[trap-timeout-around-run-sh-piped-to-tail-kills-the-reader-not-the-run-and-orphans-the-cluster-lock]]).
 Companion trap on the backgrounding side: a `run_in_background` command ending
 in `| tail -N` buffers its entire input and writes nothing to the task's

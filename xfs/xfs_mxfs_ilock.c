@@ -1936,10 +1936,24 @@ static int mxfs_ilock_acquire_from_dlm(struct xfs_inode *ip,
 		 *     drops its own waiter bit via caw_drop_own_waiter with
 		 *     confirm-until-clear + the owed-obligation registry, so
 		 *     the restart lap re-enters acquire with a clean slate.
+		 *
+		 *     0.90.13 (D-NON-ELECTED-SURVIVOR-SHUTS-DOWN-ON-ACQUIRE-
+		 *     BUDGET-DURING-PEER-RECOVERY): the dead-slot bitmap is this
+		 *     node's REPLAY DUTY — mxfs_dlm_dead_node_notify sets it on
+		 *     the elected replayer alone — so on every other survivor a
+		 *     pending peer recovery left this predicate false and the
+		 *     budget failure fell through to the shutdown in (3).
+		 *     Measured 4/tcp (laps s6a_realignA/B): the stayer that was
+		 *     not elected read through a descriptor whose inode's page
+		 *     sat under the dead authority, spent its 60-retry budget on
+		 *     REMASTER answers and shut its filesystem down, while the
+		 *     elected replayer parked here on the same failure.  Ask the
+		 *     DLM as well: every node's monitor marks the dead slot
+		 *     recovery-pending when it declares the death.
 		 */
-		if (rc &&
-		    !bitmap_empty(ip->i_mount->m_mxfs_foreign_dead_slots, 64) &&
-		    !xfs_is_shutdown(ip->i_mount)) {
+		if (rc && !xfs_is_shutdown(ip->i_mount) &&
+		    (!bitmap_empty(ip->i_mount->m_mxfs_foreign_dead_slots, 64) ||
+		     mxfs_v5_dlm_any_recovery_pending(ip->i_mount->m_mxfs_dlm))) {
 			spin_lock(&ip->i_dlm_lock);
 			if (ip->i_dlm_state == MXFS_DLM_ISTATE_ACQUIRING)
 				{ u8 dtr_om = ip->i_dlm_mode, dtr_os = ip->i_dlm_state;
@@ -1951,9 +1965,11 @@ static int mxfs_ilock_acquire_from_dlm(struct xfs_inode *ip,
 			wake_up_all(&ip->i_dlm_wait);
 			park_laps++;
 			pr_warn_ratelimited(
-			    "mxfs: P240-QUAR-PARK ino=%llu mode=%u rc=%d laps=%d comm=%s — acquire timed out with peer recovery pending; parking until a verdict (replay/refusal) lands, NOT shutting down\n",
+			    "mxfs: P240-QUAR-PARK ino=%llu mode=%u rc=%d laps=%d duty=%d comm=%s — acquire timed out with peer recovery pending; parking until a verdict (replay/refusal) lands, NOT shutting down\n",
 				(unsigned long long)ip->i_ino, mode, rc,
-				park_laps, current->comm);
+				park_laps,
+				!bitmap_empty(ip->i_mount->m_mxfs_foreign_dead_slots, 64),
+				current->comm);
 			msleep(min(500 * park_laps, 5000));
 			{ block_outcome = MXFS_BLOCK_GOTO + 0; goto mxfs_ilock_acquire_from_dlm_exit; }
 		}

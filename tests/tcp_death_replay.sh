@@ -51,8 +51,13 @@
 #        MXFS_MNT (default /mnt/shared)
 #        TDR_BLOCK_INJECT=1 — the RECOVERY_BLOCKED arm
 #          (D-FENCE-PRECOMMAND-RETRY-UNBOUNDED-NO-BLOCKED-STATE-0904): before
-#          the kill W gets fence_gate_inject_refuse=1 (the sole-survivor gate
-#          is refused, so the absent-key attempt stays non-proving) and
+#          the kill every survivor gets pr_fence_inject_key_absent=1 (the
+#          victim's registration is reported absent at the classification,
+#          as a purging target leaves it; the SCST/LIO targets retain it and
+#          would certify on the first present-key preempt),
+#          fence_gate_inject_refuse=1 (the sole-survivor gate is refused, so
+#          the absent-key attempt stays non-proving on a 2-node cluster; on
+#          3+ nodes the wider membership refuses it by itself) and
 #          fence_blocked_after_ms=$TDR_BLOCK_AFTER_MS (default 20000).  After
 #          the kill the harness asserts, within BLOCK_BOUND of the kill: one
 #          P238-FENCE-BLOCKED, the durable flag line, the debugfs reason
@@ -83,6 +88,65 @@
 #          every 2 s; the umount must return 0 within 20 s.  The lap ends
 #          there (W unmounted or hung, V restarted); budget: the blocked arm
 #          to its verdict + 60 s => caller bound 300 s.
+#        TDR_PROBE_NODES=<n1[,n2]> (with TDR_BLOCK_INJECT=1) — the open leg of
+#          D-0904 at 3+ nodes: nodes that are neither W nor V, mounted on the
+#          same cluster.  Once W's blocked state is asserted, each probe node
+#          stats the victim's directory and creates in it (bound 40 s).  The
+#          request is mastered by whichever node the resource hashes to: W
+#          denies it (P-RBLK-DENY-MASTER on W, P-RBLK-DENY-REMOTE on the probe
+#          node), the dead victim (P-RBLK-DENY-DEAD-MASTER on the probe node),
+#          the probe node itself (P-RBLK-DENY-LOCAL) or the other non-prover
+#          (its P-RBLK-DENY-MASTER).  Every branch must end in EIO within 20 s
+#          with a P-RBLK line on the probe node naming the refusal; a wait to
+#          the bound with no such line is the park the record describes — the
+#          non-prover never imported the blocked verdict, so as master it
+#          queues the request and as requester it sends to the dead master.
+#          Also asserted: no shutdown on the probe node.  Budget: the blocked
+#          arm + 40 s per probe node => caller bound 400 + 40 x nodes.
+#        TDR_BLOCK_REALIGN=1 (with TDR_BLOCK_INJECT=1 and TDR_PROBE_NODES) —
+#          the re-aligned-page arm (D-A-STALLED-PAGE-TRANSITION-IS-AN-
+#          UNBOUNDED-WAIT-FOR-A-NON-FALLIBLE-CALLER).  Before the kill every
+#          survivor makes 40 files of its own, every survivor opens every
+#          other survivor's files and holds the descriptors, and every owner
+#          rewrites its files, so each reader's grant is revoked while its
+#          descriptors stay open.  Once the probes have run, the first probe
+#          node that is not W leaves (bound 60 s, must return 0 within 20 s):
+#          its departure shrinks the view while the dead victim stays in it,
+#          and page-aligned mastership moves pages the victim authored onto
+#          live masters.  After the membership-settle window (20 s) every
+#          remaining survivor reads the other stayers' files through the
+#          descriptors it holds: a read(2) walks no path (the root inode is
+#          the dead victim's grant, so every lookup below it fails fast at
+#          the dead holder before any page is asked for — measured
+#          2026-09-28, laps s4f_realignA/B: 24 root creates, no page met),
+#          so its one request is the file inode's PR, sent to that inode's
+#          page master.  Each read must return 0 or EIO, none over 10 s, the
+#          pass inside 25 s, zero P960-AUTH-TRANSITION-STALLED, zero
+#          P240-QUAR-PARK, zero shutdowns; and at least one survivor must
+#          have logged P-RBLK-DENY-DEAD-AUTHORITY naming the victim's
+#          incarnation (the deny), P-TAUTH-TAKEOVER-UNDER-JUDGEMENT naming it
+#          (the refusal) or a transition wait, or no re-aligned page was met
+#          and the lap is VACUOUS (exit 3).  A probe line naming another
+#          incarnation (the departed node's, when it left dirty) is reported
+#          and counts for nothing.  TDR_REALIGN_DENY=0|1 (default: the
+#          build's own, 1) writes mxfs.dl_rblk_authority_deny on every
+#          survivor before the kill and restores 1 after the workload: 0
+#          restores the wait and must show the park (the record); 1 is the
+#          fix.  With the wait restored the park is P240-QUAR-PARK on BOTH
+#          stayers (duty=1 on the elected replayer, duty=0 on the other)
+#          and 'zero shutdowns' must still PASS: on 0.90.12 the stayer that
+#          was not the elected replayer shut its filesystem down there
+#          instead (laps s6a_realignA/B, D-NON-ELECTED-SURVIVOR-SHUTS-DOWN-
+#          ON-ACQUIRE-BUDGET-DURING-PEER-RECOVERY).  Budget: the probe arm
+#          + 15 s of files and descriptors before the kill + 60 s departure
+#          + 22 s settle + 45 s workload + 20 s captures => TDR_LAP_BOUND 645.
+#        TDR_MEMBERS=<csv> — every mounted member (default: W, V and the probe
+#          nodes).  At 3+ nodes the prover and the replayer can be any
+#          survivor (measured 2026-09-28 at 4/cawd), so the fence, snapshot
+#          and replay assertions read every survivor's kernel log and the
+#          blocked arm arms every survivor and finds the prover by its
+#          transition line.  tests/death/crash_audit.sh and
+#          tests/tcp_2node_death_chain.sh pass their whole list.
 #        TDR_AGMASK_INJECT=1 — the AG-scoped refusal arm
 #          (D-TCP-REFUSED-VICTIM-KEEPS-MASTERSHIP-OUT-OF-MASK-RESOURCES-
 #          UNAVAILABLE-0910): before the kill W gets dbg_fr_taint_items_over=1,
@@ -195,6 +259,27 @@ BLOCK_INJECT=${TDR_BLOCK_INJECT:-0}
 BLOCK_AFTER_MS=${TDR_BLOCK_AFTER_MS:-20000}
 VERIFY_INJECT=${TDR_VERIFY_INJECT:-0}
 BLOCK_UMOUNT=${TDR_BLOCK_UMOUNT:-0}     # with TDR_BLOCK_INJECT=1: umount W while blocked, then stop
+PROBE_NODES=${TDR_PROBE_NODES:-}        # with TDR_BLOCK_INJECT=1: nodes neither W nor V that probe the victim's directory while blocked
+[ -z "$PROBE_NODES" ] || [ "$BLOCK_INJECT" = 1 ] || { echo "ABORT: TDR_PROBE_NODES needs TDR_BLOCK_INJECT=1 (the probes measure the blocked state)"; exit 2; }
+BLOCK_REALIGN=${TDR_BLOCK_REALIGN:-0}   # with TDR_BLOCK_INJECT=1 and TDR_PROBE_NODES: the re-aligned-page arm
+REALIGN_DENY=${TDR_REALIGN_DENY:-}      # 0|1: mxfs.dl_rblk_authority_deny on every survivor (empty = the build's own)
+REALIGN_VERDICT=""                      # measured | vacuous, once the arm has run
+RL_N=40                                 # the re-aligned-page arm: files per owner, reads per reader per owner
+VID=""; VSLOT=""                        # the victim's incarnation and slot, from the blocked transition (a second victim — a dirty departure — must not be read as this one)
+[ "$BLOCK_REALIGN" != 1 ] || { [ "$BLOCK_INJECT" = 1 ] && [ -n "$PROBE_NODES" ]; } || { echo "ABORT: TDR_BLOCK_REALIGN=1 needs TDR_BLOCK_INJECT=1 and TDR_PROBE_NODES (a probe node departs while blocked)"; exit 2; }
+# every mounted member (TDR_MEMBERS, csv): the caller's list, else W, V and
+# the probe nodes.  At 3+ nodes the PROVER (fence, snapshot, blocked series)
+# and the REPLAYER can be any survivor — measured 2026-09-28 at 4/cawd: test3
+# fenced and snapshotted slot 1 while test1 logged "already certified fenced
+# by another prover" and replayed — so the prover-side and replay assertions
+# read every survivor's kernel log, merged, and the blocked arm arms its
+# injection on every survivor and finds the prover by its transition line.
+# W stays the node the workload, the pre-cache and the verification run on.
+MEMBERS=${TDR_MEMBERS:-}
+[ -n "$MEMBERS" ] || MEMBERS="$W,$V${PROBE_NODES:+,$PROBE_NODES}"
+for n in "$W" "$V" ${PROBE_NODES//,/ }; do case ",$MEMBERS," in *",$n,"*) ;; *) MEMBERS="$MEMBERS,$n" ;; esac; done
+SURVIVORS=$W
+for n in ${MEMBERS//,/ }; do [ "$n" = "$W" ] || [ "$n" = "$V" ] || SURVIVORS="$SURVIVORS $n"; done
 AGMASK_INJECT=${TDR_AGMASK_INJECT:-0}
 AGFILL=${TDR_AGFILL:-0}                 # with TDR_AGMASK_INJECT=1: the D-0538 block-allocator arm
 FALSE_APPLY=${TDR_FALSE_APPLY:-0}       # the released-tenure image arm (D-FOREIGN-REPLAY-UNGATED-IMAGES)
@@ -241,6 +326,15 @@ wd() { rsx 25 "$W" "dmesg | sed -n \"/$MARK/,\\\$p\""; }
 wdcap() { wd > "$1"; capture_require "$1" "$MARK" "the kernel log on $W from the lap marker (${1##*/})"; }
 # wdcap_from <file> <marker>: the same, from a later marker the lap wrote
 wdcap_from() { wd | awk "/$2/{f=1} f" > "$1"; capture_require "$1" "$2" "the kernel log on $W from the marker $2 (${1##*/})"; }
+# wdn <node> / wdncap <node> <file>: one named survivor's log from the marker
+wdn() { rsx 25 "$1" "dmesg | sed -n \"/$MARK/,\\\$p\""; }
+wdncap() { wdn "$1" > "$2"; capture_require "$2" "$MARK" "the kernel log on $1 from the lap marker (${2##*/})"; }
+# wds / wdscap <file>: every survivor's log from the marker, merged, each line
+# prefixed [node]; the status record a failed read appends is left bare so
+# capture_require still sees it.  The prover and the replayer can be any
+# survivor at 3+ nodes, so their lines are looked for here, not on W alone.
+wds() { local n; for n in $SURVIVORS; do rsx 25 "$n" "dmesg | sed -n \"/$MARK/,\\\$p\"" | sed "/^$RS_STATUS_TAG /!s/^/[$n] /"; done; }
+wdscap() { wds > "$1"; capture_require "$1" "$MARK" "the survivors' kernel logs from the lap marker (${1##*/})"; }
 # probe <node> <timeout> <file> <shape> <what> <cmd>: a one-shot remote
 # measurement whose lines feed a verdict, validated
 probe() { rsx "$2" "$1" "$6" > "$3"; capture_require "$3" "$4" "$5"; }
@@ -260,7 +354,7 @@ PLAIN=1
   [ "$FALSE_APPLY" != 0 ] || [ "$VICTIM_INJECT" != 0 ] || [ "${TDR_REJOIN:-0}" = 1 ]; } && PLAIN=0
 TREESV=$(modinfo mxfs.ko 2>/dev/null | sed -n 's/^srcversion: *//p')
 FT=""
-for n in "$W" "$V"; do
+for n in ${MEMBERS//,/ }; do
     info=$(timeout 15 $SSH "$n" "echo sv=\$(cat /sys/module/mxfs/srcversion) ft=\$(cat $P/force_transport) m=\$(grep -c ' mxfs ' /proc/mounts)" 2>/dev/null | filt | tr -d '\r')
     echo "  INFO $n $info"
     [[ "$info" == *"sv=$TREESV"* ]] || { echo "ABORT: $n srcversion != tree '$TREESV' ($info)"; exit 2; }
@@ -270,14 +364,16 @@ for n in "$W" "$V"; do
         0) [ "$PLAIN" = 1 ] || { echo "ABORT: $n is on CAW and this arm measures a TCP mechanism ($info)"; exit 2; } ;;
         *) echo "ABORT: $n force_transport unreadable ($info)"; exit 2 ;;
     esac
-    [ -z "$FT" ] || [ "$FT" = "$nft" ] || { echo "ABORT: $W and $V are on different transports ($info)"; exit 2; }
+    [ -z "$FT" ] || [ "$FT" = "$nft" ] || { echo "ABORT: $n is on a different transport from $W ($info)"; exit 2; }
     FT=$nft
     [[ "$info" == *"m=1"* ]] || { echo "ABORT: $n not mounted ($info)"; exit 2; }
 done
 TRANSPORT=$([ "$FT" = 1 ] && echo tcp || echo caw)
-echo "  INFO transport=$TRANSPORT plain=$PLAIN"
+echo "  INFO transport=$TRANSPORT plain=$PLAIN members=$MEMBERS survivors=[$SURVIVORS]"
 MARK="TDR-$LABEL-$$"
 timeout 12 $SSH "$W" "echo '$MARK' > /dev/kmsg" >/dev/null 2>&1
+# every survivor's window opens on the same mark
+for pn in $SURVIVORS; do [ "$pn" = "$W" ] || timeout 12 $SSH "$pn" "echo '$MARK' > /dev/kmsg" >/dev/null 2>&1; done
 
 # -- survivor-side cached state the victim will then change (the stale-view
 #    vectors of D-SURVIVOR-SINGLE-NODE-BYPASS-...-0904): W creates and READS
@@ -306,10 +402,92 @@ ck "survivor pre-cached $PRE ($PRE_N files + shared.txt written+read+stat'd, cre
 # -- the RECOVERY_BLOCKED arm: arm the injection on W before the kill --
 prior_after_ms=""
 if [ "$BLOCK_INJECT" = 1 ]; then
-    measure "$W" 12 "$OUT/rv_prior_after_ms_1.txt" '^armed=' "prior_after_ms on $W" "cat $P/fence_blocked_after_ms; echo 1 > $P/fence_gate_inject_refuse; echo $BLOCK_AFTER_MS > $P/fence_blocked_after_ms; echo armed=\$(cat $P/fence_gate_inject_refuse)/\$(cat $P/fence_blocked_after_ms)"; prior_after_ms=$(cat "$OUT/rv_prior_after_ms_1.txt" | tr '\n' ' ')
-    echo "  INFO block-inject armed on $W: $prior_after_ms"
-    ck "injection armed on $W (gate refused, blocked_after=${BLOCK_AFTER_MS}ms)" "$(echo "$prior_after_ms" | grep -ac "armed=1/$BLOCK_AFTER_MS")" "1"
-    prior_after_ms=$(echo "$prior_after_ms" | awk '{print $1}')
+    # armed on EVERY survivor: whichever one fences the victim is the prover
+    # whose series the injection must keep non-proving
+    for n in $SURVIVORS; do
+        # pr_fence_inject_key_absent: the targets this rig runs (SCST, LIO)
+        # retain a destroyed initiator's registration, so without it the
+        # present-key PREEMPT AND ABORT certifies on the first attempt and
+        # the series never becomes non-proving (measured 2026-09-28, 4/tcp:
+        # retries=0, PREEMPT_ABORT_PROVEN_V1, no P238 line, a vacuous lap).
+        # The knob reports the key absent at the classification, which is
+        # what the purging target produced.
+        measure "$n" 12 "$OUT/rv_prior_after_ms_$n.txt" '^armed=' "prior_after_ms on $n" "cat $P/fence_blocked_after_ms; echo 1 > $P/fence_gate_inject_refuse; echo 1 > $P/pr_fence_inject_key_absent; echo $BLOCK_AFTER_MS > $P/fence_blocked_after_ms; echo armed=\$(cat $P/fence_gate_inject_refuse)/\$(cat $P/pr_fence_inject_key_absent)/\$(cat $P/fence_blocked_after_ms)"
+        armed=$(tr '\n' ' ' < "$OUT/rv_prior_after_ms_$n.txt")
+        echo "  INFO block-inject armed on $n: $armed"
+        ck "injection armed on $n (gate refused, key reported absent, blocked_after=${BLOCK_AFTER_MS}ms)" "$(echo "$armed" | grep -ac "armed=1/1/$BLOCK_AFTER_MS")" "1"
+        [ -n "$prior_after_ms" ] || prior_after_ms=$(echo "$armed" | awk '{print $1}')
+    done
+    # the re-aligned-page arm's A/B knob: 0 = the pre-0.90.12 wait, 1 = the deny
+    if [ -n "$REALIGN_DENY" ]; then
+        for n in $SURVIVORS; do
+            value_now_into rdeny "$n" 12 "$OUT/rv_realign_deny_$n.txt" '^[01]$' "dl_rblk_authority_deny on $n" "echo $REALIGN_DENY > $P/dl_rblk_authority_deny; cat $P/dl_rblk_authority_deny"
+            ck "dl_rblk_authority_deny=$REALIGN_DENY on $n" "$rdeny" "$REALIGN_DENY"
+        done
+    fi
+fi
+
+# -- the re-aligned-page arm's readers, armed before the kill (see the
+#    header): every survivor makes RL_N files of its own, every survivor
+#    opens every OTHER survivor's files and holds the descriptors, and every
+#    owner then rewrites its files so each reader's grant is revoked while
+#    its descriptors stay open.  The reads come after the departure, through
+#    the descriptors: no path walk, one inode PR request per file.
+if [ "$BLOCK_REALIGN" = 1 ]; then
+    RLSH='#!/bin/bash
+# tdr_rl_reader: opens every file of every owner named on the command line
+# and holds the descriptors; on the go file it reads, through those
+# descriptors, the files of the owners the go file names.  A read(2) walks
+# no path, so the only lock it asks for is the file inode PR.
+go=$1; out=$2; pidf=$3; mnt=$4; label=$5; n=$6; shift 6
+echo $$ > "$pidf"; cut -d" " -f5 /proc/$$/stat > "$pidf.pgid"
+: > "$out"
+declare -A FD
+nopen=0; nfail=0
+for o in "$@"; do
+    for i in $(seq 0 $(( n - 1 ))); do
+        f="$mnt/tdr_rl_${label}_$o/r_$i"
+        if exec {fd}<"$f"; then FD[$o.$i]=$fd; nopen=$((nopen+1)); else nfail=$((nfail+1)); echo "OPEN_FAIL $f" >> "$out"; fi
+    done
+done
+echo "OPENED $nopen failed=$nfail owners=$*" >> "$out"
+while [ ! -f "$go" ]; do sleep 1; done
+read -r owners < "$go"
+t0=$(date +%s%N)
+for o in $owners; do
+    for i in $(seq 0 $(( n - 1 ))); do
+        fd=${FD[$o.$i]}
+        [ -n "$fd" ] || { echo "RL owner=$o i=$i rc=NOFD ms=0" >> "$out"; continue; }
+        t=$(date +%s%N)
+        err=$(head -c 1024 <&$fd 2>&1 >/dev/null); rc=$?
+        echo "RL owner=$o i=$i rc=$rc ms=$(( ($(date +%s%N) - t) / 1000000 )) $err" >> "$out"
+    done
+done
+echo "RL_END ms=$(( ($(date +%s%N) - t0) / 1000000 ))" >> "$out"
+'
+    RLSHB=$(printf '%s' "$RLSH" | base64 -w0)
+    NSURV=$(echo $SURVIVORS | wc -w)
+    # the readers' own KILL bound, from the lap's shape: armed here before the
+    # kill, they read after the blocked transition (<= 120 s), the probes
+    # (40 s each) and the departure (90 s); a parked read ends when the block
+    # lifts and the recovery completes (<= 60 s more)
+    RL_KILL=$(( KILL_AFTER + 120 + 40 * NSURV + 90 + 45 + 60 ))
+    for n in $SURVIVORS; do
+        measure "$n" 30 "$OUT/rl_files_$n.txt" '^RL_FILES ' "the re-aligned-page files on $n" "mkdir -p '$MNT/tdr_rl_${LABEL}_$n' && for i in \$(seq 0 $(( RL_N - 1 ))); do head -c 1024 /dev/urandom > '$MNT/tdr_rl_${LABEL}_$n/r_'\$i || echo RL_WRITE_FAIL \$i; done; sync -f '$MNT/tdr_rl_${LABEL}_$n'; echo RL_FILES \$(ls -1 '$MNT/tdr_rl_${LABEL}_$n' | wc -l)"
+        ck "realign: $n made $RL_N files of its own" "$(grep -ac "^RL_FILES $RL_N\$" "$OUT/rl_files_$n.txt")" "1"
+    done
+    for n in $SURVIVORS; do
+        others=""; for o in $SURVIVORS; do [ "$o" = "$n" ] || others="$others $o"; done
+        measure "$n" 40 "$OUT/rl_open_$n.txt" '^OPENED ' "the reader on $n" "rm -f /root/tdr_rl.go /root/tdr_rl.out /root/tdr_rl.pid /root/tdr_rl.pid.pgid; echo $RLSHB | base64 -d > /root/tdr_rl_reader.sh; nohup setsid timeout -s KILL $RL_KILL bash /root/tdr_rl_reader.sh /root/tdr_rl.go /root/tdr_rl.out /root/tdr_rl.pid '$MNT' '$LABEL' $RL_N $others </dev/null >/root/tdr_rl.log 2>&1 & for i in \$(seq 1 30); do [ -f /root/tdr_rl.out ] && grep -aq '^OPENED ' /root/tdr_rl.out && break; sleep 1; done; cat /root/tdr_rl.out 2>/dev/null; head -3 /root/tdr_rl.log 2>/dev/null"
+        echo "  INFO reader on $n: $(grep -a '^OPENED ' "$OUT/rl_open_$n.txt" | head -1)"
+        ck "realign: the reader on $n opened every other survivor's files ($(( RL_N * (NSURV - 1) )))" "$(grep -ac "^OPENED $(( RL_N * (NSURV - 1) )) failed=0 " "$OUT/rl_open_$n.txt")" "1"
+    done
+    # every owner takes EX back on its files: the readers' grants are revoked
+    # and the next read each makes must be a request to the page master
+    for n in $SURVIVORS; do
+        measure "$n" 30 "$OUT/rl_rewrite_$n.txt" '^RL_REWRITTEN ' "the rewrite of the files on $n" "f=0; for i in \$(seq 0 $(( RL_N - 1 ))); do head -c 1024 /dev/urandom > '$MNT/tdr_rl_${LABEL}_$n/r_'\$i || f=\$((f+1)); done; sync -f '$MNT/tdr_rl_${LABEL}_$n'; echo RL_REWRITTEN $RL_N failed=\$f"
+        ck "realign: $n rewrote its $RL_N files (every reader's grant revoked)" "$(grep -ac "^RL_REWRITTEN $RL_N failed=0\$" "$OUT/rl_rewrite_$n.txt")" "1"
+    done
 fi
 
 # -- the write-verifier arm: the next foreign-recovery image W submits is
@@ -740,50 +918,194 @@ if [ "$BLOCK_INJECT" = 1 ]; then
     # + jitter before the arm that flips the state: 62 + 20 + 10 => 100 s,
     # bound 120 s.
     BLOCK_BOUND=120
-    i=0; blk=""
+    i=0; blk=""; PROVER=""
     while [ $i -lt $BLOCK_BOUND ]; do
-        blk=$(wd | grep -a 'P238-FENCE-BLOCKED ' | tail -1)
+        for n in $SURVIVORS; do
+            blk=$(wdn "$n" | grep -a 'P238-FENCE-BLOCKED ' | tail -1)
+            [ -n "$blk" ] && { PROVER=$n; break; }
+        done
         [ -n "$blk" ] && break
         sleep 3; i=$((i+3))
     done
     # the poll above is never a verdict: an empty blk after the bound is only
     # a finding if the final window crossed the boundary
-    [ -n "$blk" ] || { wdcap "$OUT/blk_final.txt"; blk=$(grep -a 'P238-FENCE-BLOCKED ' "$OUT/blk_final.txt" | tail -1); }
+    [ -n "$blk" ] || { wdscap "$OUT/blk_final.txt"; blk=$(grep -a 'P238-FENCE-BLOCKED ' "$OUT/blk_final.txt" | tail -1); PROVER=$(echo "$blk" | sed -n 's/^\[\([^]]*\)\].*/\1/p'); }
+    # the prover is whoever logged the transition; with none, W's window is
+    # read so the assertions below FAIL against a real capture
+    [ -n "$PROVER" ] || PROVER=$W
     tblock=$(( $(date +%s) - tkill ))
-    wdcap "$OUT/dmesg_${W}_blocked.txt"
-    echo "  INFO blocked after ${tblock}s from the kill: ${blk:-<none within ${BLOCK_BOUND}s>}"
+    wdncap "$PROVER" "$OUT/dmesg_${PROVER}_blocked.txt"
+    wdscap "$OUT/dmesg_survivors_blocked.txt"
+    echo "  INFO blocked after ${tblock}s from the kill, prover=$PROVER: ${blk:-<none within ${BLOCK_BOUND}s>}"
+    # the victim's identity, from the transition itself: every later line
+    # that names a victim is selected by it, because a probe node that leaves
+    # dirty during the re-aligned-page arm is fenced and collected as a
+    # second victim in the same window
+    VID=$(echo "$blk" | grep -ao 'victim=[0-9]*' | head -1 | cut -d= -f2)
+    VSLOT=$(echo "$blk" | grep -ao ' slot=[0-9]*' | head -1 | tr -dc 0-9)
+    echo "  INFO victim incarnation=${VID:-?} slot=${VSLOT:-?}"
     ck "P238-FENCE-BLOCKED within ${BLOCK_BOUND}s of the kill" "$([ -n "$blk" ] && echo 1 || echo 0)" "1"
-    ck "exactly one P238-FENCE-BLOCKED transition" "$(grep -ac 'P238-FENCE-BLOCKED ' "$OUT/dmesg_${W}_blocked.txt")" "1"
-    ck "the blocked verdict is durable (P304-FENCE-BLOCKED-DURABLE)" "$(grep -ac 'P304-FENCE-BLOCKED-DURABLE slot' "$OUT/dmesg_${W}_blocked.txt")" "1"
-    ck "the injection was what kept the series non-proving (P238-FENCE-GATE-INJECT-REFUSED)" "$([ "$(grep -ac 'P238-FENCE-GATE-INJECT-REFUSED' "$OUT/dmesg_${W}_blocked.txt")" -ge 1 ] && echo 1 || echo 0)" "1"
-    nretry=$(grep -ac 'P304-FENCE-RETRY slot' "$OUT/dmesg_${W}_blocked.txt")
+    ck "exactly one P238-FENCE-BLOCKED transition across the survivors" "$(grep -ac 'P238-FENCE-BLOCKED ' "$OUT/dmesg_survivors_blocked.txt")" "1"
+    ck "the blocked verdict is durable (P304-FENCE-BLOCKED-DURABLE)" "$(grep -ac 'P304-FENCE-BLOCKED-DURABLE slot' "$OUT/dmesg_${PROVER}_blocked.txt")" "1"
+    ck "the injection was what kept the series non-proving (P238-FENCE-GATE-INJECT-REFUSED)" "$([ "$(grep -ac 'P238-FENCE-GATE-INJECT-REFUSED' "$OUT/dmesg_${PROVER}_blocked.txt")" -ge 1 ] && echo 1 || echo 0)" "1"
+    nretry=$(grep -ac 'P304-FENCE-RETRY slot' "$OUT/dmesg_${PROVER}_blocked.txt")
     # the backoff table is 6 deep (~14 s) and the series ran BLOCK_AFTER_MS
     # at the 6 s ceiling: 6 + BLOCK_AFTER_MS/6000 + 2 slack
     retry_cap=$(( 6 + BLOCK_AFTER_MS / 6000 + 2 ))
     echo "  INFO P304-FENCE-RETRY count at the transition: $nretry (cap $retry_cap)"
     ck "retry count bounded at the transition (<= $retry_cap)" "$([ "$nretry" -le "$retry_cap" ] && echo 1 || echo 0)" "1"
-    ck "zero replay verdicts while blocked" "$(grep -a 'foreign replay of' "$OUT/dmesg_${W}_blocked.txt" | grep -ac 'complete\|failed')" "0"
-    probe "$W" 20 "$OUT/debugfs_blocked.txt" '^DBG_END$' "the recovery_blocked debugfs read on $W" "cat /sys/kernel/debug/mxfs/*/recovery_blocked 2>/dev/null | grep -a 'reason=\|ACTION'; echo DBG_END"
+    ck "zero replay verdicts while blocked" "$(grep -a 'foreign replay of' "$OUT/dmesg_${PROVER}_blocked.txt" | grep -ac 'complete\|failed')" "0"
+    probe "$PROVER" 20 "$OUT/debugfs_blocked.txt" '^DBG_END$' "the recovery_blocked debugfs read on $PROVER" "cat /sys/kernel/debug/mxfs/*/recovery_blocked 2>/dev/null | grep -a 'reason=\|ACTION'; echo DBG_END"
     dbg=$(grep -av '^DBG_END$' "$OUT/debugfs_blocked.txt" | tr '\n' ' ')
     echo "  INFO debugfs: $(echo "$dbg" | cut -c1-200)"
     ck "debugfs recovery_blocked names reason=FENCE_BLOCKED" "$(echo "$dbg" | grep -ac 'reason=FENCE_BLOCKED')" "1"
     # fail-fast: the victim died holding EX on $D (its create loop) — a
-    # lookup/stat of $D from W needs that grant.  Bounded at 40 s; a pass is
-    # an EIO within seconds, a wait to the timeout is the pre-0.74.0 stall.
+    # lookup/stat of $D from the prover needs that grant.  Bounded at 40 s; a
+    # pass is an EIO within seconds, a wait to the timeout is the pre-0.74.0
+    # stall.
     tff=$(date +%s)
     # a timeout here IS the stall under test, so the status is kept as the
     # measurement: only a missing lsrc= line WITHOUT a timeout is an ABORT
-    rsx 40 "$W" "stat -c %i '$D' 2>&1; echo rc=\$?; ls -1 '$MNT' > /dev/null 2>&1; echo lsrc=\$?" > "$OUT/failfast_probe.txt"; ffrc=$?
-    [ "$ffrc" = 124 ] || capture_require "$OUT/failfast_probe.txt" 'lsrc=[0-9]+' "the fail-fast probe on $W"
+    rsx 40 "$PROVER" "stat -c %i '$D' 2>&1; echo rc=\$?; ls -1 '$MNT' > /dev/null 2>&1; echo lsrc=\$?" > "$OUT/failfast_probe.txt"; ffrc=$?
+    [ "$ffrc" = 124 ] || capture_require "$OUT/failfast_probe.txt" 'lsrc=[0-9]+' "the fail-fast probe on $PROVER"
     ffo=$(grep -av "^$RS_STATUS_TAG " "$OUT/failfast_probe.txt" | tr '\n' ' ')
     tffw=$(( $(date +%s) - tff ))
-    echo "  INFO fail-fast probe wall=${tffw}s: $(echo "$ffo" | cut -c1-200)"
-    ck "path op on the victim's directory returned within 20s (no acquire-budget stall)" "$([ "$tffw" -le 20 ] && echo 1 || echo 0)" "1"
-    ck "path op on the victim's directory failed EIO" "$(echo "$ffo" | grep -ac 'Input/output error')" "1"
-    wdcap "$OUT/dmesg_${W}_blocked.txt"
-    ckge "fail-fast probes fired (P240-RBLK-REFUSE / P240-RBLK-EIO-ABORT / P-RBLK-DENY / P-RBLK-COVERS-DEAD-{MASTER,HOLDER})" "$(grep -ac 'P240-RBLK-REFUSE\|P240-RBLK-EIO-ABORT\|P-RBLK-DENY\|P-RBLK-COVERS' "$OUT/dmesg_${W}_blocked.txt")" 1
-    echo "  INFO refusal predicates: $(grep -a 'P240-QUAR-NSOP-REFUSE\|P-RBLK-COVERS' "$OUT/dmesg_${W}_blocked.txt" | sed 's/.*kernel: //; s/.*\] //' | cut -c1-120 | sort | uniq -c | tr '\n' '|' | cut -c1-400)"
-    ck "zero shutdowns on $W while blocked" "$(grep -ac 'Shutting down filesystem' "$OUT/dmesg_${W}_blocked.txt")" "0"
+    echo "  INFO fail-fast probe on $PROVER wall=${tffw}s: $(echo "$ffo" | cut -c1-200)"
+    ck "path op on the victim's directory from the prover returned within 20s (no acquire-budget stall)" "$([ "$tffw" -le 20 ] && echo 1 || echo 0)" "1"
+    ck "path op on the victim's directory from the prover failed EIO" "$(echo "$ffo" | grep -ac 'Input/output error')" "1"
+    wdncap "$PROVER" "$OUT/dmesg_${PROVER}_blocked.txt"
+    ckge "fail-fast probes fired (P240-RBLK-REFUSE / P240-RBLK-EIO-ABORT / P-RBLK-DENY / P-RBLK-COVERS-DEAD-{MASTER,HOLDER})" "$(grep -ac 'P240-RBLK-REFUSE\|P240-RBLK-EIO-ABORT\|P-RBLK-DENY\|P-RBLK-COVERS' "$OUT/dmesg_${PROVER}_blocked.txt")" 1
+    echo "  INFO refusal predicates: $(grep -a 'P240-QUAR-NSOP-REFUSE\|P-RBLK-COVERS' "$OUT/dmesg_${PROVER}_blocked.txt" | sed 's/.*kernel: //; s/.*\] //' | cut -c1-120 | sort | uniq -c | tr '\n' '|' | cut -c1-400)"
+    ck "zero shutdowns on $PROVER while blocked" "$(grep -ac 'Shutting down filesystem' "$OUT/dmesg_${PROVER}_blocked.txt")" "0"
+    # -- the open leg at 3+ nodes (TDR_PROBE_NODES, see the header): a node
+    #    that is neither the prover nor the victim asks for the victim's
+    #    directory while the recovery is blocked.  The stat needs PR on $D and
+    #    the mkdir EX; the victim died holding EX on it.  The wall is the
+    #    measurement; the P-RBLK line names which branch refused.  The probe
+    #    set is the named probe nodes plus W, minus whichever of them proved.
+    PROBES=""
+    if [ -n "$PROBE_NODES" ]; then
+        for n in $SURVIVORS; do
+            [ "$n" = "$PROVER" ] && continue
+            case ",$PROBE_NODES,$W," in *",$n,"*) PROBES="$PROBES $n" ;; esac
+        done
+        echo "  INFO probe nodes (non-prover survivors): [${PROBES# }] prover=$PROVER"
+    fi
+    for PN in $PROBES; do
+        echo "  INFO probe node $PN: stat + mkdir in the victim's directory while blocked ($(date -u +%T))"
+        tpn=$(date +%s)
+        rsx 40 "$PN" "stat -c %i '$D' 2>&1; echo rc=\$?; mkdir '$D/probe_$PN' 2>&1; echo mkrc=\$?" > "$OUT/probe_${PN}.txt"; pnrc=$?
+        [ "$pnrc" = 124 ] || capture_require "$OUT/probe_${PN}.txt" 'mkrc=[0-9]+' "the probe ops on $PN"
+        pno=$(grep -av "^$RS_STATUS_TAG " "$OUT/probe_${PN}.txt" | tr '\n' ' ')
+        tpnw=$(( $(date +%s) - tpn ))
+        echo "  INFO probe $PN wall=${tpnw}s rc=$pnrc: $(echo "$pno" | cut -c1-220)"
+        rsx 25 "$PN" "dmesg | sed -n \"/$MARK/,\\\$p\"" > "$OUT/dmesg_${PN}_blocked.txt"
+        capture_require "$OUT/dmesg_${PN}_blocked.txt" "$MARK" "the kernel log on $PN from the lap marker"
+        ck "probe $PN: path ops on the victim's directory returned within 20 s (no park)" "$([ "$tpnw" -le 20 ] && echo 1 || echo 0)" "1"
+        ck "probe $PN: the stat failed EIO" "$(echo "$pno" | grep -ac 'stat: [^|]*Input/output error')" "1"
+        ck "probe $PN: the mkdir failed EIO" "$(echo "$pno" | grep -ac 'mkdir: [^|]*Input/output error')" "1"
+        ck "probe $PN: a P-RBLK line named the refusal (DENY-REMOTE / DENY-LOCAL / DENY-DEAD-MASTER / COVERS / P240-RBLK)" "$([ "$(grep -ac 'P-RBLK-DENY\|P-RBLK-COVERS\|P240-RBLK' "$OUT/dmesg_${PN}_blocked.txt")" -ge 1 ] && echo 1 || echo 0)" "1"
+        # 0.90.11: the verdict reaches a non-prover through the descriptor
+        # (its PR worker imports the durable flag), which is what makes its
+        # own predicate — and the denials it issues as a master — answer
+        ck "probe $PN: imported the prover's blocked verdict (P238-FENCE-BLOCKED-IMPORTED)" "$(grep -ac 'P238-FENCE-BLOCKED-IMPORTED' "$OUT/dmesg_${PN}_blocked.txt")" "1"
+        echo "  INFO $PN refusal/park lines: $(grep -a 'P-RBLK-\|P240-RBLK\|P240-QUAR-PARK\|P-LKTIMEOUT' "$OUT/dmesg_${PN}_blocked.txt" | sed 's/.*mxfs: //' | cut -c1-110 | sort | uniq -c | tr '\n' '|' | cut -c1-600)"
+        ck "probe $PN: zero shutdowns while blocked" "$(grep -ac 'Shutting down filesystem' "$OUT/dmesg_${PN}_blocked.txt")" "0"
+    done
+    if [ -n "$PROBES" ]; then
+        wdscap "$OUT/dmesg_survivors_probes.txt"
+        echo "  INFO survivors during the probes: master denials=$(grep -ac 'P-RBLK-DENY-MASTER' "$OUT/dmesg_survivors_probes.txt") ($(grep -a 'P-RBLK-DENY-MASTER' "$OUT/dmesg_survivors_probes.txt" | grep -ao '^\[[^]]*\]\|sender=[0-9]*' | paste -sd' ' | cut -c1-200))"
+    fi
+    if [ "$BLOCK_REALIGN" = 1 ]; then
+        # -- the re-aligned-page arm (see the header): a probe node that is
+        #    neither the prover nor W leaves cleanly; the view shrinks while
+        #    the dead victim stays in it, mastership re-aligns, and the
+        #    survivors' creates must never park on a refused takeover.
+        C=""
+        for n in $PROBES; do [ "$n" = "$W" ] && continue; C=$n; break; done
+        if [ -z "$C" ]; then
+            echo "ABORT: no probe node other than the prover $PROVER and $W can depart"
+            echo "RESULT: ABORT label=$LABEL stage=realign-depart evidence=$OUT"; exit 2
+        fi
+        echo "  INFO realign arm: $C departs while the recovery is blocked ($(date -u +%T))"
+        tdep=$(date +%s)
+        # the departing node's reader holds descriptors on the filesystem it
+        # is about to unmount: its process group goes first
+        probe "$C" 90 "$OUT/realign_depart_${C}.txt" '^(STILL_MOUNTED|UNMOUNTED)$' "the departure of $C while blocked" "[ -f /root/tdr_rl.pid.pgid ] && kill -9 -- -\$(cat /root/tdr_rl.pid.pgid) 2>/dev/null; sleep 1; rm -f /root/tdr_umount.rc; nohup sh -c 'timeout -s KILL 60 umount $MNT; echo \$? > /root/tdr_umount.rc' >/dev/null 2>&1 & for i in \$(seq 1 30); do sleep 2; [ -f /root/tdr_umount.rc ] && { echo UMOUNT_RC=\$(cat /root/tdr_umount.rc) AT=\$((i*2)); break; }; done; [ -f /root/tdr_umount.rc ] || echo UMOUNT_RC=HUNG; mountpoint -q $MNT && echo STILL_MOUNTED || echo UNMOUNTED"
+        depo=$(cat "$OUT/realign_depart_${C}.txt")
+        durc=$(echo "$depo" | grep -ao 'UMOUNT_RC=[A-Z0-9]*' | tail -1 | cut -d= -f2)
+        echo "  INFO $C departure: rc=${durc:-?} wall=$(( $(date +%s) - tdep ))s $(echo "$depo" | grep -a 'UMOUNT_RC\|MOUNTED' | tr '\n' ' ')"
+        ck "realign: $C left cleanly (rc=0) while the peer's recovery is blocked" "${durc:-HUNG}" "0"
+        ck "realign: $C left within 20 s" "$([ "${durc:-HUNG}" != HUNG ] && [ "$(echo "$depo" | grep -ao 'AT=[0-9]*' | tail -1 | cut -d= -f2)" -le 20 ] && echo 1 || echo 0)" "1"
+        REALIGN_NODES=""
+        for n in $SURVIVORS; do [ "$n" = "$C" ] || REALIGN_NODES="$REALIGN_NODES $n"; done
+        REALIGN_NODES=${REALIGN_NODES# }
+        # the membership-settle gate holds every acquire until the view has
+        # been stable for 20 s (dlm_lock_impl, mxfs_memb_settle_ms; measured
+        # 2026-09-28, lap s4f_realignB: the first create after the departure
+        # spent 14.8 s in it, P-D7-SETTLEGATE waited=14800ms): let it pass,
+        # so the reads below measure the page path alone
+        w=$(( tdep + 22 - $(date +%s) )); [ "$w" -gt 0 ] && sleep "$w"
+        echo "  INFO realign workload on [$REALIGN_NODES] ($(date -u +%T)): each survivor reads the other stayers' $RL_N files through the descriptors it holds, bound 45 s"
+        trl=$(date +%s)
+        for n in $REALIGN_NODES; do
+            owners=""; for o in $REALIGN_NODES; do [ "$o" = "$n" ] || owners="$owners $o"; done
+            ( rsx 50 "$n" "echo '${owners# }' > /root/tdr_rl.go; for i in \$(seq 1 45); do grep -aq '^RL_END' /root/tdr_rl.out 2>/dev/null && break; sleep 1; done; cat /root/tdr_rl.out" > "$OUT/realign_${n}.txt" 2>&1; echo "rsx_rc=$?" >> "$OUT/realign_${n}.txt" ) &
+        done
+        wait
+        trlw=$(( $(date +%s) - trl ))
+        wdscap "$OUT/dmesg_survivors_realign.txt"
+        # every probe that names an incarnation is counted for the victim's
+        # only; another incarnation's lines (the departed node's, when it
+        # left dirty and was collected as a second victim) are reported and
+        # count for nothing
+        rdeny=$(grep -a 'P-RBLK-DENY-DEAD-AUTHORITY' "$OUT/dmesg_survivors_realign.txt" | grep -ac "auth=${VID:-none}/")
+        rdeny_any=$(grep -ac 'P-RBLK-DENY-DEAD-AUTHORITY' "$OUT/dmesg_survivors_realign.txt")
+        rjudg=$(grep -a 'P-TAUTH-TAKEOVER-UNDER-JUDGEMENT' "$OUT/dmesg_survivors_realign.txt" | grep -ac "departed=${VID:-none}/")
+        rjudg_any=$(grep -ac 'P-TAUTH-TAKEOVER-UNDER-JUDGEMENT' "$OUT/dmesg_survivors_realign.txt")
+        rwait=$(grep -ac 'P960-AUTH-TRANSITION-WAIT\|P960-AUTH-TRANSITION-RX\|P960-AUTH-TRANSITION-TX' "$OUT/dmesg_survivors_realign.txt")
+        rstall=$(grep -ac 'P960-AUTH-TRANSITION-STALLED' "$OUT/dmesg_survivors_realign.txt")
+        rqpark=$(grep -ac 'P240-QUAR-PARK' "$OUT/dmesg_survivors_realign.txt")
+        rbudget=$(grep -ac 'lock request failed after' "$OUT/dmesg_survivors_realign.txt")
+        echo "  INFO realign: wall=${trlw}s victim=${VID:-?} dead-authority denies=$rdeny (any incarnation $rdeny_any) judging refusals=$rjudg (any $rjudg_any) transition waits=$rwait stalled=$rstall quar-parks=$rqpark budget-failures=$rbudget dead-master denies=$(grep -ac 'P-RBLK-DENY-DEAD-MASTER' "$OUT/dmesg_survivors_realign.txt") remote denies=$(grep -ac 'P-RBLK-DENY-REMOTE' "$OUT/dmesg_survivors_realign.txt") remaster-parks=$(grep -ac 'P-TAUTH-REMASTER-PARKED' "$OUT/dmesg_survivors_realign.txt") not-owner-parks=$(grep -ac 'P960-PARK-NOT-OWNER' "$OUT/dmesg_survivors_realign.txt") no-transition-parks=$(grep -ac 'P960-PARK-NOT-TRANSITION' "$OUT/dmesg_survivors_realign.txt")"
+        grep -a 'P-RBLK-DENY-DEAD-AUTHORITY\|P-TAUTH-TAKEOVER-UNDER-JUDGEMENT\|P960-AUTH-TRANSITION\|P240-QUAR-PARK\|lock request failed after\|P960-PARK-NOT-TRANSITION' "$OUT/dmesg_survivors_realign.txt" | head -8 | cut -c1-220 | sed 's/^/    /'
+        for n in $REALIGN_NODES; do
+            nops=$(grep -ac '^RL ' "$OUT/realign_${n}.txt")
+            nok=$(grep -a '^RL ' "$OUT/realign_${n}.txt" | grep -ac ' rc=0 ')
+            neio=$(grep -a '^RL ' "$OUT/realign_${n}.txt" | grep -ac 'Input/output error')
+            ended=$(grep -ac '^RL_END' "$OUT/realign_${n}.txt")
+            rat=$(grep -ao '^RL_END ms=[0-9]*' "$OUT/realign_${n}.txt" | grep -ao '[0-9]*$')
+            rmax=$(grep -a '^RL ' "$OUT/realign_${n}.txt" | grep -ao ' ms=[0-9]*' | tr -dc '0-9\n' | sort -n | tail -1)
+            echo "  INFO realign $n: reads=$nops ok=$nok eio=$neio ended=$ended pass=${rat:-none}ms slowest=${rmax:-none}ms: $(grep -a '^RL ' "$OUT/realign_${n}.txt" | grep -av ' rc=0 ' | head -3 | cut -c1-110 | tr '\n' '|')$(grep -a '^RL ' "$OUT/realign_${n}.txt" | grep -a ' rc=0 ' | sort -t= -k5 -n | tail -1 | cut -c1-60)"
+            ck "realign $n: the reader made reads ($RL_N per stayer read)" "$([ "$nops" -ge 1 ] && echo 1 || echo 0)" "1"
+            ck "realign $n: every read returned (RL_END inside the 45 s bound)" "$ended" "1"
+            ck "realign $n: the pass took at most 25 s (no read parked)" "$([ "$ended" = 1 ] && [ "${rat:-999999}" -le 25000 ] && echo 1 || echo 0)" "1"
+            ck "realign $n: no single read took over 10 s" "$([ "$ended" = 1 ] && [ "${rmax:-999999}" -le 10000 ] && echo 1 || echo 0)" "1"
+            ck "realign $n: every read returned 0 or EIO" "$([ "$nops" -ge 1 ] && [ $(( nok + neio )) -ge "$nops" ] && echo 1 || echo 0)" "1"
+        done
+        ck "realign: zero P960-AUTH-TRANSITION-STALLED on the survivors (no caller parked 30 s on the refused takeover)" "$rstall" "0"
+        ck "realign: zero P240-QUAR-PARK on the survivors (no read parked on the recovery verdict)" "$rqpark" "0"
+        ck "realign: zero shutdowns on the survivors" "$(grep -ac 'Shutting down filesystem' "$OUT/dmesg_survivors_realign.txt")" "0"
+        if [ "$rdeny" -ge 1 ] || [ "$rjudg" -ge 1 ] || [ "$rwait" -ge 1 ]; then
+            REALIGN_VERDICT=measured
+            echo "  INFO realign: a page the victim authored was met (denies=$rdeny refusals=$rjudg waits=$rwait)"
+        else
+            REALIGN_VERDICT=vacuous
+            echo "  VACUOUS realign: no survivor met a page the dead incarnation authored (no deny, no judging refusal, no transition wait naming it) — the leg measured nothing"
+        fi
+        # the A/B knob goes back to the build's default so a parked A-leg
+        # request ends with the recovery and nothing lingers on the rig; the
+        # departed node's injection is cleared here, since it leaves the
+        # survivor set below and the chain's own clear will not reach it
+        [ -z "$REALIGN_DENY" ] || for n in $REALIGN_NODES; do timeout 12 $SSH "$n" "echo 1 > $P/dl_rblk_authority_deny" >/dev/null 2>&1; done
+        # the readers are done (or parked: a parked read ends when the block
+        # lifts below and the recovery completes); their process groups go
+        # so no descriptor outlives the lap
+        for n in $REALIGN_NODES; do timeout 12 $SSH "$n" "[ -f /root/tdr_rl.pid.pgid ] && kill -9 -- -\$(cat /root/tdr_rl.pid.pgid) 2>/dev/null; rm -f /root/tdr_rl.go" >/dev/null 2>&1; done
+        timeout 12 $SSH "$C" "echo 0 > $P/fence_gate_inject_refuse; echo 0 > $P/pr_fence_inject_key_absent; echo ${prior_after_ms:-120000} > $P/fence_blocked_after_ms; echo 1 > $P/dl_rblk_authority_deny" >/dev/null 2>&1
+        SURVIVORS=${REALIGN_NODES# }     # $C has left: its log carries nothing further
+        np=""; for n in $PROBES; do [ "$n" = "$C" ] || np="$np $n"; done; PROBES=${np# }
+    fi
     if [ "$BLOCK_UMOUNT" = 1 ]; then
         # D-TCP-UMOUNT-HANGS-UNINTERRUPTIBLY-WHILE-PEER-RECOVERY-FENCE-BLOCKED-0904:
         # the survivor must be able to LEAVE while the dead peer's recovery is
@@ -806,18 +1128,19 @@ if [ "$BLOCK_INJECT" = 1 ]; then
         wdcap "$OUT/dmesg_${W}_umount.txt"
         ck "zero shutdowns on $W across the umount" "$(grep -ac 'Shutting down filesystem' "$OUT/dmesg_${W}_umount.txt")" "0"
         ck "$MNT unmounted on $W" "$(echo "$umo" | grep -ac '^UNMOUNTED')" "1"
-        timeout 12 $SSH "$W" "echo 0 > $P/fence_gate_inject_refuse; echo ${prior_after_ms:-120000} > $P/fence_blocked_after_ms" >/dev/null 2>&1
+        for n in $SURVIVORS; do timeout 12 $SSH "$n" "echo 0 > $P/fence_gate_inject_refuse; echo 0 > $P/pr_fence_inject_key_absent; echo ${prior_after_ms:-120000} > $P/fence_blocked_after_ms" >/dev/null 2>&1; done
         $VIRSH start "$V" > "$OUT/virsh_start.txt" 2>&1; echo "  INFO virsh start $V rc=$?"
         wall=$(( $(date +%s) - t0 ))
         if [ $fails = 0 ]; then echo "RESULT: PASS label=$LABEL arm=umount_blocked wall=${wall}s evidence=$OUT"; else echo "RESULT: FAIL label=$LABEL arm=umount_blocked fails=$fails wall=${wall}s evidence=$OUT"; fi
         echo "  INFO the rig is left with $W unmounted-or-hung and $V rebooting: the next prep_cluster re-forms the cluster (destroy $W by hand if STILL_MOUNTED)"
         exit $fails
     fi
-    # lift the injection: the next slow re-drive (<= 30 s + jitter) takes
-    # the gate and the normal chain runs from here
-    timeout 12 $SSH "$W" "echo 0 > $P/fence_gate_inject_refuse" >/dev/null 2>&1
+    # lift the injection on every survivor: the prover's next slow re-drive
+    # (<= 30 s + jitter) names the present key (or takes the gate on a
+    # purging target) and the normal chain runs from here
+    for n in $SURVIVORS; do timeout 12 $SSH "$n" "echo 0 > $P/fence_gate_inject_refuse; echo 0 > $P/pr_fence_inject_key_absent" >/dev/null 2>&1; done
     tref=$(date +%s)
-    echo "  INFO injection cleared on $W at $(date -u +%T); replay bound now runs from here"
+    echo "  INFO injection cleared on [$SURVIVORS] at $(date -u +%T); replay bound now runs from here"
 fi
 
 # -- wait for the survivor's replay verdict (bounded from the kill, or from
@@ -825,19 +1148,26 @@ fi
 REPLAY_BOUND=150
 verdict=""; i=0
 while [ $i -lt $REPLAY_BOUND ]; do
-    r=$(wd | grep -a 'foreign replay of' | grep -a 'complete\|failed' | tail -1)
+    r=$(wds | grep -a 'foreign replay of' | grep -a 'complete\|failed' | tail -1)
     if [ -n "$r" ]; then verdict="$r"; break; fi
     sleep 3; i=$((i+3))
 done
 treplay=$(( $(date +%s) - tref ))
 if [ "$BLOCK_INJECT" = 1 ]; then
-    wdcap "$OUT/dmesg_$W.txt"
-    ck "P238-FENCE-UNBLOCKED once the re-drive certified" "$(grep -ac 'P238-FENCE-UNBLOCKED' "$OUT/dmesg_$W.txt")" "1"
+    wdncap "$PROVER" "$OUT/dmesg_${PROVER}_unblocked.txt"
+    ck "P238-FENCE-UNBLOCKED once the re-drive certified (on the prover $PROVER)" "$(grep -ac 'P238-FENCE-UNBLOCKED' "$OUT/dmesg_${PROVER}_unblocked.txt")" "1"
     # the fail-fast must have cleared with the state: the same op succeeds
     probe "$W" 40 "$OUT/failfast_after.txt" '^rc=[0-9]+$' "the path-op probe on $W after the recovery" "stat -c %i '$D' > /dev/null 2>&1; echo rc=\$?"
     ffo2=$(tr -d '\n' < "$OUT/failfast_after.txt")
     ck "path op on the victim's directory succeeds after the recovery ($ffo2)" "$(echo "$ffo2" | grep -ac 'rc=0')" "1"
-    timeout 12 $SSH "$W" "echo ${prior_after_ms:-120000} > $P/fence_blocked_after_ms" >/dev/null 2>&1
+    # the imported verdict must leave with the prover's: a probe node that
+    # kept it would fail fast on grants the recovery has released
+    for PN in ${PROBES:-}; do
+        rsx 25 "$PN" "dmesg | sed -n \"/$MARK/,\\\$p\"" > "$OUT/dmesg_${PN}_unblocked.txt"
+        capture_require "$OUT/dmesg_${PN}_unblocked.txt" "$MARK" "the kernel log on $PN after the recovery"
+        ck "probe $PN: the imported verdict was lifted (P238-FENCE-UNBLOCKED-IMPORTED)" "$(grep -ac 'P238-FENCE-UNBLOCKED-IMPORTED' "$OUT/dmesg_${PN}_unblocked.txt")" "1"
+    done
+    for n in $SURVIVORS; do timeout 12 $SSH "$n" "echo ${prior_after_ms:-120000} > $P/fence_blocked_after_ms" >/dev/null 2>&1; done
 fi
 if [ "$AGMASK_INJECT" = 1 ] && [ "${TDR_AGMASK_EARLY:-0}" = 1 ]; then
     # D-0915: the window between the refused verdict's import and the
@@ -877,6 +1207,9 @@ print(" ".join("t%d:rc%s=%d"%(t,r,n) for (t,r),n in sorted(c.items())), "| max_m
     timeout 60 $SSH "$W" "rmdir '$MNT'/tdr_early_${LABEL}_* 2>/dev/null; true" >/dev/null 2>&1
 fi
 wdcap "$OUT/dmesg_$W.txt"
+# the authority chain (fence, seal, snapshot, replay) is read across every
+# survivor: the prover and the replayer need not be W
+wdscap "$OUT/dmesg_survivors.txt"
 echo "  INFO replay verdict after ${treplay}s from the $([ "$BLOCK_INJECT" = 1 ] && echo 'injection clear' || echo kill): ${verdict:-<none within ${REPLAY_BOUND}s>}"
 ck "survivor reached a replay verdict within ${REPLAY_BOUND}s" "$([ -n "$verdict" ] && echo 1 || echo 0)" "1"
 if [ "$REFUSED" = 1 ]; then
@@ -891,24 +1224,24 @@ if [ "$REFUSED" = 1 ]; then
             GUARDTXT='straddles an AG boundary; refusing to replay it'
         fi
         ckge "the inode-buffer guard refused the substituted image by name ('$GUARDTXT')" \
-             "$(grep -ac "$GUARDTXT" "$OUT/dmesg_$W.txt")" 1
+             "$(grep -ac "$GUARDTXT" "$OUT/dmesg_survivors.txt")" 1
         ckge "the refusal came from the inode-buffer replay path (Bad inode buffer log record)" \
-             "$(grep -ac 'Bad inode buffer log record' "$OUT/dmesg_$W.txt")" 1
+             "$(grep -ac 'Bad inode buffer log record' "$OUT/dmesg_survivors.txt")" 1
         ckge "the foreign replay failed rather than adopting the image (error -117)" \
-             "$(grep -a 'foreign replay of' "$OUT/dmesg_$W.txt" | grep -ac 'error -117')" 1
+             "$(grep -a 'foreign replay of' "$OUT/dmesg_survivors.txt" | grep -ac 'error -117')" 1
         ck "zero 'foreign replay ... complete' for the substituted slice" \
-           "$(grep -a 'foreign replay of slot' "$OUT/dmesg_$W.txt" | grep -ac 'complete')" "0"
+           "$(grep -a 'foreign replay of slot' "$OUT/dmesg_survivors.txt" | grep -ac 'complete')" "0"
         ck "the survivor did not shut its filesystem down over the refusal" \
-           "$(grep -ac 'Shutting down filesystem' "$OUT/dmesg_$W.txt")" "0"
+           "$(grep -ac 'Shutting down filesystem' "$OUT/dmesg_survivors.txt")" "0"
     elif [ "$VERIFY_INJECT" = 1 ]; then
-        ck "the injection fired (P227-FR-INJECT-VERIFY-FAIL)" "$([ "$(grep -ac 'P227-FR-INJECT-VERIFY-FAIL' "$OUT/dmesg_$W.txt")" -ge 1 ] && echo 1 || echo 0)" "1"
-        ckge "the verifier arm routed by provenance (P227-FR-VERIFY-FAIL, no shutdown)" "$(grep -ac 'P227-FR-VERIFY-FAIL' "$OUT/dmesg_$W.txt")" 1
-        ckge "the completion arm failed the replay, not the mount (P227-FR-BUFFAIL)" "$(grep -ac 'P227-FR-BUFFAIL' "$OUT/dmesg_$W.txt")" 1
+        ck "the injection fired (P227-FR-INJECT-VERIFY-FAIL)" "$([ "$(grep -ac 'P227-FR-INJECT-VERIFY-FAIL' "$OUT/dmesg_survivors.txt")" -ge 1 ] && echo 1 || echo 0)" "1"
+        ckge "the verifier arm routed by provenance (P227-FR-VERIFY-FAIL, no shutdown)" "$(grep -ac 'P227-FR-VERIFY-FAIL' "$OUT/dmesg_survivors.txt")" 1
+        ckge "the completion arm failed the replay, not the mount (P227-FR-BUFFAIL)" "$(grep -ac 'P227-FR-BUFFAIL' "$OUT/dmesg_survivors.txt")" 1
     else
         timeout 12 $SSH "$W" "echo 0 > $P/dbg_fr_taint_items_over" >/dev/null 2>&1
-        ckge "the whole-txn refusal fired (P-DBG-FR-TAINT-INJECT)" "$(grep -ac 'P-DBG-FR-TAINT-INJECT' "$OUT/dmesg_$W.txt")" 1
-        ckge "refused transactions took ATOMIC-SKIP (P227-FR-ATOMIC-SKIP)" "$(grep -ac 'P227-FR-ATOMIC-SKIP' "$OUT/dmesg_$W.txt")" 1
-        echo "  INFO refused-item domain: $(grep -a 'slice replay refused' "$OUT/dmesg_$W.txt" | tail -1 | grep -oE 'refused=[0-9]+|malformed=[0-9]+|FSWIDE|AG-MASK|ag_mask=0x[0-9a-f]+' | tr '\n' ' ')"
+        ckge "the whole-txn refusal fired (P-DBG-FR-TAINT-INJECT)" "$(grep -ac 'P-DBG-FR-TAINT-INJECT' "$OUT/dmesg_survivors.txt")" 1
+        ckge "refused transactions took ATOMIC-SKIP (P227-FR-ATOMIC-SKIP)" "$(grep -ac 'P227-FR-ATOMIC-SKIP' "$OUT/dmesg_survivors.txt")" 1
+        echo "  INFO refused-item domain: $(grep -a 'slice replay refused' "$OUT/dmesg_survivors.txt" | tail -1 | grep -oE 'refused=[0-9]+|malformed=[0-9]+|FSWIDE|AG-MASK|ag_mask=0x[0-9a-f]+' | tr '\n' ' ')"
     fi
     # These two read the AUTHORITY refusal's own publication.  The victim-side
     # substitution is refused earlier and by a different mechanism — the
@@ -917,12 +1250,12 @@ if [ "$REFUSED" = 1 ]; then
     # arm owes instead is recorded, not assumed: whether an image refused this
     # way reaches a published terminal outcome at all.
     if [ "$VICTIM_INJECT" != 1 ]; then
-        ck "exactly one refusing replayer (slice replay refused)" "$(grep -ac 'slice replay refused' "$OUT/dmesg_$W.txt")" "1"
-        ckge "terminal outcome PUBLISHED" "$(grep -ac 'terminal outcome PUBLISHED' "$OUT/dmesg_$W.txt")" 1
+        ck "exactly one refusing replayer (slice replay refused)" "$(grep -ac 'slice replay refused' "$OUT/dmesg_survivors.txt")" "1"
+        ckge "terminal outcome PUBLISHED" "$(grep -ac 'terminal outcome PUBLISHED' "$OUT/dmesg_survivors.txt")" 1
     else
-        echo "  INFO victim-inject arm: slice-replay-refused=$(grep -ac 'slice replay refused' "$OUT/dmesg_$W.txt") terminal-published=$(grep -ac 'terminal outcome PUBLISHED' "$OUT/dmesg_$W.txt") (recorded, not asserted — the refusal is an EFSCORRUPTED from the recovery walk, not an authority verdict)"
+        echo "  INFO victim-inject arm: slice-replay-refused=$(grep -ac 'slice replay refused' "$OUT/dmesg_survivors.txt") terminal-published=$(grep -ac 'terminal outcome PUBLISHED' "$OUT/dmesg_survivors.txt") (recorded, not asserted — the refusal is an EFSCORRUPTED from the recovery walk, not an authority verdict)"
     fi
-    echo "  INFO refusal: $(grep -a 'slice replay refused' "$OUT/dmesg_$W.txt" | tail -1 | sed 's/.*MXFS //' | cut -c1-220)"
+    echo "  INFO refusal: $(grep -a 'slice replay refused' "$OUT/dmesg_survivors.txt" | tail -1 | sed 's/.*MXFS //' | cut -c1-220)"
 else
     ck "replay verdict is 'complete'" "$(echo "$verdict" | grep -ac 'complete')" "1"
     # 0.74.1: an LSN-override image is a partial image of a state older than the
@@ -933,23 +1266,33 @@ else
     ddef=$(echo "$verdict" | grep -ao 'drain_deferred=[0-9]*' | cut -d= -f2)
     echo "  INFO LSN overrides=${ovr:-?} drains deferred=${ddef:-?}"
     ck "recovered-buffer drains deferred to the end of the pass whenever an override applied" "$({ [ "${ovr:-0}" -gt 0 ] && [ "${ddef:-0}" -lt 1 ]; } && echo 0 || echo 1)" "1"
-    ck "zero 'foreign replay ... failed'" "$(grep -a 'foreign replay of' "$OUT/dmesg_$W.txt" | grep -ac 'failed')" "0"
-    ck "zero P227-FR-INJECT-VERIFY-FAIL (no injection on a plain lap)" "$(grep -ac 'P227-FR-INJECT-VERIFY-FAIL' "$OUT/dmesg_$W.txt")" "0"
+    ck "zero 'foreign replay ... failed'" "$(grep -a 'foreign replay of' "$OUT/dmesg_survivors.txt" | grep -ac 'failed')" "0"
+    ck "zero P227-FR-INJECT-VERIFY-FAIL (no injection on a plain lap)" "$(grep -ac 'P227-FR-INJECT-VERIFY-FAIL' "$OUT/dmesg_survivors.txt")" "0"
 fi
 
 # -- the fence must certify before any of the authority chain can run --
-fk=$(grep -a 'P236-FENCEKIND' "$OUT/dmesg_$W.txt" | tail -1)
-echo "  INFO fence: retries=$(grep -ac 'P304-FENCE-RETRY' "$OUT/dmesg_$W.txt") absent=$(grep -ac 'P-PR-FENCE-ABSENT' "$OUT/dmesg_$W.txt") last: ${fk#*mxfs: }"
-ckge "fence certified exclusion (a P236-FENCEKIND with proves_excl=1)" "$(grep -a 'P236-FENCEKIND' "$OUT/dmesg_$W.txt" | grep -ac 'proves_excl=1')" 1
+# vsel <field> / vsel_node: when the blocked transition named the victim,
+# only the lines naming its slot (or its incarnation) are read — a probe
+# node that left dirty in the same window is fenced and collected as a
+# second victim, and its lines are not this victim's (measured 2026-09-28,
+# lap s4f_realignA: the last manifest line was the departed node's,
+# entries=0, and the check read it as the victim's)
+vsel() { if [ -n "$VSLOT" ]; then grep -a "$1=$VSLOT "; else cat; fi; }
+vsel_node() { if [ -n "$VID" ]; then grep -a "node=$VID "; else cat; fi; }
+fk=$(grep -a 'P236-FENCEKIND' "$OUT/dmesg_survivors.txt" | vsel_node | tail -1)
+echo "  INFO fence: retries=$(grep -ac 'P304-FENCE-RETRY' "$OUT/dmesg_survivors.txt") absent=$(grep -ac 'P-PR-FENCE-ABSENT' "$OUT/dmesg_survivors.txt") last: ${fk#*mxfs: }"
+ckge "fence certified exclusion (a P236-FENCEKIND with proves_excl=1)" "$(grep -a 'P236-FENCEKIND' "$OUT/dmesg_survivors.txt" | vsel_node | grep -ac 'proves_excl=1')" 1
 
 # -- the authority chain, probe by probe --
-snap=$(grep -a 'P-RMAN-SNAPSHOT slot=' "$OUT/dmesg_$W.txt" | tail -1)
+snap=$(grep -a 'P-RMAN-SNAPSHOT slot=' "$OUT/dmesg_survivors.txt" | vsel slot | tail -1)
+nvict=$(grep -a 'P-RMAN-COLLECT-TAUTH\|P-RMAN-SNAPSHOT slot=' "$OUT/dmesg_survivors.txt" | grep -ao 'victim=[0-9]*' | sort -u | wc -l)
+[ "$nvict" -le 1 ] || echo "  INFO $nvict victims were fenced in this window: $(grep -a 'P-RMAN-SNAPSHOT slot=' "$OUT/dmesg_survivors.txt" | grep -ao 'slot=[0-9]* victim=[0-9]*\|entries=[0-9]*' | paste -d' ' - - | sort -u | tr '\n' '|') — a second one is a node that departed DIRTY; its lines are read for nothing here"
 if [ "$TRANSPORT" = tcp ]; then
-    seal=$(grep -ac 'P-TAUTH-SEAL node=' "$OUT/dmesg_$W.txt")
+    seal=$(grep -ac 'P-TAUTH-SEAL node=' "$OUT/dmesg_survivors.txt")
     ckge "P-TAUTH-SEAL (victim sealed before the collect)" "$seal" 1
-    coll=$(grep -a 'P-RMAN-COLLECT-TAUTH' "$OUT/dmesg_$W.txt" | tail -1)
+    coll=$(grep -a 'P-RMAN-COLLECT-TAUTH' "$OUT/dmesg_survivors.txt" | vsel victim_slot | tail -1)
     echo "  INFO $coll"
-    ckge "P-RMAN-COLLECT-TAUTH present" "$(grep -ac 'P-RMAN-COLLECT-TAUTH' "$OUT/dmesg_$W.txt")" 1
+    ckge "P-RMAN-COLLECT-TAUTH present" "$(grep -ac 'P-RMAN-COLLECT-TAUTH' "$OUT/dmesg_survivors.txt")" 1
     cent=$(echo "$coll" | grep -oE 'entries=[0-9]+' | head -1 | cut -d= -f2)
     ckge "ledger manifest has entries (the victim held EX at death)" "${cent:-0}" 1
     echo "  INFO $snap"
@@ -958,15 +1301,15 @@ else
     # CAW: the fence-time manifest is taken from the on-disk lock table, so
     # there is no ledger seal or collect; the snapshot itself must exist
     echo "  INFO $snap"
-    ckge "P-RMAN-SNAPSHOT taken for the victim's slot" "$(grep -ac 'P-RMAN-SNAPSHOT slot=' "$OUT/dmesg_$W.txt")" 1
+    ckge "P-RMAN-SNAPSHOT taken for the victim's slot" "$(grep -ac 'P-RMAN-SNAPSHOT slot=' "$OUT/dmesg_survivors.txt")" 1
 fi
 # 'P-RMAN-LOAD victim_slot=' and never the bare prefix: the disklock's own
 # 'P-RMAN-LOADED' line shares it, and on CAW one lands AFTER the replay's load
 # line, so a bare match's last line was the disklock's and read as a miss
-load=$(grep -a 'P-RMAN-LOAD victim_slot=' "$OUT/dmesg_$W.txt" | tail -1)
+load=$(grep -a 'P-RMAN-LOAD victim_slot=' "$OUT/dmesg_survivors.txt" | vsel victim_slot | tail -1)
 echo "  INFO $load"
 ck "P-RMAN-LOAD rc=0 no_caw=0" "$(echo "$load" | grep -ac 'rc=0 .*no_caw=0')" "1"
-ev=$(grep -a 'P-RMAN-EVAL' "$OUT/dmesg_$W.txt" | tail -1)
+ev=$(grep -a 'P-RMAN-EVAL' "$OUT/dmesg_survivors.txt" | tail -1)
 echo "  INFO $ev"
 if [ "$REFUSED" = 1 ]; then
     echo "  INFO P-RMAN-EVAL on the refused lap: $(echo "$ev" | grep -oE 'hits=[0-9]+|abort=[0-9]+' | tr '\n' ' ')"
@@ -977,7 +1320,7 @@ else
     # landed the image and the tail moved before the marker was forced);
     # then no image consults the manifest and the arm's own guard
     # (relmarks >= 1) is the vacuity check instead of this one
-    p273buf=$(grep -a 'P273-SHADOW-EVAL' "$OUT/dmesg_$W.txt" | tail -1 | grep -oE ' buf=[0-9]+' | head -1 | cut -d= -f2)
+    p273buf=$(grep -a 'P273-SHADOW-EVAL' "$OUT/dmesg_survivors.txt" | tail -1 | grep -oE ' buf=[0-9]+' | head -1 | cut -d= -f2)
     if [ "$FALSE_APPLY" != 0 ] && [ "${p273buf:-1}" = 0 ]; then
         echo "  INFO P-RMAN-EVAL manifest hits not required: the victim's window held no buffer image (P273 buf=0)"
     elif [ "$FALSE_APPLY" = 3 ]; then
@@ -991,12 +1334,12 @@ else
     ck "P-RMAN-EVAL abort=0" "$(echo "$ev" | grep -ac 'abort=0')" "1"
     bads='P227-FR-TORN-UNPUBLISHED P240-QUAR-IMPORT P-RMAN-POSTSEAL-MUTATION P-RMAN-LIVECHECK-ERR P-RMAN-SNAPSHOT-FAIL P-TAUTH-COLLECT-INCOMPLETE P-TAUTH-SEAL-BUSY P-DINO-CLOBBER P58-DIRPIN-NONEX P234-LOG-NOEX'
 fi
-se=$(grep -a 'P273-SHADOW-EVAL' "$OUT/dmesg_$W.txt" | tail -1)
+se=$(grep -a 'P273-SHADOW-EVAL' "$OUT/dmesg_survivors.txt" | tail -1)
 echo "  INFO $(echo "$se" | grep -oE 'buf=[0-9]+|WOULD_APPLY=[0-9]+|ENFORCEABLE_WOULD_APPLY=[0-9]+|REDUNDANT_CLEAN=[0-9]+|notheld=[0-9]+|manerr=[0-9]+|wlineage=[0-9]+|staleep=[0-9]+|all_apply=[0-9]+|none=[0-9]+|mixed=[0-9]+' | tr '\n' ' ')"
 for bad in $bads 'Shutting down filesystem' 'Corruption of in-memory'; do
-    ck "zero '$bad' on $W" "$(grep -ac "$bad" "$OUT/dmesg_$W.txt")" "0"
+    ck "zero '$bad' on the survivors [$SURVIVORS]" "$(grep -ac "$bad" "$OUT/dmesg_survivors.txt")" "0"
 done
-echo "  INFO P-TAUTH-SEALED-RELEASE-REFUSED=$(grep -ac 'P-TAUTH-SEALED-RELEASE-REFUSED' "$OUT/dmesg_$W.txt") P163-RECOVERY-COMPLETE=$(grep -ac 'P163-RECOVERY-COMPLETE' "$OUT/dmesg_$W.txt") ATOMIC-SKIP=$(grep -ac 'P227-FR-ATOMIC-SKIP' "$OUT/dmesg_$W.txt")"
+echo "  INFO P-TAUTH-SEALED-RELEASE-REFUSED=$(grep -ac 'P-TAUTH-SEALED-RELEASE-REFUSED' "$OUT/dmesg_survivors.txt") P163-RECOVERY-COMPLETE=$(grep -ac 'P163-RECOVERY-COMPLETE' "$OUT/dmesg_survivors.txt") ATOMIC-SKIP=$(grep -ac 'P227-FR-ATOMIC-SKIP' "$OUT/dmesg_survivors.txt")"
 
 # -- data integrity: every acknowledged file, from the survivor --
 if [ "$REFUSED" = 1 ]; then
@@ -1485,9 +1828,14 @@ if [ "${TDR_REJOIN:-0}" = 1 ] && [ "$up" = 1 ]; then
 fi
 
 wall=$(( $(date +%s) - t0 ))
-if [ $fails = 0 ]; then
-    echo "RESULT: PASS label=$LABEL acked=$acked replay_s=$treplay wall=${wall}s evidence=$OUT"
+if [ $fails = 0 ] && [ "$REALIGN_VERDICT" = vacuous ]; then
+    # the chain around it passed, but the leg this lap was run for met no
+    # re-aligned page: that is not a pass of the arm
+    echo "RESULT: VACUOUS label=$LABEL reason=realign-no-page acked=$acked replay_s=$treplay wall=${wall}s evidence=$OUT"
+    exit 3
+elif [ $fails = 0 ]; then
+    echo "RESULT: PASS label=$LABEL${REALIGN_VERDICT:+ realign=$REALIGN_VERDICT} acked=$acked replay_s=$treplay wall=${wall}s evidence=$OUT"
 else
-    echo "RESULT: FAIL label=$LABEL fails=$fails acked=$acked replay_s=$treplay wall=${wall}s evidence=$OUT"
+    echo "RESULT: FAIL label=$LABEL fails=$fails${REALIGN_VERDICT:+ realign=$REALIGN_VERDICT} acked=$acked replay_s=$treplay wall=${wall}s evidence=$OUT"
 fi
 exit $fails

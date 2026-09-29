@@ -766,6 +766,10 @@ typedef struct xfs_mount {
 	 * reuse-convergence machinery (VISNUDGE/iget-retry/reload) assumes
 	 * ms-scale destage; xfsaild's lazy tail push alone left 30-55s gaps. */
 	struct delayed_work	m_mxfs_destage_kick;
+	/* 0.90.16: retries the alloc buflist leftovers the lazy unlock's
+	 * nowait drain skipped pinned (xfs_ag.h pag_mxfs_alloc_retry);
+	 * queued by that drain, re-armed only while leftovers remain. */
+	struct delayed_work	m_mxfs_alloclist_retry;
 
 	/* MXFS per-node XFS log slicing (Phase 5) */
 	uint32_t		m_mxfs_log_node_count;

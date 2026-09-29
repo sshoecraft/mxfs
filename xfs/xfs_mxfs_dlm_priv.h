@@ -1927,6 +1927,7 @@ int mxfs_ag_dlm_lock_resfree( struct xfs_mount *mp, struct xfs_perag *pag);
 int mxfs_ag_dlm_trylock( struct xfs_mount *mp, struct xfs_perag *pag);
 void mxfs_dlm_ag_drain_alloc_buflist( struct xfs_mount *mp, struct xfs_perag *pag);
 void mxfs_dlm_ag_drain_alloc_buflist_nowait( struct xfs_mount *mp, struct xfs_perag *pag);
+unsigned int mxfs_dlm_ag_drain_all_alloc_buflists(struct xfs_mount *mp);
 int mxfs_p87_read_home_dinode( struct xfs_perag *pag, xfs_agino_t agino, uint32_t *nlink, uint32_t *next_unl, uint32_t *gen, uint16_t *mode);
 void mxfs_agifc_audit_coverage(const char *site);
 void mxfs_agifc_release_audit( struct xfs_perag *pag, const char *site);

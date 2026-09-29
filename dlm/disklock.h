@@ -3316,6 +3316,63 @@ bool mxfs_disklock_slot_holds_incarnation(struct mxfs_disklock_ctx *ctx,
 bool mxfs_disklock_slot_terminal_for(struct mxfs_disklock_ctx *ctx, int slot,
 				     mxfs_node_id_t node, mxfs_epoch_t epoch,
 				     const char **why);
+/*
+ * HAS AN INCARNATION LEFT FOR GOOD, WITH NOTHING OF ITS SLICE LEFT TO REPLAY?
+ *
+ * The question a TCP lock master asks about the holder a ledger record names
+ * when no member of its view carries that identity.  A grant is recorded only
+ * for an admitted member, whose claim of `slot` under {node, epoch} was durable
+ * before its first request, so the heartbeat table is where that tenancy
+ * ended, and how it ended is what decides whether the record still protects
+ * anything:
+ *
+ *   - a clean release leaves the tenant's own stamp under FLAG_EMPTY (the
+ *     mount's log ended in an unmount record before the slot was released);
+ *   - a completed recovery leaves a ZERO record (the sector is zeroed only
+ *     after the fence, the slice replay and the purge);
+ *   - a later tenant whose own feature block says its claim was a pass-2
+ *     FRESH claim (MXFS_HB_FEAT_ADOPTED) consumed one of those two, so every
+ *     earlier tenancy of the slot ended in one of them.
+ *
+ * Those three shapes of `slot`, from a FRESH read, are the whole list.  A
+ * tenant that re-claimed its own stamp, or a bootstrap owner's adoption of a
+ * victim slot (MXFS_HB_FEAT_BOOTSTRAP_PENDING), is replaying the earlier
+ * tenancy's slice as its own log and proves nothing about it yet; WITHDRAWN,
+ * RETIRE_PENDING and a recovery descriptor are tenancies still being settled;
+ * a foreign generation, a bad magic and an unread sector are indeterminate.
+ * And whatever `slot` holds, the identity itself must not stand in ANY slot
+ * in a state other than its own release stamp: a record that names the
+ * wrong slot must never retire a tenant that is still there.
+ *
+ * node == 0 asks about the slot alone (a shared-holder bit names a slot and
+ * no incarnation): settled only when the sector is a release stamp or a zero
+ * record.  A slot with a tenant is never settled for a bit, because the bit
+ * may be the tenant's own.
+ *
+ * `tenant` / `tenant_epoch` name who holds `slot` ACTIVE in that same pass (a
+ * record of this filesystem's generation with a node id and an incarnation,
+ * which is what the monitor baselines a slot on at first sight), or 0.  The
+ * master of a ledger page attributes a shared-holder bit to it: the monitor's
+ * tracking learns of a claim one pass after the table carries it, and at a
+ * simultaneous mount a page is imported inside that pass.
+ *
+ * Every query is judged against ONE pass over the table, read after the
+ * caller read the records it asks about.  Returns the number of queries
+ * answered settled, or a negative error with every answer false (an unread
+ * sector could be the one that names the identity).  *why names the sector
+ * shape that decided each answer.
+ */
+struct mxfs_disklock_inc_query {
+	mxfs_node_id_t  node;       /* 0 = judge the slot alone */
+	mxfs_epoch_t    epoch;
+	int             slot;
+	bool            settled;    /* out */
+	const char     *why;        /* out */
+	mxfs_node_id_t  tenant;     /* out: who holds `slot` ACTIVE, 0 = nobody */
+	mxfs_epoch_t    tenant_epoch;   /* out */
+};
+int  mxfs_disklock_incarnations_settled(struct mxfs_disklock_ctx *ctx,
+					struct mxfs_disklock_inc_query *q, int n);
 /* v0.5.0 foreign-slice replay election: lowest live slot among survivors
  * (includes local_slot), excluding skip_slot.  -1 if none. */
 int  mxfs_disklock_lowest_live_slot(struct mxfs_disklock_ctx *ctx,

@@ -153,7 +153,7 @@ fi
 if want 10; then
     s=$(date +%s); timeout 1000 ./run.sh 2 tcp 2>&1 | tee -a "$LOG" | grep -aE '^\s+(PASS|FAIL|SKIP|ABORT)|^===|VERDICT'
     rc=${PIPESTATUS[0]}; stage "board_2tcp" $rc $(( $(date +%s) - s )); [ $rc = 0 ] || fails=$((fails+1))
-    ./showstat.sh 2 tcp 2>/dev/null | grep -aE 'FAIL|FLAKY|ABORT|Total|VERDICT' | tee -a "$LOG"
+    tools/criteria.py 2 tcp 2>/dev/null | grep -aE 'FAIL|FLAKY|ABORT|Total|VERDICT' | tee -a "$LOG"
 fi
 
 if want 11; then

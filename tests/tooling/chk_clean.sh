@@ -76,15 +76,76 @@ remount() {
     timeout 100 mount -t "$t" "$DEV" "$MNT" 2>/dev/null
 }
 
+# The evidence directory is the tree over NFS: it survives the node resets this
+# rig performs constantly, which /tmp on a node does not.  Rank 1's audit
+# output goes there too (below).
+EVID="$(cd "$(dirname -- "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd)/evidence"
+mkdir -p "$EVID" 2>/dev/null
+
+# An unmount that has not returned when its budget ends is a hang, and the node
+# is power-cycled by the next prep before anyone can look at it.  The 0.90.14
+# 4/tcp run: test1's umount sat in the AIL-empty wait for 165 s with two
+# buffers queued for delayed write and never written, and the only stack the
+# run captured was a hung-task report of a bystander.  So the stacks are taken
+# HERE, while the umount is still in flight: the umount task itself, xfsaild,
+# every MXFS worker, any kworker with an XFS or MXFS frame, and every task in
+# D state.  /proc/<pid>/stack is the kernel's own unwinder; it needs root,
+# which this script already is.
+stall_stacks() {  # <why>  -> writes one file, prints its path
+    local out="$EVID/chk_clean_stall_${NODES}node_rank${RANK}_$(date -u +%Y%m%dT%H%M%SZ).txt" p c st s
+    {
+        echo "why=$1 host=$(hostname) rank=$RANK t=$(date -u +%FT%TZ)"
+        grep " $MNT " /proc/mounts
+        for p in /proc/[0-9]*; do
+            c=$(cat "$p/comm" 2>/dev/null) || continue
+            st=$(awk '{print $3}' "$p/stat" 2>/dev/null)
+            case "$st:$c" in
+            D:*|*:umount|*:xfsaild*|*:mxfs*|*:kworker*) ;;
+            *) continue ;;
+            esac
+            s=$(cat "$p/stack" 2>/dev/null); [ -n "$s" ] || continue
+            case "$c" in kworker*) printf '%s\n' "$s" | grep -q -E 'xfs|mxfs' || continue ;; esac
+            echo "== pid ${p#/proc/} comm=$c state=$st"
+            printf '%s\n' "$s"
+        done
+    } > "$out" 2>&1
+    echo "$out"
+}
+
 # ---- everyone: quiesce and get out of the way ------------------------------
+#
+# The unmount runs in the background against a 60 s deadline of this script's
+# own, NOT under timeout(1): timeout waits for its child to exit, and an umount
+# stuck in the kernel never exits, so `timeout 60 umount` never returned and
+# the harness's budget killed this script with nothing captured (twice, at
+# 4/tcp).  A lone member's unmount here measures about 5 s.
+#
+# The unmount's own wall is measured inside the background job (the poll below
+# only sees whole seconds) and reported as umount_ms; the remount's as
+# remount_ms.  A four-way remount behind a holder nobody could ask to let go
+# passed this row at 60-87 s per mount because nothing here recorded how long
+# a mount took.
 sync 2>/dev/null
+umount_ms=0
+uwall=$(mktemp)
 if mountpoint -q "$MNT"; then
-    timeout 60 umount "$MNT" 2>/dev/null
-    if mountpoint -q "$MNT"; then
-        emit FAIL "umount=stuck rank=$RANK" "node could not unmount before the audit"
+    u0=$(date +%s%3N)
+    ( umount "$MNT" 2>/dev/null; echo $(( $(date +%s%3N) - u0 )) > "$uwall" ) &
+    upid=$!
+    for ((t = 0; t < 60; t++)); do
+        kill -0 "$upid" 2>/dev/null || break
+        sleep 1
+    done
+    if kill -0 "$upid" 2>/dev/null || mountpoint -q "$MNT"; then
+        stacks=$(stall_stacks "umount-stuck-${t}s")
+        emit FAIL "umount=stuck rank=$RANK after=${t}s stacks=$stacks" "node could not unmount before the audit; the in-flight umount's kernel stacks are in the evidence file"
         exit 1
     fi
+    wait "$upid" 2>/dev/null
+    umount_ms=$(cat "$uwall" 2>/dev/null)
+    umount_ms=${umount_ms:-0}
 fi
+rm -f "$uwall"
 
 if ! coord_barrier "chk_clean_quiesced"; then
     remount
@@ -150,13 +211,43 @@ if [ "$RANK" = 1 ]; then
         rm -f "$geo"
         case "$witness_line" in release=*) ;; *) witness_line="release=INDETERMINATE reason=verdict helper failed: $witness_line" ;; esac
     fi
-    # Keep the audit output where it survives a node reboot.  /tmp on these
-    # nodes is wiped by the resets this rig performs constantly, and on a
+    # Keep the audit output where it survives a node reboot (EVID, above); on a
     # corruption verdict this file is the only forensic record there is.
-    EVID="$(cd "$(dirname -- "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd)/evidence"
-    mkdir -p "$EVID" 2>/dev/null
     chkout="$EVID/chk_clean_${NODES}node_$(date -u +%Y%m%dT%H%M%SZ).log"
     cp -f "$out" "$chkout" 2>/dev/null || chkout="(evidence copy failed)"
+    # THE LEDGER CENSUS.  Every node has unmounted cleanly, so nothing holds a
+    # lock: a record of the TCP authority ledger that still names an exclusive
+    # holder or carries a shared-holder slot bit is a release that never
+    # reached the platter.  The next mount's page takeover imports it as a
+    # holder, and when its slot names no node at that moment nothing can ask
+    # it to let go (4/tcp run 20260929T020716Z: the last member's root-inode
+    # PR, every mount's root lookup parked its whole budget behind it).  This
+    # is the one place in a run the platter can be read cold, so it is read
+    # here: tools/tauth_page_auth.py --holders, both copies of every page,
+    # 4.3 s measured for the 67651-page region of this rig.  The records go
+    # into the audit's evidence file; the count goes onto the board.
+    ledger_holders=unmeasured
+    if [ "$FSTYPE" != xfs ]; then
+        tree="$(cd "$(dirname -- "${BASH_SOURCE[0]}")/../.." 2>/dev/null && pwd)"
+        tbase=$(sed -n 's/^ *tauth_offset=\([0-9][0-9]*\) .*/\1/p' "$out" | head -1)
+        if [ -n "$tbase" ] && [ "$tbase" -gt 0 ] 2>/dev/null; then
+            census=$(mktemp)
+            timeout 10 python3 "$tree/tools/tauth_page_auth.py" "$DEV" "$tbase" --holders --limit 40 > "$census" 2>&1
+            crc=$?
+            hline=$(grep -a '^HOLDERS ' "$census" | tail -1)
+            if [ "$crc" = 0 ] && [ -n "$hline" ]; then
+                ledger_holders=$(printf '%s' "$hline" | sed -n 's/^HOLDERS records=\([0-9][0-9]*\) .*/\1/p')
+                ledger_holders=${ledger_holders:-unmeasured}
+            fi
+            {
+                echo "=== ledger census (tools/tauth_page_auth.py --holders, base=$tbase, rc=$crc) ==="
+                cat "$census"
+            } >> "$chkout" 2>/dev/null
+            rm -f "$census"
+        else
+            ledger_holders=no-ledger
+        fi
+    fi
     rm -f "$out"
 fi
 
@@ -209,10 +300,13 @@ fi
 
 # ---- everyone: come back, unless coming back would destroy the evidence ----
 remounted=0
+remount_ms=0
 if [ "$RANK" = 1 ] && [ "$verdict" = CORRUPT ]; then
     :
 else
+    r0=$(date +%s%3N)
     remount
+    remount_ms=$(( $(date +%s%3N) - r0 ))
     mountpoint -q "$MNT" && remounted=1
 fi
 
@@ -220,7 +314,7 @@ fi
 # node that did not audit must never claim to have.  Ranks other than 1 assert
 # only what they can see themselves -- that they unmounted and came back.
 if [ "$RANK" = 1 ]; then
-    m="verdict=$verdict release=$release rc=$rc errors=${errs:-0} remounted=$remounted icount=${icount:-?} ${alias_line:-aliasing=not-reported} evidence=${chkout:-none} ${witness_line:+${witness_line%% reason=*}}"
+    m="verdict=$verdict release=$release rc=$rc errors=${errs:-0} remounted=$remounted icount=${icount:-?} ledger_holders=${ledger_holders:-unmeasured} umount_ms=$umount_ms remount_ms=$remount_ms ${alias_line:-aliasing=not-reported} evidence=${chkout:-none} ${witness_line:+${witness_line%% reason=*}}"
     wreason=$(printf '%s' "$witness_line" | sed -n 's/.* reason=//p')
     case "$verdict" in
     CORRUPT)
@@ -240,9 +334,9 @@ if [ "$RANK" = 1 ]; then
     esac
 else
     if [ "$remounted" = 1 ]; then
-        emit PASS "rank=$RANK role=quiesced remounted=1"
+        emit PASS "rank=$RANK role=quiesced remounted=1 umount_ms=$umount_ms remount_ms=$remount_ms"
     else
-        emit FAIL "rank=$RANK role=quiesced remounted=0" "node could not remount after the audit"
+        emit FAIL "rank=$RANK role=quiesced remounted=0 umount_ms=$umount_ms remount_ms=$remount_ms" "node could not remount after the audit"
     fi
 fi
 exit 0

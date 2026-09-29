@@ -27,25 +27,69 @@
 # ~90 s measured for a similar set on these guests -> INSTALL_S=300 (none when
 # already installed); a diskless-OS guest starts in ~2 s -> the rest 60 s.
 #
-# Usage: tests/selinux_svirt_mxfs.sh NODE [MNT]
+# Usage: [PREP=<platform>] tests/selinux_svirt_mxfs.sh [NODE] [MNT]
 #   NODE is an address tools/mxfs_sshpass.sh reaches; MNT defaults to /mnt/mxfs.
+#   PREP=<platform> (a data/platforms.json key) makes the mount itself, as
+#   tests/tcp_peer_freeze_death.sh does for a packaged node: NODE defaults to
+#   the platform's first verification node (tools/mxfs_lab.sh), the node logs
+#   in to the platform's LUN, loads the packaged module, formats the LUN and
+#   mounts it at MNT as a cluster of one on the package's default transport;
+#   the mount is taken down at the end.  Without PREP the mount must already
+#   exist.  tests/full_verify.sh takes every platform node's mounts down
+#   before each step, so it runs this with PREP set; without it the step
+#   failed "not an MXFS mount" on every release run and was re-run by hand.
+#   Every other node on the LUN must be unmounted (the format needs the LUN
+#   free); the caller sees to that.
 #   Evidence: tests/evidence/selinux_svirt/<stamp>/.  Exit 0 only on PASS.
 #
 set -u
 
-NODE="${1:?usage: selinux_svirt_mxfs.sh NODE [MNT]}"
-MNT="${2:-/mnt/mxfs}"
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
+PREP="${PREP:-}"
+if [ -n "$PREP" ]; then
+    . "$HERE/tools/mxfs_lab.sh"
+    SET=$(lab_nodes "$PREP") || exit 2
+    NODE="${1:-$(lab_addr "${SET%% *}")}"
+    PORTAL=$(lab_need storage portal) || exit 2
+    TGT=$(lab_need storage target) || exit 2
+    LUN=$(lab_need storage lun) || exit 2
+else
+    NODE="${1:?usage: [PREP=<platform>] selinux_svirt_mxfs.sh [NODE] [MNT]}"
+fi
+MNT="${2:-/mnt/mxfs}"
 SSH="$HERE/tools/mxfs_sshpass.sh"
 INSTALL_S=300
 RUN_S=60
-EV="$HERE/tests/evidence/selinux_svirt/$(date +%Y%m%dT%H%M%S)"
+# the prep's budget: the freeze-death test bounds the same iSCSI login,
+# format and lone mount at 120 s + 60 s on these LUNs (mkfs measured well
+# under it); the login is seconds when the session already exists
+PREP_S=180
+EV="$HERE/tests/evidence/selinux_svirt/$(date +%Y%m%dT%H%M%S)${PREP:+_$PREP}"
 mkdir -p "$EV"
 exec > >(tee -a "$EV/run.log") 2>&1
 say() { echo "[$(date +%T)] $*"; }
-on() { local t=$1; shift; timeout "$t" "$SSH" "$NODE" "$@" 2>&1 | grep --line-buffered -v -E "^Warning: Permanently|^$"; return "${PIPESTATUS[0]}"; }
+on() { local t=$1; shift; timeout "$t" "$SSH" "$NODE" "$@" 2>&1 | grep --line-buffered -v -E "^Warning: Permanently|^$|Unauthorized access|authorized user, disconnect"; return "${PIPESTATUS[0]}"; }
 
-say "node=$NODE mnt=$MNT evidence=$EV"
+say "node=$NODE mnt=$MNT prep=${PREP:-none} evidence=$EV"
+if [ -n "$PREP" ]; then
+    on $PREP_S "
+        # /proc/mounts, not mountpoint(1): a withdrawn mount answers stat() with EIO
+        if grep -q \" $MNT mxfs \" /proc/mounts; then echo prep_mounted already; exit 0; fi
+        iscsiadm -m session 2>/dev/null | grep -qF $TGT || iscsiadm -m node -T $TGT -p $PORTAL --login >/dev/null 2>&1 || { iscsiadm -m discovery -t st -p $PORTAL >/dev/null && iscsiadm -m node -T $TGT -p $PORTAL --login >/dev/null; }
+        for i in 1 2 3 4 5 6 7 8 9 10; do [ -b $LUN ] && break; sleep 1; done
+        [ -b $LUN ] || { echo prep_no_lun; exit 1; }
+        lsmod | grep -q '^mxfs' || modprobe mxfs || { echo prep_no_module; exit 1; }
+        mkfs.mxfs -f $LUN 2>&1 | tail -1; [ \${PIPESTATUS[0]} = 0 ] || { echo prep_mkfs_failed; exit 1; }
+        mkdir -p $MNT && mount -t mxfs $LUN $MNT && echo prep_mounted
+        cat /sys/module/mxfs/srcversion" | tee "$EV/prep.log"
+    grep -q "prep_mounted" "$EV/prep.log" || { say "RESULT FAIL: could not mount the $PREP LUN on $NODE (prep.log)"; exit 1; }
+fi
+teardown() {
+    [ -n "$PREP" ] || return 0
+    on 90 "grep -q \" $MNT mxfs \" /proc/mounts && timeout 60 umount $MNT; grep -c ' mxfs ' /proc/mounts; true" > "$EV/teardown.log"
+    say "teardown: mxfs mounts left on $NODE: $(tail -1 "$EV/teardown.log")"
+}
+trap teardown EXIT
 on 30 "echo kernel=\$(uname -r); echo enforce=\$(getenforce); echo module=\$(semodule -l | grep -x mxfs)
        echo mount=\$(findmnt -n -o FSTYPE $MNT); ls -l /dev/kvm" > "$EV/pre.log"
 cat "$EV/pre.log"

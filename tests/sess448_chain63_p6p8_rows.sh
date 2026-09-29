@@ -16,6 +16,6 @@ LOG=tests/evidence/sess448_chain63_p6p8_rows_$LABEL.log
   timeout 300 ./run.sh 32 caw prep_cluster; prc=$?; echo "STAGE prep rc=$prc"
   if [ "$prc" -ne 0 ]; then echo "ABORT: prep"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
   T0=$(date +%s); timeout 420 ./run.sh 32 caw dirent_durability dirent_publish_integrity dirent_type_integrity; echo "STAGE rows rc=$? wall=$(( $(date +%s) - T0 ))s"
-  ./showstat.sh 32 caw 2>/dev/null | grep -a 'dirent_\|Total' | cut -c1-160
+  tools/criteria.py 32 caw 2>/dev/null | grep -a 'dirent_\|Total' | cut -c1-160
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

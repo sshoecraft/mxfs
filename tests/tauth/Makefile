@@ -64,10 +64,20 @@ $(OBJDIR)/view_format_test.o: view_format_test.c $(TOP)/include/mxfs/mxfs_tauth.
 $(VBIN): $(VOBJS)
 	$(CC) $(CFLAGS) -o $@ $(VOBJS)
 
-all: $(BIN) $(LBIN) $(DBIN) $(FBIN) $(CBIN) $(UBIN) $(RBIN) $(PBIN) $(VBIN)
+SBIN := stale_image_release_test
+SOBJS := $(OBJDIR)/stale_image_release_test.o $(OBJDIR)/dlm.o $(OBJDIR)/dlm_shared.o \
+         $(OBJDIR)/tauth_ledger.o $(OBJDIR)/tauth_store.o $(OBJDIR)/pal_user.o
+
+$(OBJDIR)/stale_image_release_test.o: stale_image_release_test.c dlm_mesh.h tauth_testlib.h $(TOP)/dlm/dlm.h $(TOP)/dlm/tauth_ledger.h | $(OBJDIR)
+	$(CC) $(CPPFLAGS) -I$(TOP)/pal -O2 -g -std=gnu11 -Wall -c -o $@ $<
+
+$(SBIN): $(SOBJS)
+	$(CC) $(CFLAGS) -o $@ $(SOBJS) $(LDLIBS)
+
+all: $(BIN) $(LBIN) $(DBIN) $(FBIN) $(CBIN) $(UBIN) $(RBIN) $(PBIN) $(VBIN) $(SBIN)
 
 test: all
-	./$(BIN) && ./$(LBIN) && ./$(DBIN) && ./$(FBIN) && ./$(CBIN) && ./$(UBIN) && ./$(RBIN) && ./$(VBIN)
+	./$(BIN) && ./$(LBIN) && ./$(DBIN) && ./$(FBIN) && ./$(CBIN) && ./$(UBIN) && ./$(RBIN) && ./$(VBIN) && ./$(SBIN)
 
 $(OBJDIR)/concurrent_release_test.o: concurrent_release_test.c dlm_mesh.h tauth_testlib.h $(TOP)/dlm/dlm.h $(TOP)/dlm/tauth_ledger.h | $(OBJDIR)
 	$(CC) $(CPPFLAGS) -I$(TOP)/pal -O2 -g -std=gnu11 -Wall -c -o $@ $<
@@ -120,6 +130,6 @@ $(LBIN): $(LOBJS)
 	$(CC) $(CFLAGS) -o $@ $(LOBJS) $(LDLIBS)
 
 clean:
-	rm -rf $(OBJDIR) $(BIN) $(LBIN) $(DBIN) $(FBIN) $(CBIN) $(UBIN) $(RBIN) $(PBIN) $(VBIN)
+	rm -rf $(OBJDIR) $(BIN) $(LBIN) $(DBIN) $(FBIN) $(CBIN) $(UBIN) $(RBIN) $(PBIN) $(VBIN) $(SBIN)
 
 .PHONY: all clean

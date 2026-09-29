@@ -113,6 +113,16 @@ struct xfs_perag {
 	 */
 	bool		pag_mxfs_alloc_dirty;
 	/*
+	 * 0.90.16: the lazy unlock's nowait drain skipped a buffer still
+	 * pinned and put it back on the list.  Set there, cleared by every
+	 * drain.  The mount's alloclist retry work (mxfs_alloclist_retry_fn)
+	 * drains the AGs that carry it, so a leftover is written within a
+	 * kick or two rather than at the AG's next unlock cycle — which an
+	 * AG this node stops using never has, and the leftover then pinned
+	 * the log tail for the rest of the tenure.
+	 */
+	bool		pag_mxfs_alloc_retry;
+	/*
 	 * Per-AG delwri list of cluster buffers initialized by
 	 * xfs_ialloc_inode_init under this AG's DLM lock.  Drained via
 	 * xfs_buf_delwri_submit on the last-holder AG release so the home

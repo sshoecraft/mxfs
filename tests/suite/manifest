@@ -39,7 +39,7 @@
 # elapsed_s/budget_s, tracked with the same budget discipline as every real
 # test instead of being an invisible, unbudgeted side effect (see
 # ccmemory/session notes 2026-07-14 -- a hung 100s convergence gate was
-# previously invisible to showstat entirely). Placeholder budget pending
+# previously invisible to tools/criteria.py entirely). Placeholder budget pending
 # real calibration across N -- teardown+mkfs+mount+converge scales with N
 # (the membership convergence gate alone is 90+5*N).
 P0  prep_cluster          none      1   300
@@ -68,7 +68,7 @@ P1  integrity_filetypes   none      1   10
 # node runs the same 4 workloads into its OWN private file concurrently,
 # publishes its numbers, and rank 1 sums them into an AGGREGATE bandwidth/iops
 # figure recorded to bench.json (per-node measured detail isn't surfaced by
-# showstat for coord=barrier tests -- same as scaling_curve/dlm_scaling --
+# tools/criteria.py for coord=barrier tests -- same as scaling_curve/dlm_scaling --
 # but the aggregate lands in bench.json for fio_perf_vs_xfs to read).
 # budget_scale=linear (2026-07-18, ccloop 72513a13): every node pushes the
 # same fixed per-node byte load through ONE shared fixed-bandwidth target,

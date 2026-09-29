@@ -1334,6 +1334,7 @@ mxfs_dlm_ag_drain_alloc_buflist(
 	mutex_lock(&pag->pag_mxfs_alloc_buflist_lock);
 	list_splice_init(&pag->pag_mxfs_alloc_buflist, &drain);
 	pag->pag_mxfs_alloc_dirty = false;
+	pag->pag_mxfs_alloc_retry = false;
 	mutex_unlock(&pag->pag_mxfs_alloc_buflist_lock);
 
 	if (!list_empty(&drain)) {
@@ -1399,12 +1400,11 @@ mxfs_dlm_ag_drain_alloc_buflist_nowait(
 	/* P25-DRAIN-NW: see P25-DRAIN-SLOW in the sync variant above. */
 	u64 tm0, t0, t1;
 
-	(void)mp;
-
 	tm0 = ktime_get_ns();
 	mutex_lock(&pag->pag_mxfs_alloc_buflist_lock);
 	list_splice_init(&pag->pag_mxfs_alloc_buflist, &drain);
 	pag->pag_mxfs_alloc_dirty = false;
+	pag->pag_mxfs_alloc_retry = false;
 	mutex_unlock(&pag->pag_mxfs_alloc_buflist_lock);
 	t0 = ktime_get_ns();
 
@@ -1441,9 +1441,102 @@ mxfs_dlm_ag_drain_alloc_buflist_nowait(
 			mutex_lock(&pag->pag_mxfs_alloc_buflist_lock);
 			list_splice_tail(&drain, &pag->pag_mxfs_alloc_buflist);
 			pag->pag_mxfs_alloc_dirty = true;
+			pag->pag_mxfs_alloc_retry = true;
 			mutex_unlock(&pag->pag_mxfs_alloc_buflist_lock);
+			/*
+			 * 0.90.16: "the next unlock cycle" is not a bound.  An
+			 * AG this node keeps holding but stops using has none,
+			 * and its leftovers — xfsaild cannot take them, they are
+			 * queued here — then pin the log tail for the rest of
+			 * the tenure (measured: nine minutes, one inode chunk's
+			 * two cluster buffers, 4/tcp).  So: start the CIL push
+			 * that unpins them (async, one force per leftover event,
+			 * not per unlock) and have the mount's retry work drain
+			 * this AG again shortly.
+			 */
+			xfs_log_force(mp, 0);
+			/* not once put_super has closed the arms: it cancels the
+			 * retry work before its own drains, and those write
+			 * whatever this would have */
+			if (!READ_ONCE(mp->m_mxfs_arms_off))
+				mxfs_alloclist_retry_kick(mp);
 		}
 	}
+}
+
+/*
+ * The alloc buflist leftover retry: drain again every AG whose nowait drain
+ * left pinned buffers on its list.  The drain re-flags the AG and re-arms
+ * this work if a buffer is still pinned, so the cadence (100 ms) is paid only
+ * while a leftover exists, and a buffer that is re-logged continually is
+ * retried, never abandoned.  Cancelled synchronously by put_super before its
+ * own drains.
+ */
+void
+mxfs_alloclist_retry_fn(
+	struct work_struct	*work)
+{
+	struct xfs_mount	*mp = container_of(to_delayed_work(work),
+					struct xfs_mount, m_mxfs_alloclist_retry);
+	xfs_agnumber_t		agno;
+
+	if (xfs_is_shutdown(mp))
+		return;
+	for (agno = 0; agno < mp->m_sb.sb_agcount; agno++) {
+		struct xfs_perag	*pag = xfs_perag_get(mp, agno);
+
+		if (!pag)
+			continue;
+		if (READ_ONCE(pag->pag_mxfs_alloc_retry))
+			mxfs_dlm_ag_drain_alloc_buflist_nowait(mp, pag);
+		xfs_perag_put(pag);
+	}
+}
+
+void
+mxfs_alloclist_retry_kick(
+	struct xfs_mount	*mp)
+{
+	queue_delayed_work(system_unbound_wq, &mp->m_mxfs_alloclist_retry,
+			   msecs_to_jiffies(100));
+}
+
+/*
+ * Drain every AG's alloc buflist, synchronously.  Returns how many AGs had
+ * one to drain.
+ *
+ * A buffer on an alloc buflist is written by these drains and by nothing
+ * else: xfsaild's delwri queue refuses a buffer already queued elsewhere
+ * (_XBF_DELWRI_Q), so its push reports the item FLUSHING and waits for a
+ * write that only the drain will issue.  The nowait drain leaves a buffer
+ * still pinned at submit on the list for the AG's next unlock cycle — and an
+ * AG this node stops using has no next cycle.  Measured at 4/tcp (0.90.14
+ * and 0.90.16, chk_clean): one inode chunk's two cluster buffers, skipped
+ * pinned at one unlock, sat on their AG's list unwritten for nine minutes
+ * pinning the log tail, and the unmount's whole-AIL wait then never ended,
+ * because it ran before the per-AG force-release drain that would have
+ * written them.  Every whole-AIL wait a caller enters must be preceded by
+ * this; put_super is the one that hung.
+ */
+unsigned int
+mxfs_dlm_ag_drain_all_alloc_buflists(
+	struct xfs_mount	*mp)
+{
+	xfs_agnumber_t		agno;
+	unsigned int		drained = 0;
+
+	for (agno = 0; agno < mp->m_sb.sb_agcount; agno++) {
+		struct xfs_perag	*pag = xfs_perag_get(mp, agno);
+
+		if (!pag)
+			continue;
+		if (!list_empty_careful(&pag->pag_mxfs_alloc_buflist)) {
+			mxfs_dlm_ag_drain_alloc_buflist(mp, pag);
+			drained++;
+		}
+		xfs_perag_put(pag);
+	}
+	return drained;
 }
 
 /*

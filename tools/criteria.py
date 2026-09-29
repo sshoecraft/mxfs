@@ -8,6 +8,7 @@
     tools/criteria.py --gaps              criteria nothing can measure -- wishes, not criteria
     tools/criteria.py add    -i ID -r "requirement" -d "detector" [-b BUDGET_S] [-p PHASE]
     tools/criteria.py update <id> --at 2/tcp -s PASS -m "measured" [-e ELAPSED_S] [--build SRCVER]
+    tools/criteria.py amend  <id> --at 2/tcp --iso <run stamp> --detector-defect "what the detector got wrong, and the fix"
     tools/criteria.py remove <id> --why "why this is no longer something we must achieve"
 
 THE ONE WAY IN OR OUT. This file is the only reader and the only writer of `data/criteria.json`.
@@ -185,7 +186,7 @@ def parse_at(text: str) -> str:
 
 
 def lift_config(argv: list) -> list:
-    """Accept `criteria.py 2 tcp` and `criteria.py 2/tcp`, the way `showstat.sh 2 tcp` always has.
+    """Accept `criteria.py 2 tcp` and `criteria.py 2/tcp`.
 
     The leading argument is a configuration only when it starts with digits, so it can never
     shadow `show`, `add`, `update` or `remove`.
@@ -323,9 +324,14 @@ def flake_count(entry: dict, config: str) -> tuple:
     #: FAIL only. ABORTED means the run died mid-test and the result is UNKNOWN -- counting it
     #: would make "we never found out" indistinguishable from "the test detected a fault", which
     #: is the same conflation the rig-noise filter exists to prevent.
+    #:
+    #: A FAIL carrying `detector_defect` was produced by a detector later proved wrong about a
+    #: cluster that had done the right thing (`amend`): it stays in the history, annotated, and
+    #: it is not evidence of an MXFS fault any more than rig-formation noise is.
     genuine = sum(1 for r in runs
                   if str(r.get("status", "")).upper().strip() == "FAIL"
-                  and not RIG_NOISE.search(str(r.get("reason", ""))))
+                  and not RIG_NOISE.search(str(r.get("reason", "")))
+                  and not r.get("detector_defect"))
     return genuine, len(runs)
 
 
@@ -744,6 +750,46 @@ def cmd_rows(data: dict, args) -> int:
     return 0
 
 
+def cmd_amend(data: dict, args) -> int:
+    """Annotate ONE recorded FAIL as a detector defect. The run stays in the history, status FAIL,
+    with the annotation beside it; only the flake rule stops counting it.
+
+    FLAKY means the TEST ITSELF detected a fault on a formed cluster. When the test's own oracle is
+    what was wrong -- measured 2026-09-28: the 4-node crash audit failed because the death oracle
+    read only the writer's kernel log while a third node had been the prover, and every survivor's
+    log showed the recovery had run exactly as designed -- the FAIL is evidence about the detector,
+    not about MXFS, and leaving it to age out of the window would keep a clean cell yellow for
+    eleven runs that measure nothing new. The detector fix must already be in the tree; say what
+    it was. Rig-formation noise is excluded automatically; this is the same exclusion for a fault
+    in the measuring instrument, made explicitly and visibly.
+    """
+    entry = find(data, args.id)
+    config = parse_at(args.at)
+    cell = cell_of(entry, config)
+    if not cell:
+        sys.exit(f"criteria: {entry['id']} has no cell at {config}")
+    runs = [cell] + list(cell.get("history") or [])
+    hit = [r for r in runs if str(r.get("iso", "")) == args.iso]
+    if not hit:
+        sys.exit("criteria: %s [%s] records no run stamped %s (recorded: %s)"
+                 % (entry["id"], config, args.iso,
+                    ", ".join(str(r.get("iso", "?")) for r in runs)))
+    run = hit[0]
+    if str(run.get("status", "")).upper().strip() != "FAIL":
+        sys.exit("criteria: the run stamped %s is %s, not FAIL; only a FAIL can be a detector defect"
+                 % (args.iso, run.get("status")))
+    run["detector_defect"] = args.detector_defect[:400]
+    save(data)
+    genuine, seen = flake_count(entry, config)
+    print("amended %s [%s] run %s: FAIL kept, annotated as a detector defect; "
+          "genuine failures in the window now %d of %d -> %s"
+          % (entry["id"], config, args.iso, genuine, seen, cell_status(entry, config)))
+    print("\nThis changes what the board says. It belongs in CHANGELOG.md:\n")
+    print("- **Board: %s at %s, the FAIL of %s was the detector's** — %s"
+          % (entry["id"], config, args.iso, args.detector_defect))
+    return 0
+
+
 def cmd_remove(data: dict, args) -> int:
     """Only for a criterion that is no longer something we must achieve.
 
@@ -839,6 +885,16 @@ def main() -> int:
     update.add_argument("--min-nodes", type=int, dest="min_nodes")
     update.add_argument("--max-nodes", type=int, dest="max_nodes")
 
+    amend = subs.add_parser("amend", help="annotate one recorded FAIL as the detector's fault")
+    amend.add_argument("id")
+    amend.add_argument("--at", metavar="NODES/DLM", required=True,
+                       help="the configuration whose run is amended, e.g. 4/cawd")
+    amend.add_argument("--iso", required=True,
+                       help="the run's stamp as `show` prints it (iso), naming exactly one run")
+    amend.add_argument("--detector-defect", dest="detector_defect", required=True,
+                       help="what the detector got wrong, the evidence that the cluster had done "
+                            "the right thing, and the detector fix that is already in the tree")
+
     remove = subs.add_parser("remove", help="no longer something we must achieve")
     remove.add_argument("id")
     remove.add_argument("--why", required=True, help="why this is no longer required")
@@ -881,6 +937,8 @@ def main() -> int:
         return cmd_add(data, args)
     if args.command == "update":
         return cmd_update(data, args)
+    if args.command == "amend":
+        return cmd_amend(data, args)
     if args.command == "remove":
         return cmd_remove(data, args)
     if args.command == "move":

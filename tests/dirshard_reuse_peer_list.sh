@@ -96,7 +96,12 @@ done
 for n in $N2 $N1; do
     o=$(r $n "for m in P-DIRSHARD-SHELL-ADOPTED P-DIRSHARD-SHELL-UNCONVERGED 'P-DIRSHARD-SHELL ' P-DIRSHARD-BLK-REFRESH P-DIRSHARD-BLK-KEEP P-DIRSHARD-STRANGER P-DIRSHARD-GONE P-DIRSHARD-CORRUPT P-DIRSHARD-IGET-FAIL P-DIRSHARD-LOAD-FAIL 'Structure needs cleaning' 'WARNING:' 'BUG:' Oops; do printf '%s=%s ' \"\$m\" \"\$(dmesg | grep -ac -- \"\$m\")\"; done; echo")
     echo "$n markers: $o" | tee "$OUT/markers_$n.txt"
-    r $n "dmesg | grep -a 'P-DIRSHARD-SHELL\|P-DIRSHARD-STRANGER\|P-DIRSHARD-GONE\|P-DIRSHARD-CORRUPT\|P-DIRSHARD-BLK-\|P-DIRSHARD-LOAD-FAIL\|WARNING:\|BUG:' | head -80" > "$OUT/dmesg_$n.txt"
+    # the verdict lines (CORRUPT, STRANGER, GONE, UNCONVERGED, LOAD/IGET-FAIL,
+    # splats) are saved in full: an 80-line cap over the whole grep dropped
+    # every one of the 12 CORRUPT lines of the 2026-09-28 4/cawd lap behind
+    # 442 SHELL-ADOPTED lines, and the reason= field that names the failing
+    # check was lost with them.  The per-shell chatter is what the cap bounds.
+    r $n "dmesg | grep -a 'P-DIRSHARD-STRANGER\|P-DIRSHARD-GONE\|P-DIRSHARD-CORRUPT\|P-DIRSHARD-SHELL-UNCONVERGED\|P-DIRSHARD-LOAD-FAIL\|P-DIRSHARD-IGET-FAIL\|WARNING:\|BUG:'; dmesg | grep -a 'P-DIRSHARD-SHELL\|P-DIRSHARD-BLK-' | head -80" > "$OUT/dmesg_$n.txt"
 done
 m=$(cat "$OUT/markers_$N2.txt")
 g() { echo "$m" | grep -o "$1=[0-9]*" | head -1 | cut -d= -f2; }

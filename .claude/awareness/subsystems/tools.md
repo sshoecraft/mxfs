@@ -23,8 +23,8 @@ Standalone user-space binaries that build against the user-PAL variant. Used for
 | ~~`ledger_backfill_dates.py`~~ | **ARCHIVED 2026-09-10** → `/src/archive/mxfs/tools/` | One-shot date repair for a file that is no longer in this tree. |
 | ~~`hook_ledger_guard.sh`~~ | **ARCHIVED 2026-09-10** → `/src/archive/mxfs/tools/` | Was a PostToolUse hook in `.claude/settings.json`. **The hook entry was removed with it** — `settings.json` now has no `hooks` block at all. |
 | ~~`ledger_set.py`, `ledger_owed_work.py`, `ledger_session_dates.py`, `ledger_repair_backtick_damage.py`~~ | **ARCHIVED 2026-09-10** → `/src/archive/mxfs/tools/` | One-off editors and readers for `OPEN_DEFECTS.json`. `defects.py add/update/remove` is the writer now, which is why none of these are needed. |
-| `defects.py` | `defects.py` (sess575) | **The defect work queue** over `data/defects.json` — sole reader and sole writer. Takes `2 tcp` positionally like `showstat.sh`. No `status` field: an entry is in the queue or it is `remove`d with mandatory `--why`, and the fix becomes a `CHANGELOG.md` entry. Carries `nodes`/`dlm` saying which configuration the defect was observed on, so `--at 2/tcp` answers what actually blocks a release. Both fields default fail-closed (`1`/`any` = blocks everything). |
-| `criteria.py` | `criteria.py` (sess575) | **The criteria board** over `data/criteria.json` — sole reader and sole writer. Takes `2 tcp` positionally like `showstat.sh`, filters rows to what `applies()` in that configuration, and reproduces showstat's FLAKY rule (FAIL-only, 11-run window, rig-noise excluded). Every criterion is proved once per `<nodes>/<transport>` configuration and is `UNKNOWN` for every column absent from its map. A cell over its `budget_s` records `FAIL` whatever status the caller passed; a cell read back against a different `--build` reads `STALE`. |
+| `defects.py` | `defects.py` (sess575) | **The defect work queue** over `data/defects.json` — sole reader and sole writer. Takes `2 tcp` positionally. No `status` field: an entry is in the queue or it is `remove`d with mandatory `--why`, and the fix becomes a `CHANGELOG.md` entry. Carries `nodes`/`dlm` saying which configuration the defect was observed on, so `--at 2/tcp` answers what actually blocks a release. Both fields default fail-closed (`1`/`any` = blocks everything). |
+| `criteria.py` | `criteria.py` (sess575) | **The criteria board** over `data/criteria.json` — sole reader and sole writer. Takes `2 tcp` positionally, filters rows to what `applies()` in that configuration, and applies the FLAKY rule (FAIL-only, 11-run window, rig-noise excluded). Every criterion is proved once per `<nodes>/<transport>` configuration and is `UNKNOWN` for every column absent from its map. A cell over its `budget_s` records `FAIL` whatever status the caller passed; a cell read back against a different `--build` reads `STALE`. |
 | ~~`criteria_import.py`~~, ~~`defects_import.py`~~ | **ARCHIVED 2026-09-10** → `/src/archive/mxfs/tools/` | One-shot migrations. They ran on 2026-09-10, moving the 95 OPEN records and 4 categories / 44 tests / 601 cells into `data/`. Their source files went to the archive with them, so keeping them in the tree meant shipping a script whose only input path does not exist in a clone. |
 | `mxfs_sshpass.sh` | shell wrapper for ssh+sshpass | Bench harness uses this to talk to test1/test2. |
 
@@ -50,7 +50,7 @@ caw_slot_hash.py pick    <dump> <inolist> <inoshift>        # one usable collidi
 #   ARCHIVED 2026-09-10 -> /src/archive/mxfs/tools/.  Not in this tree.  Their data file
 #   (tests/criteria/OPEN_DEFECTS.json) went with them.
 
-defects.py [2 tcp | 2/tcp | 2] [-d] [-s SEV] [--json]   # bare config == --at, like showstat.sh
+defects.py [2 tcp | 2/tcp | 2] [-d] [-s SEV] [--json]   # bare config == --at
 defects.py [-d] [-s SEV] [--at 2/tcp] [--json]  # the queue; --at = what blocks that configuration
 defects.py show <id>                            # id or unique substring
 defects.py add    -s SEV -m "..." [-N 2] [-D tcp] [-n next] [-w evidence] [--id ID]
@@ -882,7 +882,7 @@ presence of a measurement.**
 
 Four rules, each derived from one of the six incidents and each carrying its origin
 in its own message: HL001 implicit selection of verdict evidence (`ls -t … | head -1`);
-HL002 unconditional `showstat.sh` render; HL003 a textual tool used as a numeric
+HL002 unconditional `tools/criteria.py` board render; HL003 a textual tool used as a numeric
 predicate (`grep -qv '^0$'`); HL004 a shell variable inside a single-quoted pattern.
 
 Deliberately a small rule set. A high-false-positive linter gets suppressed
@@ -927,7 +927,7 @@ would change the acceptance criteria mid-verification.
   nothing. An `rc=$?`-captured-but-untested rule was written and rejected — 690
   of ~759 hits were benign `echo "STAGE … rc=$?"` progress logging.
 - **HL002 cannot see a multi-line guard, and that is deliberate.** It allows a
-  `showstat.sh` call only when `run_id`/`RUN_ID`/`--run` appears on the SAME
+  `tools/criteria.py` board render only when `run_id`/`RUN_ID`/`--run` appears on the SAME
   line. A correctly guarded call — `run_id` pinned before the board and compared
   after, several lines up — still fires, and the author is expected to suppress
   it with the reason. That happened three times in one session
@@ -1396,7 +1396,7 @@ absent from its map. A board that hid the empty columns would read green; that i
 `D-MATRIX-UNMEASURED` is about, and `--gaps` now reports never-run columns as gaps alongside
 missing detectors.
 
-**Both tools take the configuration the way `showstat.sh` always has** — `defects.py 2 tcp`,
+**Both tools take the configuration positionally** — `defects.py 2 tcp`,
 `criteria.py 2 tcp`, `2/tcp` equivalently, in any argument position. `lift_config()` rewrites it to
 `--at` before argparse sees it, skipping flags and their values (so `-s major 2 tcp` is a severity
 and a cluster, not a cluster twice) and stopping at a subcommand name, which is why a leading
@@ -1404,7 +1404,7 @@ config can never shadow `show`/`add`/`update`/`remove`. `defects.py 2` alone mea
 at that size; `criteria.py 2` alone is refused, because a cell is one exact column and picking one
 of five silently is how a tcp green gets read as a caw one.
 
-**`criteria.py` reproduces `showstat.sh`'s FLAKY rule exactly** (user directive, sess43, two
+**`criteria.py` keeps the FLAKY rule of the retired `showstat.sh` exactly** (user directive, sess43, two
 rounds), and it must stay that way:
 
 - FLAKY = the test itself detected a fault on a formed cluster inside the last `FLAKE_WINDOW` (11)
@@ -1412,14 +1412,14 @@ rounds), and it must stay that way:
 - **`FAIL` only, never `ABORTED`.** An `ABORTED` cell says the run died mid-test and the result is
   UNKNOWN; counting it makes "we never found out" indistinguishable from "a fault was detected".
   `ag_strand_repair` at 2/tcp is the case that proves it — one `ABORTED` reading "run died while
-  this test was executing", and it is a PASS, exactly as `showstat.sh` has it.
+  this test was executing", and it is a PASS.
 - Failures whose `reason` matches `RIG_NOISE` (`pre-assert|NO_TERMINAL_RECORD|run was killed|prep
   fail`) are rig formation, not MXFS faults, and never count.
 - `prep_cluster` and `open_defects` never flake at all.
 
 **`applies()` filters the board to what is runnable in a configuration**, from the criterion's
 `transport` + `min_nodes`/`max_nodes`. Without it the 2/tcp board printed 44 rows against
-`showstat.sh`'s 30, padding it with single-node tooling checks and a CAW-only criterion as
+the retired `showstat.sh`'s 30, padding it with single-node tooling checks and a CAW-only criterion as
 `UNKNOWN` columns nothing will ever fill — which buries the genuinely unmeasured ones. Verified
 equal: 30 rows, 4 FLAKY, both tools.
 
@@ -1640,3 +1640,38 @@ it still comes through the plain fd.
 that has to capture the record at a precise instant (say, between a claim and a
 power cut) cannot use that, and a harness that captures it 300 s later is not
 capturing the same state.
+
+## 0.90.9–0.90.14 — the release tooling: `platforms.py`, `mxfs_lab.sh`, `release.sh`, `inode_flag_bits_audit.py`, `criteria.py amend`
+
+- `tools/platforms.py` — the platform ledger (`data/platforms.json`). Bare: the
+  table (key, status, priority, arch, verified version, name). `show <key>`;
+  `set <key> --status|--kernels|--packages|--verify-env|--verify-tests|...`;
+  `verify <key> --version V --evidence "<paths under the repo>"` records the
+  verification a release claims; `check --version V` says which platforms
+  that exact version may claim. `verify_env` and `verify_tests` are the
+  record's own statement of how it is verified, and `tests/packaged_round.sh`
+  is what implements them.
+- `tools/mxfs_lab.sh` — resolves this site's lab (`~/.config/mxfslab/lab`,
+  override `$MXFS_LAB`): `nodes <platform>` (the verification set), `pair`,
+  `addr <node>`, `get <key> <field>`, `lun-nodes`; sourced, it defines the
+  functions only. One lab file per platform gives each set its own LUN, and
+  `scripts/scst_platform_targets.sh setup` builds those targets on clyde.
+- `scripts/release.sh` — builds `dist/<version>/` (the .deb and the
+  pve-storage .deb in the oldest Debian container they target, the .rpm in
+  its container) after `scripts/pve_kbuild_check.sh` on the PVE kernels;
+  refuses if `dist/<version>` already holds a build. `--publish [--version
+  V]` creates the GitHub release with this version's CHANGELOG section as its
+  notes, from a commit that must already be pushed. `tests/full_verify.sh`
+  calls it after the boards, so the packages are built from the tree as it
+  was when they ran.
+- `scripts/inode_flag_bits_audit.py` — parses every stored `i_flags` bit in
+  `xfs/xfs_inode.h` and exits 1 on a shared bit (it found bit 28 shared by
+  `MXFS_IF_ACQ_REFUSED` and `MXFS_IF_ADOPTED_UNLINK` in 0.90.13); a step of
+  `tests/full_verify.sh`.
+- `tools/criteria.py amend <row> --at <N>/<dlm> --iso <run-iso>
+  --detector-defect "<why>"` — keeps a FAIL on the board but records it as
+  the detector's, so the flake window counts genuine failures only.
+- `scripts/lab_clone_node.sh` — clones a built platform node into a new one
+  (disk, hostname, address, iSCSI initiator name); an enforcing RHEL clone
+  needs a relabel afterwards, because a file rewritten from a host without
+  SELinux is a new unlabeled inode.

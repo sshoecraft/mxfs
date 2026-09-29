@@ -164,7 +164,7 @@ chain:
 | shape (regex on `tool_input.command`) | deny message |
 |---|---|
 | `mxfs_sshpass` inside `for`/`while` or with `&`…`wait` (fleet sweep) | "fleet sweep → Agent rig-runner" |
-| `run.sh`, `showstat.sh`, `tests/*.sh`, `bench/*` | "harness run + triage → Agent board-triage" |
+| `run.sh`, `tools/criteria.py`, `tests/*.sh`, `bench/*` | "harness run + triage → Agent board-triage" |
 | `make modules`/`make clean`, `scp … mxfs.ko`, `insmod`/`rmmod` | "build/deploy/verify → Agent build-deploy" |
 | `python3 … .jsonl` under `~/.claude/projects` | "transcript mining → Agent transcript-miner" |
 | ≥3 `;`/`&&`/`|`-joined grep/sed/cat/wc/ls/find on tree paths | "tree sweep → Agent tree-scout" |

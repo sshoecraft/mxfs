@@ -227,6 +227,36 @@ setsid bash -c 'exec dmesg --follow > /root/dmesg.stream 2>&1 < /dev/null' &
 sleep 0.2
 pgrep -f 'dmesg --follow' >/dev/null || echo "WARN: dmesg stream capture not running"
 
+# 4b. Bind the device by IDENTITY.  MXFS_DEV is a path, and a path names
+#     whichever LUN came up under that letter on THIS node: a node logged into
+#     two targets orders them by session, so /dev/sda is the rig LUN on one
+#     node and a platform LUN on the next.  The caller that formatted the LUN
+#     ships its identity (MXFS_FSID: the envelope superblock's uuid of the
+#     format just made; MXFS_LUN_WWID: the SCSI identifier); when the path
+#     does not carry it, the block device that does is used instead, and when
+#     none does the prep refuses.  Measured 2026-09-28 before this existed: a
+#     4-node prep mounted test3 on the platform pair's LUN and formed a
+#     cluster of three plus a cluster of one.
+if [ -n "${MXFS_FSID:-}" ] || [ -n "${MXFS_LUN_WWID:-}" ]; then
+    ident_matches() {  # <IDENT line> -> 0 iff it carries the wanted identity
+        if [ -n "${MXFS_FSID:-}" ]; then echo "$1" | grep -q " fsid=${MXFS_FSID} "
+        else echo "$1" | grep -q " wwid=${MXFS_LUN_WWID} "; fi
+    }
+    ident=$(sh "$MXFS_REPO/tests/setup/dev_identity.sh" "$MXFS_DEV")
+    if ! ident_matches "$ident"; then
+        FOUND=""
+        for c in /dev/mapper/* /dev/sd[a-z] /dev/sd[a-z][a-z]; do
+            [ -b "$c" ] || continue
+            case "$c" in /dev/mapper/control) continue ;; esac
+            cid=$(sh "$MXFS_REPO/tests/setup/dev_identity.sh" "$c")
+            ident_matches "$cid" && { FOUND=$c; break; }
+        done
+        [ -n "$FOUND" ] || fail "device identity: $MXFS_DEV is not the LUN the cluster formed on (want fsid=${MXFS_FSID:-any} wwid=${MXFS_LUN_WWID:-any}; it is: $ident) and no other block device on this node carries that identity"
+        echo "DEVICE-REBOUND: $MXFS_DEV is [$ident]; the cluster's LUN on this node is $FOUND — mounting that"
+        MXFS_DEV=$FOUND
+    fi
+fi
+
 # 5. Widen the guest SCSI command timeout (sess68 nexus-loss wedge prevention).
 #    /dev/mapper/* is a symlink to /dev/dm-N — resolve it, and for a dm device
 #    widen the timeout on every underlying SCSI path instead (dm itself has no

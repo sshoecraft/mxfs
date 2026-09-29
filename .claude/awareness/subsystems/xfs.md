@@ -2970,7 +2970,7 @@ the acquire (`P-RBLK-DENY-LOCAL`, per-node predicate) while the xfs gates
 answered "not covered", so the void hook returned and the namespace op
 committed lock-less (s518i: `P58-DIRPIN-NONEX ino=128 comm=mkdir`, rc=0 to
 userspace).  The pre-check now counts refused victims too.  (2) The
-`-EHOSTDOWN` arm sets `MXFS_IF_ACQ_REFUSED` (bit 28, `xfs_inode.h`); every
+`-EHOSTDOWN` arm sets `MXFS_IF_ACQ_REFUSED` (bit 28 until 0.90.14, bit 32 since — see the 0.90.14 section; `xfs_inode.h`); every
 grant-install site in `xfs_mxfs_dlm.c` (the three `ip->i_dlm_mode = mode`
 blocks) clears it just before taking `i_dlm_lock`.  It is read ONLY by
 `mxfs_quar_gate_locked(ip, op)` = `mxfs_quar_gate_op` + the latch
@@ -3636,3 +3636,160 @@ Design: `docs/tcp-authority-ledger.md` "Open-holder marks".  XFS-side surfaces:
 - Harness: `tests/d0977_open_unlink_tcp.sh` (arm A lifetime + multi-opener + reuse after
   the last close; arm C containment with `open_tracking=0`), on the capture gate
   manifest with a 200 s bound.
+
+## 0.90.13–0.90.14 — the ilock park asks the DLM for any pending recovery; `MXFS_IF_ACQ_REFUSED` moves to bit 32
+
+- `xfs/xfs_mxfs_ilock.c` (0.90.13): the ilock timeout classifier's "peer
+  recovery pending" park (`P240-QUAR-PARK`, now with `duty=`) fires when
+  `m_mxfs_foreign_dead_slots` is set OR `mxfs_v5_dlm_any_recovery_pending()`
+  answers true. The bitmap is set only on the elected replayer
+  (`mxfs_dlm_dead_node_notify` from `v5_dispatch_slice_recovery`), so on every
+  other survivor a budget failure that was neither a quarantine, an
+  -EHOSTDOWN deny, a stalled transition nor a live-master timeout fell through
+  to arm (3) "DLM inode lock unrecoverable" and
+  `xfs_force_shutdown(SHUTDOWN_CORRUPT_INCORE)`. Measured on 4/tcp (the
+  non-elected test3 shut down in both control laps; the fixed build parks
+  with `duty=0` and resumes when the replay completes).
+- `xfs/xfs_inode.h` (0.90.14): `MXFS_IF_ACQ_REFUSED` was `1U << 28`, the bit
+  `MXFS_IF_ADOPTED_UNLINK` owns, so a DLM denial read as adopted-freer
+  authority in `xfs_inactive` ("grants B3/B4 authority", `xfs_inode.c`) and an
+  adopted orphan read as a denial in `mxfs_quar_gate_locked`. Now `1UL << 32`
+  (`i_flags` is an unsigned long; a compile-time check requires 64 bits) and
+  in `XFS_IRECLAIM_RESET_FLAGS`; the flag-test helpers return truth values
+  rather than a word narrowed to int, which would drop bit 32; compile-time
+  checks that the sum of every `MXFS_IF_` flag equals their OR and that no
+  MXFS flag overlaps an upstream flag (`XFS_IPINNED` excluded: a wait-bit key
+  never stored in the word). `scripts/inode_flag_bits_audit.py` parses every
+  stored bit in the header and fails on a duplicate; `tests/full_verify.sh`
+  runs it (`inode_flag_audit_rc`).
+
+### The join freeze never waits for s_umount (xfs/xfs_mxfs_join.c, 0.90.16)
+
+`mxfs_dlm_join_prepare` runs on the DLM join worker and freezes the mount
+(`freeze_super`, which takes `s_umount`) for the single-to-multi transition.
+An unmount holds `s_umount` through its whole teardown and joins that worker
+inside it (`v5_join_worker_stop` from `xfs_fs_put_super`), so a freeze that
+blocked on `s_umount` deadlocked with an unmount in progress (4/tcp, 0.90.14:
+mxfs-worker in freeze_super behind its own umount).  Invariants now:
+
+- the prepare takes `s_umount` only with `down_write_trylock`; a failure
+  returns `-EBUSY` (`P-JOIN-FREEZE-BUSY`) and the transition is retried on the
+  worker's cadence until `join_stop`;
+- holding the trylock it checks SB_BORN, SB_ACTIVE, `s_root`, `s_active > 0`,
+  not shut down, then takes one `s_active` reference (`mxfs_join_sb_get`) and
+  releases the lock before `freeze_super`;
+- `mxfs_dlm_join_commit` drops that reference LAST and OFF the worker
+  (`mxfs_join_sb_put`: a per-request work item on `mxfs_join_sbref_wq`),
+  because the drop may be the superblock's last active reference and then runs
+  the whole teardown, which joins the join worker;
+- the queue is made in `init_xfs_fs` (`mxfs_join_sbref_init`) and destroyed
+  in `exit_xfs_fs` (`mxfs_join_sbref_exit`, which flushes queued drops); a
+  system-wide workqueue must not be flushed by a module (kernel attribute
+  warning, and the release build is warning-free).
+
+Consequence to know: an `umount` that lands during a transition returns before
+the teardown, which runs when the transition drops its reference.  Design
+rationale: `docs/join-transition.md`, "The freeze and an unmount in progress".
+Test: `tests/join_during_unmount.sh`.
+
+### Alloc buflist leftovers: written before any whole-AIL wait, and retried (0.90.16)
+
+`xfs_ialloc_inode_init` diverts a fresh inode chunk's cluster buffers onto
+`pag_mxfs_alloc_buflist` (flags `_XBF_DELWRI_Q|_XBF_MXFS_ALLOC_QUEUED`) so the
+AG release drain publishes them before the on-disk unlock.  xfsaild cannot
+write such a buffer (its push reports the item FLUSHING: queued elsewhere), so
+only a drain writes it.  Two consequences were measured at 4/tcp and fixed:
+
+- `mxfs_dlm_ag_drain_alloc_buflist_nowait` (the lazy transaction-level unlock)
+  skips a buffer still pinned in the CIL and splices it back "for the next
+  unlock cycle".  An AG this node keeps holding but stops using has no next
+  cycle: one chunk's two buffers stayed unwritten nine minutes, pinning the
+  log tail (D-LAZY-AG-UNLOCK-PINNED-ALLOCLIST-LEFTOVERS-PIN-LOG-TAIL-UNTIL-
+  NEXT-UNLOCK).  Now the nowait drain sets `pag_mxfs_alloc_retry`, issues an
+  async `xfs_log_force` (so they unpin) and kicks `m_mxfs_alloclist_retry`, a
+  per-mount delayed work (100 ms) that re-runs the nowait drain for flagged
+  AGs and re-arms only while a leftover remains.  Cancelled synchronously in
+  put_super before its own drains.  Measurement: `tests/alloclist_tail_pin.sh`
+  (sysfs `log_tail_lsn` must reach `log_head_lsn` after a create burst stops).
+- `xfs_fs_put_super`'s whole-AIL wait (after the sync log force, before the SB
+  summary sync) ran BEFORE `mxfs_dlm_ag_force_release_all`, the drain that
+  writes alloc-list buffers, so it never ended (D-4TCP-QUIESCE-UNMOUNT-AIL-
+  STUCK-...).  Now `mxfs_dlm_ag_drain_all_alloc_buflists` (every AG,
+  synchronous; also what the noino fence uses) runs right before that wait,
+  logging `P-UNMOUNT-ALLOCLIST-DRAIN ags=N` when it found any.
+
+Invariant: **a whole-AIL wait (`xfs_ail_push_all_sync`) must be preceded by an
+alloc-list drain of every AG**; `xfs_ail_push_ag_sync`'s skip of both-flag
+buffers is for the BAST path, where the drain follows.  Diagnosis of a stuck
+AIL: the `P128-AILSTUCK-BUF` diag line (`dwskip_n/why`, lock owner, hold) and
+the xfsaild stack the dump now prints.
+
+## Alloc-buflist leftovers and the unmount's whole-AIL wait (0.90.16)
+
+A fresh inode chunk's cluster buffers are diverted by `xfs_ialloc_inode_init`
+onto their AG's `pag_mxfs_alloc_buflist`; only an alloc-list drain writes
+them (xfsaild refuses a buffer already queued elsewhere: its push reports the
+item FLUSHING).  Two drains exist:
+
+- `mxfs_dlm_ag_drain_alloc_buflist_nowait` (lazy unlock, `lazy_ag_drain=1`)
+  submits without waiting and splices still-pinned buffers back onto the list.
+  Since 0.90.16 it then forces the log once (async) and re-arms the mount's
+  100 ms delayed work `m_mxfs_alloclist_retry` (`mxfs_alloclist_retry_fn`,
+  `xfs/xfs_mxfs_ag_lock.c`), which re-drains every AG flagged
+  `pag_mxfs_alloc_retry` until clean.  Before that, "the AG's next unlock
+  cycle" was the only retry, and an AG held but idle has none: measured at
+  4/tcp, two cluster buffers pinned the log tail for nine minutes.  The kick
+  is skipped once `m_mxfs_arms_off` is set (put_super has closed the arms).
+- `mxfs_dlm_ag_drain_all_alloc_buflists` (synchronous, every AG) runs in
+  `put_super` (`pal/linux/xfs_super.c`) after `cancel_delayed_work_sync` of
+  the retry work and the synchronous log force, and BEFORE
+  `xfs_ail_push_all_sync`: every whole-AIL wait a caller enters must be
+  preceded by it, because the per-AG force-release drain comes later in the
+  teardown.  Witness line `P-UNMOUNT-ALLOCLIST-DRAIN ags=N` (info level) when
+  it found anything.
+
+Diagnosing an AIL-stuck buffer: the extended `P128-AILSTUCK` dump
+(`xfs/xfs_trans_ail.c`) prints the buffer diag line (bflags, pin, hold,
+delwri skip count and reason) and xfsaild's stack; `DELWRI_Q|MXFS_ALLOC_QUEUED`
+with one skipped submit and xfsaild idle means an alloc-list leftover.
+Harness: `tests/alloclist_tail_pin.sh` (log tail must reach the head after a
+create burst while the AG stays held).
+
+## The join worker's superblock freeze and an unmount (0.90.16)
+
+`mxfs_join_sb_get` (`xfs/xfs_mxfs_join.c`): the join prepare takes `s_umount`
+with `down_write_trylock`, checks the superblock live (SB_BORN, SB_ACTIVE,
+`s_root`, `s_active > 0`, not shut down), takes one `s_active` reference,
+releases the lock and only then calls `freeze_super`.  A refused trylock
+returns -EBUSY and the transition retries (`P-JOIN-FREEZE-BUSY`); the
+reference is dropped from a work item on the module's own `mxfs-join-sbref`
+workqueue, never on the worker (the drop may run the teardown, which joins
+the worker via `v5_join_worker_stop`).  Without this, a worker blocked in
+`freeze_super` waiting for an unmount's `s_umount` while the unmount's
+put_super waited for the worker (ABBA, hung task captured at 4/tcp on
+0.90.14).  Test knob `dbg_join_prefreeze_delay_ms` widens the window;
+harness `tests/join_during_unmount.sh` (must record ≥1 BUSY hit or it is
+vacuous; module use count before == after catches a leaked reference).
+
+## The fresh-grant walk keeps an inode cluster buffer that is queued for write (0.90.24)
+
+`mxfs_dlm_invalidate_ag_meta` (xfs/xfs_mxfs_buf.c) visits inode cluster
+buffers as well as AG metadata.  It must never stale one that carries
+`_XBF_DELWRI_Q`: `xfs_buf_stale` clears that flag, the delwri pass then drops
+the buffer unwritten, and the inode items already flushed into it stay in the
+AIL in flushing state with no completion coming (xfsaild passes over flushing
+items).  Cost when it happened: 5 s per contended inode in the release drain
+(P113-DRAIN-WEDGE, then P136-DRAIN-RESCUE) and an unmount that waited 127 s
+(P128-AILSTUCK).  The walk decides under the buffer lock and reports
+P91-WALK-PROTECT for a kept buffer.  A cluster buffer with items attached and
+nothing flushed is still staled, and that is harmless: the flush writes and
+completes through the same buffer.
+
+Instrument that named the staler, kept in the module: `xfs_buf_stale` stores
+its caller, the prior flags, the attached item count and the time in the
+buffer (`b_mxfs_stale_ip/_flags/_items/_ms`) and prints P-STALE-WITH-ITEMS on
+a multi-node mount; the release drain prints them at its first wedge report
+(P113-DRAIN-WEDGE-STALER).  A P-STALE-WITH-ITEMS line with `delwri=1` is the
+fault itself, whoever the caller is; tests/quiesce_remount_access.sh fails a
+lap on one.  Design: docs/ag-metadata-coherency.md, "The fresh-grant walk and
+inode cluster buffers".

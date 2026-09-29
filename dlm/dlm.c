@@ -104,6 +104,31 @@ MODULE_PARM_DESC(dl_drop_lockreq_n,
 		 "TEST ONLY: requests dropped since dl_drop_lockreq_ino was last written");
 
 /*
+ * 0.90.12 (D-A-STALLED-PAGE-TRANSITION-IS-AN-UNBOUNDED-WAIT-FOR-A-NON-
+ * FALLIBLE-CALLER): a request on a ledger page whose departed authority is a
+ * dead node with a BLOCKED recovery is denied -EHOSTDOWN — the recovery-
+ * blocked deny every other request on that node's grants already gets —
+ * instead of waiting on a takeover the judgement refuses for as long as the
+ * block stands.  0 restores the wait, TEST ONLY, so one build measures both
+ * answers (tests/tcp_death_replay.sh TDR_BLOCK_REALIGN=1 TDR_REALIGN_DENY=0|1).
+ *
+ * 0.90.13: the 0.90.12 deny stood only in the branch a request takes when the
+ * authority has LEFT the view.  A dead member stays in the view until its
+ * recovery completes, so a request on a page it authored never reached that
+ * branch: the master asked the dead authority itself for the page and parked
+ * the request with REMASTER until the requester's retry budget died
+ * (measured 4/tcp, laps s6a_realignA/B: 153 P-TAUTH-REMASTER-PARKED, 'lock
+ * request failed after 60 retries' in the remaster kind, zero denies with the
+ * knob at either value).  The deny now also stands where the master would ask
+ * a node whose recovery is blocked — the authority, or a PREPARED target.
+ */
+static int mxfs_dl_rblk_authority_deny = 1;
+module_param_named(dl_rblk_authority_deny, mxfs_dl_rblk_authority_deny, int, 0644);
+MODULE_PARM_DESC(dl_rblk_authority_deny,
+		 "1 = a request on a page whose dead authority's recovery is blocked "
+		 "fails fast (-EHOSTDOWN); 0 = TEST ONLY, it waits on the refused takeover");
+
+/*
  * TEST ONLY (D-...-0960): the two defences a request meets on a ledger page
  * whose dead authority a bootstrap node is taking over, made switchable so
  * each can be measured alone.  dl_no_ondemand_takeover=1 stops the bootstrap
@@ -392,10 +417,16 @@ extern int mxfs_lockwr_enabled;
 extern int mxfs_memb_settle_ms;
 extern int mxfs_tauth_import_residue_release;
 extern int mxfs_depart_wire_release;
+extern int mxfs_tauth_settled_retire;
+extern int mxfs_tauth_tenant_attribute;
+extern int mxfs_tauth_unheld_answer;
 #else
+#define mxfs_tauth_unheld_answer 1
 #define mxfs_memb_settle_ms 0
 #define mxfs_tauth_import_residue_release 1
 #define mxfs_depart_wire_release 1
+#define mxfs_tauth_settled_retire 1
+#define mxfs_tauth_tenant_attribute 1
 #endif
 
 /* Max time (ms) a single EX acquire will block waiting for membership to
@@ -1451,7 +1482,9 @@ static struct mxfs_lock *collect_post_promotion_basts(
 static uint32_t dlm_next_gen(struct mxfs_dlm_ctx *ctx)
 {
 	uint32_t g = ++ctx->grant_gen_next;
-	if (g == 0)
+	/* 0 means no generation; MXFS_DLM_GEN_UNHELD is the one a notified
+	 * node answers with when it holds nothing, and no grant may carry it */
+	if (g == 0 || g == MXFS_DLM_GEN_UNHELD)
 		g = ctx->grant_gen_next = 1;
 	return g;
 }
@@ -2050,6 +2083,90 @@ static void dlm_import_holder(struct mxfs_dlm_ctx *ctx,
 		     (unsigned long long)lk->grant_seq);
 }
 
+/*
+ * Caller holds table_rwlock (write).  Re-ask the heartbeat table for every
+ * imported shared holder of `resource` whose slot named no node when its
+ * page was imported, and give each one the slot now names its owner.
+ *
+ * MXFS_DLM_NODE_UNKNOWN means the slot was unresolvable AT IMPORT (the
+ * heartbeat table had not yet seen the claimant), not that it is
+ * unresolvable for good.  dlm_import_holder attributes such a bit once the
+ * slot names its node, but it runs only on a re-import of the page, and a
+ * page is imported once per ownership generation.  Until the bit has an
+ * owner nothing can ask for it back: demand_collect_holders,
+ * fire_bast_records and both notification collectors of
+ * mxfs_dlm_process_remote_request skip an UNKNOWN owner by design.
+ *
+ * 0.75.91 re-asked from the LOCAL waiter's acquire timeout only.  Measured
+ * on 4/tcp (0.90.17, chk_clean run 20260929T020716Z): the waiter was
+ * REMOTE.  The root inode's page master imported the slot-0 bit a cleanly
+ * departed incarnation had left as owner UNKNOWN in the same second the
+ * slot's new occupant registered, a mounting peer's EX request queued
+ * behind it with no notification target, 63 re-sends of that request found
+ * the same unnamed holder, and the mount was refused after its whole
+ * 60-retry budget; the slot had named its node for all but the first of
+ * them.  So every request the master serves for the resource re-asks too
+ * (`site` ONREQUEST), which also puts the owner in that request's
+ * notification set.
+ *
+ * This only ATTRIBUTES: it retires nothing and drops nothing, so a live
+ * successor in the slot cannot lose a record of its own.  The owner then
+ * answers the notification: by releasing a grant it holds, or by the
+ * unconditional release a node sends for a grant it does not hold.
+ *
+ * Returns the number attributed.  `warn_unresolved` names, once per call,
+ * a bit whose slot still names no node.
+ */
+static int dlm_resolve_unknown_holders(struct mxfs_dlm_ctx *ctx,
+				       struct mxfs_lock *chain,
+				       const struct mxfs_resource_id *resource,
+				       const char *site, bool warn_unresolved)
+{
+	struct mxfs_lock *lk;
+	int resolved = 0;
+
+	if (!ctx->slot_node_cb)
+		return 0;
+	for (lk = chain; lk; lk = lk->next) {
+		uint64_t rinc = 0;
+		mxfs_node_id_t rn;
+
+		if (!lk->imported || lk->owner != MXFS_DLM_NODE_UNKNOWN ||
+		    lk->mode == MXFS_LOCK_EX || !lk_is_holder(lk) ||
+		    !resource_equal(&lk->resource, resource))
+			continue;
+		rn = ctx->slot_node_cb(ctx->cb_data, lk->owner_slot, &rinc);
+		if (rn != 0 && rn != MXFS_DLM_NODE_UNKNOWN) {
+			lk->owner = rn;
+			lk->owner_inc = rinc;
+			ctx->ledger_imports_resolved++;
+			resolved++;
+			mxfs_pal_log(MXFS_LOG_DEBUG,
+			    "mxfs: P-TAUTH-IMPORT-RESOLVED-%s type=%u "
+			    "ino=%llu ag=%u slot=%u -> owner=%u inc=%llu — an "
+			    "imported shared bit whose slot was unresolvable at "
+			    "import now names a node; attributing it so it can "
+			    "be BASTed and released instead of blocking EX for "
+			    "good",
+			    site, resource->type,
+			    (unsigned long long)resource->ino,
+			    resource->ag_number, lk->owner_slot, rn,
+			    (unsigned long long)rinc);
+		} else if (warn_unresolved) {
+			mxfs_pal_log(MXFS_LOG_WARN,
+			    "mxfs: P-TAUTH-IMPORT-UNRESOLVED-%s type=%u "
+			    "ino=%llu ag=%u slot=%u — an imported shared bit is "
+			    "blocking this EX and its slot STILL names no node; "
+			    "it cannot be BASTed or released and this request "
+			    "cannot succeed until a recovery purge clears it",
+			    site, resource->type,
+			    (unsigned long long)resource->ino,
+			    resource->ag_number, lk->owner_slot);
+		}
+	}
+	return resolved;
+}
+
 /* Caller holds table_rwlock.  Does this node's table carry an entry of ANY
  * state for `res`?  Every grant this incarnation holds is here: a mirror
  * for a remotely-mastered grant, a holder entry for a locally-mastered one,
@@ -2088,6 +2205,529 @@ static bool dlm_pending_exists(struct mxfs_dlm_ctx *ctx,
 	return found;
 }
 
+/* ── 0.90.21: holders that have left for good ── */
+
+/*
+ * One ledger record and the holders on it that no member of this node's view
+ * carries: the exclusive holder (ex_node 0 = none) and the shared-holder
+ * slots in `bits`.  `tseq` is the record's transition as it was read, BEFORE
+ * the heartbeat table is asked (see mxfs_tauth_ledger_retire_page).  The
+ * *_gone fields are the answer: nothing of that holder stands on the platter
+ * any more.
+ */
+struct dlm_settle_rec {
+	struct mxfs_resource_id res;
+	uint64_t        tseq;
+	mxfs_node_id_t  ex_node;
+	uint64_t        ex_inc;
+	uint16_t        ex_slot;
+	uint8_t         ex_mode;
+	uint64_t        bits;
+	uint64_t        marks;          /* the record's open-holder marks */
+	bool            ex_gone;
+	uint64_t        bits_gone;
+};
+
+/*
+ * 0.90.22: who holds a heartbeat slot, as the settled-owner oracle's table
+ * read named it (node 0 = the read named nobody, or the slot was not asked
+ * about).  A shared-holder bit names a slot, and the node that answers for it
+ * is that slot's tenant.  The monitor's tracking names a tenant one pass
+ * after the table carries its claim; measured on 4/tcp (0.90.21, lap
+ * v21c_lap5 of tests/quiesce_remount_access.sh): a page imported during a
+ * four-way mount carried a bit a departed incarnation had left on slot 1,
+ * the oracle answered `tenant` for that slot, the tracking named nobody, and
+ * the bit was installed with no owner until the first request for its inode
+ * named one five seconds later.
+ */
+struct dlm_slot_tenant {
+	mxfs_node_id_t  node;
+	uint64_t        inc;
+};
+
+static int dlm_view_snapshot(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t *view)
+{
+	int i, n;
+
+	mxfs_pal_mutex_lock(ctx->active_nodes.lock);
+	n = ctx->active_nodes.count;
+	if (n > MXFS_MAX_NODES)
+		n = MXFS_MAX_NODES;
+	for (i = 0; i < n; i++)
+		view[i] = ctx->active_nodes.nodes[i];
+	mxfs_pal_mutex_unlock(ctx->active_nodes.lock);
+	return n;
+}
+
+/*
+ * Does a member of `view` carry the identity {node, inc}?  A node id is not
+ * an identity: a member under the same id and ANOTHER incarnation is a later
+ * mount, and the record belongs to the one before it.  A member whose
+ * incarnation the mount layer cannot name is taken to carry it, and so is a
+ * record that names none.
+ */
+static bool dlm_view_carries(struct mxfs_dlm_ctx *ctx, const mxfs_node_id_t *view,
+			     int nview, mxfs_node_id_t node, uint64_t inc)
+{
+	uint64_t minc;
+	int i;
+
+	for (i = 0; i < nview; i++)
+		if (view[i] == node)
+			break;
+	if (i == nview && node != ctx->local_node)
+		return false;
+	if (inc == 0)
+		return true;
+	if (node == ctx->local_node)
+		return ctx->local_inc == 0 || ctx->local_inc == inc;
+	minc = ctx->node_inc_cb ? ctx->node_inc_cb(ctx->cb_data, node) : 0;
+	return minc == 0 || minc == inc;
+}
+
+static inline int dlm_bits_count(uint64_t v)
+{
+	int n = 0;
+
+	for (; v; v &= v - 1)
+		n++;
+	return n;
+}
+
+/* Caller holds table_rwlock (any mode). */
+static bool dlm_settled_cached(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t node,
+			       uint64_t inc)
+{
+	int i;
+
+	for (i = 0; i < MXFS_MAX_NODES; i++)
+		if (ctx->settled_owners[i].node == node && node != 0 &&
+		    ctx->settled_owners[i].inc == inc)
+			return true;
+	return false;
+}
+
+/*
+ * Name the holders of record `e` that no member carries.  Holders the other
+ * retirements own are left to them: a recovery-purged owner (the lazy purge
+ * at import), a terminally refused victim (its in-domain records stay frozen
+ * for the life of the mount), a shared bit whose slot names a node (it is
+ * attributed to that node, which answers for it) or a purged owner.  Takes
+ * the table lock (read); caller holds no locks.  true = something to judge.
+ */
+static bool dlm_settle_candidates(struct mxfs_dlm_ctx *ctx,
+				  const struct mxfs_tauth_entry *e,
+				  const mxfs_node_id_t *view, int nview,
+				  struct dlm_settle_rec *rec)
+{
+	bool ex_cand = false;
+	int s;
+
+	memset(rec, 0, sizeof(*rec));
+	if (e->state != MXFS_TAUTH_ST_ACTIVE)
+		return false;
+	mxfs_tauth_entry_res(e, &rec->res);
+	rec->tseq = e->transition_seq64;
+	rec->marks = e->open_holders;
+	if (e->ex_node != 0 && e->ex_node != MXFS_DLM_NODE_UNKNOWN && e->ex_inc != 0 &&
+	    !dlm_view_carries(ctx, view, nview, e->ex_node, e->ex_inc) &&
+	    !dlm_owner_refused(ctx, e->ex_node, NULL))
+		ex_cand = true;
+	mxfs_pal_rwlock_rdlock(ctx->table_rwlock);
+	if (ex_cand && !dlm_owner_purged(ctx, e->ex_node, e->ex_slot)) {
+		rec->ex_node = e->ex_node;
+		rec->ex_inc = e->ex_inc;
+		rec->ex_slot = e->ex_slot;
+		rec->ex_mode = e->ex_mode;
+	}
+	for (s = 0; s < 64 && ctx->slot_node_cb; s++) {
+		if (!(e->holders & (1ULL << s)) || s == (int)ctx->local_slot)
+			continue;
+		/* the test injection that answers the import's slot lookups as
+		 * unresolvable (dlm_ledger_import_page) stands for a tracking
+		 * that has not seen the tenant yet, so the bit is judged here
+		 * exactly as it would be then; read, never consumed */
+		if (ctx->slot_node_cb(ctx->cb_data, s, NULL) != 0 &&
+		    mxfs_dl_inject_import_unresolvable <= 0)
+			continue;
+		if (dlm_slot_purged_owner(ctx, s) != 0)
+			continue;
+		rec->bits |= 1ULL << s;
+	}
+	mxfs_pal_rwlock_unlock(ctx->table_rwlock);
+	return rec->ex_node != 0 || rec->bits != 0;
+}
+
+/*
+ * Put the holders in rec[0..nrec) — all on `page`, which this node masters —
+ * to the settled-owner oracle, and retire the ones that have left for good
+ * in ONE page transition.  Order is the whole safety argument:
+ *
+ *   the caller read the records  ->  ONE fresh pass over the heartbeat table
+ *   ->  a transition that leaves alone every record that moved since the read
+ *
+ * A grant is recorded only for a member whose slot claim was durable before
+ * its first request, so a holder the table no longer carries has ended its
+ * tenancy, and the state its slot was left in says how (the rule is
+ * mxfs_disklock_incarnations_settled's).  Anything the oracle cannot answer,
+ * and any failure on the way, keeps the record: it is imported as the blocker
+ * it always was and judged again from the release tick.
+ *
+ * Returns the number of holders retired on the platter; *kept = holders
+ * judged and left standing; tenants[0..64) (when given) = who the same table
+ * read shows holding each slot that was asked about and is not settled.
+ * Does I/O; caller holds NO locks.
+ */
+static int dlm_settle_retire(struct mxfs_dlm_ctx *ctx, uint32_t page, uint64_t gen,
+			     struct dlm_settle_rec *rec, int nrec, const char *site,
+			     int *kept_out, struct dlm_slot_tenant *tenants)
+{
+	struct mxfs_dlm_owner_query *q;
+	struct mxfs_tauth_retire *r;
+	int *ex_q, *r_rec;
+	int slot_q[64];
+	int i, k, s, nq = 0, nr = 0, rc = 0, retired = 0, kept = 0;
+
+	if (kept_out)
+		*kept_out = 0;
+	if (tenants)
+		memset(tenants, 0, sizeof(*tenants) * 64);
+	if (!ctx->owners_settled_cb || !mxfs_tauth_settled_retire || nrec <= 0)
+		return 0;
+	q = mxfs_pal_alloc(sizeof(*q) * (size_t)(nrec + 64));
+	r = mxfs_pal_alloc(sizeof(*r) * (size_t)nrec);
+	ex_q = mxfs_pal_alloc(sizeof(*ex_q) * (size_t)nrec);
+	r_rec = mxfs_pal_alloc(sizeof(*r_rec) * (size_t)nrec);
+	if (!q || !r || !ex_q || !r_rec) {
+		rc = -ENOMEM;
+		goto out;
+	}
+	for (s = 0; s < 64; s++)
+		slot_q[s] = -1;
+	mxfs_pal_rwlock_rdlock(ctx->table_rwlock);
+	for (i = 0; i < nrec; i++) {
+		ex_q[i] = -1;
+		if (rec[i].ex_node && dlm_settled_cached(ctx, rec[i].ex_node, rec[i].ex_inc))
+			ex_q[i] = -2;           /* answered before: see settled_owners */
+	}
+	mxfs_pal_rwlock_unlock(ctx->table_rwlock);
+	for (i = 0; i < nrec; i++) {
+		if (rec[i].ex_node && ex_q[i] == -1) {
+			for (k = 0; k < nq; k++)
+				if (q[k].node == rec[i].ex_node && q[k].inc == rec[i].ex_inc &&
+				    q[k].slot == (int)rec[i].ex_slot)
+					break;
+			if (k == nq) {
+				q[nq].node = rec[i].ex_node;
+				q[nq].inc = rec[i].ex_inc;
+				q[nq].slot = rec[i].ex_slot;
+				q[nq].tenant = 0;
+				q[nq].tenant_inc = 0;
+				nq++;
+			}
+			ex_q[i] = k;
+		}
+		/* the slot alone: for every shared bit, and for the mark the
+		 * exclusive holder's own slot carries on this record */
+		for (s = 0; s < 64; s++) {
+			bool ask = (rec[i].bits >> s) & 1;
+
+			if (rec[i].ex_node && rec[i].ex_slot == s && ((rec[i].marks >> s) & 1))
+				ask = true;
+			if (!ask || slot_q[s] >= 0)
+				continue;
+			q[nq].node = 0;
+			q[nq].inc = 0;
+			q[nq].slot = s;
+			q[nq].tenant = 0;
+			q[nq].tenant_inc = 0;
+			slot_q[s] = nq++;
+		}
+	}
+	if (nq > 0) {
+		int qrc = ctx->owners_settled_cb(ctx->cb_data, q, nq);
+
+		ctx->ledger_settled_judgements++;
+		if (qrc < 0) {
+			ctx->ledger_settled_errors++;
+			mxfs_pal_log(MXFS_LOG_ERR,
+				     "mxfs: P-TAUTH-SETTLED-JUDGE-FAIL site=%s page=%u queries=%d "
+				     "rc=%d — the heartbeat table could not be read; every holder "
+				     "asked about is kept",
+				     site, page, nq, qrc);
+			for (k = 0; k < nq; k++) {
+				q[k].settled = false;
+				q[k].tenant = 0;
+				q[k].tenant_inc = 0;
+			}
+		}
+	}
+	for (s = 0; s < 64 && tenants; s++) {
+		if (slot_q[s] < 0 || q[slot_q[s]].settled || q[slot_q[s]].tenant == 0 ||
+		    q[slot_q[s]].tenant == MXFS_DLM_NODE_UNKNOWN)
+			continue;
+		tenants[s].node = q[slot_q[s]].tenant;
+		tenants[s].inc = q[slot_q[s]].tenant_inc;
+	}
+	for (i = 0; i < nrec; i++) {
+		bool ex_settled = rec[i].ex_node &&
+				  (ex_q[i] == -2 || (ex_q[i] >= 0 && q[ex_q[i]].settled));
+		uint64_t bits = 0, marks = 0;
+
+		for (s = 0; s < 64; s++) {
+			if (slot_q[s] < 0 || !q[slot_q[s]].settled)
+				continue;
+			if ((rec[i].bits >> s) & 1)
+				bits |= 1ULL << s;
+			/* a slot with no tenant has no open file */
+			if (((rec[i].marks >> s) & 1) &&
+			    (((rec[i].bits >> s) & 1) ||
+			     (ex_settled && rec[i].ex_slot == s)))
+				marks |= 1ULL << s;
+		}
+		if (rec[i].ex_node && !ex_settled) {
+			kept++;
+			mxfs_probe_ratelimited(
+			    "mxfs: P-TAUTH-SETTLED-KEPT site=%s page=%u type=%u ino=%llu ag=%u "
+			    "owner=%u inc=%llu slot=%u mode=%s why=%s — no member carries this "
+			    "holder and the heartbeat table does not show its tenancy settled; "
+			    "the record stays a blocker and is judged again\n",
+			    site, page, rec[i].res.type, (unsigned long long)rec[i].res.ino,
+			    rec[i].res.ag_number, rec[i].ex_node,
+			    (unsigned long long)rec[i].ex_inc, rec[i].ex_slot,
+			    mode_name(rec[i].ex_mode),
+			    ex_q[i] >= 0 && q[ex_q[i]].why ? q[ex_q[i]].why : "unanswered");
+		}
+		for (s = 0; s < 64; s++)
+			if (((rec[i].bits >> s) & 1) && !((bits >> s) & 1)) {
+				kept++;
+				mxfs_probe_ratelimited(
+				    "mxfs: P-TAUTH-SETTLED-KEPT site=%s page=%u type=%u ino=%llu "
+				    "ag=%u owner=0 inc=0 slot=%d mode=shared why=%s — a shared "
+				    "holder bit whose slot names no node and is not settled; it "
+				    "stays a blocker and is judged again\n",
+				    site, page, rec[i].res.type,
+				    (unsigned long long)rec[i].res.ino, rec[i].res.ag_number, s,
+				    slot_q[s] >= 0 && q[slot_q[s]].why ? q[slot_q[s]].why :
+									  "unanswered");
+			}
+		if (!ex_settled && !bits)
+			continue;
+		memset(&r[nr], 0, sizeof(r[nr]));
+		r[nr].res = rec[i].res;
+		if (ex_settled) {
+			r[nr].ex_node = rec[i].ex_node;
+			r[nr].ex_inc = rec[i].ex_inc;
+		}
+		r[nr].bits = bits;
+		r[nr].open_bits = marks;
+		r[nr].tseq = rec[i].tseq;
+		r_rec[nr] = i;
+		nr++;
+	}
+	if (nr > 0) {
+		rc = mxfs_tauth_ledger_retire_page(ctx->ledger, page, gen,
+						   (uint64_t)ctx->current_epoch, r, nr);
+		if (rc < 0) {
+			ctx->ledger_settled_errors++;
+			mxfs_pal_log(MXFS_LOG_ERR,
+				     "mxfs: P-TAUTH-SETTLED-RETIRE-FAIL site=%s page=%u records=%d "
+				     "rc=%d — nothing retired; the records stay blockers and are "
+				     "judged again",
+				     site, page, nr, rc);
+			kept += nr;
+			goto out;
+		}
+	}
+	for (k = 0; k < nr; k++) {
+		struct dlm_settle_rec *rr = &rec[r_rec[k]];
+		int held = (r[k].ex_node ? 1 : 0) + dlm_bits_count(r[k].bits);
+
+		if (r[k].rc == -EAGAIN) {
+			kept += held;
+			mxfs_pal_log(MXFS_LOG_WARN,
+				     "mxfs: P-TAUTH-SETTLED-MOVED site=%s page=%u type=%u ino=%llu "
+				     "ag=%u — the record changed after it was read; left alone and "
+				     "judged again from its new image",
+				     site, page, rr->res.type, (unsigned long long)rr->res.ino,
+				     rr->res.ag_number);
+			continue;
+		}
+		if (r[k].rc != 0 && r[k].rc != -ESTALE) {
+			kept += held;
+			continue;
+		}
+		/* -ESTALE: the record names none of them any more */
+		rr->ex_gone = r[k].ex_node != 0;
+		rr->bits_gone = r[k].bits;
+		if (r[k].rc != 0)
+			continue;
+		retired += held;
+		mxfs_pal_log(MXFS_LOG_WARN,
+			     "mxfs: P-TAUTH-SETTLED-RETIRE site=%s page=%u type=%u ino=%llu ag=%u "
+			     "owner=%u inc=%llu slot=%u mode=%s why=%s bits=%#llx marks=%#llx — "
+			     "a holder no member carries, whose tenancy the heartbeat table "
+			     "shows ended with nothing left to replay; retired, never "
+			     "installed as a blocker",
+			     site, page, rr->res.type, (unsigned long long)rr->res.ino,
+			     rr->res.ag_number, r[k].ex_node, (unsigned long long)r[k].ex_inc,
+			     rr->ex_slot, r[k].ex_node ? mode_name(rr->ex_mode) : "shared",
+			     !r[k].ex_node ? "slot-vacant" :
+			     ex_q[r_rec[k]] == -2 ? "answered-before" :
+			     q[ex_q[r_rec[k]]].why ? q[ex_q[r_rec[k]]].why : "?",
+			     (unsigned long long)r[k].bits, (unsigned long long)r[k].open_bits);
+	}
+	/* remember the exclusive holders the oracle answered for */
+	mxfs_pal_rwlock_wrlock(ctx->table_rwlock);
+	for (i = 0; i < nrec; i++)
+		if (rec[i].ex_node && ex_q[i] >= 0 && q[ex_q[i]].settled &&
+		    !dlm_settled_cached(ctx, rec[i].ex_node, rec[i].ex_inc)) {
+			uint32_t at = ctx->settled_owner_next++ % MXFS_MAX_NODES;
+
+			ctx->settled_owners[at].node = rec[i].ex_node;
+			ctx->settled_owners[at].inc = rec[i].ex_inc;
+		}
+	mxfs_pal_rwlock_unlock(ctx->table_rwlock);
+	rc = 0;
+out:
+	ctx->ledger_settled_retired += (uint64_t)retired;
+	ctx->ledger_settled_kept += (uint64_t)kept;
+	if (kept_out)
+		*kept_out = kept;
+	mxfs_pal_free(q);
+	mxfs_pal_free(r);
+	mxfs_pal_free(ex_q);
+	mxfs_pal_free(r_rec);
+	return rc < 0 ? rc : retired;
+}
+
+/* The import's use of it: every record of the page image just scanned.
+ * Returns the number of records that carried a holder to judge — the caller
+ * scans the page again, because a retirement changed the image and a record
+ * that moved under the judgement was read stale — and *kept as above. */
+static int dlm_import_settle(struct mxfs_dlm_ctx *ctx, uint32_t page_id, uint64_t gen,
+			     const struct dlm_import_acc *acc, int *kept_out,
+			     struct dlm_slot_tenant *tenants)
+{
+	mxfs_node_id_t view[MXFS_MAX_NODES];
+	struct dlm_settle_rec *rec;
+	int i, nview, nrec = 0;
+
+	*kept_out = 0;
+	memset(tenants, 0, sizeof(*tenants) * 64);
+	if (!ctx->owners_settled_cb || acc->n <= 0)
+		return 0;
+	rec = mxfs_pal_alloc(sizeof(*rec) * MXFS_TAUTH_ENTRIES_PER_PAGE);
+	if (!rec)
+		return 0;       /* nothing judged: every record is imported as it is */
+	nview = dlm_view_snapshot(ctx, view);
+	for (i = 0; i < acc->n && nrec < (int)MXFS_TAUTH_ENTRIES_PER_PAGE; i++)
+		if (dlm_settle_candidates(ctx, &acc->ent[i], view, nview, &rec[nrec]))
+			nrec++;
+	/* with the retirement switched off they are all kept, and the tick
+	 * judges them the moment it is switched back on */
+	if (nrec > 0 &&
+	    (!mxfs_tauth_settled_retire ||
+	     dlm_settle_retire(ctx, page_id, gen, rec, nrec, "import", kept_out,
+			       tenants) < 0))
+		*kept_out = nrec;
+	mxfs_pal_free(rec);
+	return nrec;
+}
+
+/*
+ * 0.90.22: give the imported shared holders of rec->res that no member carries
+ * the tenant the oracle's table read named for their slot.  The release tick's
+ * use of that read: an entry installed with no owner (the oracle could not be
+ * read at its import, or the parameter was off) gets one without waiting for
+ * a request, and an entry named for a claimant that never became a member and
+ * whose slot a later tenant now holds follows the slot, so the notification
+ * a waiter's request sends reaches a node that can answer it.
+ *
+ * This only ATTRIBUTES, as dlm_resolve_unknown_holders does: nothing is
+ * retired and nothing is dropped.  The tenant answers the notification by
+ * releasing a grant it holds, or by the unconditional release a node sends
+ * for a grant it does not hold.  An owner a member of `view` carries is left
+ * alone whatever the table says.  Takes the table lock (write); returns the
+ * number attributed.
+ */
+static int dlm_settle_attribute(struct mxfs_dlm_ctx *ctx,
+				const struct dlm_settle_rec *rec,
+				const struct dlm_slot_tenant *tenants,
+				const mxfs_node_id_t *view, int nview, uint32_t page)
+{
+	uint32_t bucket = resource_hash(&rec->res, ctx->bucket_count);
+	struct mxfs_lock *lk;
+	int n = 0;
+
+	if (!rec->bits)
+		return 0;
+	mxfs_pal_rwlock_wrlock(ctx->table_rwlock);
+	for (lk = ctx->buckets[bucket]; lk; lk = lk->next) {
+		const struct dlm_slot_tenant *t;
+		bool named;
+
+		if (!lk->imported || lk->state != MXFS_LSTATE_GRANTED ||
+		    dlm_mode_exclusive(lk->mode) || lk->owner_slot >= 64 ||
+		    lk->owner_slot == ctx->local_slot || lk->owner == ctx->local_node ||
+		    !resource_equal(&lk->resource, &rec->res))
+			continue;
+		if (!((rec->bits >> lk->owner_slot) & 1) ||
+		    ((rec->bits_gone >> lk->owner_slot) & 1))
+			continue;
+		t = &tenants[lk->owner_slot];
+		if (t->node == 0 || t->node == ctx->local_node)
+			continue;
+		named = lk->owner != 0 && lk->owner != MXFS_DLM_NODE_UNKNOWN;
+		if (named && lk->owner == t->node && lk->owner_inc == t->inc)
+			continue;
+		if (named && dlm_view_carries(ctx, view, nview, lk->owner, lk->owner_inc))
+			continue;
+		mxfs_pal_log(MXFS_LOG_DEBUG,
+			     "mxfs: P-TAUTH-IMPORT-RESOLVED-ONTICK type=%u ino=%llu ag=%u "
+			     "page=%u slot=%u was=%u/%llu -> owner=%u inc=%llu — an imported "
+			     "shared bit no member carries; the heartbeat table names its "
+			     "slot's tenant, which answers for it",
+			     rec->res.type, (unsigned long long)rec->res.ino,
+			     rec->res.ag_number, page, lk->owner_slot,
+			     named ? lk->owner : 0,
+			     (unsigned long long)(named ? lk->owner_inc : 0), t->node,
+			     (unsigned long long)t->inc);
+		lk->owner = t->node;
+		lk->owner_inc = t->inc;
+		ctx->ledger_tenant_attributed++;
+		ctx->ledger_imports_resolved++;
+		n++;
+	}
+	/*
+	 * A holder that has just been given its owner has never been notified
+	 * of the waits already queued behind it, and a re-send of a queued wait
+	 * re-fires only on its own interval (measured in user mode: the grant
+	 * came 9 s after the tick had named the tenant).  Their clocks are
+	 * re-armed, so the next attempt of each wait notifies the owner: the
+	 * remote waits' entries here, the local waits' acquisition records
+	 * below.
+	 */
+	if (n > 0)
+		for (lk = ctx->buckets[bucket]; lk; lk = lk->next)
+			if ((lk->state == MXFS_LSTATE_WAITING ||
+			     lk->state == MXFS_LSTATE_BLOCKED) &&
+			    resource_equal(&lk->resource, &rec->res))
+				lk->acq_bast_ms = 0;
+	mxfs_pal_rwlock_unlock(ctx->table_rwlock);
+	if (n > 0 && ctx->acq_lock) {
+		int i;
+
+		mxfs_pal_spinlock_lock(ctx->acq_lock);
+		for (i = 0; i < MXFS_DLM_ACQ_SLOTS; i++)
+			if (ctx->acq[i].in_use &&
+			    resource_equal(&ctx->acq[i].resource, &rec->res))
+				ctx->acq[i].bast_ms = 0;
+		mxfs_pal_spinlock_unlock(ctx->acq_lock);
+	}
+	return n;
+}
+
 /* Make page `page_id` current under `gen` and import its ACTIVE records as
  * holders.  Records of a recovery-purged owner are retired instead.  Does
  * I/O; caller holds NO locks.
@@ -2119,7 +2759,8 @@ static int dlm_ledger_import_page(struct mxfs_dlm_ctx *ctx, uint32_t page_id,
 	struct dlm_import_acc *acc;
 	struct { mxfs_node_id_t node; int slot; } purge[MXFS_TAUTH_ENTRIES_PER_PAGE];
 	struct mxfs_resource_id *residue;
-	int npurge = 0, nresidue = 0, i, n, rc;
+	struct dlm_slot_tenant *tenants;
+	int npurge = 0, nresidue = 0, i, n, rc, absent_kept = 0;
 
 	rc = mxfs_tauth_ledger_ensure(ctx->ledger, page_id, gen);
 	if (rc)
@@ -2129,9 +2770,11 @@ static int dlm_ledger_import_page(struct mxfs_dlm_ctx *ctx, uint32_t page_id,
 		return 0;
 	acc = mxfs_pal_alloc(sizeof(*acc));
 	residue = mxfs_pal_alloc(sizeof(*residue) * MXFS_TAUTH_ENTRIES_PER_PAGE);
-	if (!acc || !residue) {
+	tenants = mxfs_pal_alloc(sizeof(*tenants) * 64);
+	if (!acc || !residue || !tenants) {
 		mxfs_pal_free(acc);
 		mxfs_pal_free(residue);
+		mxfs_pal_free(tenants);
 		return -ENOMEM;
 	}
 	acc->n = 0;
@@ -2140,9 +2783,36 @@ static int dlm_ledger_import_page(struct mxfs_dlm_ctx *ctx, uint32_t page_id,
 	if (n < 0) {
 		mxfs_pal_free(acc);
 		mxfs_pal_free(residue);
+		mxfs_pal_free(tenants);
 		return n;
 	}
+	/*
+	 * 0.90.21: a holder no member of the view carries is put to the
+	 * heartbeat table BEFORE anything is installed, and one that has left
+	 * for good is retired on the platter instead.  Measured on 4/tcp
+	 * (0.90.18, tests/quiesce_remount_access.sh): a clean four-way unmount
+	 * left 39 exclusive inode records behind (releases dropped after their
+	 * re-sends while every master was itself leaving), the next era's
+	 * master of one page installed one of them as a live holder, and a stat
+	 * of that inode from another node was still waiting when it was killed
+	 * at 30 s.  Nothing could have ended that wait: the holder is in no
+	 * view, so it can be neither asked to let go nor seen to leave, and the
+	 * purged list names only what THIS mount watched depart.
+	 */
+	if (dlm_import_settle(ctx, page_id, gen, acc, &absent_kept, tenants) > 0) {
+		acc->n = 0;
+		n = mxfs_tauth_ledger_scan_active(ctx->ledger, page_id, gen,
+						  dlm_import_scan_cb, acc);
+		if (n < 0) {
+			mxfs_pal_free(acc);
+			mxfs_pal_free(residue);
+			mxfs_pal_free(tenants);
+			return n;
+		}
+	}
 	mxfs_pal_rwlock_wrlock(ctx->table_rwlock);
+	if (absent_kept)
+		ctx->settled_scan_owed = true;  /* judged again from the tick */
 	for (i = 0; i < acc->n; i++) {
 		const struct mxfs_tauth_entry *e = &acc->ent[i];
 		struct mxfs_resource_id res;
@@ -2203,8 +2873,13 @@ static int dlm_ledger_import_page(struct mxfs_dlm_ctx *ctx, uint32_t page_id,
 			 * view is forced, and that timing is the race itself (1 lap in 4
 			 * on 0.75.90).  A defect that reproduces once in four cannot be
 			 * verified by laps that pass.  Consumed per use.
+			 *
+			 * Never this node's own slot: the lookup of it is answered
+			 * from the mount's own identity, not from the tracking, so
+			 * there is no timing in which it names nobody.
 			 */
-			if (node && mxfs_dl_inject_import_unresolvable > 0) {
+			if (node && s != (int)ctx->local_slot &&
+			    mxfs_dl_inject_import_unresolvable > 0) {
 				mxfs_dl_inject_import_unresolvable--;
 				mxfs_pal_log(MXFS_LOG_DEBUG,
 					     "mxfs: P-TAUTH-IMPORT-INJECT-UNRESOLVABLE type=%u "
@@ -2216,6 +2891,30 @@ static int dlm_ledger_import_page(struct mxfs_dlm_ctx *ctx, uint32_t page_id,
 					     mxfs_dl_inject_import_unresolvable);
 				node = 0;
 				inc = 0;
+			}
+			/*
+			 * 0.90.22: the tracking names nobody for the slot and the
+			 * table read this import just made names its tenant (see
+			 * struct dlm_slot_tenant).  The bit gets that owner now,
+			 * by the rule the tracking itself would apply one monitor
+			 * pass later, so it is never installed as a holder nothing
+			 * can notify.  A slot the oracle was not asked about, could
+			 * not read, or found settled names nobody here.
+			 */
+			if (!node && s != (int)ctx->local_slot && tenants[s].node != 0 &&
+			    tenants[s].node != ctx->local_node &&
+			    mxfs_tauth_tenant_attribute) {
+				node = tenants[s].node;
+				inc = tenants[s].inc;
+				ctx->ledger_tenant_attributed++;
+				mxfs_pal_log(MXFS_LOG_DEBUG,
+					     "mxfs: P-TAUTH-IMPORT-TENANT type=%u ino=%llu ag=%u "
+					     "page=%u slot=%d -> owner=%u inc=%llu — the "
+					     "tracking names no node for this shared bit's slot "
+					     "and the heartbeat table names its tenant",
+					     res.type, (unsigned long long)res.ino,
+					     res.ag_number, page_id, s, node,
+					     (unsigned long long)inc);
 			}
 			/*
 			 * 0.75.81 (D-...-0935, measured s570a on 0.75.80,
@@ -2319,6 +3018,7 @@ static int dlm_ledger_import_page(struct mxfs_dlm_ctx *ctx, uint32_t page_id,
 		ctx->page_import_gen[page_id] = gen;
 	mxfs_pal_rwlock_unlock(ctx->table_rwlock);
 	mxfs_pal_free(acc);
+	mxfs_pal_free(tenants);
 	/* lazy retirement of already-purged owners found on this page */
 	for (i = 0; i < npurge; i++)
 		mxfs_dlm_ledger_purge_owner(ctx, purge[i].node, purge[i].slot);
@@ -2680,6 +3380,37 @@ static mxfs_node_id_t dlm_bootstrap_node(struct mxfs_dlm_ctx *ctx)
  * over.  0 = ours now; -EAGAIN = parked (a request is in flight or a
  * takeover is owed); other = fail closed.
  */
+/*
+ * 0.90.12: is the page's departed authority a dead node whose recovery is
+ * BLOCKED?  Then the takeover a request on the page would wait on is refused
+ * for as long as the block stands — v5_recovery_judging_cb keeps a victim's
+ * records below IMAGES_REPLAYED, and a FENCE_BLOCKED series never reaches it
+ * until a re-drive certifies — and the only bounded answer is the fail-fast
+ * every other request on that node's grants already gets (P-RBLK-DENY-*).
+ * Without it a caller the fallible oracle does not name parks in
+ * mxfs_dlm_lock_retries' transition wait with no exit.  The shape is real:
+ * measured 2026-09-28 at 3/tcp (tests/evidence/20260928T185439Z_nftstall_
+ * s4d_3node), a member's clean departure re-aligned page mastership over the
+ * shrunken view while the dead member stayed in it, so a live master can find
+ * itself deciding on a page the dead incarnation authored.
+ */
+static bool dlm_rblk_authority_deny(struct mxfs_dlm_ctx *ctx, uint32_t page,
+				    const struct mxfs_tauth_page_auth *a,
+				    mxfs_node_id_t node, const char *where)
+{
+	/* `node`: the one this request would wait on — the page's authority,
+	 * or the live-looking target a PREPARED image names (0.90.13) */
+	if (!mxfs_dl_rblk_authority_deny || !ctx->recovery_blocked_cb ||
+	    !node || !ctx->recovery_blocked_cb(ctx->cb_data, node))
+		return false;
+	pr_warn_ratelimited(
+	    "mxfs: P-RBLK-DENY-DEAD-AUTHORITY page=%u auth=%u/%llu via=%s we=%u — the page's departed authority is a dead node whose recovery is blocked; the takeover this request would wait on is refused until the block lifts, so the request fails fast instead of parking\n",
+	    page, node,
+	    (unsigned long long)(node == a->auth_node ? a->auth_inc : a->target_inc),
+	    where, ctx->local_node);
+	return true;
+}
+
 static int dlm_page_acquire(struct mxfs_dlm_ctx *ctx, uint32_t page, uint64_t gen)
 {
 	struct mxfs_tauth_page_auth a;
@@ -2822,6 +3553,13 @@ static int dlm_page_acquire(struct mxfs_dlm_ctx *ctx, uint32_t page, uint64_t ge
 					       "takeover-ondemand", 0, 0);
 			if (rc == 1 && ctx->page_state[page] == DLM_PS_MINE)
 				return 0;
+			/* 0.90.12: refused under a judgement that cannot advance
+			 * while the authority's recovery is blocked — deny, never
+			 * park (see dlm_rblk_authority_deny) */
+			if (rc == -EAGAIN &&
+			    dlm_rblk_authority_deny(ctx, page, &a, a.auth_node,
+						    "takeover-ondemand"))
+				return -EHOSTDOWN;
 			/* prepared to its view owner (FROZEN sent), or the image
 			 * moved under us: the next retry re-reads and re-routes.  A
 			 * transition, not a routing disagreement: the requester waits
@@ -2909,8 +3647,15 @@ static int dlm_page_acquire(struct mxfs_dlm_ctx *ctx, uint32_t page, uint64_t ge
 		 * is not spent on it.
 		 */
 		if (dlm_authority_dead(ctx, a.auth_node, a.auth_inc) &&
-		    bn != 0 && dlm_node_in_view(ctx, bn))
+		    bn != 0 && dlm_node_in_view(ctx, bn)) {
+			/* 0.90.12: the bootstrap node's takeover is refused for as
+			 * long as the authority's recovery is blocked — deny here
+			 * rather than wait for an answer that names no progress */
+			if (dlm_rblk_authority_deny(ctx, page, &a, a.auth_node,
+						    "ask-bootstrap"))
+				return -EHOSTDOWN;
 			return -EINPROGRESS;
+		}
 		/*
 		 * instrument (D-...-0960, s592e): a joiner's mount spent nine
 		 * 60-retry budgets on 'prepare' answers from this branch while
@@ -2933,6 +3678,20 @@ static int dlm_page_acquire(struct mxfs_dlm_ctx *ctx, uint32_t page, uint64_t ge
 			ctx->local_node, (unsigned long long)ctx->local_inc);
 		return -EAGAIN;
 	}
+	/*
+	 * 0.90.13 (D-A-STALLED-PAGE-TRANSITION-IS-AN-UNBOUNDED-WAIT-FOR-A-NON-
+	 * FALLIBLE-CALLER, measured 4/tcp laps s6a_realignA/B): `to` is in the
+	 * view, so the branch above never ran — but a dead member stays in the
+	 * view until its recovery completes, and while that recovery is
+	 * BLOCKED the ask below goes to a node that will never answer and the
+	 * request parks with REMASTER until the requester's budget dies (the
+	 * elected replayer then parks in the XFS layer; every other survivor
+	 * used to shut down).  Deny it now, the same deny every other request
+	 * on that node's grants gets; a recovery merely in progress keeps the
+	 * wait, which its completion ends.
+	 */
+	if (dlm_rblk_authority_deny(ctx, page, &a, to, "authority-in-view"))
+		return -EHOSTDOWN;
 	now = mxfs_pal_time_ms();
 	if (ctx->page_req_ms && now - ctx->page_req_ms[page] >= DLM_HANDOFF_REQ_INTERVAL_MS) {
 		ctx->page_req_ms[page] = now;
@@ -4174,6 +4933,7 @@ static int dlm_txn_commit(struct mxfs_dlm_ctx *ctx, struct dlm_txn *txn)
 {
 	struct mxfs_tauth_op *ops;
 	int i, rc = 0, attempt;
+	bool stale_retried = false;
 
 	if (txn->n == 0)
 		return 0;
@@ -4213,6 +4973,42 @@ static int dlm_txn_commit(struct mxfs_dlm_ctx *ctx, struct dlm_txn *txn)
 		}
 		rc = mxfs_tauth_ledger_commit(ctx->ledger, ops, txn->n, txn->gen,
 					      (uint64_t)ctx->current_epoch);
+		/*
+		 * 0.90.18: the ledger answers -ESTALE for two different things: a
+		 * page image loaded under an OLDER ownership generation (every
+		 * membership change makes that of every page this node keeps, and
+		 * the ledger's contract is that the caller re-ensures) and, mapped
+		 * from -EPERM below, a page that is no longer this node's (the
+		 * remaster the finalize assumes).  Only the second may end a
+		 * release.  Measured on 4/tcp (chk_clean run 20260929T020716Z,
+		 * tests/tauth/stale_image_release_test.c reproduces it): the last
+		 * node to unmount released its own root-inode PR against an image
+		 * loaded before a peer's GOODBYE, the commit was refused as stale,
+		 * the finalize freed the entry as "superseded / remastered", and the
+		 * PR bit stayed on the platter; the next mount's takeover imported
+		 * it as an UNKNOWN-owner blocker nothing could BAST or retire, and
+		 * every mount's root-inode EX waited its whole budget behind it.
+		 * While the generation this transition decided under is still the
+		 * current one, the refusal can only be the stale image: re-read the
+		 * page under that generation and commit again.  A generation that
+		 * moved meanwhile is a genuine remaster, as before.
+		 */
+		if (rc == -ESTALE && txn->gen == ctx->ledger_gen && !stale_retried) {
+			stale_retried = true;
+			ctx->ledger_stale_image_retries++;
+			mxfs_pal_log(MXFS_LOG_DEBUG,
+				     "mxfs: P-TAUTH-COMMIT-STALE-IMAGE type=%u ino=%llu ag=%u page=%u "
+				     "items=%d — the page image was loaded under an older ownership "
+				     "generation; re-read under the current one and the commit retried",
+				     txn->resource.type, (unsigned long long)txn->resource.ino,
+				     txn->resource.ag_number, dlm_res_page(ctx, &txn->resource),
+				     txn->n);
+			if (mxfs_tauth_ledger_ensure(ctx->ledger,
+						     dlm_res_page(ctx, &txn->resource),
+						     txn->gen) == 0)
+				continue;
+			break;      /* the generation moved again: a remaster */
+		}
 		if (rc == -EPERM)
 			rc = -ESTALE;   /* the page is no longer ours: remaster */
 		if (rc == 0 || rc == -ESTALE || rc == -EEXIST || rc == -EBUSY ||
@@ -5022,6 +5818,222 @@ static void dlm_purge_redrive_tick(struct mxfs_dlm_ctx *ctx, uint64_t now)
 }
 
 /*
+ * 0.90.21: judge again the imported holders that no member carries.
+ *
+ * The import keeps a record whose holder's tenancy is not settled YET — a
+ * slot still ACTIVE under a node that has said goodbye and is finishing its
+ * unmount, a release waiting for its key to be proven absent, a recovery that
+ * members of another era are running — and that holder is in nobody's view,
+ * so no departure, goodbye or purge on this mount will ever name it.  The
+ * heartbeat table is the only place its end is recorded, and nothing reads
+ * the table on this mount's behalf unless this does.
+ *
+ * One pass a second while such holders exist: the table entries are
+ * collected under the read lock, each page's candidates are judged and
+ * retired through dlm_settle_retire exactly as at import, and the entries of
+ * the holders that are gone are dropped and whoever waited behind them is
+ * granted through the ledger.
+ */
+#define DLM_SETTLE_TICK_MAX     64
+
+struct dlm_settle_cand {
+	struct mxfs_resource_id res;
+	mxfs_node_id_t  owner;
+	uint64_t        inc;
+	uint16_t        slot;
+	uint8_t         mode;
+	uint32_t        page;
+	bool            taken;
+};
+
+/* Drop the imported entries of the holders `rec` reports gone.  Takes the
+ * table lock (write).  Returns the number dropped. */
+static int dlm_settle_drop_mirrors(struct mxfs_dlm_ctx *ctx,
+				   const struct dlm_settle_rec *rec)
+{
+	struct mxfs_lock **pp;
+	int dropped = 0;
+
+	mxfs_pal_rwlock_wrlock(ctx->table_rwlock);
+	pp = &ctx->buckets[resource_hash(&rec->res, ctx->bucket_count)];
+	while (*pp) {
+		struct mxfs_lock *lk = *pp;
+		bool drop = false;
+
+		if (lk->imported && lk->state == MXFS_LSTATE_GRANTED &&
+		    lk->owner != ctx->local_node &&
+		    resource_equal(&lk->resource, &rec->res)) {
+			if (dlm_mode_exclusive(lk->mode))
+				drop = rec->ex_gone && lk->owner == rec->ex_node &&
+				       lk->owner_inc == rec->ex_inc;
+			else
+				drop = lk->owner_slot < 64 &&
+				       ((rec->bits_gone >> lk->owner_slot) & 1);
+		}
+		if (!drop) {
+			pp = &lk->next;
+			continue;
+		}
+		P_LKT("SETTLED-DROP", &lk->resource, lk->owner, lk->mode);
+		*pp = lk->next;
+		ctx->lock_count--;
+		lock_free(lk);
+		dropped++;
+	}
+	mxfs_pal_rwlock_unlock(ctx->table_rwlock);
+	return dropped;
+}
+
+static void dlm_settled_rejudge_tick(struct mxfs_dlm_ctx *ctx, uint64_t now)
+{
+	mxfs_node_id_t view[MXFS_MAX_NODES];
+	struct dlm_settle_cand *cand;
+	struct dlm_settle_rec *rec;
+	struct dlm_slot_tenant *tenants;
+	uint64_t gen;
+	uint32_t i;
+	int nview, n = 0, found = 0, k, j, x;
+
+	if (!ctx->settled_scan_owed || !ctx->owners_settled_cb ||
+	    !mxfs_tauth_settled_retire || !dlm_ledger_active(ctx))
+		return;
+	if (now - ctx->settled_judge_ms < MXFS_DLM_RELEASE_RETRY_MS)
+		return;
+	ctx->settled_judge_ms = now;
+	cand = mxfs_pal_alloc(sizeof(*cand) * DLM_SETTLE_TICK_MAX);
+	rec = mxfs_pal_alloc(sizeof(*rec) * MXFS_TAUTH_ENTRIES_PER_PAGE);
+	tenants = mxfs_pal_alloc(sizeof(*tenants) * 64);
+	if (!cand || !rec || !tenants)
+		goto out;
+	nview = dlm_view_snapshot(ctx, view);
+	/* cleared BEFORE the walk: an import that installs such a holder after
+	 * the walk passed its bucket sets it again under the write lock */
+	ctx->settled_scan_owed = false;
+	mxfs_pal_rwlock_rdlock(ctx->table_rwlock);
+	for (i = 0; i < ctx->bucket_count; i++) {
+		struct mxfs_lock *lk;
+
+		for (lk = ctx->buckets[i]; lk; lk = lk->next) {
+			bool named = lk->owner != 0 && lk->owner != MXFS_DLM_NODE_UNKNOWN;
+
+			if (!lk->imported || lk->state != MXFS_LSTATE_GRANTED ||
+			    lk->owner == ctx->local_node)
+				continue;
+			if (named && dlm_view_carries(ctx, view, nview, lk->owner,
+						      lk->owner_inc))
+				continue;
+			if (dlm_mode_exclusive(lk->mode)) {
+				/* an UNKNOWN record blocks until it is repaired */
+				if (!named || lk->owner_inc == 0)
+					continue;
+				/* the purge and its re-drive own these */
+				if (dlm_owner_purged(ctx, lk->owner, -1) ||
+				    dlm_purge_pending(ctx, lk->owner))
+					continue;
+			} else {
+				if (lk->owner_slot >= 64 || lk->owner_slot == ctx->local_slot ||
+				    dlm_slot_purged_owner(ctx, lk->owner_slot) != 0)
+					continue;
+			}
+			found++;
+			if (n >= DLM_SETTLE_TICK_MAX)
+				continue;
+			cand[n].res = lk->resource;
+			cand[n].owner = named ? lk->owner : 0;
+			cand[n].inc = lk->owner_inc;
+			cand[n].slot = lk->owner_slot;
+			cand[n].mode = lk->mode;
+			cand[n].page = dlm_res_page(ctx, &lk->resource);
+			cand[n].taken = false;
+			n++;
+		}
+	}
+	if (found)
+		ctx->settled_scan_owed = true;
+	mxfs_pal_rwlock_unlock(ctx->table_rwlock);
+	gen = ctx->ledger_gen;
+	for (k = 0; k < n; k++) {
+		uint32_t page = cand[k].page;
+		int nrec = 0, kept = 0;
+
+		if (cand[k].taken)
+			continue;
+		for (j = k; j < n; j++) {
+			struct mxfs_tauth_entry ent;
+
+			if (cand[j].taken || cand[j].page != page)
+				continue;
+			cand[j].taken = true;
+			/* a page that is not ours to write is its master's to judge */
+			if (dlm_page_state(ctx, page) != DLM_PS_MINE ||
+			    !mxfs_tauth_ledger_page_mine(ctx->ledger, page))
+				continue;
+			if (dlm_mode_exclusive(cand[j].mode) &&
+			    dlm_owner_refused(ctx, cand[j].owner, NULL))
+				continue;
+			if (mxfs_tauth_ledger_lookup(ctx->ledger, &cand[j].res, gen, &ent))
+				continue;
+			for (x = 0; x < nrec; x++)
+				if (resource_equal(&rec[x].res, &cand[j].res))
+					break;
+			if (x == nrec) {
+				if (nrec >= (int)MXFS_TAUTH_ENTRIES_PER_PAGE)
+					continue;
+				memset(&rec[x], 0, sizeof(rec[x]));
+				rec[x].res = cand[j].res;
+				rec[x].tseq = ent.transition_seq64;
+				rec[x].marks = ent.open_holders;
+				nrec++;
+			}
+			if (dlm_mode_exclusive(cand[j].mode)) {
+				rec[x].ex_node = cand[j].owner;
+				rec[x].ex_inc = cand[j].inc;
+				rec[x].ex_slot = cand[j].slot;
+				rec[x].ex_mode = cand[j].mode;
+			} else {
+				rec[x].bits |= 1ULL << cand[j].slot;
+			}
+		}
+		if (nrec == 0)
+			continue;
+		if (dlm_settle_retire(ctx, page, gen, rec, nrec, "tick", &kept, tenants) < 0)
+			continue;
+		for (x = 0; x < nrec; x++) {
+			struct dlm_txn *txn;
+			int dropped;
+
+			/* the bits that stay: their slots' tenants answer for them */
+			if (mxfs_tauth_tenant_attribute)
+				dlm_settle_attribute(ctx, &rec[x], tenants, view, nview, page);
+			if (!rec[x].ex_gone && !rec[x].bits_gone)
+				continue;
+			dropped = dlm_settle_drop_mirrors(ctx, &rec[x]);
+			mxfs_pal_log(MXFS_LOG_WARN,
+				     "mxfs: P-TAUTH-SETTLED-DROP page=%u type=%u ino=%llu ag=%u "
+				     "owner=%u inc=%llu bits=%#llx dropped=%d — the imported "
+				     "entries of a holder that has left for good; whoever waited "
+				     "behind them is granted through the ledger",
+				     page, rec[x].res.type, (unsigned long long)rec[x].res.ino,
+				     rec[x].res.ag_number, rec[x].ex_gone ? rec[x].ex_node : 0,
+				     (unsigned long long)(rec[x].ex_gone ? rec[x].ex_inc : 0),
+				     (unsigned long long)rec[x].bits_gone, dropped);
+			if (!dropped)
+				continue;
+			txn = mxfs_pal_alloc(sizeof(*txn));
+			if (!txn)
+				continue;
+			dlm_txn_init(txn, &rec[x].res, ctx->ledger_gen);
+			dlm_promote_txn(ctx, txn);
+			mxfs_pal_free(txn);
+		}
+	}
+out:
+	mxfs_pal_free(cand);
+	mxfs_pal_free(rec);
+	mxfs_pal_free(tenants);
+}
+
+/*
  * The two wire-release emitters that do not pass through mxfs_dlm_unlock_gen
  * or mxfs_dlm_send_unconditional_release — the re-send of an un-ACKed release
  * and the rejection of an unsolicited grant — are refused here once this
@@ -5076,6 +6088,7 @@ void mxfs_dlm_release_retry_tick(struct mxfs_dlm_ctx *ctx)
 	now = mxfs_pal_time_ms();
 	dlm_release_redrive_tick(ctx, now);
 	dlm_purge_redrive_tick(ctx, now);
+	dlm_settled_rejudge_tick(ctx, now);
 	dlm_cancel_retry_tick(ctx, now);
 	if (!ctx->rel_pending)
 		return;
@@ -7593,6 +8606,15 @@ check_compat:
 				 * (holder stuck waiting for a resource OUR caller
 				 * holds) cannot be attributed.  Dump every entry on
 				 * this resource with owner/mode/state/age. */
+				/*
+				 * 0.75.91 (D-...-0940, measured s584c): a waiter timing
+				 * out is a moment to re-ask the slot of an imported shared
+				 * bit that named no node at import, so the next retry can
+				 * notify its owner (dlm_resolve_unknown_holders, which
+				 * since 0.90.19 every remote request runs too).
+				 */
+				dlm_resolve_unknown_holders(ctx, ctx->buckets[bucket],
+							    resource, "ONTIMEOUT", true);
 				for (wlk = ctx->buckets[bucket]; wlk; wlk = wlk->next) {
 					if (!resource_equal(&wlk->resource, resource) ||
 					    wlk == newlk)
@@ -7603,66 +8625,6 @@ check_compat:
 					if (ctx->recovery_blocked_cb && lk_is_holder(wlk) &&
 					    ctx->recovery_blocked_cb(ctx->cb_data, wlk->owner))
 						blocked_holder = 1;
-					/*
-					 * 0.75.91 (D-...-0940): MXFS_DLM_NODE_UNKNOWN means the
-					 * slot was unresolvable AT IMPORT — the heartbeat table
-					 * had not yet seen the claimant — not that it is
-					 * unresolvable for good.  dlm_import_holder already knows
-					 * how to attribute such a bit once the slot names its
-					 * node, but it only runs on a re-import of that page, and
-					 * a page imported once at mount is never re-imported.  So
-					 * a shared bit imported a moment before the peer claimed
-					 * its slot became permanent: demand_collect_holders and
-					 * fire_bast_records both skip an UNKNOWN owner by design,
-					 * so nothing could BAST it and nothing could release it.
-					 * Measured s584c: test2's mount queued the root inode EX
-					 * behind 'P-TAUTH-IMPORT-ACTIVE type=1 ino=128 owner=
-					 * 4294967295 slot=0', slot 0 having been claimed by test1
-					 * in that very era; test1's mount then queued AG 0 behind
-					 * test2, and neither mount ever returned.
-					 *
-					 * A waiter timing out is exactly the moment to re-ask.
-					 * This only ATTRIBUTES the bit to the node that owns it,
-					 * which is the same rule dlm_import_holder applies; it
-					 * retires nothing and drops nothing, so the D-0344 hazard
-					 * (a live successor in the slot losing its own records) is
-					 * not in play.  The next retry can then BAST the owner.
-					 */
-					if (wlk->imported && lk_is_holder(wlk) &&
-					    wlk->owner == MXFS_DLM_NODE_UNKNOWN &&
-					    wlk->mode != MXFS_LOCK_EX && ctx->slot_node_cb) {
-						uint64_t rinc = 0;
-						mxfs_node_id_t rn =
-						    ctx->slot_node_cb(ctx->cb_data, wlk->owner_slot,
-								      &rinc);
-
-						if (rn != 0 && rn != MXFS_DLM_NODE_UNKNOWN) {
-							wlk->owner = rn;
-							wlk->owner_inc = rinc;
-							ctx->ledger_imports_resolved++;
-							mxfs_pal_log(MXFS_LOG_DEBUG,
-							    "mxfs: P-TAUTH-IMPORT-RESOLVED-ONTIMEOUT type=%u "
-							    "ino=%llu ag=%u slot=%u -> owner=%u inc=%llu — an "
-							    "imported shared bit whose slot was unresolvable at "
-							    "import now names a node; attributing it so it can "
-							    "be BASTed and released instead of blocking EX for "
-							    "good",
-							    resource->type,
-							    (unsigned long long)resource->ino,
-							    resource->ag_number, wlk->owner_slot, rn,
-							    (unsigned long long)rinc);
-						} else {
-							mxfs_pal_log(MXFS_LOG_WARN,
-							    "mxfs: P-TAUTH-IMPORT-UNRESOLVED-ONTIMEOUT type=%u "
-							    "ino=%llu ag=%u slot=%u — an imported shared bit is "
-							    "blocking this EX and its slot STILL names no node; "
-							    "it cannot be BASTed or released and this request "
-							    "cannot succeed until a recovery purge clears it",
-							    resource->type,
-							    (unsigned long long)resource->ino,
-							    resource->ag_number, wlk->owner_slot);
-						}
-					}
 					mxfs_pal_log(MXFS_LOG_DEBUG,
 					    "mxfs: P-LKTIMEOUT-HOLDER type=%u ino=%llu ag=%u holder=%u hmode=%s hstate=%u held_ms=%llu queued_ms=%llu (we=%u req=%s)",
 					    resource->type,
@@ -8821,6 +9783,52 @@ int mxfs_dlm_release_orphan_if_unheld(struct mxfs_dlm_ctx *ctx,
 		return -EBUSY;
 	}
 	return mxfs_dlm_send_unconditional_release(ctx, resource);
+}
+
+/* — see dlm.h. */
+int mxfs_dlm_answer_unheld(struct mxfs_dlm_ctx *ctx,
+			   const struct mxfs_resource_id *resource,
+			   mxfs_node_id_t master)
+{
+	struct mxfs_dlm_lock_release rel;
+	bool held;
+
+	if (!ctx || !resource || !ctx->send_cb)
+		return -EINVAL;
+	if (!mxfs_tauth_unheld_answer || !dlm_ledger_active(ctx))
+		return -EBUSY;
+	if (master == 0 || master == ctx->local_node)
+		return -EBUSY;  /* this node's own table is the authority */
+	mxfs_pal_rwlock_rdlock(ctx->table_rwlock);
+	held = dlm_local_entry_any(ctx, resource);
+	mxfs_pal_rwlock_unlock(ctx->table_rwlock);
+	if (held || dlm_pending_exists(ctx, resource))
+		return -EBUSY;
+	/* a poisoned session removes no durable grant of its own, and it
+	 * cannot prove this one is not its own any more */
+	if (dlm_refuse_release_while_poisoned(ctx, "answer_unheld", resource))
+		return -EBUSY;
+
+	memset(&rel, 0, sizeof(rel));
+	rel.hdr.magic = MXFS_DLM_MAGIC;
+	rel.hdr.version = MXFS_DLM_VERSION;
+	rel.hdr.type = MXFS_MSG_LOCK_RELEASE;
+	rel.hdr.length = sizeof(rel);
+	rel.hdr.sender = ctx->local_node;
+	rel.hdr.target = master;
+	rel.hdr.epoch = ctx->current_epoch;
+	rel.resource = *resource;
+	rel.grant_gen = MXFS_DLM_GEN_UNHELD;
+	rel.owner_inc = ctx->local_inc;
+	rel.owner_slot = ctx->local_slot;
+	ctx->unheld_answers++;
+	mxfs_probe_ratelimited(
+	    "mxfs: P-BAST-ANSWER-UNHELD type=%u ino=%llu ag=%u master=%u total=%llu — "
+	    "notified about a grant this node does not hold (no entry, no request in "
+	    "flight); answering with a release no grant of the master's can match\n",
+	    resource->type, (unsigned long long)resource->ino, resource->ag_number,
+	    master, (unsigned long long)ctx->unheld_answers);
+	return ctx->send_cb(ctx, master, &rel, sizeof(rel));
 }
 
 /* ─── mxfs_dlm_lock_convert — Mode upgrade/downgrade ─── */
@@ -10412,7 +11420,7 @@ int mxfs_dlm_process_remote_request(struct mxfs_dlm_ctx *ctx,
 	uint32_t bucket;
 	struct mxfs_lock *chain, *lk;
 	struct mxfs_lock *newlk;
-	int compat;
+	int compat, unk_resolved;
 	uint64_t ledger_gen = 0;
 	struct dlm_grant_ids deny_ids;
 
@@ -10506,8 +11514,16 @@ int mxfs_dlm_process_remote_request(struct mxfs_dlm_ctx *ctx,
 					   request_epoch, (uint32_t)prog, 0, 0, &deny_ids);
 				return prc;
 			}
+			/*
+			 * 0.90.12: the page's dead authority has a blocked recovery
+			 * (P-RBLK-DENY-DEAD-AUTHORITY on this node): the requester
+			 * gets the same RECOVERY_BLOCKED deny a dead holder earns,
+			 * and fails its operation fast (P-RBLK-DENY-REMOTE).
+			 */
 			send_grant(ctx, sender, resource, MXFS_LOCK_NL,
-				   prc == -EAGAIN ? MXFS_ERR_REMASTER : MXFS_ERR_LEDGER,
+				   prc == -EAGAIN ? MXFS_ERR_REMASTER :
+				   prc == -EHOSTDOWN ? MXFS_ERR_RECOVERY_BLOCKED :
+				   MXFS_ERR_LEDGER,
 				   MXFS_MSG_LOCK_DENY, request_epoch, 0, 0, 0, &deny_ids);
 			return prc;
 		}
@@ -10558,6 +11574,16 @@ int mxfs_dlm_process_remote_request(struct mxfs_dlm_ctx *ctx,
 		    mode_name(mode), (unsigned long long)ctx->consumed_resend_refused);
 		return -ECANCELED;
 	}
+
+	/*
+	 * 0.90.19: an imported shared bit whose slot named no node at import
+	 * is re-asked by every request served for its resource, first request
+	 * and re-send alike, before anything below reads who holds what: a
+	 * bit the slot now names joins this request's notification set (see
+	 * dlm_resolve_unknown_holders for the 4/tcp measurement).
+	 */
+	unk_resolved = dlm_resolve_unknown_holders(ctx, chain, resource,
+						   "ONREQUEST", false);
 
 	/* DLM_TRACE: dump all existing holders for inode 128 */
 	if (resource->ino == 128 && resource->type == MXFS_LTYPE_INODE) {
@@ -10635,6 +11661,10 @@ int mxfs_dlm_process_remote_request(struct mxfs_dlm_ctx *ctx,
 					refire = (nowms >= lk->acq_bast_ms) &&
 						 (nowms - lk->acq_bast_ms >=
 						  MXFS_DLM_ACQ_BAST_REFIRE_MS);
+					/* a holder this re-send has just given its owner
+					 * has never been notified of this wait */
+					if (unk_resolved)
+						refire = 1;
 
 					/* The blocking holder's mode is needed for the receipt
 					 * whether or not a notification is re-fired, and is
@@ -11655,7 +12685,11 @@ int mxfs_dlm_process_remote_release(struct mxfs_dlm_ctx *ctx,
 			if (sender != ctx->local_node)
 				send_release_ack(ctx, sender, resource, grant_gen, rel->rel_id,
 						 rel->authority_epoch, rel->grant_seq64,
-						 (prc == -EAGAIN || prc == -EINPROGRESS) ?
+						 /* 0.90.12: a release on a page whose dead
+						  * authority is blocked keeps retrying, as
+						  * it did while the takeover was awaited */
+						 (prc == -EAGAIN || prc == -EINPROGRESS ||
+						  prc == -EHOSTDOWN) ?
 						 MXFS_ERR_REMASTER : MXFS_ERR_LEDGER);
 			return prc;
 		}

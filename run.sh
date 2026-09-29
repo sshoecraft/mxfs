@@ -405,7 +405,7 @@ record() {  # name status measured reason [elapsed] [budget]
     # worthless.
     #
     # So each write PUSHES the outgoing verdict onto a bounded per-cell history
-    # (last 10, newest first). showstat annotates any green cell whose history
+    # (last 10, newest first). tools/criteria.py annotates any green cell whose history
     # contains a recent FAIL, so "PASS, but 1 of the last 12 runs FAILED" is
     # visible instead of hidden. This is recorded for EVERY criterion, not just
     # the known-flaky ones — the point is to discover which ones are flaky.
@@ -869,15 +869,33 @@ d=json.load(open(sys.argv[1])); print((d.get(sys.argv[2]) or {}).get("task_retir
         echo "PREP retire-contract: NONE — a deployment clause is no longer accepted as a retirement basis, so a fence from a registration's absence cannot be certified and a victim's slice will not be replayed"
     fi
 
+    # 2b. The LUN's identity, read from the node that just formatted it.  A
+    #     path is a locator: the SAME spelling names a different LUN on a node
+    #     that logs into more than one target, in whatever order its sessions
+    #     came up.  Measured 2026-09-28 (4/tcp prep): test3 also belonged to a
+    #     platform verification set, its platform LUN came up as /dev/sda ahead
+    #     of the rig LUN, prep_node.sh mounted it there, and the "cluster" was
+    #     three members plus a mount of one that never saw a peer — reported
+    #     only as "did NOT converge to 4 members".  Every joiner now binds its
+    #     device to this format's fsid (and the LUN's wwid) instead.
+    local LUN_IDENT LUN_WWID LUN_FSID
+    LUN_IDENT=$(ssh_node "$NODE1" "echo $(base64 -w0 < "$REPO/tests/setup/dev_identity.sh") | base64 -d | sh -s '$DEV'" 2>/dev/null | grep -a '^IDENT ' | tail -1)
+    LUN_WWID=$(printf '%s\n' "$LUN_IDENT" | sed -n 's/.* wwid=\([^ ]*\).*/\1/p')
+    LUN_FSID=$(printf '%s\n' "$LUN_IDENT" | sed -n 's/.* fsid=\([^ ]*\).*/\1/p')
+    case "$LUN_WWID" in none|'') LUN_WWID="" ;; esac
+    case "$LUN_FSID" in none|unreadable|'') LUN_FSID="" ;; esac
+    [ -n "$LUN_FSID" ] || { echo "PREP FAIL (identity): the freshly formatted LUN on $NODE1 reports no MXFS fsid ($LUN_IDENT)"; return 1; }
+    echo "PREP LUN identity: wwid=${LUN_WWID:-none} fsid=$LUN_FSID (every node binds its device to it)"
+
     # 3. Form the cluster on node1 (load module w/ transport + mount).
-    out=$(ssh_node "$NODE1" "MXFS_DEV='$DEV' MXFS_KO_MD5='$KO_MD5' MXFS_EXTRA_MODARGS='${MXFS_EXTRA_MODARGS:-}' MXFS_RETIRE_CONTRACT='$RETIRE_CONTRACT' bash /src/mxfs/tests/setup/prep_node.sh $BASE_TRANSPORT")
+    out=$(ssh_node "$NODE1" "MXFS_DEV='$DEV' MXFS_FSID='$LUN_FSID' MXFS_LUN_WWID='$LUN_WWID' MXFS_KO_MD5='$KO_MD5' MXFS_EXTRA_MODARGS='${MXFS_EXTRA_MODARGS:-}' MXFS_RETIRE_CONTRACT='$RETIRE_CONTRACT' bash /src/mxfs/tests/setup/prep_node.sh $BASE_TRANSPORT")
     echo "$out" | grep -q NODE_PREP_OK || { echo "PREP FAIL (form $NODE1): $out"; return 1; }
 
     # 4. Join the remaining nodes in parallel.
     pids=()
     local tmpd; tmpd=$(mktemp -d)
     for n in "${NODES[@]:1}"; do
-        ( ssh_node "$n" "MXFS_DEV='$DEV' MXFS_KO_MD5='$KO_MD5' MXFS_EXTRA_MODARGS='${MXFS_EXTRA_MODARGS:-}' MXFS_RETIRE_CONTRACT='$RETIRE_CONTRACT' bash /src/mxfs/tests/setup/prep_node.sh $BASE_TRANSPORT" > "$tmpd/$n" 2>&1 ) &
+        ( ssh_node "$n" "MXFS_DEV='$DEV' MXFS_FSID='$LUN_FSID' MXFS_LUN_WWID='$LUN_WWID' MXFS_KO_MD5='$KO_MD5' MXFS_EXTRA_MODARGS='${MXFS_EXTRA_MODARGS:-}' MXFS_RETIRE_CONTRACT='$RETIRE_CONTRACT' bash /src/mxfs/tests/setup/prep_node.sh $BASE_TRANSPORT" > "$tmpd/$n" 2>&1 ) &
         pids+=($!)
     done
     for pid in "${pids[@]}"; do wait "$pid"; done
@@ -1131,6 +1149,38 @@ run_host() {  # name cat budget
     local kill_budget="$real_budget"
     [ "${RULE0_CALIBRATE:-0}" = 1 ] && kill_budget=$(( kill_budget * 20 ))
     local out line rc t0 t1 elapsed
+    # PRE-ASSERT (2026-09-29): a host row needs the cluster formed as much as
+    # a coordinated one, and until now it was the only kind of row launched
+    # without checking.  Measured twice at 4/tcp (runs 20260928T221236Z and
+    # 20260929T004057Z): chk_clean was killed at its budget with every node
+    # unmounted, crash_audit's death oracle then aborted at its own member
+    # mount check before any kill, and the row recorded that as a failed
+    # oracle — which the board counted as a genuine crash-recovery fault for
+    # eleven runs, on a row that had measured nothing.  This is the mount and
+    # readdir probe run_coord makes, recorded with the same "pre-assert"
+    # reason, which tools/criteria.py excludes from the flake count as
+    # rig-formation noise.  Runs before t0 so it never counts against the
+    # row's budget.
+    local fstype=mxfs; [ "$DLM" = xfs ] && fstype=xfs
+    local pa_bad="" pa_pids=() pa_n pa_i
+    for pa_n in "${NODES[@]}"; do
+        ( timeout 15 "$SSH" "$pa_n" "$PASS" \
+            "mountpoint -q '$MNT' && mount | grep -q ' on $MNT type $fstype ' && timeout 10 ls '$MNT'/. >/dev/null 2>&1" \
+            >/dev/null 2>&1 ) &
+        pa_pids+=($!)
+    done
+    pa_i=0
+    for pa_n in "${NODES[@]}"; do
+        wait "${pa_pids[$pa_i]}" || pa_bad="$pa_bad $pa_n"
+        pa_i=$((pa_i+1))
+    done
+    if [ -n "$pa_bad" ]; then
+        record "$name" FAIL "pre-assert" \
+            "PRE-ASSERT: $fstype not mounted/readable on$pa_bad — a prior test left the cluster unformed (unmounted or shutdown zombie); reform required" \
+            0 "$real_budget"
+        echo "  FAIL  $name  (pre-assert: $fstype not mounted/readable on$pa_bad)"
+        return
+    fi
     t0=$(date +%s)
     out=$(MXFS_NODES=$N MXFS_DLM=$DLM MXFS_DEV="$DEV" MXFS_MNT="$MNT" \
           MXFS_RUN_ID=$RUN_ID \
@@ -1726,7 +1776,21 @@ run_coord() {  # name cat budget scale
 mapfile -t ROWS < <("$CRITPY" rows)
 
 ran=0; skipped=0; pending=0
-in_only() { [ "${#ONLY[@]}" -eq 0 ] && return 0; local x; for x in "${ONLY[@]}"; do [ "$x" = "$1" ] && return 0; done; return 1; }
+in_only() {
+    [ "${#ONLY[@]}" -eq 0 ] && return 0
+    local x; for x in "${ONLY[@]}"; do [ "$x" = "$1" ] && return 0; done
+    # chk_clean's release verdict needs the coverage witness that alloc_witness
+    # seals under the SAME run id (tests/evidence/alloc_witness/<run>/witness.txt).
+    # A chk_clean run without it grades its CLEAN audit INDETERMINATE and FAILs
+    # ("no sealed witness for run ..."; measured 2026-09-29 on a 4/tcp lap of
+    # chk_clean alone), and the flake window then counts a clean platter as a
+    # fault of the filesystem.  So asking for chk_clean asks for alloc_witness
+    # too; the matrix order runs it first.
+    if [ "$1" = alloc_witness ]; then
+        for x in "${ONLY[@]}"; do [ "$x" = chk_clean ] && return 0; done
+    fi
+    return 1
+}
 
 # applicable: is this matrix row going to be run under (N, DLM, ONLY)?
 applicable() {  # cat tr name coord minn maxn
@@ -1747,7 +1811,7 @@ applicable() {  # cat tr name coord minn maxn
 # BEFORE anything runs (and before cluster prep), mark the ENTIRE set of tests
 # this invocation will run as PENDING with a "running <run_id>" marker — the
 # full suite for a full run, or just the named subset for a partial run.
-# ./showstat then shows ⏳ PENDING for every to-be-run test from the moment the
+# tools/criteria.py then shows ⏳ PENDING for every to-be-run test from the moment the
 # run starts until each one finishes, instead of leaving last run's PASS/FAIL
 # on screen.
 #
@@ -1798,7 +1862,7 @@ reset_pending() {
 # test actually in flight:
 #   reason "running <id>"   -> never reached      -> NOT_RUN
 #   reason "executing <id>" -> in flight when we died -> ABORTED
-# Neither is PASS, so neither can make the board green (showstat only greens a
+# Neither is PASS, so neither can make the board green (tools/criteria.py only greens a
 # cell on a real PASS, and reports NOT_RUN/ABORTED in their own columns).
 mark_executing() {  # <test-name>
     "$CRITPY" executing "$1" --at "${N}/${DLM}" --run-id "$RUN_ID"
@@ -1976,7 +2040,7 @@ for row in "${ROWS[@]}"; do
     [ "$maxn" -eq 0 ] || [ "$N" -le "$maxn" ] || { continue; }
     # xfs baseline: only tests with a real native-XFS equivalent actually run.
     # The handful with NO equivalent get an explicit SKIP (not silent PENDING)
-    # so showstat shows a deliberate, documented state instead of an eternal
+    # so tools/criteria.py shows a deliberate, documented state instead of an eternal
     # "not run yet". Everything else under xfs (multi-node/coordinated tests)
     # is simply not applicable and stays PENDING like any other unrun test.
     if [ "$DLM" = xfs ]; then

@@ -297,6 +297,7 @@ xfs_perag_alloc(
 	mutex_init(&pag->pag_dlm_lock);
 	pag->pag_dlm_holders = 0;
 	pag->pag_mxfs_alloc_dirty = false;
+	pag->pag_mxfs_alloc_retry = false;
 	mutex_init(&pag->pag_mxfs_alloc_buflist_lock);
 	INIT_LIST_HEAD(&pag->pag_mxfs_alloc_buflist);
 	atomic_set(&pag->pag_dlm_meta_pending, 0);

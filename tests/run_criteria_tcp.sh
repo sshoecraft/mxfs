@@ -26,8 +26,8 @@ for N in $CONDS; do
     [ "$up" = "$N" ] || { echo ">>> CONDITION ${N}/tcp ABORT: only $up/$N nodes up"; continue; }
     # full suite
     ./run.sh "$N" tcp 2>&1 | flt | grep -E "  (PASS|FAIL|PEND)  |prep OK|ABORT|=== done"
-    echo "---- ${N}/tcp showstat ----"
-    ./showstat.sh "$N" tcp 2>/dev/null | tail -40
+    echo "---- ${N}/tcp board ----"
+    tools/criteria.py "$N" tcp 2>/dev/null | tail -40
     echo "############## END ${N}/tcp  $(date -u +%H:%M:%S) ##############"
 done
 echo "=== all criteria conditions done $(date -u +%H:%M:%S) ==="

@@ -1,6 +1,6 @@
 # MXFS tooling / device / infra checks — Category 2. NOT the FS test suite.
 #
-# Same format as the FS suite manifest, so the same runner + showstat drive it:
+# Same format as the FS suite manifest, so the same runner drives it:
 #   PHASE  TEST  COORD  MINNODES  BUDGET_S
 # Here PHASE = the kind (tooling/infra/substrate/transport/benchmark/lifecycle/
 # faultinj). These operate on the DEVICE / MODULE / block-layer / cluster
@@ -9,7 +9,7 @@
 # BUDGET_S: see tests/suite/manifest header — same the budget rule semantics.
 #
 # Run:   tests/tooling/run_tooling.sh <N> [nodes]
-# View:  ./showstat.sh tooling
+# View:  jq . .tooling_results.json   (not on the board; tools/criteria.py reads data/criteria.json only)
 
 # mkfs_timing/chk_clean/online_resize/cluster_ops_timing: REAL budget numbers,
 # measured against native XFS via `./run.sh 1 xfs` (2026-07-14): mkfs.xfs=62ms,
