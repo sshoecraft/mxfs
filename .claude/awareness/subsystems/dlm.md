@@ -4027,3 +4027,50 @@ Things that bite:
   handler.  A control and its fixed lap must use DIFFERENT resources: the
   control leaves its wait queued at the master, and a later request of the
   same requester is a re-send that notifies only on the re-fire interval.
+
+## The TCP acquire ladder and an unreachable master (0.90.29)
+
+`mxfs_dlm_lock_retries` (`dlm/dlm.c`).  Design: `docs/dlm-protocol.md`, "An
+unreachable master: attempts that do not spend the budget".
+
+- **Measured (0.90.29 instrument `P-ACQ-LADDER-END`, 8/tcp, two nodes
+  power-cut):** every survivor had two full-budget inode acquires end on
+  their last attempt with `-ENOTCONN`: one begun at the kill (25 timeouts
+  while the dead peer's connection still stood, then 34 transport errors,
+  70-72 s) and one begun when the first ended (59 transport errors, 42 s),
+  `master_live=0 master_rblk=0` at the end.  Half were no-queue requests.
+  Most callers retry and the lap had no load error; a caller that does not
+  returned `ENOTCONN` to a create (4/tcp, once in six laps).
+- **Now:** a no-queue request's first transport error toward a remote master
+  answers `-EAGAIN`; a full-budget queued request's transport errors toward
+  one remote master do not spend the budget for
+  `MXFS_DLM_DEAD_MASTER_WAIT_MS` (300 s) from the first, unless that node's
+  recovery is blocked or refused.  Small-budget callers
+  (`mxfs_v5_dlm_inode_lock_retries`) are unchanged: they need every call back
+  within their budget to run the cooperative release of cached AGs.
+- **Timeouts still spend the budget.**  A timeout is also what a live master
+  behind a long holder looks like.
+- **The user-mode tests build this file** (`make -C tests/tauth clean test`,
+  about 70 s): run them after any edit to the ladder.
+
+## Peer connection setup: socket and receive-thread handle change together (0.90.32)
+
+- `dlm/peer.c`: `start_recv_thread()` is called with `peer->send_lock` held, in
+  the critical section that installed `peer->sock`. It stores `peer->recv_thread`
+  and `peer->recv_started_ms` there. Thread creation returns once the thread has
+  started, before `mxfs_peer_recv_fn` takes any lock.
+- `peer_teardown_locked(ctx, peer, peer_lock_held, keep_live, who)` is the only
+  way a setup replaces a connection: shutdown, join, close, repeated until
+  nothing is installed (it drops the locks for the join). The accept path passes
+  `keep_live=false`; the outbound path passes `true` and gives way to a live
+  inbound connection before its connect and before its install.
+- Pitfall that produced it: a handle stored after the unlock was overwritten by
+  the other direction's setup, and the thread it named was joined by nobody
+  (`P-THREAD-REAP fn=mxfs_peer_recv_fn site=mxfs_peer_accept_fn` at unload).
+- Instruments: `P-PEER-RECV-OVERWRITE`, `P-PEER-REPLACED` (age_ms,
+  since_start_ms), `P-PEER-TEARDOWN-REPEAT`. Test parameter
+  `peer_recv_start_delay_ms`. Control build:
+  `MXFS_KCFLAGS=-DMXFS_TEST_PEER_HANDLE_UNLOCKED` (prints
+  `P-PEER-RECV-UNLOCKED`). Harness: `tests/peer_recv_orphan.sh`.
+- `mxfs_pal_log()` adds the `mxfs: ` prefix itself; a message passed to it
+  carries none.

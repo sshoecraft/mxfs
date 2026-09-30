@@ -4312,3 +4312,49 @@ poison probes in either journal). Now `rc = mxfs_inode_incarn_estale(ip); if
 family, which return a fault code) still truth-test. The iomap (`xfs_iomap.c`)
 and fsync gates already returned the verdict. Lesson:
 `trap-truth-testing-a-gate-that-returns-a-verdict-rewrites-every-verdict-into-one-errno`.
+
+## PAL threads: the live list and the module's exit (0.90.29)
+
+`pal/linux/kern.c` keeps every thread it creates on `mxfs_thread_live` from
+`mxfs_pal_thread_create[_rt]` until `mxfs_pal_thread_join` or a successful
+`mxfs_pal_thread_join_timeout` frees it.  Each entry carries the thread's
+function, the site that created it (`__builtin_return_address(0)` of the
+public create), its task id and its birth in jiffies.
+
+- **Why.**  The wrapper (`kthread_fn_wrapper`) sleeps in 100 ms steps after
+  the thread's function returns, until `kthread_stop`.  A thread no join
+  reaches sleeps there for ever; `rmmod` frees the text and the next wakeup
+  is an instruction fetch at an unmapped address.  15 guest panics in one day
+  of rig work had that shape: comm `mxfs-worker`, nothing but `kthread` below
+  the faulting address, `mxfs` absent from the module list, and one faulting
+  page offset per build.  For the one panic whose build was known the offset
+  was the return address of the wrapper's `schedule_timeout_interruptible`.
+- **`mxfs_pal_thread_report_live(when)`** prints `P-THREAD-LIVE` per listed
+  thread (`fn=`, `site=`, `fn_returned=`, `age_ms=`) and `P-THREAD-LIVE-SUM`
+  whatever the count (`live=`, `created=`, `joined=`, `join_gaveup=`).
+  A listed thread and a summary that counts one are printed as ERRORS: the
+  rig guests send errors to netconsole and not warnings, and a journal under
+  load keeps about two minutes.  A summary of zero is informational.
+  `exit_xfs_fs` calls it first (`exit-begin`, what the unmounts left) and
+  last (`exit-end`).
+- **`test_orphan_threads`** (module parameter, test only): writing N creates N
+  threads whose function returns at once and which nothing joins, the state
+  of a thread whose owner never reached its join.
+  `tests/module_unload_orphan.sh` writes it and unloads.
+- **`mxfs_pal_thread_reap_unjoined()`**, last in `exit_xfs_fs`: stops and
+  frees every thread still listed (`P-THREAD-REAP`), waiting for one whose
+  function has not returned and naming it every 30 s (`P-THREAD-REAP-WAIT`).
+  It must stay AFTER every owner's exit: an owner that joins a thread the
+  reaper already freed touches freed memory.
+- **PITFALL — a timed join that gives up has not joined.**
+  `mxfs_pal_thread_join_timeout` returning `-ETIMEDOUT` leaves the thread
+  listed and running; `join_gaveup` counts those.  A caller must wait it out
+  or fail-stop, never return as if the thread were gone.
+- **PITFALL — srcversion does not see `pal/pal.h`.**  modpost hashes only the
+  sources and headers in the SAME directory as each object, so a change to
+  `pal/pal.h` alone (objects live in `pal/linux/`, `xfs/`, `dlm/`) rebuilds
+  the module without changing its srcversion.  Identify such a build by its
+  `version` and the file's checksum.
+- **The rig unloads the module** when a prep finds a different build, when
+  the transport changes, and on the nodes a smaller cluster leaves out; a
+  prep that finds the same build loaded keeps it.

@@ -738,6 +738,7 @@ mxfs_dlm_inode_lock_routed(struct xfs_inode *ip, uint8_t mode, uint64_t gen_snap
 			if (ip->i_dlm_unpublished) {
 				spin_lock(&ip->i_mount->m_mxfs_unpub_lock);
 				ip->i_dlm_unpublished = false;
+				WRITE_ONCE(ip->i_mxfs_unpub_clr_line, MXFS_SITE);
 				list_del_init(&ip->i_dlm_unpub_link);
 				spin_unlock(&ip->i_mount->m_mxfs_unpub_lock);
 			}
@@ -860,6 +861,109 @@ mxfs_recovery_blocked_covers_ino(
  * rsync of 8714 files).  The trigger is ownership of external metadata, which
  * is a small minority of created files.
  */
+unsigned int mxfs_dbg_publish_acq_delay_ms;
+module_param_named(dbg_publish_acq_delay_ms, mxfs_dbg_publish_acq_delay_ms,
+		   uint, 0644);
+MODULE_PARM_DESC(dbg_publish_acq_delay_ms,
+	"TEST ONLY: ms the acquire that publishes an inode waits between its snapshot of the certificate's generation and its request (0 = none)");
+
+/*
+ * An EX acquire whose certificate install was refused because the
+ * generation moved under it (a release of this node committed between the
+ * snapshot and the grant) asks again with a fresh snapshot instead of
+ * handing its caller an EX that proves nothing.  CONTROL BUILD ONLY
+ * (MXFS_KCFLAGS=-DMXFS_TEST_ACQ_NO_REDRIVE): the acquire as it was, which
+ * returns the uncertified EX; it prints P-ACQ-NO-REDRIVE where the case
+ * occurs.  The source is the same, so the srcversion is too.
+ */
+#ifdef MXFS_TEST_ACQ_NO_REDRIVE
+#define MXFS_ACQ_REDRIVES_STALEGEN	0
+#else
+#define MXFS_ACQ_REDRIVES_STALEGEN	1
+#endif
+atomic_t mxfs_acq_stalegen_redrive = ATOMIC_INIT(0);
+
+/*
+ * Called with the rc of an EX request just made with gen_snap.  The grant
+ * came back but its certificate was refused because the generation moved
+ * under the request: a release of this node committed between the snapshot
+ * and the grant (measured: a release entered on the inode at NL commits while
+ * the acquire is in flight, and the grant follows 3-80 ms later).  The
+ * refusal is right, since the snapshot cannot say whether the grant was
+ * minted after that release or rode the grant it gave up; handing the caller
+ * EX anyway is not, because every image the caller then logs carries no
+ * authority and a replayer refuses the whole transaction.  So wait for the
+ * release pipeline to leave the inode (its wire unlock is then done), take a
+ * fresh snapshot, and ask again: the lock manager answers a holder with the
+ * grant it holds, or mints a new one, and either proves.  Bounded; returns
+ * the rc of the last request.
+ *
+ * No membership test: an EX without its certificate is refused by whichever
+ * node replays this one's journal, and a node that is alone now may not be
+ * alone when it dies.  The loop below leaves at once when nothing is stale.
+ */
+int
+mxfs_ilock_redrive_stalegen(struct xfs_inode *ip, uint8_t mode,
+			    uint64_t gen_snap, int rc)
+{
+	int rd;
+
+	if (rc != 0 || mode != MXFS_LOCK_EX ||
+	    gen_snap == MXFS_AUTH_GEN_NONE || !ip->i_mount->m_mxfs_dlm)
+		return rc;
+
+	for (rd = 0; rd < 4; rd++) {
+		bool stalegen;
+		int dw = 0;
+
+		spin_lock(&ip->i_dlm_lock);
+		stalegen = !ip->i_dlm_unpublished &&
+			   !ip->i_dlm_routed_iclus &&
+			   ip->i_mxfs_auth_state != MXFS_AUTH_DURABLE_EX &&
+			   READ_ONCE(ip->i_mxfs_auth_try) ==
+				MXFS_AUTH_TRY_STALEGEN &&
+			   ip->i_mxfs_auth_gen != gen_snap;
+		spin_unlock(&ip->i_dlm_lock);
+		if (!stalegen)
+			break;
+		if (!MXFS_ACQ_REDRIVES_STALEGEN) {
+			static atomic_t nrd_n = ATOMIC_INIT(0);
+
+			if (atomic_inc_return(&nrd_n) <= 200)
+				pr_err("mxfs: P-ACQ-NO-REDRIVE control build: ino=%llu snap=%llu gen=%llu comm=%s — the stale-generation EX is handed to the caller\n",
+					(unsigned long long)ip->i_ino,
+					(unsigned long long)gen_snap,
+					(unsigned long long)ip->i_mxfs_auth_gen,
+					current->comm);
+			break;
+		}
+		while (READ_ONCE(ip->i_dlm_demoter) &&
+		       READ_ONCE(ip->i_dlm_demoter) != current &&
+		       dw < 2000 && !xfs_is_shutdown(ip->i_mount)) {
+			msleep(1);
+			dw++;
+		}
+		spin_lock(&ip->i_dlm_lock);
+		gen_snap = ip->i_mxfs_auth_gen;
+		spin_unlock(&ip->i_dlm_lock);
+		{
+			static atomic_t srd_n = ATOMIC_INIT(0);
+
+			atomic_inc(&mxfs_acq_stalegen_redrive);
+			if (atomic_inc_return(&srd_n) <= 400)
+				mxfs_probe("mxfs: P-ACQ-STALEGEN-REDRIVE ino=%llu round=%d demoter_wait_ms=%d snap=%llu n=%d comm=%s — certificate refused for a moved generation; asking again with a fresh snapshot\n",
+					(unsigned long long)ip->i_ino, rd + 1, dw,
+					(unsigned long long)gen_snap,
+					atomic_read(&mxfs_acq_stalegen_redrive),
+					current->comm);
+		}
+		rc = mxfs_dlm_inode_lock_routed(ip, mode, gen_snap);
+		if (rc != 0)
+			break;
+	}
+	return rc;
+}
+
 int mxfs_unpub_publish_owned_meta = 1;
 module_param_named(unpub_publish_owned_meta, mxfs_unpub_publish_owned_meta,
 		   int, 0644);
@@ -1418,6 +1522,25 @@ static int mxfs_ilock_acquire_from_dlm(struct xfs_inode *ip,
 			  "mxfs: P-REPLAY-INODE-LOCK ino=%llu mode=%u comm=%s — replay context in inode DLM acquire\n",
 			  (unsigned long long)ip->i_ino, mode, current->comm);
 
+		/*
+		 * TEST ONLY: hold the acquire that publishes an inode between
+		 * its snapshot of the certificate's generation and its request,
+		 * so that a release of the same inode meets it in flight on
+		 * every lap (tests/multi_victim_containment.sh, ACQ_DELAY_MS).
+		 */
+		if (slowpath_publish &&
+		    READ_ONCE(mxfs_dbg_publish_acq_delay_ms)) {
+			static atomic_t pad_n = ATOMIC_INIT(0);
+			unsigned int d = READ_ONCE(mxfs_dbg_publish_acq_delay_ms);
+
+			if (atomic_inc_return(&pad_n) <= 200)
+				mxfs_probe("mxfs: P-DBG-PUBLISH-ACQ-DELAY ino=%llu mode=%u ms=%u snap=%llu comm=%s — TEST ONLY: the publishing acquire waits before its request\n",
+					(unsigned long long)ip->i_ino, mode, d,
+					(unsigned long long)auth_gen_snap,
+					current->comm);
+			msleep(d);
+		}
+
 		t0 = ktime_get_ns();
 		for (attempt = 0; attempt < 3; attempt++) {
 			/*
@@ -1460,6 +1583,8 @@ static int mxfs_ilock_acquire_from_dlm(struct xfs_inode *ip,
 				break;
 			msleep(50);
 		}
+
+		rc = mxfs_ilock_redrive_stalegen(ip, mode, auth_gen_snap, rc);
 		dt = ktime_get_ns() - t0;
 		/* instrumented: pin the per-handoff slow inode-EX/PR
 		 * acquire (dir_reuse 2/tcp ~6s dir-131 handoff).  Always-on,
@@ -4655,6 +4780,38 @@ restart:
 			ip->i_dlm_tenure_ops = 0;
 			ip->i_dlm_tenure_firstop_ns = 0;
 		}
+	}
+	/*
+	 * Instrument: this acquire hands its caller EX on a published inode
+	 * whose certificate proves nothing.  Whatever the caller logs under it
+	 * is captured with no authority and refused by a replayer.  The line
+	 * names the install's refusal and the site that last moved the
+	 * certificate.
+	 */
+	if (mode == MXFS_LOCK_EX && ip->i_dlm_mode == MXFS_LOCK_EX &&
+	    !ip->i_dlm_unpublished &&
+	    ip->i_mxfs_auth_state != MXFS_AUTH_DURABLE_EX &&
+	    auth_gen_snap != MXFS_AUTH_GEN_NONE &&
+	    !mxfs_v5_dlm_is_single_node(ip->i_mount->m_mxfs_dlm)) {
+		static atomic_t unc_n = ATOMIC_INIT(0);
+
+		atomic_inc(&mxfs_acq_uncertified);
+		if (atomic_inc_return(&unc_n) <= 400)
+			pr_warn("mxfs: P-ACQ-UNCERTIFIED ino=%llu isdir=%d auth_state=%u try=%u try_ep=%llu try_line=%u:%u line=%u:%u snap=%llu gen=%llu routed=%d publish=%d state=%u n=%d comm=%s — EX handed to the caller with no proving certificate\n",
+				(unsigned long long)ip->i_ino,
+				S_ISDIR(VFS_I(ip)->i_mode) ? 1 : 0,
+				(unsigned)ip->i_mxfs_auth_state,
+				(unsigned)READ_ONCE(ip->i_mxfs_auth_try),
+				(unsigned long long)READ_ONCE(ip->i_mxfs_auth_try_epoch),
+				MXFS_SITE_ARGS(READ_ONCE(ip->i_mxfs_auth_try_line)),
+				MXFS_SITE_ARGS(ip->i_mxfs_auth_line),
+				(unsigned long long)auth_gen_snap,
+				(unsigned long long)ip->i_mxfs_auth_gen,
+				ip->i_dlm_routed_iclus ? 1 : 0,
+				slowpath_publish ? 1 : 0,
+				(unsigned)ip->i_dlm_state,
+				atomic_read(&mxfs_acq_uncertified),
+				current->comm);
 	}
 	spin_unlock(&ip->i_dlm_lock);
 

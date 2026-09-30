@@ -188,6 +188,27 @@ MODULE_PARM_DESC(dir_tenure_reflush_skip,
  * committed, home write not complete; _XBF_DELWRI_Q = queued for that write.
  * Readable under b_lock (the spinlock) without the buffer semaphore.
  */
+/*
+ * An inode cluster buffer that carries inode log items is kept by the
+ * fresh-grant walk, as one queued for write is.  Each item holds li_buf, a
+ * pointer to this buffer object, and flushes through it: staled, a later
+ * xfsaild push flushed the inode into the stale buffer and queued it, the
+ * next lookup of the daddr reset the stale buffer's flags (_XBF_DELWRI_Q with
+ * them), the delwri pass dropped it unwritten, and the item stayed FLUSHING
+ * at the AIL minimum until the no-inode release fence shut the node down
+ * (8/cawd, 0.90.36 candidate).  The items are held under inode grants, not
+ * this AG's, so a fresh grant of the AG says nothing about them.
+ *
+ * CONTROL BUILD ONLY (MXFS_KCFLAGS=-DMXFS_TEST_WALK_STALES_ATTACHED): the walk
+ * as it was, staling such a buffer.  The source is the same, so the
+ * srcversion is too.
+ */
+#ifdef MXFS_TEST_WALK_STALES_ATTACHED
+#define MXFS_WALK_KEEPS_ATTACHED(bp)	false
+#else
+#define MXFS_WALK_KEEPS_ATTACHED(bp)	(!list_empty_careful(&(bp)->b_li_list))
+#endif
+
 static bool
 mxfs_agmeta_buf_unlanded(
 	struct xfs_buf		*bp)
@@ -377,9 +398,9 @@ mxfs_dlm_invalidate_ag_meta(
 				 *
 				 * Solution: stale ALL AG-meta bufs unconditionally.
 				 * For inode cluster bufs, keep the BLI-attached
-				 * skip (avoids racing concurrent iflush mid-pack);
-				 * we still stale even when b_li_list non-empty,
-				 * unless the buffer is queued for write (below).
+				 * skip (avoids racing concurrent iflush mid-pack),
+				 * and keep one queued for write or carrying inode
+				 * items (below, MXFS_WALK_KEEPS_ATTACHED).
 				 *
 				 * If a BLI is attached at stale time, xfs_buf_stale
 				 * removes the BLI from AIL and frees it.  The
@@ -414,7 +435,8 @@ mxfs_dlm_invalidate_ag_meta(
 				 * one that decides.
 				 */
 				if (is_inode_buf &&
-				    (READ_ONCE(bp->b_flags) & _XBF_DELWRI_Q)) {
+				    ((READ_ONCE(bp->b_flags) & _XBF_DELWRI_Q) ||
+				     MXFS_WALK_KEEPS_ATTACHED(bp))) {
 					WRITE_ONCE(mxfs_walk_kept_queued_n,
 						   READ_ONCE(mxfs_walk_kept_queued_n) + 1);
 					ino_pres++;
@@ -640,9 +662,10 @@ mxfs_dlm_invalidate_ag_meta(
 				 * the delwri flag is set and cleared under.
 				 */
 				if (is_inode_buf &&
-				    (bp->b_flags & _XBF_DELWRI_Q)) {
+				    ((bp->b_flags & _XBF_DELWRI_Q) ||
+				     MXFS_WALK_KEEPS_ATTACHED(bp))) {
 					mxfs_probe_ratelimited(
-						"mxfs: P91-WALK-PROTECT agno=%u daddr=%lld flags=0x%x li_empty=%d pin=%d comm=%s — cluster buffer is queued for write; kept\n",
+						"mxfs: P91-WALK-PROTECT agno=%u daddr=%lld flags=0x%x li_empty=%d pin=%d comm=%s — cluster buffer is queued for write or carries inode items; kept\n",
 						pag_agno(pag),
 						(long long)bp->b_maps[0].bm_bn,
 						bp->b_flags,
@@ -1017,6 +1040,14 @@ mxfs_buf_xfsaild_skip_bmbt_write(struct xfs_buf *bp)
 	bool			skip = false;
 
 	if (!bp || bp->b_ops != &xfs_bmbt_buf_ops || !bp->b_addr)
+		return false;
+	/*
+	 * A log recovery's write is not a lingering image of one of this
+	 * node's tenures: it is the log's own image, admitted by the replay,
+	 * and the node that replays a dead peer's slice holds no grant on the
+	 * owner by construction.  This node's tenure says nothing about it.
+	 */
+	if (bp->b_flags & _XBF_LOGRECOVERY)
 		return false;
 	mp = bp->b_mount;
 	if (!mp || !mp->m_mxfs_dlm ||
@@ -1619,6 +1650,14 @@ mxfs_buf_xfsaild_skip_dir_write(struct xfs_buf *bp, struct mxfs_dir_skip_info *i
 	}
 	spin_unlock(&pag->pag_ici_lock);
 	xfs_perag_put(pag);
+	/*
+	 * Every arm above reads this node's tenure on the owner directory.  A
+	 * log recovery's write has none to read: the image is the log's, and
+	 * the replayer of a dead peer's slice holds no grant on the owner.
+	 * @info keeps what the lookup found, for the detectors.
+	 */
+	if (bp->b_flags & _XBF_LOGRECOVERY)
+		skip = false;
 	return skip;
 }
 
@@ -2409,11 +2448,16 @@ mxfs_dlm_drop_clean_cached_blocks(
 			}
 			spin_lock(&bp->b_lock);
 			bip = bp->b_log_item;
-			keep = (bip &&
-				(test_bit(XFS_LI_DIRTY, &bip->bli_item.li_flags) ||
-				 test_bit(XFS_LI_IN_AIL, &bip->bli_item.li_flags))) ||
-			       xfs_buf_ispinned(bp) ||
-			       (bp->b_flags & _XBF_DELWRI_Q);
+			{
+				bool	in_ail;
+				bool	pinned = mxfs_buf_read_pin_then_ail(bp,
+								&in_ail);
+
+				keep = (bip && test_bit(XFS_LI_DIRTY,
+						&bip->bli_item.li_flags)) ||
+				       in_ail || pinned ||
+				       (bp->b_flags & _XBF_DELWRI_Q);
+			}
 			if (!keep) {
 				bp->b_flags &= ~(XBF_DONE | _XBF_FUA_FRESH);
 				(*dropped)++;

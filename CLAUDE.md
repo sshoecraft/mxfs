@@ -233,6 +233,9 @@ the next defect, to sanity-check a fix whose cause an instrument has
 already proven, or before a small, reversible change. One consult per
 unresolved question; the reply is an opinion that measurements outrank.
 
+If GPT has been consulted twice on a problem with no resolution, consult
+Astra (`mcp__ask_astra__query`) next.
+
 `mcp__ask_fable__query` is not in the chain (Claude Code runs on Fable —
 consulting it is asking yourself); do not re-add it.
 

@@ -1,3 +1,773 @@
+## 2026-09-30 — 0.90.36 — 8-node TCP and 8-node CAW are released on Proxmox VE 9, RHEL 9.8, Ubuntu 24.04 and Debian 13
+
+Clusters of eight nodes are now released on both transports, alongside
+clusters of two and of four, on exactly the kernels the earlier releases
+name: Proxmox VE 9 (6.17.2-1-pve and 7.0.14-19-pve), RHEL / AlmaLinux / Rocky
+9.8 (5.14.0-687.49.1.el9_8), Ubuntu 24.04 LTS (6.8.0-101-generic) and Debian
+13 (6.12.107+deb13-amd64).  Three nodes, five to seven, and more than eight
+are not claimed.  Nothing in the defect queue blocks any of the six released
+configurations (`tools/defects.py 8 tcp --release`, `8 caw --release`, and the
+same at 4 and 2).
+
+**How the LUN reached each node.**  Every node of every verification ran its
+own iSCSI initiator and logged into the shared target on one portal: a
+single-path SCSI disk, with nothing between MXFS and the target.  Neither
+dm-multipath nor a hypervisor's SCSI passthrough carried the lock or fencing
+commands in any run of this release, on either transport.  What the rig names
+`cawd` is CAW on that single-path attachment; the 2- and 4-node CAW releases
+(0.90.7, 0.90.24) were verified the same way.  Multipath and passthrough are
+the next verification work, on both transports.
+
+This is the first release since 0.90.24.  It carries the changes recorded
+below under 0.90.25 to 0.90.35, none of which was released on its own.
+
+What 0.90.36 passed (module srcversion `591CDF015CE73AC096D0E79`; logs
+`tests/evidence/release_verify_0.90.36.log` and
+`tests/evidence/full_verify_0.90.36.log`):
+
+- a build from a clean copy of the tree, 0 warnings, with the deployed
+  module's srcversion; the userspace tools, the user-mode ledger tests (0
+  failures), the extern-declaration audit and the inode flag audit
+- every rig suite, every row PASS on this module, none FLAKY and none
+  SKIPped: 8-node TCP 31 of 31, 8-node CAW 30 of 30, 4-node TCP 31 of 31,
+  4-node CAW 30 of 30, 2-node TCP 31 of 31, 2-node CAW 30 of 30
+  (`tools/criteria.py 8 tcp --build 591CDF015CE73AC096D0E79`, and the same
+  for `8 cawd`, `4 tcp`, `4 cawd`, `2 tcp`, `2 cawd`).  Before the 8-node
+  boards, ten laps each of the rows whose eleven-run window still held an
+  earlier build's failure (8/tcp `guard_census`; 8/cawd `dirent_durability`
+  and `guard_census`) passed every row
+- the release packages, built in the oldest container each targets, after
+  each platform's kernel build check
+- on every platform, on eight nodes sharing a LUN of their own, on each
+  transport: the packaged round (install from the packages, DKMS build, mount
+  with no options on all eight, cross-node checksums, create and remote
+  delete, `chk_mxfs` clean, `peer=` with multicast dropped, every node
+  rebooted with the configured transport, data intact), Proxmox on both
+  kernels; the hung-node test (a node frozen mid-write, declared dead,
+  fenced, replayed, the other seven writing again); on RHEL, SELinux
+  enforcing with sVirt.  39 of 39 steps passed
+- the hung-node test with eight members: on TCP the frozen node was declared
+  dead at +59-60 s and the measured survivor wrote again at +72-73 s on three
+  platforms and at +99 s on RHEL; on CAW at +65-66 s and +73-75 s (budgets
+  120 s and 180 s)
+
+The platforms ran one at a time.  An earlier run of the same verification put
+two eight-node sets on the host at once; there, six of eight RHEL nodes
+overran the 660 s install budget compiling the module beside Ubuntu's
+compile, 64 vCPUs of compile on a 56-core host.  Every other step of that run
+passed, and the one-at-a-time run above is the one this release cites.
+
+The two- and four-node claims were earned again on this module rather than
+carried over from 0.90.24.
+
+### The modify-path directory evict reads its keep inputs in checkpoint order
+
+Predictions were written before the run, in `tests/evidence/lapq_x36a.queue`.
+
+
+- **What was measured.**  Queue `w35a` lap 3 (8/tcp, two victims, 0.90.35)
+  ended with `chk_mxfs` rc=4: a survivor's directory held five names whose
+  inodes the inode btree holds free.  The read-side instrument printed once,
+  on that survivor: its `rm` read the directory's block from the platter
+  while the block carried 25 logged, unwritten changes (lseq 563, wseq 538),
+  and the buffer's last invalidator was the modify-path evict's DONE clear
+  in `mxfs_dir_evict_data_blocks`, with the block in the AIL and undestaged
+  and every stale-base arm clear, a state the keep rule keeps.
+- **Cause.**  The evict read the log item's AIL membership first and the
+  buffer's pin count second.  Checkpoint completion does the reverse, AIL
+  insert then unpin (`xlog_cil_ail_insert_batch`), without the buffer lock
+  the evict holds.  After xfsaild wrote the block, the rm's next removal put
+  a fresh item in the CIL, pinned and not yet in the AIL; an evict that read
+  "not in AIL" before the checkpoint's insert and "not pinned" after its
+  unpin took the block for a clean one and cleared DONE.  The rm's next
+  unlink read the platter's older image, undoing the removals it had made,
+  and the directory kept the names of inodes it went on to free.
+- **Change** (`xfs/xfs_mxfs_dir_evict.c`).  The pin count is read first,
+  then AIL membership behind a read barrier, and the keep test uses those
+  two reads only; unpinned then means any checkpoint that carried the item
+  has already put it in the AIL.  `P-EVICT-AIL-ARRIVED` prints if an item
+  reaches the AIL between the decision and the clear with changes unwritten,
+  which only the old order allows.  Control switches
+  `-DMXFS_TEST_EVICT_AIL_FIRST` (old order, 5 ms sleep between the reads
+  while pinned) and `-DMXFS_TEST_EVICT_WIDEN` (the same sleep in the new
+  order) build the arms from the same source.
+- **Verified by control and fix arms** (queues `x36a`, `x36b`).  Control
+  (`-DMXFS_TEST_EVICT_AIL_FIRST`): within 4 s of the load, every one of the
+  eight nodes printed `P-EVICT-AIL-ARRIVED` on a block its load had just
+  logged 70 changes into and never written, read that block back as corrupt
+  (error 117) about 110 ms later and shut down.  Fix with the same widening
+  (`-DMXFS_TEST_EVICT_WIDEN`): detector 0 on every node, no read error, no
+  shutdown, `chk_mxfs` rc=0, PASS.
+
+### The same read order at the other keep-or-drop decisions
+
+- Seven more decisions read AIL membership before the pin count and keep on
+  it without also keeping on logged-but-unwritten: the owned-block evict
+  (`mxfs_dir_evict_owned_dir_blocks`), the release-side stale
+  (`mxfs_dir_stale_data_blocks`), the cached-block drop
+  (`mxfs_dlm_drop_clean_cached_blocks`), the gen-lagging discard of the
+  AG-metadata invalidate (`mxfs_ag_meta_invalidate_stale`), the two
+  epoch-stale refreshes in `xfs_dir2_node_addname_int` and the one in
+  `xfs_dir2_leaf_addname`.  Each now reads through
+  `mxfs_buf_read_pin_then_ail` (`xfs/xfs_mxfs_ag_meta.c`), which reads the
+  pin count, then AIL membership behind a read barrier; the invalidate's
+  other arm shares those reads.  What each decision keeps is unchanged.
+  Found by a sweep of the source and not measured one by one: the
+  mechanism is the one the arms above proved.
+
+### The fresh-grant walk keeps an inode cluster buffer that carries inode items
+
+- **What was measured.**  The first 8/cawd board on the 0.90.36 candidate
+  (inside `tests/full_verify.sh 0.90.36`) lost test2 during
+  `dirent_durability`.  The fresh-grant AG walk (`mxfs_dlm_invalidate_ag_meta`)
+  staled an inode cluster buffer with one inode item attached
+  (`P-STALE-WITH-ITEMS items=1 delwri=0`).  About 10 ms later xfsaild's write
+  pass skipped it as locked.  After that the buffer was on no list and never
+  written, while inode 16799147's item sat FLUSHING at the AIL minimum.  The
+  no-inode release fence found the minimum frozen and shut the node down
+  rather than release undrained.  Every name the row counted as lost was
+  test2's, in the directories that release held.
+- **Cause, as far as it is proven.**  An attached inode item keeps a pointer
+  to that buffer object and flushes through it.  A flush into the staled
+  buffer queues a stale buffer.  The next lookup's stale reset
+  (`xfs_buf_find_lock`) wipes `_XBF_DELWRI_Q`, and the write pass then drops
+  it unwritten.  The two middle steps are what the new probes
+  `P-DELWRI-QUEUE-STALE` (a stale buffer queued) and `P-STALE-DELWRI-WIPE` (a
+  queued write reset by a lookup) print.
+- **Change** (`xfs/xfs_mxfs_buf.c`).  Both of the walk's inode-buffer keeps,
+  unlocked and locked, now also keep a buffer whose `b_li_list` is non-empty,
+  as they already kept one queued for write.  `-DMXFS_TEST_WALK_STALES_ATTACHED`
+  builds the walk as it was.
+
+### The acquire re-drive no longer skips a single-node mount
+
+The 0.90.35 re-drive returned at once on a single-node mount, and the 8-node
+`guard_census` rows failed on it as an unclassified single-node fast path.
+The skip was wrong on its merits.  An EX without its certificate is refused
+by whichever node replays this one's journal, and a node that is alone now
+may not be alone when it dies.  The test is gone; the loop already leaves at
+once when nothing is stale.
+
+### Removed from the defect queue as fixed and verified
+
+- `D-SURVIVOR-DIRECTORY-KEEPS-NAMES-OF-FREED-INODES-AFTER-TWO-VICTIM-LAP`
+  (8/tcp, integrity): the read order above.  After the control and fix arms,
+  seven laps of the failing two-victim configuration passed, three on the
+  fix-only build (`x36b`) and four on the build with every decision reordered
+  (`x36c`, srcversion `859A861B9DECC27AB1B4B2D`).  Each ended with
+  `chk_mxfs` rc=0 and no platter read over unwritten content, no dropped
+  block and no dangling name on any node.  The rate before was one failing
+  lap in three to nine.
+- `D-TWO-NODE-KILL-UNDER-LOAD-SLICE-REPLAY-REFUSED-AG-QUARANTINED-EIO`
+  (stability): the 0.90.35 re-drive of an acquire whose certificate a
+  release of the same node made stale.  After its control arm (14
+  uncertified acquires in one lap), 15 laps of the two-victim 8/tcp
+  configuration ran on the fix, the last seven on its final factored form.
+  The re-drive fired in every lap, no acquire handed out an uncertified EX,
+  and no slice replay was refused or AG quarantined.  The one failure among
+  the 15 was the directory defect above.
+- `D-AG-WALK-STALES-CLUSTER-BUFFER-WITH-INODE-ITEMS-STRANDS-FLUSH`
+  (8/caw, stability): the walk keep above.  The control arm (`y36a`) staled a
+  buffer with items attached 9 times in two laps, and three of those buffers
+  were then queued for write while stale.  The fix arm counted 0 of every
+  instrument.  On the release build the failing row, 8/cawd
+  `dirent_durability`, passed 11 of 11 runs on 8 of 8 nodes with no loss,
+  and the whole 8/cawd board passed.  The earlier symptom record,
+  `D-NOINO-RELFENCE-AIL-FREEZE-474`, stays open for its own 32-node causes.
+
+### The containment harness stops its load on every exit after starting it
+
+`tests/multi_victim_containment.sh` exited on an abort (the load never
+appeared, or a victim could not be taken down) without touching the load's
+stop file.  The next lap in a queue remounted within two minutes, and the
+old loop's `rm -rf` ran beside the new loop's `rsync` on the same directory.
+In queue `x36b` lap 2 every load error was that collision, and four
+survivors could not unmount.  Both exits now stop the load on every node
+first.
+
+## 2026-09-30 — 0.90.35 — an acquire whose certificate a release of the same node made stale asks again instead of writing with no authority (UNDER TEST, NOT A RELEASE)
+
+Predictions were written before each run, in the queue files
+(`tests/evidence/lapq_t34a.queue`, `lapq_u35a.queue`, `lapq_v35a.queue`,
+`lapq_w35a.queue`).
+
+### An EX acquire refused its certificate for a moved generation asks again
+
+- **What was measured.**  On 0.90.34 every two-victim 8/tcp lap since queue
+  `r34d` printed `P-ACQ-UNCERTIFIED` 6 to 15 times across the fleet: an
+  acquire handed its caller EX on a published inode with no proving
+  certificate.  Whatever such a caller logs is captured with no authority,
+  and a node that dies with it in its journal has its slice refused and an
+  allocation group quarantined: the recorded failure of
+  `D-TWO-NODE-KILL-UNDER-LOAD-SLICE-REPLAY-REFUSED-AG-QUARANTINED-EIO`.  The
+  0.90.33 hold-back (a release does not commit under an acquire in flight)
+  never fired in eleven laps.
+- **Cause, named by an instrument.**  `P-REL-COMMIT-UNDER-ACQ` (queue
+  `u35a`) prints every release that commits while an acquire of the same
+  node is in flight.  Each of the twelve uncertified acquires of one lap was
+  preceded, 3 to 80 ms earlier, by such a commit naming the same caller.  The
+  release had been entered with the inode held at NL, and its commit still
+  moves the certificate's generation.  The grant that follows is refused by
+  the install's stale-completion guard, rightly, because the snapshot cannot
+  say whether the grant came before or after that release.  The acquirer then
+  handed out EX anyway.  The shape is not the one 0.90.33 was written for:
+  the release held NL, and nearly every case was on the load's shared parent
+  directory.
+- **Change** (`xfs/xfs_mxfs_ilock.c`, `mxfs_ilock_redrive_stalegen`, called
+  after the EX request of the slow-path acquire and of the force-publish in
+  `xfs/xfs_mxfs_publish.c`).  After such a refusal the acquirer waits for the
+  release pipeline to leave the inode, takes a fresh snapshot and asks again,
+  at most four times (`P-ACQ-STALEGEN-REDRIVE`).  The lock manager answers a
+  holder with the grant it holds, or mints a new one, and either proves.
+- **Control arm** (`MXFS_KCFLAGS=-DMXFS_TEST_ACQ_NO_REDRIVE`, queue `v35a`
+  lap 2): 14 uncertified acquires, each with its `P-ACQ-NO-REDRIVE` line.
+- **Fix arm** (queue `v35a` laps 4 and 5): 12 and 9 re-drives, no
+  uncertified acquire on any node, none needing a fourth round, VERDICT PASS
+  and `chk_mxfs` rc=0 on both, the load's pace unchanged.
+- **Not yet verified.**  The helper was factored out after those laps and
+  the force-publish path given the same call.  No lap has seen a victim die
+  with the case in its window; every case counted was on a survivor.
+
+### Instruments
+
+- `P-READ-OVER-UNDESTAGED` (a platter read about to replace logged content
+  that was never written) now names the buffer's last invalidator
+  (`last_staler`, `staled_ms_ago`).  The directory evict at a modify records
+  itself there with the arms that decided it (`staler_items`), because its
+  clear does not go through `xfs_buf_stale` and its own probes are off or
+  capped.  This is for
+  `D-SURVIVOR-DIRECTORY-KEEPS-NAMES-OF-FREED-INODES-AFTER-TWO-VICTIM-LAP`: a
+  survivor's rm lost eleven removals to a fourth platter read of the
+  directory's block, 40 microseconds after an inode cluster write, with no
+  release pipeline running on the directory.
+- The eviction exerciser's harness counts `P241-AUTHTRY` as classless
+  captures, and that line is also a summary printed with every count at zero
+  (`by_try: none`), so a control lap read one capture that did not happen.
+
+## 2026-09-30 — 0.90.34 — a refused replay is tried again whatever the reap worker is waiting for (UNDER TEST, NOT A RELEASE)
+
+0.90.33 had no entry of its own and is recorded here.  Predictions were
+written before each run, in the queue files
+(`tests/evidence/lapq_q33c.queue`, `lapq_r34c.queue`, `lapq_r34d.queue`,
+`lapq_r34e.queue`, `lapq_r34f.queue`, `lapq_r34g.queue`).
+
+### A refused replay has a retry timer of its own (fixed and verified)
+
+- **A dead node's slice was never replayed** when the elected replayer's
+  first request for the recovery lease was refused and its reap worker was
+  inside a duty that waits on a grant of that node.  Measured at 8 nodes on
+  TCP with two victims (queue `q33c` lap 2): the replayer asked 0.15 s before
+  the prover sealed its manifest, was refused, and printed nothing about the
+  slot in the 265 s its log continues.  Six of six survivors stopped and none
+  could unmount.
+- **Cause.**  The retry was armed on the reap worker's delayed work, the only
+  thing that queued the replay again.  A delayed work armed while its
+  function runs is run after that function returns, and that function was
+  waiting for the replay.  The reap worker's duties (the sweep of an earlier
+  victim's bucket, the bucket scans, the entry retries) all take grants.
+- **Change** (`xfs/xfs_mxfs_evict.c`).  The retry has a delayed work of its
+  own, armed wherever the reap work is armed with the replay duty set.  It
+  takes no grant and only queues the replay work (`P-FREPLAY-RETRY`).
+- **Control arm** (`MXFS_KCFLAGS=-DMXFS_TEST_REPLAY_RETRY_BY_REAP`, queue
+  `r34e` lap 2): the retry's arm read `busy=RUNNING in_duty=test-wait`, no
+  second replay was entered, 1 of 2 victims recovered, VERDICT FAIL.
+- **Fix arm** (queue `r34e` lap 4, queue `r34f` laps 2-4): the timer queued
+  the replay 30.5 s after the refusal with the worker still in its wait, and
+  2 of 2 victims were recovered in all four laps.  The three laps of queue
+  `r34f` ended VERDICT PASS with `chk_mxfs` rc=0.
+- **A refusal is common and was always recovered when the worker was free**:
+  three of four plain-load laps met one with no test wait set, because two
+  survivors declare a death within the 1.6 s one of them spends on its
+  manifest.
+- **Instruments.**  `P89-REAP-SCHED` at every arm of the reap work and
+  `P89-REAP-DUTY` at the worker's entry, before each duty and at its exit.
+- **Test parameters.**  `dbg_reap_wait_dead_ms` (the reap worker's next run
+  waits until a node has died and been recovered).
+  `tests/multi_victim_containment.sh` gained `PROVER_HOLD_MS` and
+  `REAP_WAIT_MS`, which are set before the last kill.
+
+### A release of an exclusive grant waits for an acquire in flight (0.90.33, NOT VERIFIED)
+
+- **What was measured** on 0.90.32 (queue `n32b` lap 3, 8 nodes on TCP): one
+  slice refused over one directory block its writer had logged with no
+  authority class.  The writer held the directory exclusively, and its
+  certificate install had been refused because the release pipeline had
+  committed 24 microseconds before the grant of an acquire in flight arrived.
+- **Change** (`xfs/xfs_mxfs_bast.c`).  A release of an exclusive grant does
+  not commit while an acquire of this node is in flight on the inode; it
+  keeps the grant and runs again (`P15-REL-ACQ-INFLIGHT`).  An acquire that
+  hands its caller an exclusive grant with no proving certificate prints
+  `P-ACQ-UNCERTIFIED`.
+- **Not verified.**  The control lap (`MXFS_TEST_REL_IGNORES_ACQ`, queue
+  `q33c` lap 2) delayed 17 publishing acquires and no release met one of
+  them.  `PEER_READ_MS` in the harness makes the releases; it has not been
+  run.
+
+### The peer receive thread's control and fix arms
+
+- Under a 30 ms delay of the peer port's handshake the control build
+  (`MXFS_TEST_PEER_HANDLE_UNLOCKED`) stored one handle over another on one
+  node in 10 exercised setups, and that node alone listed
+  `mxfs_peer_recv_fn` at its unload.  The plain build stored none in 14
+  (queue `q33c` laps 5 and 7).
+- A 250 ms delay kept the mounts of both builds from completing; nothing was
+  measured under it.
+
+### Removed from the queue: a thread left alive in the unloaded module's text (fixed and verified)
+
+- **The defect.**  After `mxfs.ko` was unloaded, a kernel thread it had
+  created was still alive in its text, faulted on an instruction fetch at an
+  unmapped module address, and panicked the node: 15 panics in one day of rig
+  work, one at the start of the 8-node CAW board of 0.90.27.
+- **Cause, proven by a control arm.**  A PAL thread whose function has
+  returned and that nothing joins sleeps in the wrapper's wait for a join; the
+  unload frees the text and its next wakeup returns into it.  With the exit's
+  reap compiled out (queue `j30a`), 4 of 4 nodes panicked with every fault at
+  the wrapper's sleep return, the recorded signature of the 15.
+- **Fix 1 (0.90.30).**  The module's exit stops and frees every thread still
+  listed.  The same test passed on 8 of 8 nodes with the same boot.
+- **Fix 2 (0.90.32), the site that left one behind.**  The exit's instrument
+  named it on a live cluster: a peer receive thread made by the accept path,
+  whose handle a second setup had overwritten.  The outbound install now
+  takes down whatever connection it finds, and the handle is stored under the
+  lock that installs its socket.  Control and fix arms are in the section
+  above.
+- **Since then.**  208 live-cluster unloads read in lap preps between
+  0.90.32 and 0.90.34 left no thread of the module's own (the only threads
+  reaped were the orphan test's), and `tools/netconsole_crash_table.py`
+  finds no crash event of any shape after the 0.90.30 fix arm.
+
+### Harness
+
+- `tests/multi_victim_containment.sh` ends the load and the probe before it
+  unmounts, and judges the load's count of failed commands at its end.  With
+  a gap of 75 s between the kills the load outlasted the read, and six
+  unmounts answered busy at once on a healthy cluster.
+- The eviction exerciser's victims shut their own filesystem down about 23 s
+  after the cluster forms (its pinned log tail), so a lap that needs a node
+  declared dead runs the plain load on its victims.
+
+### Open, found by these laps
+
+- A survivor's own directory ended one lap in four holding names of freed
+  inodes (`chk_mxfs` rc=4, 11 names).  Recorded in the queue; the read-side
+  instrument `P-READ-OVER-UNDESTAGED` (`pal/linux/xfs_buf.c`) is what queue
+  `r34g` runs.
+
+## 2026-09-29 — 0.90.32 — a grant that outlives the incarnation that proved it leaves with its marker; a peer's receive thread is stored under the lock that installs its socket (UNDER TEST, NOT A RELEASE)
+
+0.90.31 had no entry of its own and is recorded here: a control switch for
+the eviction's marker, the exerciser that makes the refused slice, and the
+two measurements that named the causes 0.90.32 changes.  Predictions were
+written before each run, in the defect records and in the queue files
+(`tests/evidence/lapq_k31c.queue`, `lapq_k31b.queue`, `lapq_m32c.queue`,
+`lapq_m32b.queue`).
+
+### The eviction's marker names the grant, not the certificate
+
+**The exerciser** (0.90.31, `VICTIM_EVICT=1` in
+`tests/multi_victim_containment.sh`).  A victim under a light load dies with
+an unreplayed window of one record, so the first exerciser never made the
+case.  The revised one pins the victim's log tail with the test parameter
+`dbg_ail_pin_ino`, then makes a directory, fills it, removes it and runs the
+shrinker three times a second.
+
+**Control arm** (queue `k31c`, 0.90.31 compiled with
+`MXFS_TEST_NO_EVICT_RELMARK`, the eviction as it was).  Three of four slices
+were refused, at 8 and at 4 nodes on TCP.  Every refused image inside the
+print cap named an owner whose tenure its victim had ended by eviction with
+no marker.
+
+**The plain 0.90.31 build still refused a slice** (queue `k31b` laps 2-3):
+one at 8-node TCP (`notheld=3`) and one at 4-node TCP (`notheld=6`), with
+every marker the evictions published reading rc=0.  The 8-node CAW lap
+passed.
+
+**Cause**, read from the victims' logs.  A grant kept cached across the free
+of its inode serves every later incarnation a create takes from the inode
+cache.  Each such create resets the certificate.  On test2 one grant served
+about thirty incarnations of one inode number in ten seconds; five of them
+were directories whose blocks were stamped under it.  The last incarnation
+was removed before it was published, so the eviction found no epoch in the
+certificate, published nothing, and the grant left with stamped tokens in
+the log.
+
+**Change.**  The reset keeps the identity of the certificate it ends.  The
+eviction publishes the marker for that identity when the certificate carries
+no epoch and the last token stamped from the inode names it.  A wire loss
+clears it.  `P-RELMARK-EVICT` says `src=cert` or `src=rearm`.  Design:
+`docs/dlm-protocol.md`, "A grant that leaves through inode reclaim".
+
+**Instruments.**  The replayer prints a refused image past its 400-line cap
+and every `P227-TOKEN` line carries its verdict.  The release a peer's
+request drives counts a kept identity it leaves unmarked
+(`P-RELMARK-OWED site=bast-rearm`); it is not changed.
+
+### A peer's receive thread is made under the lock that installs its socket
+
+**What the unload named** (queue `k31b` lap 6, 0.90.31).  test3 unloaded
+with a third thread listed beside the test's two: `mxfs_peer_recv_fn`,
+created by the accept path, its function returned, 22 s after eight nodes
+had mounted together on TCP.  The exit stopped it and every node kept its
+boot.  The 11 preps that carried the 15 panics of 0.90.24-0.90.27 all
+followed clean mount and unmount cycles on TCP.
+
+**Cause** (hypothesis, under test in queue `n32c`).  Both directions connect
+to one peer when two nodes sight each other together, and the setup lost a
+handle in two ways.
+
+- The outbound setup tested only for a live connection before it installed.
+  An inbound connection accepted during its handshake and ended since (the
+  peer keeps the connection it accepted and discards its own outbound
+  socket) was written over: its socket never closed, and the handle of the
+  thread that read it replaced by the store that followed.
+- Either setup stored its handle after it had dropped the lock that
+  installed its socket, so the other could run between the two.
+
+**The first control lap said nothing** (queue `m32c`, the window held open
+300 ms in both setups).  No handle was overwritten and no thread was left.
+An accept thread that sleeps 300 ms per peer answers nobody's handshake
+meanwhile, so no inbound setup arrived inside a window; the two overlaps the
+harness counted were consecutive accepts from one peer.  The delay now holds
+the outbound window only and the harness counts what it was written to
+count.  The fix lap of queue `m32b` met the first way once
+(`P-PEER-REPLACED by=connect-install state=0`).
+
+**Change** (`dlm/peer.c`).  The thread is made and its handle stored in the
+critical section that installs the socket.  A setup takes down whatever it
+finds installed, joining the thread before it closes the socket, until
+nothing is installed.  The outbound setup does the same before its install.
+Design: `docs/architecture.md`, "Thread lifetime and module unload".
+
+**Control build**: `MXFS_KCFLAGS=-DMXFS_TEST_PEER_HANDLE_UNLOCKED`, named by
+its line `P-PEER-RECV-UNLOCKED`.  **Instruments**: `P-PEER-RECV-OVERWRITE`,
+`P-PEER-REPLACED`, `P-PEER-TEARDOWN-REPEAT`, and the test parameter
+`peer_recv_start_delay_ms`.
+
+### Removed from the defect queue in 0.90.31
+
+- **At 4 nodes on TCP with two nodes power-cut together under load, a file create on a survivor failed with ENOTCONN (-107) about 70 s after the kills and about 1 s before the first victim's replay completed: the inode allocation's lock acquire ran out of its retry budget against a master that was dead and not yet recovered, and the transport error was returned to the application (1 load error in 487 cycles; both slices then recovered and chk_mxfs exited 0).** — FIXED AND VERIFIED (0.90.30). CAUSE, proven by instrument (queue h29a on the instrument build 278D9891F308D0AFC19540B): with two victims power-cut on TCP, 22 inode acquires spent their whole budget of 60 attempts against a master that was dead and not yet recovered and ended rc=-107 (P-ACQ-LADDER-END budget=60 left=0 master_live=0; none on CAW); the create that failed at 4/tcp took that error from a caller that does not retry. CHANGE AT THAT CAUSE (dlm/dlm.c mxfs_dlm_lock_retries): a no-queue request answers would-block at its first transport error toward a remote master, and a request that may queue does not spend its budget on transport errors toward one remote master for 300 s. VERIFICATION under the same kills and the unchanged verdict (queue j30a on 0.90.30 sha256 a85964e6701384de, laps 10, 11, 12 and 17; lap 11 is this record's configuration, 4/tcp with test2 and test3 power-cut): every survivor of the four laps printed P-ACQ-UNREACHABLE-MASTER-WAIT or -NOQUEUE, P-ACQ-LADDER-END 0 lines, no kernel line with err=-107, load_errors=0 on all 20 survivors, longest load stall 79-84 s against a budget of 240 s (130-132 s on the instrument build), both slices recovered and chk_mxfs 0 in each. NOT COVERED BY THIS CHANGE, observed in lap 14 (8/tcp, the two victims withdrawn and left up): a withdrawn node keeps its connection, so requests toward it time out instead of failing to send; one inode acquire on each of the six survivors spent its whole budget in timeouts (P-ACQ-LADDER-END rc=-110 budget=60 timeouts=59 transport=0, 61.4 s, ending at +74 s, 4 s before the first slice was replayed) and its caller retried; no application met an error (load_errors=0, stall 63-77 s) and the lap passed. That wait toward a holder that is up and serves nothing is recorded in D-WITHDRAWN-NODE-CASCADE-NONCONTAINMENT-474.
+- **A survivor panics in kfree (kernel BUG in __slab_free) called from mxfs_dir_sf_capture_base, reached from mxfs_dir_sf_release_base in the release pipeline's inode-core flush: an object of the shortform-directory base ring is freed twice or after its memory was reused.** — FIXED AND VERIFIED (0.90.30). CAUSE, proven by instrument: the panic's return addresses name the free of a directory's old merge base in mxfs_dir_sf_capture_base, reached from the release drain, and that base was read, freed and replaced with no lock held. CONTROL ARM (queue j30a lap 1, tests/sf_base_overlap.sh 8 tcp 20000 ctl on the instrument build 278D9891F308D0AFC19540B, evidence tests/evidence/sf_base_overlap/20260929T191858Z_8tcp_ctl): with the window between the read and the replacement held open 20 ms, 3 overlapping captures were counted and 2 nodes went down within 40 ms of theirs, with the recorded frames (invalid opcode in the allocator's free path under kfree, mxfs_dir_sf_capture_base, mxfs_dir_sf_release_base); both callers of the overlap read were release drains of one directory. CHANGE AT THAT CAUSE (xfs/xfs_mxfs_dir_sf.c, xfs/xfs_mxfs_reload.c): the base is replaced under i_flags_lock, the old one is freed after the lock is dropped, and a merge works on a copy of its own. FIX ARM (lap 9 of the same queue, the same test on 0.90.30 sha256 a85964e6701384de, evidence tests/evidence/sf_base_overlap/20260929T193121Z_8tcp_fix): 7369 captures, 84 of them begun while another capture of the same directory was in progress, every node the same boot, no fault, no load error, the panic channel empty, chk_mxfs 0. The eight two-victim laps that followed on the same build (laps 10-17, five on TCP) lost no node and sent nothing to the panic channel. The same arm on the 0.90.31 build (queue k31b lap 7): 7386 captures, 73 overlaps, PASS.
+
+### Harness and tools
+
+- `tests/peer_recv_orphan.sh`: new.  It preps the fleet with the setup's
+  window held open, reads what the setups did, unloads and reads the
+  unload.  A lap in which no setup met the other direction's is VACUOUS.
+- `tests/multi_victim_containment.sh` prints, per victim, the markers whose
+  identity a re-arm kept and the peer-driven releases that left one owed.
+- `tools/klog_tenure_table.py` (0.90.31) tabulates a lap's judged
+  transactions against how each owner's tenure ended on its victim.
+- `docs/man/man5/mxfs.5` and `packaging/mxfs-modprobe.conf` name the node
+  counts both transports are released for.
+
+## 2026-09-29 — 0.90.30 — two guest-kernel panics reproduced by control arms and changed at their cause; a lock acquire no longer spends its budget on a master that cannot be reached; an eviction publishes the clean-release marker (UNDER TEST, NOT A RELEASE)
+
+0.90.28 (the eviction's marker, harness corrections, two instruments) and
+0.90.29 (three instruments, never more than the rig's module) had no entry
+of their own and are recorded here with 0.90.30, which carries the three
+changes the instruments led to.  Predictions were written before each run,
+in the defect records and in the queue files
+(`tests/evidence/lapq_h29a.queue`, `tests/evidence/lapq_j30a.queue`).
+
+### A node that unloads the module no longer leaves a thread asleep in its text
+
+Fifteen guest kernels panicked in one day of rig work on an instruction
+fetch at an unmapped address, in a thread named `mxfs-worker`, with the
+module unloaded.  One of them hit the prep of an 8-node CAW board.
+
+**Cause.**  Every thread the platform layer creates runs a wrapper
+(`pal/linux/kern.c`) that, once the thread's function has returned, sleeps
+100 ms at a time until a join stops it.  A thread nothing joins sleeps
+there for ever, and an unload frees the text under it.  The one panic whose
+build was still on the nodes faulted at the return address of that sleep.
+
+**Control arm** (queue `j30a` laps 2-4).  The tree compiled with
+`MXFS_TEST_NO_THREAD_REAP` is the exit as it was.
+`tests/module_unload_orphan.sh` makes two threads in that state with the
+test-only parameter `test_orphan_threads` and unloads: 4 of 4 nodes went
+down, 8 faults, every one in `mxfs-worker`, every address ending `ac8`,
+which is where the wrapper's sleep returns in that build.
+
+**Change.**  The module's exit, after every owner has joined what it owns,
+stops and frees each thread still listed, names it (`P-THREAD-REAP`, with
+its function and the site that created it) and waits for one whose function
+is still running.  Which site leaves a thread unjoined on a live cluster is
+not known yet; the line will name it at the unload where it happens.
+Design: `docs/architecture.md`.
+
+### The merge base of a shortform directory is replaced under a lock
+
+A survivor of a two-node power cut went down in the allocator's free path
+90 s into the recovery of the other two (8-node TCP, 0.90.27).
+
+**Cause.**  `mxfs_dir_sf_capture_base` read the directory's merge base,
+freed it and stored the new one with no lock, and its callers hold none in
+common.  Two captures that read the same base both freed it.
+
+**Control arm** (queue `j30a` lap 1, the instrument build with the test-only
+parameter `sf_base_race_delay_us` at 20 ms).  Three nodes counted an
+overlap (`P-SFBASE-OVERLAP`); two of them went down within 40 ms of it with
+the recorded frames (`__slab_free` under `kfree`,
+`mxfs_dir_sf_capture_base`, `mxfs_dir_sf_release_base`).  Both callers of
+the overlap that was read were the release's capture: two releases of one
+directory at once.  Six two-victim laps without the delay counted none.
+
+**Change.**  The base is replaced under `i_flags_lock` and freed after the
+lock is dropped, and a merge works on a copy of its own
+(`mxfs_dir_sf_base_dup`).  Design: `docs/shortform-dir-merge.md`.
+
+### A lock acquire does not spend its budget on a master that cannot be reached
+
+A create on a healthy survivor failed "not connected" while two dead peers
+were being recovered (4-node TCP, 0.90.27).
+
+**What the instrument showed** (queue `h29a`, `P-ACQ-LADDER-END`).  22
+acquires in six laps ended on their sixtieth attempt with the transport's
+error toward a master that was dead and not yet recovered; at eight nodes
+two whole budgets ran out before the view changed.  Every one of those
+callers retried, so no load met an error in that queue; the create that
+failed had a caller that does not.
+
+**Change** (`dlm/dlm.c`).  A request that asked not to queue answers
+would-block at its first transport error, as it does on a page in
+transition.  A request given the whole budget does not spend it on
+transport errors toward one remote master for 300 s from the first, unless
+that node's recovery is blocked or refused; the wait ends on a closed
+authority, a shutting-down DLM or a fatal signal at a fallible boundary.
+Design: `docs/dlm-protocol.md`, "An unreachable master".
+
+### An eviction publishes the clean-release marker (0.90.28)
+
+One victim's slice was refused at 8-node TCP on 0.90.27 although every
+token in it was whole: three images named a directory whose grant the
+victim had ended 0.1 s before it died, through the reclaim of the removed
+inode, and the replayer found neither the grant in the fence-time manifest
+nor a marker that makes the images redundant.
+
+**Cause.**  The marker had two producers, both in the release a peer's
+request drives.  `mxfs_dlm_evict` ends a tenure on three arms and published
+none.
+
+**Change.**  The eviction publishes the marker, forced durable, before its
+unlock, for a tenure that stamped a token.
+
+**Verification so far** (queue `h29a`, six two-victim laps, all PASS).
+Every one of 2365 markers published with rc=0 and none was owed; no slice
+was refused.  No lap had a victim die with images of an ended tenure in its
+window, so the change has not met its cause.  Queue `j30a` runs the
+shrinker on each victim three times a second until it dies
+(`VICTIM_RECLAIM_MS`) to make it meet.
+
+### Harness
+
+- `tests/multi_victim_containment.sh` judges a refusal by its reason and its
+  time, keeps each survivor's load errors, reads the panic channel for the
+  lap and compares each survivor's boot.  New options: `VICTIM_RECLAIM_MS`,
+  and `KILL_MODE=withdraw`, in which the victims force their filesystem down
+  and stay up.  Its summary prints each slice's evaluation and the counts
+  of the instruments above.
+- `tests/sf_base_overlap.sh`, `tests/module_unload_orphan.sh`: new.
+- `scripts/queue_build_module.sh` takes `MXFS_KCFLAGS` for a control build
+  and keeps every module it builds under `tests/evidence/modules/`.  A
+  control build carries the same srcversion as the build it is compared
+  with; its sha256 and the line it prints are what tell them apart.
+
+## 2026-09-29 — 0.90.27 — a log recovery's directory image is written whatever grant the replaying node holds (UNDER TEST, NOT A RELEASE)
+
+### The replayed image of a directory block was dropped at the replayer's own write
+
+**What the log of lap `f26a` showed** (8-node TCP, two nodes power-cut, module
+`1FE2C0A0D5465BA7170D7ED`, evidence
+`tests/evidence/multi_victim/20260929T162450Z_8tcp_f26a`).  No slice was
+refused and no survivor met an error, and `chk_mxfs` still exited 4: one
+directory of the victim that died inside `rm -rf` held 42 names, the first
+ten of them naming inodes the inode btree holds free.  On the replayer the
+window of that victim was four checkpoints, 28 buffer images, all admitted.
+The last held the image of that directory's block.  The block was read, the
+image applied (32 names) and its home write submitted, and there the
+exclusive-grant write guard printed `P12-DIR-EXGUARD-SKIP ... buf_cnt=32
+disk_cnt=42` with the log-recovery flag in the buffer's flags, dropped the
+write and completed the buffer as written.  It was the only write that guard
+suppressed on any of the eight nodes in the lap.
+
+**Cause.**  The directory and bmbt write filters at the submit chokepoint
+(`pal/linux/xfs_buf.c` `xfs_buf_submit_bio`, and the two predicates in
+`xfs/xfs_mxfs_buf.c`) judge a write by the grant this node holds on the
+owner directory.  A replayer holds none on a dead node's directory, and an
+image that removes names holds fewer than the platter, which is the guard's
+test for a superseded image.  A replayed create holds more and passed, so
+only a death inside a removal showed it.  The write fence in
+`xfs_buf_submit_ex` already excluded a recovery by the buffer's flag; these
+older filters did not.
+
+**Change** (module `D59081495013123AFA3F32F`).  A buffer carrying the
+log-recovery flag is not judged by those filters: the two predicates answer
+"do not skip", the exclusive-grant guard and the reintroduce guard leave it
+alone, and each directory buffer a recovery writes is named
+(`P12-RECOV-DIRWR owner daddr ops act in_core mode foreign`).  Design:
+`docs/foreign-replay-inode-ordering.md`, "The fifth shape".
+
+**Verification.**  Queue `tests/evidence/lapq_g27a.queue` (six laps:
+8-node TCP three times, 4-node TCP, 8-node and 4-node CAW), predictions
+written in the queue file and in the defect record before the run.  All
+three held.  The two guards that had suppressed a recovery's write
+(`P12-DIR-EXGUARD-SKIP`, `P-DATACLOBBER-SKIP`) printed nothing in any of the
+40 node logs.  `P12-RECOV-DIRWR` named the directory images the replays
+wrote, on the replayer only (3, 1, 2, 2, 2 and 3 lines).  `chk_mxfs` exited 0
+with `dangling=0` in all six laps, four of which had a victim killed inside
+`rm -rf` and a replay that wrote a partly emptied directory (8-node TCP laps
+3 and 6, 4-node TCP lap 2, 8-node CAW lap 4).  Before the change the same
+kill had left 17, 320 and 10 dangling names.
+
+- **Removed from the defect queue, fixed and verified:**
+  `D-TWO-NODE-KILL-UNDER-LOAD-LEAVES-DANGLING-DIRECTORY-ENTRIES-8TCP` (after
+  two nodes are power-cut together under a create/remove load at 8 nodes on
+  TCP, the platter holds a directory whose entries name inodes the inode
+  btree holds free).  Evidence:
+  `tests/evidence/multi_victim/20260929T16*_g27a_*` and `...T17*_g27a_*`
+  (`chk.txt`, `summary.txt`, `klog_test*.txt.gz`).
+
+Four of the six laps printed FAIL for other causes, each of which has a
+record of its own: a slice refused by a second cause (lap 3), a create that
+failed "not connected" (lap 2), a third node lost to a kernel fault during
+the recovery (lap 6), and the harness counting its own `find` as a refused
+operation (lap 4, corrected in the harness).
+
+### The publish worker's change of 0.90.26, scored
+
+Lap `f26a` against the three predictions written before it: the worker's
+skip line (`P24-WORKER-NOREF`) is on all eight nodes, every one `rc=-11`; the
+capture histogram reads `unpub=0` on all eight nodes (2.9 to 3.1 million
+captures per survivor, all durable; 20 to 28 percent unprovable before) and
+no owner was captured unprovable; both slices recovered with no quarantine
+and no load error.  Still owed before the record is removed: the same kill
+at 4-node TCP, the configuration the record reaches, which is lap 2 of the
+queue above.
+
+## 2026-09-29 — 0.90.26 — the first deaths of two nodes at once: two defects found, one of them in the released 4-node TCP configuration; an instrument and a harness to name their causes (NOT A RELEASE)
+
+0.90.25 (harness and lab work for eight nodes, never released, no entry of
+its own) and 0.90.26 (an instrument, then one change of behaviour that is
+UNDER TEST AND NOT VERIFIED) are recorded together.
+
+### The directory publish worker leaves an inode it cannot reference on the unpublished list (under test)
+
+**What the instrument showed** (lap `i26a`, 8-node TCP, module
+`890CA374A852207020F3E2F`, evidence
+`tests/evidence/multi_victim/20260929T160730Z_8tcp_i26a`): 2130 of 2130
+owners captured without a provable tenure, 97 directories on 8 nodes, have
+one shape.  Each is a reused in-core incarnation whose state the re-arm set
+to unpublished (`line=22:184`), taken off the unpublished list by the
+directory publish worker (`clr=22:1233`), with no certificate install
+attempted in its tenure (the last attempt, `try_line=5:647`, is the previous
+incarnation's inactivation and carries an older generation).  On the two
+nodes that were then power-cut, 43 percent of the inode-owned images were
+unprovable; one slice's replay window was 3 transactions holding 5 such
+images of 17, and it was refused.
+
+**Cause.**  `mxfs_dlm_publish_dirs_work` installs only when it holds a
+reference, taken with an in-core lookup before its claim.  When the lookup
+failed it still claimed the lock, still de-listed the inode and cleared its
+flag, and installed nothing.  The lock fast path gates on that flag and never
+reads the authority state, so nothing installed a certificate for the rest
+of the tenure.  Why the lookup fails is inferred and not yet measured: the
+work is queued at the mkdir's commit, and an in-core lookup of an inode still
+being set up answers at once.
+
+**Change** (module `1FE2C0A0D5465BA7170D7ED`).  With no reference the worker
+does not claim and does not de-list; it names the skip
+(`P24-WORKER-NOREF ino rc`) and goes on to the next inode.  The inode's first
+exclusive modify takes the synchronous publish that already exists for an
+unpublished directory, which de-lists, acquires and installs.
+
+**Not yet known.**  The verification lap (`tests/evidence/lapq_f26a.queue`,
+result in `tests/evidence/lapq_f26a.log`) had not finished when this was
+written.  The publish drain's pop has the same shape (it de-lists before it
+looks the inode up) and is not changed; no owner in the lap had been
+de-listed there.  The dangling directory entries are a second defect whose
+cause is not established: in lap `i26a` the platter of the refused domain
+held 320 of them while the replay windows were 2 and 3 transactions.
+
+### What was measured (0.90.25, module `35EE411D214B22C3D4D15BE`)
+
+`tests/multi_victim_containment.sh` power-cuts several nodes at once while
+every node loops rsync of a 400-file tree into a directory of its own under
+one shared parent, sync, `rm -rf`.  Evidence under
+`tests/evidence/multi_victim/`.
+
+| lap | nodes / transport | victims | what happened |
+|---|---|---|---|
+| `x8b` | 8 / TCP | 2 | one victim's slice replay refused, its allocation group quarantined on all six survivors, every load cycle EIO from +87 s; `chk_mxfs` 0 |
+| `x8e_c2` | 8 / CAW | 2 | no error, no quarantine; `chk_mxfs` 0 |
+| `x8e_t2` | 8 / TCP | 2 | no error on any survivor; `chk_mxfs` exit 4: 17 directory entries name inodes the inode btree holds free |
+| `x8e_t1` | 8 / TCP | 1 | no error; `chk_mxfs` 0 |
+| `x8e_4t2` | 4 / TCP | 2 | both slices refused, both survivors EIO (508 and 18959 load errors); `chk_mxfs` exit 4, 126 errors |
+| `x8e_4c2` | 4 / CAW | 2 | no error; `chk_mxfs` 0 |
+
+Two records were opened, both critical:
+
+- `D-TWO-NODE-KILL-UNDER-LOAD-SLICE-REPLAY-REFUSED-AG-QUARANTINED-EIO`
+  (stability, reach 4/tcp).  It blocks the 4-node TCP configuration that
+  0.90.24 released: `tools/defects.py 4 tcp --release` lists it.
+- `D-TWO-NODE-KILL-UNDER-LOAD-LEAVES-DANGLING-DIRECTORY-ENTRIES-8TCP`
+  (integrity, reach 8/tcp).  Read from the platter: both victims were inside
+  `rm -rf`; the 17 names are the first 17 of their directory in readdir
+  order and their inodes are free in the inode btree, so the frees landed and
+  the removal of the names did not.
+
+The recovery counts those laps printed (`recoveries=0/N`, `dead_lines=0`)
+were a capture failure, not a measurement: the harness read each node's
+journal at the end of the lap and the death window had rotated out.
+
+What the preserved logs of `x8b` say about the node that WRITES the log
+(`tools/klog_authcap_table.py`): before any node died, 20 to 28 percent of
+the inode-owned images each survivor logged, directory blocks every one
+(test1: 6847 single-block directories and 81 directory data blocks of 6928),
+were captured while their owner's authority state was unpublished, so they
+carry no class and a replayer must refuse the transaction that holds one.  The first 48 such
+captures of every node name one directory, EX held, off the unpublished
+list, its last certificate install refused because the inode was still
+flagged unpublished at that moment.  Which call site made that attempt, and
+which cleared the flag afterwards without installing, the logs of 0.90.25
+cannot say.
+
+### The instrument (0.90.26, module `890CA374A852207020F3E2F`)
+
+- `P239-OWNAUTH-OWNER`: one line per owner (a capture that repeats the
+  previous owner of its outcome prints nothing; 400 lines per outcome), with
+  the site and generation of the last install attempt, the site of the last
+  authority transition, and the site that last took the inode off the
+  unpublished list.
+- `i_mxfs_unpub_clr_line` in the in-core inode, written at the five places
+  that clear `i_dlm_unpublished` (`mxfs_dlm_unpublish_drop`, the publish
+  drain's pop, the directory publish worker, `mxfs_dlm_publish_inode`, the
+  routed arm of `mxfs_dlm_inode_lock_routed`), reset at inode init.
+
+### Harness and tools
+
+- `tests/multi_victim_containment.sh` (new in 0.90.25) follows every node's
+  kernel log from the moment the cluster forms, the victims' too, into
+  `klog_<node>.txt.gz` in the evidence directory, and reads its counts from
+  those files.  A survivor whose log is empty fails the lap as a capture
+  failure.  Its verdict judges the load that shares a directory with the
+  victims, quarantine lines and refused operations: the first run printed
+  PASS while every shared operation was being refused, because its probes
+  wrote files of their own.
+- New: `scripts/lab_power.sh` (platform sets powered up and down as groups),
+  `tools/klog_authcap_table.py` (the capture counters of a lap's logs, as
+  tables), `tools/transcript_digest.py` (a session transcript reduced to its
+  text and tool calls).
+- Changed in 0.90.25 for eight nodes, syntax-checked and not yet run:
+  `tests/full_verify.sh` (power-managed platform groups),
+  `tests/release_verify_chain.sh` (`CLAIM=8`).  Also
+  `scripts/scst_platform_targets.sh`, `scripts/lab_clone_node.sh` (a clone
+  no longer inherits its source's serial log path),
+  `tests/quiesce_remount_chain.sh`, `tests/release_gate_chain.sh`, and the
+  lab documents: every platform set holds eight nodes on a LUN of its own.
+- The project instructions name Astra as the consult after two GPT consults
+  that did not resolve a problem; `kill` is on the command allowlist.
+
 ## 2026-09-29 — 0.90.24 — 4-node TCP and 4-node CAW are released on Proxmox VE 9, RHEL 9.8, Ubuntu 24.04 and Debian 13
 
 Clusters of four nodes are now released on both transports, alongside

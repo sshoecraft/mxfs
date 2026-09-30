@@ -1128,6 +1128,15 @@ module_param_cb(rel_dio_defer, &mxfs_dbg_atomic_param_ops,
 		&mxfs_rel_dio_defer, 0644);
 MODULE_PARM_DESC(rel_dio_defer,
 		 "count of releases deferred at the terminal guard because direct I/O was still in flight (write resets)");
+module_param_cb(rel_acq_inflight_abort, &mxfs_dbg_atomic_param_ops,
+		&mxfs_rel_acq_inflight_abort, 0644);
+MODULE_PARM_DESC(rel_acq_inflight_abort,
+		 "count of inode grant releases that did not commit because an acquire of this node was in flight on the inode (write resets)");
+atomic_t mxfs_acq_uncertified = ATOMIC_INIT(0);
+module_param_cb(acq_uncertified, &mxfs_dbg_atomic_param_ops,
+		&mxfs_acq_uncertified, 0644);
+MODULE_PARM_DESC(acq_uncertified,
+		 "count of EX acquires that returned on a published inode with no proving certificate (write resets)");
 module_param_cb(dioend_admit, &mxfs_dbg_atomic_param_ops,
 		&mxfs_dioend_admit, 0644);
 MODULE_PARM_DESC(dioend_admit,
@@ -1498,6 +1507,14 @@ module_param_cb(sf_release_base, &mxfs_dbg_atomic_param_ops,
 		&mxfs_sf_release_base, 0644);
 MODULE_PARM_DESC(sf_release_base,
 		 "merge bases captured from the platter at a shortform dir's EX release (write resets)");
+module_param_cb(sf_base_captures, &mxfs_dbg_atomic_param_ops,
+		&mxfs_sf_base_captures, 0644);
+MODULE_PARM_DESC(sf_base_captures,
+		 "captures of a shortform dir's merge base, every caller (write resets)");
+module_param_cb(sf_base_overlaps, &mxfs_dbg_atomic_param_ops,
+		&mxfs_sf_base_overlaps, 0644);
+MODULE_PARM_DESC(sf_base_overlaps,
+		 "captures of a merge base that began while another capture of the same inode's base was in progress (write resets)");
 
 /* ─── Inode init ─── */
 
@@ -1549,6 +1566,11 @@ mxfs_dlm_inode_init(
 	ip->i_mxfs_auth_try_gen = 0;
 	ip->i_mxfs_relmark_res = 0;	/* */
 	ip->i_mxfs_relmark_epoch = 0;
+	ip->i_mxfs_auth_stamp_epoch = 0;
+	ip->i_mxfs_auth_stamp_lineage = 0;
+	ip->i_mxfs_rearm_res = 0;
+	ip->i_mxfs_rearm_epoch = 0;
+	ip->i_mxfs_rearm_lineage = 0;
 	/* 0.84.18 (D-0963): no own-flushed shortform images yet.  The free
 	 * callback releases them, so a recycled object arrives with NULLs. */
 	{
@@ -1560,6 +1582,9 @@ mxfs_dlm_inode_init(
 		}
 		ip->i_dlm_dir_sf_own_next = 0;
 	}
+	atomic_set(&ip->i_dlm_dir_sf_base_busy, 0);
+	ip->i_dlm_dir_sf_base_site = NULL;
+	ip->i_dlm_dir_sf_base_pid = 0;
 
 	spin_lock_init(&ip->i_dlm_lock);
 	init_waitqueue_head(&ip->i_dlm_wait);
@@ -1746,6 +1771,7 @@ mxfs_dlm_inode_init(
 	ip->i_mxfs_disk_nlink_gen = 0;
 	ip->i_mxfs_reused_create = false;	/* v0.5.4 set by rearm_unpublished only */
 	ip->i_dlm_unpublished = false;	/* deferred-publish */
+	ip->i_mxfs_unpub_clr_line = 0;
 	ip->i_dlm_iclus_seen_seq = 0;	/* iclus coherency clock: never loaded */
 	ip->i_dlm_routed_iclus = false;	/* no grant, no backing resource */
 	INIT_LIST_HEAD(&ip->i_dlm_unpub_link);

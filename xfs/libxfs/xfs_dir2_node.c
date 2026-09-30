@@ -2093,11 +2093,14 @@ restart:
 				dp->i_dlm_dir_valid_incarn = VFS_I(dp)->i_generation;	/* the baseline belongs to THIS incarnation */
 			}
 			{
+				extern bool mxfs_buf_read_pin_then_ail(
+					struct xfs_buf *, bool *);
 				struct xfs_buf_log_item *bip = dbp->b_log_item;
 				bool dirty = bip && test_bit(XFS_LI_DIRTY,
 						&bip->bli_item.li_flags);
-				bool in_ail = bip && test_bit(XFS_LI_IN_AIL,
-						&bip->bli_item.li_flags);
+				bool in_ail;
+				bool pinned = mxfs_buf_read_pin_then_ail(dbp,
+						&in_ail);
 				/* — TWO staleness signals (PROVEN BY INSTRUMENT):
 				 *  (1) NORMAL: master epoch present and this block's
 				 *      coherent-read epoch LAGS the inode's known-coherent
@@ -2121,7 +2124,7 @@ restart:
 
 				if (stale_normal || stale_regress) {
 					if ((dbp->b_flags & XBF_DONE) && !dirty &&
-					    !in_ail && !xfs_buf_ispinned(dbp) &&
+					    !in_ail && !pinned &&
 					    !(dbp->b_flags & _XBF_DELWRI_Q)) {
 						mxfs_probe_ratelimited("mxfs: P28-ADDNAME-EPOCHSTALE ino=%llu dbno=%d daddr=%lld buf_epoch=%u valid_epoch=%u master=%u fc=%d — stale bestfree base; refresh+restart\n",
 							(unsigned long long)dp->i_ino, dbno,
@@ -2265,14 +2268,16 @@ restart:
 						    XFS_DIR2_DATA_FREE_TAG)) &&
 						    pnl >= 1 && pnl <= 255 &&
 						    pino != 0;
+					extern bool mxfs_buf_read_pin_then_ail(
+						struct xfs_buf *, bool *);
 					struct xfs_buf_log_item *gbip =
 						dbp->b_log_item;
 					bool gdirty = gbip && test_bit(
 						XFS_LI_DIRTY,
 						&gbip->bli_item.li_flags);
-					bool gail = gbip && test_bit(
-						XFS_LI_IN_AIL,
-						&gbip->bli_item.li_flags);
+					bool gail;
+					bool gpinned = mxfs_buf_read_pin_then_ail(
+						dbp, &gail);
 
 					if (pcur && plive) {
 						uint32_t mep = mxfs_v5_dlm_inode_dir_epoch(
@@ -2295,7 +2300,7 @@ restart:
 						if (mxfs_dir_addname_platter_guard >= 2 &&
 						    (dbp->b_flags & XBF_DONE) &&
 						    !gdirty && !gail &&
-						    !xfs_buf_ispinned(dbp) &&
+						    !gpinned &&
 						    !(dbp->b_flags & _XBF_DELWRI_Q)) {
 							dbp->b_flags &= ~(XBF_DONE | _XBF_FUA_FRESH);
 							dbp->b_mxfs_dir_gen = 0;

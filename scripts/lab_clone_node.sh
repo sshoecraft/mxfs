@@ -120,15 +120,22 @@ rewrite_identity() {  # <image> <source> <src-ip> <clone> <ip>
     sudo -n qemu-nbd --connect="$NBD" --format=qcow2 "$img" || die "qemu-nbd could not attach $img"
     sleep 1; sudo -n partprobe "$NBD" 2>/dev/null; sleep 1
     pvpart=$(lsblk -ln -o NAME,FSTYPE "$NBD" | awk '$2 == "LVM2_member" {print "/dev/"$1; exit}')
-    [ -n "$pvpart" ] || { nbd_detach ""; die "$clone: no LVM physical volume on $img (the lab's platform nodes are all LVM-rooted)"; }
+    [ -n "$pvpart" ] || { nbd_detach ""; die "$clone: no LVM physical volume on $img (the lab's nodes are all LVM-rooted)"; }
     sudo -n pvscan --cache "$pvpart" >/dev/null 2>&1
     vg=$(sudo -n pvs --noheadings -o vg_name "$pvpart" 2>/dev/null | tr -d ' ')
     [ -n "$vg" ] || { nbd_detach ""; die "$clone: $pvpart carries no volume group"; }
-    sudo -n lvchange -ay "$vg/root" || { nbd_detach "$vg"; die "$clone: no root logical volume in $vg"; }
-    root=/dev/$vg/root
+    sudo -n vgchange -ay "$vg" >/dev/null 2>&1 || { nbd_detach "$vg"; die "$clone: could not activate $vg"; }
+    # the root volume is named root on Proxmox, AlmaLinux and Debian and
+    # ubuntu-lv on Ubuntu: it is the volume that holds /etc/hostname
     MNT=$(mktemp -d)
-    sudo -n mount "$root" "$MNT" || { nbd_detach "$vg"; die "$clone: cannot mount $root"; }
-    [ -f "$MNT/etc/hostname" ] || { nbd_detach "$vg"; die "$clone: $root holds no /etc/hostname"; }
+    root=""
+    for lv in root $(sudo -n lvs --noheadings -o lv_name "$vg" 2>/dev/null | tr -d ' ' | grep -vx root); do
+        [ -e "/dev/$vg/$lv" ] || continue
+        sudo -n mount "/dev/$vg/$lv" "$MNT" 2>/dev/null || continue
+        [ -f "$MNT/etc/hostname" ] && { root=/dev/$vg/$lv; break; }
+        sudo -n umount "$MNT"
+    done
+    [ -n "$root" ] || { nbd_detach "$vg"; die "$clone: no logical volume of $vg holds /etc/hostname"; }
     say "$clone: image attached, root $root ($vg) mounted at $MNT"
 
     # hostname and hosts, in place
@@ -144,6 +151,7 @@ rewrite_identity() {  # <image> <source> <src-ip> <clone> <ip>
     if [ -f "$MNT/etc/iscsi/initiatorname.iscsi" ]; then
         case "$(sudo -n sed -n 's/^InitiatorName=//p' "$MNT/etc/iscsi/initiatorname.iscsi")" in
             iqn.1994-05.com.redhat:*) iqn="iqn.1994-05.com.redhat:${clone}-mxfs-node" ;;
+            iqn.2004-10.com.ubuntu:*) iqn="iqn.2004-10.com.ubuntu:01:${clone}-mxfs-node" ;;
             *) iqn="iqn.1993-08.org.debian:01:$(head -c 6 /dev/urandom | od -An -tx1 | tr -d ' \n')" ;;
         esac
         inplace "$MNT/etc/iscsi/initiatorname.iscsi" "s/^InitiatorName=.*/InitiatorName=${iqn}/" \
@@ -174,6 +182,16 @@ while [ $# -ge 2 ]; do
     say "$clone: virt-clone from $SRC (mac $mac, image $dir/$clone)"
     virt-clone --connect qemu:///system --original "$SRC" --name "$clone" --file "$dir/$clone" --mac "$mac" >/dev/null \
         || die "virt-clone failed for $clone"
+    # virt-clone copies the definition, and a rig VM's definition names its
+    # serial log after the domain: a clone left naming the source's log cannot
+    # start while the source runs, which holds the file open ("Cannot open
+    # log file ... Device or resource busy", ubuntu2404-1..8, 2026-09-29)
+    if $VIRSH dumpxml --inactive "$clone" | grep -q "<log file=.*$SRC"; then
+        $VIRSH dumpxml --inactive "$clone" | sed "/<log file=/s#$SRC#$clone#g" > "$dir/$clone.xml" \
+            && $VIRSH define "$dir/$clone.xml" >/dev/null \
+            || die "$clone: could not give it a serial log of its own"
+        say "$clone: serial log renamed for the clone"
+    fi
     reserve "$mac" "$ip" "$clone"
     CLONES+=("$clone=$ip")
 done

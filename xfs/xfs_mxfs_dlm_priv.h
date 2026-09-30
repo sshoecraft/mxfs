@@ -1654,6 +1654,20 @@ extern atomic64_t mxfs_relmark_iclus_unmarked;
 extern atomic64_t mxfs_relmark_iclus_marked;
 extern atomic64_t mxfs_relmark_iclus_failed;
 extern atomic64_t mxfs_relmark_iclus_reinstall_refused;
+/* clean-release markers of grants that leave through inode reclaim
+ * (mxfs_dlm_evict): published, publish failed, tenure stamped no token,
+ * not published because the mount is shut down or unmounting */
+extern atomic64_t mxfs_relmark_evict_marked;
+extern atomic64_t mxfs_relmark_evict_failed;
+extern atomic64_t mxfs_relmark_evict_nostamp;
+extern atomic64_t mxfs_relmark_evict_down;
+extern atomic64_t mxfs_relmark_inact_owed;
+/* a create served from the inode cache ended a proving certificate whose
+ * grant stayed held: identities kept, markers the eviction published from
+ * one, and releases a peer drove that found one owed and published none */
+extern atomic64_t mxfs_relmark_rearm_kept;
+extern atomic64_t mxfs_relmark_evict_rearm;
+extern atomic64_t mxfs_relmark_bast_rearm_owed;
 extern atomic_t mxfs_bmbt_scan_stale_skip;
 extern int mxfs_dir_owner_scan;
 extern atomic_t mxfs_iflush_unread_clean_skip;
@@ -1727,6 +1741,9 @@ extern atomic_t mxfs_rel_dio_wait_max_us;
 extern atomic_t mxfs_rel_dio_defer;
 extern atomic_t mxfs_dioend_admit;
 extern atomic_t mxfs_rel_dio_inflight;
+extern atomic_t mxfs_rel_acq_inflight_abort;
+extern atomic_t mxfs_acq_uncertified;
+extern unsigned int mxfs_dbg_publish_acq_delay_ms;
 extern int mxfs_f4_gate;
 extern atomic64_t mxfs_relbar_gate_defer;
 extern int mxfs_noino_bast_dedup;
@@ -1735,6 +1752,8 @@ extern int mxfs_sf_merge;
 extern atomic_t mxfs_sf_own_image_hits;
 extern atomic_t mxfs_sf_own_image_recorded;
 extern atomic_t mxfs_sf_release_base;
+extern atomic_t mxfs_sf_base_captures;
+extern atomic_t mxfs_sf_base_overlaps;
 extern int mxfs_ag_yield_quantum;
 extern int mxfs_ag_yield_adaptive;
 extern int mxfs_diff_detail;
@@ -1771,7 +1790,7 @@ void mxfs_inode_authority_revoke_locked(struct xfs_inode *ip, u32 line);
 void mxfs_inode_authority_begin_release_locked(struct xfs_inode *ip, u32 line);
 void mxfs_inode_authority_check_published(struct xfs_inode *ip, u32 line);
 void mxfs_inode_authority_phantom_loss_locked(struct xfs_inode *ip, u32 line);
-void mxfs_inode_relmark_before_unlock( struct xfs_inode *ip, uint64_t rel_res, uint64_t rel_epoch, uint64_t rel_lineage, bool *marked, const char *who);
+int mxfs_inode_relmark_before_unlock( struct xfs_inode *ip, uint64_t rel_res, uint64_t rel_epoch, uint64_t rel_lineage, bool *marked, const char *who);
 void mxfs_ag_relmark_before_unlock( struct xfs_perag *pag, const char *who);
 void mxfs_relmark_site_counters( uint64_t *ino_marked, uint64_t *ino_failed, uint64_t *ag_marked, uint64_t *ag_failed, uint64_t *iclus_unmarked);
 void mxfs_relmark_iclus_counters( uint64_t *marked, uint64_t *failed, uint64_t *reinstall_refused);
@@ -1890,6 +1909,7 @@ void mxfs_dlm_reload_inode( struct xfs_inode *ip, uint8_t expect_ftype, bool pos
 void mxfs_dlm_reload_inode_under( struct xfs_inode *ip, uint8_t expect_ftype, bool post_release, bool under_grant);
 struct xfs_dir2_sf_entry * mxfs_sf_find(struct xfs_mount *mp, struct xfs_dir2_sf_hdr *h, const uint8_t *name, int namelen);
 void mxfs_dir_sf_capture_base(struct xfs_inode *ip, const void *img, uint32_t bytes);
+void *mxfs_dir_sf_base_dup(struct xfs_inode *ip, uint32_t *bytes);
 void mxfs_dir_sf_release_base(struct xfs_inode *ip, bool held_ex);
 bool mxfs_dir_sf_merge_into(struct xfs_inode *ip, struct xfs_dir2_sf_hdr *base, struct xfs_dir2_sf_hdr *ours, struct xfs_dir2_sf_hdr *theirs, uint32_t theirs_bytes, int *ours_only_dirs);
 void mxfs_dir_sf_premerge_for_release(struct xfs_inode *ip);
@@ -1897,6 +1917,8 @@ void mxfs_dir_sf_refresh_if_disk_differs(struct xfs_inode *ip);
 bool mxfs_iclus_routed(struct xfs_inode *ip);
 bool mxfs_dlm_iclus_covered(struct xfs_inode *ip);
 int mxfs_dlm_inode_lock_routed(struct xfs_inode *ip, uint8_t mode, uint64_t gen_snap);
+int mxfs_ilock_redrive_stalegen(struct xfs_inode *ip, uint8_t mode,
+				uint64_t gen_snap, int rc);
 void mxfs_dlm_ilock_begin( struct xfs_inode *ip, uint8_t mode);
 void mxfs_dlm_ilock_end( struct xfs_inode *ip, uint8_t mode);
 bool mxfs_dlm_unpublish_drop( struct xfs_inode *ip);
@@ -1905,6 +1927,7 @@ void mxfs_dlm_publish_unpublished( struct xfs_mount *mp, xfs_ino_t parent_ino, x
 void mxfs_reap_sched(struct xfs_mount *mp, unsigned int delay_ms, const char *why);
 void mxfs_defer_reap_add_mode(struct xfs_mount *mp, uint64_t ino, uint32_t gen, int16_t bucket, uint8_t kind);
 void mxfs_reap_worker(struct work_struct *work);
+void mxfs_freplay_retry_worker(struct work_struct *work);
 void mxfs_iunl_store_purge_ag(struct xfs_mount *mp, xfs_agnumber_t agno, const char *why);
 bool mxfs_pubob_drop_ino(struct xfs_mount *mp, uint64_t ino);
 struct mxfs_pubob *mxfs_pubob_find_locked(struct xfs_mount *mp, uint64_t ino);
@@ -1916,6 +1939,7 @@ void mxfs_freepub_claim_clear(struct xfs_inode *ip, const char *why);
 void mxfs_ag_handoff_commit( struct xfs_perag *pag, const char *who, atomic64_t *stat);
 bool mxfs_buf_has_uncheckpointed_mods(struct xfs_buf *bp);
 bool mxfs_dir_buf_is_undestaged(struct xfs_buf *bp);
+bool mxfs_buf_read_pin_then_ail(struct xfs_buf *bp, bool *in_ail);
 void mxfs_ag_meta_coldread_discard(struct xfs_perag *pag, bool fresh_peer);
 int mxfs_ag_buf_disk_differs(struct xfs_buf *bp);
 void mxfs_acq_fresh_durability_probe(struct xfs_perag *pag);

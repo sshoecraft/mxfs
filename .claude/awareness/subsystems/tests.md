@@ -2094,3 +2094,162 @@ aborting at its own member mount check and the row recording a failed death
 oracle (two genuine-looking FAILs in the window, amended with
 `tools/criteria.py amend`).  When a row fails in the same run as a
 budget-killed row before it, read the earlier row's evidence first.
+
+## 0.90.25 — verification at eight nodes: sets that do not fit the host together
+
+### The rig and the platform sets are disjoint, by name
+
+The rig is `test1`..`testN`; a platform's verification set is
+`<platform-name>-1`..`-8` (`pve9-N`, `alma9-N` for `rhel9`, `debian13-N`,
+`ubuntu2404-N`).  The `ubuntu2404` set used to be rig VMs (`test3/4`, then
+`test5..8`), and both times the rig's next larger size met them wired to the
+platform's target instead of the rig's: `PREP FAIL: bad nodes: test5(unmounted)
+...` with `NODE_PREP_FAIL: device identity: ... shared-lun-0 ... absent`.  That
+line is rig wiring, never a filesystem verdict.  A rig node has exactly one
+iSCSI node record, `iqn.2026-05.local.mxfs:shared`, `node.startup = automatic`.
+
+### `scripts/lab_power.sh up|down|state <set> ...`
+
+A set is a platform key of the lab file, `rig:<N>`, or one domain.  `up`
+starts what is not running and waits for ssh with `/run/nologin` gone (240 s,
+all nodes in parallel); `down` unmounts MXFS, shuts down by ACPI and destroys
+past 90 s; a name with no domain is an error for `up` and nothing to do for
+`down`.  It exists because forty guests (8 rig + 4 x 8) are 112 GiB of
+configured memory on a 94 GiB host.
+
+### `tests/full_verify.sh`: `POWER=1` and `PLATFORM_GROUPS`
+
+`PLATFORM_GROUPS="pve9,debian13 rhel9,ubuntu2404"` runs two groups one after
+the other, the platforms inside a group in parallel.  `POWER=1` powers every
+platform set off and the rig up before the suites (which grade pace), each
+group's sets up alone for their steps, and the rig up again at the end.  The
+defaults (one group of four, no power handling) are the 2- and 4-node
+behaviour unchanged.
+
+### `tests/release_verify_chain.sh`: `CLAIM`, `LAPS`, `LOWER`
+
+`CLAIM=8` is the node count the release claims; `LAPS` holds window laps as
+`<nodes>:<dlm>:<rows>:<count>`; `LOWER` (default: the released counts below
+the claim, `4 2`) re-earns each smaller claim's boards on the same module.
+
+### `tests/multi_victim_containment.sh <N> <dlm> <victims> [label]`
+
+Several rig nodes power-cut together under the rsync load of
+`tests/incident474_load_kill.sh`, with the judging that script leaves to the
+reader: every survivor still mounted with no shutdown and no kernel fault
+logged, its on-node write probe writing again within `120 + 60 x victims`
+seconds of the last kill and still writing at the end, and `chk_mxfs` clean
+once the survivors have unmounted.  Node 1 is the probe host and never a
+victim.  It prepares the cluster itself and starts the victims again at the
+end.
+
+### PITFALL — `virt-clone` copies the source's serial log path
+
+A rig VM's definition names `/var/log/libvirt/qemu/<name>-serial.log` for its
+serial port and console.  `virt-clone` copies the definition, so every clone
+names the SOURCE's file and none starts while the source runs (`Cannot open
+log file: ... Device or resource busy`).  The platform VMs built by osimager
+have no such line, which is why cloning them never met it.
+
+## Multi-victim containment: the harness keeps every node's kernel log (0.90.26)
+
+`tests/multi_victim_containment.sh <N> <dlm> <victim>[,<victim>...] [label]`
+power-cuts several rig nodes at once under a load that shares a parent
+directory, and judges whether the survivors contained it.
+
+- **The kernel logs are followed, not read at the end.** From the moment the
+  cluster forms, every node (victims too) streams
+  `journalctl -k -f --since @T0 -o short-unix` to the host, into
+  `<evidence>/klog_<node>.txt`; after the checker the followers are ended and
+  the files packed to `.txt.gz`.  A node's journal does not keep a lap: on
+  every lap of queue `x8e` the death window had rotated out before the read,
+  and the harness counted 0 deaths and 0 recoveries on both transports.
+- **The verdict's log counts come from those files** (shutdown, fault,
+  declared dead, recovery complete, quarantine, refused operations).  A
+  survivor with `klog_lines=0` fails the lap as a capture failure.
+- **The followers are detached** (`setsid timeout FOLLOW_S`, pid in
+  `klog_<node>.pid`), because the script's bare `wait`s must not wait for
+  them.  A victim's follower ends with its connection; its file holds what
+  the node logged up to the power cut.
+- **The platter is reformatted by the next lap's prep.**  Run one lap at a
+  time when the platter may be needed afterwards.
+- **Reading a lap's logs:** `tools/klog_authcap_table.py --dir <evidence>
+  --t0 <T0> --out <file>` tabulates the capture counters (P240-AUTHCAP,
+  P239-OWNAUTH, P228-TOKCLASS, P227-TOKENSUM) per node.  0.90.26 adds
+  `P239-OWNAUTH-OWNER`, one line per owner captured without a provable
+  tenure, naming three sites as `<file-id>:<line>`; the file ids are the
+  `MXFS_TU_ID` of each `xfs/xfs_mxfs_*.c` (21 = ilock, 22 = publish,
+  5 = authority).
+- **Queue x8e, the first results** (0.90.25): two victims at 8/tcp and at
+  4/tcp end in a refused slice or a platter that contradicts itself; the same
+  kills on cawd were clean; one victim at 8/tcp was clean once.
+
+## 0.90.28–0.90.29 — what a lap can and cannot see of a guest kernel
+
+### The multi-victim verdict reads the panic channel, the boot and the reasons
+
+`tests/multi_victim_containment.sh` (0.90.28):
+
+- **The panic channel.**  The offset of `tests/evidence/netconsole.log` is
+  taken when the cluster forms; what arrived after it is kept as
+  `netconsole_lap.txt` and a line naming a kernel fault fails the lap.  A
+  node that panics reboots and its followed journal loses its last lines:
+  lap 6 of queue `g27a` printed `fault_lines=0` for a survivor that had
+  panicked.
+- **The boot.**  Each survivor's `boot_id` is read at formation and at the
+  end; a different one fails the lap and says the node went down.
+- **A refusal is judged by its reason and its time.**  `P240-QUAR-NSOP-REFUSE`
+  counts against the lap only with `rblk`, `quar_flag` or `quar_map` set and
+  only after the first kill; a stale-incarnation refusal of the harness's own
+  `find` is printed as `stale_lookups_not_judged`.
+- **The load loop keeps its errors** (`load_<node>.txt`: each failed command
+  with its second and exit status, the commands' own text, the cycle file).
+
+### `tests/sf_base_overlap.sh <N> <dlm> <delay_us> [label]`
+
+Forms the cluster, sets `sf_base_race_delay_us` on every node, runs the
+multi-victim load with no kill for `LOAD_S` (120) seconds, reads
+`sf_base_captures` and `sf_base_overlaps`, unmounts and checks.  PASS needs
+overlaps above zero and every node up; zero overlaps is VACUOUS.  The
+parameter is a runtime knob: a prep that reloads the module resets it, so the
+harness sets it after the prep.
+
+### `tests/module_unload_orphan.sh <node>[,<node>...] [label]`
+
+On nodes with the module loaded: unmount, write `test_orphan_threads`
+(default 2), `rmmod`, wait 5 s, read the node.  PASS needs the same boot, the
+exit's last summary counting the threads, one `P-THREAD-REAP` each with
+`fn_returned=1`, and no fault in the ring or the panic channel.  Leaves the
+module unloaded.
+
+### PITFALL — a node's journal keeps about two minutes of a loaded lap
+
+The guests' journals held 78,000 to 82,500 kernel lines whatever `--since`
+asked for; under the multi-victim load that is under two minutes.  A line
+printed at a prep (a module unload, a mount) is gone from the journal before
+the lap ends, and the followed logs begin at T0, after the prep.  Read such a
+line within a minute of the prep, or print it as an error so the panic
+channel has it.
+
+### PITFALL — the panic channel carries errors, not warnings
+
+The rig guests' console level passes `KERN_ERR` and above to netconsole.  Ten
+`pr_warn` summary lines of the unload instrument were in the nodes' journals
+and none in `tests/evidence/netconsole.log`.  An instrument whose line must
+survive the panic it explains prints with `pr_err`.
+
+### PITFALL — the fields of the crash table are not the event's lines
+
+`tools/netconsole_crash_table.py`: `first_file_line` is the line of the
+event's first TRIGGER (for a panic-only event, the panic line, near the END of
+the event) and `lines_in_event` is the size of that guest's uptime stream.
+The event's own lines are the stream the tool reconstructs (`deal_streams`),
+not `[first_file_line, first_file_line + lines_in_event)`.
+
+### TECHNIQUE — the module a crashed fleet ran is still on the nodes
+
+A prep copies the tree's `mxfs.ko` to `/root/mxfs.ko.prep` on each node.
+After the tree has been rebuilt, that file is the build the fleet last
+loaded: copy it to the host and disassemble it to map a panic's return
+addresses (`objdump -dr --disassemble=<fn>` for the call a return address
+follows, `-dl` for its source line).

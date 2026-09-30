@@ -150,10 +150,36 @@ mxfs_dir_sf_own_match(struct xfs_inode *ip, const void *img, uint32_t bytes)
  * tenure, and our own writes that are still in flight must stay recognisable
  * when they land.  The ring is retired at the release only.
  */
+/*
+ * 0.90.29.  A survivor of a two-node power cut at 8 nodes on TCP hit the
+ * allocator's double-free check under the release drain's capture.  The base
+ * was read, freed and replaced with no lock, by callers that hold no lock in
+ * common: the release drain and the pre-mutation refresh hold none, the merge
+ * and the reload hold the inode lock.  Two captures that read the same old
+ * base both freed it, and a merge could be reading a base a capture had just
+ * freed.
+ *
+ * The replacement is now made under i_flags_lock and a reader works on a copy
+ * (mxfs_dir_sf_base_dup).  The count of captures in progress on the inode
+ * stays as the instrument that says whether two ever run at once, and the
+ * line names both callers.  sf_base_race_delay_us sleeps inside every
+ * capture, after it is counted in progress and before it replaces the base,
+ * so a lap can hold two of them open together (tests/sf_base_overlap.sh); at
+ * 0, the default, nothing sleeps.
+ */
+atomic_t mxfs_sf_base_captures = ATOMIC_INIT(0);
+atomic_t mxfs_sf_base_overlaps = ATOMIC_INIT(0);
+int mxfs_sf_base_race_delay_us;
+module_param_named(sf_base_race_delay_us, mxfs_sf_base_race_delay_us, int, 0644);
+MODULE_PARM_DESC(sf_base_race_delay_us,
+		 "TEST ONLY: microseconds a merge-base capture sleeps between reading the old base and replacing it (0=off default)");
+
 void
 mxfs_dir_sf_capture_base(struct xfs_inode *ip, const void *img, uint32_t bytes)
 {
-	void *cp;
+	void	*cp, *old;
+	void	*site = __builtin_return_address(0);
+	int	busy, delay;
 
 	if (!img || !bytes || bytes > ip->i_mount->m_sb.sb_inodesize)
 		return;
@@ -161,10 +187,78 @@ mxfs_dir_sf_capture_base(struct xfs_inode *ip, const void *img, uint32_t bytes)
 	if (!cp)
 		return;
 	memcpy(cp, img, bytes);
-	if (ip->i_dlm_dir_sf_base)
-		kfree(ip->i_dlm_dir_sf_base);
+	atomic_inc(&mxfs_sf_base_captures);
+	busy = atomic_inc_return(&ip->i_dlm_dir_sf_base_busy);
+	if (busy > 1) {
+		int	n = atomic_inc_return(&mxfs_sf_base_overlaps);
+
+		if (n <= 64 || (n % 500) == 0)
+			pr_warn("mxfs: P-SFBASE-OVERLAP ino=%llu busy=%d site=%pS pid=%d comm=%s other_site=%pS other_pid=%d ilock=%d mode=%u state=%u ex_holders=%u pr_holders=%u n=%d\n",
+				(unsigned long long)ip->i_ino, busy, site,
+				current->pid, current->comm,
+				READ_ONCE(ip->i_dlm_dir_sf_base_site),
+				READ_ONCE(ip->i_dlm_dir_sf_base_pid),
+				rwsem_is_locked(&ip->i_lock) ? 1 : 0,
+				ip->i_dlm_mode, ip->i_dlm_state,
+				ip->i_dlm_ex_holders, ip->i_dlm_pr_holders, n);
+	}
+	WRITE_ONCE(ip->i_dlm_dir_sf_base_site, site);
+	WRITE_ONCE(ip->i_dlm_dir_sf_base_pid, current->pid);
+	delay = READ_ONCE(mxfs_sf_base_race_delay_us);
+	if (delay > 0)
+		usleep_range(delay, delay + 50);
+	/*
+	 * The base is replaced under i_flags_lock, as the own-image ring is:
+	 * each capture detaches an old base no other capture can also hold,
+	 * and frees it after the lock is dropped.
+	 */
+	spin_lock(&ip->i_flags_lock);
+	old = ip->i_dlm_dir_sf_base;
 	ip->i_dlm_dir_sf_base = cp;
 	ip->i_dlm_dir_sf_base_bytes = bytes;
+	spin_unlock(&ip->i_flags_lock);
+	kfree(old);
+	atomic_dec(&ip->i_dlm_dir_sf_base_busy);
+}
+
+/*
+ * A copy of the merge base for a reader to keep while it works: the base
+ * itself can be replaced and freed by a capture at any moment (the release
+ * drain and the pre-mutation refresh hold no inode lock), and a merge reads
+ * it long after it looked.  NULL when there is no base, when the copy cannot
+ * be allocated, or when the base changed size three times under the copy; the
+ * caller then has no base, which every caller already handles.  The caller
+ * frees the copy.
+ */
+void *
+mxfs_dir_sf_base_dup(struct xfs_inode *ip, uint32_t *bytes)
+{
+	void		*cp;
+	uint32_t	want;
+	int		tries;
+
+	for (tries = 0; tries < 3; tries++) {
+		spin_lock(&ip->i_flags_lock);
+		want = ip->i_dlm_dir_sf_base ? ip->i_dlm_dir_sf_base_bytes : 0;
+		spin_unlock(&ip->i_flags_lock);
+		if (!want)
+			return NULL;
+		cp = kmalloc(want, GFP_NOFS);
+		if (!cp)
+			return NULL;
+		spin_lock(&ip->i_flags_lock);
+		if (ip->i_dlm_dir_sf_base &&
+		    ip->i_dlm_dir_sf_base_bytes == want) {
+			memcpy(cp, ip->i_dlm_dir_sf_base, want);
+			spin_unlock(&ip->i_flags_lock);
+			if (bytes)
+				*bytes = want;
+			return cp;
+		}
+		spin_unlock(&ip->i_flags_lock);
+		kfree(cp);
+	}
+	return NULL;
 }
 
 /*
@@ -433,6 +527,32 @@ mxfs_dir_sf_merge_into(struct xfs_inode *ip, struct xfs_dir2_sf_hdr *base,
 				    (unsigned long long)ip->i_dlm_dir_gen,
 				    (unsigned long long)ip->i_dlm_dir_loaded_gen,
 				    (ip->i_dlm_dir_gen > ip->i_dlm_dir_loaded_gen) ? 1 : 0);
+			/*
+			 * Every name the merge takes from the platter image,
+			 * counted and the first ones printed whatever the
+			 * debug switch says: a name re-added under one
+			 * unbroken exclusive tenure (peer_mod=0) cannot be a
+			 * peer's, it is one this node removed.
+			 */
+			{
+				static atomic_t	readd_n = ATOMIC_INIT(0);
+				int		rn = atomic_inc_return(&readd_n);
+
+				if (rn <= 400)
+					pr_warn("mxfs: P-SFM-READD-ALWAYS n=%d ino=%llu name=%.*s ino_t=%llu base_n=%u ours_n=%u theirs_n=%u theirs_bytes=%u mode=%u state=%u dir_gen=%llu loaded_gen=%llu peer_mod=%d i_gen=%u comm=%s caller=%pS\n",
+						rn, (unsigned long long)ip->i_ino,
+						te->namelen, te->name,
+						(unsigned long long)xfs_dir2_sf_get_ino(mp, theirs, te),
+						base->count, ours->count, theirs->count,
+						theirs_bytes,
+						ip->i_dlm_mode, ip->i_dlm_state,
+						(unsigned long long)ip->i_dlm_dir_gen,
+						(unsigned long long)ip->i_dlm_dir_loaded_gen,
+						(ip->i_dlm_dir_gen > ip->i_dlm_dir_loaded_gen) ? 1 : 0,
+						VFS_I(ip)->i_generation,
+						current->comm,
+						__builtin_return_address(0));
+			}
 			sfep->namelen = te->namelen;
 			xfs_dir2_sf_put_offset(sfep, offset);
 			memcpy(sfep->name, te->name, te->namelen);
@@ -488,6 +608,7 @@ mxfs_dir_sf_3way_merge(struct xfs_inode *ip, struct xfs_dir2_sf_hdr *theirs,
 {
 	bool	ret, got = false;
 	int	tries = 0;
+	void	*base;
 
 	if (!mxfs_sf_merge)
 		return false;
@@ -504,10 +625,17 @@ mxfs_dir_sf_3way_merge(struct xfs_inode *ip, struct xfs_dir2_sf_hdr *theirs,
 		up_write(&ip->i_lock);
 		return false;
 	}
-	ret = mxfs_dir_sf_merge_into(ip, ip->i_dlm_dir_sf_base,
+	/*
+	 * A copy of its own, taken where the base used to be read: a capture
+	 * that holds no inode lock (the release drain, the pre-mutation
+	 * refresh) may replace and free the base while this merges.
+	 */
+	base = mxfs_dir_sf_base_dup(ip, NULL);
+	ret = mxfs_dir_sf_merge_into(ip, base,
 				     ip->i_df.if_data, theirs, theirs_bytes,
 				     NULL);
 	up_write(&ip->i_lock);
+	kfree(base);
 	return ret;
 }
 

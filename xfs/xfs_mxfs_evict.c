@@ -24,6 +24,172 @@ MODULE_PARM_DESC(evict_obligation_shutdown,
 /* ─── Eviction ─── */
 
 /*
+ * The clean-release marker of a grant that leaves through reclaim.
+ *
+ * A removed file or directory keeps its grant cached after its free commits
+ * (P128-INACT-DEFER), so reclaim is where that tenure ends, and an idle
+ * directory this node modified ends its tenure here too.  The release a
+ * peer's request drives publishes a marker before its unlock; this one
+ * published none, so a node that died with an image of such a tenure still
+ * inside its replay window had its slice refused: the fence-time manifest no
+ * longer holds the grant and no marker says it was given up clean (8-node
+ * TCP, two nodes power-cut inside rm -rf: three checkpoints skipped whole,
+ * each for one directory-block image of a directory reclaimed 0.1 s before
+ * the death, notheld=3 relmarks=0).
+ *
+ * The order is the release pipeline's: the eviction's own drains, the
+ * marker forced durable, the unlock.  What the marker certifies is what the
+ * drains above it establish for a live peer already, that nothing logged
+ * under the tenure is still owed to the platter; for an inode whose free
+ * committed every block it owned was freed under the same tenure, so its
+ * images are owed nothing.
+ */
+atomic64_t mxfs_relmark_evict_marked = ATOMIC64_INIT(0);
+atomic64_t mxfs_relmark_evict_failed = ATOMIC64_INIT(0);
+atomic64_t mxfs_relmark_evict_nostamp = ATOMIC64_INIT(0);
+atomic64_t mxfs_relmark_evict_down = ATOMIC64_INIT(0);
+/* of the published, the ones whose identity came from a re-arm's kept one */
+atomic64_t mxfs_relmark_evict_rearm = ATOMIC64_INIT(0);
+
+/*
+ * The tenure this eviction gives up, as its tokens name it.  Called under
+ * i_dlm_lock in the critical section that begins the release, which keeps
+ * the identity in the inode; the mode store at the end of the eviction
+ * clears it.  Nothing is returned for a tenure with no durable epoch, for a
+ * cluster-routed one (the cluster's own release certifies it) or for one
+ * that stamped no token.
+ *
+ * A certificate with no epoch is what a create served from the inode cache
+ * leaves when its incarnation is removed before it is published: the grant
+ * the earlier incarnations stamped their tokens under is still the one held,
+ * and the reset kept its identity (i_mxfs_rearm_epoch).  That identity is
+ * returned when the last token stamped from this inode names it and this
+ * inode's release pipeline has not certified it already; *rearm says so.
+ * Every earlier incarnation was freed under the grant before the create
+ * that followed it, so its images are owed nothing, as for a committed
+ * free.
+ */
+static void
+mxfs_evict_relmark_capture_locked(
+	struct xfs_inode	*ip,
+	uint64_t		*res,
+	uint64_t		*epoch,
+	uint64_t		*lineage,
+	bool			*rearm)
+{
+	if (!ip->i_mxfs_auth_epoch) {
+		if (!ip->i_mxfs_rearm_epoch || ip->i_dlm_routed_iclus)
+			return;
+		if (READ_ONCE(ip->i_mxfs_auth_stamp_epoch) !=
+				ip->i_mxfs_rearm_epoch ||
+		    READ_ONCE(ip->i_mxfs_auth_stamp_lineage) !=
+				ip->i_mxfs_rearm_lineage) {
+			atomic64_inc(&mxfs_relmark_evict_nostamp);
+			return;
+		}
+		if (READ_ONCE(ip->i_mxfs_relmark_epoch) ==
+				ip->i_mxfs_rearm_epoch &&
+		    READ_ONCE(ip->i_mxfs_relmark_res) == ip->i_mxfs_rearm_res)
+			return;
+		*res = ip->i_mxfs_rearm_res;
+		*epoch = ip->i_mxfs_rearm_epoch;
+		*lineage = ip->i_mxfs_rearm_lineage;
+		*rearm = true;
+		return;
+	}
+	if (ip->i_mxfs_auth_kind != MXFS_LTYPE_INODE || ip->i_dlm_routed_iclus) {
+		atomic64_inc(&mxfs_relmark_iclus_unmarked);
+		return;
+	}
+	if (READ_ONCE(ip->i_mxfs_auth_stamp_epoch) != ip->i_mxfs_auth_epoch ||
+	    READ_ONCE(ip->i_mxfs_auth_stamp_lineage) != ip->i_mxfs_auth_lineage) {
+		atomic64_inc(&mxfs_relmark_evict_nostamp);
+		return;
+	}
+	*res = ip->i_mxfs_auth_resource;
+	*epoch = ip->i_mxfs_auth_epoch;
+	*lineage = ip->i_mxfs_auth_lineage;
+}
+
+/*
+ * Publish it.  Not on a mount that is shut down (the publish would fail and
+ * the release below is refused by the poison gate) and not while unmounting
+ * (that reclaim runs after the log was pushed empty, and the slice ends in an
+ * unmount record).
+ */
+static void
+mxfs_evict_relmark(
+	struct xfs_inode	*ip,
+	uint64_t		res,
+	uint64_t		epoch,
+	uint64_t		lineage,
+	bool			*marked,
+	bool			freed,
+	bool			rearm)
+{
+	struct xfs_mount	*mp = ip->i_mount;
+	static atomic_t		p_n = ATOMIC_INIT(0);
+	static atomic_t		p_fail_n = ATOMIC_INIT(0);
+	static atomic_t		p_rearm_n = ATOMIC_INIT(0);
+	bool			print;
+	u64			t0;
+	int			rc, n;
+
+	if (!epoch || *marked)
+		return;
+	if (xfs_is_shutdown(mp) || xfs_is_unmounting(mp)) {
+		atomic64_inc(&mxfs_relmark_evict_down);
+		return;
+	}
+#ifdef MXFS_TEST_NO_EVICT_RELMARK
+	/*
+	 * CONTROL BUILD ONLY (MXFS_KCFLAGS=-DMXFS_TEST_NO_EVICT_RELMARK): the
+	 * eviction as it was before it published a marker, so that a lap can
+	 * show its kill is one for which the unmarked eviction's slice is
+	 * refused.  The source is the same, so the srcversion is too: this
+	 * line, once a load, is what names the build.
+	 */
+	pr_err_once("mxfs: P-RELMARK-EVICT-DISABLED control build: a grant that leaves through reclaim publishes no clean-release marker\n");
+	atomic64_inc(&mxfs_relmark_evict_down);
+	return;
+#endif
+	t0 = ktime_get_ns();
+	rc = mxfs_inode_relmark_before_unlock(ip, res, epoch, lineage, marked,
+					      freed ? "ino-evict-free" :
+						      "ino-evict");
+	if (rc == 0) {
+		atomic64_inc(&mxfs_relmark_evict_marked);
+		if (rearm)
+			atomic64_inc(&mxfs_relmark_evict_rearm);
+	} else {
+		atomic64_inc(&mxfs_relmark_evict_failed);
+	}
+	/* the first 400, then one in 256 (the line carries the totals); a
+	 * failed publish always, up to its own cap, and so one whose identity
+	 * a re-arm kept */
+	n = atomic_inc_return(&p_n);
+	print = n <= 400 || (n & 255) == 0;
+	if (rc && atomic_inc_return(&p_fail_n) <= 400)
+		print = true;
+	if (rearm && atomic_inc_return(&p_rearm_n) <= 400)
+		print = true;
+	if (print)
+		mxfs_probe("mxfs: P-RELMARK-EVICT ino=%llu res=%llu gepoch=%llu lineage=%llu freed=%d rc=%d us=%llu marked=%lld failed=%lld nostamp=%lld down=%lld src=%s rearm=%lld comm=%s — clean-release marker before the grant leaves through reclaim\n",
+			(unsigned long long)ip->i_ino,
+			(unsigned long long)res,
+			(unsigned long long)epoch,
+			(unsigned long long)lineage, freed ? 1 : 0, rc,
+			(unsigned long long)((ktime_get_ns() - t0) / 1000),
+			(long long)atomic64_read(&mxfs_relmark_evict_marked),
+			(long long)atomic64_read(&mxfs_relmark_evict_failed),
+			(long long)atomic64_read(&mxfs_relmark_evict_nostamp),
+			(long long)atomic64_read(&mxfs_relmark_evict_down),
+			rearm ? "rearm" : "cert",
+			(long long)atomic64_read(&mxfs_relmark_evict_rearm),
+			current->comm);
+}
+
+/*
  * Release cached DLM lock when inode is being reclaimed.
  * Called from xfs_reclaim_inode before i_ino is zeroed.
  */
@@ -453,6 +619,11 @@ mxfs_dlm_evict(
 
 	/* Release the DLM lock if held */
 	if (ip->i_dlm_mode != MXFS_LOCK_NL) {
+		/* the tenure this eviction gives up, for its clean-release
+		 * marker; an epoch of 0 means nothing to certify */
+		uint64_t	rel_res = 0, rel_epoch = 0, rel_lineage = 0;
+		bool		rel_marked = false, rel_rearm = false;
+
 		mxfs_idbg("mxfs: P-H22-CALL site=EVICT ino=%llu mode=%u\n",
 			(unsigned long long)ip->i_ino, ip->i_dlm_mode);
 
@@ -483,6 +654,8 @@ mxfs_dlm_evict(
 		spin_lock(&ip->i_dlm_lock);
 		mxfs_inact_cert_evict_check_locked(ip, MXFS_SITE);
 		mxfs_inode_authority_begin_release_locked(ip, MXFS_SITE);
+		mxfs_evict_relmark_capture_locked(ip, &rel_res, &rel_epoch,
+						  &rel_lineage, &rel_rearm);
 		spin_unlock(&ip->i_dlm_lock);
 
 		/*
@@ -516,6 +689,8 @@ mxfs_dlm_evict(
 				xfs_iflags_test(ip, MXFS_IF_FREE_COMMITTED));
 		} else if (xfs_iflags_test(ip, MXFS_IF_FREE_COMMITTED)) {
 			mxfs_inode_authority_check_published(ip, MXFS_SITE);
+			mxfs_evict_relmark(ip, rel_res, rel_epoch, rel_lineage,
+					   &rel_marked, true, rel_rearm);
 			mxfs_v5_dlm_inode_unlock_free(mp->m_mxfs_dlm, ip->i_ino);
 		}
 		else if (mxfs_evict_retain_pr &&
@@ -600,6 +775,8 @@ mxfs_dlm_evict(
 					(unsigned long long)ip->i_ino);
 		} else {
 			mxfs_inode_authority_check_published(ip, MXFS_SITE);
+			mxfs_evict_relmark(ip, rel_res, rel_epoch, rel_lineage,
+					   &rel_marked, false, rel_rearm);
 			/* 0.89.0 (D-0977): the evict clear rides this release
 			 * (see the block below) — the only durable form on TCP,
 			 * one CAS instead of two on CAW. */
@@ -672,6 +849,68 @@ void mxfs_defer_reap_add(struct xfs_mount *mp, uint64_t ino, uint32_t gen,
  * the fix.  Durable state (buckets) makes the skipped work safe — the next
  * mount of the slot re-drives it.
  */
+static const char *mxfs_reap_in_duty = "none";
+
+/*
+ * TEST ONLY.  The reap worker's duties take grants, and one that needs a
+ * grant of a node that has died returns only when that node's recovery has
+ * completed.  Which duty meets such a grant depends on what the dead node
+ * mastered, so a lap meets it by chance (one 8-node lap did, and its second
+ * victim's slice was never replayed).  With this set, the worker's next run
+ * waits, once, until a dead slot appears and every dead slot is recovered,
+ * or this many ms: the same wait, made on every lap.
+ */
+static int mxfs_dbg_reap_wait_dead_ms;
+module_param_named(dbg_reap_wait_dead_ms, mxfs_dbg_reap_wait_dead_ms, int, 0644);
+MODULE_PARM_DESC(dbg_reap_wait_dead_ms,
+	"DEBUG one-shot: the reap worker's next run waits until a node has died and its recovery completed, at most this many ms (0=off)");
+
+/*
+ * The retry of a refused or unpublished slice replay has a timer of its own.
+ *
+ * The reap worker was the only thing that queued the replay work again, and
+ * its other duties take grants: the sweep of an earlier victim's bucket
+ * reads every AGI, the bucket scans and the entry retries take inode locks.
+ * A worker inside one of them when a second node dies waits on that node's
+ * grants, which only that node's replay ends.  If the replay's first attempt
+ * is refused (the elected replayer asked while the prover was between its
+ * certificate and its manifest), the retry was armed on the work item that
+ * was waiting for it: the slice was never replayed and every survivor
+ * stopped behind the dead node (8 nodes on TCP, two victims, 0.90.33).
+ *
+ * This work takes no grant and does nothing but queue the replay work, so
+ * nothing the dead node held can keep it from running.  The reap worker
+ * still re-drives the replay first on its own passes; the replay is
+ * LSN-gated and idempotent, and one work item runs one instance at a time.
+ *
+ * CONTROL BUILD ONLY (MXFS_KCFLAGS=-DMXFS_TEST_REPLAY_RETRY_BY_REAP): the
+ * timer is never armed, the retry as it was.
+ */
+void mxfs_freplay_retry_worker(struct work_struct *work)
+{
+	struct xfs_mount *mp = container_of(to_delayed_work(work),
+					    struct xfs_mount,
+					    m_mxfs_freplay_retry_work);
+	bool q = false;
+	bool owed;
+
+	if (READ_ONCE(mp->m_mxfs_reap_dead) || xfs_is_shutdown(mp) ||
+	    xfs_is_unmounting(mp))
+		return;
+	owed = test_bit(MXFS_REAPF_FREPLAY, &mp->m_mxfs_reap_duties) &&
+	       !bitmap_subset(mp->m_mxfs_foreign_dead_slots,
+			      mp->m_mxfs_foreign_torn_slots, 64);
+	if (owed)
+		q = queue_work(system_unbound_wq,
+			       &mp->m_mxfs_foreign_replay_work);
+	mxfs_probe("mxfs: P-FREPLAY-RETRY owed=%d queued=%d dead_slots=0x%llx torn_slots=0x%llx duties=0x%lx reap_in_duty=%s\n",
+		owed ? 1 : 0, q ? 1 : 0,
+		(unsigned long long)mp->m_mxfs_foreign_dead_slots[0],
+		(unsigned long long)mp->m_mxfs_foreign_torn_slots[0],
+		READ_ONCE(mp->m_mxfs_reap_duties),
+		READ_ONCE(mxfs_reap_in_duty));
+}
+
 void mxfs_reap_sched(struct xfs_mount *mp, unsigned int delay_ms,
 			    const char *why)
 {
@@ -680,8 +919,42 @@ void mxfs_reap_sched(struct xfs_mount *mp, unsigned int delay_ms,
 				    why);
 		return;
 	}
-	schedule_delayed_work(&mp->m_mxfs_reap_work,
-			      msecs_to_jiffies(delay_ms));
+	{
+		/* What the arm met: a worker inside a duty runs this work
+		 * again only after that duty returns, and an arm over a pending
+		 * timer keeps the timer it found. */
+		unsigned int busy = work_busy(&mp->m_mxfs_reap_work.work);
+		bool q = schedule_delayed_work(&mp->m_mxfs_reap_work,
+					       msecs_to_jiffies(delay_ms));
+
+		mxfs_probe_ratelimited("mxfs: P89-REAP-SCHED why=%s delay_ms=%u armed=%d busy=%s%s duties=0x%lx in_duty=%s dead_slots=0x%llx\n",
+			why, delay_ms, q ? 1 : 0,
+			(busy & WORK_BUSY_RUNNING) ? "RUNNING" : "",
+			(busy & WORK_BUSY_PENDING) ? "+PENDING" : "",
+			READ_ONCE(mp->m_mxfs_reap_duties),
+			READ_ONCE(mxfs_reap_in_duty),
+			(unsigned long long)mp->m_mxfs_foreign_dead_slots[0]);
+	}
+#ifdef MXFS_TEST_REPLAY_RETRY_BY_REAP
+	mxfs_probe_ratelimited("mxfs: P-FREPLAY-RETRY-DISABLED why=%s — CONTROL BUILD: a replay's retry is left to the reap worker\n",
+		why);
+#else
+	if (test_bit(MXFS_REAPF_FREPLAY, &mp->m_mxfs_reap_duties))
+		schedule_delayed_work(&mp->m_mxfs_freplay_retry_work,
+				      msecs_to_jiffies(delay_ms));
+#endif
+}
+
+/* The duty the reap worker is inside, for the lines above and below: a
+ * worker that never returns is named by the last one it entered. */
+static void mxfs_reap_duty(struct xfs_mount *mp, const char *duty)
+{
+	WRITE_ONCE(mxfs_reap_in_duty, duty);
+	mxfs_probe("mxfs: P89-REAP-DUTY duty=%s duties=0x%lx dead_slots=0x%llx sweep_pending=0x%llx entries=%d\n",
+		duty, READ_ONCE(mp->m_mxfs_reap_duties),
+		(unsigned long long)mp->m_mxfs_foreign_dead_slots[0],
+		(unsigned long long)mp->m_mxfs_sweep_pending_slots[0],
+		mp->m_mxfs_reap_count);
 }
 
 void mxfs_defer_reap_add_mode(struct xfs_mount *mp, uint64_t ino,
@@ -785,6 +1058,7 @@ void mxfs_reap_worker(struct work_struct *work)
 	if (xfs_is_shutdown(mp) || xfs_is_unmounting(mp))
 		return;
 
+	mxfs_reap_duty(mp, "enter");
 	/* a foreign slice whose recovery could not be published
 	 * left its slot bit set.  Re-drive the replay worker (the replay
 	 * itself is LSN-gated and idempotent, so redoing it is free); the
@@ -805,6 +1079,34 @@ void mxfs_reap_worker(struct work_struct *work)
 		else
 			queue_work(system_unbound_wq,
 				   &mp->m_mxfs_foreign_replay_work);
+	}
+
+	/* See dbg_reap_wait_dead_ms: the worker stands where a duty that
+	 * needs a grant of a node about to die would stand. */
+	if (unlikely(mxfs_dbg_reap_wait_dead_ms > 0)) {
+		int	budget = mxfs_dbg_reap_wait_dead_ms;
+		int	waited = 0;
+		bool	seen = false;
+
+		mxfs_dbg_reap_wait_dead_ms = 0;		/* one-shot */
+		mxfs_reap_duty(mp, "test-wait");
+		xfs_alert(mp,
+			"MXFS P-DBG-REAP-WAIT budget_ms=%d dead_slots=0x%llx — TEST ONLY: the reap worker waits for a node to die and for its recovery to complete, as a duty waiting on that node's grant does",
+			budget,
+			(unsigned long long)mp->m_mxfs_foreign_dead_slots[0]);
+		while (waited < budget && !xfs_is_shutdown(mp) &&
+		       !xfs_is_unmounting(mp)) {
+			if (!bitmap_empty(mp->m_mxfs_foreign_dead_slots, 64))
+				seen = true;
+			else if (seen)
+				break;
+			msleep(100);
+			waited += 100;
+		}
+		xfs_alert(mp,
+			"MXFS P-DBG-REAP-WAIT-END waited_ms=%d death_seen=%d dead_slots=0x%llx",
+			waited, seen ? 1 : 0,
+			(unsigned long long)mp->m_mxfs_foreign_dead_slots[0]);
 	}
 
 	/*
@@ -829,6 +1131,7 @@ void mxfs_reap_worker(struct work_struct *work)
 			if (!bitmap_empty(mp->m_mxfs_foreign_dead_slots, 64) ||
 			    xfs_is_shutdown(mp))
 				break;
+			mxfs_reap_duty(mp, "sweep");
 			if (mxfs_survivor_sweep_slot(mp, sp_slot) == 0)
 				clear_bit(sp_slot, mp->m_mxfs_sweep_pending_slots);
 		}
@@ -837,10 +1140,12 @@ void mxfs_reap_worker(struct work_struct *work)
 		 * the guarded unclaimed-bucket pass.  A bit stays set on
 		 * failure and the tail reschedule retries — the buckets are
 		 * the durable record. */
+		mxfs_reap_duty(mp, "own-rescan");
 		if (test_bit(MXFS_REAPF_OWN_RESCAN, &mp->m_mxfs_reap_duties) &&
 		    bitmap_empty(mp->m_mxfs_foreign_dead_slots, 64) &&
 		    mxfs_own_bucket_rescan(mp) == 0)
 			clear_bit(MXFS_REAPF_OWN_RESCAN, &mp->m_mxfs_reap_duties);
+		mxfs_reap_duty(mp, "unclaimed-scan");
 		if (test_bit(MXFS_REAPF_UBSCAN, &mp->m_mxfs_reap_duties) &&
 		    bitmap_empty(mp->m_mxfs_foreign_dead_slots, 64) &&
 		    mxfs_unclaimed_bucket_scan(mp) == 0)
@@ -848,6 +1153,7 @@ void mxfs_reap_worker(struct work_struct *work)
 		mxfs_recovtask_exit(&recov);
 	}
 
+	mxfs_reap_duty(mp, "entries");
 	spin_lock(&mp->m_mxfs_reap_lock);
 	list_splice_init(&mp->m_mxfs_reap_list, &batch);
 	spin_unlock(&mp->m_mxfs_reap_lock);
@@ -939,6 +1245,7 @@ void mxfs_reap_worker(struct work_struct *work)
 	spin_lock(&mp->m_mxfs_reap_lock);
 	remaining = mp->m_mxfs_reap_count;
 	spin_unlock(&mp->m_mxfs_reap_lock);
+	mxfs_reap_duty(mp, "exit");
 	if (remaining > 0 ||
 	    !bitmap_empty(mp->m_mxfs_sweep_pending_slots, 64) ||
 	    mp->m_mxfs_reap_duties)

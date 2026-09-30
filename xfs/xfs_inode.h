@@ -311,6 +311,9 @@ typedef struct xfs_inode {
 	uint32_t		i_dlm_dir_acq_epoch; /* v0.6.5: the grant dir_epoch at which this dir's fork was last made coherent by the ACQUIRE-RELOAD falling through to xfs_inode_from_disk (adopt point).  The P65 epoch-consume adopt gate compares the current grant epoch against THIS, not valid_epoch: the modify/evict-path hooks legitimately sync valid_epoch UP to the master epoch mid-tenure for buffer stamping (b_mxfs_dir_epoch) and prior-tenure evicts, which ERASES the acquire gate's lag without any adopt having happened — the storm-dir stale-base resurrection (uv dangling dirent: a node's frozen 18-entry block view survives handoffs, its last unlinks convert block->sf from that stale base and durably re-assert peer-removed names).  ONLY the reload coherence point may advance this; a keep-stale-guard early return leaves it lagging so the next acquire re-fires the adopt.  0 = never made coherent. */
 	void			*i_dlm_dir_sf_base; /* snapshot of this SHORTFORM dir's on-disk dirent image (xfs_dir2_sf_hdr + entries) captured at the last coherent disk read/reload — the BASE for a 3-way merge (base/ours/theirs).  A concurrent shortform RMW reconciles in-core (ours) with disk (theirs) relative to this base: names WE changed (ours != base) keep OURS, names we didn't touch follow THEIRS.  This keeps our own committed-not-durable rename/rm (no self-revert on a destage-lagging disk read) AND adopts the peer's committed adds/removes (no resurrection of a peer's removed dirent).  NULL = no snapshot yet (merge falls back to adopt-or-skip). kmalloc'd; freed in xfs_inode_free_callback. */
 	uint32_t		i_dlm_dir_sf_base_bytes; /* byte length of i_dlm_dir_sf_base */
+	atomic_t		i_dlm_dir_sf_base_busy; /* captures of i_dlm_dir_sf_base in progress on this inode; above 1 two contexts are replacing the base at once (a survivor's kernel hit the allocator's double-free check under the release drain's capture at 8 nodes on TCP) */
+	void			*i_dlm_dir_sf_base_site; /* caller of the capture that last entered, for the line that names an overlap */
+	int			i_dlm_dir_sf_base_pid; /* and its task */
 /*
  * 0.84.18 (D-0963): the last shortform images THIS node copied into its
  * inode cluster buffer during the CURRENT EX tenure.  The pre-mutation
@@ -491,6 +494,14 @@ typedef struct xfs_inode {
 	uint64_t		i_mxfs_auth_try_epoch;	/* gres.grant_epoch offered */
 	uint64_t		i_mxfs_auth_try_gen;	/* i_mxfs_auth_gen at attempt time */
 	/*
+	 * Who last took this inode off the unpublished list.  A refused
+	 * install names itself (try_line); the actor that cleared the flag
+	 * afterwards and installed nothing names itself nowhere, and that is
+	 * the actor a capture at UNPUBLISHED_EX with the flag clear has to
+	 * find.  0 = not cleared since the inode was initialised.
+	 */
+	uint32_t		i_mxfs_unpub_clr_line;	/* MXFS_SITE of the last clear of i_dlm_unpublished */
+	/*
 	 * (clean-release marker, design-consult ruling): the {resource,
 	 * grant epoch} of the LAST tenure this node published an
 	 * XFS_LI_MXFS_RELMARK for from this inode's release pipeline.  Once
@@ -503,6 +514,34 @@ typedef struct xfs_inode {
 	 */
 	uint64_t		i_mxfs_relmark_res;
 	uint64_t		i_mxfs_relmark_epoch;
+	/*
+	 * The {grant epoch, lineage} of the last token the capture stamped
+	 * from this inode's certificate.  A grant that leaves through inode
+	 * reclaim publishes its clean-release marker only for a tenure that
+	 * stamped one: a tenure no image names is met by no replayer, and its
+	 * marker would cost a forced log write for every reclaimed inode (a
+	 * removed file with no block of its own carries a certificate too).
+	 * Written under i_flags_lock by the capture, which runs inside a
+	 * transaction that holds the owner, so never while the owner is being
+	 * reclaimed; read by the eviction under i_dlm_lock.  0 = nothing
+	 * stamped since the inode was initialised.
+	 */
+	uint64_t		i_mxfs_auth_stamp_epoch;
+	uint64_t		i_mxfs_auth_stamp_lineage;
+	/*
+	 * The identity of the certificate a re-arm ended in core while its
+	 * grant stayed held.  A grant kept cached across the free of its inode
+	 * (the default) serves every later incarnation a create takes from the
+	 * inode cache, and each such create resets the certificate; the tokens
+	 * the earlier incarnations stamped still name the grant.  The eviction
+	 * reads this when the certificate carries no epoch, so that grant
+	 * leaves with its clean-release marker whichever incarnation is the
+	 * last.  Written under i_dlm_lock by the reset, cleared under it when
+	 * the wire loses the grant; 0 = nothing kept.
+	 */
+	uint64_t		i_mxfs_rearm_res;
+	uint64_t		i_mxfs_rearm_epoch;
+	uint64_t		i_mxfs_rearm_lineage;
 	/*
 	 *  (P197) — WALL CLOCK for the dirtying above.
 	 *

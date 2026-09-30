@@ -13,8 +13,52 @@
 
 
 #include "peer.h"
+#include "dlm_user_compat.h"
 
 #define MXFS_PEER_MAX_MSG_SIZE  8192
+
+/*
+ * A peer's socket and the handle of the thread that reads it change together,
+ * under the peer's send_lock: whoever replaces a connection finds both, joins
+ * the thread and only then closes the socket.  The handle used to be stored
+ * after the lock that installed the socket had been dropped.  A setup in the
+ * other direction that ran between the two found a socket with no handle,
+ * closed it and installed its own, and the late store then wrote over that
+ * setup's handle: the thread it had named read the same stream as its twin
+ * until the connection ended, returned, and was joined by nobody (an unload
+ * listed mxfs_peer_recv_fn created by the accept path, its function returned,
+ * after eight nodes had mounted together on TCP).
+ *
+ * CONTROL BUILD ONLY (MXFS_KCFLAGS=-DMXFS_TEST_PEER_HANDLE_UNLOCKED): the
+ * setup as it was, the handle stored outside the lock and the replaced
+ * connection taken down once, so that a lap can show its mounts are ones for
+ * which that setup loses a thread.  The source is the same, so the srcversion
+ * is too: the line P-PEER-RECV-UNLOCKED, once a load, is what names the build.
+ */
+#ifdef MXFS_TEST_PEER_HANDLE_UNLOCKED
+#define MXFS_PEER_HANDLE_LOCKED	0
+#else
+#define MXFS_PEER_HANDLE_LOCKED	1
+#endif
+
+/*
+ * TEST ONLY.  Milliseconds an outbound setup waits between the install of
+ * its socket and the creation of its receive thread, so that a lap puts the
+ * inbound setup inside that window whenever both directions connect
+ * (tests/peer_recv_orphan.sh).  0 = no wait.
+ */
+unsigned int mxfs_peer_recv_start_delay_ms;
+module_param_named(peer_recv_start_delay_ms, mxfs_peer_recv_start_delay_ms,
+		   uint, 0644);
+MODULE_PARM_DESC(peer_recv_start_delay_ms,
+		 "TEST ONLY: ms between the install of an outbound peer "
+		 "connection's socket and the creation of its receive thread "
+		 "(0 = none)");
+
+/* stores of a receive thread's handle over one still stored */
+static atomic_t mxfs_peer_recv_overwrites;
+/* connections a setup found installed after its join and took down too */
+static atomic_t mxfs_peer_teardown_repeats;
 
 /* ---- Internal helpers ---- */
 
@@ -162,12 +206,35 @@ static void mxfs_peer_recv_fn(void *arg)
 }
 
 /*
- * Start a receive thread for a peer. The peer must already have
- * an active socket.
+ * Start a receive thread for a peer whose socket the caller has just
+ * installed, and store its handle.  Called with peer->send_lock held, in the
+ * critical section of that install (the control build calls it after the
+ * unlock, as the setup did).  The thread's creation returns once the thread
+ * has started, before its function takes any lock, so making it under the
+ * lock cannot wait on the lock.
  */
-static int start_recv_thread(struct mxfs_peer_ctx *ctx, struct mxfs_peer *peer)
+static int start_recv_thread(struct mxfs_peer_ctx *ctx, struct mxfs_peer *peer,
+			     const char *who)
 {
 	struct mxfs_recv_data *rd;
+	mxfs_thread_t *t;
+	uint32_t delay_ms = READ_ONCE(mxfs_peer_recv_start_delay_ms);
+
+	/* the outbound setup's window only: the accept thread serves every
+	 * peer, and one that sleeps here answers no other's handshake, so no
+	 * inbound setup arrives inside anybody's window */
+	if (strcmp(who, "connect") != 0)
+		delay_ms = 0;
+
+	if (!MXFS_PEER_HANDLE_LOCKED) {
+		static atomic_t named;
+
+		if (atomic_inc_return(&named) == 1)
+			mxfs_pal_log(MXFS_LOG_ERR,
+				     "P-PEER-RECV-UNLOCKED control build: a "
+				     "receive thread's handle is stored outside "
+				     "the lock that installed its socket");
+	}
 
 	rd = mxfs_pal_alloc(sizeof(*rd));
 	if (!rd)
@@ -176,13 +243,111 @@ static int start_recv_thread(struct mxfs_peer_ctx *ctx, struct mxfs_peer *peer)
 	rd->ctx = ctx;
 	rd->node_id = peer->node_id;
 
-	peer->recv_thread = mxfs_pal_thread_create_rt(mxfs_peer_recv_fn, rd);
-	if (!peer->recv_thread) {
+	if (delay_ms)
+		mxfs_pal_sleep_ms(delay_ms);
+
+	t = mxfs_pal_thread_create_rt(mxfs_peer_recv_fn, rd);
+	if (!t) {
 		mxfs_pal_free(rd);
 		return -ENOMEM;
 	}
 
+	/*
+	 * Instrument: a handle still stored here names a thread nothing will
+	 * join once this store has replaced it.  The locked setup takes the
+	 * old connection down before it installs, so it finds none.
+	 */
+	if (peer->recv_thread)
+		mxfs_pal_log(MXFS_LOG_ERR,
+			     "P-PEER-RECV-OVERWRITE node=%u by=%s "
+			     "old_pid=%d new_pid=%d delay_ms=%u n=%d — a receive "
+			     "thread's handle is stored over one still stored; "
+			     "nothing joins the thread it named",
+			     peer->node_id, who,
+			     mxfs_pal_thread_pid(peer->recv_thread),
+			     mxfs_pal_thread_pid(t), delay_ms,
+			     atomic_inc_return(&mxfs_peer_recv_overwrites));
+	peer->recv_thread = t;
+	peer->recv_started_ms = mxfs_pal_time_ms();
+
 	return 0;
+}
+
+/*
+ * Take down whatever connection the peer still has: shut its socket down,
+ * join the thread that read it, then close it.  Called and returns with
+ * peer->send_lock held, and with ctx->peer_lock held too when the caller
+ * says it holds it; both are dropped for the join, so a setup in the other
+ * direction can install a connection meanwhile.  That one is taken down as
+ * well, until nothing is installed: the caller installs over nothing.  With
+ * keep_live a connection that is active is left as it is, for the outbound
+ * setup, which gives way to a live inbound one.  The control build takes
+ * down what it found once, as the setup did.
+ */
+static void peer_teardown_locked(struct mxfs_peer_ctx *ctx,
+				 struct mxfs_peer *peer, bool peer_lock_held,
+				 bool keep_live, const char *who)
+{
+	int rounds = 0;
+
+	while (peer->sock || peer->recv_thread) {
+		mxfs_sock_t *old_sock = peer->sock;
+		mxfs_thread_t *old_thread = peer->recv_thread;
+
+		if (keep_live && peer->state == MXFS_CONN_ACTIVE && peer->sock)
+			break;
+		/*
+		 * Instrument.  since_start_ms says how long the thread's
+		 * handle had been stored (-1: none was): a connection taken
+		 * down with no handle, or with one stored a moment before,
+		 * is one whose setup the other direction's met.
+		 */
+		mxfs_pal_log(MXFS_LOG_INFO,
+			     "P-PEER-REPLACED node=%u by=%s inst_by=%s state=%d "
+			     "sock=%d thread_pid=%d age_ms=%llu "
+			     "since_start_ms=%lld delay_ms=%u",
+			     peer->node_id, who,
+			     old_sock && peer->installed_by ?
+				peer->installed_by : "none",
+			     (int)peer->state,
+			     old_sock ? 1 : 0, mxfs_pal_thread_pid(old_thread),
+			     (unsigned long long)(old_sock && peer->installed_ms ?
+				mxfs_pal_time_ms() - peer->installed_ms : 0),
+			     old_thread ? (long long)(mxfs_pal_time_ms() -
+						      peer->recv_started_ms) : -1LL,
+			     READ_ONCE(mxfs_peer_recv_start_delay_ms));
+		if (rounds++ > 0) {
+			if (!MXFS_PEER_HANDLE_LOCKED)
+				break;
+			mxfs_pal_log(MXFS_LOG_WARN,
+				     "P-PEER-TEARDOWN-REPEAT node=%u by=%s "
+				     "round=%d sock=%d thread_pid=%d n=%d — a "
+				     "connection was installed while the one "
+				     "before it was being joined; taken down too",
+				     peer->node_id, who, rounds,
+				     old_sock ? 1 : 0,
+				     mxfs_pal_thread_pid(old_thread),
+				     atomic_inc_return(&mxfs_peer_teardown_repeats));
+		}
+
+		/* Shutdown unblocks a thread waiting in tcp_recv; the socket
+		 * is freed only after that thread has been joined. */
+		if (old_sock)
+			mxfs_pal_tcp_shutdown(old_sock);
+		peer->sock = NULL;
+		peer->recv_thread = NULL;
+
+		mxfs_pal_mutex_unlock(peer->send_lock);
+		if (peer_lock_held)
+			mxfs_pal_mutex_unlock(ctx->peer_lock);
+		if (old_thread)
+			mxfs_pal_thread_join(old_thread);
+		if (old_sock)
+			mxfs_pal_tcp_close(old_sock);
+		if (peer_lock_held)
+			mxfs_pal_mutex_lock(ctx->peer_lock);
+		mxfs_pal_mutex_lock(peer->send_lock);
+	}
 }
 
 /* ---- Accept thread ---- */
@@ -347,39 +512,17 @@ static void mxfs_peer_accept_fn(void *arg)
 				     "peer: dynamically added node %u", sender);
 		}
 
-		/* Replace any existing connection.
-		 * IMPORTANT: shutdown the old socket BEFORE closing it —
-		 * the recv thread may be blocking in tcp_recv.  Shutdown
-		 * unblocks the recv thread; we join it, then close. */
+		/* Replace any existing connection: its socket is shut down,
+		 * the thread that read it joined, and only then is it
+		 * closed. */
 		mxfs_pal_mutex_lock(peer->send_lock);
-		{
-			mxfs_sock_t *old_sock = NULL;
-
-			if (peer->sock) {
-				old_sock = peer->sock;
-				mxfs_pal_tcp_shutdown(peer->sock);
-				peer->sock = NULL;
-			}
-
-			/* Stop old recv thread if any */
-			if (peer->recv_thread) {
-				mxfs_thread_t *old_thread = peer->recv_thread;
-				peer->recv_thread = NULL;
-				mxfs_pal_mutex_unlock(peer->send_lock);
-				mxfs_pal_mutex_unlock(ctx->peer_lock);
-				mxfs_pal_thread_join(old_thread);
-				mxfs_pal_mutex_lock(ctx->peer_lock);
-				mxfs_pal_mutex_lock(peer->send_lock);
-			}
-
-			/* Safe to free old socket — recv thread has exited */
-			if (old_sock)
-				mxfs_pal_tcp_close(old_sock);
-		}
+		peer_teardown_locked(ctx, peer, true, false, "accept");
 
 		peer->sock = newsock;
 		peer->state = MXFS_CONN_ACTIVE;
 		peer->last_seen = mxfs_pal_time_ms();
+		peer->installed_ms = peer->last_seen;
+		peer->installed_by = "accept";
 
 		/* Bug 65: Extract the remote IP from the accepted socket
 		 * and store it in the peer entry. Without this, if the
@@ -395,11 +538,17 @@ static void mxfs_peer_accept_fn(void *arg)
 			}
 		}
 
-		mxfs_pal_mutex_unlock(peer->send_lock);
-		mxfs_pal_mutex_unlock(ctx->peer_lock);
-
-		/* Start recv thread for this peer */
-		ret = start_recv_thread(ctx, peer);
+		/* Start recv thread for this peer, its handle stored in the
+		 * critical section that installed the socket it reads */
+		if (MXFS_PEER_HANDLE_LOCKED) {
+			mxfs_pal_mutex_unlock(ctx->peer_lock);
+			ret = start_recv_thread(ctx, peer, "accept");
+			mxfs_pal_mutex_unlock(peer->send_lock);
+		} else {
+			mxfs_pal_mutex_unlock(peer->send_lock);
+			mxfs_pal_mutex_unlock(ctx->peer_lock);
+			ret = start_recv_thread(ctx, peer, "accept");
+		}
 		if (ret < 0) {
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "peer: failed to start recv thread "
@@ -701,45 +850,17 @@ static int peer_connect_impl(struct mxfs_peer_ctx *ctx,
 		return 0;
 	}
 
-	/* Shutdown stale socket — do NOT free yet, recv thread may
-	 * be blocking in tcp_recv.  Join recv thread first. */
-	{
-		mxfs_sock_t *old_sock = NULL;
-
-		if (peer->sock) {
-			old_sock = peer->sock;
-			mxfs_pal_tcp_shutdown(peer->sock);
-			peer->sock = NULL;
-		}
-
-		peer->state = MXFS_CONN_CONNECTING;
-
-		/* Join old recv thread — must complete before we free
-		 * the old socket or start a new connection */
-		if (peer->recv_thread) {
-			mxfs_thread_t *old_thread = peer->recv_thread;
-			peer->recv_thread = NULL;
-			mxfs_pal_mutex_unlock(peer->send_lock);
-			mxfs_pal_thread_join(old_thread);
-		} else {
-			mxfs_pal_mutex_unlock(peer->send_lock);
-		}
-
-		/* Safe to free old socket — recv thread has exited */
-		if (old_sock)
-			mxfs_pal_tcp_close(old_sock);
-	}
-
-	/* Bug 80: Re-check under send_lock after dropping it for the
-	 * thread join above.  While we were joining the old recv thread,
-	 * the accept thread may have already accepted a new inbound
-	 * connection from this peer, installed a new socket, and started
-	 * a new recv thread.  If so, skip the outbound connect to avoid
-	 * overwriting peer->sock (leaking the accept thread's socket)
-	 * and orphaning the accept thread's recv thread.  An orphaned
-	 * recv thread blocked in kernel_recvmsg on a freed socket causes
-	 * a NULL-pointer deref in remove_wait_queue -> spinlock. */
-	mxfs_pal_mutex_lock(peer->send_lock);
+	/*
+	 * Take the stale connection down: shut its socket down, join the
+	 * thread that read it, then free it.  The lock is dropped for the
+	 * join, so the accept thread may have accepted a new inbound
+	 * connection from this peer meanwhile, installed its socket and
+	 * started its recv thread (Bug 80).  A live one is kept and the
+	 * outbound connect skipped; one that has already ended is taken
+	 * down like the first.
+	 */
+	peer->state = MXFS_CONN_CONNECTING;
+	peer_teardown_locked(ctx, peer, false, true, "connect");
 	if (peer->state == MXFS_CONN_ACTIVE && peer->sock) {
 		mxfs_pal_mutex_unlock(peer->send_lock);
 		mxfs_pal_log(MXFS_LOG_DEBUG,
@@ -839,6 +960,13 @@ static int peer_connect_impl(struct mxfs_peer_ctx *ctx,
 
 	mxfs_pal_mutex_lock(peer->send_lock);
 
+	/* An inbound connection the accept thread installed during the
+	 * handshake and which has ended since left its socket and its
+	 * thread's handle behind: taken down before this one is installed,
+	 * or the install would write over both. */
+	if (MXFS_PEER_HANDLE_LOCKED)
+		peer_teardown_locked(ctx, peer, false, true, "connect-install");
+
 	/* Bug 80: Check again before installing the new socket.  The accept
 	 * thread may have accepted an inbound connection from this peer
 	 * during the handshake (which runs without locks).  If the accept
@@ -859,10 +987,18 @@ static int peer_connect_impl(struct mxfs_peer_ctx *ctx,
 	peer->sock = sock;
 	peer->state = MXFS_CONN_ACTIVE;
 	peer->last_seen = mxfs_pal_time_ms();
-	mxfs_pal_mutex_unlock(peer->send_lock);
+	peer->installed_ms = peer->last_seen;
+	peer->installed_by = "connect";
 
-	/* Start recv thread for this peer */
-	ret = start_recv_thread(ctx, peer);
+	/* Start recv thread for this peer, its handle stored in the
+	 * critical section that installed the socket it reads */
+	if (MXFS_PEER_HANDLE_LOCKED) {
+		ret = start_recv_thread(ctx, peer, "connect");
+		mxfs_pal_mutex_unlock(peer->send_lock);
+	} else {
+		mxfs_pal_mutex_unlock(peer->send_lock);
+		ret = start_recv_thread(ctx, peer, "connect");
+	}
 	if (ret < 0) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "peer: failed to start recv thread "

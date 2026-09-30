@@ -17,8 +17,9 @@
 #      run for: the walk's kept-buffer counter (each lap's WALK line) has to
 #      have moved in at least one of them, or the run ends with
 #      GATE-LAPS verdict=VACUOUS
-#   3  tests/release_verify_chain.sh <version>, with W4_LAPS, W2TCP, W2CAWD,
-#      FULL and BOARDS2 taken from the environment as that script reads them
+#   3  tests/release_verify_chain.sh <version>, with CLAIM, LAPS, FULL, LOWER,
+#      POWER and PLATFORM_GROUPS taken from the environment as that script
+#      reads them
 #
 # The module is whatever the fleet runs when this starts; each lap checks that
 # it is this tree's build and aborts if it is not, and the release chain makes

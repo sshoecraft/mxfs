@@ -6861,10 +6861,14 @@ init_xfs_fs(void)
 
 /* pal/pal.h is not included here (upstream-fork glue) — declare directly. */
 void mxfs_pal_sdev_cache_release(void);
+int mxfs_pal_thread_report_live(const char *when);
+int mxfs_pal_thread_reap_unjoined(void);
 
 STATIC void __exit
 exit_xfs_fs(void)
 {
+	/* what the unmounts left behind, before anything here joins a thread */
+	mxfs_pal_thread_report_live("exit-begin");
 	mxfs_v5_dlm_global_exit();	/* after the last put_super */
 	mxfs_join_sbref_exit();	/* a join freeze's deferred reference drops */
 	mxfs_depart_late_token_exit();	/* D4 injector's delayed work */
@@ -6888,6 +6892,26 @@ exit_xfs_fs(void)
 	xfs_destroy_workqueues();
 	xfs_destroy_caches();
 	xfs_uuid_table_free();
+	/*
+	 * What no join freed: named, then stopped.  Every owner above has
+	 * joined what it owns and no mount is left, so a thread still listed
+	 * has no one who will stop it, and the unload frees the text it
+	 * sleeps in.
+	 */
+	mxfs_pal_thread_report_live("exit-end");
+#ifdef MXFS_TEST_NO_THREAD_REAP
+	/*
+	 * CONTROL BUILD ONLY (make modules KCFLAGS=-DMXFS_TEST_NO_THREAD_REAP):
+	 * the exit as it was before it stopped what no join had freed, so that
+	 * tests/module_unload_orphan.sh can show the threads it makes are the
+	 * ones that took the nodes down.  The source is the same, so the
+	 * srcversion is too: this line is what names the build, on every
+	 * unload.
+	 */
+	pr_err("mxfs: P-THREAD-REAP-DISABLED control build: a thread still listed is left asleep in text this unload frees\n");
+#else
+	mxfs_pal_thread_reap_unjoined();
+#endif
 }
 
 module_init(init_xfs_fs);

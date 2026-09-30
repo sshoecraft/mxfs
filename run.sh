@@ -578,6 +578,7 @@ TEARDOWN='
         rmmod mxfs 2>/dev/null && break
         sleep 2
     done
+    dmesg | tail -n 400 | grep -a -E "P-THREAD-(REAP|LIVE-SUM when=exit-end)" | sed -e "s/^\[[^]]*\] *//" -e "s/ — .*//" -e "s/^/UNLOAD_THREADS /" | tail -n 12
     if lsmod | grep -q "^mxfs "; then echo MXFS_STILL_LOADED; else echo MXFS_CLEAN; fi'
 
 # Power-cycle a wedged node (virsh destroy+start) and wait for ssh + the shared
@@ -774,6 +775,13 @@ prep_cluster() {
         pids+=($!)
     done
     for pid in "${pids[@]}"; do wait "$pid"; done
+    # What each unload left behind, as the module's exit counted it: a thread
+    # no join had freed is stopped there and named (P-THREAD-REAP).  This is
+    # the record of it: the console log level set below keeps the line from
+    # the panic channel, and a node's journal does not keep a lap.
+    for n in "${NODES[@]}"; do
+        grep -a -h '^UNLOAD_THREADS ' "$td/$n" 2>/dev/null | sed "s/^/--- prep: $n /"
+    done
     local esc=()
     for n in "${NODES[@]}"; do
         grep -q MXFS_CLEAN "$td/$n" 2>/dev/null && grep -q SRC_OK "$td/$n" 2>/dev/null && continue

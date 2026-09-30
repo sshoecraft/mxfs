@@ -2855,12 +2855,16 @@ mxfs_dir_stale_data_blocks(struct xfs_inode *ip)
 				continue;	/* not cached => next read fetches */
 
 			bip = dbp->b_log_item;
-			undurable = (bip && test_bit(XFS_LI_DIRTY,
-						     &bip->bli_item.li_flags)) ||
-				    (bip && test_bit(XFS_LI_IN_AIL,
-						     &bip->bli_item.li_flags)) ||
-				    xfs_buf_ispinned(dbp) ||
-				    (dbp->b_flags & _XBF_DELWRI_Q);
+			{
+				bool	in_ail;
+				bool	pinned = mxfs_buf_read_pin_then_ail(dbp,
+								&in_ail);
+
+				undurable = (bip && test_bit(XFS_LI_DIRTY,
+							     &bip->bli_item.li_flags)) ||
+					    in_ail || pinned ||
+					    (dbp->b_flags & _XBF_DELWRI_Q);
+			}
 			/*
 			 * !XBF_DONE alone is NOT a hazard — that is a
 			 * block a prior pass already staled (DONE force-

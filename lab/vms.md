@@ -16,15 +16,15 @@ disagree.
 
 The `nodes` column is the size of the verification set: a release for N
 nodes is verified on N nodes of the platform, so the released platforms hold
-four (two built from the spec, two cloned from a built one with
+eight (built from the spec, or cloned from a built and verified one with
 `scripts/lab_clone_node.sh`, all on one LUN of their own).
 
 | platform | osimager spec | nodes | after the build | role |
 |---|---|---|---|---|
-| `ubuntu2404` | `ubuntu-24.04.3-x86_64` | 4 | boot the GA kernel `platforms.json` claims, not an HWE one | runtime |
-| `pve9` | `proxmox-ve-9.1-x86_64` | 4 | install `proxmox-default-kernel` so both claimed kernels are present; `proxmox-headers-<krel>` for each | runtime, one round per claimed kernel |
-| `rhel9` | `alma-9.7-x86_64`, then updated to 9.8 | 4 | `dnf -y update` to 9.8 and boot the claimed kernel; enable EPEL (DKMS comes from there); firewalld running, SELinux enforcing; a clone is relabeled (`touch /.autorelabel`) before its first use | runtime |
-| `debian13` | `debian-13.3-x86_64` (the local DVD), then upgraded | 4 | replace the DVD-only `sources.list` with deb.debian.org `trixie`, `trixie-updates` and `trixie-security`; `apt full-upgrade` and boot the claimed kernel; install `linux-headers-amd64 dkms open-iscsi sg3-utils` | runtime |
+| `ubuntu2404` | `ubuntu-24.04.3-x86_64` | 8 | boot the GA kernel `platforms.json` claims, not an HWE one | runtime |
+| `pve9` | `proxmox-ve-9.1-x86_64` | 8 | install `proxmox-default-kernel` so both claimed kernels are present; `proxmox-headers-<krel>` for each | runtime, one round per claimed kernel |
+| `rhel9` | `alma-9.7-x86_64`, then updated to 9.8 | 8 | `dnf -y update` to 9.8 and boot the claimed kernel; enable EPEL (DKMS comes from there); firewalld running, SELinux enforcing; a clone is relabeled (`touch /.autorelabel`) before its first use | runtime |
+| `debian13` | `debian-13.3-x86_64` (the local DVD), then upgraded | 8 | replace the DVD-only `sources.list` with deb.debian.org `trixie`, `trixie-updates` and `trixie-security`; `apt full-upgrade` and boot the claimed kernel; install `linux-headers-amd64 dkms open-iscsi sg3-utils` | runtime |
 | `ubuntu2604` | `ubuntu-26.04-x86_64` | 2 | | runtime |
 | `rhel10` | `alma-10.1-x86_64` | 2 | enable EPEL; firewalld running, SELinux enforcing | runtime |
 | `debian12` | `debian-12.13-x86_64` | 2 | | runtime |
@@ -63,4 +63,6 @@ user's RHEL node has it on.
 Separate from the platform sets: `run.sh` drives a fleet of Ubuntu 24.04
 libvirt domains named `test1`..`testN` (up to 32), built from the `ubuntu2404`
 spec above. The name pattern is fixed — `run.sh` finds the fleet by it. The
-rig's storage conditions (LIO, SCST, multipath) are in `README.md`.
+rig's storage conditions (LIO, SCST, multipath) are in `README.md`. A rig
+node is never a member of a platform's set, so the `ubuntu2404` set is nodes
+of its own, cloned from a rig node that had verified the platform.

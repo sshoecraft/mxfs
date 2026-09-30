@@ -10,9 +10,9 @@
 > Everything that turns XFS into a filesystem many machines can mount at once
 > is AI-authored.
 
-> ## ⚠️ Released configurations: clusters of 2 and of 4 nodes, TCP or CAW transport — nothing else
+> ## ⚠️ Released configurations: clusters of 2, 4 and 8 nodes, TCP or CAW transport — nothing else
 >
-> **The supported configurations are a cluster of two nodes or of four
+> **The supported configurations are a cluster of two, four or eight
 > nodes, on either DLM transport:**
 >
 > - **TCP** — the lock manager talks over the network between the nodes.
@@ -23,15 +23,29 @@
 >
 > For every released configuration no known defect has been shown to corrupt
 > or lose data, or to crash, hang or shut down a node, with the one exception
-> named below, and the full test suite passes on each, at two and at four
-> nodes. That is not the same as having no defects: the public queue
-> (`data/defects.json`, read with `tools/defects.py`) holds **89 open
+> named below, and the full test suite passes on each, at two, four and
+> eight nodes. That is not the same as having no defects: the public queue
+> (`data/defects.json`, read with `tools/defects.py`) holds **90 open
 > defects**. **24 of them reach 2-node TCP**, **7 reach 2-node CAW**, **30
-> reach 4-node TCP** and **10 reach 4-node CAW**; apart from the exception
-> below, each is classified as not crossing the data-loss or crash bar, most
-> of them as slowness. Each record carries its own evidence. Read them before
-> relying on MXFS: `tools/defects.py 4 tcp -d`, `tools/defects.py 4 caw -d`
-> (`2 tcp` and `2 caw` for the two-node subsets).
+> reach 4-node TCP**, **10 reach 4-node CAW**, **31 reach 8-node TCP** and
+> **10 reach 8-node CAW**; apart from the exception below, each is classified
+> as not crossing the data-loss or crash bar, most of them as slowness. Each
+> record carries its own evidence. Read them before relying on MXFS:
+> `tools/defects.py 8 tcp -d`, `tools/defects.py 8 caw -d` (`4 tcp`, `2 tcp`
+> and so on for the smaller clusters).
+>
+> **Verified storage attachment: single-path iSCSI only.** In every
+> verification of every release, each node ran its own iSCSI initiator and
+> reached the shared LUN on one path, with nothing between MXFS and the
+> target. **dm-multipath and hypervisor SCSI passthrough (e.g. a LUN handed
+> to a VM by QEMU or as a VMware RDM) are not verified on either
+> transport** — they carry the fencing reservations and, on CAW, the COMPARE
+> AND WRITE lock commands through a layer no release has tested. Fibre
+> Channel and SAS are not verified. A device without SCSI persistent
+> reservations (virtio-blk, NVMe) is refused at mount.
+>
+> What a build has to pass before it is called a release, and what that does
+> not cover, is in "How a release is validated" below.
 >
 > **The exception, on TCP:** once, in 39 attempts on RHEL 9.8, a file create on
 > the surviving node stalled for about 60 s after its peer was declared dead,
@@ -43,7 +57,9 @@
 > **In development — do not use:**
 > - **Three nodes**, on either transport: unverified. A release claims
 >   exactly the cluster sizes it was verified at, and three has not been.
-> - **More than 4 nodes** (5 to 32), on either transport: still has open
+> - **Five to seven nodes**, on either transport: unverified, for the same
+>   reason as three.
+> - **More than 8 nodes** (9 to 32), on either transport: still has open
 >   defects in the queue, including ones that can lose data or hang a node.
 > - **Directory sharding** (`mkfs.mxfs -D` with the module parameter
 >   `dirshard_mkdir_enable=1`): experimental, off by default and part of no
@@ -55,7 +71,7 @@
 > Performance work is also still open on every configuration.
 >
 > **Released for exactly these kernels**, each installed from the release
-> packages and verified on two and on four x86-64 nodes sharing an iSCSI LUN,
+> packages and verified on two, four and eight x86-64 nodes sharing an iSCSI LUN,
 > on both transports:
 >
 > | platform | kernel verified |
@@ -90,8 +106,8 @@
 > what still blocks each configuration:
 >
 > ```
-> tools/defects.py 4 tcp --release   # released (4 nodes; `2 tcp` for two)
-> tools/defects.py 4 caw --release   # released (4 nodes; `2 caw` for two)
+> tools/defects.py 8 tcp --release   # released (8 nodes; `4 tcp`, `2 tcp` for fewer)
+> tools/defects.py 8 caw --release   # released (8 nodes; `4 caw`, `2 caw` for fewer)
 > tools/defects.py 32 caw            # 32 nodes, in development
 > ```
 
@@ -105,7 +121,9 @@ shared-disk clustered filesystem in the family of GFS2 and OCFS2, but built as a
 fork of XFS.
 
 - **One shared LUN, many nodes.** Every node opens the same device — reachable
-  over iSCSI, Fibre Channel, or NVMe-oF — read/write, concurrently.
+  over SCSI (iSCSI verified; see "Verified storage attachment" above) —
+  read/write, concurrently. NVMe, NVMe-oF included, is not supported: the
+  fencing and lock commands are SCSI's.
 - **Coherent and consistent.** A write on one node becomes visible to the
   others; metadata and data stay consistent across node failures.
 - **One kernel module, no daemon.** All cluster coordination — locking, peer
@@ -129,12 +147,12 @@ overlay.
   metadata, the inode cache, the buffer cache — and coordinates them across the
   cluster. It is not a patch series against upstream today.
 - **Distributed lock manager (`dlm/`).** Two transports can carry lock state:
-  - **TCP (released, 2 and 4 nodes)** — a network DLM spoken over TCP between nodes.
-  - **CAW (released, 2 and 4 nodes)** — lock state lives *in-band on the shared
+  - **TCP (released, 2, 4 and 8 nodes)** — a network DLM spoken over TCP between nodes.
+  - **CAW (released, 2, 4 and 8 nodes)** — lock state lives *in-band on the shared
     disk*, claimed with the SCSI **COMPARE AND WRITE** (opcode `0x89`) atomic
     primitive plus SCSI Persistent Reservations. No separate lock network is
     required, which is what lets it scale past the point where a network DLM
-    stops keeping up (more than 4 nodes is still in development).
+    stops keeping up (more than 8 nodes is still in development).
 
   The module parameter `force_transport` picks the transport a new cluster
   forms on: `1` (the default) is TCP, `0` is CAW. The release packages also
@@ -194,6 +212,116 @@ is clean:
   (`tools/`), and the test and benchmark harnesses — **and every change made
   to the forked XFS files since the fork**, which is a large share of `xfs/`.
 
+## How a release is validated
+
+A release claims a cluster size, a transport and a kernel, and it claims
+each only after that exact build passed everything below on it. Nothing is
+carried over from an earlier version: when a larger cluster size is
+released, the smaller ones are run again on the same build. One script
+drives the whole sequence and logs every step with its exit code
+(`tests/release_verify_chain.sh`, which calls `tests/full_verify.sh`); their
+headers are the reference for what follows.
+
+### What a build must pass
+
+1. **A build from a clean copy of the tree.** No compiler warnings, the
+   userspace tools, the user-mode tests of the lock manager's authority
+   ledger (`tests/tauth`), and two source audits (every cross-file
+   declaration matches its definition; no two inode flags share a bit).
+2. **The cluster suite, on both transports, at every released cluster
+   size.** About thirty rows (`tests/suite/manifest`), each run on a real
+   cluster of that many nodes mounting one LUN:
+   - what one node writes, every other node reads, and nothing is lost
+     silently (`cache_coherency`, `strong_consistency`, `mmap_coherency`,
+     `posix_multi`, `zero_silent_loss`, `rsync_paired`, the `dirent_*` rows,
+     `dir_reuse_coherency`);
+   - the lock manager under contention and membership change
+     (`dlm_fairness`, `dlm_membership`, `dlm_scaling`, `scaling_curve`);
+   - a node killed, or cut off from the others, in the middle of writing:
+     the rest must fence it, replay its journal and go on serving
+     (`crash_consistency`, `crash_audit`, `fence_during_write`,
+     `fault_netpartition`);
+   - no kernel fault, hang or filesystem shutdown on any node during any of
+     it (`kernel_health`, `node_responsive`, `sustained_load`, `soak`);
+   - the filesystem checker exits 0 on the LUN after all of it
+     (`chk_clean`);
+   - pace, against native XFS on the same storage (`fio_perf`,
+     `fio_perf_vs_xfs`).
+
+   The manifest lists every row with its budget.  Every row must read PASS on the board (`tools/criteria.py <nodes>
+   <transport>`). The board keeps each row's last eleven runs, and a row
+   with a genuine failure anywhere in that window does not read PASS: it
+   has to pass lap after lap until the failure has left the window. A row
+   that was skipped is not a pass either.
+
+   Every row also has a time budget, derived from twice what the same work
+   takes on native XFS plus the measured cost of forming the cluster
+   (`tests/criteria/TIMEOUT_BUDGETS.md`). Running over it is a failure, even
+   when every byte is right.
+3. **The packages, installed as a user installs them, on every released
+   platform.** On a set of nodes of that platform with a LUN of its own, as
+   many nodes as the release claims: the package installs and DKMS builds
+   the module against that platform's kernel; every node mounts with no
+   options; each node writes 64 MiB and every other node reads it back by
+   checksum; files created on one node are counted and removed on another;
+   the checker exits 0; the nodes find each other by static `peer=`
+   addresses with multicast dropped; every node is rebooted and the data is
+   intact. Both transports; Proxmox on both of its kernels; RHEL with
+   SELinux enforcing and its sVirt test (`tests/selinux_svirt_mxfs.sh`).
+4. **A hung node, on every released platform, on both transports.** One
+   node's CPUs are stopped in the middle of a write, so it answers nothing
+   and closes nothing. The others have 120 s to declare it dead and 180 s
+   to have fenced it, replayed its journal and written again
+   (`tests/tcp_peer_freeze_death.sh`).
+5. **The platform ledger.** `scripts/release.sh` runs each released
+   platform's kernel build check and refuses to publish unless
+   `data/platforms.json` holds a recorded verification of that exact version
+   on every released platform (`tools/platforms.py check`).
+
+### The defect bar
+
+The defect queue is public (`data/defects.json`, read with
+`tools/defects.py`). Each record says what was observed, on what evidence,
+and the smallest cluster and the transport it was observed on; a record
+nobody has classified counts against every configuration.
+
+- A configuration is released only when `tools/defects.py <nodes>
+  <transport> --release` lists nothing: no open defect that reaches it and
+  can corrupt or lose data, or crash, hang or shut down a node. An exception
+  is the owner's decision and is named at the top of this file.
+- A defect leaves the queue in two ways only. It is disproved by direct
+  evidence, or it is fixed and verified: the cause shown by an instrument in
+  the running kernel and not by reading the code, the change made at that
+  cause, and a test that meets the cause passing under the criteria it had
+  before. "Could not reproduce" closes nothing, and neither does a clean run
+  that never met the cause.
+- Where the defect is a crash or a race, the test is run on a control build
+  as well. If the build without the change does not fail the way the defect
+  did, the test proves nothing about the change. The 0.90.30 entry of
+  `CHANGELOG.md` shows both arms for two such defects, with the numbers
+  measured.
+
+### What this does not cover
+
+- **Every node is a virtual machine.** The development rig and the platform
+  sets are KVM guests on one host, and the shared LUNs are iSCSI LUNs served
+  from that host. This process has verified no release on separate physical
+  machines or on a storage array.
+- **Only the kernels and cluster sizes named at the top of this file.**
+- **No run longer than the suite.** The `soak` row is 30 seconds unless it
+  is asked for longer, and no multi-hour soak is part of the sequence.
+- **Loss of power at the storage.** The write cache is required to survive
+  it (see "Storage" above).
+- **Anything the suite has no row for.** A passing suite says those rows
+  passed. The first time two nodes were killed at once, under load, it
+  found defects that every single-death row had passed over.
+
+The raw logs of these runs (22 GB of kernel logs and traces) stay on the
+rig host and are not in this repository. What is here is every harness, the
+defect queue, and a changelog that carries the measurements each release
+and each fix rests on. `lab/README.md` describes how the test platforms are
+built.
+
 ## Build
 
 MXFS builds as an out-of-tree kernel module against the running kernel's headers.
@@ -235,10 +363,10 @@ resize.mxfs [-v] [-n] [-V] DEVICE               # -n = dry run
 
 ## Quick start
 
-The released configurations are **two or four nodes on the TCP or the CAW
-transport**. Install the release package on every node (it loads the module
+The released configurations are **two, four or eight nodes on the TCP or the
+CAW transport**, each node reaching the LUN over single-path iSCSI. Install the release package on every node (it loads the module
 with `force_transport=1 target_cache_protected=1`, i.e. TCP), or load a source
-build with `modprobe mxfs force_transport=1 target_cache_protected=1` on both.
+build with `modprobe mxfs force_transport=1 target_cache_protected=1` on every node.
 For CAW, see "Choosing the transport" below before the first mount.
 
 ```
@@ -284,7 +412,7 @@ other sender. See `mxfs(5)` and [`docs/discovery.md`](docs/discovery.md).
 
 ### Choosing the transport
 
-Both transports are released for clusters of two and of four nodes. Pick one
+Both transports are released for clusters of two, four and eight nodes. Pick one
 per cluster, before its first mount:
 
 | | TCP | CAW |

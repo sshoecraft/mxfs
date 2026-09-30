@@ -20,7 +20,9 @@
 # Usage: tests/quiesce_remount_chain.sh <tag> [laps] [control] [tenant_control] [inject_laps]
 #        (default 3 laps, the control arm, no tenant control, no injected laps)
 # Env:   INJECT_N (default 100000) the injection's count, per node;
-#        UNHELD_ANSWER (default 1) is passed through to every lap
+#        UNHELD_ANSWER (default 1) is passed through to every lap;
+#        QR_NODES (default empty: the lap's own default, test1..test4) the
+#        nodes of every lap, space separated, for laps at another cluster size
 set -u
 TAG=${1:?tag}
 LAPS=${2:-3}
@@ -28,16 +30,17 @@ CONTROL=${3:-1}
 TENANT_CONTROL=${4:-0}
 INJECT_LAPS=${5:-0}
 INJECT_N=${INJECT_N:-100000}
+QR_NODES=${QR_NODES:-}
 cd "$(dirname "$0")/.." || exit 2
 E=tests/evidence/quiesce_remount_access
 mkdir -p "$E"
 SUM=$E/chain_$TAG.summary
-echo "CHAIN-BEGIN tag=$TAG laps=$LAPS control=$CONTROL tenant_control=$TENANT_CONTROL inject_laps=$INJECT_LAPS sv=$(modinfo mxfs.ko | sed -n 's/^srcversion: *//p') $(date -u +%FT%TZ)" > "$SUM"
+echo "CHAIN-BEGIN tag=$TAG laps=$LAPS control=$CONTROL tenant_control=$TENANT_CONTROL inject_laps=$INJECT_LAPS nodes=[${QR_NODES:-default}] sv=$(modinfo mxfs.ko | sed -n 's/^srcversion: *//p') $(date -u +%FT%TZ)" > "$SUM"
 lap() { # <label> <settled_retire> [tenant_attribute] [inject]
     local label=$1 sr=$2 ta=${3:-1} inj=${4:-0} t0 rc
     t0=$(date +%s)
     SETTLED_RETIRE=$sr TENANT_ATTRIBUTE=$ta INJECT_UNRESOLVABLE=$inj \
-        tests/quiesce_remount_access.sh "$label" > "$E/$label.out" 2>&1 < /dev/null
+        tests/quiesce_remount_access.sh "$label" $QR_NODES > "$E/$label.out" 2>&1 < /dev/null
     rc=$?
     echo "LAP label=$label settled_retire=$sr tenant_attribute=$ta inject=$inj rc=$rc wall=$(( $(date +%s) - t0 ))s pass=$(grep -ac '^  PASS' "$E/$label.out") fail=$(grep -ac '^  FAIL' "$E/$label.out") :: $(grep -a -E '^CONTROL |^TENANT |^WALK |^=== quiesce_remount_access .*fails=|^ABORT|^INFRA' "$E/$label.out" | tail -4 | tr '\n' ' ' | cut -c1-520) :: failed: $(grep -a '^  FAIL' "$E/$label.out" | cut -c8-90 | tr '\n' ';' | cut -c1-300)" >> "$SUM"
 }

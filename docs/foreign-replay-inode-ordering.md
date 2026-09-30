@@ -316,3 +316,51 @@ the replay.  `recov_slots_own=0` is the same-build control.
   say whether the dinode lags the leaves on disk.
 - `tests/recov_bmbt_reuse.sh` ends with the cold `chk_mxfs` (both nodes
   unmounted): 0 `P-ALLOC-FREE-CORE`, verdict clean.
+
+## The fifth shape: the replayed directory block never leaves the survivor
+
+Ledger: `D-TWO-NODE-KILL-UNDER-LOAD-LEAVES-DANGLING-DIRECTORY-ENTRIES-8TCP`
+(root and fix 0.90.27).
+
+The same fault as the fourth shape, one buffer type over.  A directory's
+data, block, leaf, free and node buffers, and the bmbt blocks of its extent
+map, are written through filters that ask what grant this node holds on the
+owner directory: a write made without the exclusive grant, or stamped by an
+earlier tenure, is read as a superseded image and completed with no I/O, so
+that a node's lingering copy cannot revert what a later holder made durable
+(`mxfs_buf_xfsaild_skip_dir_write`, `mxfs_buf_xfsaild_skip_bmbt_write`, and
+in `xfs_buf_submit_bio` the exclusive-grant guard that compares the image
+with the platter and drops the one holding fewer names).
+
+A replayer holds no grant on a dead node's directory, and an image that
+removes names holds fewer than the platter.  So the guard dropped it and
+completed the buffer as written, the home flush reported success, and the
+recovery completed.  The allocation-group images of the same checkpoints
+landed.  Measured on 8 nodes over TCP, a node power-cut inside `rm -rf`: ten
+inodes free in the inode btree and ten names still pointing at them, in a
+directory whose replayed image (32 names) had been applied and dropped.  A
+replayed create holds more names than the platter and passes, so only a
+death inside a removal shows it.
+
+### The rule
+
+A log recovery's write is not judged by the replaying node's tenure.  The
+replay's admission (the token's verdict against the sealed manifest, the
+release markers, the buffer's LSN) is what decides whether an image is
+applied; once it is, the write lands.  The filters above return "do not
+skip" for a buffer carrying the log-recovery flag, which pass 2 sets when it
+queues the buffer and the write's completion clears.  The write fence in
+`xfs_buf_submit_ex` (`P123-DIRFENCE-SKIP`) has excluded a recovery by the
+same flag since it was written.  Inode clusters keep their own, per-slot
+rule (the fourth shape): a cluster is shared between owners, a directory
+block is not.
+
+### Oracles
+
+- `P12-RECOV-DIRWR owner= daddr= ops= act= in_core= mode= foreign=` for
+  every directory buffer a recovery writes.
+- `P12-DIR-EXGUARD-SKIP` and `P-DATACLOBBER-SKIP` never carry the recovery
+  flag (`0x40000`) in `bflags`.
+- `tests/multi_victim_containment.sh` ends with the cold `chk_mxfs`: a
+  victim killed inside a removal leaves a directory holding fewer names
+  than it was built with and `dangling=0`.

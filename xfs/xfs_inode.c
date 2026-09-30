@@ -6680,6 +6680,31 @@ out:
 					(unsigned)st);
 				xfs_force_shutdown(mp, SHUTDOWN_CORRUPT_INCORE);
 			}
+			/*
+			 * Instrument, no behaviour: the release below publishes
+			 * no clean-release marker (the eviction and the release
+			 * a peer's request drives do).  Count the tenures that
+			 * stamped a token and leave here, so a lap says whether
+			 * any does before this arm is given one.
+			 */
+			if (rv == MXFS_INACT_REVOKED && mxfs_inact_cid.epoch &&
+			    READ_ONCE(ip->i_mxfs_auth_stamp_epoch) ==
+					mxfs_inact_cid.epoch &&
+			    READ_ONCE(ip->i_mxfs_auth_stamp_lineage) ==
+					mxfs_inact_cid.lineage) {
+				extern atomic64_t mxfs_relmark_inact_owed;
+				static atomic_t owed_n = ATOMIC_INIT(0);
+
+				atomic64_inc(&mxfs_relmark_inact_owed);
+				if (atomic_inc_return(&owed_n) <= 200)
+					mxfs_probe("mxfs: P-RELMARK-OWED site=inact-exrel ino=%llu gepoch=%llu lineage=%llu freed=%d routed=%d comm=%s — a tenure that stamped a token is released with no clean-release marker\n",
+						(unsigned long long)ip->i_ino,
+						(unsigned long long)mxfs_inact_cid.epoch,
+						(unsigned long long)mxfs_inact_cid.lineage,
+						mxfs_freed ? 1 : 0,
+						mxfs_inact_via_iclus ? 1 : 0,
+						current->comm);
+			}
 		}
 
 		/*

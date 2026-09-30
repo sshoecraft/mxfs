@@ -247,6 +247,7 @@ mxfs_dlm_unpublish_drop(
 	if (was) {
 		list_del_init(&ip->i_dlm_unpub_link);
 		ip->i_dlm_unpublished = false;
+		WRITE_ONCE(ip->i_mxfs_unpub_clr_line, MXFS_SITE);
 	}
 	spin_unlock(&mp->m_mxfs_unpub_lock);
 	return was;
@@ -579,6 +580,7 @@ mxfs_dlm_publish_drain_loop(
 		if (match) {
 			list_del_init(&match->i_dlm_unpub_link);
 			match->i_dlm_unpublished = false;
+			WRITE_ONCE(match->i_mxfs_unpub_clr_line, MXFS_SITE);
 			ino = match->i_ino;
 			/* P78: snapshot FS-layer lock state while the
 			 * entry is provably alive (on-list under the lock).
@@ -1114,6 +1116,10 @@ mxfs_dlm_publish_dirs_work(
 	struct xfs_inode	*pubip;
 	struct mxfs_grant_result pub_gres;
 	uint64_t		pub_gen_snap;
+	/* inodes this pass met with no reference to take: left listed */
+	uint64_t		noref[16];
+	unsigned int		n_noref = 0, ni;
+	int			iget_rc;
 
 	/* P24 instrumented probe: confirm the worker runs and claims (capped). */
 	{
@@ -1168,6 +1174,11 @@ mxfs_dlm_publish_dirs_work(
 			 * caw_lock per node, LUN queue inflation on every op). */
 			if (!ip->i_mxfs_reused_create)
 				continue;
+			for (ni = 0; ni < n_noref; ni++)
+				if (noref[ni] == ip->i_ino)
+					break;
+			if (ni < n_noref)
+				continue;
 			ino = ip->i_ino;
 			break;
 		}
@@ -1196,16 +1207,54 @@ mxfs_dlm_publish_dirs_work(
 		 */
 		pubip = NULL;
 		pub_gen_snap = MXFS_AUTH_GEN_NONE;
-		if (xfs_iget(mp, NULL, ino, XFS_IGET_INCORE, 0, &pubip) != 0)
-			pubip = NULL;
-		if (pubip) {
-			spin_lock(&pubip->i_dlm_lock);
-			pub_gen_snap = pubip->i_mxfs_auth_gen;
-			spin_unlock(&pubip->i_dlm_lock);
-		}
+		iget_rc = xfs_iget(mp, NULL, ino, XFS_IGET_INCORE, 0, &pubip);
+		if (iget_rc || !pubip) {
+			/*
+			 * NO REFERENCE, NO CLAIM.  The install below needs the
+			 * inode, and a claim that is not installed is worse
+			 * than no claim: this worker used to take the grant
+			 * with no grant result, de-list the inode and clear
+			 * its flag all the same, and leave it cached EX, off
+			 * the list, with its authority state still
+			 * UNPUBLISHED_EX.  The lock fast path gates on the
+			 * flag, so nothing installed a certificate for the
+			 * rest of the tenure and every image of the
+			 * directory's blocks went to the log with no class; a
+			 * death then left transactions no peer may replay, the
+			 * slice was refused and the dead node's allocation
+			 * groups quarantined.  Measured on 8 nodes over TCP:
+			 * 2130 of 2130 owners captured unprovable had been
+			 * de-listed here, none had an install attempt in its
+			 * tenure, and they were 20 to 28 percent of the
+			 * inode-owned images each node logged.
+			 *
+			 * The lookup fails while the creating task is still
+			 * setting the inode up: the work is queued at the
+			 * mkdir's commit and an in-core lookup of a new inode
+			 * answers at once instead of waiting.  Leave the inode
+			 * listed and flagged.  Its first exclusive modify takes
+			 * the synchronous publish (the unpublished-directory
+			 * arm of the lock fast path), which de-lists, acquires
+			 * and installs from its own grant result; a later pass
+			 * of this worker may get there first.
+			 */
+			static atomic64_t	noref_n;
+			long long		nn = atomic64_inc_return(&noref_n);
 
-		rc = mxfs_v5_dlm_inode_lock(dlm, ino, MXFS_LOCK_EX,
-					    pubip ? &pub_gres : NULL);
+			pubip = NULL;
+			if (nn <= 64 || (nn & 1023) == 0)
+				mxfs_probe("mxfs: P24-WORKER-NOREF n=%lld ino=%llu rc=%d — no reference to the inode: not claimed, left on the unpublished list for its first exclusive modify\n",
+					nn, (unsigned long long)ino, iget_rc);
+			if (n_noref >= ARRAY_SIZE(noref))
+				break;
+			noref[n_noref++] = ino;
+			continue;
+		}
+		spin_lock(&pubip->i_dlm_lock);
+		pub_gen_snap = pubip->i_mxfs_auth_gen;
+		spin_unlock(&pubip->i_dlm_lock);
+
+		rc = mxfs_v5_dlm_inode_lock(dlm, ino, MXFS_LOCK_EX, &pub_gres);
 
 		/* CREATOR BASELINE STAMP site 2 — read the post-claim
 		 * baseline HERE, in sleepable context, BEFORE taking the list
@@ -1228,6 +1277,7 @@ mxfs_dlm_publish_dirs_work(
 			if (rc == 0) {
 				list_del_init(&ip->i_dlm_unpub_link);
 				ip->i_dlm_unpublished = false;
+				WRITE_ONCE(ip->i_mxfs_unpub_clr_line, MXFS_SITE);
 				mxfs_dlm_creator_baseline_apply(ip, bep, bgg, 2);
 			}
 			break;
@@ -1339,6 +1389,7 @@ mxfs_dlm_publish_inode(
 	if (was_unpub) {
 		list_del_init(&ip->i_dlm_unpub_link);
 		ip->i_dlm_unpublished = false;
+		WRITE_ONCE(ip->i_mxfs_unpub_clr_line, MXFS_SITE);
 	}
 	spin_unlock(&mp->m_mxfs_unpub_lock);
 
@@ -1346,6 +1397,9 @@ mxfs_dlm_publish_inode(
 		return;	/* racing publisher won; nothing to do. */
 
 	rc = mxfs_dlm_inode_lock_routed(ip, MXFS_LOCK_EX, pub_gen_snap);
+	/* a release of this node that moved the generation under this
+	 * request leaves the published EX uncertified: ask again */
+	rc = mxfs_ilock_redrive_stalegen(ip, MXFS_LOCK_EX, pub_gen_snap, rc);
 	if (rc) {
 		mxfs_probe_ratelimited(
 		    "mxfs: P109-PUBLISH-FAIL ino=%llu rc=%d (falling back to lazy backstop)\n",

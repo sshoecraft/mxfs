@@ -381,6 +381,26 @@ MODULE_PARM_DESC(rel_dio_wait,
 atomic_t mxfs_rel_dio_inflight = ATOMIC_INIT(0);
 
 /*
+ * Releases that did not commit because a slow-path acquire of this node was
+ * in flight on the inode (P15-REL-ACQ-INFLIGHT), and EX acquires that
+ * returned to their caller on a published inode with no proving certificate
+ * (P-ACQ-UNCERTIFIED): every image such a caller logs is one a replayer
+ * refuses.  The second must read zero.
+ *
+ * CONTROL BUILD ONLY (MXFS_KCFLAGS=-DMXFS_TEST_REL_IGNORES_ACQ): the release
+ * as it was, which commits under the acquire in flight.  The source is the
+ * same, so the srcversion is too; the line P-REL-IGNORES-ACQ names the build
+ * wherever the case occurs.
+ */
+#ifdef MXFS_TEST_REL_IGNORES_ACQ
+#define MXFS_REL_HONORS_ACQ	0
+#else
+#define MXFS_REL_HONORS_ACQ	1
+#endif
+atomic_t mxfs_rel_acq_inflight_abort = ATOMIC_INIT(0);
+atomic_t mxfs_rel_commit_under_acq = ATOMIC_INIT(0);
+
+/*
  * D-RELEASE-BARRIER-OPEN enforcement lever (see the P228 block in the
  * anchored-unlock tail).  0 = measure only (P220-UNLOCK-LEDGER-OPEN counts);
  * 1 = close the ledger in place (durable re-pass ×2) and DEFER the wire
@@ -3495,12 +3515,53 @@ static int mxfs_bast_nl_entry_cleanup(uint8_t p_held_mode, uint32_t p_rel_gen,
 			!ip->i_dlm_stale &&
 			!xfs_is_shutdown(mp);
 
+	/*
+	 * A slow-path acquire of this node is in flight on an inode whose EX
+	 * grant this release is about to give up.  It took its snapshot of
+	 * the certificate's generation before it descended, and the lock
+	 * manager answers it with the grant still held here, so it completes
+	 * whatever this release does.  A release that commits under it moves
+	 * the generation: the acquirer's certificate is then refused, rightly,
+	 * and the acquirer goes on to modify under an EX that proves nothing;
+	 * every image it logs is one a replayer must refuse (one directory
+	 * block refused a whole slice and quarantined an AG on six survivors).
+	 * The acquirer that reaches here is the first EX modify of a directory
+	 * re-created from the inode cache, which takes a real acquire although
+	 * the mode is already EX; every other acquirer waits for the release.
+	 * It is a holder about to arrive: keep the grant as the abort for a
+	 * holder does, and run again when it has finished.  The release an
+	 * acquirer asked for itself (self-demote) is exempt, as it is from the
+	 * orphan test above: that acquirer waits for this release.
+	 */
+	bool acq_live = MXFS_REL_HONORS_ACQ &&
+			ip->i_dlm_acq_inflight > 0 &&
+			ip->i_dlm_mode == MXFS_LOCK_EX &&
+			!p_self_demote && !xfs_is_shutdown(mp);
+
+	if (!MXFS_REL_HONORS_ACQ && ip->i_dlm_acq_inflight > 0 &&
+	    ip->i_dlm_mode == MXFS_LOCK_EX && !p_self_demote) {
+		static atomic_t ctl_n = ATOMIC_INIT(0);
+
+		if (atomic_inc_return(&ctl_n) <= 200)
+			pr_err("mxfs: P-REL-IGNORES-ACQ control build: ino=%llu acq=%u ex=%u pr=%u pin=%u — a release commits under an acquire in flight\n",
+				(unsigned long long)ip->i_ino,
+				ip->i_dlm_acq_inflight, ip->i_dlm_ex_holders,
+				ip->i_dlm_pr_holders, ip->i_dlm_pin_count);
+	}
+
 	if (ip->i_dlm_ex_holders > 0 || ip->i_dlm_pr_holders > 0 ||
 	    ip->i_dlm_pin_count > 0 ||
 	    (!p15h_reap && p_rel_gen != 0 && p_rel_gen != p_entry_gen) ||
-	    orphan_live || p236_gate ||
+	    orphan_live || p236_gate || acq_live ||
 	    (*rel_drain_wb_err_ref) || rel_drain_inv_err) {
 		bool gen_moved = (p_rel_gen != 0 && p_rel_gen != p_entry_gen);
+		/* nothing but the acquire in flight holds this release back */
+		bool acq_only = acq_live && !gen_moved && !orphan_live &&
+				!p236_gate &&
+				ip->i_dlm_ex_holders == 0 &&
+				ip->i_dlm_pr_holders == 0 &&
+				ip->i_dlm_pin_count == 0 &&
+				!(*rel_drain_wb_err_ref) && !rel_drain_inv_err;
 		bool pin_only = !gen_moved &&
 				ip->i_dlm_ex_holders == 0 &&
 				ip->i_dlm_pr_holders == 0 &&
@@ -3565,9 +3626,13 @@ static int mxfs_bast_nl_entry_cleanup(uint8_t p_held_mode, uint32_t p_rel_gen,
 		 * abort) — the 25ms dwork re-fire below re-runs the pipeline
 		 * whose drain lands the change, then the release completes. */
 		{ u8 dtr_om = ip->i_dlm_mode, dtr_os = ip->i_dlm_state;
+		/* An abort for the acquire in flight leaves CACHED as the one
+		 * for a moved generation does: the grant is ours and live, and
+		 * the acquirer's install and the holders that follow it must
+		 * find the fast path open. */
 		ip->i_dlm_state = orphan_only ? MXFS_DLM_ISTATE_NONE :
 				  (gen_moved || pin_only || obligation_only ||
-				   drain_hard || drain_retry) ?
+				   acq_only || drain_hard || drain_retry) ?
 					MXFS_DLM_ISTATE_CACHED :
 					MXFS_DLM_ISTATE_BAST;
 		mxfs_dlmtr_rec(ip, dtr_om, dtr_os, MXFS_SITE); }
@@ -3581,12 +3646,48 @@ static int mxfs_bast_nl_entry_cleanup(uint8_t p_held_mode, uint32_t p_rel_gen,
 		 * after the waiter's op instead of on its timeout.
 		 */
 		if (gen_moved || pin_only || orphan_live || obligation_only ||
-		    drain_retry) {
+		    acq_only || drain_retry) {
 			if (!ip->i_dlm_bast_pending)
 				ip->i_dlm_dwork_strikes = 0;	/* v0.10.31 */
 			ip->i_dlm_bast_pending = true;
 		}
+		if (acq_live) {
+			static atomic_t p15a_n = ATOMIC_INIT(0);
+
+			atomic_inc(&mxfs_rel_acq_inflight_abort);
+			if (atomic_inc_return(&p15a_n) <= 400)
+				mxfs_probe("mxfs: P15-REL-ACQ-INFLIGHT ino=%llu held_mode=%u acq=%u ex=%u pr=%u pin=%u gen_moved=%d only=%d auth_state=%u unpub=%d entry_gen=%u now_gen=%u n=%d comm=%s — an acquire of this node is in flight; the release does not commit under it, the grant is kept\n",
+					(unsigned long long)ip->i_ino, p_held_mode,
+					ip->i_dlm_acq_inflight,
+					ip->i_dlm_ex_holders, ip->i_dlm_pr_holders,
+					ip->i_dlm_pin_count, gen_moved ? 1 : 0,
+					acq_only ? 1 : 0,
+					(unsigned)ip->i_mxfs_auth_state,
+					ip->i_dlm_unpublished ? 1 : 0,
+					p_entry_gen, p_rel_gen,
+					atomic_read(&mxfs_rel_acq_inflight_abort),
+					current->comm);
+		}
 		spin_unlock(&ip->i_dlm_lock);
+		/*
+		 * The acquirer's last ilock_end runs the release again.  An
+		 * acquire that ends with no hold (refused, timed out) has no
+		 * ilock_end, so the delayed work is armed as well; while the
+		 * acquirer lives its busy check re-arms without running.
+		 */
+		if (acq_only) {
+			if (igrab(vip)) {
+				ip->i_dlm_bastq_src = 25;	/* acq_inflight_rearm */
+				if (!mxfs_bast_arm_queue_delayed(ip,
+					msecs_to_jiffies(
+					    mxfs_relab_backoff_ms(ip, p_rel_gen))))
+					xfs_irele(ip);	/* dwork already armed */
+			} else {
+				mxfs_probe_ratelimited("mxfs: P134-BASTQ-FREEING ino=%llu site=acq_inflight_rearm i_state=0x%lx (inode evicting; skipping dwork re-arm)\n",
+					(unsigned long long)ip->i_ino,
+					mxfs_istate(vip));
+			}
+		}
 		/*
 		 * FIX-H2: keep the strike sampler alive without peer
 		 * traffic — re-arm the MHT dwork so the next sample runs in
@@ -5312,6 +5413,34 @@ skip_bast_cluster_stale:
 		wake_up_all(&ip->i_dlm_wait);
 		return;
 	}
+	/*
+	 * Instrument: a release that commits while an acquire of this node is
+	 * in flight on the inode moves the certificate's generation under that
+	 * acquire, whose install is then refused (P-ACQ-UNCERTIFIED names the
+	 * acquirer).  The abort for an acquire in flight covers an EX grant
+	 * released for a peer; this line names every other shape, with the
+	 * mode given up and whether the release was asked for by an acquirer.
+	 */
+	if (ip->i_dlm_acq_inflight > 0 && !xfs_is_shutdown(mp)) {
+		static atomic_t rcua_n = ATOMIC_INIT(0);
+
+		atomic_inc(&mxfs_rel_commit_under_acq);
+		if (atomic_inc_return(&rcua_n) <= 400)
+			pr_warn("mxfs: P-REL-COMMIT-UNDER-ACQ ino=%llu isdir=%d held_mode=%u mode=%u state=%u self_demote=%d acq=%u ex=%u pr=%u pin=%u acq_pid=%d acq_comm=%s auth_state=%u gen=%llu unpub=%d n=%d comm=%s — a release commits with an acquire of this node in flight\n",
+				(unsigned long long)ip->i_ino,
+				S_ISDIR(vip->i_mode) ? 1 : 0,
+				p_held_mode, ip->i_dlm_mode, ip->i_dlm_state,
+				p_self_demote ? 1 : 0,
+				ip->i_dlm_acq_inflight,
+				ip->i_dlm_ex_holders, ip->i_dlm_pr_holders,
+				ip->i_dlm_pin_count,
+				ip->i_dlm_acq_pid, ip->i_dlm_acq_comm,
+				(unsigned)ip->i_mxfs_auth_state,
+				(unsigned long long)ip->i_mxfs_auth_gen,
+				ip->i_dlm_unpublished ? 1 : 0,
+				atomic_read(&mxfs_rel_commit_under_acq),
+				current->comm);
+	}
 	/* every abort arm has passed — the release is now committed.
 	 * Announce release-begin BEFORE the mode store and (further below) the
 	 * peer-visible slot release, so the certificate leaves the proving
@@ -5335,6 +5464,35 @@ skip_bast_cluster_stale:
 		p_rel_lineage = ip->i_mxfs_auth_lineage;
 	} else if (ip->i_mxfs_auth_epoch) {
 		atomic64_inc(&mxfs_relmark_iclus_unmarked);
+	} else if (ip->i_mxfs_rearm_epoch && !ip->i_dlm_routed_iclus &&
+		   READ_ONCE(ip->i_mxfs_auth_stamp_epoch) ==
+				ip->i_mxfs_rearm_epoch &&
+		   READ_ONCE(ip->i_mxfs_auth_stamp_lineage) ==
+				ip->i_mxfs_rearm_lineage &&
+		   !(READ_ONCE(ip->i_mxfs_relmark_epoch) ==
+				ip->i_mxfs_rearm_epoch &&
+		     READ_ONCE(ip->i_mxfs_relmark_res) ==
+				ip->i_mxfs_rearm_res)) {
+		/*
+		 * Instrument, no behaviour: the certificate carries no epoch
+		 * because a create served from the inode cache reset it, and
+		 * the identity that reset kept names the last token stamped
+		 * here.  The eviction publishes the marker for such a grant;
+		 * this release publishes none.  Count the ones that leave
+		 * here, so a lap says whether any does before this arm is
+		 * given one.
+		 */
+		static atomic_t owed_n = ATOMIC_INIT(0);
+
+		atomic64_inc(&mxfs_relmark_bast_rearm_owed);
+		if (atomic_inc_return(&owed_n) <= 200)
+			mxfs_probe("mxfs: P-RELMARK-OWED site=bast-rearm ino=%llu res=%llu gepoch=%llu lineage=%llu auth_state=%u mode=%u comm=%s — a grant whose certificate a re-arm reset is released with no clean-release marker\n",
+				(unsigned long long)ip->i_ino,
+				(unsigned long long)ip->i_mxfs_rearm_res,
+				(unsigned long long)ip->i_mxfs_rearm_epoch,
+				(unsigned long long)ip->i_mxfs_rearm_lineage,
+				(unsigned)ip->i_mxfs_auth_state,
+				(unsigned)ip->i_dlm_mode, current->comm);
 	}
 	{ u8 dtr_om = ip->i_dlm_mode, dtr_os = ip->i_dlm_state;
 	ip->i_dlm_mode = MXFS_LOCK_NL;

@@ -640,6 +640,9 @@ typedef struct xfs_mount {
 	spinlock_t		m_mxfs_reap_lock;
 	struct list_head	m_mxfs_reap_list;
 	struct delayed_work	m_mxfs_reap_work;
+	/* queues the foreign replay work again after a refusal; takes no
+	 * grant, so a reap worker waiting on a dead node cannot hold it */
+	struct delayed_work	m_mxfs_freplay_retry_work;
 	int			m_mxfs_reap_count;
 	bool			m_mxfs_reap_dead;	/* set at destroy: no re-arm */
 	/* A-prime (fossil di_next_unlinked producer, review-ruled fix):

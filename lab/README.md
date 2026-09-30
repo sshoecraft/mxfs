@@ -20,8 +20,11 @@ below is the part that is the same for every platform.
 ### Building a platform's verification set
 A release for N nodes is verified on N nodes of every platform it claims, and
 on nothing smaller: two nodes for the 2-node release, four for the 4-node
-release (`NODES=4 tests/full_verify.sh` refuses a set with fewer). The steps
-are per node; a set is as many of them as the release claims.
+release, eight for the 8-node one (`NODES=8 tests/full_verify.sh` refuses a
+set with fewer). The steps are per node; a set is as many of them as the
+release claims. A node of the development rig is never also in a platform
+set: a node logged in to two targets orders its disks by session, and the
+rig's prep has formed a cluster short of that node because of it.
 1. **Install osimager** — `pip install osimager` (it drives HashiCorp Packer,
    which must be installed too). Run `mkosimage` with no arguments once: it
    says what to set up. Its documentation covers locations, credentials and
@@ -130,6 +133,14 @@ the faithful CAW/FC emulation (the LIO stack is CAW-off, used only for `tcp`).
 - `verify_infra.sh {tcp|direct|passthrough|multipath} [N]` — infra-only bring-up +
   verify (no `mkfs`/mount/module — pure substrate check; runs `tools/caw_verify`).
 - `cluster_reset_n.sh` — reset N VMs.
+- `lab_clone_node.sh <source> <clone> <ip> ...` — grow a platform's set by
+  cloning a verified node of it.
+- `scst_platform_targets.sh setup [<platform> ...]` — one SCST target and one
+  lab file per platform; naming platforms sets up only those.
+- `lab_power.sh up|down|state <set> ...` — power whole sets (`<platform>`,
+  `rig:<N>`, or a domain). The host cannot hold the 8-node rig and four
+  8-node sets at once, so a verification powers up only what each step needs
+  (`POWER=1` in `tests/full_verify.sh`).
 
 ## Test harness (in `scripts/` + root)
 - `run.sh <N> <cond>` — one test run (`xfs` baseline also accepted).

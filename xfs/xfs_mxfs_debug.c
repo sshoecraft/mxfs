@@ -1314,13 +1314,29 @@ mxfs_inode_authority_show(
 "  iclus_unmarked    %llu\n"
 "  iclus_marked      %llu\n"
 "  iclus_failed      %llu\n"
-"  iclus_reinst_ref  %llu\n",
+"  iclus_reinst_ref  %llu\n"
+"  evict_marked      %llu\n"
+"  evict_failed      %llu\n"
+"  evict_nostamp     %llu\n"
+"  evict_down        %llu\n"
+"  inact_owed        %llu\n"
+"  rearm_kept        %llu\n"
+"  evict_rearm       %llu\n"
+"  bast_rearm_owed   %llu\n",
 			(unsigned long long)pub, (unsigned long long)fail,
 			(unsigned long long)noid, (unsigned long long)im,
 			(unsigned long long)ifl, (unsigned long long)am,
 			(unsigned long long)afl, (unsigned long long)icl,
 			(unsigned long long)icm, (unsigned long long)icf,
-			(unsigned long long)icr);
+			(unsigned long long)icr,
+			(unsigned long long)atomic64_read(&mxfs_relmark_evict_marked),
+			(unsigned long long)atomic64_read(&mxfs_relmark_evict_failed),
+			(unsigned long long)atomic64_read(&mxfs_relmark_evict_nostamp),
+			(unsigned long long)atomic64_read(&mxfs_relmark_evict_down),
+			(unsigned long long)atomic64_read(&mxfs_relmark_inact_owed),
+			(unsigned long long)atomic64_read(&mxfs_relmark_rearm_kept),
+			(unsigned long long)atomic64_read(&mxfs_relmark_evict_rearm),
+			(unsigned long long)atomic64_read(&mxfs_relmark_bast_rearm_owed));
 	}
 	return 0;
 }

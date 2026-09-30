@@ -3793,3 +3793,53 @@ a multi-node mount; the release drain prints them at its first wedge report
 fault itself, whoever the caller is; tests/quiesce_remount_access.sh fails a
 lap on one.  Design: docs/ag-metadata-coherency.md, "The fresh-grant walk and
 inode cluster buffers".
+
+## The shortform merge base is serialised by `i_flags_lock` (0.90.29)
+
+`ip->i_dlm_dir_sf_base` (the ancestor of the three-way shortform merge,
+`xfs/xfs_mxfs_dir_sf.c`) is replaced whole at every capture.  Design:
+`docs/shortform-dir-merge.md`, "Who may touch the base, and under what".
+
+- **Callers of `mxfs_dir_sf_capture_base` hold no lock in common.**  The
+  release drain (`mxfs_dir_sf_release_base`, from
+  `mxfs_bast_flush_inode_core_for_release`) and the pre-mutation refresh
+  (`mxfs_dir_sf_refresh_if_disk_differs`, from the cached-EX fast path of
+  `mxfs_dlm_ilock_begin`, three call sites) hold no inode lock;
+  `mxfs_dir_sf_merge_into` and the reload hold `i_lock` exclusive.
+- **The defect (0.90.27, 8/tcp).**  The capture read the pointer, freed it and
+  stored the new one unlocked.  A survivor's kernel hit the allocator's
+  double-free check in that free, reached from the release drain; the panic's
+  return addresses map to `xfs_mxfs_dir_sf.c:165` (the old base's free) in the
+  module that crashed.
+- **Now:** the capture swaps pointer and length under `i_flags_lock` and frees
+  the old base after the unlock; a merge takes `mxfs_dir_sf_base_dup()` under
+  the same lock and frees its copy.  `xfs_inode_free_callback` still frees the
+  base unlocked: nothing else can hold the inode there.
+- **Instrument:** `i_dlm_dir_sf_base_busy` (captures in progress),
+  `P-SFBASE-OVERLAP`, parameters `sf_base_captures`, `sf_base_overlaps`,
+  `sf_base_race_delay_us` (test only).  Under the multi-victim load at 8 nodes
+  no overlap occurred naturally in a lap, so a verification has to hold the
+  window open with the delay (`tests/sf_base_overlap.sh`).
+- **PITFALL — a per-inode pointer freed and replaced outside any lock is this
+  defect again.**  The own-image ring beside it was always under
+  `i_flags_lock`; the base, added earlier, never was.
+
+## Clean-release marker at eviction: the identity is the grant's (0.90.32)
+
+- One per-inode grant serves every incarnation a create takes from the inode
+  cache while the grant stays cached (P128-INACT-DEFER). Each such create calls
+  `mxfs_inode_authority_note_unpublished_locked()`, which resets the
+  certificate; it now keeps the ended certificate's identity in
+  `i_mxfs_rearm_res/_epoch/_lineage` when that certificate was DURABLE_EX with
+  an epoch and per-inode routed.
+- `mxfs_evict_relmark_capture_locked()` (`xfs/xfs_mxfs_evict.c`) falls back to
+  the kept identity when the certificate has no epoch, the stamp pair
+  (`i_mxfs_auth_stamp_epoch/_lineage`) names it, and `i_mxfs_relmark_res/_epoch`
+  is not already that pair. `P-RELMARK-EVICT` prints `src=cert|rearm`.
+- `mxfs_inode_authority_phantom_loss_locked()` clears the kept identity.
+- The BAST release pipeline (`xfs/xfs_mxfs_bast.c`, terminal store) still reads
+  the certificate only; it counts `P-RELMARK-OWED site=bast-rearm`.
+- `mxfs_dlm_inode_init()` runs from `xfs_inode_alloc` only, so the stamp pair
+  and the kept identity survive a cache-hit create.
+- Replayer: `P227-TOKEN` lines carry `verdict=`; refused images print past the
+  400-line cap (up to 2000 more).

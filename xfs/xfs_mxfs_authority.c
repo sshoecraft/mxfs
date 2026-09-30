@@ -259,6 +259,11 @@ mxfs_inode_authority_phantom_loss_locked(struct xfs_inode *ip, u32 line)
 			ip->i_mxfs_auth_state, ip->i_dlm_mode,
 			ip->i_dlm_state, MXFS_SITE_ARGS(line));
 	}
+	/* the grant a re-arm's kept identity names is the one the wire lost:
+	 * it did not end in a release, so nothing may certify it clean */
+	ip->i_mxfs_rearm_res = 0;
+	ip->i_mxfs_rearm_epoch = 0;
+	ip->i_mxfs_rearm_lineage = 0;
 	mxfs_inode_authority_begin_release_locked(ip, line);
 }
 
@@ -276,12 +281,27 @@ atomic64_t mxfs_relmark_iclus_unmarked = ATOMIC64_INIT(0);
 atomic64_t mxfs_relmark_iclus_marked = ATOMIC64_INIT(0);
 atomic64_t mxfs_relmark_iclus_failed = ATOMIC64_INIT(0);
 atomic64_t mxfs_relmark_iclus_reinstall_refused = ATOMIC64_INIT(0);
+/* tenures that stamped a token and were released at the end of their own
+ * inactivation, which publishes no marker (instrument, xfs_inactive) */
+atomic64_t mxfs_relmark_inact_owed = ATOMIC64_INIT(0);
+/* certificates a re-arm ended in core whose identity was kept for the
+ * release of the grant they were installed from */
+atomic64_t mxfs_relmark_rearm_kept = ATOMIC64_INIT(0);
+/* releases a peer's request drove that found such an identity owed a marker
+ * and published none (instrument, the release pipeline's capture) */
+atomic64_t mxfs_relmark_bast_rearm_owed = ATOMIC64_INIT(0);
 static atomic64_t mxfs_relmark_ino_marked = ATOMIC64_INIT(0);
 static atomic64_t mxfs_relmark_ino_failed = ATOMIC64_INIT(0);
 static atomic64_t mxfs_relmark_ag_marked = ATOMIC64_INIT(0);
 static atomic64_t mxfs_relmark_ag_failed = ATOMIC64_INIT(0);
 
-void
+/*
+ * Returns what the publish returned, 0 when there was nothing to publish.
+ * The release pipeline goes on to its unlock whatever the answer (an
+ * unmarked tenure refuses at replay, which is the closed direction); the
+ * eviction prints it.
+ */
+int
 mxfs_inode_relmark_before_unlock(
 	struct xfs_inode	*ip,
 	uint64_t		rel_res,
@@ -293,7 +313,7 @@ mxfs_inode_relmark_before_unlock(
 	int			rc;
 
 	if (!rel_epoch || *marked)
-		return;
+		return 0;
 	/*
 	 * Irrevocability first: from here on an install that offers this
 	 * {resource, epoch} is refused (see
@@ -317,6 +337,7 @@ mxfs_inode_relmark_before_unlock(
 				(unsigned long long)rel_res,
 				(unsigned long long)rel_epoch, who, rc);
 	}
+	return rc;
 }
 
 void
@@ -395,6 +416,24 @@ mxfs_inode_authority_note_unpublished_locked(struct xfs_inode *ip, u32 line)
 	ip->i_mxfs_auth_gen++;
 	ip->i_mxfs_auth_line = line;
 	if (ip->i_mxfs_auth_state != MXFS_AUTH_UNPUBLISHED_EX) {
+		/*
+		 * The certificate ends here in core; the grant it was installed
+		 * from does not when it was kept cached across the free of the
+		 * inode, and the tokens stamped from it still name that grant.
+		 * Keep its identity for the release that gives the grant up (see
+		 * i_mxfs_rearm_epoch).  Only a certificate that proved: a
+		 * RELEASING one belongs to a release already under way, which
+		 * certifies it itself.
+		 */
+		if (ip->i_mxfs_auth_state == MXFS_AUTH_DURABLE_EX &&
+		    ip->i_mxfs_auth_epoch &&
+		    ip->i_mxfs_auth_kind == MXFS_LTYPE_INODE &&
+		    !ip->i_dlm_routed_iclus) {
+			ip->i_mxfs_rearm_res = ip->i_mxfs_auth_resource;
+			ip->i_mxfs_rearm_epoch = ip->i_mxfs_auth_epoch;
+			ip->i_mxfs_rearm_lineage = ip->i_mxfs_auth_lineage;
+			atomic64_inc(&mxfs_relmark_rearm_kept);
+		}
 		write_seqcount_begin(&ip->i_mxfs_auth_seq);
 		ip->i_mxfs_auth_state = MXFS_AUTH_UNPUBLISHED_EX;
 		ip->i_mxfs_auth_kind = 0;

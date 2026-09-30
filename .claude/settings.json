@@ -16,6 +16,7 @@
       "Bash(timeout:*)",
       "Bash(python3:*)",
       "Bash(virsh:*)",
+      "Bash(kill:*)",
       "Bash(ls:*)",
       "Bash(cat:*)",
       "Bash(grep:*)",

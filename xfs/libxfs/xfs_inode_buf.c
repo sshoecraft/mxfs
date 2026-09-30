@@ -486,6 +486,33 @@ xfs_inode_from_disk(
 					current->comm);
 		}
 	}
+	/*
+	 * A directory whose log item carries changes that have not been
+	 * written is ahead of the platter: an image taken from disk over it
+	 * puts back what those changes removed.  Same incarnation only (an
+	 * inode number made again is a new directory).  Counted, the first
+	 * ones printed with the caller.
+	 */
+	if (S_ISDIR(inode->i_mode) && ip->i_itemp &&
+	    be32_to_cpu(from->di_gen) == inode->i_generation &&
+	    (atomic_read(&ip->i_pincount) > 0 || ip->i_itemp->ili_fields ||
+	     test_bit(XFS_LI_IN_AIL, &ip->i_itemp->ili_item.li_flags))) {
+		static atomic_t	fdod_n = ATOMIC_INIT(0);
+		int		fn = atomic_inc_return(&fdod_n);
+
+		if (fn <= 400)
+			pr_warn("mxfs: P-FROMDISK-OVER-DIRTY-DIR n=%d ino=%llu old_size=%lld new_size=%lld old_fmt=%u new_fmt=%u pin=%d ili_fields=0x%x in_ail=%d dlm_mode=%u i_gen=%u comm=%s caller=%pS\n",
+				fn, (unsigned long long)ip->i_ino,
+				(long long)ip->i_disk_size,
+				(long long)be64_to_cpu(from->di_size),
+				ip->i_df.if_format, from->di_format,
+				atomic_read(&ip->i_pincount),
+				ip->i_itemp->ili_fields,
+				test_bit(XFS_LI_IN_AIL,
+					 &ip->i_itemp->ili_item.li_flags) ? 1 : 0,
+				ip->i_dlm_mode, inode->i_generation,
+				current->comm, __builtin_return_address(0));
+	}
 	ip->i_disk_size = be64_to_cpu(from->di_size);
 	ip->i_nblocks = be64_to_cpu(from->di_nblocks);
 	ip->i_extsize = be32_to_cpu(from->di_extsize);

@@ -1555,12 +1555,19 @@ static void mxfs_reload_adopt_disk_fork(struct xfs_inode *ip,
 			    (!xfs_inode_clean(ip) || ip->i_dlm_icd_refused ||
 			     (mxfs_reload_oblig_merge &&
 			      ip->i_mxfs_pub_pending_seq !=
-					ip->i_mxfs_pub_durable_seq)))
+					ip->i_mxfs_pub_durable_seq))) {
+				/* a copy of its own: a capture that holds no
+				 * inode lock may replace the base while this
+				 * merges against it */
+				void	*merge_base = mxfs_dir_sf_base_dup(ip, NULL);
+
 				mxfs_merged = mxfs_dir_sf_merge_into(ip,
-					ip->i_dlm_dir_sf_base,
+					merge_base,
 					(struct xfs_dir2_sf_hdr *)merge_ours,
 					(struct xfs_dir2_sf_hdr *)ip->i_df.if_data,
 					ip->i_df.if_bytes, &(*merge_own_dirs_ref));
+				kfree(merge_base);
+			}
 			/*
 			 * The core came wholesale from the platter, so its
 			 * di_nlink counts only the children the platter knows

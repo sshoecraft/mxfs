@@ -1302,11 +1302,14 @@ xfs_dir2_leaf_addname(
 			extern uint32_t mxfs_v5_dlm_inode_dir_epoch(
 				struct mxfs_v5_dlm *, uint64_t);
 			extern bool mxfs_dir_buf_is_undestaged(struct xfs_buf *);
+			extern bool mxfs_buf_read_pin_then_ail(struct xfs_buf *,
+					bool *);
 			struct xfs_buf_log_item *lbip = lbp->b_log_item;
 			bool l_dirty = lbip && test_bit(XFS_LI_DIRTY,
 					&lbip->bli_item.li_flags);
-			bool l_inail = lbip && test_bit(XFS_LI_IN_AIL,
-					&lbip->bli_item.li_flags);
+			bool l_inail;
+			bool l_pinned = mxfs_buf_read_pin_then_ail(lbp,
+					&l_inail);
 			uint32_t master_ep = mxfs_v5_dlm_inode_dir_epoch(
 					lmp->m_mxfs_dlm, dp->i_ino);
 			/* braces — unconditional incarn stamp (see the
@@ -1317,7 +1320,7 @@ xfs_dir2_leaf_addname(
 			}
 			if (master_ep != 0 && lbp->b_mxfs_dir_epoch != 0 &&
 			    lbp->b_mxfs_dir_epoch < dp->i_dlm_dir_valid_epoch &&
-			    !l_dirty && !xfs_buf_ispinned(lbp) &&
+			    !l_dirty && !l_pinned &&
 			    !(lbp->b_flags & _XBF_DELWRI_Q) &&
 			    !(l_inail && mxfs_dir_buf_is_undestaged(lbp))) {
 				mxfs_probe_ratelimited("mxfs: P2-LEAFHASH-EPOCHSTALE ino=%llu b_ep=%u master_ep=%u — leaf-index epoch-stale; invalidate+reread before hash insert\n",

@@ -2001,7 +2001,153 @@ struct mxfs_thread {
 	void *arg;
 	struct completion started;
 	struct completion exited;
+	struct list_head live;		/* on mxfs_thread_live until joined */
+	void *site;			/* who created it */
+	unsigned long born;		/* jiffies at creation */
+	int pid;
 };
+
+/*
+ * Every thread created here, until a join frees it.  A thread nobody joins
+ * sleeps in kthread_fn_wrapper for ever, and an unload of the module frees
+ * the text it sleeps in: its next wakeup is an instruction fetch at an
+ * unmapped address and the node panics (15 guest panics in one day of rig
+ * work, each with nothing but kthread below the faulting address).  The list
+ * is what lets the module's exit name such a thread by its function and by
+ * the site that created it.
+ */
+static LIST_HEAD(mxfs_thread_live);
+static DEFINE_SPINLOCK(mxfs_thread_live_lock);
+static struct mxfs_thread *mxfs_thread_create_at(void (*fn)(void *), void *arg,
+						 void *site);
+static atomic64_t mxfs_thread_created = ATOMIC64_INIT(0);
+static atomic64_t mxfs_thread_joined = ATOMIC64_INIT(0);
+static atomic64_t mxfs_thread_join_gaveup = ATOMIC64_INIT(0);
+
+static void mxfs_thread_delist(struct mxfs_thread *t)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&mxfs_thread_live_lock, flags);
+	list_del_init(&t->live);
+	spin_unlock_irqrestore(&mxfs_thread_live_lock, flags);
+	atomic64_inc(&mxfs_thread_joined);
+}
+
+/*
+ * One line per thread still listed and one summary line, which is printed
+ * whatever the count so that an unload with nothing left behind says so.
+ * Returns the number of threads listed.  A thread that is listed is printed
+ * as an error and so is a summary that counts one: the rig's guests send
+ * errors to the panic channel and not warnings (the first queue on this
+ * instrument left ten summary lines in the nodes' journals and none in the
+ * channel), and a journal under load keeps about two minutes.
+ */
+int mxfs_pal_thread_report_live(const char *when)
+{
+	struct mxfs_thread *t;
+	unsigned long flags;
+	int n = 0;
+
+	spin_lock_irqsave(&mxfs_thread_live_lock, flags);
+	list_for_each_entry(t, &mxfs_thread_live, live) {
+		n++;
+		pr_err("mxfs: P-THREAD-LIVE when=%s n=%d pid=%d fn=%ps site=%pS fn_returned=%d age_ms=%u\n",
+		       when, n, t->pid, t->fn, t->site,
+		       completion_done(&t->exited) ? 1 : 0,
+		       jiffies_to_msecs(jiffies - t->born));
+	}
+	spin_unlock_irqrestore(&mxfs_thread_live_lock, flags);
+	printk("%smxfs: P-THREAD-LIVE-SUM when=%s live=%d created=%lld joined=%lld join_gaveup=%lld\n",
+	       n ? KERN_ERR : KERN_INFO, when, n,
+	       (long long)atomic64_read(&mxfs_thread_created),
+	       (long long)atomic64_read(&mxfs_thread_joined),
+	       (long long)atomic64_read(&mxfs_thread_join_gaveup));
+	return n;
+}
+
+/*
+ * TEST ONLY.  Writing N creates N threads whose function returns at once and
+ * which nothing joins: the state a thread is in when its owner never reached
+ * its join.  It exists so the module's exit can be shown to stop such a
+ * thread (tests/module_unload_orphan.sh); reading it says how many were made.
+ */
+static atomic_t mxfs_thread_test_orphans = ATOMIC_INIT(0);
+
+static void mxfs_thread_test_orphan_fn(void *arg)
+{
+}
+
+static int mxfs_thread_test_orphan_set(const char *val,
+				       const struct kernel_param *kp)
+{
+	int n, rc;
+
+	rc = kstrtoint(val, 0, &n);
+	if (rc)
+		return rc;
+	if (n < 0 || n > 16)
+		return -EINVAL;
+	while (n-- > 0) {
+		if (!mxfs_thread_create_at(mxfs_thread_test_orphan_fn, NULL,
+					   __builtin_return_address(0)))
+			return -ENOMEM;
+		atomic_inc(&mxfs_thread_test_orphans);
+	}
+	return 0;
+}
+
+static int mxfs_thread_test_orphan_get(char *buf, const struct kernel_param *kp)
+{
+	return sysfs_emit(buf, "%d\n", atomic_read(&mxfs_thread_test_orphans));
+}
+
+static const struct kernel_param_ops mxfs_thread_test_orphan_ops = {
+	.set = mxfs_thread_test_orphan_set,
+	.get = mxfs_thread_test_orphan_get,
+};
+module_param_cb(test_orphan_threads, &mxfs_thread_test_orphan_ops, NULL, 0644);
+MODULE_PARM_DESC(test_orphan_threads,
+		 "TEST ONLY: write N (at most 16) to create N threads that nothing joins; the module's exit must stop them");
+
+/*
+ * The module's exit, after every owner has joined what it owns: stop and free
+ * every thread still listed, so the unload never frees text a thread of ours
+ * sleeps in.  A thread whose function has returned is stopped at once.  One
+ * whose function is still running is waited for, and named every 30 s while
+ * it is: the text cannot be freed under it, and a wait that says which
+ * function it waits for can be diagnosed where a panic minutes later cannot.
+ * Returns the number of threads it stopped.
+ */
+int mxfs_pal_thread_reap_unjoined(void)
+{
+	struct mxfs_thread *t;
+	unsigned long flags;
+	int n = 0;
+
+	for (;;) {
+		spin_lock_irqsave(&mxfs_thread_live_lock, flags);
+		t = list_first_entry_or_null(&mxfs_thread_live,
+					     struct mxfs_thread, live);
+		if (t)
+			list_del_init(&t->live);
+		spin_unlock_irqrestore(&mxfs_thread_live_lock, flags);
+		if (!t)
+			break;
+		pr_err("mxfs: P-THREAD-REAP pid=%d fn=%ps site=%pS fn_returned=%d age_ms=%u — no join freed this thread; the module's exit stops it before the unload frees its text\n",
+		       t->pid, t->fn, t->site,
+		       completion_done(&t->exited) ? 1 : 0,
+		       jiffies_to_msecs(jiffies - t->born));
+		while (!wait_for_completion_timeout(&t->exited,
+						    msecs_to_jiffies(30000)))
+			pr_err("mxfs: P-THREAD-REAP-WAIT pid=%d fn=%ps site=%pS — its function has not returned; the unload waits for it\n",
+			       t->pid, t->fn, t->site);
+		kthread_stop(t->task);
+		kfree(t);
+		n++;
+	}
+	return n;
+}
 
 static int kthread_fn_wrapper(void *data)
 {
@@ -2018,9 +2164,11 @@ static int kthread_fn_wrapper(void *data)
 	return 0;
 }
 
-mxfs_thread_t *mxfs_pal_thread_create(void (*fn)(void *), void *arg)
+static struct mxfs_thread *mxfs_thread_create_at(void (*fn)(void *), void *arg,
+						 void *site)
 {
 	struct mxfs_thread *t;
+	unsigned long flags;
 
 	if (!fn)
 		return NULL;
@@ -2031,6 +2179,9 @@ mxfs_thread_t *mxfs_pal_thread_create(void (*fn)(void *), void *arg)
 
 	t->fn = fn;
 	t->arg = arg;
+	t->site = site;
+	t->born = jiffies;
+	INIT_LIST_HEAD(&t->live);
 	init_completion(&t->started);
 	init_completion(&t->exited);
 
@@ -2039,6 +2190,13 @@ mxfs_thread_t *mxfs_pal_thread_create(void (*fn)(void *), void *arg)
 		kfree(t);
 		return NULL;
 	}
+	t->pid = t->task->pid;
+
+	/* listed before it runs: its function may be short and its join prompt */
+	spin_lock_irqsave(&mxfs_thread_live_lock, flags);
+	list_add_tail(&t->live, &mxfs_thread_live);
+	spin_unlock_irqrestore(&mxfs_thread_live_lock, flags);
+	atomic64_inc(&mxfs_thread_created);
 
 	wake_up_process(t->task);
 	wait_for_completion(&t->started);
@@ -2046,11 +2204,16 @@ mxfs_thread_t *mxfs_pal_thread_create(void (*fn)(void *), void *arg)
 	return t;
 }
 
+mxfs_thread_t *mxfs_pal_thread_create(void (*fn)(void *), void *arg)
+{
+	return mxfs_thread_create_at(fn, arg, __builtin_return_address(0));
+}
+
 mxfs_thread_t *mxfs_pal_thread_create_rt(void (*fn)(void *), void *arg)
 {
 	struct mxfs_thread *t;
 
-	t = mxfs_pal_thread_create(fn, arg);
+	t = mxfs_thread_create_at(fn, arg, __builtin_return_address(0));
 	if (!t)
 		return NULL;
 
@@ -2082,6 +2245,7 @@ void mxfs_pal_thread_join(mxfs_thread_t *t)
 
 	/* Now stop the kthread */
 	kthread_stop(t->task);
+	mxfs_thread_delist(t);
 	kfree(t);
 }
 
@@ -2094,11 +2258,14 @@ int mxfs_pal_thread_join_timeout(mxfs_thread_t *t, uint32_t timeout_ms)
 
 	remaining = wait_for_completion_timeout(&t->exited,
 				msecs_to_jiffies(timeout_ms));
-	if (remaining == 0)
+	if (remaining == 0) {
+		atomic64_inc(&mxfs_thread_join_gaveup);
 		return -ETIMEDOUT;
+	}
 
 	/* Thread exited — stop and free */
 	kthread_stop(t->task);
+	mxfs_thread_delist(t);
 	kfree(t);
 	return 0;
 }

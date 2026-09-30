@@ -1366,6 +1366,8 @@ void mxfs_defer_reap_init(struct xfs_mount *mp)
 	INIT_LIST_HEAD(&mp->m_mxfs_pubob_list);
 	mp->m_mxfs_pubob_count = 0;
 	INIT_DELAYED_WORK(&mp->m_mxfs_reap_work, mxfs_reap_worker);
+	INIT_DELAYED_WORK(&mp->m_mxfs_freplay_retry_work,
+			  mxfs_freplay_retry_worker);
 	mp->m_mxfs_reap_count = 0;
 	/* mount-settle duties: drain residue on OUR bucket left by a
 	 * prior incarnation or an offline chk repair, then the guarded
@@ -1384,6 +1386,9 @@ void mxfs_defer_reap_destroy(struct xfs_mount *mp)
 	struct mxfs_reap_entry *e, *tmp;
 
 	WRITE_ONCE(mp->m_mxfs_reap_dead, true);
+	/* the retry timer first: it takes no grant, so it always returns, and
+	 * once it is gone only the reap worker can queue a replay */
+	cancel_delayed_work_sync(&mp->m_mxfs_freplay_retry_work);
 	cancel_delayed_work_sync(&mp->m_mxfs_reap_work);
 	cancel_work_sync(&mp->m_mxfs_freeob_work);	/* (D-0351) */
 	{

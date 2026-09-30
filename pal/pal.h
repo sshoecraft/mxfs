@@ -271,6 +271,21 @@ int mxfs_pal_thread_join_timeout(mxfs_thread_t *t, uint32_t timeout_ms);
  */
 int mxfs_pal_thread_pid(mxfs_thread_t *t);
 
+/*
+ * Kernel only: print every thread created here that no join has freed, one
+ * line each with its function and the site that created it, and a summary
+ * line whatever the count.  Returns the count.  The module's exit calls it:
+ * a thread left behind sleeps in text the unload frees.
+ */
+int mxfs_pal_thread_report_live(const char *when);
+
+/*
+ * Kernel only, for the module's exit once every owner has joined what it
+ * owns: stop and free every thread still listed, waiting for one whose
+ * function is still running.  Returns how many it stopped.
+ */
+int mxfs_pal_thread_reap_unjoined(void);
+
 /* ─── Mutex ─── */
 
 /*

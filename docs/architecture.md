@@ -240,6 +240,53 @@ Registers filesystem type "mxfs" with Linux VFS. Translates VFS operations to li
 
 PAL implemented via kernel APIs (bio, kthread, kernel sockets). Maximum performance, zero context switches.
 
+#### Thread lifetime and module unload
+
+A PAL thread runs its function and then sleeps in the PAL's wrapper until a
+join stops it: a kernel thread that returned on its own could not be stopped
+later, because nothing would hold its task.  The consequence is that a thread
+no join ever reaches does not go away when its function returns.  It stays
+asleep in module text, and an unload frees that text under it; its next
+wakeup is an instruction fetch at an unmapped address and the node panics.
+
+Two rules follow, and the PAL enforces the second so that a miss of the first
+cannot take a node down:
+
+1. **Every creation has an owner that joins it.**  A stop function joins the
+   threads its start function created whatever the state of its `running`
+   flag; a flag cleared by another path is not evidence that the threads were
+   joined.  A join with a timeout that gives up has not joined: the caller
+   either waits it out or fail-stops the node, never returns as if the thread
+   were gone.
+2. **The module's exit stops what is left.**  The PAL keeps every thread on a
+   list from its creation until a join frees it, with its function and the
+   site that created it.  After every owner has run its own exit, the module's
+   exit names each thread still listed (`P-THREAD-LIVE`, and a summary line
+   whatever the count), then stops and frees it (`P-THREAD-REAP`).  A thread
+   whose function is still running is waited for and named every 30 s: text
+   cannot be freed under a running function, and an unload that waits and
+   says what for can be diagnosed where a panic minutes later cannot.
+
+A handle is what a join needs, so the first rule is also a rule about where a
+handle is kept.  **A handle is stored under the lock that guards the thing the
+thread serves, in the critical section that installs that thing.**  The peer
+layer (`dlm/peer.c`) is the case that taught it.  A peer has one socket and
+one receive thread, and both directions can set a connection up at once: the
+lower node id connects, and the higher one force-connects when it holds no
+connection yet.  So:
+
+- the socket and the handle of the thread that reads it change together,
+  under the peer's `send_lock`;
+- a setup that replaces a connection shuts the socket down, joins the thread,
+  and only then closes the socket;
+- it drops the lock for the join, so it repeats until it finds nothing
+  installed, and installs over nothing;
+- the outbound setup gives way to a live inbound connection, before its
+  connect and again before its install.
+
+The thread's creation returns once the thread has started and before its
+function takes any lock, so making it under the lock cannot wait on the lock.
+
 ### macOS FSKit Extension
 
 FSKit (macOS 15+) provides `FSFileSystem`, `FSVolume`, `FSFile`, `FSDirectory` delegates. Runs as a signed system extension.

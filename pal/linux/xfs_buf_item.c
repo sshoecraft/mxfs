@@ -840,10 +840,13 @@ struct mxfs_ownauth_snap {
 	uint64_t	try_epoch;
 	uint32_t	auth_line;
 	uint32_t	try_line;
+	uint32_t	unpub_clr_line;
 	uint8_t		dlm_mode;
 	uint8_t		try;
 	uint8_t		try_mode;
 	uint8_t		unpublished;
+	uint8_t		reused;
+	uint8_t		self_created;
 };
 
 static atomic64_t	mxfs_authtry_none[MXFS_AUTH_TRY_MAX];
@@ -930,6 +933,9 @@ mxfs_buf_owner_authority(
 			sn->try_epoch = READ_ONCE(ip->i_mxfs_auth_try_epoch);
 			sn->try_gen = READ_ONCE(ip->i_mxfs_auth_try_gen);
 			sn->unpublished = READ_ONCE(ip->i_dlm_unpublished);
+			sn->unpub_clr_line = READ_ONCE(ip->i_mxfs_unpub_clr_line);
+			sn->reused = READ_ONCE(ip->i_mxfs_reused_create);
+			sn->self_created = READ_ONCE(ip->i_mxfs_self_created);
 
 			switch (st) {
 			case MXFS_AUTH_UNPUBLISHED_EX:
@@ -944,6 +950,15 @@ mxfs_buf_owner_authority(
 					sn->epoch = ep;
 					sn->res = res;
 					sn->lineage = lin;
+					/*
+					 * This tenure now has a token in the
+					 * log.  The eviction reads the pair to
+					 * decide whether the grant it gives up
+					 * owes a clean-release marker.
+					 */
+					WRITE_ONCE(ip->i_mxfs_auth_stamp_epoch, ep);
+					WRITE_ONCE(ip->i_mxfs_auth_stamp_lineage,
+						   lin);
 				} else {
 					out = MXFS_OWNAUTH_DURABLE_NOEP;
 				}
@@ -1052,6 +1067,38 @@ mxfs_ownauth_measure(
 				(unsigned)mode, (unsigned)sn.unpublished,
 				(unsigned long long)sn.gen, (unsigned)sn.try,
 				current->comm);
+		/*
+		 * The line above spends its whole budget on the first owner it
+		 * meets: 48 captures of one directory.  What names the cause is
+		 * one line per OWNER, with the three sites that made its state:
+		 * the last install attempt (try_line, and the gen it saw), the
+		 * last authority transition (line), and the last actor to take
+		 * the inode off the unpublished list (clr).  A capture that
+		 * repeats the previous owner of its outcome prints nothing.
+		 */
+		if (oc < MXFS_OWNAUTH_MAX && own.valid) {
+			static atomic64_t	last_ino[MXFS_OWNAUTH_MAX];
+			static atomic_t		owner_n[MXFS_OWNAUTH_MAX];
+
+			if (atomic64_xchg(&last_ino[oc], (s64)own.ino) !=
+			    (s64)own.ino &&
+			    atomic_inc_return(&owner_n[oc]) <= 400)
+				mxfs_probe("mxfs: P239-OWNAUTH-OWNER blkno=%lld blft=%u outcome=%d ino=%llu mode=%u unpub=%u reused=%u selfc=%u gen=%llu try=%u try_mode=%u try_gen=%llu try_ep=%llu try_line=%u:%u line=%u:%u clr=%u:%u comm=%s\n",
+					(long long)xfs_buf_daddr(bp),
+					(unsigned)bt, oc,
+					(unsigned long long)own.ino,
+					(unsigned)mode, (unsigned)sn.unpublished,
+					(unsigned)sn.reused,
+					(unsigned)sn.self_created,
+					(unsigned long long)sn.gen,
+					(unsigned)sn.try, (unsigned)sn.try_mode,
+					(unsigned long long)sn.try_gen,
+					(unsigned long long)sn.try_epoch,
+					MXFS_SITE_ARGS(sn.try_line),
+					MXFS_SITE_ARGS(sn.auth_line),
+					MXFS_SITE_ARGS(sn.unpub_clr_line),
+					current->comm);
+		}
 	}
 
 	out->mba_owner_ino = own.valid ? own.ino : 0;

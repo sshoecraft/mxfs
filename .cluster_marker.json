@@ -1,12 +1,12 @@
 {
   "nodes": 2,
   "dlm": "cawd",
-  "srcversion": "35EE411D214B22C3D4D15BE",
+  "srcversion": "591CDF015CE73AC096D0E79",
   "node_list": "test1,test2",
   "dev": "/dev/disk/by-path/ip-192.168.120.1:3260-iscsi-iqn.2026-05.local.mxfs:shared-lun-0",
   "rig": "scst-fio",
   "wwid": "eui.3265343736643037",
-  "fsid": "6b745b20-54db-463a-b7ab-14a44b5fbfb9",
-  "gen": 660,
-  "iso": "2026-09-29T12:46:40Z"
+  "fsid": "da1b7c9d-7206-439a-8f14-2e1ecdb5c9c1",
+  "gen": 801,
+  "iso": "2026-09-30T15:13:57Z"
 }

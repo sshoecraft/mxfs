@@ -35,7 +35,13 @@
 # SCST objects are runtime-only: after a clyde reboot run scst_setup.sh setup
 # for the rig and then this script again.  Idempotent.
 #
-# Usage: scripts/scst_platform_targets.sh setup|status
+# setup asks every node of a set for its initiator name, so the set must be
+# up.  Naming platforms sets up only those: the sets of an 8-node release do
+# not all fit in this host's memory at once (scripts/lab_power.sh), so each is
+# powered up, set up and powered down in turn.
+#
+# Usage: scripts/scst_platform_targets.sh setup [<platform> ...]
+#        scripts/scst_platform_targets.sh status
 set -u
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 . "$HERE/tools/mxfs_lab.sh"
@@ -111,7 +117,7 @@ status() {
 }
 
 case "${1:-}" in
-    setup)  rc=0; for p in $(platforms); do setup_one "$p" || { echo "PLATFORM_TARGET_FAIL $p" >&2; rc=1; }; done; exit $rc ;;
+    setup)  shift; rc=0; for p in ${*:-$(platforms)}; do setup_one "$p" || { echo "PLATFORM_TARGET_FAIL $p" >&2; rc=1; }; done; exit $rc ;;
     status) status ;;
-    *) echo "usage: $0 setup|status" >&2; exit 2 ;;
+    *) echo "usage: $0 setup [<platform> ...] | status" >&2; exit 2 ;;
 esac

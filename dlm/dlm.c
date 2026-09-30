@@ -8911,6 +8911,48 @@ int mxfs_dlm_resource_wait_is_receipted(struct mxfs_dlm_ctx *ctx,
 	return (now >= ms && (now - ms) <= stale_ms) ? 1 : 0;
 }
 
+/*
+ * How long attempts that end in a transport error toward one remote master
+ * go without spending the acquire's retry budget.  Derived from what the
+ * wait is for: a dead member is declared dead 60-66 s after it stops
+ * (measured, both transports), and the survivors write again 72-101 s after
+ * one death and 81-87 s after two at once; the multi-victim harness allows
+ * 120 s for the declaration and 60 s for each victim's fence and replay.
+ * 300 s is that allowance for three victims.  Past it the budget is spent as
+ * before, so an acquire toward a master that never leaves the view still
+ * ends.
+ */
+#define MXFS_DLM_DEAD_MASTER_WAIT_MS	300000
+/* the budget mxfs_dlm_lock gives an acquire: 60 attempts of about a second */
+#define MXFS_DLM_FULL_BUDGET		60
+
+/*
+ * An attempt of this acquire ended in a transport error.  Does it go
+ * unspent?  It does while the resource's master is a remote node, the same
+ * one since the first such attempt, whose recovery has not been declared
+ * blocked or refused (those fail fast elsewhere and must not be waited on),
+ * and MXFS_DLM_DEAD_MASTER_WAIT_MS has not passed since that first attempt.
+ * A change of master starts the clock again: it is a change of the view,
+ * which is the progress this wait is for.
+ */
+static bool dlm_xport_wait_unspent(struct mxfs_dlm_ctx *ctx,
+				   const struct mxfs_resource_id *resource,
+				   mxfs_node_id_t *master, uint64_t *t0)
+{
+	mxfs_node_id_t m = mxfs_dlm_resource_master(ctx, resource);
+	uint64_t now = mxfs_pal_time_ms();
+
+	if (!m || m == ctx->local_node)
+		return false;
+	if (ctx->recovery_blocked_cb && ctx->recovery_blocked_cb(ctx->cb_data, m))
+		return false;
+	if (m != *master) {
+		*master = m;
+		*t0 = now;
+	}
+	return now - *t0 < MXFS_DLM_DEAD_MASTER_WAIT_MS;
+}
+
 /* ─── mxfs_dlm_lock — Local lock acquisition ─── */
 
 int mxfs_dlm_lock(struct mxfs_dlm_ctx *ctx,
@@ -8922,7 +8964,8 @@ int mxfs_dlm_lock(struct mxfs_dlm_ctx *ctx,
 	 * (retries * MXFS_LOCK_ACQUIRE_WAIT_MS) at ~60s after lowering the
 	 * per-attempt wait to 1000ms — still covers a release-fence drain while
 	 * recovering a stranded dir-EX waiter in ~1s instead of ~6s. */
-	return mxfs_dlm_lock_retries(ctx, resource, mode, flags, granted_mode, 60);
+	return mxfs_dlm_lock_retries(ctx, resource, mode, flags, granted_mode,
+				     MXFS_DLM_FULL_BUDGET);
 }
 
 /*
@@ -8975,9 +9018,25 @@ int mxfs_dlm_lock_retries(struct mxfs_dlm_ctx *ctx,
 	uint64_t tprog = 0, trans_prog = 0, trans_t0 = 0;
 	bool trans_seen = false;
 	int n_trans = 0;
+	uint64_t acq_t0;	/* when this acquire began, for the line that names its end */
+	/*
+	 * 0.90.29: a transport error toward a remote master is a master that
+	 * is dead or cut off, and what ends that is a change of the view (its
+	 * death is declared, its slice is replayed, its pages move to a
+	 * survivor), not the passing of a number of attempts.  While the same
+	 * remote node stays this resource's master and its recovery is not
+	 * declared blocked or refused, such an attempt does not spend the
+	 * budget.  MXFS_DLM_DEAD_MASTER_WAIT_MS after the first of them the
+	 * budget is spent again as it always was, so the wait has an end of
+	 * its own whatever the view does.
+	 */
+	mxfs_node_id_t xport_master = 0;
+	uint64_t xport_t0 = 0;
+	int n_xport_unspent = 0;
 
 	if (!ctx || !resource || mode >= MXFS_LOCK_MODE_COUNT)
 		return -EINVAL;
+	acq_t0 = mxfs_pal_time_ms();
 	memcpy(why0, ctx->retry_why, sizeof(why0));   /* per-request tally */
 
 	/* DLM_TRACE: log entry for inode 128 debugging */
@@ -9117,6 +9176,67 @@ int mxfs_dlm_lock_retries(struct mxfs_dlm_ctx *ctx,
 			 * same dead master (active node list not yet updated),
 			 * getting -ENOTCONN.  Retry with a short sleep to give
 			 * update_active_nodes() time to remap the master. */
+			/*
+			 * A request that asked not to queue and cannot reach the
+			 * master answers "would block" now, as it does on a page
+			 * in transition.  Measured at 8 nodes on TCP with two
+			 * nodes power-cut: every survivor's first no-queue
+			 * request toward a dead master ran out the whole budget
+			 * (25 timeouts, 34 transport errors, 70-72 s) before it
+			 * returned the transport error its callers read as "not
+			 * acquired" anyway.
+			 */
+			if ((ret == -ENOTCONN || ret == -EPIPE ||
+			     ret == -ECONNRESET) && (flags & MXFS_LKF_NOQUEUE)) {
+				mxfs_node_id_t m = mxfs_dlm_resource_master(ctx, resource);
+
+				if (m && m != ctx->local_node) {
+					mxfs_probe_ratelimited(
+					    "mxfs: P-ACQ-UNREACHABLE-MASTER-NOQUEUE type=%u ino=%llu ag=%u mode=%s rc=%d master=%u we=%u left=%d timeouts=%d comm=%s — a no-queue request toward a master that cannot be reached answers would-block\n",
+					    resource->type, (unsigned long long)resource->ino,
+					    resource->ag_number, mode_name(mode), ret,
+					    m, ctx->local_node, retries, n_timeout,
+					    dlm_cur_comm());
+					return -EAGAIN;
+				}
+			}
+			/*
+			 * Only an acquire given the whole budget waits here.  A
+			 * caller that drives a small budget in a loop of its own
+			 * needs every call back within that budget (its
+			 * cooperative release of cached AGs runs between calls),
+			 * and one that asked not to queue does not wait at all.
+			 */
+			if ((ret == -ENOTCONN || ret == -EPIPE ||
+			     ret == -ECONNRESET) &&
+			    retries0 >= MXFS_DLM_FULL_BUDGET &&
+			    !(flags & MXFS_LKF_NOQUEUE) &&
+			    dlm_xport_wait_unspent(ctx, resource, &xport_master,
+						   &xport_t0)) {
+				if (ctx->shutting_down)
+					return -ESHUTDOWN;
+				if (ctx->acq_fallible_cb &&
+				    ctx->acq_fallible_cb(ctx->cb_data, resource) &&
+				    mxfs_pal_fatal_signal_pending()) {
+					mxfs_probe_ratelimited(
+					    "mxfs: P958-ACQ-FATAL-SIGNAL ino=%llu type=%u ag=%u mode=%s retries_left=%d comm=%s — a killed task at a fallible boundary leaves its wait for an unreachable master\n",
+					    (unsigned long long)resource->ino, resource->type,
+					    resource->ag_number, mode_name(mode), retries,
+					    dlm_cur_comm());
+					return -EINTR;
+				}
+				n_xport++;
+				if (++n_xport_unspent == 1)
+					pr_warn_ratelimited(
+					    "mxfs: P-ACQ-UNREACHABLE-MASTER-WAIT type=%u ino=%llu ag=%u mode=%s rc=%d master=%u we=%u left=%d timeouts=%d comm=%s — the master of this resource cannot be reached; the attempts toward it do not spend the retry budget while the view still names it\n",
+					    resource->type, (unsigned long long)resource->ino,
+					    resource->ag_number, mode_name(mode), ret,
+					    xport_master, ctx->local_node, retries,
+					    n_timeout, dlm_cur_comm());
+				retries++;              /* undone by the loop's --retries */
+				mxfs_pal_sleep_ms(500);
+				continue;
+			}
 			if ((ret == -ENOTCONN || ret == -EPIPE ||
 			     ret == -ECONNRESET) && retries > 1) {
 				mxfs_pal_log(MXFS_LOG_DEBUG,
@@ -9180,6 +9300,54 @@ int mxfs_dlm_lock_retries(struct mxfs_dlm_ctx *ctx,
 					}
 				}
 			} else {
+				/*
+				 * Instrument, no behaviour.  An acquire whose LAST
+				 * attempt meets a transport error or a timeout ends
+				 * here (the arms above ask for retries > 1) and hands
+				 * its caller that attempt's error; the line after the
+				 * loop is never reached and nothing named the end.
+				 * One create on a survivor failed "not connected"
+				 * 70 s after two peers were power-cut and nothing in
+				 * its log said which acquire, toward whom, or after
+				 * how long.
+				 */
+				if (ret == -ENOTCONN || ret == -EPIPE ||
+				    ret == -ECONNRESET || ret == -ETIMEDOUT) {
+					/* a timed-out last attempt is routine for a
+					 * caller that drives a small budget in a loop
+					 * of its own, so it has a cap of its own and
+					 * cannot spend the transport errors' */
+					static atomic_t ladder_xport_n = ATOMIC_INIT(0);
+					static atomic_t ladder_tmo_n = ATOMIC_INIT(0);
+
+					if (ret == -ETIMEDOUT ?
+					    atomic_inc_return(&ladder_tmo_n) <= 64 :
+					    atomic_inc_return(&ladder_xport_n) <= 400) {
+						mxfs_node_id_t m =
+							mxfs_dlm_resource_master(ctx, resource);
+
+						mxfs_pal_log(MXFS_LOG_WARN,
+							     "mxfs: P-ACQ-LADDER-END type=%u ino=%llu ag=%u "
+							     "mode=%s rc=%d budget=%d left=%d timeouts=%d "
+							     "transport=%d transition_waits=%d age_ms=%llu "
+							     "master=%u we=%u master_live=%d master_rblk=%d "
+							     "flags=0x%x comm=%s — the acquire ends on its "
+							     "last attempt and returns that attempt's error "
+							     "to its caller",
+							     resource->type,
+							     (unsigned long long)resource->ino,
+							     resource->ag_number, mode_name(mode), ret,
+							     retries0, retries - 1, n_timeout, n_xport,
+							     n_trans,
+							     (unsigned long long)(mxfs_pal_time_ms() - acq_t0),
+							     m, ctx->local_node,
+							     ctx->node_live_cb ?
+								ctx->node_live_cb(ctx->cb_data, m) : -1,
+							     ctx->recovery_blocked_cb ?
+								ctx->recovery_blocked_cb(ctx->cb_data, m) : -1,
+							     flags, dlm_cur_comm());
+					}
+				}
 				return ret;
 			}
 		} else {

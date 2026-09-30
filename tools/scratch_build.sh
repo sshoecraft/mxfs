@@ -35,6 +35,7 @@ rsync -a --delete \
   --exclude '*.mod.c' --exclude 'modules.order' --exclude 'Module.symvers' \
   --exclude '.tmp_*' --exclude 'tests/evidence' --exclude '.ccloop' \
   --exclude '.ccmemory' --exclude '.git' --exclude '*.a' \
+  --exclude 'bench.json' \
   "$REPO/" "$S/" || { echo "ABORT: rsync rc=$?"; exit 1; }
 rm -f "$S/mxfs.mod" "$S/mxfs.mod.c" "$S/mxfs.mod.o" "$S/Module.symvers" "$S/modules.order"
 T0=$(date +%s)

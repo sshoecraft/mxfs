@@ -58,6 +58,37 @@ even when the base is captured from a platter image that is not ours: no
 peer writes during our tenure, so such an image is the pre-tenure one, and
 our own writes still in flight must stay recognisable when they land.
 
+## Who may touch the base, and under what
+
+The base is one allocation hanging off the inode, replaced whole at every
+capture.  Its captures do not share a lock: the release drain and the
+pre-mutation refresh run with no inode lock held (the refresh runs before the
+operation takes it, the drain runs on the release worker), while the merge
+and the reload run with the inode lock held exclusive.  So the inode lock
+cannot be what serialises the base, and nothing else did: two captures that
+read the same old base both freed it (the allocator's double-free check took
+a survivor down at 8 nodes on TCP), and a merge could read a base a capture
+had just freed.
+
+- **A capture replaces the base under `i_flags_lock`**, the lock the own-image
+  ring already uses, and frees the old base after dropping it.  The new image
+  is allocated and copied before the lock is taken.  Each capture therefore
+  detaches an old base no other capture can also hold.
+- **A reader works on a copy of its own** (`mxfs_dir_sf_base_dup`), taken under
+  the same lock at the point where it used to read the pointer, and frees the
+  copy when it is done.  A merge walks the base for its whole length and
+  allocates while it does, so it cannot hold a spinlock across the walk.
+- **Last capture wins.**  Two captures that overlap leave the image of
+  whichever stored last.  Both are platter images read coherently moments
+  apart in one tenure, so either is a correct ancestor; what must never
+  happen is a base that is neither.
+
+`sf_base_captures` and `sf_base_overlaps` count every capture and every one
+that began while another capture of the same inode's base was in progress;
+`P-SFBASE-OVERLAP` names both callers.  The test-only parameter
+`sf_base_race_delay_us` holds a capture open so a lap can make them overlap
+(`tests/sf_base_overlap.sh`).
+
 ## What remains outside the merge
 
 The merge covers shortform-to-shortform reconciliation only.  A directory

@@ -460,6 +460,21 @@ MODULE_PARM_DESC(dbg_leak_bufs,
 	"TEST: leak the next N xfs_buf structs at free (never returned to the slab); reads the leaks still to take");
 static DEFINE_SPINLOCK(mxfs_dbg_leak_lock);
 
+/*
+ * TEST ONLY.  A directory of test2's ended a lap holding names of freed
+ * inodes, once in ten laps.  In that cycle the platter still held the image
+ * from before the node's own removals when the rm ran, because the AIL
+ * pusher had not written the block and the inode cluster yet; in every
+ * other cycle it had.  With this set, every write the AIL pusher submits of
+ * a directory block or an inode cluster waits this long first, so the platter
+ * lags the log on every cycle and whichever path takes the platter's image
+ * over the node's own logged changes does so every time.
+ */
+static int mxfs_dbg_dir_write_delay_ms;
+module_param_named(dbg_dir_write_delay_ms, mxfs_dbg_dir_write_delay_ms, int, 0644);
+MODULE_PARM_DESC(dbg_dir_write_delay_ms,
+	"TEST: the AIL pusher holds every write of a directory block or inode cluster this many ms before submitting it (0=off)");
+
 static bool
 mxfs_dbg_leak_take(void)
 {
@@ -1047,6 +1062,28 @@ xfs_buf_find_lock(
 			return -ENOENT;
 		}
 		ASSERT((bp->b_flags & _XBF_DELWRI_Q) == 0);
+		/*
+		 * Instrument: the reset below ends a queued write.  The buffer
+		 * stays on its delwri list and that pass drops it unwritten.
+		 */
+		if (bp->b_flags & _XBF_DELWRI_Q) {
+			static atomic_t sdw_n = ATOMIC_INIT(0);
+			struct list_head	*pos;
+			unsigned int		items = 0;
+
+			list_for_each(pos, &bp->b_li_list) {
+				if (++items >= 64)
+					break;
+			}
+			if (atomic_inc_return(&sdw_n) <= 200)
+				pr_warn("mxfs: P-STALE-DELWRI-WIPE n=%d daddr=%lld ops=%s items=%u staler=%pS comm=%s — a lookup's stale reset clears a queued write\n",
+					atomic_read(&sdw_n),
+					(long long)xfs_buf_daddr(bp),
+					bp->b_ops && bp->b_ops->name ?
+						bp->b_ops->name : "?",
+					items, bp->b_mxfs_stale_ip,
+					current->comm);
+		}
 		bp->b_flags &= _XBF_KMEM;
 		bp->b_ops = NULL;
 		/* a reused stale buffer carries no recovery provenance */
@@ -8021,8 +8058,10 @@ xfs_buf_submit_bio(
 		bool ri_data = bp->b_ops == &xfs_dir3_data_buf_ops ||
 			       bp->b_ops == &xfs_dir3_block_buf_ops;
 
+		/* a log recovery's write is excluded: see P12-RECOV-DIRWR below */
 		if ((mxfs_dir_reintro_probe || mxfs_dir_reintro_skip ||
 		     mxfs_dir_reintro_trim) &&
+		    !(bp->b_flags & _XBF_LOGRECOVERY) &&
 		    ri_data && (bp->b_flags & XBF_WRITE) && bp->b_addr &&
 		    bp->b_map_count == 1 && bp->b_mount &&
 		    bp->b_mount->m_mxfs_dlm &&
@@ -8288,6 +8327,47 @@ xfs_buf_submit_bio(
 		extern int mxfs_dirwr_enabled, mxfs_instr_enabled;
 		struct mxfs_dir_skip_info dsi;
 		bool dir_skip = mxfs_buf_xfsaild_skip_dir_write(bp, &dsi);
+
+		/*
+		 * A LOG RECOVERY'S DIRECTORY WRITE IS NOT JUDGED BY THIS NODE'S
+		 * TENURE.  Every filter from here to the end of this block asks
+		 * what grant this node holds on the owner directory and reads a
+		 * write made without the exclusive one as the image of an earlier
+		 * tenure.  The node that replays a dead peer's slice holds no
+		 * grant on the dead node's directories by construction, and the
+		 * image it writes is the newest there is: the dead node held the
+		 * grant at its death, the replay admitted the image on that
+		 * proof, and the grant stays frozen until the recovery completes.
+		 *
+		 * Measured on 8 nodes over TCP, two nodes power-cut inside
+		 * rm -rf: the replay applied the last image of a directory block
+		 * (32 names, ten removals), the exclusive-grant guard below found
+		 * no grant and 42 names on the platter, dropped the write and
+		 * completed the buffer as written.  The allocation-group images
+		 * of the same checkpoints landed, so the platter held ten inodes
+		 * free and ten names still pointing at them.  It was the only
+		 * write that guard suppressed on any of the eight nodes in the
+		 * lap.  A replayed create has more names than the platter and
+		 * passed, which is why only a removal showed it.
+		 *
+		 * The later write fence in xfs_buf_submit_ex already excludes a
+		 * recovery by this flag.  The flag is set when pass 2 queues the
+		 * buffer and cleared when its write completes.
+		 */
+		if ((bp->b_flags & XBF_WRITE) &&
+		    (bp->b_flags & _XBF_LOGRECOVERY) && dsi.is_dir_buf) {
+			static atomic_t recov_dirwr_n = ATOMIC_INIT(0);
+
+			if (atomic_inc_return(&recov_dirwr_n) <= 4000)
+				mxfs_probe("mxfs: P12-RECOV-DIRWR owner=%llu daddr=%lld ops=%s act=%d in_core=%d mode=%d foreign=%d comm=%s — a log recovery's directory image is written on the recovery's authority, whatever grant this node holds\n",
+					(unsigned long long)dsi.owner,
+					(long long)bp->b_maps[0].bm_bn,
+					bp->b_ops && bp->b_ops->name ?
+						bp->b_ops->name : "?",
+					dsi.active_count, dsi.in_core, dsi.mode,
+					bp->b_mxfs_foreign_recovery ? 1 : 0,
+					current->comm);
+		}
 
 		/*
 		 * instrumented lineage probe (always-on, capped):
@@ -8600,6 +8680,7 @@ xfs_buf_submit_bio(
 			 */
 			if ((dc_data || dc_leaf) &&
 			    (bp->b_flags & XBF_WRITE) && bp->b_addr &&
+			    !(bp->b_flags & _XBF_LOGRECOVERY) &&
 			    bp->b_map_count == 1 &&
 			    bp->b_mount && bp->b_mount->m_mxfs_dlm &&
 			    !mxfs_v5_dlm_is_single_node(bp->b_mount->m_mxfs_dlm) &&
@@ -9242,6 +9323,71 @@ xfs_buf_submit_bio(
 			kfree(p56_tmp);
 	}
 
+	/*
+	 * See dbg_dir_write_delay_ms: the platter lags the log by that much
+	 * for every directory block and inode cluster the AIL pusher writes.
+	 */
+	if (unlikely(mxfs_dbg_dir_write_delay_ms > 0) &&
+	    (bp->b_flags & XBF_WRITE) && bp->b_mount &&
+	    bp->b_mount->m_mxfs_dlm &&
+	    strncmp(current->comm, "xfsaild", 7) == 0 &&
+	    (bp->b_ops == &xfs_dir3_data_buf_ops ||
+	     bp->b_ops == &xfs_dir3_block_buf_ops ||
+	     bp->b_ops == &xfs_inode_buf_ops)) {
+		static atomic_t	dwd_n = ATOMIC_INIT(0);
+
+		if (atomic_inc_return(&dwd_n) <= 20)
+			pr_warn("mxfs: P-DBG-DIR-WRITE-DELAY daddr=%lld ops=%s ms=%d — TEST ONLY: the AIL pusher's write of a directory block or inode cluster is held back\n",
+				(long long)bp->b_maps[0].bm_bn,
+				bp->b_ops->name ? bp->b_ops->name : "?",
+				mxfs_dbg_dir_write_delay_ms);
+		msleep(mxfs_dbg_dir_write_delay_ms);
+	}
+
+	/*
+	 * A read into a cached buffer whose logged changes have not left for
+	 * disk replaces the only in-core copy of committed content with the
+	 * platter's older image; the log item stays, and the next write
+	 * carries the older image home.  Every path that clears XBF_DONE
+	 * tests for this itself, each with its own exceptions, so the read is
+	 * where all of them are seen.  Counted, the first ones printed with
+	 * the stack that asked for the read.
+	 */
+	if (!(bp->b_flags & XBF_WRITE) && bp->b_mount &&
+	    bp->b_mount->m_mxfs_dlm &&
+	    bp->b_mxfs_logged_seq != bp->b_mxfs_written_seq) {
+		struct xfs_buf_log_item	*rbip = bp->b_log_item;
+		static atomic_t		rou_n = ATOMIC_INIT(0);
+		int			n = atomic_inc_return(&rou_n);
+
+		if (n <= 400)
+			pr_warn("mxfs: P-READ-OVER-UNDESTAGED n=%d daddr=%lld ops=%s lseq=%llu wseq=%llu bli=%d in_ail=%d in_cil=%d dirty=%d pin=%d delwri=%d stale=%d dir_incarn=%u dir_gen=%u grant_gen=%u dir_epoch=%u flags=0x%x last_staler=%pS staled_ms_ago=%d staler_items=%u comm=%s — a platter read is about to replace logged content that was never written\n",
+				n, (long long)bp->b_maps[0].bm_bn,
+				bp->b_ops && bp->b_ops->name ? bp->b_ops->name : "?",
+				(unsigned long long)bp->b_mxfs_logged_seq,
+				(unsigned long long)bp->b_mxfs_written_seq,
+				rbip ? 1 : 0,
+				(rbip && test_bit(XFS_LI_IN_AIL,
+					&rbip->bli_item.li_flags)) ? 1 : 0,
+				(rbip && !list_empty_careful(
+					&rbip->bli_item.li_cil)) ? 1 : 0,
+				(rbip && test_bit(XFS_LI_DIRTY,
+					&rbip->bli_item.li_flags)) ? 1 : 0,
+				xfs_buf_ispinned(bp) ? 1 : 0,
+				(bp->b_flags & _XBF_DELWRI_Q) ? 1 : 0,
+				(bp->b_flags & XBF_STALE) ? 1 : 0,
+				bp->b_mxfs_dir_incarn, bp->b_mxfs_dir_gen,
+				bp->b_mxfs_grant_gen, bp->b_mxfs_dir_epoch,
+				(unsigned int)bp->b_flags,
+				bp->b_mxfs_stale_ip,
+				bp->b_mxfs_stale_ip ?
+					(int)((uint32_t)(ktime_get_real_ns() >> 20) -
+					      bp->b_mxfs_stale_ms) : -1,
+				bp->b_mxfs_stale_items,
+				current->comm);
+		if (n <= 8)
+			dump_stack();
+	}
 
 	bio = bio_alloc(bp->b_target->bt_bdev, nr_vecs, xfs_buf_bio_op(bp),
 			GFP_NOIO);
@@ -13062,6 +13208,33 @@ xfs_buf_delwri_queue(
 	}
 
 	trace_xfs_buf_delwri_queue(bp, _RET_IP_);
+
+	/*
+	 * Instrument: a STALE buffer queued for write.  The next lookup of its
+	 * daddr resets a stale buffer's flags, _XBF_DELWRI_Q with them, and the
+	 * delwri pass then drops it unwritten; an inode item flushed into it
+	 * stays FLUSHING in the AIL with no completion coming.
+	 */
+	if (bp->b_flags & XBF_STALE) {
+		static atomic_t dqs_n = ATOMIC_INIT(0);
+		struct list_head	*pos;
+		unsigned int		items = 0;
+
+		list_for_each(pos, &bp->b_li_list) {
+			if (++items >= 64)
+				break;
+		}
+		if (atomic_inc_return(&dqs_n) <= 200)
+			pr_warn("mxfs: P-DELWRI-QUEUE-STALE n=%d daddr=%lld ops=%s items=%u staler=%pS staled_ms_ago=%u caller=%pS comm=%s\n",
+				atomic_read(&dqs_n),
+				(long long)xfs_buf_daddr(bp),
+				bp->b_ops && bp->b_ops->name ?
+					bp->b_ops->name : "?",
+				items, bp->b_mxfs_stale_ip,
+				(uint32_t)(ktime_get_real_ns() >> 20) -
+					bp->b_mxfs_stale_ms,
+				(void *)_RET_IP_, current->comm);
+	}
 
 	/*
 	 * If a buffer gets written out synchronously or marked stale while it

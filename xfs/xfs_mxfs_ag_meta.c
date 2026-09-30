@@ -535,6 +535,34 @@ mxfs_dir_buf_is_undestaged(struct xfs_buf *bp)
 }
 
 /*
+ * The pin count and then the log item's AIL membership, read in that order,
+ * for a keep-or-drop decision on a cached buffer.  Returns the pin count's
+ * verdict and sets *in_ail.
+ *
+ * Checkpoint completion inserts an item into the AIL and then unpins its
+ * buffer (xlog_cil_ail_insert_batch), without the buffer lock.  A decision
+ * that reads AIL membership first and the pin count second can land between
+ * the two and see a block whose changes sit in a just-finished checkpoint,
+ * unwritten, as neither pinned nor in the AIL, i.e. clean.  Measured at the
+ * modify-path directory evict: the block was dropped, the next read took the
+ * platter's older (or never-written) image, and the logged changes were lost
+ * or the read failed as corrupt.  Read in this order, unpinned means any
+ * checkpoint that carried the item has already put it in the AIL; the
+ * barrier pairs with the unpin's atomic decrement.
+ */
+bool
+mxfs_buf_read_pin_then_ail(struct xfs_buf *bp, bool *in_ail)
+{
+	struct xfs_buf_log_item	*bip;
+	bool			pinned = xfs_buf_ispinned(bp);
+
+	smp_rmb();
+	bip = bp->b_log_item;
+	*in_ail = bip && test_bit(XFS_LI_IN_AIL, &bip->bli_item.li_flags);
+	return pinned;
+}
+
+/*
  * ROOT FIX for the dir_reuse_coherency round-1
  * format-transition durable loss (PROVEN dirwr trace + 2× design review
  * consult on the captured bytes).  A dir format transition
@@ -719,8 +747,8 @@ mxfs_ag_meta_invalidate_stale(struct xfs_mount *mp, struct xfs_perag *pag,
 		struct xfs_buf_log_item *bip = cbp->b_log_item;
 		bool dirty = bip && test_bit(XFS_LI_DIRTY,
 					     &bip->bli_item.li_flags);
-		bool in_ail = bip && test_bit(XFS_LI_IN_AIL,
-					      &bip->bli_item.li_flags);
+		bool in_ail;
+		bool pinned = mxfs_buf_read_pin_then_ail(cbp, &in_ail);
 
 		/*
 		 * (design review design-consult) — DLM-TENURE AUTHORITY, the structural
@@ -778,7 +806,7 @@ mxfs_ag_meta_invalidate_stale(struct xfs_mount *mp, struct xfs_perag *pag,
 				}
 			}
 		} else if ((cbp->b_flags & XBF_DONE) &&
-			   !dirty && !in_ail && !xfs_buf_ispinned(cbp) &&
+			   !dirty && !in_ail && !pinned &&
 			   !(cbp->b_flags & _XBF_DELWRI_Q) &&
 			   !(cbp->b_flags & XBF_WRITE)) {
 			/*
@@ -827,7 +855,7 @@ mxfs_ag_meta_invalidate_stale(struct xfs_mount *mp, struct xfs_perag *pag,
 			    cbp->b_ops == &xfs_agi_buf_ops ||
 			    cbp->b_ops == &xfs_inobt_buf_ops ||
 			    cbp->b_ops == &xfs_finobt_buf_ops) &&
-			   in_ail && !dirty && !xfs_buf_ispinned(cbp) &&
+			   in_ail && !dirty && !pinned &&
 			   !(cbp->b_flags & _XBF_DELWRI_Q) &&
 			   !(cbp->b_flags & XBF_WRITE) &&
 			   (cbp->b_flags & XBF_DONE) &&

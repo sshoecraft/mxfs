@@ -125,13 +125,16 @@ mxfs_dir_evict_owned_dir_blocks(struct xfs_inode *ip, bool leaf_only)
 			continue;
 		}
 		bip = bp->b_log_item;
-		undurable = (bip && (test_bit(XFS_LI_DIRTY,
-					     &bip->bli_item.li_flags) ||
-				     test_bit(XFS_LI_IN_AIL,
-					     &bip->bli_item.li_flags))) ||
-			    xfs_buf_ispinned(bp) ||
-			    (bp->b_flags & _XBF_DELWRI_Q) ||
-			    !(bp->b_flags & XBF_DONE);
+		{
+			bool	in_ail;
+			bool	pinned = mxfs_buf_read_pin_then_ail(bp, &in_ail);
+
+			undurable = (bip && test_bit(XFS_LI_DIRTY,
+						     &bip->bli_item.li_flags)) ||
+				    in_ail || pinned ||
+				    (bp->b_flags & _XBF_DELWRI_Q) ||
+				    !(bp->b_flags & XBF_DONE);
+		}
 		/* per-block decision + image fingerprint + CIL
 		 * residency for the ledger replay (see P4R-RELSTALE). */
 		if (unlikely(mxfs_dirwr_enabled || mxfs_instr_enabled) &&
@@ -625,6 +628,7 @@ mxfs_dir_evict_data_blocks(struct xfs_inode *ip)
 			struct xfs_buf		*dbp = NULL;
 			struct xfs_buf_log_item	*bip;
 			bool			undurable;
+			bool			decided_in_ail = false;
 			int			ierr;
 
 			/* XBF_TRYLOCK: a block we can't grab cleanly is being
@@ -687,10 +691,52 @@ mxfs_dir_evict_data_blocks(struct xfs_inode *ip)
 
 			bip = dbp->b_log_item;
 			{
-				bool in_ail = (bip && test_bit(XFS_LI_IN_AIL,
-						     &bip->bli_item.li_flags));
+				/*
+				 * The pin count is read BEFORE the log item's AIL
+				 * membership, and the keep test below uses these
+				 * two reads only.  Checkpoint completion inserts an
+				 * item into the AIL and then unpins it
+				 * (xlog_cil_ail_insert_batch), without the buffer
+				 * lock held here.  Read the other way round, an
+				 * evict could see the item not yet in the AIL and
+				 * then the buffer already unpinned, and take a block
+				 * holding logged, unwritten changes for a clean one:
+				 * the next read replaced them with the platter's
+				 * older image (a survivor's rm undid its own
+				 * removals and its directory kept names of freed
+				 * inodes).  Unpinned here means any checkpoint that
+				 * carried the item has already put it in the AIL;
+				 * the barrier pairs with the unpin's atomic
+				 * decrement.
+				 *
+				 * CONTROL BUILD ONLY
+				 * (MXFS_KCFLAGS=-DMXFS_TEST_EVICT_AIL_FIRST): the
+				 * old order, sleeping between the two reads while
+				 * the buffer is pinned so a checkpoint can complete
+				 * in the gap.  -DMXFS_TEST_EVICT_WIDEN puts the same
+				 * sleep between the reads of this order.  The
+				 * source is the same, so the srcversion is too.
+				 */
+				bool pinned;
+				bool in_ail;
 				bool dirty  = (bip && test_bit(XFS_LI_DIRTY,
 						     &bip->bli_item.li_flags));
+#ifdef MXFS_TEST_EVICT_AIL_FIRST
+				in_ail = (bip && test_bit(XFS_LI_IN_AIL,
+						&bip->bli_item.li_flags));
+				if (xfs_buf_ispinned(dbp))
+					msleep(5);
+				pinned = xfs_buf_ispinned(dbp);
+#else
+				pinned = xfs_buf_ispinned(dbp);
+#ifdef MXFS_TEST_EVICT_WIDEN
+				if (pinned)
+					msleep(5);
+#endif
+				smp_rmb();
+				in_ail = (bip && test_bit(XFS_LI_IN_AIL,
+						&bip->bli_item.li_flags));
+#endif
 				/*
 				 * SAME-inode-number ABA — this buffer was
 				 * stamped with a DIFFERENT (non-zero) i_generation, so
@@ -801,13 +847,14 @@ mxfs_dir_evict_data_blocks(struct xfs_inode *ip)
 					 ip->i_dlm_dir_gen != 0 &&
 					 dbp->b_mxfs_dir_gen < ip->i_dlm_dir_gen);
 				undurable = dirty ||
-					    xfs_buf_ispinned(dbp) ||
+					    pinned ||
 					    (dbp->b_flags & _XBF_DELWRI_Q) ||
 					    !(dbp->b_flags & XBF_DONE) ||
 					    (in_ail && !incarn_aba && !new_tenure &&
 					     !prior_tenure && !grant_stale_base &&
 					     !dir_gen_stale &&
 					     mxfs_dir_buf_is_undestaged(dbp));
+				decided_in_ail = in_ail;
 				if (dir_gen_stale &&
 				    (mxfs_dirwr_enabled || mxfs_instr_enabled))
 					mxfs_probe_ratelimited("mxfs: P-GENEVICT ino=%llu daddr=%llu bgen=%u dirgen=%llu in_ail=%d undurable=%d — force-evicting dir_gen-stale base (dc_stale predicate, uncovered by epoch/grant/incarn discriminators)\n",
@@ -972,10 +1019,63 @@ mxfs_dir_evict_data_blocks(struct xfs_inode *ip)
 			}
 
 			if (!undurable) {
+				/*
+				 * Detector: the item reached the AIL between the
+				 * decision's reads and this clear, with logged
+				 * changes unwritten.  Only the old read order can
+				 * produce it: with the pin count read first, an
+				 * unpinned buffer's item is already in the AIL or
+				 * cannot enter it without the lock held here.
+				 */
+				if (!decided_in_ail && bip &&
+				    test_bit(XFS_LI_IN_AIL, &bip->bli_item.li_flags) &&
+				    mxfs_dir_buf_is_undestaged(dbp)) {
+					static atomic_t aila_n = ATOMIC_INIT(0);
+
+					if (atomic_inc_return(&aila_n) <= 200)
+						pr_warn("mxfs: P-EVICT-AIL-ARRIVED n=%d ino=%llu daddr=%llu lseq=%llu wseq=%llu pin=%d ops=%s comm=%s — item entered the AIL after the evict read it absent; logged content is about to be dropped\n",
+							atomic_read(&aila_n),
+							(unsigned long long)ip->i_ino,
+							(unsigned long long)d,
+							(unsigned long long)dbp->b_mxfs_logged_seq,
+							(unsigned long long)dbp->b_mxfs_written_seq,
+							xfs_buf_ispinned(dbp) ? 1 : 0,
+							dbp->b_ops && dbp->b_ops->name ?
+								dbp->b_ops->name : "?",
+							current->comm);
+				}
 				/* Durable (incl. destaged-but-in-AIL): force the
 				 * next read to FUA-refetch the peer's block. */
 				dbp->b_flags &= ~(XBF_DONE | _XBF_FUA_FRESH);
 				dbp->b_mxfs_dir_gen = 0;
+				/*
+				 * Instrument: name this evict as the buffer's
+				 * last invalidator, with the arms that decided
+				 * it, so a platter read over unwritten logged
+				 * content (P-READ-OVER-UNDESTAGED) says who
+				 * cleared the block.  flags bit 0 incarn_aba,
+				 * 1 new_tenure, 2 prior_tenure, 3 grant_stale,
+				 * 4 undestaged, 5 in_ail.
+				 */
+				dbp->b_mxfs_stale_ip = (void *)_THIS_IP_;
+				dbp->b_mxfs_stale_ms =
+					(uint32_t)(ktime_get_real_ns() >> 20);
+				dbp->b_mxfs_stale_items =
+					(dbp->b_mxfs_dir_incarn != 0 &&
+					 dbp->b_mxfs_dir_incarn !=
+						VFS_I(ip)->i_generation ? 1 : 0) |
+					(new_tenure ? 2 : 0) |
+					(mxfs_dir_newtenure_evict && cur_mep != 0 &&
+					 dbp->b_mxfs_dir_epoch != 0 &&
+					 dbp->b_mxfs_dir_epoch < cur_mep ? 4 : 0) |
+					(mxfs_dir_grant_evict &&
+					 ip->i_dlm_cached_grant_gen != 0 &&
+					 dbp->b_mxfs_grant_gen != 0 &&
+					 dbp->b_mxfs_grant_gen !=
+						ip->i_dlm_cached_grant_gen ? 8 : 0) |
+					(mxfs_dir_buf_is_undestaged(dbp) ? 16 : 0) |
+					(bip && test_bit(XFS_LI_IN_AIL,
+						&bip->bli_item.li_flags) ? 32 : 0);
 				if (unlikely(mxfs_dirwr_enabled || mxfs_instr_enabled))
 					mxfs_probe_ratelimited("mxfs: P-EVICT-DONE ino=%llu daddr=%llu in_ail=%d\n",
 						(unsigned long long)ip->i_ino,

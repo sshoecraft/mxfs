@@ -39,6 +39,14 @@ struct mxfs_peer {
     mxfs_mutex_t        *send_lock;
     mxfs_thread_t       *recv_thread;
     uint64_t            last_seen;  /* mxfs_pal_time_ms() */
+    /* when sock was installed (mxfs_pal_time_ms()): the line that reports a
+     * connection taken down says how old it was, which is how a lap tells a
+     * setup that met the other direction's from a reconnect after a drop */
+    uint64_t            installed_ms;
+    /* when recv_thread was stored */
+    uint64_t            recv_started_ms;
+    /* which setup installed sock ("accept" or "connect"), for the same line */
+    const char          *installed_by;
 };
 
 /* Message received callback */

@@ -3983,10 +3983,23 @@ mxfs_report_replay_authority(
 		if (!publish)
 			continue;
 		n = atomic_inc_return(&mxfs_tokdet_n);
-		if (n > 400)
-			continue;
+		if (n > 400) {
+			/*
+			 * A refused image is printed past the cap, up to a cap
+			 * of its own: it is the line that names the tenure a
+			 * refused slice was refused for, and a victim whose log
+			 * tail stood far behind its head has more than 400
+			 * images ahead of the first one refused.
+			 */
+			static atomic_t	mxfs_tokref_n = ATOMIC_INIT(0);
+
+			if (!se ||
+			    item->ri_mxfs_verdict != MXFS_RI_VERDICT_REFUSE ||
+			    atomic_inc_return(&mxfs_tokref_n) > 2000)
+				continue;
+		}
 		mxfs_xfs_probe(log->l_mp,
-	"MXFS %s replay: P227-TOKEN blkno=%lld len=%u blft=%u v=%u class=%u st=%u res=%llu gepoch=%llu oepoch=%llu slot=%u node=%u lineage=%llu (n=%d)",
+	"MXFS %s replay: P227-TOKEN blkno=%lld len=%u blft=%u v=%u class=%u st=%u res=%llu gepoch=%llu oepoch=%llu slot=%u node=%u lineage=%llu verdict=%u (n=%d)",
 			   src, (long long)blfp->blf_blkno,
 			   (unsigned int)blfp->blf_len,
 			   (unsigned int)xfs_blft_from_flags(blfp),
@@ -3998,7 +4011,8 @@ mxfs_report_replay_authority(
 			   (unsigned long long)av.av_owner_epoch,
 			   (unsigned int)av.av_owner_slot,
 			   (unsigned int)av.av_owner_node,
-			   (unsigned long long)av.av_lineage, n);
+			   (unsigned long long)av.av_lineage,
+			   se ? (unsigned int)item->ri_mxfs_verdict : 0U, n);
 	}
 
 	/*

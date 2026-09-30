@@ -530,6 +530,56 @@ DEGRADED inside `H` of the first dropped request, listed while armed, delisted
 after) and `tests/live_holder_wait.sh MASTER=remote` (a confirmed 240 s queue:
 zero DEGRADED).
 
+## An unreachable master: attempts that do not spend the budget (0.90.29)
+
+An acquire on the TCP transport is a bounded number of attempts (60 for
+`mxfs_dlm_lock`, about a second each).  That bound is right for a master that
+answers and wrong for one that cannot be reached, because what ends an
+unreachable master is a change of the view and the view changes on its own
+clock: a dead member is declared dead when its lease runs out (60-66 s
+measured), its slice is replayed, and only then do the pages it mastered move
+to a survivor (72-101 s after one death, 81-87 s after two at once).  An
+acquire that began in the first seconds after a death spent its sixty
+attempts against the dead master before the view had changed and handed the
+last attempt's transport error to its caller: a create on a healthy survivor
+failed with `ENOTCONN` because two other nodes had died.
+
+**The rule.**  An attempt that ends in a transport error (`ENOTCONN`, `EPIPE`,
+`ECONNRESET`) does not spend the budget while all of these hold:
+
+- the acquire was given the whole budget (a caller that drives a small budget
+  in a loop of its own needs every call back within it: its cooperative
+  release of cached AGs runs between calls);
+- the request may queue.  A no-queue request does not wait at all: its first
+  attempt that ends in a transport error toward a remote master answers
+  would-block (`-EAGAIN`, `P-ACQ-UNREACHABLE-MASTER-NOQUEUE`), as it does on a
+  page in transition.  Its callers read any failure as "not acquired" and
+  take their blocking path or their next candidate; before this each such
+  probe ran out the whole budget first (70-72 s measured at 8 nodes);
+- the resource's master is a remote node, and the same one since the first
+  such attempt (a change of master is a change of the view, and starts the
+  clock again);
+- that node's recovery has not been declared blocked or terminally refused
+  (those fail fast, and must not be waited on);
+- less than `MXFS_DLM_DEAD_MASTER_WAIT_MS` (300 s: the 120 s allowed for a
+  declaration plus 60 s for each of three victims) has passed since the first
+  such attempt.
+
+The wait ends the way the transition wait does: on a closed authority
+(`-ESHUTDOWN`, checked at the top of every attempt), on a DLM that is shutting
+down, on a fatal signal at a fallible boundary (`-EINTR`), or by the clock, after
+which attempts spend the budget as they always did, so an acquire toward a
+master that never leaves the view still ends.  The first unspent attempt of
+an acquire says so (`P-ACQ-UNREACHABLE-MASTER-WAIT`), and an acquire that ends
+on its last attempt with a transport error or a timeout names itself
+(`P-ACQ-LADDER-END`: resource, budget, attempts of each kind, age, master and
+what the liveness and recovery oracles say of it).
+
+Attempts that time out against a master whose connection has not yet broken
+are not covered and still spend the budget: a timeout is also what a live
+master behind a long holder looks like, and the receipts of "Degraded remote
+lock waits" above are what tells those apart.
+
 ## The fallible acquire class: which waits may end in an error, and which may not
 
 An acquire the master never receipts has two honest completions, and which
@@ -1283,6 +1333,41 @@ takes its certificate with it):
   freeze boundary; the live read is sound today only because fencing freezes
   the victim's bits and purge is ordered after the verdict), markers on the
   ICLUS cluster-release path, and enforcement default-on.
+
+#### A grant that leaves through inode reclaim
+
+The release a peer's request drives is not the only way a grant leaves.
+`mxfs_dlm_evict` ends a tenure when the inode is reclaimed: a removed inode
+keeps its grant cached past the commit of its free, and an idle directory this
+node modified ends its tenure there too.  The eviction publishes the marker in
+the release pipeline's order: its own drains, the marker forced durable, the
+unlock.  It publishes for a tenure that stamped a token and for no other; a
+tenure no image names is met by no replayer.  It publishes nothing on a mount
+that is shut down or unmounting.
+
+**The identity is the grant's, not the certificate's.**  One grant serves
+every incarnation of an inode number that a create takes from the inode cache
+while the grant stays cached.  Each such create resets the certificate (the
+new incarnation is unpublished and proves nothing), while the tokens the
+earlier incarnations stamped still name the grant.  The reset therefore keeps
+the identity of the certificate it ends, when that certificate was durable
+with an epoch and per-inode routed (`i_mxfs_rearm_res`, `_epoch`, `_lineage`).
+An eviction that finds no epoch in the certificate publishes the marker for
+the kept identity when all of these hold:
+
+- the last token stamped from the inode names the kept epoch and lineage;
+- the inode's release pipeline has not already published that pair;
+- the inode is not cluster-routed.
+
+A wire loss clears the kept identity: a grant the wire lost did not end in a
+release, so nothing may certify it clean.  What the marker certifies for the
+earlier incarnations is what it certifies for a committed free: each was freed
+under the grant before the create that followed it, so every block it owned
+was freed under the same tenure and its images are owed nothing.
+
+The release a peer's request drives still reads the certificate alone.  It
+counts a release that finds a kept identity owed a marker
+(`P-RELMARK-OWED site=bast-rearm`, `bast_rearm_owed`) and publishes none.
 
 ### Courtesy ticket vs. a dead registered waiter (0.24.2, sess404)
 
