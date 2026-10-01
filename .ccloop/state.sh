@@ -45,9 +45,8 @@ echo "### Build"
 printf 'tree VERSION **%s**' "$ver"
 [ -n "$src" ] && printf '  |  mxfs.ko srcversion `%s`' "$src"
 if [ -s .last_run.json ]; then
-    printf '  |  last rig run: %s nodes / %s @ %s' \
-        "$(jq -r '.nodes // "?"' .last_run.json)" \
-        "$(jq -r '.dlm   // "?"' .last_run.json)" \
+    printf '  |  last rig run: %s @ %s' \
+        "$(jq -r '.configuration // "?"' .last_run.json)" \
         "$(jq -r '.iso   // "?"' .last_run.json)"
 fi
 echo; echo
@@ -57,13 +56,12 @@ echo
 
 # ---------------------------------------------------------------- board ----
 if [ -s .last_run.json ]; then
-    N=$(jq -r '.nodes // empty' .last_run.json)
-    D=$(jq -r '.dlm   // empty' .last_run.json)
-    echo "### Board — last conditions (${N}/${D}), rows not PASS"
+    C=$(jq -r '.configuration // empty' .last_run.json)
+    echo "### Board — last configuration (${C}), rows not PASS"
     # The board is data/criteria.json, read only through tools/criteria.py.
     # PASS rows are dropped to stay inside the byte budget; the Total and
     # VERDICT lines still count them.
-    timeout 20 python3 tools/criteria.py --no-colour "$N" "$D" 2>&1 \
+    timeout 20 python3 tools/criteria.py --no-colour "$C" 2>&1 \
         | grep -vE '^[0-9]+ +\|[^|]*\| PASS ' | grep -v '^=== '
     echo
     echo "FLAKY and SKIP are not passes: a release needs every row PASS."
@@ -77,10 +75,10 @@ fi
 # blocks the last run's configuration, and the top of the severity order.
 echo "### Defect queue — severity order (full: tools/defects.py -d)"
 timeout 20 python3 tools/defects.py 2>/dev/null | tail -3
-if [ -n "${N:-}" ] && [ -n "${D:-}" ]; then
+if [ -n "${C:-}" ]; then
     echo
-    echo "Blocking a ${N}/${D} release:"
-    timeout 20 python3 tools/defects.py "$N" "$D" --release 2>/dev/null | cut -c1-170
+    echo "Blocking a ${C} release:"
+    timeout 20 python3 tools/defects.py "$C" --release 2>/dev/null | cut -c1-170
 fi
 echo
 echo "Top of the queue:"
@@ -102,7 +100,7 @@ fi
 cat <<'EOF'
 ### Before you measure anything
 - RULE 0 budgets (a timeout IS a failure): `tests/criteria/TIMEOUT_BUDGETS.md`
-- Deploy the fleet: `MXFS_FORCE_PREP=1 ./run.sh 32 caw prep_cluster` (72-137s).
+- Deploy the fleet: `MXFS_FORCE_PREP=1 ./run.sh 32/disk/caw/mpath prep_cluster` (72-137s).
   A module reload RESETS runtime knobs.
 - Board a criterion: `./run.sh <nodes> <dlm> <test>`; read it with `tools/criteria.py <nodes> <dlm>`.
 - Phase walls: `dmesg | grep mxfs-CCph` (crash) / `mxfs-DRCph` (dir_reuse).

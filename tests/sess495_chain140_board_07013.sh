@@ -1,5 +1,5 @@
 #!/bin/bash
-# sess495 chain 140: the full 32/caw board on the 0.70.13 freeze.
+# sess495 chain 140: the full 32/disk/caw/mpath board on the 0.70.13 freeze.
 #
 # Why this run matters.  0.70.x carries the departure/unmount/durability fixes
 # landed since the last full board (0.64.37, run 20260904T000831Z):
@@ -60,7 +60,7 @@ install_ko() {
   pre_id=$(python3 -c "import json;print(json.load(open('.last_run.json'))['run_id'])" 2>/dev/null || echo none)
   echo "STAGE board pre_run_id=$pre_id"
   T0=$(date +%s)
-  timeout "$BOARD_BUDGET" ./run.sh 32 caw; rc=$?
+  timeout "$BOARD_BUDGET" ./run.sh 32/disk/caw/mpath; rc=$?
   wall=$(( $(date +%s) - T0 ))
   echo "STAGE board rc=$rc wall=${wall}s budget=${BOARD_BUDGET}s"
   if [ "$rc" = 124 ]; then
@@ -74,6 +74,6 @@ install_ko() {
     exit 1
   fi
   echo "--- conditions (run_id=$post_id) ---"
-  timeout 120 tools/criteria.py 32 caw 2>&1 | grep -av '^\s*$'
+  timeout 120 tools/criteria.py 32/disk/caw/mpath 2>&1 | grep -av '^\s*$'
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

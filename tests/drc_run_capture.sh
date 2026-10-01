@@ -1,5 +1,5 @@
 #!/bin/bash
-# drc_run_capture.sh — run a single dir_reuse_coherency 2/tcp iteration with
+# drc_run_capture.sh — run a single dir_reuse_coherency 2/net/mesh/direct iteration with
 # FULL kernel-log capture on both nodes (the default dmesg ring WRAPS during a
 # 24-round run, hiding P34/P-DIRBAST/P35 evidence).  sess35 (ccloop).
 #
@@ -30,8 +30,8 @@ for n in "${NODES[@]}"; do
 done
 
 # 2. Run the single test (run.sh handles prep/mkfs/mount/load + record).
-echo "--- running ./run.sh 2 tcp dir_reuse_coherency ---"
-timeout 450 ./run.sh 2 tcp dir_reuse_coherency 2>&1 | strip | tail -8
+echo "--- running ./run.sh 2/net/mesh/direct dir_reuse_coherency ---"
+timeout 450 ./run.sh 2/net/mesh/direct dir_reuse_coherency 2>&1 | strip | tail -8
 
 # 3. Stop capture, leave the full log in place on each node.
 for n in "${NODES[@]}"; do

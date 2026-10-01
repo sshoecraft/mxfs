@@ -7,15 +7,15 @@
 #     complete: a second `make modules` must compile nothing (the NFS clock
 #     skew warning "build may be incomplete" is real; a half-rebuilt module
 #     after a struct-layout change is memory corruption on the rig).
-#  1. 32/caw prep; tests/f2_iclus_refusal.sh (gate item 2)
-#  2. 32/tcp prep (mpatha condition); tests/d0287_remaster_measure.sh
+#  1. 32/disk/caw/mpath prep; tests/f2_iclus_refusal.sh (gate item 2)
+#  2. 32/net/mesh/direct prep (mpatha condition); tests/d0287_remaster_measure.sh
 #     (MODE=umount) — first instrumented measurement of D-0287
-#  3. 32/caw prep; tests/vergate.sh test32 mixed_build (gate item 7 / B4)
+#  3. 32/disk/caw/mpath prep; tests/vergate.sh test32 mixed_build (gate item 7 / B4)
 #  4. TCP race laps p1..p4 (tests/d0286_depart_race.sh, prep each)
-#  5. 32/caw prep; tests/d0133_sb_mutation_gate.sh
+#  5. 32/disk/caw/mpath prep; tests/d0133_sb_mutation_gate.sh
 #  6. tests/crossnode_unlink_ubsweep.sh (leaves the fleet unmounted)
 #  7. purge arms: prep + tests/d_purge_nonatomic_verify.sh x3
-#  8. 32/caw prep; full board (tests/sess416_board_0286.sh: armed knobs +
+#  8. 32/disk/caw/mpath prep; full board (tests/sess416_board_0286.sh: armed knobs +
 #     28 rows + gate-3 sweep) — regression for 0.29.1-0.29.3
 #
 # the budget rule (derived): build 2x ~450 s; preps 236 s (cap 300) x ~12; tests as
@@ -25,11 +25,11 @@
 LABEL=${1:?label}
 cd "$(dirname "$0")/.." || exit 2
 LOG=tests/evidence/sess419_master_${LABEL}.log
-MXFS_DEV=${MXFS_DEV:?this chain ran the tcpmp condition, TCP over the multipath LUN: name that LUN with MXFS_DEV (never assumed from a rig path)}
-TCPENV="MXFS_DEV=$MXFS_DEV MXFS_CRIT=/src/mxfs/criteria.tcpmp.json"
+MXFS_DEV=${MXFS_DEV:?this chain ran net/mesh/mpath, TCP over the multipath LUN: name that LUN with MXFS_DEV (never assumed from a rig path)}
+TCPENV="MXFS_DEV=$MXFS_DEV MXFS_CRIT=/src/mxfs/criteria.net-mesh-mpath.json"
 E=tests/evidence
-prep_caw() { timeout 300 ./run.sh 32 caw prep_cluster > "$E/sess419_master_${LABEL}_prep_$1.log" 2>&1; echo "STAGE prep caw $1 rc=$?"; }
-prep_tcp() { env $TCPENV timeout 300 ./run.sh 32 tcp prep_cluster > "$E/sess419_master_${LABEL}_prep_$1.log" 2>&1; echo "STAGE prep tcp $1 rc=$?"; }
+prep_caw() { timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster > "$E/sess419_master_${LABEL}_prep_$1.log" 2>&1; echo "STAGE prep caw $1 rc=$?"; }
+prep_tcp() { env $TCPENV timeout 300 ./run.sh 32/net/mesh/direct prep_cluster > "$E/sess419_master_${LABEL}_prep_$1.log" 2>&1; echo "STAGE prep tcp $1 rc=$?"; }
 {
   echo "=== master chain $LABEL start $(date -u +%FT%TZ) build=$(cat VERSION) ==="
   B="$E/sess419_master_${LABEL}_build.log"

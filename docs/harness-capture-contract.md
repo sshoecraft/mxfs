@@ -145,9 +145,9 @@ in the script's header when the whole script is that subject; the lint
 lists them separately and they are an auditable disposition, not a runtime
 bypass. A relic whose ssh style predates the library takes the device it is
 given and says so (`${MXFS_DEV:?...}`), without the identity check.
-Executable session chains that ran the `tcpmp` condition (TCP over the
-multipath LUN) require the LUN to be named rather than assuming a rig
-path; the condition is not rewritten into the TCP rig's default.
+Executable session chains that ran `net/mesh/mpath` (TCP over the multipath
+LUN) require the LUN to be named rather than assuming a rig path; the
+configuration is not rewritten into the direct attachment's default.
 
 **Verification is rejection.** `tests/rig_lib_contract.sh` proves, against
 real nodes: an absent path; the root disk on a mounted node (no SCSI

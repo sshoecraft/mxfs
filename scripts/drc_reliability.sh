@@ -1,11 +1,11 @@
 #!/bin/bash
 # drc_reliability.sh — run dir_reuse_coherency at a given node count N times,
 # resetting between each, reporting PASS/FAIL + which shutdown face (if any).
-# Usage: scripts/drc_reliability.sh <N> <RUNS> [modargs]
+# Usage: scripts/drc_reliability.sh <configuration> <RUNS> [modargs]
 #   modargs: extra MXFS_EXTRA_MODARGS (default: none = bare defaults)
 set -u
 cd /src/mxfs
-N="${1:?usage: drc_reliability.sh <N> <RUNS> [modargs]}"
+CONFIG=$(python3 "$(dirname "$0")/../tools/configuration.py" parse "${1:?usage: drc_reliability.sh <configuration> <RUNS> [modargs]}") || exit 2; N=${CONFIG%%/*}
 RUNS="${2:?}"
 MODARGS="${3:-}"
 SSH=/src/mxfs/tools/mxfs_sshpass.sh
@@ -14,9 +14,9 @@ pass=0; fail=0
 for i in $(seq 1 "$RUNS"); do
   timeout 260 scripts/ccloop_reset.sh "$N" >/dev/null 2>&1
   if [ -n "$MODARGS" ]; then
-    r=$(MXFS_EXTRA_MODARGS="$MODARGS" ./run.sh "$N" tcp dir_reuse_coherency 2>&1 | grep -E "  (PASS|FAIL)  dir")
+    r=$(MXFS_EXTRA_MODARGS="$MODARGS" ./run.sh "$CONFIG" dir_reuse_coherency 2>&1 | grep -E "  (PASS|FAIL)  dir")
   else
-    r=$(./run.sh "$N" tcp dir_reuse_coherency 2>&1 | grep -E "  (PASS|FAIL)  dir")
+    r=$(./run.sh "$CONFIG" dir_reuse_coherency 2>&1 | grep -E "  (PASS|FAIL)  dir")
   fi
   # collect shutdown faces per node
   faces=""

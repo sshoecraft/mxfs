@@ -3,25 +3,31 @@
 # as its own distinct pass/fail (separate from fio_perf's own "did it measure
 # something" check). Does NOT re-run fio: reads fio_perf's own bench.json entry
 # from THIS run plus the baseline captured at $REPO/.xfs_fio_baseline.json
-# (refreshed by fio_perf.sh when run under the native-XFS condition, run.sh
-# DLM=xfs). FAILs if mxfs WRITE throughput drops below FIO_MIN_PCT% of native
+# (refreshed by fio_perf.sh when run under the native-XFS baseline, run.sh
+# 1/xfs). FAILs if mxfs WRITE throughput drops below FIO_MIN_PCT% of native
 # XFS (reads are cache-bound and informational only — same methodology as
 # tests/tooling/fio_vs_xfs_baseline.sh). Must run AFTER fio_perf in the
-# manifest so its bench.json entry for this condition already exists.
+# manifest so its bench.json entry for this configuration already exists.
 SUITE_TEST_NAME=fio_perf_vs_xfs
 NODES="${MXFS_NODES:-1}"
-DLM="${MXFS_DLM:-tcp}"
+CONFIG="${MXFS_CONFIG:?run.sh names the configuration in MXFS_CONFIG}"
+# The yardstick files are per configuration WITHOUT its node count (the raw
+# ceiling file holds one entry per node count inside): 8/net/mesh/direct ->
+# net-mesh-direct, 1/xfs -> xfs.  Until 0.90.37 they were named for the rig's
+# retired condition code, one file per code; the rename kept
+# that one-to-one.
+SHAPE="${CONFIG#*/}"; SHAPE="${SHAPE//\//-}"
 BENCH="${MXFS_BENCH:-/src/mxfs/bench.json}"
-# sess8 (ccloop 72513a13): per-CONDITION baseline preferred.  The four
-# conditions.md rigs present physically different devices (LIO/tcm_loop vs
+# sess8 (ccloop 72513a13): per-configuration baseline preferred.  The rig's
+# attachments present physically different devices (LIO/tcm_loop vs
 # SCST direct/passthrough/mpath) with wildly different write paths — native
 # XFS itself measures 457MiB/936iops on the tcp rig vs 2064MiB/44281iops on
 # the CAW rig.  Comparing a rig's mxfs against another rig's XFS baseline is
-# meaningless (1/tcp measured randW "2%" against the CAW-rig file while the
+# meaningless (1/net/mesh/direct measured randW "2%" against the CAW-rig file while the
 # same-rig xfs comparison was 107%).  Capture per rig with
-#   MXFS_TEST_ENV="XFS_BASELINE=/src/mxfs/.xfs_fio_baseline.<cond>.json" \
-#     ./run.sh 1 xfs fio_perf
-# and this test picks the condition file up automatically.
+#   MXFS_TEST_ENV="XFS_BASELINE=/src/mxfs/.xfs_fio_baseline.<shape>.json" \
+#     ./run.sh 1/xfs fio_perf
+# and this test picks the configuration's file up automatically.
 # 0.74.0 (sess506): the yardstick files are per PHYSICAL RIG, not per
 # transport name.  The "tcp" condition ran on the SCST/mpath rig when its
 # ceiling (2-sharer seqW 179 MiB/s) and baseline were captured (2026-07-25);
@@ -30,10 +36,10 @@ BENCH="${MXFS_BENCH:-/src/mxfs/bench.json}"
 # rig's ceiling — the cross-rig comparison this script's own header calls
 # meaningless.  A rig tag (MXFS_RIG_TAG, or derived from MXFS_DEV: a by-path
 # name containing "qnap" -> qnap) selects
-# .xfs_fio_baseline.<dlm>.<tag>.json / .raw_fio_ceiling.<dlm>.<tag>.json;
+# .xfs_fio_baseline.<shape>.<tag>.json / .raw_fio_ceiling.<shape>.<tag>.json;
 # untagged rigs keep the legacy files.  Capture for a tagged rig with
-#   MXFS_TEST_ENV="XFS_BASELINE=/src/mxfs/.xfs_fio_baseline.<dlm>.<tag>.json" ./run.sh 1 xfs fio_perf
-#   RAWCEIL_DEV=<dev> scripts/raw_fio_ceiling.sh <dlm>.<tag> <Nlist>
+#   MXFS_TEST_ENV="XFS_BASELINE=/src/mxfs/.xfs_fio_baseline.<shape>.<tag>.json" ./run.sh 1/xfs fio_perf
+#   RAWCEIL_DEV=<dev> scripts/raw_fio_ceiling.sh <shape>.<tag> <Nlist>
 # 0.81.1: ONE resolver, and it asks the hardware rather than reading a device
 # name.  MXFS_RIG_TAG still wins; then the tag run.sh recorded at prep time;
 # then a by-path name that carries the vendor; then the LUN's own SCSI vendor
@@ -53,14 +59,15 @@ RIG="${MXFS_RIG_TAG:-}"
 # of it recorded `rig=qnap` and 100-101% on the same builds.  The rig identity
 # belongs to the PREPPED CLUSTER, so read it from the cluster marker, which
 # run.sh now records at prep time.
-if [ -z "$RIG" ] && [ -s /src/mxfs/.cluster_marker.json ]; then
-    mk_dev=$(python3 -c 'import json;print(json.load(open("/src/mxfs/.cluster_marker.json")).get("dev",""))' 2>/dev/null)
+MK="${MXFS_MARKER:-/src/mxfs/.cluster_marker.json}"   # a rig-group run has its own
+if [ -z "$RIG" ] && [ -s "$MK" ]; then
+    mk_dev=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("dev",""))' "$MK" 2>/dev/null)
     case "$mk_dev" in *qnap*) RIG=qnap;; esac
 fi
 SUF="${RIG:+.$RIG}"
 BASE="${XFS_BASELINE:-/src/mxfs/.xfs_fio_baseline.json}"
-[ -z "${XFS_BASELINE:-}" ] && [ -s "/src/mxfs/.xfs_fio_baseline.${DLM}${SUF}.json" ] \
-    && BASE="/src/mxfs/.xfs_fio_baseline.${DLM}${SUF}.json"
+[ -z "${XFS_BASELINE:-}" ] && [ -s "/src/mxfs/.xfs_fio_baseline.${SHAPE}${SUF}.json" ] \
+    && BASE="/src/mxfs/.xfs_fio_baseline.${SHAPE}${SUF}.json"
 MIN_PCT="${FIO_MIN_PCT:-70}"
 emit(){ echo "RESULT: $1 | test=$SUITE_TEST_NAME | nodes=$NODES | measured=$2 | reason=${3:-}"; }
 
@@ -73,11 +80,11 @@ emit(){ echo "RESULT: $1 | test=$SUITE_TEST_NAME | nodes=$NODES | measured=$2 | 
 # worse than no gate.  Say so and decline to score.
 if [ -z "$RIG" ]; then
     tagged=""
-    for f in /src/mxfs/.xfs_fio_baseline."$DLM".*.json /src/mxfs/.raw_fio_ceiling."$DLM".*.json; do
+    for f in /src/mxfs/.xfs_fio_baseline."$SHAPE".*.json /src/mxfs/.raw_fio_ceiling."$SHAPE".*.json; do
         [ -s "$f" ] && tagged="$tagged $f"
     done
     if [ -n "$tagged" ]; then
-        emit SKIP rig-unknown "rig tag unresolved (MXFS_RIG_TAG and MXFS_DEV unset, cluster marker has no dev) while rig-tagged yardsticks exist for $DLM:$tagged — refusing to score against the untagged legacy files, which describe a different physical rig"
+        emit SKIP rig-unknown "rig tag unresolved (MXFS_RIG_TAG and MXFS_DEV unset, cluster marker has no dev) while rig-tagged yardsticks exist for $SHAPE:$tagged — refusing to score against the untagged legacy files, which describe a different physical rig"
         exit 0
     fi
 fi
@@ -88,20 +95,20 @@ fi
 # capture that is missing instead, so the answer is a command rather than a
 # mystery.
 if [ -n "$RIG" ] && [ -z "${XFS_BASELINE:-}" ] \
-   && [ ! -s "/src/mxfs/.xfs_fio_baseline.${DLM}${SUF}.json" ]; then
-    emit SKIP "no-baseline-for-$RIG" "rig=$RIG has no native-XFS baseline for $DLM; capture it with  MXFS_TEST_ENV=\"XFS_BASELINE=/src/mxfs/.xfs_fio_baseline.${DLM}${SUF}.json\" ./run.sh 1 xfs fio_perf  — refusing to score against the untagged file, which describes a different rig"
+   && [ ! -s "/src/mxfs/.xfs_fio_baseline.${SHAPE}${SUF}.json" ]; then
+    emit SKIP "no-baseline-for-$RIG" "rig=$RIG has no native-XFS baseline for $SHAPE; capture it with  MXFS_TEST_ENV=\"XFS_BASELINE=/src/mxfs/.xfs_fio_baseline.${SHAPE}${SUF}.json\" ./run.sh 1/xfs fio_perf  — refusing to score against the untagged file, which describes a different rig"
     exit 0
 fi
 
-[ -s "$BASE" ] || { emit SKIP no-baseline "no $BASE yet -- run ./run.sh 1 xfs first"; exit 0; }
+[ -s "$BASE" ] || { emit SKIP no-baseline "no $BASE yet -- run ./run.sh 1/xfs first"; exit 0; }
 [ -s "$BENCH" ] || { emit SKIP no-bench "no $BENCH -- fio_perf must run before this test"; exit 0; }
 
-read -r mxsw mxsr mxrw mxrr <<<"$(python3 - "$BENCH" "$NODES" "$DLM" <<'PY'
+read -r mxsw mxsr mxrw mxrr <<<"$(python3 - "$BENCH" "$NODES" "$CONFIG" <<'PY'
 import json, sys
-bench, nodes, dlm = sys.argv[1], int(sys.argv[2]), sys.argv[3]
+bench, nodes, config = sys.argv[1], int(sys.argv[2]), sys.argv[3]
 try:
     d = json.load(open(bench))
-    entries = [v for v in d.values() if v.get("test") == "fio_perf" and v.get("nodes") == nodes and v.get("dlm") == dlm]
+    entries = [v for v in d.values() if v.get("test") == "fio_perf" and v.get("nodes") == nodes and v.get("configuration") == config]
     entries.sort(key=lambda v: v.get("ts", ""))
     latest = entries[-1]["fio"]
     print(latest["seq_write_1m"]["bw_mib"], latest["seq_read_1m"]["bw_mib"],
@@ -121,13 +128,13 @@ except Exception:
 PY
 )"
 
-[ "${mxsw:-0}" -gt 0 ] 2>/dev/null || { emit SKIP no-fio_perf-entry "no matching fio_perf bench.json entry for ${NODES}n/${DLM}"; exit 0; }
+[ "${mxsw:-0}" -gt 0 ] 2>/dev/null || { emit SKIP no-fio_perf-entry "no matching fio_perf bench.json entry for ${CONFIG}"; exit 0; }
 
 pct(){ { [ "${2:-0}" -gt 0 ] 2>/dev/null && echo $(( $1*100/$2 )); } || echo 0; }
 
 # sess8 (ccloop 72513a13): at N>1 the WRITE yardstick is the RAW N-sharer
 # ceiling of this rig's transport+device (scripts/raw_fio_ceiling.sh,
-# captured per condition between rungs), NOT the 1-stream xfs baseline.  A
+# captured per configuration between rungs), NOT the 1-stream xfs baseline.  A
 # shared device cannot deliver its 1-stream bandwidth to N concurrent
 # sharers (tcp rig: 1-stream xfs seqW=1116MiB/s, raw 2-sharer ~650 — mxfs at
 # 651 was failing "58%" while sitting at device parity).  randW compares
@@ -142,7 +149,7 @@ pct(){ { [ "${2:-0}" -gt 0 ] 2>/dev/null && echo $(( $1*100/$2 )); } || echo 0; 
 # median-of-K over the same shape, so it's the stable same-rig yardstick at
 # every N.  randW keeps the baseline compare unless the ceiling has it.
 ceil_sw=0; ceil_rw=0
-CEIL="${RAW_CEILING:-/src/mxfs/.raw_fio_ceiling.${DLM}${SUF}.json}"
+CEIL="${RAW_CEILING:-/src/mxfs/.raw_fio_ceiling.${SHAPE}${SUF}.json}"
 if [ -s "$CEIL" ]; then
     read -r ceil_sw ceil_rw <<<"$(python3 - "$CEIL" "$NODES" <<'PY'
 import json, sys
@@ -158,12 +165,12 @@ eff_xsw="${xsw:-0}"; eff_xrw="${xrw:-0}"; wsrc="xfs-baseline"
 if [ "${ceil_sw:-0}" -gt 0 ]; then eff_xsw="$ceil_sw"; wsrc="raw-ceiling"; fi
 # sess11 (ccloop c7ee71c6): randW gates against the NATIVE-XFS baseline (the
 # test's stated purpose), NOT the raw-device ceiling.  The ceiling override
-# here misfired on 8/cawp: same-day triple measurement — raw randW 64442,
+# here misfired on 8/disk/caw/pass: same-day triple measurement — raw randW 64442,
 # native XFS 37751 (59% of raw: FS allocation+journal overhead raw doesn't
 # pay), mxfs@8 44244 (117% of native) — flagged "68% FAIL" against raw while
 # mxfs BEAT native XFS.  The ceiling stays the seqW yardstick (N-sharer
 # bandwidth split, its original motivation) and the randW fallback when no
-# xfs baseline was captured for the condition.
+# xfs baseline was captured for the configuration.
 if [ "${ceil_rw:-0}" -gt 0 ] && ! { [ "${xrw:-0}" -gt 0 ] 2>/dev/null; }; then
     eff_xrw="$ceil_rw"
 fi

@@ -3,10 +3,10 @@
 # rig (QNAP LUN, test1/test2).  Builds NOTHING: the tree's mxfs.ko must be
 # the build under test (every prep copies it).
 #
-#   1  prep 2/tcp                          300 s (measured 42-45 s)
+#   1  prep 2/net/mesh/direct                          300 s (measured 42-45 s)
 #   2  tests/rejoin_residue.sh             250 s (armed low + armed high + plain; 300 s with RR_HELD_ARM=1)
 #   3  tests/sameboot_remount.sh           200 s (now on TCP: 7 cycles)
-#   4  prep 2/tcp (step 3 leaves both unmounted)
+#   4  prep 2/net/mesh/direct (step 3 leaves both unmounted)
 #   5  tests/transport_conformance.sh      240 s
 #
 # Usage: tests/sess510_chain_0755.sh <label> [steps=1,2,3,4,5]
@@ -31,7 +31,7 @@ say "=== sess510_chain_0755 label=$LABEL steps=$STEPS sv=$(modinfo mxfs.ko | sed
 
 prep() {   # <bound>
     local s=$(date +%s)
-    MXFS_FORCE_PREP=1 timeout "$1" ./run.sh 2 tcp prep_cluster >> "$LOG" 2>&1
+    MXFS_FORCE_PREP=1 timeout "$1" ./run.sh 2/net/mesh/direct prep_cluster >> "$LOG" 2>&1
     local rc=$?; stage "prep" $rc $(( $(date +%s) - s )); return $rc
 }
 run_step() {  # <name> <bound> <cmd...>

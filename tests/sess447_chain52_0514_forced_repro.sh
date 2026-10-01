@@ -15,7 +15,7 @@ LABEL=${1:-s447b}
 LOG=tests/evidence/sess447_chain52_0514_forced_repro_$LABEL.log
 {
   echo "=== sess447 chain52 start $(date -u +%FT%TZ) sv=$(modinfo mxfs.ko | awk '/srcversion/{print $2}') VERSION=$(cat VERSION) ==="
-  timeout 300 ./run.sh 32 caw prep_cluster; prc=$?; echo "STAGE prep rc=$prc"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; prc=$?; echo "STAGE prep rc=$prc"
   if [ "$prc" -ne 0 ]; then echo "ABORT: prep failed"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
   timeout 30 tools/mxfs_sshpass.sh test1 "echo 30000 > /sys/module/mxfs/parameters/dbg_sweep_hold_ms; echo knob=\$(cat /sys/module/mxfs/parameters/dbg_sweep_hold_ms)" 2>/dev/null | grep -a knob
   OUT=tests/evidence/$(date -u +%Y%m%dT%H%M%SZ)_d0514_forced_$LABEL; mkdir -p "$OUT"
@@ -23,6 +23,6 @@ LOG=tests/evidence/sess447_chain52_0514_forced_repro_$LABEL.log
   echo "--- test1 D-0514 trail ---"
   grep -a 'P-FREPLAY-\|P97-SWEEP\|P-DBG-SWEEP\|P238-RECOV-LEASE\|elected\|foreign replay of\|RECOVERY-COMPLETE' "$OUT/recov_test1.txt" 2>/dev/null | cut -c1-230
   timeout 30 tools/mxfs_sshpass.sh test1 "echo 0 > /sys/module/mxfs/parameters/dbg_sweep_hold_ms" 2>/dev/null
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep2 rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep2 rc=$?"
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

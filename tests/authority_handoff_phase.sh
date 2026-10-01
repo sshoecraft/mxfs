@@ -126,7 +126,7 @@ SILENT_SETTLE_S=${SILENT_SETTLE_S:-70}
 SILENT_HOLD_MS=${SILENT_HOLD_MS:-900000}    # the withdrawal hold outlasts the lap's bound
 cd "$(dirname "$0")/.." || exit 2
 export MXFS_NODE_LIST=${MXFS_NODE_LIST:-test1,test2}
-export MXFS_TRANSPORT=${MXFS_TRANSPORT:-tcp}
+export MXFS_CONFIG=${MXFS_CONFIG:-2/net/mesh/direct}
 P=${MXFS_NODE_LIST%%,*}          # the PEER: the node that may complete a handoff
 V=${MXFS_NODE_LIST##*,}          # the VICTIM: the node whose heartbeat is paused
 [ "$P" = "$V" ] && { echo "ABORT: this lap needs two distinct nodes (MXFS_NODE_LIST=$MXFS_NODE_LIST)"; exit 2; }
@@ -184,7 +184,7 @@ disarm() {
 trap disarm EXIT
 
 waitboot "$P" "$V"
-MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2 tcp prep_cluster > "$OUT/prep.log" 2>&1
+MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2/net/mesh/direct prep_cluster > "$OUT/prep.log" 2>&1
 prc=$?
 echo "STAGE prep rc=$prc wall=$(el)s  $(grep -am1 'prep_cluster OK\|FAIL' "$OUT/prep.log" | cut -c1-140)"
 [ $prc = 0 ] || { echo "RESULT: ABORT label=$LABEL stage=prep evidence=$OUT"; exit 2; }

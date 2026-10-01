@@ -1,6 +1,6 @@
 #!/bin/bash
 # sess456 chain 79: build 0.61.2 IN TREE once chain 78 (0.61.1 sv 5AF0FCA5,
-# tests/sess455_chain78_0611.sh s455b, whose last stage is the 32/caw board)
+# tests/sess455_chain78_0611.sh s455b, whose last stage is the 32/disk/caw/mpath board)
 # prints DONE and the rig is idle, then verify:
 #   D-FENCE-INTENT-ADOPTS-SECTOR-INCARNATION-GUARDS-UNOBSERVED-SUCCESSOR-0520
 #     (fence_intent supersession predicate + P237-FENCE-SUPERSEDED-RETIRED)
@@ -12,7 +12,7 @@
 #   1  make modules + make tools (abort unless the srcversion CHANGES from
 #      5AF0FCA570C65661FAB4AD8 and the P237-FENCE-SUPERSEDED-RETIRED string
 #      is present)
-#   2  prep_cluster @ 32/caw
+#   2  prep_cluster @ 32/disk/caw/mpath
 #   3  probe zero    — outer bound: frozen-wait 30 + detect 45 + restore 5 +
 #                      heal 100 + census/ssh fan-out 40 = 220 -> 240
 #   4  prep_cluster
@@ -43,14 +43,14 @@ lap() { # <budget_s> <label> <cmd...>
     echo "DONE $(date -u +%FT%TZ)"; exit 1
   fi
   lap 120 tools make tools
-  lap 300 prep ./run.sh 32 caw prep_cluster
+  lap 300 prep ./run.sh 32/disk/caw/mpath prep_cluster
   for arm in zero nonzero; do
     B=240; [ "$arm" = nonzero ] && B=300
     T0=$(date +%s)
     timeout $B tests/incarnation_mismatch_probe.sh $arm test32 test1 > tests/evidence/sess456_chain79_${arm}_$LABEL.txt 2>&1; rc=$?
     echo "STAGE probe_$arm rc=$rc wall=$(( $(date +%s) - T0 ))s"
     grep -a 'probe: \(PASS\|FAIL\|RESULT\|pending\|superseded\|descriptor\|self-heal\|restor\|note\|evidence\)' tests/evidence/sess456_chain79_${arm}_$LABEL.txt | cut -c1-220
-    lap 300 "prep_after_$arm" ./run.sh 32 caw prep_cluster
+    lap 300 "prep_after_$arm" ./run.sh 32/disk/caw/mpath prep_cluster
   done
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

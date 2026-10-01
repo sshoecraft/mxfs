@@ -7,7 +7,7 @@ cd /src/mxfs || exit 1
 LOG=tests/evidence/sess415_verify_0284.log
 {
   echo "=== sess415 0.28.4 verify start $(date -u +%FT%TZ) build=$(cat VERSION) sv=$(modinfo mxfs.ko | awk '/srcversion/{print $2}') ==="
-  timeout 300 ./run.sh 32 caw prep_cluster
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster
   echo "STAGE prep rc=$?"
   timeout 150 tests/d512_t2_pause.sh s415t2 test2 test1
   echo "STAGE t2 rc=$?"
@@ -15,9 +15,9 @@ LOG=tests/evidence/sess415_verify_0284.log
   echo "STAGE d512 rc=$?"
   timeout 90 tests/d512_t1_reuse.sh s415t1c test1 test2
   echo "STAGE t1 rc=$?"
-  timeout 120 ./run.sh 32 caw zero_silent_loss
+  timeout 120 ./run.sh 32/disk/caw/mpath zero_silent_loss
   echo "STAGE zsl rc=$?"
-  timeout 1400 ./run.sh 32 caw
+  timeout 1400 ./run.sh 32/disk/caw/mpath
   echo "STAGE board rc=$?"
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

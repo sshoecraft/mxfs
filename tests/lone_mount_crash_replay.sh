@@ -27,7 +27,7 @@
 #                   fences the victim and replays its slice; the victim then
 #                   reboots, joins and reads cold
 # Env:   MXFS_NODE_LIST (default test1,test2), MXFS_DEV (default /dev/sda),
-#        MXFS_TRANSPORT (tcp|caw, default tcp)
+#        MXFS_CONFIG (default 2/net/mesh/direct)
 # Exit 0 PASS, 1 FAIL, 2 INFRA/ABORT, 3 VACUOUS (a witness was already
 # checkpointed before the kill, so the replay was not exercised).
 set -u
@@ -41,7 +41,8 @@ export MXFS_NODE_LIST=${MXFS_NODE_LIST:-test1,test2}
 # mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
 . "$(dirname "$0")/lib/rig.sh"
 mxfs_dev_resolve "${MXFS_NODE_LIST%%,*}"; export MXFS_DEV=$MXFS_DEV_RESOLVED
-TR=${MXFS_TRANSPORT:-tcp}
+export MXFS_CONFIG=${MXFS_CONFIG:-2/net/mesh/direct}
+TR=$(python3 tools/configuration.py get "$MXFS_CONFIG" transport) || exit 2
 A=${MXFS_NODE_LIST%%,*}          # the victim
 B=${MXFS_NODE_LIST##*,}          # platter probe, then the recoverer (peer) or the cold reader (same)
 case $RECOVERER in same) R=$A; C=$B ;; peer) R=$B; C=$A ;; *) echo "bad recoverer $RECOVERER"; exit 2 ;; esac

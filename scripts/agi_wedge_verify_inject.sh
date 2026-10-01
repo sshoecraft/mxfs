@@ -2,7 +2,7 @@
 # agi_wedge_verify_inject.sh — DETERMINISTIC AGI umount-wedge fix verification
 # via the mxfs.dbg_dialloc_shutdown one-shot fault injection.
 #
-# Assumes a prepped, mounted 2/tcp cluster.  Arms the injection on TARGET, then
+# Assumes a prepped, mounted 2/net/mesh/direct cluster.  Arms the injection on TARGET, then
 # does ONE create there -> xfs_dialloc logs + mxfs_ag_meta_track's the
 # AGI/inobt/finobt -> injected dirty xfs_trans_cancel -> forced shutdown (the
 # exact natural stale-inode dialloc signature, but deterministic).  Then

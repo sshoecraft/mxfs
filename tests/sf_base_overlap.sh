@@ -12,7 +12,7 @@
 # inside every capture and holds it open.
 #
 # WHAT IT DOES
-#  1. forms the cluster: MXFS_FORCE_PREP=1 ./run.sh N <dlm> prep_cluster
+#  1. forms the cluster: MXFS_FORCE_PREP=1 ./run.sh <configuration> prep_cluster
 #  2. sets sf_base_race_delay_us on every node and zeroes the two counters
 #     (sf_base_captures, sf_base_overlaps)
 #  3. runs the load of tests/multi_victim_containment.sh on every node for
@@ -39,19 +39,19 @@
 # 120: the parent's grant moves several times a second under this load at 8
 # nodes, so two minutes are hundreds of release drains per node.
 #
-# Usage: tests/sf_base_overlap.sh <N> <dlm> <delay_us> [label]
-# Evidence: tests/evidence/sf_base_overlap/<UTC>_<N><dlm>_<label>/
+# Usage: tests/sf_base_overlap.sh <configuration> <delay_us> [label]
+# Evidence: tests/evidence/sf_base_overlap/<UTC>_<N-class-method-attach>_<label>/
 # Exit 0 iff the verdict is PASS; 2 when the measurement could not be made.
 #
 set -u
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$HERE" || exit 1
 SSH="$HERE/tools/mxfs_sshpass.sh"
-N="${1:?usage: sf_base_overlap.sh <N> <dlm> <delay_us> [label]}"
-DLM="${2:?usage: sf_base_overlap.sh <N> <dlm> <delay_us> [label]}"
-DELAY="${3:?usage: sf_base_overlap.sh <N> <dlm> <delay_us> [label]}"
-LABEL="${4:-sfb}"
-case "$DLM" in tcp|cawd|caw|cawp) ;; *) echo "dlm must be tcp|cawd|caw|cawp (got '$DLM')" >&2; exit 2 ;; esac
+CONFIG=$(python3 tools/configuration.py parse "${1:?usage: sf_base_overlap.sh <configuration> <delay_us> [label]}") || exit 2
+N=${CONFIG%%/*}
+SLUG=${CONFIG//\//-}
+DELAY="${2:?usage: sf_base_overlap.sh <configuration> <delay_us> [label]}"
+LABEL="${3:-sfb}"
 case "$DELAY" in ''|*[!0-9]*) echo "delay_us must be a count of microseconds (got '$DELAY')" >&2; exit 2 ;; esac
 LOAD_S="${LOAD_S:-120}"
 # DIR_WRITE_DELAY_MS=<ms>: every node sets dbg_dir_write_delay_ms, so the AIL
@@ -64,8 +64,8 @@ LOAD_S="${LOAD_S:-120}"
 DIR_WRITE_DELAY_MS="${DIR_WRITE_DELAY_MS:-0}"
 case "$DIR_WRITE_DELAY_MS" in ''|*[!0-9]*) echo "DIR_WRITE_DELAY_MS must be a count of milliseconds (got '$DIR_WRITE_DELAY_MS')" >&2; exit 2 ;; esac
 MNT="${MXFS_MNT:-/mnt/shared}"
-DEV="${MXFS_DEV:-/dev/disk/by-path/ip-192.168.120.1:3260-iscsi-iqn.2026-05.local.mxfs:shared-lun-0}"
-EV="$HERE/tests/evidence/sf_base_overlap/$(date -u +%Y%m%dT%H%M%SZ)_${N}${DLM}_$LABEL"
+DEV="${MXFS_DEV:-$(python3 tools/configuration.py get "$CONFIG" device)}"
+EV="$HERE/tests/evidence/sf_base_overlap/$(date -u +%Y%m%dT%H%M%SZ)_${SLUG}_$LABEL"
 mkdir -p "$EV"
 S="$EV/summary.txt"
 FAULTS='BUG:|Oops|Kernel panic|general protection|kernel NULL pointer|soft lockup|hard LOCKUP|scheduling while atomic|rcu_preempt self-detected'
@@ -78,10 +78,10 @@ on() { local h=$1 t=$2; shift 2; timeout "$t" "$SSH" "$h" "$@" </dev/null 2>/dev
 
 NODES=()
 for i in $(seq 1 "$N"); do NODES+=("test$i"); done
-say "N=$N dlm=$DLM delay_us=$DELAY load=${LOAD_S}s evidence=$EV"
+say "N=$N configuration=$CONFIG delay_us=$DELAY load=${LOAD_S}s evidence=$EV"
 
 # --- 1. the cluster
-MXFS_FORCE_PREP=1 ./run.sh "$N" "$DLM" prep_cluster > "$EV/prep.log" 2>&1
+MXFS_FORCE_PREP=1 ./run.sh "$CONFIG" prep_cluster > "$EV/prep.log" 2>&1
 prc=$?
 grep -a -E 'PREP FAIL|PREP OK|converge|srcversion' "$EV/prep.log" | tail -n 4 | cut -c1-200 | tee -a "$S"
 [ $prc = 0 ] || { say "ABORT: prep_cluster rc=$prc (see $EV/prep.log); nothing measured"; exit 2; }
@@ -246,6 +246,6 @@ gzip -f "$EV"/klog_test*.txt
 scripts/lab_power.sh up "rig:$N" > "$EV/rig_up.log" 2>&1 || say "the rig did not come back whole (see $EV/rig_up.log)"
 
 [ "$verdict" = PASS ] && [ "$OVERLAPS" = 0 ] && verdict=VACUOUS
-say "VERDICT $verdict ($N/$DLM, delay ${DELAY}us, ${LOAD_S}s of load, captures=$CAPTURES overlaps=$OVERLAPS)"
-echo "RESULT $verdict sf_base_overlap $N/$DLM delay_us=$DELAY captures=$CAPTURES overlaps=$OVERLAPS evidence=$EV"
+say "VERDICT $verdict ($CONFIG, delay ${DELAY}us, ${LOAD_S}s of load, captures=$CAPTURES overlaps=$OVERLAPS)"
+echo "RESULT $verdict sf_base_overlap $CONFIG delay_us=$DELAY captures=$CAPTURES overlaps=$OVERLAPS evidence=$EV"
 [ "$verdict" = PASS ]

@@ -3,7 +3,7 @@
 # slate via virsh VM reboot, then wait until both are SSH-reachable with the
 # /src QNAP NFS mounted and mxfs unloaded/unmounted.
 #
-# WHY: after a dir_reuse_coherency (2/tcp) run the leftover mxfs mount on one
+# WHY: after a dir_reuse_coherency (2/net/mesh/direct) run the leftover mxfs mount on one
 # node frequently wedges on unmount — the xfs-reclaim kworker blocks in
 # D-state waiting on a degraded DLM, so `umount`/`rmmod` (even -l/-f) hang
 # uninterruptibly and the next run's mkfs fails "device busy".  D-state procs

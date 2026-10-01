@@ -30,7 +30,7 @@
 #
 # Usage: tests/d0930_root_iget_bound.sh <label>
 # Env:   MXFS_NODE_LIST (default test1,test2), MXFS_DEV (default: A's live
-#        mxfs mount's device, else the MXFS_TRANSPORT rig default, via
+#        mxfs mount's device, else the MXFS_CONFIG rig default, via
 #        mxfs_dev_resolve — no rig's device path is assumed), MXFS_MODARGS
 #        (default target_cache_protected=1 force_transport=1), BUDGETS
 #        (default 2), MXFS_FAULT_UMOUNT_SRC=<node>:deploy (capture-contract
@@ -43,7 +43,7 @@ set -u
 LABEL=${1:?label}
 cd "$(dirname "$0")/.." || exit 2
 export MXFS_NODE_LIST=${MXFS_NODE_LIST:-test1,test2}
-export MXFS_TRANSPORT=${MXFS_TRANSPORT:-tcp}
+export MXFS_CONFIG=${MXFS_CONFIG:-2/net/mesh/direct}
 A=${MXFS_NODE_LIST%%,*}
 B=${MXFS_NODE_LIST##*,}
 SSH=tools/mxfs_sshpass.sh

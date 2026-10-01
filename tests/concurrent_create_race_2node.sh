@@ -74,7 +74,7 @@ offset_ms() {
 echo "=== concurrent_create_race_2node label=$LABEL A=$A B=$B R=$R step_ms=$STEP_MS sv=$(modinfo mxfs.ko | sed -n 's/^srcversion: *//p') $(date -u +%FT%TZ) ==="
 s=$(date +%s)
 if [ -z "${NOPREP:-}" ]; then
-    MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2 tcp prep_cluster > "$OUT/prep.log" 2>&1
+    MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2/net/mesh/direct prep_cluster > "$OUT/prep.log" 2>&1
     prc=$?
     echo "STAGE prep rc=$prc wall=$(( $(date +%s) - s ))s"
     if [ $prc != 0 ]; then echo "RESULT: FAIL label=$LABEL prep rc=$prc"; exit 2; fi

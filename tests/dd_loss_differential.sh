@@ -5,7 +5,7 @@
 #
 # WHY THIS EXISTS
 #   By sess26 every documented marker in the loss chain had been measured to
-#   zero in a window where 8 dirents were durably lost (test19, 32/caw):
+#   zero in a window where 8 dirents were durably lost (test19, 32/disk/caw/mpath):
 #     P32E-DIREPOCH-FENCE 0, P195 0, P188 0, P177 0, P146V 0, P51 0, P65 0,
 #     P194 0, P34J-RELOAD-DEMOTE-BAIL 0.
 #   All 11 were confirmed present in the built module first, so those zeros are
@@ -37,7 +37,7 @@
 set -u
 cd "$(dirname "$0")/.." || exit 1
 ITERS="${1:-8}"
-N="${2:-32}"
+CONFIG=$(python3 "$(dirname "$0")/../tools/configuration.py" parse "${2:-32/disk/caw/mpath}") || exit 2; N=${CONFIG%%/*}
 SSH=tools/mxfs_sshpass.sh
 OUT=$(mktemp -d)
 echo "=== dd_loss_differential: up to $ITERS iters @ ${N}/caw — artifacts in $OUT ==="
@@ -95,7 +95,7 @@ harvest() {
 for it in $(seq 1 "$ITERS"); do
     echo "--- iter $it/$ITERS ---"
     run_out="$OUT/run$it.txt"
-    timeout 400 ./run.sh "$N" caw dirent_durability > "$run_out" 2>&1
+    timeout 400 ./run.sh "$CONFIG" dirent_durability > "$run_out" 2>&1
     verdict=$(grep -E '^[[:space:]]+(PASS|FAIL|BLOCK)[[:space:]]+dirent_durability' "$run_out" | tail -1)
     if [ -z "$verdict" ]; then
         # run.sh serialises on /tmp/mxfs_run.lock.  A blocked or aborted run

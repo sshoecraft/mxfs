@@ -13,9 +13,9 @@ LABEL=${1:-s448f}
 LOG=tests/evidence/sess448_chain63_p6p8_rows_$LABEL.log
 {
   echo "=== sess448 chain63 start $(date -u +%FT%TZ) sv=$(modinfo mxfs.ko | awk '/srcversion/{print $2}') modinfo_lab=$(modinfo mxfs.ko | grep -c mxfs_iclus_relmark_lab) ==="
-  timeout 300 ./run.sh 32 caw prep_cluster; prc=$?; echo "STAGE prep rc=$prc"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; prc=$?; echo "STAGE prep rc=$prc"
   if [ "$prc" -ne 0 ]; then echo "ABORT: prep"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
-  T0=$(date +%s); timeout 420 ./run.sh 32 caw dirent_durability dirent_publish_integrity dirent_type_integrity; echo "STAGE rows rc=$? wall=$(( $(date +%s) - T0 ))s"
-  tools/criteria.py 32 caw 2>/dev/null | grep -a 'dirent_\|Total' | cut -c1-160
+  T0=$(date +%s); timeout 420 ./run.sh 32/disk/caw/mpath dirent_durability dirent_publish_integrity dirent_type_integrity; echo "STAGE rows rc=$? wall=$(( $(date +%s) - T0 ))s"
+  tools/criteria.py 32/disk/caw/mpath 2>/dev/null | grep -a 'dirent_\|Total' | cut -c1-160
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

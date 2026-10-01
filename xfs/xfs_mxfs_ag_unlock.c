@@ -112,6 +112,19 @@ module_param_named(typeflip_force_unresolved, mxfs_typeflip_force_unresolved, in
 MODULE_PARM_DESC(typeflip_force_unresolved,
 	"TEST ONLY: make the type-flip resolver give up immediately, to exercise the unresolved/-ESTALE path; 0=off");
 
+/*
+ * link, symlink and rename refuse a target directory a peer has removed
+ * (nlink 0 once its grant is held), as xfs_create does.  1 = refuse with
+ * -ENOENT; 0 = only report P-INSERT-DEADPARENT-SEEN and insert anyway, which
+ * is the control arm of a same-build A/B and loses the name.
+ */
+int mxfs_insert_deadparent_refuse = 1;
+EXPORT_SYMBOL(mxfs_insert_deadparent_refuse);
+module_param_named(insert_deadparent_refuse, mxfs_insert_deadparent_refuse, int, 0644);
+MODULE_PARM_DESC(insert_deadparent_refuse,
+	"link/symlink/rename refuse (-ENOENT) a target directory a peer has "
+	"removed; 0 = report only (TEST: the name is lost); 1=on (default)");
+
 int mxfs_typeflip_fail_unresolved = 1;
 EXPORT_SYMBOL(mxfs_typeflip_fail_unresolved);
 module_param_named(typeflip_fail_unresolved, mxfs_typeflip_fail_unresolved, int, 0644);

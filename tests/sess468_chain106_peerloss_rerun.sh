@@ -24,9 +24,9 @@ lap() { # <budget_s> <label> <cmd...>
 }
 {
   echo "=== sess468 chain106 START $(date -u +%FT%TZ) tree VERSION=$(cat VERSION) sv=$(modinfo mxfs.ko | awk '/srcversion/{print $2}') lock_holders=$(fuser /tmp/mxfs_run.lock 2>/dev/null | wc -w) ==="
-  lap 300 prep_peerloss ./run.sh 32 caw prep_cluster
+  lap 300 prep_peerloss ./run.sh 32/disk/caw/mpath prep_cluster
   T1=$(date +%s); timeout 900 tests/guard_race_arms.sh peerloss test2 test1 > tests/evidence/sess468_chain106_guard_peerloss_$LABEL.log 2>&1; echo "STAGE guard_race peerloss rc=$? wall=$(( $(date +%s) - T1 ))s $(grep -a 'RESULT' tests/evidence/sess468_chain106_guard_peerloss_$LABEL.log | tail -1 | cut -c1-240)"
   grep -a 'peerloss: mount rc\|refusal lines\|fleet restore' tests/evidence/sess468_chain106_guard_peerloss_$LABEL.log | cut -c1-300
-  lap 300 prep_final ./run.sh 32 caw prep_cluster
+  lap 300 prep_final ./run.sh 32/disk/caw/mpath prep_cluster
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

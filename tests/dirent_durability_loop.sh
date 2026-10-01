@@ -1,7 +1,7 @@
 #!/bin/bash
 # tests/dirent_durability_loop.sh <label> [laps]
 #
-# Repeats the dirent_durability suite test on 2/tcp until it fails, a node
+# Repeats the dirent_durability suite test on 2/net/mesh/direct until it fails, a node
 # loses its mount, or a revocation-reference probe fires, then collects the
 # evidence.  Built to reproduce D-TCP-INCARN-REVOKE-WORKER-IRELE-HITS-IPUT-BUG-
 # NODE-PANIC (a kernel BUG in iput from mxfs_incarn_revoke_work_fn, seen once
@@ -20,7 +20,7 @@
 # arm the module's synthetic poison (dbg_poison_nth) on both nodes.
 #
 # derived time budgets: prep 400 s (tests/lu_reset_bystander_eh.sh's bound for
-# the same 2/tcp prep); each lap is run.sh, which enforces dirent_durability's
+# the same 2/net/mesh/direct prep); each lap is run.sh, which enforces dirent_durability's
 # own 240 s budget from tests/suite/manifest (measured PASS 61-62 s).
 # Exit 0 all laps clean, 1 a lap failed or a probe fired, 2 ABORT.
 set -u
@@ -34,7 +34,7 @@ SSH=tools/mxfs_sshpass.sh
 nc_mark=$(wc -l < "$NC" 2>/dev/null || echo 0)
 echo "=== ddloop $LABEL START $(date -u +%FT%TZ) VERSION=$(cat VERSION) sv=$(modinfo -F srcversion mxfs.ko) laps=$LAPS out=$OUT netconsole_from_line=$nc_mark ==="
 
-timeout 400 ./run.sh 2 tcp prep_cluster > "$OUT/prep.log" 2>&1 \
+timeout 400 ./run.sh 2/net/mesh/direct prep_cluster > "$OUT/prep.log" 2>&1 \
     || { echo "RESULT: ABORT label=$LABEL stage=prep evidence=$OUT"; exit 2; }
 
 for n in test1 test2; do
@@ -45,7 +45,7 @@ echo "dbg_poison_nth=${POISON_NTH:-0} on both nodes"
 fails=0
 for l in $(seq 1 "$LAPS"); do
     T0=$(date +%s)
-    ./run.sh 2 tcp dirent_durability > "$OUT/lap$l.log" 2>&1
+    ./run.sh 2/net/mesh/direct dirent_durability > "$OUT/lap$l.log" 2>&1
     v=$(grep -a '^  \(PASS\|FAIL\)  dirent_durability' "$OUT/lap$l.log" | tail -1 | cut -c1-200)
     panics=$(tail -n +"$((nc_mark + 1))" "$NC" | grep -ac 'invalid opcode\|Kernel panic')
     mounted=0; probes=0; poison=0; unins=0

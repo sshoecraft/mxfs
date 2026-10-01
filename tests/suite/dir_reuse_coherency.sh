@@ -149,11 +149,11 @@ drc_barrier() {
 # md5 fork).  Size still varies 1-8 4k blocks by round (the multi-block dir
 # data/extent shapes the old test exercised).
 #
-# sess9 (16/tcp pace instrumented): the original `yes | head -c` spawned a 2-fork
+# sess9 (16/net/mesh/direct pace instrumented): the original `yes | head -c` spawned a 2-fork
 # pipeline PER CREATE; that 20-50ms client-side gap exceeds the DLM's 40ms
 # tenure grace, so every create forfeited the shared-dir EX tenure and
 # re-queued behind N-1 peers (~35ms/create × 128 = the 4.5-5.1s create wave
-# measured at 16/tcp; the sess8 cc@32 "burst fragmentation" anatomy, exact).
+# measured at 16/net/mesh/direct; the sess8 cc@32 "burst fragmentation" anatomy, exact).
 # Pure-bash string doubling emits identical bytes (repeated "line\n"
 # truncated) with ZERO forks, so back-to-back creates stay inside the grace
 # window and tenure batching serves a node's whole wave in one rotation.
@@ -299,7 +299,7 @@ for round in $(seq 1 "$ROUNDS"); do
     dc_ok=0
     # sess1 (ccloop 0220f43f) instrumented: TRIED a 0.05s poll granularity here
     # (matching the coord_check_abort fix's reasoning) -- REVERTED, not a
-    # proven win: live A/B on 32/cawp showed verify-phase time went UP
+    # proven win: live A/B on 32/disk/caw/pass showed verify-phase time went UP
     # (~7.3s avg with only the coord.sh fix -> ~8.7s avg with this added),
     # consistent with 32 concurrent VMs' 20Hz busy-poll adding real CPU/
     # scheduling contention on constrained vCPU allocations rather than

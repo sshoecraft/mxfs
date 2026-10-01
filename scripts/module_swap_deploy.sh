@@ -16,9 +16,13 @@
 # Assumes the fleet was cleanly mounted (all slots release at umount).
 
 set -u
-N="${1:?node count required}"
-TRANSPORT="${2:-caw}"
 REPO=/src/mxfs
+# The configuration the fleet is formed for, e.g. 32/disk/caw/mpath: its node
+# count is the fleet, its transport what prep_node.sh loads the module with,
+# and it is what the marker records (run.sh compares it before reusing a fleet).
+CONFIG=$(python3 "$REPO/tools/configuration.py" parse "${1:?usage: module_swap_deploy.sh <configuration>, e.g. 32/disk/caw/mpath}") || exit 2
+N=${CONFIG%%/*}
+TRANSPORT=$(python3 "$REPO/tools/configuration.py" get "$CONFIG" transport)
 SSH="$REPO/tools/mxfs_sshpass.sh"
 # THE MARKER KNOWS WHICH DEVICE THIS RIG IS ON; A HARDCODED DEFAULT DOES NOT.
 # /dev/mapper/mpatha is the multipath rig's name and does not exist on the
@@ -48,7 +52,7 @@ MODINFO=$(command -v modinfo || echo /usr/sbin/modinfo)
 WANT_SV=$("$MODINFO" "$REPO/mxfs.ko" 2>/dev/null | awk '/^srcversion/{print $2}')
 [ -n "$WANT_SV" ] || { echo "SWAP_FAIL: no srcversion in $REPO/mxfs.ko"; exit 1; }
 KO_MD5=$(md5sum "$REPO/mxfs.ko" | awk '{print $1}')
-echo "=== module swap deploy: $N nodes, transport=$TRANSPORT, sv=$WANT_SV ==="
+echo "=== module swap deploy: $CONFIG (transport=$TRANSPORT), sv=$WANT_SV ==="
 
 # 1. Clean slate everywhere, in parallel.  fs stays formatted.
 tmpd=$(mktemp -d)
@@ -176,9 +180,9 @@ nl=$(seq -s, -f 'test%g' 1 "$N")
 # marker: a swap would have dropped it and left the fio yardstick unselectable
 # with nothing to say why.  MERGE what this swap actually changed into what is
 # already there, and every field nobody thought about survives by default.
-NEWF=$(jq -n --argjson n "$N" --arg d "$TRANSPORT" --arg s "$WANT_SV" --arg nl "$nl" \
+NEWF=$(jq -n --argjson n "$N" --arg d "$CONFIG" --arg s "$WANT_SV" --arg nl "$nl" \
   --arg dev "$DEV" --arg t "$(date -u +%FT%TZ)" \
-  '{nodes:$n, dlm:$d, srcversion:$s, node_list:$nl, dev:$dev, iso:$t}')
+  '{nodes:$n, configuration:$d, srcversion:$s, node_list:$nl, dev:$dev, iso:$t}')
 MTMP=$(mktemp)
 if [ -s "$REPO/.cluster_marker.json" ]; then
     jq --argjson new "$NEWF" '. + $new' "$REPO/.cluster_marker.json" > "$MTMP"

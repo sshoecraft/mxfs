@@ -10,7 +10,7 @@
 # nothing: the next request for H's resource is granted at once — and a
 # shared-mode (read) request is not even settle-gated.
 #
-# Shape (32/tcp; H, W, A distinct; A is the victim):
+# Shape (32/net/mesh/direct; H, W, A distinct; A is the victim):
 #   1. H writes F (32 KiB random) and records md5_H; H holds F's grant.
 #   2. Arm the D-512 T2 pausepoint on H: ino(F), stage 1 (BEFORE the site-1
 #      dirty-page flush), 30 000 ms — H's release drain will hold with

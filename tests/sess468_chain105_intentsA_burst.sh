@@ -39,7 +39,7 @@ lap() { # <budget_s> <label> <cmd...>
 # scoring: an unprepped fleet measures nothing.
 prep_arm() { # <label>
   local l="$1" T0=$(date +%s) rc
-  timeout 300 ./run.sh 32 caw prep_cluster; rc=$?
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; rc=$?
   echo "STAGE $l rc=$rc wall=$(( $(date +%s) - T0 ))s"
   [ "$rc" = 0 ] && return 0
   echo "ABORT $l: prep_cluster rc=$rc — no arm can yield a verdict; scoring one would be fabricating evidence."

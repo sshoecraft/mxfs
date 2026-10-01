@@ -4,9 +4,10 @@
 # stalled 60 s after a peer death, until it stalls again or the laps run out.
 #
 # One lap, on the rhel9 verification pair (alma9-1 survivor, alma9-2 victim):
-#   1. tests/packaged_round.sh rhel9 VERSION   install the packaged build; ends
+#   1. CONFIG=<N>/net/mesh/direct tests/packaged_round.sh rhel9 VERSION
+#                                              install the packaged build; ends
 #                                              with a reboot of both nodes
-#   2. PREP=rhel9 tests/tcp_peer_freeze_death.sh
+#   2. CONFIG=<N>/net/mesh/direct PREP=rhel9 tests/tcp_peer_freeze_death.sh
 #                                              freeze the victim, death, fence,
 #                                              replay, resume the victim
 #   3. tests/selinux_svirt_mxfs.sh <survivor>  qemu-img create on the survivor;
@@ -24,6 +25,8 @@
 # Usage: tests/svirt_stall_laps.sh VERSION LAPS
 #   VERSION is a build in dist/<VERSION>/ (A/B against an older release by
 #   passing its version).  Log: tests/evidence/svirt_stall_laps_<VERSION>_<stamp>.log
+#   CONFIG defaults to the TCP configuration at the rhel9 set's size (N is the
+#   lab file's node count); both harnesses refuse any other size.
 #   Exit 0 when every lap passed, 1 at the first failing lap.
 #
 set -u
@@ -36,6 +39,8 @@ cd "$HERE" || exit 1
 SSH="$HERE/tools/mxfs_sshpass.sh"
 A=$(tools/mxfs_lab.sh addr alma9-1)
 B=$(tools/mxfs_lab.sh addr alma9-2)
+CONFIG=${CONFIG:-$(tools/mxfs_lab.sh nodes rhel9 | wc -w)/net/mesh/direct}
+export CONFIG
 L="$HERE/tests/evidence/svirt_stall_laps_${VERSION}_$(date +%Y%m%dT%H%M%S).log"
 say() { echo "[$(date +%T)] $*" | tee -a "$L"; }
 

@@ -29,8 +29,8 @@
 # (400 -> ~12 s) + umount (a clean 2-node unmount is 1-15 s) -> 120 s per node,
 # in parallel; chk 240 s; captures 30 s.
 #
-# Usage: tests/unmount_agrelease_window.sh LABEL DLM
-#   DLM is tcp or cawd (CAW needs MXFS_DEV for the device, e.g. the QNAP
+# Usage: tests/unmount_agrelease_window.sh LABEL CONFIGURATION
+#   CONFIGURATION is 2/net/mesh/direct or 2/disk/caw/direct (CAW needs MXFS_DEV for the device, e.g. the QNAP
 #   by-id path).  Env: FILES (400), MXFS_NODE_LIST (test1,test2).
 #   FRAG (default 0) writes each file as FRAG 4 KiB blocks at an 8 KiB
 #   stride, so every file's inactivation frees FRAG extents.  On CAW an empty
@@ -68,8 +68,9 @@
 #
 set -u
 
-LABEL="${1:?usage: unmount_agrelease_window.sh LABEL tcp|cawd}"
-DLM="${2:?usage: unmount_agrelease_window.sh LABEL tcp|cawd}"
+LABEL="${1:?usage: unmount_agrelease_window.sh LABEL <class>/<method>/<attach>}"
+CONFIG=$(python3 "$(dirname "$0")/../tools/configuration.py" parse "${2:?usage: unmount_agrelease_window.sh LABEL <configuration>}") || exit 2; N=${CONFIG%%/*}; DLM=${CONFIG#*/}
+[ "$N" = 2 ] || { echo "unmount_agrelease_window is a 2-node lap; got $CONFIG"; exit 2; }
 FILES="${FILES:-400}"
 FRAG="${FRAG:-0}"
 EOFB="${EOFB:-0}"
@@ -88,7 +89,7 @@ say() { echo "[$(date +%T) +$(el)s] $*"; }
 fld() { echo "$2" | grep -aoE "(^| )$1=[0-9-]+" | head -1 | cut -d= -f2; }
 
 say "label=$LABEL dlm=$DLM files=$FILES frag=$FRAG eofb=$EOFB sync_iflush=${SYNC_IFLUSH:-default} nodes=$NODES active=${ACTIVE:-all} dev=${MXFS_DEV:-run.sh default} evidence=$EV"
-timeout 400 ./run.sh 2 "$DLM" prep_cluster > "$EV/prep.log" 2>&1
+timeout 400 ./run.sh "$CONFIG" prep_cluster > "$EV/prep.log" 2>&1
 rc=$?
 say "prep rc=$rc ($(grep -a 'prep OK\|converged' "$EV/prep.log" | tail -1 | cut -c1-120))"
 [ $rc = 0 ] || { say "RESULT INFRA: prep failed"; exit 2; }

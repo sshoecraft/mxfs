@@ -15,10 +15,10 @@ LOG=tests/evidence/sess446_chain47_0512_Aprime_arms3_$LABEL.log
 {
   echo "=== sess445 chain47 start $(date -u +%FT%TZ) sv=$(modinfo mxfs.ko | awk '/srcversion/{print $2}') VERSION=$(cat VERSION) ==="
   for arm in fix inject1 inject2; do
-    timeout 300 ./run.sh 32 caw prep_cluster; prc=$?; echo "STAGE prep_$arm rc=$prc"
+    timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; prc=$?; echo "STAGE prep_$arm rc=$prc"
     if [ "$prc" -ne 0 ]; then echo "ABORT: prep failed before arm $arm"; break; fi
     T0=$(date +%s); timeout 300 tests/d0512_sf_to_block_replay.sh $LABEL $arm test2 32 test1; echo "STAGE d0512_$arm rc=$? wall=$(( $(date +%s) - T0 ))s"
   done
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep2 rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep2 rc=$?"
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

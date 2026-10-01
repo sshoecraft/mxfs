@@ -89,7 +89,7 @@ case "$ARM" in
 esac
 cd "$(dirname "$0")/.." || exit 2
 export MXFS_NODE_LIST=${MXFS_NODE_LIST:-test1,test2}
-export MXFS_TRANSPORT=${MXFS_TRANSPORT:-tcp}
+export MXFS_CONFIG=${MXFS_CONFIG:-2/net/mesh/direct}
 A=${MXFS_NODE_LIST%%,*}          # the prover; stays alive throughout
 B=${MXFS_NODE_LIST##*,}          # the victim; silenced, not cut
 SSH=tools/mxfs_sshpass.sh
@@ -134,7 +134,7 @@ if [ "$(strings -a mxfs.ko | grep -c 'P303-RETIRE-CONTRACT-REJECTED')" = 0 ]; th
     echo "ABORT: mxfs.ko is not a build that withdrew the retirement clause (no P303-RETIRE-CONTRACT-REJECTED); build the tree first"
     echo "RESULT: ABORT label=$LABEL stage=build evidence=$OUT"; exit 2
 fi
-MXFS_RETIRE_CONTRACT="" MXFS_FORCE_PREP=1 timeout 400 ./run.sh 2 tcp prep_cluster > "$OUT/prep.log" 2>&1
+MXFS_RETIRE_CONTRACT="" MXFS_FORCE_PREP=1 timeout 400 ./run.sh 2/net/mesh/direct prep_cluster > "$OUT/prep.log" 2>&1
 prc=$?
 echo "STAGE prep rc=$prc wall=$(el)s  $(grep -am1 'prep_cluster OK\|FAIL' "$OUT/prep.log" | cut -c1-140)"
 [ $prc = 0 ] || { echo "RESULT: ABORT label=$LABEL stage=prep evidence=$OUT"; exit 2; }

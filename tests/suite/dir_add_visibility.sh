@@ -5,7 +5,7 @@
 # (posix_multi, dir_reuse_coherency, cache_coherency) creates its working
 # dir FRESH each run/round, so per-inode DLM state starts clean and the
 # TCP-transport staleness debt that accumulates on an AGING dir inode never
-# gets exercised.  Measured on 8/tcp (posix_multi pre-wipe run B, dir ino
+# gets exercised.  Measured on 8/net/mesh/direct (posix_multi pre-wipe run B, dir ino
 # 4195264 at epoch ~60): after an 8-node ln wave, 7/8 nodes' lookups missed
 # ALL peers' fresh adds — P65-EPOCH-ADOPT printed grant_epoch 26 ahead of
 # valid_epoch with adopt=0 (TCP epoch gate is observe-only; the P63 one-shot

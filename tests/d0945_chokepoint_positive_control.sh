@@ -129,7 +129,7 @@ for gate in 1 0; do
     mounted=$(for n in $A $B; do rs 25 "$n" "touch $MNT/.d0945probe 2>/dev/null && rm -f $MNT/.d0945probe 2>/dev/null && echo -n 1 || echo -n 0"; done | tr -d '\n')
     if [ "$mounted" != "11" ]; then
         echo "  INFO nodes not writable (probe='$mounted', 1=create succeeded) — prepping before the lap"
-        timeout 300 ./run.sh 2 tcp prep_cluster > "$OUT/prep_g${gate}_$att.log" 2>&1
+        timeout 300 ./run.sh 2/net/mesh/direct prep_cluster > "$OUT/prep_g${gate}_$att.log" 2>&1
         echo "  INFO prep rc=$? ; re-arming the gate"
         rs 25 "$A" "echo $gate > $GATE 2>/dev/null" >/dev/null
     fi

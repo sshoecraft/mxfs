@@ -29,7 +29,7 @@
 # harness asserts the overlap and reports it.  Measured s525e-g (0.75.44,
 # ITERS=300, no barrier): 0.3-0.7 ms per append, 3 BASTs, no overlap.
 #
-# the budget rule (derived): prep 55 s measured (2/tcp QNAP) + loop <= ITERS*0.1 s
+# the budget rule (derived): prep 55 s measured (2/net/mesh/direct QNAP) + loop <= ITERS*0.1 s
 # + read-back 5 s + capture 10 s; ITERS=1000 -> <= 170 s worst case; chain
 # bound 300 (prep manifest) + 180.
 #
@@ -56,7 +56,7 @@ ITERS=${2:-1000}
 REC=${3:-0}
 cd "$(dirname "$0")/.." || exit 2
 export MXFS_NODE_LIST=${MXFS_NODE_LIST:-test1,test2}
-export MXFS_TRANSPORT=${MXFS_TRANSPORT:-tcp}
+export MXFS_CONFIG=${MXFS_CONFIG:-2/net/mesh/direct}
 A=${MXFS_NODE_LIST%%,*}
 B=${MXFS_NODE_LIST##*,}
 SSH=tools/mxfs_sshpass.sh
@@ -81,7 +81,7 @@ LOOP_BOUND_MS=$(( ITERS * 100 ))
 echo "=== append_contention_2node label=$LABEL A=$A B=$B iters=$ITERS rec=$REC sv=$(modinfo mxfs.ko | sed -n 's/^srcversion: *//p') $(date -u +%FT%TZ) ==="
 s=$(date +%s)
 if [ -z "${NOPREP:-}" ]; then
-    MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2 tcp prep_cluster > "$OUT/prep.log" 2>&1
+    MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2/net/mesh/direct prep_cluster > "$OUT/prep.log" 2>&1
     prc=$?
     echo "STAGE prep rc=$prc wall=$(( $(date +%s) - s ))s"
     if [ $prc != 0 ]; then echo "RESULT: FAIL label=$LABEL prep rc=$prc"; exit 2; fi

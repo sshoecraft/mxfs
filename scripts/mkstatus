@@ -1,5 +1,5 @@
 {
     echo '```text'
-    for dlm in tcp cawp cawd caw; do echo ""; echo ""; for node in 1 2 4 8 16 32; do echo ""; tools/criteria.py $node $dlm; done; done
+    for cfg in $(tools/configuration.py list); do echo ""; tools/criteria.py "$cfg"; done
     echo '```'
 } | tee status.md

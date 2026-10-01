@@ -51,7 +51,7 @@ mkdir -p "$OUT"
 SV=$(modinfo mxfs.ko | sed -n 's/^srcversion: *//p')
 echo "=== bmbt_join_window label=$LABEL delay_ms=$DELAY mode=$MODE sv=$SV out=$OUT $(date -u +%FT%TZ) ==="
 
-timeout 400 ./run.sh 2 tcp prep_cluster > "$OUT/prep.log" 2>&1 \
+timeout 400 ./run.sh 2/net/mesh/direct prep_cluster > "$OUT/prep.log" 2>&1 \
     || { echo "RESULT: ABORT label=$LABEL stage=prep evidence=$OUT"; exit 2; }
 mxfs_dev_resolve "$A"; DEV=$MXFS_DEV_RESOLVED
 

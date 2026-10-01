@@ -88,7 +88,7 @@ done
 
   bash tests/rig_wait_free.sh 7200 || { echo "ABORT: rig not free"; echo "DONE $(date -u +%FT%TZ)"; exit 1; }
 
-  timeout 300 ./run.sh 32 caw prep_cluster; prc=$?
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; prc=$?
   echo "STAGE prep rc=$prc"
   [ "$prc" = 0 ] || { echo "ABORT: prep rc=$prc — with no fleet nothing below measures anything"; echo "DONE $(date -u +%FT%TZ)"; exit 1; }
 

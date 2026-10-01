@@ -9,7 +9,7 @@
 # in the CIL and puts it back on the list "for the next unlock cycle"; xfsaild
 # cannot write a buffer queued there; an AG this node stops using has no next
 # cycle, so the last chunk's two cluster buffers sat unwritten for nine
-# minutes at 4/tcp, holding the log tail at their sequence.  0.90.16 forces
+# minutes at 4/net/mesh/direct, holding the log tail at their sequence.  0.90.16 forces
 # the log and re-drains such an AG from a delayed work.
 #
 # Measure: A (with B mounted alongside, so the AG lock protocol is the
@@ -30,7 +30,7 @@
 #
 # Usage: [FILES=3000] [IDLE_S=120] tests/alloclist_tail_pin.sh [A] [B]
 #   A and B default to test1 test2 and must be mounted by
-#   MXFS_FORCE_PREP=1 ./run.sh 2 tcp prep_cluster (module loaded, LUN
+#   MXFS_FORCE_PREP=1 ./run.sh 2/net/mesh/direct prep_cluster (module loaded, LUN
 #   formatted, MXFS_DEV / MXFS_MOUNT as run.sh).
 #   Evidence: tests/evidence/alloclist_tail_pin/<stamp>/.  Exit 0 only on PASS.
 #
@@ -68,7 +68,7 @@ lsn() { on "$A" 20 "echo tail=\$(cat $SYS/log_tail_lsn) head=\$(cat $SYS/log_hea
 
 # the burst, then a sync (a pinned leftover survives a sync: xfsaild cannot
 # write it, and the pre-0.90.16 code retried it only at the AG's next unlock).
-# Bound: 2 x the 37 s measured wall (0.90.16, 2/tcp; 25 s at 4/tcp on
+# Bound: 2 x the 37 s measured wall (0.90.16, 2/net/mesh/direct; 25 s at 4/net/mesh/direct on
 # 0.90.17); the first version's 300 s was a wedge bound.
 t0=$(date +%s)
 on "$A" 74 "d=$MNT/tailpin.\$\$; mkdir -p \$d && cd \$d && for i in \$(seq 1 $FILES); do : > f\$i; done; sync; echo created=\$(ls | wc -l) dir=\$d" > "$EV/burst.log"

@@ -16,9 +16,9 @@ LOG=tests/evidence/sess447_chain51_0515_nsop_verify_$LABEL.log
   NEW=$(modinfo mxfs.ko | awk '/srcversion/{print $2}')
   echo "STAGE build rc=$brc old_sv=$OLD new_sv=$NEW errors=$(grep -c 'error:' tests/evidence/sess447_chain51_build_$LABEL.log) warnings=$(grep -c 'warning:' tests/evidence/sess447_chain51_build_$LABEL.log)"
   if [ "$brc" -ne 0 ] || [ "$NEW" = "$OLD" ]; then echo "ABORT: build failed or srcversion unchanged"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
-  timeout 300 ./run.sh 32 caw prep_cluster; prc=$?; echo "STAGE prep rc=$prc"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; prc=$?; echo "STAGE prep rc=$prc"
   if [ "$prc" -ne 0 ]; then echo "ABORT: prep failed"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
   T0=$(date +%s); timeout 660 tests/umount_under_quarantine.sh $LABEL 32 test2; echo "STAGE umount_under_quarantine rc=$? wall=$(( $(date +%s) - T0 ))s"
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep2 rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep2 rc=$?"
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

@@ -9,7 +9,7 @@
 # arm).  The CAW acquire (dlm/dlm_caw.c) is a different wait, with its own
 # exits, and had never been measured against a closure.
 #
-# On a 2-node CAW cluster mounted at MNT (run.sh 2 caw|cawd|cawp):
+# On a 2-node CAW cluster mounted at MNT (run.sh 2/disk/caw/<attach>):
 #   1. H writes F and holds its grant with the release drain paused
 #      (dbg_rel_pause_*, stage 1, PAUSE_MS): a live holder W must wait behind
 #   2. W reads F in the background; the lap proves W is parked in the CAW

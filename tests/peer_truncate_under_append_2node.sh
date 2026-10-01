@@ -18,7 +18,7 @@
 # hand-off (<= 100 ms by the design's own claim).  A_loop_wall_ms <=
 # ITERS*2 + TRUNCS*100 ms.
 #
-# the budget rule (derived): prep 55 s measured (2/tcp QNAP) + loop <= 3 s + capture
+# the budget rule (derived): prep 55 s measured (2/net/mesh/direct QNAP) + loop <= 3 s + capture
 # 10 s; ~70 s; chain bound 300 (prep manifest) + 120.
 #
 # Usage: tests/peer_truncate_under_append_2node.sh <label> [ITERS=4000] [TRUNCS=3]
@@ -32,7 +32,7 @@ cd "$(dirname "$0")/.." || exit 2
 export MXFS_NODE_LIST=${MXFS_NODE_LIST:-test1,test2}
 # MXFS_DEV: the caller's, else prep_cluster's per-transport rig default
 # (no other rig's device path is assumed here)
-export MXFS_TRANSPORT=${MXFS_TRANSPORT:-tcp}
+export MXFS_CONFIG=${MXFS_CONFIG:-2/net/mesh/direct}
 A=${MXFS_NODE_LIST%%,*}
 B=${MXFS_NODE_LIST##*,}
 SSH=tools/mxfs_sshpass.sh
@@ -55,7 +55,7 @@ LOOP_BOUND_MS=$(( ITERS * 2 + TRUNCS * 100 ))
 echo "=== peer_truncate_under_append_2node label=$LABEL A=$A B=$B iters=$ITERS truncs=$TRUNCS sv=$(modinfo mxfs.ko | sed -n 's/^srcversion: *//p') $(date -u +%FT%TZ) ==="
 s=$(date +%s)
 if [ -z "${NOPREP:-}" ]; then
-    MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2 tcp prep_cluster > "$OUT/prep.log" 2>&1
+    MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2/net/mesh/direct prep_cluster > "$OUT/prep.log" 2>&1
     prc=$?
     echo "STAGE prep rc=$prc wall=$(( $(date +%s) - s ))s"
     if [ $prc != 0 ]; then echo "RESULT: FAIL label=$LABEL prep rc=$prc"; exit 2; fi

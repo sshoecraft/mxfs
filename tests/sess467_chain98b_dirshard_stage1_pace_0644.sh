@@ -11,7 +11,7 @@
 #   1. wait for chain 97 DONE (its board is the 0.64.0 regression gate);
 #   2. install the frozen 0.64.4 (SCRATCH_KO/SCRATCH_SV) + tools into the tree
 #      and prove the dispatch is linked (objdump);
-#   3. prep 32/caw; tests/dirshard_stage1_selftest.sh test1 test2; user-mode
+#   3. prep 32/disk/caw/mpath; tests/dirshard_stage1_selftest.sh test1 test2; user-mode
 #      format selftest; fleet unmount + chk_mxfs (parents=2 published=2 ...);
 #   4. exec the chain 98 body (its gate is already satisfied): prep + 5 x
 #      crash_consistency for baseline / private / sharded 16/32/64.
@@ -47,7 +47,7 @@ lap() { # <budget_s> <label> <cmd...>
   echo "STAGE install rc=$brc wall=$(( $(date +%s) - T0 ))s sv=$(modinfo mxfs.ko | awk '/srcversion/{print $2}') from=$SCRATCH_KO ioctl_dispatch_linked=$DISP chk_dirshard=$(strings -a tools/chk_mxfs | grep -c 'Directory sharding')"
   if [ "$brc" -ne 0 ] || [ "${DISP:-0}" = 0 ]; then echo "ABORT: install (dispatch not linked)"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
 
-  lap 300 prep ./run.sh 32 caw prep_cluster
+  lap 300 prep ./run.sh 32/disk/caw/mpath prep_cluster
   echo "fleet: $(timeout 20 $SSH test1 'cat /sys/module/mxfs/srcversion; grep -c " mxfs " /proc/mounts; dmesg | grep -a "MXFS envelope" | tail -1' 2>/dev/null | grep -av '^Unauthorized\|^$\|^If you' | tr '\n' ' ')"
   lap 240 "dirshard_stage1 selftest test1 test2" tests/dirshard_stage1_selftest.sh test1 test2
   lap 30 "dirshard_format_selftest (user-mode)" tests/selftest/dirshard_format_selftest.sh

@@ -4,7 +4,7 @@
 # context (D-A-REFUSED-MOUNT-FREES-THE-DLM-CONTEXT-UNDER-ITS-FENCE-RETRY-WORKER).
 #
 # THE SHAPE, as s151a produced it by accident (0.89.69 7A0C5DF3088079E22768EB3,
-# 2/tcp, tests/evidence/netconsole.log): the prover P unmounts cleanly,
+# 2/net/mesh/direct, tests/evidence/netconsole.log): the prover P unmounts cleanly,
 # rman_inject=1 is armed on its still-loaded module, the victim V is destroyed,
 # and P mounts again alone.  A lone mount is a whole-cluster bootstrap: two
 # 62 s survivor scans, then the fence of V, which arms the fence-retry series
@@ -40,7 +40,7 @@ set -u
 LABEL=${1:?label}
 cd "$(dirname "$0")/.." || exit 2
 export MXFS_NODE_LIST=${MXFS_NODE_LIST:-test1,test2}
-export MXFS_TRANSPORT=${MXFS_TRANSPORT:-tcp}
+export MXFS_CONFIG=${MXFS_CONFIG:-2/net/mesh/direct}
 N1=${MXFS_NODE_LIST%%,*}
 N2=${MXFS_NODE_LIST##*,}
 P=${PROVER:-$N2}                 # the node that unmounts and mounts again alone
@@ -89,7 +89,7 @@ waitboot() {
     echo "STAGE boot-wait $* polls=$w at +$(el)s"
 }
 waitboot "$N1" "$N2"
-MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2 tcp prep_cluster > "$OUT/prep.log" 2>&1
+MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2/net/mesh/direct prep_cluster > "$OUT/prep.log" 2>&1
 prc=$?
 echo "STAGE prep rc=$prc wall=$(el)s  $(grep -am1 'prep_cluster OK\|FAIL' "$OUT/prep.log" | cut -c1-140)"
 [ $prc = 0 ] || { echo "RESULT: ABORT label=$LABEL stage=prep evidence=$OUT"; exit 2; }

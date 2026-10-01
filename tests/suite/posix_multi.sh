@@ -28,7 +28,7 @@ mkdir -p "$D" 2>/dev/null
 # "contended dir-EX handoff rotation" cost class documented at length
 # elsewhere in this project (dir_reuse_coherency's DRC_TOTAL rewrite,
 # cache_coherency's RV_TOTAL/UV_TOTAL rewrite this session).  Reproduced
-# live: posix_multi@32/cawp NO_TERMINAL_RECORD at its flat 30s budget on a
+# live: posix_multi@32/disk/caw/pass NO_TERMINAL_RECORD at its flat 30s budget on a
 # freshly-reformed cluster (not a cascade from another test).  PM_TOTAL is
 # a CONSTANT pool size so per-node count shrinks as T grows and total
 # create-storm volume stays O(1) instead of O(T); the per-node/global

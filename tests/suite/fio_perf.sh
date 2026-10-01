@@ -11,7 +11,7 @@
 # recorded to bench.json and what fio_perf_vs_xfs.sh compares against the
 # single-node xfs baseline.
 #
-# When run under the native-XFS condition (run.sh DLM=xfs, N=1 only;
+# When run under the native-XFS baseline (run.sh 1/xfs;
 # MXFS_EXPECT_FSTYPE=xfs), this script ALSO refreshes the single-node XFS
 # baseline at $REPO/.xfs_fio_baseline.json — this run's own numbers ARE the
 # reference. The pass/fail COMPARISON of a normal (mxfs) run against that
@@ -107,7 +107,7 @@ PY
 # single ready-barrier, nodes drift across phases (double-pass + drop_caches
 # skew) so one node's seq_write window overlaps another's rand_read storm —
 # each node then measures a cross-contaminated number and the summed cluster
-# aggregate craters (4/cawd measured seqW=816 vs 2078 when manually aligned;
+# aggregate craters (4/disk/caw/direct measured seqW=816 vs 2078 when manually aligned;
 # 42% false-FAIL against the vs-xfs 70% floor).  Aligning phases makes the
 # aggregate mean what the baseline means: one workload at a time.
 read sw_bw sw_io <<<"$(run seq_write_1m  write     1M)"
@@ -167,14 +167,15 @@ if [ "$R" = 1 ]; then
         fi
     fi
 
-    # Append the raw (aggregate, at T>1) numbers to bench.json, keyed per condition.
-    BENCH="${MXFS_BENCH:-/src/mxfs/bench.json}"; DLM="${MXFS_DLM:-tcp}"; FSLABEL="${MXFS_FS_LABEL:-mxfs}"
+    # Append the raw (aggregate, at T>1) numbers to bench.json, keyed per configuration.
+    BENCH="${MXFS_BENCH:-/src/mxfs/bench.json}"; FSLABEL="${MXFS_FS_LABEL:-mxfs}"
+    CONFIG="${MXFS_CONFIG:?run.sh names the configuration in MXFS_CONFIG}"; SLUG="${CONFIG//\//-}"
     [ -s "$BENCH" ] || echo '{}' > "$BENCH" 2>/dev/null
     btmp=$(mktemp 2>/dev/null) && jq \
-      --arg l "fio_perf_${NODES}n_${DLM}_$(date +%s)" --arg ts "$(date -u +%FT%TZ)" \
-      --argjson n "$NODES" --arg d "$DLM" --arg sz "$SIZE" --arg fs "$FSLABEL" \
+      --arg l "fio_perf_${SLUG}_$(date +%s)" --arg ts "$(date -u +%FT%TZ)" \
+      --argjson n "$NODES" --arg d "$CONFIG" --arg sz "$SIZE" --arg fs "$FSLABEL" \
       --argjson sw "${sw_bw:-0}" --argjson sr "${sr_bw:-0}" --argjson rw "${rw_io:-0}" --argjson rr "${rr_io:-0}" \
-      '.[$l] = {ts:$ts, test:"fio_perf", nodes:$n, dlm:$d, fs:$fs, size:$sz,
+      '.[$l] = {ts:$ts, test:"fio_perf", nodes:$n, configuration:$d, fs:$fs, size:$sz,
                 fio:{seq_write_1m:{bw_mib:$sw}, seq_read_1m:{bw_mib:$sr},
                      rand_write_4k:{iops:$rw}, rand_read_4k:{iops:$rr}}}' \
       "$BENCH" > "$btmp" 2>/dev/null && mv "$btmp" "$BENCH" 2>/dev/null

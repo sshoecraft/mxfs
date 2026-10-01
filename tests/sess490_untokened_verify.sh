@@ -54,7 +54,7 @@ nodes() { seq 1 32 | sed 's/^/test/'; }
   cp "$KO" mxfs.ko
   echo "STAGE install_ko sv=$(modinfo mxfs.ko | awk '/srcversion/{print $2}') skip_marker=$(strings -a mxfs.ko | grep -ac 'P490-SYNC-IOEND-SKIP')"
   t0=$(date +%s)
-  timeout 300 ./run.sh 32 caw prep_cluster > "$O/prep.out" 2>&1; rc=$?
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster > "$O/prep.out" 2>&1; rc=$?
   echo "STAGE prep rc=$rc wall=$(( $(date +%s) - t0 ))s budget=300s build=$(grep -ao 'build [0-9A-F]*' "$O/prep.out" | tail -1)"
   # The capture window opens AFTER prep: prep unmounts whatever the previous
   # chain left mounted on the previous build, and that departure is the
@@ -71,7 +71,7 @@ nodes() { seq 1 32 | sed 's/^/test/'; }
     echo "READBACK sv=$want: $ok/32"
     for lap in $(seq 1 "$LAPS"); do
       t0=$(date +%s)
-      timeout 160 ./run.sh 32 caw crash_consistency > "$O/cc_$lap.out" 2>&1; rc=$?
+      timeout 160 ./run.sh 32/disk/caw/mpath crash_consistency > "$O/cc_$lap.out" 2>&1; rc=$?
       echo "STAGE cc_$lap rc=$rc wall=$(( $(date +%s) - t0 ))s budget=160s $(grep -a 'crash_consistency' "$O/cc_$lap.out" | grep -a 'nodes_pass' | grep -ao 'nodes_pass=[0-9/]*' | head -1)"
     done
     # the mass unmount, every node at once, each timed on the node itself

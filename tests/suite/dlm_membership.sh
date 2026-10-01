@@ -29,7 +29,8 @@ for n in $(seq 1 "$T"); do test -f "$D/alive_n${n}" && seen=$((seen + 1)); done
 ckeq "mem all N members visible" "$T" "$seen"
 
 # (b) transport mesh (TCP only).
-if [ "$T" -ge 2 ] && [ "${MXFS_DLM:-tcp}" = tcp ]; then
+#     The class is the configuration's second field: 2/net/mesh/direct -> net.
+if [ "$T" -ge 2 ] && [[ "${MXFS_CONFIG:?run.sh names the configuration in MXFS_CONFIG}" == */net/* ]]; then
     conns=$(ss -tn state established '( sport = 7600 or dport = 7600 )' 2>/dev/null \
             | grep -v '^State' | grep -c ':7600')
     ck "mem tcp mesh >= N-1" test "${conns:-0}" -ge "$((T - 1))"

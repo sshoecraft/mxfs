@@ -11,7 +11,7 @@
 # protection").
 #
 # ── derived time budget (written BEFORE first run) ──
-#   infra    = run.sh 2/caw prep with up to 30 running extra nodes to
+#   infra    = run.sh 2/disk/caw/mpath prep with up to 30 running extra nodes to
 #              tear down (parallel, ~100 s worst) + participant clean +
 #              NFS ensure + re-mkfs 0.6 s + mounts 2.7/4.8 s +
 #              readiness  => provisional 240 s
@@ -41,7 +41,7 @@ sv=$("$MODINFO" "$REPO/mxfs.ko" 2>/dev/null | awk '/^srcversion/{print $2}')
 
 tstat() { # test-name field
     jq -r --arg t "$1" --arg f "$2" \
-       '[.categories[].tests[] | select(.name==$t) | .runs["2/caw"][$f]][0] // "MISSING"' \
+       '[.categories[].tests[] | select(.name==$t) | .runs["2/disk/caw/mpath"][$f]][0] // "MISSING"' \
        "$CRIT" 2>/dev/null
 }
 
@@ -52,11 +52,11 @@ start=$SECONDS
 # Explicit forced prep: the marker records (nodes, dlm, srcversion) and a
 # filtered invocation hard-errors on build mismatch — the lifted build is
 # by definition a new srcversion, so re-form first.
-( cd "$REPO" && ./run.sh 2 caw prep_cluster )
+( cd "$REPO" && ./run.sh 2/disk/caw/mpath prep_cluster )
 prep_rc=$?
 rc=1
 if [ "$prep_rc" -eq 0 ]; then
-    ( cd "$REPO" && ./run.sh 2 caw posix_multi dlm_fairness )
+    ( cd "$REPO" && ./run.sh 2/disk/caw/mpath posix_multi dlm_fairness )
     rc=$?
 fi
 wall=$((SECONDS - start))

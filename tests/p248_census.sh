@@ -9,7 +9,7 @@
 # P269/P270 silent; P263/P267/P271 sane (with zero residue that means zero).
 # P272 is an injection-only probe — any natural firing is a defect.
 #
-# Usage: tests/p248_census.sh <N> <expect_clean_per_node>
+# Usage: tests/p248_census.sh <configuration> <expect_clean_per_node>
 #   expect_clean_per_node  1  -> assert exactly one clean departure per node
 #                              (use when the previous cycle left all N mounted)
 #                          -1 -> report clean-departure counts only (first
@@ -25,7 +25,7 @@ set -u
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 REPO=$(cd -- "$SCRIPT_DIR/.." && pwd)
 CEN="$REPO/tests/census_p.sh"
-N=${1:?usage: p248_census.sh <N> <expect_clean_per_node>}
+CONFIG=$(python3 "$(dirname "$0")/../tools/configuration.py" parse "${1:?usage: p248_census.sh <configuration> <expect_clean_per_node>}") || exit 2; N=${CONFIG%%/*}
 EXPECT=${2:?usage: p248_census.sh <N> <expect_clean_per_node>}
 NONCE=$$
 cd "$REPO" || exit 2
@@ -42,7 +42,7 @@ fi
 echo "--- $MARKED/$N nodes marked ---"
 
 # ── the prep cycle (tears down the previous mount, re-mkfs, mounts N) ────
-./run.sh "$N" caw prep_cluster
+./run.sh "$CONFIG" prep_cluster
 prc=$?
 if [ "$prc" -ne 0 ]; then
     echo "FAIL: prep_cluster rc=$prc — census window not evaluated"

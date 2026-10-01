@@ -64,7 +64,7 @@ cd "$(dirname "$0")/.." || exit 2
 export MXFS_NODE_LIST=${MXFS_NODE_LIST:-test1,test2}
 W=${2:-${MXFS_NODE_LIST%%,*}}
 V=${3:-${MXFS_NODE_LIST##*,}}
-export MXFS_TRANSPORT=${MXFS_TRANSPORT:-tcp}
+export MXFS_CONFIG=${MXFS_CONFIG:-2/net/mesh/direct}
 SSH=tools/mxfs_sshpass.sh
 OBS_S=${OBS_S:-150}
 NSLOT=${NSLOT:-32}

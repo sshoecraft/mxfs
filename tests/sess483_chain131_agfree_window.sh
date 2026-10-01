@@ -93,7 +93,7 @@ LABEL=${1:-s483a}
 GATE=${GATE:-tests/evidence/sess482_chain130_affine_audit_s482b.log}
 LOG=tests/evidence/sess483_chain131_agfree_$LABEL.log
 EV=tests/evidence/sess483_agfree_$LABEL
-NNODES=${NNODES:-32}
+CONFIG=$(python3 "$(dirname "$0")/../tools/configuration.py" parse "${CONFIG:-32/disk/caw/mpath}") || exit 2; NNODES=${CONFIG%%/*}
 FILES=${FILES:-400}
 MNT=/mnt/shared
 IMG=$(tools/mxfs_host_image.sh) || { echo "$IMG"; exit 2; }
@@ -125,7 +125,7 @@ leg() {
     mkdir -p "$D"
     echo "===== LEG $NAME (churn=$DOCHURN) $(date -u +%FT%TZ) ====="
 
-    timeout 300 ./run.sh "$NNODES" caw prep_cluster; rc=$?
+    timeout 300 ./run.sh "$CONFIG" prep_cluster; rc=$?
     echo "  STAGE prep rc=$rc"
     [ "$rc" = 0 ] || { echo "  ABORT LEG: prep rc=$rc — nothing below measures anything"; return 1; }
 

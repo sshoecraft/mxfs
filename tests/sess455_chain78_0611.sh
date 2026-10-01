@@ -6,12 +6,12 @@
 # "The sess455 implementation review") together with landing group 2:
 #   1  make modules + make tools (abort unless the srcversion CHANGES from
 #      923EB92DAA8D9A3385402CD and the P304-RETIRE-DRAIN-STALL string is present)
-#   2  prep_cluster @ 32/caw
+#   2  prep_cluster @ 32/disk/caw/mpath
 #   3  tests/settle_token_arms.sh: plain, inval, double, slowrace, probehang,
 #      latewait (the uncapped drain waits for the injected token, then clean)
 #   4  the 12 RETIRE_PENDING laps (tests/sess452_chain71_retire_pending.sh
 #      s455a) on 0.61.1
-#   5  the full 32/caw board (./run.sh 32 caw — per-row budgets from the
+#   5  the full 32/disk/caw/mpath board (./run.sh 32/disk/caw/mpath — per-row budgets from the
 #      manifest; run.sh enforces them, no outer timeout)
 # derived time budgets: build measured 326 s in tree (chain 77) → 600; prep 300;
 # settle arms per the harness header (plain/inval/double/latewait 120, slowrace 130,
@@ -39,7 +39,7 @@ lap() { # <budget_s> <label> <cmd...>
     echo "DONE $(date -u +%FT%TZ)"; exit 1
   fi
   lap 120 tools make tools
-  lap 300 prep ./run.sh 32 caw prep_cluster
+  lap 300 prep ./run.sh 32/disk/caw/mpath prep_cluster
   lap 120 "settle arm=plain victim=test3"      tests/settle_token_arms.sh 32 test3  test1 plain
   lap 120 "settle arm=inval victim=test4"      tests/settle_token_arms.sh 32 test4  test1 inval
   lap 120 "settle arm=double victim=test26"    tests/settle_token_arms.sh 32 test26 test1 double
@@ -48,9 +48,9 @@ lap() { # <budget_s> <label> <cmd...>
   lap 120 "settle arm=latewait victim=test29"  tests/settle_token_arms.sh 32 test29 test1 latewait
   echo "=== settle arms done $(date -u +%FT%TZ); the 12 RETIRE_PENDING laps (label s455a, sv $NEW_SV) ==="
   tests/sess452_chain71_retire_pending.sh s455a "$NEW_SV"
-  echo "=== laps done $(date -u +%FT%TZ); full board 32/caw ==="
+  echo "=== laps done $(date -u +%FT%TZ); full board 32/disk/caw/mpath ==="
   T0=$(date +%s)
-  ./run.sh 32 caw > tests/evidence/sess455_chain78_board_$LABEL.log 2>&1; echo "STAGE board rc=$? wall=$(( $(date +%s) - T0 ))s"
-  tools/criteria.py 32 caw 2>&1 | tail -40
+  ./run.sh 32/disk/caw/mpath > tests/evidence/sess455_chain78_board_$LABEL.log 2>&1; echo "STAGE board rc=$? wall=$(( $(date +%s) - T0 ))s"
+  tools/criteria.py 32/disk/caw/mpath 2>&1 | tail -40
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

@@ -76,7 +76,7 @@ ck "13c mxfs_dev_same test1 test2 -> one LUN, one filesystem generation" "$( ( m
 ck "13d mxfs_dev_check after a resolve -> unchanged" "$( ( unset MXFS_DEV; mxfs_dev_resolve "$N" > /dev/null; mxfs_dev_check "$N" > "$OUT/c13d.verdict" 2>&1 && echo unchanged ) 2>&1 | tail -1)" "unchanged"
 ck "13e a binding whose path was swapped for another device -> mxfs_dev_check ABORTs (the stale-binding case)" "$(rej c13e 'the binding moved' bash -c '. tests/lib/rig.sh; unset MXFS_DEV; mxfs_dev_resolve '"$N"' > /dev/null; MXFS_DEV_RESOLVED=/dev/vda; mxfs_dev_check '"$N")" "rc=2 abort=1 why=named"
 ck "13f a binding whose filesystem generation changed -> mxfs_dev_check ABORTs naming the format" "$(rej c13f 'a format this harness did not perform' bash -c '. tests/lib/rig.sh; unset MXFS_DEV; mxfs_dev_resolve '"$N"' > /dev/null; MXFS_DEV_FSID=00000000-0000-0000-0000-000000000000; mxfs_dev_check '"$N")" "rc=2 abort=1 why=named"
-ck "13g an undeclared rig -> ABORT, never a transport default" "$(rej c13g 'declares no LUN' env MXFS_RIG_TAG=norig MXFS_TRANSPORT=tcp bash -c '. tests/lib/rig.sh; unset MXFS_DEV; mxfs_dev_resolve '"$N")" "rc=2 abort=1 why=named"
+ck "13g an undeclared rig -> ABORT, never a configuration default" "$(rej c13g 'declares no LUN' env MXFS_RIG_TAG=norig MXFS_CONFIG=2/net/mesh/direct bash -c '. tests/lib/rig.sh; unset MXFS_DEV; mxfs_dev_resolve '"$N")" "rc=2 abort=1 why=named"
 # the unmounted-node path: the LUN is found by its declared identifier, never
 # by a spelling; the root disk and a wrong declaration are still refused.  A
 # real unmount of the peer node (bounded: a clean departure behind a live
@@ -86,13 +86,13 @@ um=$(rsx 130 "$N2" "timeout 120 umount $MNT && echo UMOUNT_OK; grep -c ' $MNT mx
 case $um in *'UMOUNT_OK 0'*)
     ck "13h no MXFS_DEV, no live mount on $N2 -> the declared LUN by its own identifier" "$( ( unset MXFS_DEV; mxfs_dev_resolve "$N2" > "$OUT/c13h.verdict"; echo "$MXFS_DEV_SOURCE $MXFS_DEV_RESOLVED" ) 2>&1 | tail -1)" "declared-wwid /dev/disk/by-id/wwn-0x$DECL"
     ck "13i MXFS_DEV=/dev/vda on the unmounted node -> ABORT: no SCSI identity (prep would have formatted the root disk)" "$(rej c13i 'carries no SCSI identity' env MXFS_DEV=/dev/vda bash -c '. tests/lib/rig.sh; mxfs_dev_resolve '"$N2")" "rc=2 abort=1 why=named"
-    ck "13j no live mount, a wrong declaration, the transport default as the candidate -> ABORT naming the mismatch" "$(rej c13j 'is not the declared LUN' env MXFS_LUN_WWID=naa.0000000000000000000000000000dead MXFS_TRANSPORT=tcp bash -c '. tests/lib/rig.sh; unset MXFS_DEV; mxfs_dev_resolve '"$N2")" "rc=2 abort=1 why=named"
+    ck "13j no live mount, a wrong declaration, the configuration default as the candidate -> ABORT naming the mismatch" "$(rej c13j 'is not the declared LUN' env MXFS_LUN_WWID=naa.0000000000000000000000000000dead MXFS_CONFIG=2/net/mesh/direct bash -c '. tests/lib/rig.sh; unset MXFS_DEV; mxfs_dev_resolve '"$N2")" "rc=2 abort=1 why=named"
     rm=$(rsx 100 "$N2" "timeout 90 mount -t mxfs /dev/sda $MNT && echo MOUNT_OK; grep -c ' $MNT mxfs ' /proc/mounts" | tr '\n' ' ')
     case $rm in *'MOUNT_OK 1'*) echo "  INFO $N2 remounted" ;; *) echo "RESULT: INFRA label=$LABEL $N2 did not remount after the unmounted-node cases ($rm); the rig needs a prep"; exit 2 ;; esac
     ;;
 *) echo "RESULT: INFRA label=$LABEL $N2 did not unmount cleanly for the unmounted-node cases ($um)"; exit 2 ;;
 esac
-ck "14 unreachable host in the resolver -> ABORT, never a default" "$(rej c14 'could not read' env MXFS_TRANSPORT=tcp bash -c '. tests/lib/rig.sh; unset MXFS_DEV; mxfs_dev_resolve test99')" "rc=2 abort=1 why=named"
+ck "14 unreachable host in the resolver -> ABORT, never a default" "$(rej c14 'could not read' env MXFS_CONFIG=2/net/mesh/direct bash -c '. tests/lib/rig.sh; unset MXFS_DEV; mxfs_dev_resolve test99')" "rc=2 abort=1 why=named"
 echo "--- parent-assigned counts and values (window_count_into / value_now_into / prep_require)"
 # each primitive runs in a subshell so its ABORT (exit 2) is observed here;
 # what it assigned is printed from inside that subshell.  The mark is written

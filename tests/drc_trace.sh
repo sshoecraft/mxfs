@@ -1,5 +1,5 @@
 #!/bin/bash
-# drc_trace.sh — sess43: rotation-IMMUNE single-victim trace for the 8/tcp
+# drc_trace.sh — sess43: rotation-IMMUNE single-victim trace for the 8/net/mesh/direct
 # dir_reuse readdir=799 loss.  drc_cap8.sh's dland ring (4096 entries) only
 # retains the LAST rounds' rm-rf teardown; the failing round's CREATE wave
 # rotates out.  This harness forwards DRC_STREAM=1 (per-node dmesg --follow to
@@ -37,7 +37,7 @@ for i in $(seq 1 "$ITERS"); do
   reboot_clean
   OUT=$(env MXFS_EXTRA_MODARGS="$MODARGS" \
        MXFS_TEST_ENV="DRC_STREAM=1 DRC_ROUNDS=$ROUNDS DRC_NFILES=$NFILES" \
-       ./run.sh 8 tcp dir_reuse_coherency 2>&1)
+       ./run.sh 8/net/mesh/direct dir_reuse_coherency 2>&1)
   res=$(echo "$OUT" | grep -E 'dir_reuse_coherency' | tail -1)
   echo "TRACE ITER $i: $res"
   if echo "$res" | grep -q 'PASS'; then continue; fi

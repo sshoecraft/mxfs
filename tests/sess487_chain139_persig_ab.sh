@@ -118,7 +118,7 @@ sweep() { # <since> <dir>  -- keeps each node's log from its LAST cc start in th
 cc_row() { # <name> <outfile> [MXFS_TEST_ENV]
     local name=$1 out=$2 env=${3:-} t0 rc
     t0=$(date +%s)
-    MXFS_TEST_ENV="$env" timeout 160 ./run.sh 32 caw crash_consistency > "$out" 2>&1; rc=$?
+    MXFS_TEST_ENV="$env" timeout 160 ./run.sh 32/disk/caw/mpath crash_consistency > "$out" 2>&1; rc=$?
     echo "STAGE $name rc=$rc wall=$(( $(date +%s) - t0 ))s budget=160s env='$env'"
     grep -aE 'crash_consistency' "$out" | grep -a 'nodes_pass' | cut -c1-300 | sed "s/^/  $name ROW: /"
 }
@@ -146,7 +146,7 @@ cc_row() { # <name> <outfile> [MXFS_TEST_ENV]
     # argument only reaches insmod through an explicit prep; read the fleet
     # back BEFORE any row so a leg is never scored on a mode it did not run.
     t0=$(date +%s)
-    MXFS_EXTRA_MODARGS="$extra" timeout 300 ./run.sh 32 caw prep_cluster > "$O/prep_$leg.out" 2>&1; prc=$?
+    MXFS_EXTRA_MODARGS="$extra" timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster > "$O/prep_$leg.out" 2>&1; prc=$?
     echo "STAGE prep_$leg rc=$prc wall=$(( $(date +%s) - t0 ))s budget=300s"
     [ "$prc" = 0 ] || { echo "  LEG $leg NOT RUN: prep rc=$prc"; continue; }
     readback dir_persig_flush "$mode" || { echo "  LEG $leg NOT RUN: the fleet did not come up at dir_persig_flush=$mode"; continue; }
@@ -159,7 +159,7 @@ cc_row() { # <name> <outfile> [MXFS_TEST_ENV]
     sweep "$SINCE" "$O/${leg}_fresh"
     # 3. the row set (its crash_consistency lands on a fresh directory of its own)
     SINCE=$(date -u +'%Y-%m-%d %H:%M:%S'); t0=$(date +%s)
-    MXFS_EXTRA_MODARGS="$extra" MXFS_TEST_ENV="CC_TAG=rows" timeout 1300 ./run.sh 32 caw $ROWS > "$O/rows_$leg.out" 2>&1; rc=$?
+    MXFS_EXTRA_MODARGS="$extra" MXFS_TEST_ENV="CC_TAG=rows" timeout 1300 ./run.sh 32/disk/caw/mpath $ROWS > "$O/rows_$leg.out" 2>&1; rc=$?
     echo "STAGE rows_$leg rc=$rc wall=$(( $(date +%s) - t0 ))s budget=1300s"
     [ "$rc" = 124 ] && echo "  budget: the row set hit its wrapper budget — a result, not a number to widen."
     grep -aE '^\s+(PASS|FAIL)\s' "$O/rows_$leg.out" | cut -c1-230 | sed "s/^/  $leg ROW: /"

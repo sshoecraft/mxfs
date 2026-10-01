@@ -39,14 +39,14 @@
 # lease, so the joiner's barrier only ever waits on it (measured frmb1:
 # "being recovered by another survivor" x4 then "barrier failed",
 # fail-closed).  cold2 makes the mounting node the ONLY live node:
-#   ./run.sh 2 caw prep_cluster (tears down running extras first), victim
+#   ./run.sh 2/disk/caw/mpath prep_cluster (tears down running extras first), victim
 #   churns and is virsh-destroyed, the joiner cleanly unmounts, arms
 #   dbg_fr_fail_replay=1 locally, and cold-mounts: its cohort barrier must
 #   itself fence + replay the dead slice, hit the knob, and log the
 #   reason-NONE "replay FAILED ... stays unpublished ... will be replayed
 #   again" alert with NOTHING published; the mount fails closed.  Clearing
 #   the knob and remounting must fence/replay/publish exactly once.
-#   The caller re-preps 32/caw afterwards.
+#   The caller re-preps 32/disk/caw/mpath afterwards.
 # the budget rule cold2 (derived): prep2 incl. 30-node teardown ~240s + churn/kill
 # 20s + failed mount <=140s + remount <=140s + sweeps 40s => ~580s.
 set -u
@@ -72,7 +72,7 @@ filt() { grep -av '^Unauthorized\|^Warning:\|^If you'; }
 
 if [ "$MODE" = cold2 ]; then
     # ---- cold2: sole-survivor cold-start hits the barrier's OWN error branch
-    timeout 300 ./run.sh 2 caw prep_cluster > "$OUT/prep2.log" 2>&1; prc=$?
+    timeout 300 ./run.sh 2/disk/caw/mpath prep_cluster > "$OUT/prep2.log" 2>&1; prc=$?
     grep -q "prep_cluster OK" "$OUT/prep2.log" || { echo "FAIL: 2-node prep failed rc=$prc — see $OUT/prep2.log"; exit 2; }
     echo "2-node cluster formed ($(grep -m1 'prep OK' "$OUT/prep2.log" | cut -c1-100))"
     vc=$(timeout 20 $SSH "$VICTIM" "dmesg | grep -a 'claimed heartbeat slot' | tail -1" 2>/dev/null | filt | tail -1)

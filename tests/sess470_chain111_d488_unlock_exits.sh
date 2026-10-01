@@ -2,7 +2,7 @@
 # sess470 chain 111: D-488 unlock-exit arms (design-consult disposition ruling,
 # measurement 1) + the D-0528 out-of-window own-bit measure (the noslot arm)
 # on frozen 0.64.13 (= 0.64.12 + the dlm_caw.c caw_inject_unlk_* knobs).
-# Two node pairings.  Installs the frozen ko, preps 32/caw, runs the four
+# Two node pairings.  Installs the frozen ko, preps 32/disk/caw/mpath, runs the four
 # arms per pairing with a prep between pairings (arms leave no state, but the
 # strand arm's readopt is worth a clean slate).
 # budget: install 30; prep 300; each arm 240 (measured shape < 3 min).
@@ -31,11 +31,11 @@ install_ko() {
   echo "=== sess470 chain111 START $(date -u +%FT%TZ) tree VERSION=$(cat VERSION) sv_before=$(modinfo mxfs.ko | awk '/srcversion/{print $2}') ==="
   install_ko "$PROD_KO" "$PROD_SV" prod || { echo "ABORT: prod install"; echo "DONE $(date -u +%FT%TZ)"; exit 1; }
   echo "STAGE markers $(for s in P470-UNLK-INJECT caw_inject_unlk_noslot caw_inject_unlk_cas_eio; do printf '%s=%s ' $s "$(strings -a mxfs.ko | grep -c "$s")"; done)"
-  lap 300 prep ./run.sh 32 caw prep_cluster
+  lap 300 prep ./run.sh 32/disk/caw/mpath prep_cluster
   for arm in findslot_eio cas_eio1 cas_eio2 noslot; do
     lap 240 "arm $arm test1/test2" tests/d488_unlock_exit_arms.sh test1 test2 $arm ${LABEL}a
   done
-  lap 300 prep2 ./run.sh 32 caw prep_cluster
+  lap 300 prep2 ./run.sh 32/disk/caw/mpath prep_cluster
   for arm in findslot_eio cas_eio1 cas_eio2 noslot; do
     lap 240 "arm $arm test5/test9" tests/d488_unlock_exit_arms.sh test5 test9 $arm ${LABEL}b
   done

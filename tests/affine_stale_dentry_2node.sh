@@ -32,7 +32,7 @@
 #      one stat, 400 ms late, found the dentry already evicted and reached
 #      no exit at all), and the interlock's refusal must shrink the window.
 #
-# the budget rule (derived): prep 50 s measured (2/tcp QNAP) + three legs ~5 s each
+# the budget rule (derived): prep 50 s measured (2/net/mesh/direct QNAP) + three legs ~5 s each
 # + loop 8 s + capture 10 s = ~85 s; chain bound 300 (prep manifest) + 120.
 #
 # Usage: tests/affine_stale_dentry_2node.sh <label>
@@ -50,7 +50,7 @@ set -u
 LABEL=${1:?label}
 cd "$(dirname "$0")/.." || exit 2
 export MXFS_NODE_LIST=${MXFS_NODE_LIST:-test1,test2}
-export MXFS_TRANSPORT=${MXFS_TRANSPORT:-tcp}
+export MXFS_CONFIG=${MXFS_CONFIG:-2/net/mesh/direct}
 AGSHIFT=${AGSHIFT:-23}
 A=${MXFS_NODE_LIST%%,*}
 B=${MXFS_NODE_LIST##*,}
@@ -80,7 +80,7 @@ offset_ms() {
 echo "=== affine_stale_dentry_2node label=$LABEL A=$A B=$B agshift=$AGSHIFT sv=$(modinfo mxfs.ko | sed -n 's/^srcversion: *//p') $(date -u +%FT%TZ) ==="
 s=$(date +%s)
 if [ -z "${NOPREP:-}" ]; then
-    MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2 tcp prep_cluster > "$OUT/prep.log" 2>&1
+    MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2/net/mesh/direct prep_cluster > "$OUT/prep.log" 2>&1
     prc=$?
     echo "STAGE prep rc=$prc wall=$(( $(date +%s) - s ))s"
     if [ $prc != 0 ]; then echo "RESULT: FAIL label=$LABEL prep rc=$prc"; exit 2; fi

@@ -14,13 +14,13 @@ LABEL=${1:-s446g}
 LOG=tests/evidence/sess446_chain50_owncrash_nosurvivor2_$LABEL.log
 {
   echo "=== sess446 chain50 start $(date -u +%FT%TZ) sv=$(modinfo mxfs.ko | awk '/srcversion/{print $2}') VERSION=$(cat VERSION) ==="
-  timeout 300 ./run.sh 32 caw prep_cluster; prc=$?; echo "STAGE prep rc=$prc"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; prc=$?; echo "STAGE prep rc=$prc"
   if [ "$prc" -ne 0 ]; then echo "ABORT: prep failed"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
   T0=$(date +%s); timeout 1000 tests/no_survivor_crash_replay.sh $LABEL 32 test1; echo "STAGE no_survivor_crash_replay rc=$? wall=$(( $(date +%s) - T0 ))s"
   D=$(ls -dt tests/evidence/*_nosurv | head -1); echo "EVIDENCE $D"
   for f in $D/*dmesg*.txt; do [ -f $f ] || continue
     echo "OWNCRASH $(basename $f): selfsucc=$(grep -ac 'SELF_SUCCESSION_DONE' $f) complete=$(grep -ac 'foreign replay of slot [0-9]* complete' $f) refused=$(grep -ac 'POLICY-REFUSED\|REFUSED slot' $f) recovery_complete=$(grep -ac 'P-BOOT-RECOVERY-COMPLETE' $f)"
   done
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep2 rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep2 rc=$?"
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

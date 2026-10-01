@@ -24,14 +24,14 @@ mkdir -p "$EV"
   echo "BUILD_RC=$brc TOOLS_RC=$trc VERSION=$(cat VERSION) sv_old=$OLD sv_new=$NEW"
   grep -c 'error:' tests/evidence/sess435_build17_$LABEL.txt | sed 's/^/build errors=/'
   if [ "$brc" -ne 0 ] || [ "$NEW" = "$OLD" ]; then echo "ABORT: build failed or srcversion unchanged"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep rc=$?"
   timeout 60 tests/quiet_console.sh 32 2>/dev/null; echo "STAGE quiet rc=$?"
   timeout 60 tests/cc_grantwait.sh mark 32; echo "STAGE mark rc=$?"
   T0=$(date +%s)
-  timeout 160 ./run.sh 32 caw crash_consistency; echo "STAGE cc rc=$? wall=$(( $(date +%s) - T0 ))s"
-  tools/criteria.py 32 caw 2>/dev/null | grep -a 'crash_consistency'
+  timeout 160 ./run.sh 32/disk/caw/mpath crash_consistency; echo "STAGE cc rc=$? wall=$(( $(date +%s) - T0 ))s"
+  tools/criteria.py 32/disk/caw/mpath 2>/dev/null | grep -a 'crash_consistency'
   timeout 240 tests/cc_grantwait.sh report 32 > "$EV/grantwait_report.txt" 2>&1; echo "STAGE report rc=$?"
   head -70 "$EV/grantwait_report.txt"
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep_final rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep_final rc=$?"
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

@@ -62,14 +62,14 @@ cd /src/mxfs || exit 1
 LABEL=${1:-s493c}
 GATE=${GATE:-tests/evidence/sess491_evict_undest_s493b.log}
 # sess565: the rig shape is now a PARAMETER, and it defaults to the two-node TCP
-# rig this project actually runs.  It used to hardcode `run.sh 32 caw
+# rig this project actually runs.  It used to hardcode `run.sh 32/disk/caw/mpath
 # prep_cluster` while the header described a two-node workload, so reading the
 # header and running it booted all 32 VMs, power-cycled 30 of them when they
 # failed to come up, drove the host to zero free memory and left the two-node
 # rig unmounted -- without ever reaching a round.  Pass NNODES=32 DLM=caw to get
 # the original behaviour back.
-NNODES=${NNODES:-2}
-DLM=${DLM:-tcp}
+CONFIG=$(python3 "$(dirname "$0")/../tools/configuration.py" parse "${CONFIG:-2/net/mesh/direct}") || exit 2
+NNODES=${CONFIG%%/*}; DLM=${CONFIG#*/}
 # KO defaults to the TREE's build, not a frozen one.  The old default pointed at
 # a 0.70.11 freeze, so a run that did not set KO measured a module days old while
 # every log line said the tree's VERSION.  When KO already IS ./mxfs.ko there is
@@ -180,7 +180,7 @@ EOF
   fi
   echo "STAGE install_ko sv=$(modinfo mxfs.ko | awk '/srcversion/{print $2}') swapped=$swapped keep_marker=$(strings -a mxfs.ko | grep -ac 'P492-KEEP-UNDEST') retire_marker=$(strings -a mxfs.ko | grep -ac 'P491-NEWTENURE-RETIRE-UNDEST')"
   t0=$(date +%s)
-  MXFS_EXTRA_MODARGS="$MODARGS" timeout 300 ./run.sh "$NNODES" "$DLM" prep_cluster > "$O/prep.out" 2>&1; rc=$?
+  MXFS_EXTRA_MODARGS="$MODARGS" timeout 300 ./run.sh "$CONFIG" prep_cluster > "$O/prep.out" 2>&1; rc=$?
   echo "STAGE prep rc=$rc nodes=$NNODES dlm=$DLM wall=$(( $(date +%s) - t0 ))s budget=300s build=$(grep -ao 'build [0-9A-F]*' "$O/prep.out" | tail -1)"
   if [ "$rc" != 0 ]; then echo "ABORT: prep failed"; [ "$swapped" = 1 ] && cp "$RESTORE_KO" mxfs.ko; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
   SINCE=$(date -u +'%Y-%m-%d %H:%M:%S')

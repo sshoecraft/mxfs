@@ -14,7 +14,7 @@ for r in $(seq 1 $RUNS); do
   sleep 20
   # clear stale per-VM failround logs so the verdict is unambiguous
   for n in $NODES; do timeout 8 $SSH $n $PASS "rm -f /root/drc_failrounds.txt" 2>/dev/null; done
-  OUT=$(env MXFS_TEST_ENV="DRC_ROUNDS=$ROUNDS" ./run.sh 8 tcp dir_reuse_coherency 2>&1)
+  OUT=$(env MXFS_TEST_ENV="DRC_ROUNDS=$ROUNDS" ./run.sh 8/net/mesh/direct dir_reuse_coherency 2>&1)
   V=$(echo "$OUT" | grep -E 'nodes_pass=' | tail -1)
   skips=0
   for n in $NODES; do c=$(timeout 10 $SSH $n $PASS "dmesg|grep -c P50-RELEPOCH-SKIP" 2>/dev/null | grep -oE '^[0-9]+'); skips=$((skips + ${c:-0})); done

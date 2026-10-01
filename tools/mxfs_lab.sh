@@ -23,6 +23,11 @@
 #       the two-node form of the same line, kept for a lab that verifies only
 #       two-node releases.  `nodes` wins when both are present; `pair` alone
 #       is a set of two.
+#   group <name>=<node1>,<node2>[,...] ...
+#       a rig group: a disjoint slice of the rig's nodes with a LUN of its own
+#       (scripts/rig_groups.sh builds it), so several configurations can run at
+#       once (`run.sh <configuration> --group <name>`).  A group is not a
+#       platform: nothing that walks the platform sets sees it.
 #   addr <node>=<ipv4> ...
 #       a node no resolver knows.  peer= takes addresses, never names.
 #   qemu monitor_dir=<dir>
@@ -39,6 +44,8 @@
 #   mxfs_lab.sh pair <platform>      # print the first two of it, "A B"
 #   mxfs_lab.sh addr <node>          # print its IPv4 address
 #   mxfs_lab.sh lun-nodes            # every node that may attach to the LUN
+#   mxfs_lab.sh group <name>         # print a rig group's nodes, "A B C D"
+#   mxfs_lab.sh groups               # print every rig group's name
 #   . tools/mxfs_lab.sh              # SOURCE it to get the functions only
 #
 # Sourcing defines functions and nothing else: a sourced script sees the
@@ -77,6 +84,19 @@ lab_pair() {  # <platform> -> "A B": the first two of the verification set
     echo "$1 $2"
 }
 
+lab_group() {  # <group> -> "A B [C D ...]": a rig group's nodes
+    local g
+    g=$(lab_get group "$1" 2>/dev/null) \
+        || { echo "mxfs_lab: no 'group $1=' in $MXFS_LAB (see scripts/rig_groups.sh)" >&2; return 1; }
+    echo "$g" | tr ',' ' ' | tr -s ' '
+}
+
+lab_groups() {  # every rig group's name, once each
+    [ -r "$MXFS_LAB" ] || { echo "mxfs_lab: $MXFS_LAB is missing (see lab/README.md)" >&2; return 1; }
+    awk '$1=="group" { for(i=2;i<=NF;i++){ n=index($i,"="); if(n) print substr($i,1,n-1) } }' "$MXFS_LAB" \
+        | awk '!seen[$0]++'
+}
+
 lab_addr() {  # <node> -> IPv4: the lab file first, then the resolver
     local a
     a=$(lab_get addr "$1" 2>/dev/null) && { echo "$a"; return 0; }
@@ -98,7 +118,9 @@ mxfs_lab_dispatch() {
         pair)      lab_pair "${2:?platform}" ;;
         addr)      lab_addr "${2:?node}" ;;
         lun-nodes) lab_lun_nodes ;;
-        *) echo "usage: mxfs_lab.sh {get <key> <field>|nodes <platform>|pair <platform>|addr <node>|lun-nodes}" >&2; return 2 ;;
+        group)     lab_group "${2:?group}" ;;
+        groups)    lab_groups ;;
+        *) echo "usage: mxfs_lab.sh {get <key> <field>|nodes <platform>|pair <platform>|addr <node>|lun-nodes|group <name>|groups}" >&2; return 2 ;;
     esac
 }
 

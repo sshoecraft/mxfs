@@ -53,7 +53,7 @@ install_ko() { # <ko> <sv> <label>
   s3=$(strings -a mxfs.ko | grep -c 'P-DBG-CAS-NOCAW'); s4=$(strings -a mxfs.ko | grep -c 'P-DBG-SETTLE-PAUSE')
   echo "STAGE module sv=$(modinfo mxfs.ko | awk '/srcversion/{print $2}') lab=$(modinfo mxfs.ko | grep -c mxfs_iclus_relmark_lab) strings nocaw=$s3 settlepause=$s4"
   if [ "$s3" = 0 ] || [ "$s4" = 0 ]; then echo "ABORT: injector strings missing"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
-  lap 300 prep ./run.sh 32 caw prep_cluster
+  lap 300 prep ./run.sh 32/disk/caw/mpath prep_cluster
   lap 330 "cond5 settle arm=proutsettle victim=test22" env SETTLE_VICTIM2=test23 tests/settle_token_arms.sh 32 test22 test1 proutsettle
   lap 200 "cond4 nocaw arm=heartbeat victim=test15" tests/cas_nocaw_arms.sh 32 test15 test1 heartbeat
   lap 200 "cond4 nocaw arm=release victim=test16"   tests/cas_nocaw_arms.sh 32 test16 test1 release
@@ -62,6 +62,6 @@ install_ko() { # <ko> <sv> <label>
   lap 90  "cond4 nocaw arm=settleown victim=test19" tests/cas_nocaw_arms.sh 32 test19 test1 settleown
   lap 280 "cond4 nocaw arm=guard victim=test20"     tests/cas_nocaw_arms.sh 32 test20 test1 guard
   lap 280 "cond4 nocaw arm=milestone victim=test21" tests/cas_nocaw_arms.sh 32 test21 test1 milestone
-  lap 300 prep_after ./run.sh 32 caw prep_cluster
+  lap 300 prep_after ./run.sh 32/disk/caw/mpath prep_cluster
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

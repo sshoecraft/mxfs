@@ -38,18 +38,27 @@ primitives (block I/O, threads, sockets, memory, time).
 .B Linux VFS frontend
 \(em translates VFS operations into libmxfs API calls.
 .SS DLM Transports
-MXFS supports two DLM (Distributed Lock Manager) transport backends:
+MXFS supports two DLM (Distributed Lock Manager) transports, named in a configuration
+by class and method (see
+.I docs/attachment-methods.md
+in the source tree):
 .TP
-.B CAW (Compare-And-Write)
-Disk-based locking via SCSI Compare-And-Write operations.  No master
-node \(em every node can acquire and release locks independently.
-Scales to 64 nodes.  Requires storage that supports SCSI CAW (e.g.,
-Linux LIO with
-.BR emulate_caw=1 ).
+.B CAW (Compare-And-Write), disk/caw
+Disk-based locking: the lock state lives on the shared LUN and is claimed
+with SCSI COMPARE AND WRITE.  No master node \(em every node can acquire
+and release locks independently.  Requires a storage target that
+implements COMPARE AND WRITE atomically.  Selected with
+.BR force_transport=0 .
 .TP
-.B TCP
-Network-based locking with per-resource lock mastering.  Works with any
-storage.  Recommended for up to 16 nodes (tested to 32).
+.B TCP, net/mesh
+Network-based locking with per-resource lock mastering spread across the
+members.  The default
+.RB ( force_transport=1 ).
+.PP
+Both transports fence a dead node with SCSI persistent reservations on the
+shared LUN, so both need storage that implements them, and both read
+through the LUN with SCSI FUA reads for coherency.  Released cluster sizes
+are 2, 4 and 8 nodes on either transport; see the README.
 .SS Three-Layer Fencing (CAW DLM only)
 .IP 1. 3
 .B SCSI-3 Persistent Reservations
@@ -254,19 +263,27 @@ The
 option ensures the filesystem is mounted after network interfaces are
 up, which is required for iSCSI devices and DLM networking.
 .SH SUPPORTED STORAGE
-Any shared block device accessible from all cluster nodes:
+A shared SCSI LUN that every node reaches with an initiator of its own and
+that implements SCSI persistent reservations, including PREEMPT AND ABORT
+(and COMPARE AND WRITE for CAW).  A device that cannot be fenced is refused
+at mount.
 .IP \(bu 3
-.B iSCSI
-\(em tested with Linux LIO (CAW + TCP) and QNAP NAS (TCP only)
+.B iSCSI, one path per node
+\(em verified (the configurations' attachment
+.BR direct ).
 .IP \(bu 3
-.B Fibre Channel
-\(em any FC LUN with SCSI-3 PR support
+.B dm-multipath, hypervisor SCSI passthrough
+\(em not verified (attachments
+.B mpath
+and
+.BR pass ).
 .IP \(bu 3
-.B NVMe-oF
-\(em NVMe over Fabrics shared namespaces
+.B Fibre Channel, SAS
+\(em not verified.
 .IP \(bu 3
-.B SAS
-\(em shared SAS enclosures
+.B NVMe, NVMe-oF, virtio-blk, md RAID, DRBD
+\(em not supported: none carries SCSI persistent reservations, and MXFS
+refuses to mount them.
 .SH KERNEL COMPATIBILITY
 MXFS supports Linux kernels 5.x through 6.17 with compile-time version
 guards for API differences.  Tested distributions include Debian 11/12/13,

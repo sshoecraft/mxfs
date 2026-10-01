@@ -43,7 +43,7 @@
 #
 # NOTE: this preempts a live node's key, so that node WILL self-fence and its
 #   slice WILL be recovered by the cluster — a real fence, deliberately.
-#   Re-prep afterwards:  MXFS_FORCE_PREP=1 ./run.sh 32 caw prep_cluster
+#   Re-prep afterwards:  MXFS_FORCE_PREP=1 ./run.sh 32/disk/caw/mpath prep_cluster
 #
 # usage: pr_reregister_probe.sh [victim=test32] [preemptor=test1]
 set -u

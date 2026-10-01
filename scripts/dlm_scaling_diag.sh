@@ -10,7 +10,7 @@
 # neither (CPU/lock).  Optional MXFS_EXTRA_MODARGS passthrough for A/B (e.g.
 # publish_dirs=0, fua_skip_owned_inode=1, caw_unlock_backoff=1).
 #
-# Usage: scripts/dlm_scaling_diag.sh <N> [extra_modargs]
+# Usage: scripts/dlm_scaling_diag.sh <configuration> [extra_modargs]
 #   e.g. scripts/dlm_scaling_diag.sh 16
 #        scripts/dlm_scaling_diag.sh 16 "publish_dirs=0"
 # Requires: caw_preflight already run (clean cluster).  Runs on mpatha.
@@ -18,7 +18,7 @@ set -u
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 REPO=$(cd -- "$SCRIPT_DIR/.." && pwd); cd "$REPO"
 SSH="$REPO/tools/mxfs_sshpass.sh"; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"
-N="${1:?usage: dlm_scaling_diag.sh <N> [extra_modargs]}"; EXTRA="${2:-}"
+CONFIG=$(python3 "$(dirname "$0")/../tools/configuration.py" parse "${1:?usage: dlm_scaling_diag.sh <configuration> [extra_modargs]}") || exit 2; N=${CONFIG%%/*}; EXTRA="${2:-}"
 [ -s "$PASS" ] || cp "$("$REPO/tools/mxfs_secrets.sh" passfile 2>/dev/null)" "$PASS" 2>/dev/null
 sq(){ timeout "${2:-20}" "$SSH" "$1" "$PASS" "$3" 2>/dev/null | grep -vE '^Warning:|^Unauthorized|^If you'; }
 NODES=(); for i in $(seq 1 "$N"); do NODES+=("test$i"); done
@@ -34,11 +34,11 @@ echo "--- iostat armed on all nodes; launching dlm_scaling@$N/caw/mpatha ---"
 
 LOG=/tmp/dsdiag_run_${N}.log
 MXFS_EXTRA_MODARGS="$EXTRA" \
-    timeout 700 ./run.sh "$N" caw dlm_scaling >"$LOG" 2>&1
+    timeout 700 ./run.sh "$CONFIG" dlm_scaling >"$LOG" 2>&1
 echo "--- run.sh done rc=$? ---"; tail -6 "$LOG"
 
 echo "=== per-node op-rate (from run.sh aggregation) ==="
-tools/criteria.py "$N" caw --no-colour 2>/dev/null | awk -F'|' '$2 ~ /dlm_scaling/'
+tools/criteria.py "$CONFIG" --no-colour 2>/dev/null | awk -F'|' '$2 ~ /dlm_scaling/'
 
 echo "=== per-node iSCSI %util / await during run (peak lines) ==="
 for n in "${NODES[@]}"; do

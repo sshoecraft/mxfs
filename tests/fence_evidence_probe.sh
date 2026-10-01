@@ -47,7 +47,7 @@
 #   longer has found something and should be reported, not waited out.
 #
 # NOTE: this leaves the victim VM destroyed.  Re-prep afterwards:
-#   MXFS_FORCE_PREP=1 ./run.sh 32 caw prep_cluster
+#   MXFS_FORCE_PREP=1 ./run.sh 32/disk/caw/mpath prep_cluster
 #
 # usage: fence_evidence_probe.sh [victim=test32] [window_s=150]
 set -u

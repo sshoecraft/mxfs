@@ -22,7 +22,7 @@
 #   cache-hit on the same-ino dead shell must retire it — poison + re-iget
 #   — never serve old bytes); G identical on A and B; zero splats.
 #
-# s62d on the 2/tcp rig: arm 1 FAILed — the TCP transport had no open-holder
+# s62d on the 2/net/mesh/direct rig: arm 1 FAILed — the TCP transport had no open-holder
 # registry, so A freed and reused the number under B's open fd and B's
 # held-fd read returned the successor file's 4096 'G' (D-TCP-NO-OPEN-
 # TRACKING-PEER-HELD-FD-READS-THE-REUSED-INODES-NEW-FILE-BYTES-0977, fixed

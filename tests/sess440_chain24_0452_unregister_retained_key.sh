@@ -28,9 +28,9 @@ mkdir -p "$EV"
   echo "build errors=$(grep -c 'error:\|ERROR:' "$EV/build.txt")"
   grep -a 'error:\|ERROR:' "$EV/build.txt" | cut -c1-200 | head -10
   if [ "$brc" -ne 0 ] || [ "$trc" -ne 0 ] || [ "$NEW" = "$OLD" ]; then echo "ABORT: build failed or srcversion unchanged"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
-  timeout 300 ./run.sh 32 caw prep_cluster; prc=$?; echo "STAGE prep rc=$prc"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; prc=$?; echo "STAGE prep rc=$prc"
   if [ "$prc" -ne 0 ]; then echo "ABORT: prep failed on 0.45.2"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
   timeout 100 tests/lone_mount_create.sh ${LABEL}_refused test1 32 remount_refused; echo "STAGE remount_refused rc=$?"
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep2 rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep2 rc=$?"
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

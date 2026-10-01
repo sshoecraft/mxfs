@@ -64,7 +64,8 @@ KNOB2=/sys/module/mxfs/parameters/dbg_retire_skip_restamp
 CHK=/src/mxfs/tools/chk_mxfs
 # sess53 (2-node TCP rig): prep_node.sh's first argument is the transport the
 # remount loads the module for; it was hardcoded to caw.
-TRANSPORT=${MXFS_TRANSPORT:-caw}
+MXFS_CONFIG=${MXFS_CONFIG:-2/disk/caw/mpath}
+TRANSPORT=$(python3 "$REPO/tools/configuration.py" get "$MXFS_CONFIG" transport) || exit 2
 [ "$VICTIM" = "$PROBE" ] && { echo "FAIL: victim == probe"; exit 1; }
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
 OUT="$REPO/tests/evidence/${STAMP}_pr_restamp"

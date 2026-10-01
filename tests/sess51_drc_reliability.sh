@@ -1,16 +1,15 @@
 #!/bin/bash
-# sess51_drc_reliability.sh — run 8/tcp dir_reuse_coherency N times, recovering
+# sess51_drc_reliability.sh — run 8/net/mesh/direct dir_reuse_coherency N times, recovering
 # the teardown rmmod-wedge (D-state [mxfs-worker] pins the module so prep ABORTs)
 # by virsh-rebooting any node whose module won't unload before each iteration.
 #
-# Usage: tests/sess51_drc_reliability.sh [iters] [N] [dlm] [test]
+# Usage: tests/sess51_drc_reliability.sh [iters] [configuration] [test]
 set -u
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$REPO"
 ITERS="${1:-5}"
-N="${2:-8}"
-DLM="${3:-tcp}"
-TEST="${4:-dir_reuse_coherency}"
+CONFIG=$(python3 "$(dirname "$0")/../tools/configuration.py" parse "${2:-8/net/mesh/direct}") || exit 2; N=${CONFIG%%/*}; DLM=${CONFIG#*/}
+TEST="${3:-dir_reuse_coherency}"
 SSH="$REPO/tools/mxfs_sshpass.sh"
 PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"
 mapfile -t NODES < <(seq 1 "$N")
@@ -50,7 +49,7 @@ for it in $(seq 1 "$ITERS"); do
         timeout 8 "$SSH" "test$n" "$PASS" "rm -f /root/drc_failrounds.txt 2>/dev/null" >/dev/null 2>&1 &
     done
     wait
-    out=$(MXFS_EXTRA_MODARGS="${MXFS_EXTRA_MODARGS:-}" MXFS_TEST_ENV="DRC_STREAM=1" ./run.sh "$N" "$DLM" "$TEST" 2>&1)
+    out=$(MXFS_EXTRA_MODARGS="${MXFS_EXTRA_MODARGS:-}" MXFS_TEST_ENV="DRC_STREAM=1" ./run.sh "$CONFIG" "$TEST" 2>&1)
     res=$(echo "$out" | grep -E "  (PASS|FAIL)  $TEST" | tail -1)
     if echo "$res" | grep -q PASS; then
         pass=$((pass+1)); echo "  ITER $it: PASS   [$res]"

@@ -2,13 +2,13 @@
 """The board: what MXFS MUST ACHIEVE, and whether it does yet.
 
     tools/criteria.py                     the board, every configuration
-    tools/criteria.py --at 2/tcp          the board for ONE release configuration
+    tools/criteria.py 2/net/mesh/direct   the board for ONE configuration (also --at)
     tools/criteria.py -v                  add each criterion's requirement and why
     tools/criteria.py show <id>           one criterion in full, every configuration's cell
     tools/criteria.py --gaps              criteria nothing can measure -- wishes, not criteria
     tools/criteria.py add    -i ID -r "requirement" -d "detector" [-b BUDGET_S] [-p PHASE]
-    tools/criteria.py update <id> --at 2/tcp -s PASS -m "measured" [-e ELAPSED_S] [--build SRCVER]
-    tools/criteria.py amend  <id> --at 2/tcp --iso <run stamp> --detector-defect "what the detector got wrong, and the fix"
+    tools/criteria.py update <id> --at 2/net/mesh/direct -s PASS -m "measured" [-e ELAPSED_S] [--build SRCVER]
+    tools/criteria.py amend  <id> --at 2/net/mesh/direct --iso <run stamp> --detector-defect "what the detector got wrong, and the fix"
     tools/criteria.py remove <id> --why "why this is no longer something we must achieve"
 
 THE ONE WAY IN OR OUT. This file is the only reader and the only writer of `data/criteria.json`.
@@ -20,12 +20,13 @@ permanent, and it can regress. A defect is transient and leaves the queue when i
 (`tools/defects.py`). Printing defects on this board made it about what is broken instead of about
 what must be true, and it is why `open_defects` sat on the board as a criterion that can never go
 green: it was the defect queue wearing a criterion's clothes. Ask the queue what blocks a release
--- `tools/defects.py --at 2/tcp` -- and ask this board whether the requirements are met. `remove`
+-- `tools/defects.py 2/net/mesh/direct` -- and ask this board whether the requirements are met. `remove`
 here is for a criterion that is no longer something we must achieve, NOT for one that now passes:
 a passing criterion stays on the board so its regression is visible.
 
-EVERY CRITERION IS PROVED ONE CONFIGURATION AT A TIME. A green on 32/caw says nothing about 2/tcp:
-different transport, different node count, different code paths. So every cell is per configuration
+EVERY CRITERION IS PROVED ONE CONFIGURATION AT A TIME. A green on 32/disk/caw/mpath says nothing
+about 2/net/mesh/direct: different DLM, different attachment, different node count, different code
+paths. What a configuration is: tools/configuration.py. So every cell is per configuration
 and a criterion is UNKNOWN for every configuration absent from its map. That is the whole content of
 "only the 32-node columns are measured" -- a board that hid the empty columns would have read green.
 The top-level status is PASS only when every configuration in CONFIGS has one.
@@ -50,11 +51,13 @@ because a board that quietly reprints last week's green is worse than no board a
 from __future__ import annotations
 
 import argparse
+import fcntl
 import json
 import os
 import re
 import signal
 import sys
+import time
 from datetime import date, datetime, timezone
 from pathlib import Path
 
@@ -67,11 +70,52 @@ except (AttributeError, ValueError):
     pass
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import configuration  # noqa: E402  (tools/configuration.py: the only parser of a configuration)
 
 #: `MXFS_CRIT` points at a different board file, so a second rig's results can be kept off the
 #: primary board without a second copy of this tool.
 CRITERIA = Path(os.environ["MXFS_CRIT"]) if os.environ.get("MXFS_CRIT") \
     else ROOT / "data" / "criteria.json"
+
+#: Held across the whole read-modify-write of every mutating subcommand. Rig groups run several
+#: boards at once, each run.sh writing its own column into this one file, and the board is
+#: rewritten whole: without the lock two writers read the same snapshot and the later save drops
+#: the earlier one's cell. One lock per board file, so an alternate board (`MXFS_CRIT`) does not
+#: wait on the primary.
+LOCK = CRITERIA.with_name("." + CRITERIA.name + ".lock")
+MUTATORS = ("add", "update", "amend", "remove", "move", "pending", "executing", "finalize",
+            "migrate-keys")
+
+#: A save of the board takes milliseconds, so a holder still there after this long is wedged
+#: rather than busy, and saying so beats blocking a run forever.
+LOCK_WAIT_SECONDS = 30
+
+#: The open lock file, kept for the process's lifetime so the lock is held until it exits.
+lock_handle = None
+
+
+def take_lock() -> None:
+    """Hold an exclusive lock from `load` to `save`, or say who is holding it."""
+    global lock_handle
+    LOCK.parent.mkdir(parents=True, exist_ok=True)
+    lock_handle = LOCK.open("w")
+    deadline = time.monotonic() + LOCK_WAIT_SECONDS
+    announced = False
+    while True:
+        try:
+            fcntl.flock(lock_handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return
+        except OSError:
+            if time.monotonic() >= deadline:
+                sys.exit("criteria: %s has been held by another criteria.py for %ds. That is far "
+                         "longer than a write takes, so it is wedged rather than busy: find the "
+                         "holder before retrying." % (LOCK, LOCK_WAIT_SECONDS))
+            if not announced:
+                print("criteria: waiting for another criteria.py to finish writing the board…",
+                      file=sys.stderr)
+                announced = True
+            time.sleep(0.05)
 
 #: A status this board does not recognise is NOT green. Nothing passes by typo or by inventing a
 #: label -- an unknown string paints as a warning and never as a pass.
@@ -114,21 +158,18 @@ RIG_NOISE = re.compile(r"pre-assert|NO_TERMINAL_RECORD|run was killed|prep fail"
 FLAKE_WINDOW = 11
 NEVER_FLAKE = ("prep_cluster", "open_defects")
 
-#: Every configuration MXFS claims to support. A criterion proved on 32/caw says nothing about
-#: 2/tcp, so a criterion is UNKNOWN for every configuration absent from its `per_config` map --
-#: which is the only way an unmeasured column can stay visible instead of reading as green.
-#: `1/xfs` is the native-XFS baseline the 2x performance ceiling is measured against.
-CONFIGS = [
-    "1/xfs",
-    "1/caw", "2/caw", "4/caw", "8/caw", "16/caw", "32/caw",
-    "1/tcp", "2/tcp", "4/tcp", "8/tcp", "16/tcp", "32/tcp",
-]
+#: Every configuration MXFS has an implementation for, at every laddered node count. A criterion
+#: proved on 32/disk/caw/mpath says nothing about 2/net/mesh/direct, so a criterion is UNKNOWN for
+#: every configuration absent from its `per_config` map -- which is the only way an unmeasured
+#: column can stay visible instead of reading as green. `1/xfs` is the native-XFS baseline the 2x
+#: performance ceiling is measured against. The list comes from data/configurations.json: this
+#: board declared its own once, and it never grew the direct and passthrough columns the rig
+#: was already writing.
+CONFIGS = configuration.board_configurations()
 
-TRANSPORTS = ("xfs", "caw", "cawd", "cawp", "tcp")
-
-#: For `lift_config` only: what a leading bare `2 tcp` must not be mistaken for.
-SUBCOMMANDS = ("show", "add", "update", "remove",
-               "pending", "executing", "finalize", "rows")
+#: For `lift_config` only: what a leading bare configuration must not be mistaken for.
+SUBCOMMANDS = ("show", "add", "update", "remove", "amend", "move",
+               "pending", "executing", "finalize", "rows", "migrate-keys")
 VALUE_FLAGS = ("--at", "--build")
 
 
@@ -163,33 +204,29 @@ def status_of(entry: dict) -> str:
 
 
 def parse_at(text: str) -> str:
-    """`2/tcp` -- the same notation the ledger, the harness and the run keys already use.
+    """`2/net/mesh/direct` -- one complete configuration, normalised.
 
-    A column is one exact key, so unlike the defect queue this needs the transport: `2` alone
-    names five different columns and picking one of them silently is how a tcp green gets read
-    as a caw one.
+    A column is one exact key, so unlike the defect queue this needs every field: `2` alone
+    names a dozen columns, and picking one of them silently is how a TCP green gets read as a
+    CAW one.
     """
-    match = re.fullmatch(r"\s*(\d+)\s*(?:/\s*([A-Za-z]+))?\s*", str(text))
-    if not match:
-        sys.exit(f"criteria: wanted NODES/TRANSPORT such as 2/tcp, not {text!r}")
-    nodes = int(match.group(1))
-    if nodes < 1:
-        sys.exit("criteria: node count must be at least 1")
-    if not match.group(2):
-        here = [c for c in CONFIGS if c.startswith("%d/" % nodes)]
-        sys.exit("criteria: name the transport too — a cell is one exact configuration. "
-                 "At %d nodes: %s" % (nodes, ", ".join(here) if here else "none declared"))
-    dlm = match.group(2).lower()
-    if dlm not in TRANSPORTS:
-        sys.exit(f"criteria: transport {dlm!r}; expected one of {list(TRANSPORTS)}")
-    return "%d/%s" % (nodes, dlm)
+    try:
+        return configuration.parse(text).key
+    except configuration.ConfigurationError as exc:
+        match = re.fullmatch(r"\s*(\d+)\s*", str(text))
+        if match:
+            here = [c for c in CONFIGS if c.startswith("%s/" % int(match.group(1)))]
+            sys.exit("criteria: name the whole configuration — a cell is one exact column. "
+                     "At %s nodes: %s" % (match.group(1), ", ".join(here) if here else "none declared"))
+        sys.exit(f"criteria: {exc}")
 
 
 def lift_config(argv: list) -> list:
-    """Accept `criteria.py 2 tcp` and `criteria.py 2/tcp`.
+    """Accept `criteria.py 2/net/mesh/direct` as `--at 2/net/mesh/direct`.
 
     The leading argument is a configuration only when it starts with digits, so it can never
-    shadow `show`, `add`, `update` or `remove`.
+    shadow `show`, `add`, `update` or `remove`. The old two-token `criteria.py 2 tcp` is refused
+    by name rather than half-parsed.
     """
     rest, skip = list(argv[1:]), False
     for index, token in enumerate(rest):
@@ -202,14 +239,14 @@ def lift_config(argv: list) -> list:
             #: A flag that takes a value would otherwise have its value read as a node count.
             skip = token in VALUE_FLAGS
             continue
-        match = re.fullmatch(r"(\d+)(?:/([A-Za-z]+))?", token)
-        if not match:
+        if not re.fullmatch(r"\d+(?:/[A-Za-z*]+)*", token):
             break
-        nodes, dlm, consumed = match.group(1), match.group(2), 1
-        if dlm is None and index + 1 < len(rest) and rest[index + 1].lower() in TRANSPORTS:
-            dlm, consumed = rest[index + 1], 2
-        spec = nodes if dlm is None else "%s/%s" % (nodes, dlm)
-        return argv[:1] + rest[:index] + ["--at", spec] + rest[index + consumed:]
+        if index + 1 < len(rest) and re.fullmatch(r"[A-Za-z]+", rest[index + 1]) \
+                and rest[index + 1] not in SUBCOMMANDS:
+            hint = configuration.retired_hint("%s/%s" % (token, rest[index + 1]))
+            sys.exit("criteria: give the configuration as one key, e.g. %s/net/mesh/direct%s"
+                     % (token, "; " + hint if hint else ""))
+        return argv[:1] + rest[:index] + ["--at", token] + rest[index + 1:]
     return argv
 
 
@@ -342,13 +379,20 @@ def applies(entry: dict, config: str) -> bool:
     unmeasured TCP column: printing them as UNKNOWN pads the board with rows nothing will ever
     fill, and burying the genuinely unmeasured ones among them is how an empty column stops being
     noticed.
+
+    A key that does not parse applies to NOTHING. This used to answer True, so any column the
+    parser did not understand counted every criterion as runnable there.
+
+    `applies_to` is a pattern over class/method/attach (`any`, `disk/caw`, `net/mesh`). It used to
+    be compared to the whole column name, which hid a CAW-only row from the direct and
+    passthrough CAW boards the rig was writing it to.
     """
-    match = re.fullmatch(r"(\d+)/([A-Za-z]+)", config)
-    if not match:
-        return True
-    nodes, dlm = int(match.group(1)), match.group(2).lower()
-    wants = str(entry.get("transport", "any")).lower()
-    if wants not in ("any", "") and wants != dlm:
+    try:
+        parsed = configuration.parse(config)
+    except configuration.ConfigurationError:
+        return False
+    nodes = parsed.nodes
+    if not configuration.matches(entry.get("applies_to") or "any", parsed):
         return False
     if nodes < int(entry.get("min_nodes", 1) or 1):
         return False
@@ -653,7 +697,7 @@ def cmd_update(data: dict, args) -> int:
         return 0
 
     if args.status or args.measured or args.elapsed_s is not None or args.build:
-        sys.exit("criteria: a measurement needs --at NODES/TRANSPORT saying which configuration "
+        sys.exit("criteria: a measurement needs --at CONFIGURATION saying which configuration "
                  "it was measured on; a status with no configuration is how one column's green "
                  "gets read as the whole matrix")
     if not changed:
@@ -701,9 +745,12 @@ def cmd_executing(data: dict, args) -> int:
 
 def cmd_finalize(data: dict, args) -> int:
     run = args.run_id or ""
+    only = parse_at(args.at) if args.at else ""
     converted = []
     for entry in data["criteria"]:
         for config, cell in (entry.get("per_config") or {}).items():
+            if only and config != only:
+                continue
             if str(cell.get("status", "")).upper().strip() != "PENDING":
                 continue
             reason = str(cell.get("reason") or "")
@@ -711,7 +758,9 @@ def cmd_finalize(data: dict, args) -> int:
                 inflight, unreached = reason == "executing " + run, reason == "running " + run
             else:
                 #: No run id: every pre-existing marker belongs to a run that is already dead,
-                #: because the harness serialises runs behind a lock. Heal them all.
+                #: because the harness serialises runs behind a lock -- the whole board when
+                #: runs are exclusive, one configuration's column (`--at`) when rig groups run
+                #: several at once, each holding its configuration's lock. Heal them all.
                 inflight = reason.startswith("executing ")
                 unreached = reason.startswith("running ")
             if inflight:
@@ -732,14 +781,14 @@ def cmd_finalize(data: dict, args) -> int:
 def cmd_rows(data: dict, args) -> int:
     """The matrix as TSV, for the harness dispatch loop.
 
-    Eight columns: phase, transport, id, coord, min_nodes, max_nodes, budget_s, budget_scale.
+    Eight columns: phase, applies_to, id, coord, min_nodes, max_nodes, budget_s, budget_scale.
     The harness reads this instead of parsing the board itself, so `criteria.py` stays the only
     thing that knows this file's shape.
     """
     for entry in data["criteria"]:
         print("\t".join(str(x) for x in (
             entry.get("phase", ""),
-            entry.get("transport", "any"),
+            entry.get("applies_to") or "any",
             entry.get("id", ""),
             entry.get("coord", "none"),
             int(entry.get("min_nodes", 1) or 1),
@@ -747,6 +796,70 @@ def cmd_rows(data: dict, args) -> int:
             int(entry.get("budget_s", 300) or 300),
             entry.get("budget_scale", "flat"),
         )))
+    return 0
+
+
+#: The condition codes a `measured` string can still carry ("skipped (marker matched 1/caw)").
+RETIRED_IN_TEXT = re.compile(r"\b(\d+)/(%s)\b" % "|".join(sorted(configuration.RETIRED, key=len,
+                                                               reverse=True)))
+
+
+def cmd_migrate_keys(data: dict, args) -> int:
+    """ONE TIME: rename every condition-code column to its configuration, history and all.
+
+    The rig named columns tcp, cawd, cawp and caw until 0.90.37. Each cell carries its own
+    bounded history, so renaming the key carries the flake window with it: nothing is re-earned
+    and nothing is lost. `transport` becomes `applies_to`, a pattern (tcp -> net/mesh, caw ->
+    disk/caw) instead of a name compared to the whole column. Refuses a board already migrated.
+    """
+    def census() -> dict:
+        counts = {}
+        for entry in data["criteria"]:
+            for key, cell in (entry.get("per_config") or {}).items():
+                tally = counts.setdefault(key, [0, 0])
+                tally[0] += 1
+                tally[1] += len(cell.get("history") or [])
+        return counts
+
+    for entry in data["criteria"]:
+        if "applies_to" in entry or any(k.count("/") > 1 for k in entry.get("per_config") or {}):
+            sys.exit("criteria: %s is already migrated (%s)" % (CRITERIA, entry.get("id")))
+    before = census()
+    patterns = {"any": "any", "": "any", "tcp": "net/mesh", "caw": "disk/caw"}
+
+    def retext(value):
+        return RETIRED_IN_TEXT.sub(lambda m: configuration.translate_retired(m.group(0)), str(value))
+
+    for entry in data["criteria"]:
+        if "transport" in entry:
+            old = str(entry.pop("transport")).lower()
+            if old not in patterns:
+                sys.exit("criteria: %s has transport %r, which has no pattern" % (entry["id"], old))
+            entry["applies_to"] = patterns[old]
+        renamed = {}
+        for key, cell in (entry.get("per_config") or {}).items():
+            new = configuration.translate_retired(key)
+            if new in renamed:
+                sys.exit("criteria: %s: two columns land on %s" % (entry["id"], new))
+            for run in [cell] + list(cell.get("history") or []):
+                if "measured" in run:
+                    run["measured"] = retext(run["measured"])
+            renamed[new] = cell
+        if "per_config" in entry:
+            entry["per_config"] = renamed
+    after = census()
+    for key in sorted(before):
+        new = configuration.translate_retired(key)
+        print("%-10s -> %-20s cells %3d -> %3d   history %4d -> %4d"
+              % (key, new, before[key][0], after[new][0], before[key][1], after[new][1]))
+    if sum(v[0] for v in before.values()) != sum(v[0] for v in after.values()) or \
+            sum(v[1] for v in before.values()) != sum(v[1] for v in after.values()):
+        sys.exit("criteria: cell or history totals changed; nothing written")
+    if args.dry_run:
+        print("dry run: nothing written")
+        return 0
+    save(data)
+    print("migrated %s: %d columns" % (CRITERIA, len(after)))
     return 0
 
 
@@ -814,9 +927,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("-v", "--verbose", action="store_true",
                         help="add each criterion's requirement and why it exists")
-    parser.add_argument("--at", metavar="NODES/DLM",
-                        help="one release configuration's column, e.g. 2/tcp. "
-                             "May also be given bare: `criteria.py 2 tcp`")
+    parser.add_argument("--at", metavar="CONFIGURATION",
+                        help="one configuration's column, e.g. 2/net/mesh/direct. "
+                             "May also be given bare: `criteria.py 2/net/mesh/direct`")
     parser.add_argument("--build", default="",
                         help="the module srcversion under test; a cell earned on another "
                              "build reads STALE instead of PASS")
@@ -857,8 +970,8 @@ def main() -> int:
 
     update = subs.add_parser("update", help="record a measurement")
     update.add_argument("id")
-    update.add_argument("--at", metavar="NODES/DLM",
-                        help="the configuration this was measured on, e.g. 2/tcp")
+    update.add_argument("--at", metavar="CONFIGURATION",
+                        help="the configuration this was measured on, e.g. 2/net/mesh/direct")
     update.add_argument("-s", "--status", help=f"one of {list(STATUSES)}")
     update.add_argument("-m", "--measured", help="what the detector said")
     #: No short flag: `-r` is already `--requirement` on this subcommand, and silently taking it
@@ -887,8 +1000,8 @@ def main() -> int:
 
     amend = subs.add_parser("amend", help="annotate one recorded FAIL as the detector's fault")
     amend.add_argument("id")
-    amend.add_argument("--at", metavar="NODES/DLM", required=True,
-                       help="the configuration whose run is amended, e.g. 4/cawd")
+    amend.add_argument("--at", metavar="CONFIGURATION", required=True,
+                       help="the configuration whose run is amended, e.g. 4/disk/caw/direct")
     amend.add_argument("--iso", required=True,
                        help="the run's stamp as `show` prints it (iso), naming exactly one run")
     amend.add_argument("--detector-defect", dest="detector_defect", required=True,
@@ -907,19 +1020,25 @@ def main() -> int:
 
     pending = subs.add_parser("pending", help="mark criteria as in-flight for a run")
     pending.add_argument("id", nargs="+")
-    pending.add_argument("--at", metavar="NODES/DLM", required=True)
+    pending.add_argument("--at", metavar="CONFIGURATION", required=True)
     pending.add_argument("--run-id", dest="run_id", required=True)
 
     executing = subs.add_parser("executing", help="stamp the one criterion actually in flight")
     executing.add_argument("id")
-    executing.add_argument("--at", metavar="NODES/DLM", required=True)
+    executing.add_argument("--at", metavar="CONFIGURATION", required=True)
     executing.add_argument("--run-id", dest="run_id", required=True)
 
     finalize = subs.add_parser("finalize", help="convert leftover PENDING markers to a result")
     finalize.add_argument("--run-id", dest="run_id", default="",
                           help="only this run's markers; omit to heal every stale marker")
+    finalize.add_argument("--at", metavar="CONFIGURATION",
+                          help="only this configuration's column")
 
     subs.add_parser("rows", help="the matrix as TSV, for the harness dispatch loop")
+
+    migrate = subs.add_parser("migrate-keys",
+                              help="one time: rename condition-code columns to configurations")
+    migrate.add_argument("--dry-run", action="store_true")
 
     args = parser.parse_args(lift_config(sys.argv)[1:])
     for absent in ("at", "build", "gaps", "verbose", "budget_s", "requirement",
@@ -929,6 +1048,8 @@ def main() -> int:
             setattr(args, absent, None)
     paint = Paint(not args.no_colour and sys.stdout.isatty()
                   and os.environ.get("TERM", "") not in ("", "dumb"))
+    if args.command in MUTATORS:
+        take_lock()
     data = load()
 
     if args.command == "show":
@@ -951,6 +1072,8 @@ def main() -> int:
         return cmd_finalize(data, args)
     if args.command == "rows":
         return cmd_rows(data, args)
+    if args.command == "migrate-keys":
+        return cmd_migrate_keys(data, args)
     if args.gaps:
         return cmd_gaps(data["criteria"], paint, args.build or "")
     return board(data["criteria"], paint, args.verbose,

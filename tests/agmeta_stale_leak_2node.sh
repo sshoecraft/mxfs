@@ -59,7 +59,7 @@ NOISE='P-TAUTH-PREPARED\|P-TAUTH-ACTIVATE\|PAGE-MINE\|HANDOFF\|TAKEOVER-RETIRE\|
 echo "=== agmeta_stale_leak_2node label=$LABEL A=$A B=$B punches=$PUNCHES sv=$(modinfo mxfs.ko | sed -n 's/^srcversion: *//p') $(date -u +%FT%TZ) ==="
 s=$(date +%s)
 if [ -n "${PREP:-}" ]; then
-    MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2 tcp prep_cluster > "$OUT/prep.log" 2>&1
+    MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2/net/mesh/direct prep_cluster > "$OUT/prep.log" 2>&1
     prc=$?
     echo "STAGE prep rc=$prc wall=$(( $(date +%s) - s ))s"
     if [ $prc != 0 ]; then echo "RESULT: FAIL label=$LABEL prep rc=$prc"; exit 2; fi

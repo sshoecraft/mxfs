@@ -1,5 +1,5 @@
 #!/bin/bash
-# drc_detail8.sh — 8/tcp dir_reuse single-iteration DETAILED mechanism capture
+# drc_detail8.sh — 8/net/mesh/direct dir_reuse single-iteration DETAILED mechanism capture
 # (sess45 ccloop).  Runs clean-reboot iters until a FAIL, then pulls the DECISIVE
 # mechanism discriminators from every node's fail snapshot:
 #   P-DOUBLEGRANT / P-STALEMASTER-GRANT  -> split-brain (two EX masters)
@@ -36,7 +36,7 @@ for i in $(seq 1 "$ITERS"); do
   # dmesg (incl the hung-task wedge stack of a node that gets DECLARED DEAD and
   # never reaches a verify-snapshot) lands on the NFS export, surviving the death.
   rm -f /src/mxfs/tests/tcp/drc_cap/stream_rank*.log 2>/dev/null
-  OUT=$(env MXFS_EXTRA_MODARGS="$MODARGS" MXFS_TEST_ENV="DRC_STREAM=1" ./run.sh 8 tcp dir_reuse_coherency 2>&1)
+  OUT=$(env MXFS_EXTRA_MODARGS="$MODARGS" MXFS_TEST_ENV="DRC_STREAM=1" ./run.sh 8/net/mesh/direct dir_reuse_coherency 2>&1)
   res=$(echo "$OUT" | grep -E 'dir_reuse_coherency' | tail -1)
   echo "ITER $i: $res"
   echo "$res" | grep -q 'PASS' && continue

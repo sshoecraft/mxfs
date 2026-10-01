@@ -14,7 +14,7 @@
 # full-cluster unmount) — the claim under test is that the NEXT mount of any
 # other node frees them.
 #
-# Shape (32/caw, all mounted): U=test1 unlinker, holders H1=test2 H2=test4,
+# Shape (32/disk/caw/mpath, all mounted): U=test1 unlinker, holders H1=test2 H2=test4,
 # joiner J=test3 (unmounted before the unlink so its later mount is fresh).
 #   1. J unmounts.  U creates 3 files; each H opens one and HOLDS the fd
 #      (pidfile'd sleep).  U unlinks all 3 -> P87-OPEN-DEFER on U (peer

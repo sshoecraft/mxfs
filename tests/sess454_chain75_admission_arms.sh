@@ -25,6 +25,6 @@ lap() { # <budget_s> <label> <cmd...>
   if [ -n "$EXPECT_SV" ] && [ "$(modinfo mxfs.ko | awk '/srcversion/{print $2}')" != "$EXPECT_SV" ]; then echo "ABORT: mxfs.ko srcversion != expected $EXPECT_SV"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
   lap 120 "vergate noncaw_refuse test32" tests/vergate.sh test32 noncaw_refuse
   lap 120 "fence_cap_admission test32"   tests/fence_capability_admission.sh test32
-  lap 300 prep_after ./run.sh 32 caw prep_cluster
+  lap 300 prep_after ./run.sh 32/disk/caw/mpath prep_cluster
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

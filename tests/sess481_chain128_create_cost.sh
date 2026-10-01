@@ -139,7 +139,7 @@ arm() { # <value>
   # ---- both arms ----------------------------------------------------------
   for leg in shared private; do
     echo "--- leg=$leg ---"
-    timeout 300 ./run.sh 32 caw prep_cluster >/dev/null 2>&1; prc=$?
+    timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster >/dev/null 2>&1; prc=$?
     echo "STAGE prep_$leg rc=$prc"
     if [ "$prc" -ne 0 ]; then
         echo "LEG $leg NOT RUN: prep rc=$prc — an unprepped fleet is not a result."
@@ -153,10 +153,10 @@ arm() { # <value>
     # harness-lint: ok - pinned BEFORE the row, compared with $post below
     pre=$(ls -dt tests/evidence/run_crash_consistency_* 2>/dev/null | head -1)
     if [ "$leg" = private ]; then
-        MXFS_TEST_ENV="CC_PRIVATE=1" timeout 160 ./run.sh 32 caw crash_consistency \
+        MXFS_TEST_ENV="CC_PRIVATE=1" timeout 160 ./run.sh 32/disk/caw/mpath crash_consistency \
             > "$O/cc_$leg.out" 2>&1
     else
-        timeout 160 ./run.sh 32 caw crash_consistency > "$O/cc_$leg.out" 2>&1
+        timeout 160 ./run.sh 32/disk/caw/mpath crash_consistency > "$O/cc_$leg.out" 2>&1
     fi
     echo "STAGE cc_$leg rc=$?"
     # harness-lint: ok - compared against the $pre pinned above
@@ -254,6 +254,6 @@ PYIN
   echo "  contention is (check the per-AG table for whether collided-AG nodes"
   echo "  differ from exclusive-AG ones); if other_ms, the decomposition needs"
   echo "  another boundary and this run says exactly where to put it."
-  timeout 300 ./run.sh 32 caw prep_cluster >/dev/null 2>&1; echo "STAGE prep_final rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster >/dev/null 2>&1; echo "STAGE prep_final rc=$?"
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

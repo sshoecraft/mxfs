@@ -3,7 +3,7 @@
 # defect (P-SFDIR-STALE-RMW -> P-DIRCRC-RETRY-FAIL payload-in-dirblock,
 # first seen sweep81 run_id 20260725T105522Z, ccloop c7ee71c6 sess2).
 #
-# One iteration = fresh FORCE_PREP at 16/tcp with dirwr=1 armed at module
+# One iteration = fresh FORCE_PREP at 16/net/mesh/direct with dirwr=1 armed at module
 # load, dmesg -w streamers on every node (defeats the ring-roll that ate
 # sess8's GRANT/REL pairs), then the exact failing 11-cell sequence.
 # On ANY cell FAIL or any P-marker hit, collects all 16 streams +
@@ -16,14 +16,14 @@ S="$REPO/tools/mxfs_sshpass.sh"
 PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"
 IT="${1:?usage: tcp16_dircrc_repro.sh <iter-label>}"
 FDIR="$REPO/tests/logs/tcp16_forensics_r${IT}"
-N=16
+CONFIG=$(python3 "$(dirname "$0")/../tools/configuration.py" parse "${CONFIG:-16/net/mesh/direct}") || exit 2; N=${CONFIG%%/*}
 CELLS="precond_readiness cache_coherency strong_consistency posix_multi mmap_coherency zero_silent_loss dlm_fairness dlm_membership scaling_curve dlm_scaling rsync_paired"
 
 cd "$REPO"
 unset RULE0_CALIBRATE
 
 echo "=== iter $IT: fresh prep (dirwr=1 at load) ==="
-MXFS_FORCE_PREP=1 MXFS_EXTRA_MODARGS='dirwr=1' ./run.sh $N tcp prep_cluster 2>&1 | tail -3 || exit 1
+MXFS_FORCE_PREP=1 MXFS_EXTRA_MODARGS='dirwr=1' ./run.sh $CONFIG prep_cluster 2>&1 | tail -3 || exit 1
 
 echo "=== arming streamers on all $N nodes ==="
 for i in $(seq 1 $N); do
@@ -33,7 +33,7 @@ wait
 
 echo "=== running failing cell sequence ==="
 OUT="$FDIR.runlog"
-./run.sh $N tcp $CELLS 2>&1 | tee "$OUT" | grep -E '^  (PASS|FAIL)|prep'
+./run.sh $CONFIG $CELLS 2>&1 | tee "$OUT" | grep -E '^  (PASS|FAIL)|prep'
 FAILS=$(grep -c '^  FAIL' "$OUT" || true)
 
 echo "=== scanning nodes for P-markers ==="

@@ -212,13 +212,11 @@ teardown_all() {
 
 # Prep + insmod on every node.  First node mkfs's, then all nodes mount.
 # Args: $1 = first node, $2... = rest of nodes.
-# Env:  TRANSPORT=tcp|caw (default tcp)
-#       MKFS_OPTS extra options for mkfs (default empty)
+# Env:  MKFS_OPTS extra options for mkfs (default empty)
 #       INSMOD_OPTS extra options for insmod (default empty)
 fresh_cluster_mount() {
     local first="$1"; shift
     local rest=("$@")
-    local transport="${TRANSPORT:-tcp}"
     local mkfs_opts="${MKFS_OPTS:-}"
     local insmod_opts="${INSMOD_OPTS:-}"
 

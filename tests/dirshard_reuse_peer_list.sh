@@ -98,7 +98,7 @@ for n in $N2 $N1; do
     echo "$n markers: $o" | tee "$OUT/markers_$n.txt"
     # the verdict lines (CORRUPT, STRANGER, GONE, UNCONVERGED, LOAD/IGET-FAIL,
     # splats) are saved in full: an 80-line cap over the whole grep dropped
-    # every one of the 12 CORRUPT lines of the 2026-09-28 4/cawd lap behind
+    # every one of the 12 CORRUPT lines of the 2026-09-28 4/disk/caw/direct lap behind
     # 442 SHELL-ADOPTED lines, and the reason= field that names the failing
     # check was lost with them.  The per-shell chatter is what the cap bounds.
     r $n "dmesg | grep -a 'P-DIRSHARD-STRANGER\|P-DIRSHARD-GONE\|P-DIRSHARD-CORRUPT\|P-DIRSHARD-SHELL-UNCONVERGED\|P-DIRSHARD-LOAD-FAIL\|P-DIRSHARD-IGET-FAIL\|WARNING:\|BUG:'; dmesg | grep -a 'P-DIRSHARD-SHELL\|P-DIRSHARD-BLK-' | head -80" > "$OUT/dmesg_$n.txt"

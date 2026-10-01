@@ -84,7 +84,7 @@ mkdir -p "$EVID" 2>/dev/null
 
 # An unmount that has not returned when its budget ends is a hang, and the node
 # is power-cycled by the next prep before anyone can look at it.  The 0.90.14
-# 4/tcp run: test1's umount sat in the AIL-empty wait for 165 s with two
+# 4/net/mesh/direct run: test1's umount sat in the AIL-empty wait for 165 s with two
 # buffers queued for delayed write and never written, and the only stack the
 # run captured was a hung-task report of a bystander.  So the stacks are taken
 # HERE, while the umount is still in flight: the umount task itself, xfsaild,
@@ -118,7 +118,7 @@ stall_stacks() {  # <why>  -> writes one file, prints its path
 # own, NOT under timeout(1): timeout waits for its child to exit, and an umount
 # stuck in the kernel never exits, so `timeout 60 umount` never returned and
 # the harness's budget killed this script with nothing captured (twice, at
-# 4/tcp).  A lone member's unmount here measures about 5 s.
+# 4/net/mesh/direct).  A lone member's unmount here measures about 5 s.
 #
 # The unmount's own wall is measured inside the background job (the poll below
 # only sees whole seconds) and reported as umount_ms; the remount's as
@@ -220,7 +220,7 @@ if [ "$RANK" = 1 ]; then
     # holder or carries a shared-holder slot bit is a release that never
     # reached the platter.  The next mount's page takeover imports it as a
     # holder, and when its slot names no node at that moment nothing can ask
-    # it to let go (4/tcp run 20260929T020716Z: the last member's root-inode
+    # it to let go (4/net/mesh/direct run 20260929T020716Z: the last member's root-inode
     # PR, every mount's root lookup parked its whole budget behind it).  This
     # is the one place in a run the platter can be read cold, so it is read
     # here: tools/tauth_page_auth.py --holders, both copies of every page,

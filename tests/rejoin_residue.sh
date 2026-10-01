@@ -75,7 +75,7 @@ B=${3:-test2}
 cd "$(dirname "$0")/.." || exit 2
 SSH=tools/mxfs_sshpass.sh
 MNT=${MXFS_MNT:-/mnt/shared}
-export MXFS_TRANSPORT=${MXFS_TRANSPORT:-tcp}
+export MXFS_CONFIG=${MXFS_CONFIG:-2/net/mesh/direct}
 DELAY_MS=${RR_DELAY_MS:-15000}
 MODARGS=${RR_MODARGS:-target_cache_protected=1}
 ID_LOW=${RR_ID_LOW:-100}
@@ -255,7 +255,7 @@ armed_cycle() {
 measure "$A" 15 "$OUT/rv_pre_a_1.txt" '^READ_RC=[0-9]+$' "pre_a on $A" "mountpoint -q $MNT && echo M; cat $P/force_transport 2>/dev/null; ls $P/depart_purge_delay_ms $P/node_id_override >/dev/null 2>&1 && echo KNOB; journalctl -k --no-pager 2>/dev/null | grep -ao 'DLM init: node_id=[0-9]*' | tail -1 | sed 's/.*node_id=//'; printf '\nREAD_RC=%s\n' \$?"; pre_a=$(grep -av '^READ_RC=' "$OUT/rv_pre_a_1.txt")
 measure "$B" 15 "$OUT/rv_pre_b_1.txt" '^READ_RC=[0-9]+$' "pre_b on $B" "mountpoint -q $MNT && echo M; cat $P/force_transport 2>/dev/null; printf '\nREAD_RC=%s\n' \$?"; pre_b=$(grep -av '^READ_RC=' "$OUT/rv_pre_b_1.txt")
 if ! echo "$pre_a" | grep -q '^M' || ! echo "$pre_b" | grep -q '^M'; then
-    echo "INFRA: precondition not met (A='$(echo $pre_a | tr '\n' ' ')' B='$(echo $pre_b | tr '\n' ' ')') — prep 2/tcp first"; exit 2
+    echo "INFRA: precondition not met (A='$(echo $pre_a | tr '\n' ' ')' B='$(echo $pre_b | tr '\n' ' ')') — prep 2/net/mesh/direct first"; exit 2
 fi
 # A's node id is its own measurement with a shape: the journal line absent
 # (s58h-H21: journalctl printed nothing for it) is an ABORT here, never an

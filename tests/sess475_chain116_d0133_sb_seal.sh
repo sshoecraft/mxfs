@@ -46,7 +46,7 @@
 # + fence/replay); holderfail Y umount 240 s.
 #
 # The fleet is test1..testN (N, default 32) prepped on COND (default caw); the
-# same shape at 4 nodes is N=4 COND=cawd|tcp, with the worker pairs, the
+# same shape at 4 nodes is CONFIG=4/disk/caw/direct|4/net/mesh/direct, with the worker pairs, the
 # burster and the late-dirty / holder-failure nodes drawn from those four.
 # PROD_KO/PROD_SV name a module to install into the tree first; unset, the
 # tree's own mxfs.ko is what the prep deploys.  GATE names a log whose ^DONE
@@ -54,8 +54,8 @@
 set -u
 cd /src/mxfs || exit 1
 LABEL=${1:-s475a}
-N=${N:-32}
-COND=${COND:-caw}
+CONFIG=$(python3 "$(dirname "$0")/../tools/configuration.py" parse "${CONFIG:-32/disk/caw/mpath}") || exit 2
+N=${CONFIG%%/*}; COND=${CONFIG#*/}
 GATE=${GATE:-}
 LOG=tests/evidence/sess475_chain116_d0133_$LABEL.log
 PROD_KO=${PROD_KO:-}
@@ -66,7 +66,7 @@ ARMS=${ARMS:-"normal adversarial latedirty holderfail"}
 FLEET=$(seq -f 'test%g' 1 "$N" | tr '\n' ' ')
 # The normal laps' workload is the sharded-directory reuse harness, and a
 # sharded mkdir is refused (EOPNOTSUPP) on a filesystem not formatted with
-# mkfs_mxfs -D.  The rig prep formats without it, so on 2026-09-28 (4/tcp,
+# mkfs_mxfs -D.  The rig prep formats without it, so on 2026-09-28 (4/net/mesh/direct,
 # s4e_4tcp) every reuse lap created nothing: 110 harness failures per lap and
 # a fleet unmount whose counters had never moved (icount=64 on every lap),
 # which verifies nothing about the summary.  The prep reads this variable.
@@ -109,7 +109,7 @@ ck() { if [ "$2" = "$3" ]; then echo "  PASS $1 ($2)"; else echo "  FAIL $1 got=
 # so downstream chains reach the same clean stop instead of hanging forever.
 prep_arm() { # <tag>
   local t=$1 T0=$(date +%s) rc
-  timeout 300 ./run.sh "$N" "$COND" prep_cluster; rc=$?
+  timeout 300 ./run.sh "$CONFIG" prep_cluster; rc=$?
   echo "STAGE prep $t rc=$rc wall=$(( $(date +%s) - T0 ))s"
   [ "$rc" = 0 ] && return 0
   echo "ABORT $t: prep_cluster rc=$rc — the fleet is not in a known state, so no arm can yield a verdict; scoring one would be fabricating evidence."
@@ -155,7 +155,7 @@ verdict_lap() { # <tag> — the per-lap verdict over $DM/<tag>_test*.txt (+ chk 
     f="$DM/${tag}_$n.txt"; [ -s "$f" ] || continue
     # the line has carried master_self= between epoch= and at= since 0.89.66
     # ('P-SB-SUMMARY-LOCK slot=0 rc=0 epoch=10 master_self=1 at=put_super'):
-    # an exact epoch..at adjacency counted 0 of 4 locks on the 4/tcp chain
+    # an exact epoch..at adjacency counted 0 of 4 locks on the 4/net/mesh/direct chain
     # (2026-09-28) while the seal and last-write witnesses counted all 4
     grep -aq 'P-SB-SUMMARY-LOCK slot=[0-9]* rc=0 epoch=[0-9]* .*at=put_super' "$f" && lock_ok=$((lock_ok+1))
     grep -aq 'P-SB-SEAL-OK' "$f" && seal_ok=$((seal_ok+1))

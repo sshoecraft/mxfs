@@ -5,7 +5,7 @@
 # re-validation (ccloop daf50d34): every recorded PASS must come from THIS
 # build, ship config (no MXFS_EXTRA_MODARGS), MXFS_DEV=/dev/mapper/mpatha.
 #
-# Usage: scripts/revalidate_cell.sh <N> <full|nodr|dr|g1|g2>
+# Usage: scripts/revalidate_cell.sh <configuration> <full|nodr|dr|g1|g2>
 #   full — every applicable test (run.sh default)         [N<=8]
 #   nodr — all EXCEPT dir_reuse_coherency                 [N=16]
 #   dr   — dir_reuse_coherency alone                      [N=16,32]
@@ -23,7 +23,7 @@
 # formation, so the run.sh convergence gate still works — dlm.c:2716).
 
 set -u
-N="${1:?usage: revalidate_cell.sh <N> <full|nodr|dr|g1|g2>}"
+CONFIG=$(python3 "$(dirname "$0")/../tools/configuration.py" parse "${1:?usage: revalidate_cell.sh <configuration> <full|nodr|dr|g1|g2>}") || exit 2; N=${CONFIG%%/*}
 GRP="${2:?usage: revalidate_cell.sh <N> <full|nodr|dr|g1|g2>}"
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 SSH="$REPO/tools/mxfs_sshpass.sh"
@@ -72,7 +72,7 @@ echo "--- rings cleared on test1..test$N ---"
 
 cd "$REPO"
 TEST_TIMEOUT="$TT" \
-    timeout "$OUTER" ./run.sh "$N" caw $TESTS
+    timeout "$OUTER" ./run.sh "$CONFIG" $TESTS
 rc=$?
 echo "=== run.sh rc=$rc (124=outer-timeout=FAIL) ==="
 

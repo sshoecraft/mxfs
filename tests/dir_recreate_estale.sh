@@ -2,7 +2,7 @@
 # dir_recreate_estale.sh — D-RECREATED-SHARED-DIR-PEER-MKDIR-ESTALE-0346
 # instrument step 1: reproduce and NAME the stale object.
 #
-# Observed (32/caw board 20260828T103802Z, fence_during_write): rank 1 does
+# Observed (32/disk/caw/mpath board 20260828T103802Z, fence_during_write): rank 1 does
 # `rm -rf D; mkdir D` on a shared directory and 11/32 peers get ESTALE from
 # `mkdir -p D/nodeN` — for BOTH the child and the parent path — for ~0.5 s.
 #

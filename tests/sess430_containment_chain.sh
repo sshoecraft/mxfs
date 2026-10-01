@@ -11,11 +11,11 @@
 #      Recorded, not gating.  Skipped unless the deployed srcversion equals
 #      the tree's (i.e. the tree is still unbuilt after the source edits).
 #   1. build VERSION (0.39.3) + prove complete; tools; tauth usermode gate
-#   2. prep 32/caw
+#   2. prep 32/disk/caw/mpath
 #   B. POST-FIX: the injector must PASS (P-DIALLOC-DISKLIVE for X, no
 #      shutdown, creates succeed, X never handed out)
 #   3. free_foreign_realloc_repro, free_home_settle_repro, dre x2 + sweeps
-#   4. full 32/caw board + sweep (zero FOREIGN / CHAIN-BROKEN / XRELEASE /
+#   4. full 32/disk/caw/mpath board + sweep (zero FOREIGN / CHAIN-BROKEN / XRELEASE /
 #      DISKLIVE fleet-wide; sustained_load + dirent pace rows are the budget rule
 #      check on the per-create plain read)
 # budget: wait <= 2400 + prep 300 + inject 120 + build 500 + proof 500 + tools
@@ -30,7 +30,7 @@ D="$E/sess430_${LABEL}_dmesg"
 mkdir -p "$E" "$D"
 PAT='P55C-|P237-EVICT|P-RECYCLE-|P-EVICT-OBLIG|P-FREEOB|P-CR62|P-CR3-CANCEL|P-CR63-DEFER-DISKLIVE|P-SESSION-POISON|Internal error|P119-NONEX-FLUSH-SKIP|P128-INACT-DEFER|P32D-DEADINCARN|P-RECYCLE-DEADSTAMP|P-RECYCLE-GATE|P87-|P88-|P34H-POISON|force-shutdown|xfs_trans_cancel|status=12|lock request failed after|P-DIALLOC-DISKLIVE|P-DIALLOC-VALIDATE|P-DIALLOC-ALL-QUARANTINED|P-DIALLOC-VALIDATED-LOST|P-FREEPUB-|P238-CLMERGE-LEDGER-ROLLBACK.*freepub'
 TAGS='P55C-[A-Z0-9-]+|P237-EVICT-[A-Z]+|P-FREEOB-[A-Z-]+|P-CR62|P-CR3-CANCEL|P-CR63-DEFER-DISKLIVE|P-SESSION-POISON|P119-NONEX-FLUSH-SKIP|P32D-DEADINCARN-SKIP|P34H-POISON-[A-Z]+|P8[78]-[A-Z-]+|P-DIALLOC-[A-Z-]+|P-FREEPUB-CLAIM-STALE'
-prep_caw() { timeout 300 ./run.sh 32 caw prep_cluster > "$E/sess430_${LABEL}_prep_$1.log" 2>&1; echo "STAGE prep caw $1 rc=$?"; }
+prep_caw() { timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster > "$E/sess430_${LABEL}_prep_$1.log" 2>&1; echo "STAGE prep caw $1 rc=$?"; }
 MARK="S430C-${LABEL}-$$"
 mark() {
   local st=$1 i
@@ -97,7 +97,7 @@ sweep() {
     fi
   fi
   prep_caw fix
-MXFS_DEV=${MXFS_DEV:?this chain ran the tcpmp condition, TCP over the multipath LUN: name that LUN with MXFS_DEV (never assumed from a rig path)}
+MXFS_DEV=${MXFS_DEV:?this chain ran net/mesh/mpath, TCP over the multipath LUN: name that LUN with MXFS_DEV (never assumed from a rig path)}
   echo "STAGE chk-geometry: $(timeout 60 tools/mxfs_sshpass.sh test1 '/src/mxfs/tools/chk_mxfs -v '"$MXFS_DEV"' 2>&1 | grep -a "authority ledger\|authority view\|control pages"' 2>/dev/null | tr '\n' ' ')"
   # B. post-fix: the injector must pass; with the 0.39.4 knob the A/B harness
   #    also measures the pre-containment shutdown arm on the SAME build
@@ -117,6 +117,6 @@ MXFS_DEV=${MXFS_DEV:?this chain ran the tcpmp condition, TCP over the multipath 
   mark dre2; timeout 90 tests/dir_recreate_estale.sh "${LABEL}b" test5 test6 test7 test8 20 250; echo "STAGE dre2 rc=$?"; sweep dre2
   mark board; timeout 1900 bash tests/sess416_board_0286.sh; echo "STAGE boardchain rc=$?"
   sweep board
-  echo "STAGE board-rows: $(tools/criteria.py 32 caw 2>/dev/null | grep -E 'FAIL|FLAKY|BLOCKED|Total|VERDICT' | cut -c1-160 | tr '\n' ';')"
+  echo "STAGE board-rows: $(tools/criteria.py 32/disk/caw/mpath 2>/dev/null | grep -E 'FAIL|FLAKY|BLOCKED|Total|VERDICT' | cut -c1-160 | tr '\n' ';')"
   echo "DONE $(date -u +%FT%TZ)"
 } > "$E/sess430_${LABEL}.log" 2>&1

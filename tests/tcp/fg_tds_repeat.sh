@@ -3,10 +3,10 @@
 # warmed FS (NO re-mkfs, NO reboot) for a FAST repro loop of the tcp_dlm_scaling
 # residual faces (iunlink-corruption shutdown + dirent leak/resurrection).
 #
-# WHY: `./run.sh 2 tcp tcp_dlm_scaling` re-mkfs's the LUN every invocation, which
+# WHY: `./run.sh 2/net/mesh/direct tcp_dlm_scaling` re-mkfs's the LUN every invocation, which
 # wipes the accumulated AG/inode-reuse churn the bug needs (that is why a fresh
 # standalone run always PASSES).  This driver reuses the warm FS.  Prereq: a full
-# `./run.sh 2 tcp` (or fg_one_run) has already prepped+warmed the cluster.
+# `./run.sh 2/net/mesh/direct` (or fg_one_run) has already prepped+warmed the cluster.
 #
 #   bash tests/tcp/fg_tds_repeat.sh <iters>
 set -u
@@ -34,7 +34,7 @@ for it in $(seq 1 "$ITERS"); do
     for n in test1 test2; do
         i=$((i+1))
         ( timeout 200 "$SSH" "$n" "$P" \
-            "MXFS_NODES=2 MXFS_RANK=$i MXFS_DLM=tcp MXFS_COORD_BROKER=$BROKER \
+            "MXFS_NODES=2 MXFS_RANK=$i MXFS_CONFIG=2/net/mesh/direct MXFS_COORD_BROKER=$BROKER \
              MXFS_COORD_PREFIX=$prefix COORD_TIMEOUT=90 \
              TCP_SCALING_ROUNDS=$ROUNDS TCP_SCALING_WINDOW=$WINDOW \
              bash $SCRIPT '$MNT'" > "$tmpd/$n" 2>&1 ) &

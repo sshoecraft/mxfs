@@ -19,11 +19,11 @@ mkdir -p "$EV"
   grep -q '^DONE' "$GATE" || { echo "ABORT: chain20 not DONE"; echo "DONE $(date -u +%FT%TZ)"; exit 1; }
   echo "gate passed at $(date -u +%FT%TZ) (iter $t) sv=$(modinfo mxfs.ko | awk '/srcversion/{print $2}')"
   T0=$(date -u '+%Y-%m-%d %H:%M:%S')
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep rc=$?"
   timeout 420 tests/fence_live_node.sh $LABEL churn test20 test1 32 --no-prep; echo "STAGE fln_churn rc=$?"
   timeout 30 $SSH test1 "journalctl -k --since '$T0' | grep -a 'P236-FENCE-INTENT\|P236-FENCEKIND\|P-PRKEY-FENCED\|P-PRKEY-VICTIM-UNKNOWN\|NO_VICTIM_KEY' | cut -c1-230 | head -12" > "$EV/fence_test1.txt" 2>&1
   echo "--- test1 fence lines: $(grep -ac 'P236\|P-PRKEY' "$EV/fence_test1.txt")"; grep -a 'P236\|P-PRKEY' "$EV/fence_test1.txt" | head -8
   $VIRSH start test20 >/dev/null 2>&1; sleep 45
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep2 rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep2 rc=$?"
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

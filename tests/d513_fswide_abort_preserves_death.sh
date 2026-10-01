@@ -16,7 +16,7 @@
 # the second mount recovers the victim's slice.  If it was dropped, the second
 # mount comes up clean with the slice still dirty on the platter.
 #
-# Staging (requires a TWO-node cluster: ./run.sh 2 caw prep_cluster) — a small
+# Staging (requires a TWO-node cluster: ./run.sh 2/disk/caw/mpath prep_cluster) — a small
 # cluster is required, not a convenience: on the 32-node rig 30 other survivors
 # would recover the victim before our mount ever sees it, so "an unrelated late
 # death" could not be staged at all.

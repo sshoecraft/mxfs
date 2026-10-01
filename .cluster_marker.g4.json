@@ -1,0 +1,12 @@
+{
+  "nodes": 4,
+  "configuration": "4/net/mesh/direct",
+  "srcversion": "6CDF86D7D9A430B83D4F949",
+  "node_list": "test3,test4,test5,test6",
+  "dev": "/dev/disk/by-path/ip-192.168.120.1:3260-iscsi-iqn.2026-05.local.mxfs:grp-g4-lun-0",
+  "rig": "scst-fio",
+  "wwid": "eui.6162613136656165",
+  "fsid": "ead860d7-00bd-4475-9277-a4119a0bd95f",
+  "gen": 5,
+  "iso": "2026-09-30T19:27:21Z"
+}

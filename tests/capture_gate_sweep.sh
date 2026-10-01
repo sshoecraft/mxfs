@@ -76,7 +76,7 @@ ensure)
     echo "$st"
     if echo "$st" | grep -qa 'mounted=[^1]\|writable=0'; then
         s=$(date +%s)
-        timeout 240 env MXFS_FORCE_PREP=1 ./run.sh 2 tcp prep_cluster > "$log" 2>&1
+        timeout 240 env MXFS_FORCE_PREP=1 ./run.sh 2/net/mesh/direct prep_cluster > "$log" 2>&1
         rc=$?
         echo "ENSURE $tag: prep_cluster rc=$rc wall=$(( $(date +%s) - s ))s log=$log"
         grep -a 'PREP FAIL\|ABORT\|NODE_PREP_OK\|srcversion' "$log" | tail -4 | cut -c1-200

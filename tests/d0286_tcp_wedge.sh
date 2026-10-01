@@ -57,7 +57,7 @@ echo "=== d0286_tcp_wedge label=$LABEL W=$W H2=$H2 H1=$H1 H3=$H3 H4=$H4 out=$OUT
 for n in "$W" "$H2" "$H1" "$H3" "$H4"; do
     ft=$(timeout 15 $SSH "$n" "cat /sys/module/mxfs/parameters/force_transport" 2>/dev/null | filt | tr -dc '0-9')
     if [ "$ft" != "1" ]; then
-        echo "ABORT: $n force_transport='$ft' — fleet is not on TCP (./run.sh 32 tcp prep_cluster first)"
+        echo "ABORT: $n force_transport='$ft' — fleet is not on TCP (./run.sh 32/net/mesh/direct prep_cluster first)"
         exit 2
     fi
 done

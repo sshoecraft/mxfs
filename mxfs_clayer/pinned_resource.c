@@ -138,10 +138,11 @@ mxfs_inode_unpin(
 		 * bast_process flushes dirty pages → re-enters xfs_ilock
 		 * via writeback (xfs_map_blocks); the recursive ilock_begin
 		 * must skip the DEMOTING wait, which i_dlm_demoter == current
-		 * achieves.
+		 * achieves.  Through the claim helpers: a slot holds a
+		 * reference on its owner, which a bare store would unbalance.
 		 */
-		ip->i_dlm_demoter = current;
+		mxfs_dlm_claim_demoter(ip);
 		mxfs_dlm_bast_process(ip);
-		ip->i_dlm_demoter = NULL;
+		mxfs_dlm_release_demoter(ip);
 	}
 }

@@ -18,10 +18,10 @@ mkdir -p "$EV"
   echo "=== sess444 chain35 start $(date -u +%FT%TZ) sv=$(modinfo mxfs.ko | awk '/srcversion/{print $2}') VERSION=$(cat VERSION) ==="
   if grep -q '^ABORT' tests/evidence/sess444_chain32_0510_icreate_syncinit_s444a.log; then echo "ABORT: chain 32 aborted (no 0.51.0 build)"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
   for pt in 13 14; do
-    timeout 300 ./run.sh 32 caw prep_cluster; prc=$?; echo "STAGE prep_before_takeover$pt rc=$prc"
+    timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; prc=$?; echo "STAGE prep_before_takeover$pt rc=$prc"
     if [ "$prc" -ne 0 ]; then echo "ABORT: prep failed before takeover $pt"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
     timeout 1500 tests/bootstrap_takeover.sh ${LABEL}t$pt $pt 32 test1 test2; echo "STAGE bootstrap_takeover$pt rc=$?"
   done
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep2 rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep2 rc=$?"
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

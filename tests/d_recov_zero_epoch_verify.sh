@@ -9,7 +9,7 @@
 # never writes epoch 0, so the class is unconstructible by natural means and
 # the ledger asks for an injected one.
 #
-# Shape (fleet prepped 32/caw):
+# Shape (fleet prepped 32/disk/caw/mpath):
 #   1. srcgate; victim's slot + node id from its own boot-time claim line,
 #      cross-checked against the platter record (tests/hb_epoch_inject.py show).
 #   2. kmsg marker on every survivor; virsh destroy the victim; IMMEDIATELY

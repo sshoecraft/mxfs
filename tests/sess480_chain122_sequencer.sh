@@ -43,7 +43,7 @@ W=tests/rig_wait_free.sh
   if [ "$post_id" != "$pre_id" ] && [ "$post_id" != none ]; then
     echo "STAGE0 A NEW BOARD LANDED (run_id $pre_id -> $post_id) — this is criterion (2) evidence for D-FOREIGN-REPLAY-UNGATED-IMAGES on $SV"
     echo "--- conditions (run_id=$post_id) ---"
-    timeout 120 tools/criteria.py 32 caw 2>&1 | grep -av '^\s*$'
+    timeout 120 tools/criteria.py 32/disk/caw/mpath 2>&1 | grep -av '^\s*$'
   else
     echo "STAGE0 NO new board recorded (run_id still $pre_id).  The in-flight run did not complete a board; nothing here may be cited for criterion (2)."
   fi

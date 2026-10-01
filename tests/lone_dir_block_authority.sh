@@ -36,7 +36,8 @@ export MXFS_NODE_LIST=${MXFS_NODE_LIST:-test1,test2}
 # mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
 . "$(dirname "$0")/lib/rig.sh"
 mxfs_dev_resolve "${MXFS_NODE_LIST%%,*}"; export MXFS_DEV=$MXFS_DEV_RESOLVED
-TR=${MXFS_TRANSPORT:-tcp}
+export MXFS_CONFIG=${MXFS_CONFIG:-2/net/mesh/direct}
+TR=$(python3 tools/configuration.py get "$MXFS_CONFIG" transport) || exit 2
 A=${MXFS_NODE_LIST%%,*}
 B=${MXFS_NODE_LIST##*,}
 SSH=tools/mxfs_sshpass.sh

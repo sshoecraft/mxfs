@@ -60,7 +60,7 @@ while ! grep -q "^DONE" "$GATE" 2>/dev/null; do sleep 30; done
   for lap in 1 2; do
   for leg in shared private; do
     echo "--- lap $lap leg=$leg ---"
-    timeout 300 ./run.sh 32 caw prep_cluster >/dev/null 2>&1; prc=$?
+    timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster >/dev/null 2>&1; prc=$?
     echo "STAGE prep_${leg}_$lap rc=$prc"
     if [ "$prc" -ne 0 ]; then
       echo "LEG $leg lap $lap NOT RUN: prep rc=$prc — an unprepped fleet is not a result and is not scored."
@@ -70,9 +70,9 @@ while ! grep -q "^DONE" "$GATE" 2>/dev/null; do sleep 30; done
     pre=$(ls -dt tests/evidence/run_crash_consistency_* 2>/dev/null | head -1)
     O=tests/evidence/sess480_cc_private_$LABEL; mkdir -p "$O"
     if [ "$leg" = private ]; then
-      MXFS_TEST_ENV="CC_PRIVATE=1" timeout 160 ./run.sh 32 caw crash_consistency > "$O/cc_${leg}_$lap.out" 2>&1
+      MXFS_TEST_ENV="CC_PRIVATE=1" timeout 160 ./run.sh 32/disk/caw/mpath crash_consistency > "$O/cc_${leg}_$lap.out" 2>&1
     else
-      timeout 160 ./run.sh 32 caw crash_consistency > "$O/cc_${leg}_$lap.out" 2>&1
+      timeout 160 ./run.sh 32/disk/caw/mpath crash_consistency > "$O/cc_${leg}_$lap.out" 2>&1
     fi
     rc=$?
     # harness-lint: ok - compared against the $pre pinned above, which is the freshness check
@@ -132,6 +132,6 @@ while ! grep -q "^DONE" "$GATE" 2>/dev/null; do sleep 30; done
   echo "  owns the crash_consistency row outright.  If BOTH shapes strand nodes, the fleet-wide barrier"
   echo "  has a problem of its own and D-CRASH-CONSISTENCY-FLEETWIDE-BARRIER-TIMEOUT-401 needs a"
   echo "  separate root, which is a finding and not a null result."
-  timeout 300 ./run.sh 32 caw prep_cluster >/dev/null 2>&1; echo "STAGE prep_final rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster >/dev/null 2>&1; echo "STAGE prep_final rc=$?"
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

@@ -17,7 +17,7 @@ LOG=tests/evidence/sess449_chain66_samenode_$LABEL.log
   echo "=== sess449 chain66b start $(date -u +%FT%TZ) sv=$(modinfo mxfs.ko | awk '/srcversion/{print $2}') VERSION=$(cat VERSION) p276=$(strings -a mxfs.ko | grep -c 'P276-INJECT') ==="
   if [ "$(strings -a mxfs.ko | grep -c 'P276-INJECT')" = 0 ]; then
     T0=$(date +%s); timeout 300 make modules -j8 > tests/evidence/sess449_chain66_build_$LABEL.log 2>&1; echo "STAGE build rc=$? wall=$(( $(date +%s) - T0 ))s sv=$(modinfo mxfs.ko | awk '/srcversion/{print $2}') p276=$(strings -a mxfs.ko | grep -c 'P276-INJECT')"
-    timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep rc=$?"
+    timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep rc=$?"
   fi
   for lap in 1 2 3; do
     T0=$(date +%s); timeout 150 tests/caw_samenode_selftest.sh test1 test2 all; echo "STAGE samenode lap=$lap rc=$? wall=$(( $(date +%s) - T0 ))s"

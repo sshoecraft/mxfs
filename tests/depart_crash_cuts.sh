@@ -61,7 +61,8 @@ MXFS_DEV=${5:-${MXFS_DEV:-}}; mxfs_dev_resolve "$PROBE"; DEV=$MXFS_DEV_RESOLVED
 # prep_node.sh, whose first argument is the transport; it was hardcoded to
 # caw, which on a TCP fleet loads the module without force_transport=1 and
 # the remount verdict is then about the wrong transport.
-TRANSPORT=${MXFS_TRANSPORT:-caw}
+MXFS_CONFIG=${MXFS_CONFIG:-2/disk/caw/mpath}
+TRANSPORT=$(python3 "$(dirname -- "${BASH_SOURCE[0]}")/../tools/configuration.py" get "$MXFS_CONFIG" transport) || exit 2
 MNT=/mnt/shared
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 SSH=$REPO/tools/mxfs_sshpass.sh

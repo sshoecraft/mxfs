@@ -6,11 +6,11 @@
 #   board and was found only by ad-hoc dmesg grepping while the board read
 #   20/20 green:
 #
-#     * 32/tcp: "BUG: scheduling while atomic" on 8 nodes (a sleeping rwsem
+#     * 32/net/mesh/direct: "BUG: scheduling while atomic" on 8 nodes (a sleeping rwsem
 #       taken under pag_ici_lock), then "soft lockup - CPU#2 stuck for 522s"
 #       on test31 — that node stopped answering sshd entirely and never
 #       released its AG grants, starving all 31 peers (9210 lock timeouts).
-#     * 32/caw: "WARNING: at include/linux/rwsem.h:85 xfs_assert_ilocked" on
+#     * 32/disk/caw/mpath: "WARNING: at include/linux/rwsem.h:85 xfs_assert_ilocked" on
 #       3 of 4 nodes — a broken ILOCK-mode invariant.
 #
 #   `soak` is the only other test that looks at dmesg, and it caps at 4 nodes

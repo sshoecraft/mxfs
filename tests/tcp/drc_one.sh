@@ -1,5 +1,5 @@
 #!/bin/bash
-# drc_one.sh [COHERENT] [ROUNDS] — single instrumented dir_reuse 8/tcp run.
+# drc_one.sh [COHERENT] [ROUNDS] — single instrumented dir_reuse 8/net/mesh/direct run.
 # Reset, run with dir_addname_coherent=COHERENT and DRC_ROUNDS=ROUNDS, then
 # capture from every node: result, P28E (helper reached FUA; diff=1 => stale
 # caught), P28C-STALE (fix fired), drc-RDMISS (loss), corruption/shutdown.
@@ -17,7 +17,7 @@ echo "=== drc_one coherent=$COH rounds=$RND nodes_up=$up $(date -u) ===" | tee "
 t0=$(date +%s)
 MXFS_EXTRA_MODARGS="dir_gen_per_handoff=1 dir_modify_extent_adopt=1 dir_addname_coherent=$COH ${EXTRA:-}" \
     MXFS_TEST_ENV="DRC_ROUNDS=$RND ${DRC_STREAM:+DRC_STREAM=1}" \
-    timeout 590 /src/mxfs/run.sh 8 tcp dir_reuse_coherency > "$SCR/one_run.log" 2>&1
+    timeout 590 /src/mxfs/run.sh 8/net/mesh/direct dir_reuse_coherency > "$SCR/one_run.log" 2>&1
 t1=$(date +%s)
 RES=$(grep -qE "PASS  dir_reuse_coherency" "$SCR/one_run.log" && echo PASS || echo FAIL)
 echo "RESULT: $RES wall=$((t1-t0))s" | tee -a "$LOG"

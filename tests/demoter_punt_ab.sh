@@ -38,7 +38,7 @@ set -u
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$REPO"
 
-N="${1:?usage: demoter_punt_ab.sh <nodes> <arm 0|1> <iters>}"
+CONFIG=$(python3 "$(dirname "$0")/../tools/configuration.py" parse "${1:?usage: demoter_punt_ab.sh <configuration> <arm 0|1> <iters>}") || exit 2; N=${CONFIG%%/*}
 ARM="${2:?arm: 0 = control, 1 = fix}"
 ITERS="${3:-4}"
 BUDGET=180
@@ -82,14 +82,14 @@ timeout 60 tests/demoter_strand_census.sh "$N" mark
 # arm runs the identical pair before the criterion under test.  Their budgets
 # are the manifest's (120 s and 240 s); a timeout is a FAILURE.
 echo "=== ARM $ARM — exposure workload (dir_reuse_coherency dirent_durability) ==="
-timeout $((120 + 240 + OVERHEAD)) ./run.sh "$N" caw \
+timeout $((120 + 240 + OVERHEAD)) ./run.sh "$CONFIG" \
     dir_reuse_coherency dirent_durability 2>&1 |
     grep -E "^\s+(PASS|FAIL)\s" | sed 's/^/  /'
 
 echo "=== ARM $ARM — $ITERS x sustained_load @ $N/caw (budget ${BUDGET}s each) ==="
 pass=0; fail=0
 for ((k = 1; k <= ITERS; k++)); do
-    line=$(timeout $((BUDGET + OVERHEAD)) ./run.sh "$N" caw sustained_load 2>&1 |
+    line=$(timeout $((BUDGET + OVERHEAD)) ./run.sh "$CONFIG" sustained_load 2>&1 |
            grep -E "^\s+(PASS|FAIL)\s+sustained_load" | tail -1)
     if [ -z "$line" ]; then
         echo "  iter $k: NO RESULT LINE (timed out past $((BUDGET + OVERHEAD))s) — FAILURE"

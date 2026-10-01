@@ -13,9 +13,9 @@ GATE=tests/evidence/sess436_chain3_0418_intents_s436c.log
   echo "gate passed at $(date -u +%FT%TZ) (iter $t)"
   timeout 180 tests/d_intents_undischarged_verify.sh ${LABEL}b burst; echo "STAGE intents burst rc=$?"
   sudo virsh -c qemu:///system start test8 >/dev/null 2>&1; sleep 45
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep rc=$?"
   timeout 180 tests/d_intents_undischarged_verify.sh ${LABEL}c clean; echo "STAGE intents clean rc=$?"
   sudo virsh -c qemu:///system start test8 >/dev/null 2>&1; sleep 45
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep2 rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep2 rc=$?"
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

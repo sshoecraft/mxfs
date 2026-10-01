@@ -29,7 +29,7 @@
 #                                  This is the ARM SELECTOR.
 #
 # USAGE
-#   tests/p32e_fence_ab.sh <nodes> <dlm> <gate> [criteria...]
+#   tests/p32e_fence_ab.sh <configuration> <gate> [criteria...]
 #     gate = 1 (fixed arm) | 0 (pre-fix raw-compare control)
 #
 # budget: this script sets NO timeout of its own around run.sh -- run.sh
@@ -38,7 +38,8 @@
 set -u
 cd "$(dirname "$0")/.."
 
-N=${1:?nodes}; DLM=${2:?dlm}; GATE=${3:?gate 0|1}; shift 3
+CONFIG=$(python3 "$(dirname "$0")/../tools/configuration.py" parse "${1:?configuration}") || exit 2; N=${CONFIG%%/*}; DLM=${CONFIG#*/}
+GATE=${2:?gate 0|1}; shift 2
 CRIT=${*:-ag_strand_repair}
 NODES=$(seq 1 "$N" | sed 's/^/test/')
 
@@ -71,7 +72,7 @@ for h in $NODES; do ( timeout 15 tools/mxfs_sshpass.sh "$h" "dmesg -C" >"$d/$h" 
 wait 2>/dev/null
 
 echo "--- running: $CRIT ---"
-./run.sh "$N" "$DLM" $CRIT
+./run.sh "$CONFIG" $CRIT
 RUNRC=$?
 
 echo "--- per-node evidence ---"

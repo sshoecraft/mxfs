@@ -13,10 +13,10 @@
 # victim's counters/journal, then the kill.
 #   1. install the frozen LAB 0.64.3 (SCRATCH_KO/SCRATCH_SV; modinfo
 #      mxfs_iclus_relmark_lab=1) + tools into the tree;
-#   2. prep 32/caw with icluster_dlm=1 dino_clobber_check=1;
+#   2. prep 32/disk/caw/mpath with icluster_dlm=1 dino_clobber_check=1;
 #   3. tests/iclus_relmark_faults.sh (4 arms: 19, 20/force, 21, 21/force);
 #   4. install the frozen PRODUCTION 0.64.3 (PROD_KO/PROD_SV) back into the
-#      tree; prep 32/caw.
+#      tree; prep 32/disk/caw/mpath.
 # Evidence wanted per arm: PREKILL-RELEASE lines with statted>0, PREKILL
 # probe with iclus_marked>0 or iclus_unmarked>0 (stage 20/force) and P282>=1
 # (stage=0 after a oneshot hit), and the arm's own VERDICT; then the
@@ -53,7 +53,7 @@ install_ko() { # <ko> <sv> <label>
   install_ko "${SCRATCH_KO:-}" "${SCRATCH_SV:-}" lab || { echo "ABORT: lab install"; echo "DONE $(date -u +%FT%TZ)"; exit 1; }
   [ "$(modinfo mxfs.ko | grep -c mxfs_iclus_relmark_lab)" = 1 ] || { echo "ABORT: not a LAB module"; echo "DONE $(date -u +%FT%TZ)"; exit 1; }
   export MXFS_EXTRA_MODARGS='icluster_dlm=1 dino_clobber_check=1'
-  lap 300 prep_lab ./run.sh 32 caw prep_cluster
+  lap 300 prep_lab ./run.sh 32/disk/caw/mpath prep_cluster
   unset MXFS_EXTRA_MODARGS
   echo "knob check: $(for i in 1 16; do printf 'test%s:%s ' $i "$(timeout 20 $SSH test$i 'cat /sys/module/mxfs/parameters/dino_clobber_check /sys/module/mxfs/parameters/icluster_dlm /sys/module/mxfs/parameters/release_proof_enforce 2>/dev/null | tr "\n" ,' 2>/dev/null)"; done)"
   M=$EV/matrix; mkdir -p "$M"
@@ -63,6 +63,6 @@ install_ko() { # <ko> <sv> <label>
   grep -a '^=== arm\|^rc=\|^PREKILL\|^prekill\|^P282\|^relmark\|^chk\|^FAIL\|^VERDICT\|^ICLUS' "$M/matrix.txt" 2>/dev/null | cut -c1-300 | head -70
   for pk in "$M"/*/prekill_test*.txt "$M"/*/prekill_release_test*.txt; do [ -f "$pk" ] && { echo "--- $pk"; cut -c1-240 "$pk" | head -8; }; done
   install_ko "${PROD_KO:-}" "${PROD_SV:-}" prod || { echo "ABORT: prod install (tree left on the LAB module!)"; echo "DONE $(date -u +%FT%TZ)"; exit 1; }
-  lap 300 prep_prod ./run.sh 32 caw prep_cluster
+  lap 300 prep_prod ./run.sh 32/disk/caw/mpath prep_cluster
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

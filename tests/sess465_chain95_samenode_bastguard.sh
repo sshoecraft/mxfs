@@ -44,13 +44,13 @@ lap() { # <budget_s> <label> <cmd...>
     lap 120 tools make tools
   fi
   if [ "$brc" -ne 0 ]; then echo "ABORT: build/install"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
-  lap 300 prep ./run.sh 32 caw prep_cluster
+  lap 300 prep ./run.sh 32/disk/caw/mpath prep_cluster
   echo "fleet: $(timeout 20 $SSH test1 'cat /sys/module/mxfs/srcversion; grep -c " mxfs " /proc/mounts' 2>/dev/null | grep -av '^Unauthorized\|^$\|^If you' | tr '\n' ' ')"
   for lapn in 1 2 3; do
     T1=$(date +%s); timeout 150 tests/caw_samenode_selftest.sh test1 test2 all; echo "STAGE samenode lap=$lapn rc=$? wall=$(( $(date +%s) - T1 ))s"
   done
   T1=$(date +%s); timeout 150 tests/caw_samenode_selftest.sh test7 test19 all; echo "STAGE samenode pair2 rc=$? wall=$(( $(date +%s) - T1 ))s"
   echo "bast-held lines: $(for n in test2 test19; do printf '%s=%s ' $n "$(timeout 20 $SSH $n 'dmesg | grep -c P275-SAMENODE-BAST-HELD' 2>/dev/null | tr -d '\r\n ')"; done)"
-  lap 300 prep_final ./run.sh 32 caw prep_cluster
+  lap 300 prep_final ./run.sh 32/disk/caw/mpath prep_cluster
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

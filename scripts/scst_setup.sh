@@ -205,7 +205,7 @@ setup() {
     echo 1 | $SUDO tee "$TROOT/enabled"      >/dev/null || fail "could not enable iscsi driver"
 
     say "SCST_SETUP_OK target=$TGT lun0=$DEV img=$IMG portal(s)=$PORTAL_IP"
-    say "  next: scripts/rig.sh direct N | scripts/rig.sh pass N | scripts/mpath_up.sh up N"
+    say "  next: scripts/rig.sh N/<class>/<method>/{direct,pass,mpath}"
 }
 
 status() {

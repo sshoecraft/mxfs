@@ -1,5 +1,5 @@
 #!/bin/bash
-# drc_loop.sh — run dir_reuse_coherency 2/tcp N times, aggregate per-iteration
+# drc_loop.sh — run dir_reuse_coherency 2/net/mesh/direct N times, aggregate per-iteration
 # PASS/FAIL, fence-fire (P-CLMERGE-DEADINCARN), and REAL fs-corruption/shutdown
 # (excludes the benign "DLM shutdown complete" teardown line).  run.sh's prep
 # asserts the build srcversion on every node, so all iters run the local .ko.

@@ -54,7 +54,7 @@
 # settle 5 + read 30) = 515 s.  Caller bound MAX_LAPS x 515 s; a lap
 # measured 90-92 s.
 #
-# Usage: [MAX_LAPS=n] tests/peer_recv_orphan.sh <nodes> <dlm> <delay_ms> [label]
+# Usage: [MAX_LAPS=n] tests/peer_recv_orphan.sh <configuration> <delay_ms> [label]
 # Evidence: tests/evidence/peer_recv_orphan/<UTC>_<label>/lap<i>/
 # Exit 0 iff the verdict is PASS; 2 when the measurement could not be made;
 # 3 when it was made and exercised nothing.
@@ -63,10 +63,9 @@ set -u
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$HERE" || exit 1
 SSH="$HERE/tools/mxfs_sshpass.sh"
-N="${1:?usage: peer_recv_orphan.sh <nodes> <dlm> <delay_ms> [label]}"
-DLM="${2:?usage: peer_recv_orphan.sh <nodes> <dlm> <delay_ms> [label]}"
-DELAY="${3:?usage: peer_recv_orphan.sh <nodes> <dlm> <delay_ms> [label]}"
-LABEL="${4:-peer}"
+CONFIG=$(python3 "$(dirname "$0")/../tools/configuration.py" parse "${1:?usage: peer_recv_orphan.sh <configuration> <delay_ms> [label]}") || exit 2; N=${CONFIG%%/*}; DLM=${CONFIG#*/}
+DELAY="${2:?usage: peer_recv_orphan.sh <configuration> <delay_ms> [label]}"
+LABEL="${3:-peer}"
 MAX_LAPS="${MAX_LAPS:-1}"
 SETTLE_S="${SETTLE_S:-15}"
 SETTLE2_S="${SETTLE2_S:-5}"
@@ -104,7 +103,7 @@ one_lap() {  # one_lap <i>: sets LAP_VERDICT to CLEAN, BAD or ABORT and adds to 
     wait "${pids[@]}"
     t0=$(date +%s)
     MXFS_FORCE_PREP=1 MXFS_EXTRA_MODARGS="peer_recv_start_delay_ms=$DELAY" \
-        ./run.sh "$N" "$DLM" prep_cluster > "$EV/prep.log" 2>&1
+        ./run.sh "$CONFIG" prep_cluster > "$EV/prep.log" 2>&1
     prc=$?
     say "lap $i: prep rc=$prc wall=$(( $(date +%s) - t0 ))s"
     if [ "$prc" != 0 ]; then

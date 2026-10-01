@@ -3,7 +3,7 @@
 # stuck, not after.  (ccloop c7ee71c6 sess28, D-MOUNT-DEGRADES-WITH-USE.)
 #
 # WHY
-#   sustained_load fails at 32/caw with bar2=121032 ms and
+#   sustained_load fails at 32/disk/caw/mpath with bar2=121032 ms and
 #   states:NO_TERMINAL_RECORD=2..4.  The per-op /dev/kmsg trail added to
 #   tests/suite/sustained_load.sh names the stragglers precisely — 30 nodes
 #   reach "SYNCED elapsed=1788..4760" while test21 and test22 both stop at
@@ -30,7 +30,7 @@ set -u
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$REPO"
 
-N="${1:-32}"
+CONFIG=$(python3 "$(dirname "$0")/../tools/configuration.py" parse "${1:-32/disk/caw/mpath}") || exit 2; N=${CONFIG%%/*}
 S1="${2:-45}"
 S2="${3:-110}"
 BUDGET=180
@@ -71,7 +71,7 @@ sweep() {
 }
 
 echo "=== sl_straggler_capture: N=$N sweeps at ${S1}s and ${S2}s of a ${BUDGET}s budget ==="
-timeout $((BUDGET + OVERHEAD)) ./run.sh "$N" caw sustained_load > /tmp/slcap.$$ 2>&1 &
+timeout $((BUDGET + OVERHEAD)) ./run.sh "$CONFIG" sustained_load > /tmp/slcap.$$ 2>&1 &
 RUNPID=$!
 
 sleep "$S1"; sweep "t=${S1}s"

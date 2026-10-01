@@ -14,17 +14,20 @@ meant hand-editing megabytes of JSON, which is why the `tools/ledger_*.py` files
 make single edits the reader could not. That whole shape is gone.
 
 EVERY DEFECT NAMES THE CONFIGURATION IT REACHES. A defect observed only at 32 nodes on the CAW
-transport does not block a 2-node TCP release, and a queue that cannot say so makes every release
+DLM does not block a 2-node TCP release, and a queue that cannot say so makes every release
 wait on every defect -- which is how a queue stops being a queue and becomes a wall. Two fields
 say it, and they DEFAULT TO BLOCKING EVERYTHING:
 
     nodes   the SMALLEST cluster the defect has been observed on.  1, 2, 4, 32...
             An entry with nodes=2 blocks a 2-node release and every larger one.
             An entry with nodes=32 blocks nothing smaller than 32.
-    dlm     the transport the evidence is on: caw, tcp, or any.
-            `any` blocks both.  It is the default, and it is the honest answer until
-            someone has actually looked -- narrowing it is a claim about reach and
-            needs the evidence to say so, exactly like a severity does.
+    config  the configurations the evidence reaches, as a class/method/attach pattern
+            (tools/configuration.py): `*/*/*` reaches every one and is the default,
+            `disk/caw/*` every CAW configuration whatever the attachment,
+            `net/mesh/direct` exactly one.  Narrowing it is a claim about reach and
+            needs the evidence to say so, exactly like a severity does.  It replaced a
+            `dlm` field whose values were compared to the view by exact string, so a
+            record tagged `caw` never appeared in a `cawd` view and the reverse.
     platform  the operating system it reaches: a key of data/platforms.json (pve9,
             rhel9, ...) or `any`, the default.  A defect in the RHEL 9 build does not
             block a Proxmox release; one that has only been seen on the Ubuntu rig
@@ -33,7 +36,7 @@ say it, and they DEFAULT TO BLOCKING EVERYTHING:
 Narrowing these fields DISPOSES OF NOTHING. It records which release an open defect blocks; the
 defect stays open, stays in the queue, and still has to be fixed.
 
-WHAT A RELEASE BAR IS, AND WHY IT IS NOT THE SAME AS REACH. `nodes`/`dlm` say which
+WHAT A RELEASE BAR IS, AND WHY IT IS NOT THE SAME AS REACH. `nodes`/`config` say which
 configurations can exercise a defect. `impact` says whether the behaviour is one this release
 refuses to ship: `integrity` (it corrupts or loses data), `stability` (it crashes, hangs or
 shuts a node down), `verify` (the bar is unestablished and someone has to measure it), or
@@ -46,12 +49,13 @@ DISPOSES OF NOTHING: the defect stays open, stays in the queue, and still has to
 
     tools/defects.py                          the queue, severity order, one line each
     tools/defects.py -d                       the same queue with each one's next step
-    tools/defects.py --at 2/tcp               only what blocks a 2-node TCP release
-    tools/defects.py --at 2/tcp --release --gate    exit 1 while anything still blocks it
-    tools/defects.py --at 2/tcp@pve9 --release --gate  the same, for one platform
+    tools/defects.py 2/net/mesh/direct        only what blocks that configuration (also --at)
+    tools/defects.py 2/disk                   ... every disk-class configuration at 2 nodes
+    tools/defects.py 2/net/mesh/direct --release --gate    exit 1 while anything still blocks it
+    tools/defects.py 2/net/mesh/direct@pve9 --release --gate  the same, for one platform
     tools/defects.py show <id>                one entry in full
-    tools/defects.py add     -s high -m "..." [-N 2] [-D tcp] [-n "next step"] [-w "how it shows"]
-    tools/defects.py update  <id> [-s ...] [-m ...] [-N ...] [-D ...] [-n ...] [-w ...]
+    tools/defects.py add     -s high -m "..." [-N 2] [-C net/mesh] [-n "next step"] [-w "how it shows"]
+    tools/defects.py update  <id> [-s ...] [-m ...] [-N ...] [-C ...] [-n ...] [-w ...]
     tools/defects.py update  <id> -I noblock --impact-why "what was measured"
     tools/defects.py remove  <id> --why "what was measured and what it said"
     tools/defects.py rename  <id> D-NEW-SHORTER-ID-0962   a new id, nothing else changes
@@ -75,6 +79,9 @@ import time
 from datetime import date
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import configuration  # noqa: E402  (tools/configuration.py: the only parser of a configuration)
+
 #: `defects.py | head` closes the pipe under us, and python turns that into a traceback on stderr
 #: plus a non-zero exit. Restoring the default disposition makes it exit quietly, the way every
 #: other command in a pipeline does -- a queue nobody can pipe is a queue nobody greps.
@@ -90,13 +97,10 @@ LEDGER = ROOT / "data" / "defects.json"
 #: must never make a defect vanish out of the queue.
 SEVERITIES = ("critical", "high", "major", "medium", "minor")
 
-#: The transports a defect's evidence can be on. `any` is the fail-closed default: it blocks every
-#: configuration, so an entry nobody has classified holds up every release rather than quietly
-#: sliding out of one.
-TRANSPORTS = ("any", "xfs", "caw", "cawd", "cawp", "tcp")
-
+#: `*/*/*` is the fail-closed default: it reaches every configuration, so an entry nobody has
+#: classified holds up every release rather than quietly sliding out of one.
 DEFAULT_NODES = 1
-DEFAULT_DLM = "any"
+DEFAULT_CONFIG = "*/*/*"
 
 #: The platforms a defect can be scoped to are the keys of data/platforms.json, plus `any`, the
 #: fail-closed default. Read from the registry so a platform added there is valid here at once.
@@ -134,7 +138,7 @@ IMPACTS = ("integrity", "stability", "verify", "noblock")
 IMPACT_CLEAR = ("noblock",)
 
 FIELDS = {"severity": "s", "summary": "m", "next": "n", "evidence": "w",
-          "nodes": "N", "dlm": "D", "platform": "P", "impact": "I", "impact_why": "impact-why"}
+          "nodes": "N", "config": "C", "platform": "P", "impact": "I", "impact_why": "impact-why"}
 
 #: Held across the whole read-modify-write of every mutating subcommand. The ledger is one JSON
 #: document rewritten whole, so without this two concurrent `remove`s each read the same snapshot,
@@ -142,17 +146,17 @@ FIELDS = {"severity": "s", "summary": "m", "next": "n", "evidence": "w",
 #: out -- both reporting success, in a file that carries no dates, so nothing afterwards shows it
 #: happened. Measured 2026-09-17 on a copy of the real ledger.
 LOCK = ROOT / "data" / ".defects.lock"
-MUTATORS = ("add", "update", "remove", "rename")
+MUTATORS = ("add", "update", "remove", "rename", "migrate-config")
 
 #: A save measures ~6 ms on the real 858 KB ledger, so anything still holding the lock after this
 #: long is wedged rather than busy, and saying so beats blocking a session forever.
 LOCK_WAIT_SECONDS = 30
 
-#: For `lift_config` only: what a leading bare `2 tcp` must not be mistaken for.
-SUBCOMMANDS = ("show", "add", "update", "remove", "rename")
+#: For `lift_config` only: what a leading bare configuration must not be mistaken for.
+SUBCOMMANDS = ("show", "add", "update", "remove", "rename", "migrate-config")
 VALUE_FLAGS = ("-s", "--severity", "--at")
 
-ORDERED = ("id", "severity", "nodes", "dlm", "platform", "opened", "updated", "summary",
+ORDERED = ("id", "severity", "nodes", "config", "platform", "opened", "updated", "summary",
            "evidence", "next")
 
 
@@ -246,10 +250,11 @@ def reach(entry: dict) -> tuple:
         nodes = int(entry.get("nodes", DEFAULT_NODES))
     except (TypeError, ValueError):
         nodes = DEFAULT_NODES
-    dlm = str(entry.get("dlm", DEFAULT_DLM)).lower()
-    if dlm not in TRANSPORTS:
-        dlm = DEFAULT_DLM
-    return max(nodes, 1), dlm
+    try:
+        pattern = configuration.check_pattern(entry.get("config", DEFAULT_CONFIG))
+    except configuration.ConfigurationError:
+        pattern = DEFAULT_CONFIG
+    return max(nodes, 1), pattern
 
 
 def platform_of(entry: dict) -> str:
@@ -258,56 +263,50 @@ def platform_of(entry: dict) -> str:
     return value if value in PLATFORMS else DEFAULT_PLATFORM
 
 
-def blocks(entry: dict, nodes: int, dlm, platform=None) -> bool:
-    """Does this defect block a release of the `nodes`/`dlm` configuration on `platform`?
+def blocks(entry: dict, nodes: int, selector: tuple, platform=None) -> bool:
+    """Does this defect block a release of the configuration(s) `nodes`/`selector` on `platform`?
 
-    It does if that configuration can exercise it: the cluster is at least as large as the
-    smallest one the defect was seen on, the transport matches or the defect is on both, and
-    the defect is not confined to some other platform. A `dlm` or `platform` of None means none
-    was named, so every transport or platform counts.
+    It does if one of those configurations can exercise it: the cluster is at least as large as
+    the smallest one the defect was seen on, the record's pattern overlaps the configurations the
+    view names, and the defect is not confined to some other platform. A field the view left open
+    (`defects.py 8`, `defects.py 8/disk`) matches every value, and a `platform` of None means none
+    was named, so every platform counts.
     """
-    seen_nodes, seen_dlm = reach(entry)
+    seen_nodes, pattern = reach(entry)
     if seen_nodes > nodes:
         return False
     if platform is not None and platform_of(entry) not in ("any", platform):
         return False
-    if dlm is None:
-        return True
-    return seen_dlm in ("any", str(dlm).lower())
+    return configuration.overlaps(pattern, selector)
 
 
 def parse_at(text: str) -> tuple:
-    """`2/tcp`, `2/tcp@pve9`, or a bare `2` meaning every transport at that size.
+    """`2/net/mesh/direct`, `2/disk`, `2/net/mesh/direct@pve9`, or a bare `2` meaning every
+    configuration at that size.
 
-    Same notation as the board and the run keys, with `@platform` for the operating
-    system a release is for. A tool that spells the cluster a different way from the harness is
-    one nobody types correctly the first time.
+    Same notation as the board and the run keys, with `@platform` for the operating system a
+    release is for, and trailing fields may be left off to ask about a whole class or method.
     """
-    match = re.fullmatch(r"\s*(\d+)\s*(?:/\s*([A-Za-z]+))?\s*(?:@\s*([a-z0-9]+))?\s*", str(text))
-    if not match:
-        sys.exit(f"defects: wanted NODES[/TRANSPORT][@PLATFORM] such as 2, 2/tcp or 2/tcp@pve9, "
-                 f"not {text!r}")
-    nodes = int(match.group(1))
-    dlm = match.group(2).lower() if match.group(2) else None
-    platform = match.group(3).lower() if match.group(3) else None
-    if nodes < 1:
-        sys.exit("defects: node count must be at least 1")
-    if dlm is not None and dlm not in TRANSPORTS:
-        sys.exit(f"defects: transport {dlm!r}; expected one of {list(TRANSPORTS)}")
+    spec, _, platform = str(text).strip().partition("@")
+    try:
+        nodes, selector = configuration.parse_selector(spec)
+    except configuration.ConfigurationError as exc:
+        sys.exit(f"defects: {exc}")
+    platform = platform.strip().lower() or None
     if platform is not None and platform not in PLATFORMS:
         sys.exit(f"defects: platform {platform!r}; expected one of {list(PLATFORMS)} "
                  f"(data/platforms.json)")
-    return nodes, dlm, platform
+    return nodes, selector, platform
 
 
 def gate_label(gate: tuple) -> str:
-    nodes, dlm, platform = gate
-    label = "%d-node" % nodes if dlm is None else "%d/%s" % (nodes, dlm)
+    nodes, selector, platform = gate
+    label = configuration.selector_label(nodes, selector)
     return label if platform is None else "%s@%s" % (label, platform)
 
 
 def lift_config(argv: list) -> list:
-    """Accept `defects.py 2 tcp` and `defects.py 2/tcp`.
+    """Accept `defects.py 2/net/mesh/direct` as `--at 2/net/mesh/direct`.
 
     A session names the configuration far more often than it names a subcommand, and having to
     remember `--at` for the common case is how a tool stops being reached for. The leading
@@ -326,14 +325,16 @@ def lift_config(argv: list) -> list:
             #: `-s 2` is a severity, not a cluster.
             skip = token in VALUE_FLAGS
             continue
-        match = re.fullmatch(r"(\d+)(?:/([A-Za-z]+))?(@[a-z0-9]+)?", token)
-        if not match:
+        if not re.fullmatch(r"\d+(?:/[A-Za-z*]+)*(@[a-z0-9]+)?", token):
             break
-        nodes, dlm, consumed = match.group(1), match.group(2), 1
-        if dlm is None and index + 1 < len(rest) and rest[index + 1].lower() in TRANSPORTS:
-            dlm, consumed = rest[index + 1], 2
-        spec = (nodes if dlm is None else "%s/%s" % (nodes, dlm)) + (match.group(3) or "")
-        return argv[:1] + rest[:index] + ["--at", spec] + rest[index + consumed:]
+        #: The old two-token spelling (`defects.py 2 tcp`) is refused by name, not half-parsed
+        #: into a bare `2` that silently shows every configuration.
+        if index + 1 < len(rest) and re.fullmatch(r"[A-Za-z]+", rest[index + 1]) \
+                and rest[index + 1] not in SUBCOMMANDS:
+            hint = configuration.retired_hint("%s/%s" % (token, rest[index + 1]))
+            sys.exit("defects: give the configuration as one key, e.g. %s/net/mesh/direct%s"
+                     % (token, "; " + hint if hint else ""))
+        return argv[:1] + rest[:index] + ["--at", token] + rest[index + 1:]
     return argv
 
 
@@ -359,17 +360,22 @@ def source_of(entry: dict) -> str:
 
 
 def config_of(entry: dict) -> str:
-    """`2/tcp` confirmed from evidence, `2/tcp?` set by the keyword sweep, `1/any` never looked at.
+    """`2/net/mesh` confirmed from evidence, `2/net/mesh?` set by the keyword sweep, `1/any` never
+    looked at. Trailing `*` fields are left off: `disk/caw/*` prints as `disk/caw`.
 
     The question mark is the whole point of recording provenance: a heuristic reach is a useful
     number and a weak claim, and the queue has to be able to show both at once without the reader
     having to remember which records were adjudicated.
     """
-    seen_nodes, seen_dlm = reach(entry)
+    seen_nodes, pattern = reach(entry)
+    while pattern.endswith("/*"):
+        pattern = pattern[:-2]
+    if pattern == "*":
+        pattern = "any"
     mark = "?" if source_of(entry) == "heuristic" else ""
     #: `any` is left off: it is every record's default and would widen every line to say nothing.
     where = "" if platform_of(entry) == DEFAULT_PLATFORM else "@" + platform_of(entry)
-    return "%d/%s%s%s" % (seen_nodes, seen_dlm, where, mark)
+    return "%d/%s%s%s" % (seen_nodes, pattern, where, mark)
 
 
 #: An id is something a person types, greps for, and reads in a one-line queue listing. Past the
@@ -451,7 +457,7 @@ def show_one(entry: dict) -> None:
     if entry.get("impact"):
         print("  %-10s %s — %s" % ("bar", entry["impact"], wrap(entry.get("impact_why",""), 80, " "*13)))
     print("  %-10s %s%s" % ("observed", config_of(entry),
-                            "" if "nodes" in entry and "dlm" in entry
+                            "" if "nodes" in entry and "config" in entry
                             else "   (defaulted -- reach not established, blocks every release)"))
     for key in ("opened", "updated"):
         if entry.get(key):
@@ -582,7 +588,7 @@ def cmd_add(data: dict, args) -> int:
     entry = {"id": check_id(args.id.strip()) if args.id else mint(args.summary, taken),
              "severity": severity,
              "nodes": DEFAULT_NODES if args.nodes is None else args.nodes,
-             "dlm": (args.dlm or DEFAULT_DLM).lower(),
+             "config": args.config or DEFAULT_CONFIG,
              "opened": date.today().isoformat(),
              "summary": args.summary}
     if entry["id"] in taken:
@@ -609,7 +615,7 @@ def cmd_update(data: dict, args) -> int:
     for field in FIELDS:
         value = getattr(args, field if field != "next" else "next_step", None)
         if value is not None and value != "":
-            entry[field] = value.lower() if field in ("dlm", "platform", "impact") else value
+            entry[field] = value.lower() if field in ("config", "platform", "impact") else value
             changed.append(field)
     #: A record's next step is its investigation, oldest finding first; every
     #: session so far rebuilt it by hand as "old ===== new" because -n replaces.
@@ -624,7 +630,7 @@ def cmd_update(data: dict, args) -> int:
         entry["next"] = (have + " ===== " if have else "") + appended
         changed.append("next")
     if not changed:
-        sys.exit("defects: update needs at least one of -s/-m/-n/-a/-w/-N/-D/-P/-I")
+        sys.exit("defects: update needs at least one of -s/-m/-n/-a/-w/-N/-C/-P/-I")
     #: Checked against what the record will HOLD, not only against what this call passed, so that
     #: `-I noblock` on a record whose reason was written earlier is accepted while `-I noblock` with
     #: no reason anywhere is not.
@@ -635,7 +641,7 @@ def cmd_update(data: dict, args) -> int:
                  "Set both, with -I/--impact.")
     #: Setting reach BY HAND means someone read the record. That is the only thing that upgrades a
     #: heuristic guess to a claim the release gate can rest on.
-    if "nodes" in changed or "dlm" in changed or "platform" in changed:
+    if "nodes" in changed or "config" in changed or "platform" in changed:
         entry["reach_source"] = "evidence"
     if "severity" in changed and str(entry["severity"]).lower() not in SEVERITIES:
         sys.exit(f"defects: severity {entry['severity']!r}; expected one of {list(SEVERITIES)}")
@@ -693,6 +699,50 @@ def cmd_rename(data: dict, args) -> int:
     return 0
 
 
+def config_pattern(text: str) -> str:
+    """argparse type for -C: a valid class/method/attach pattern, normalised."""
+    try:
+        return configuration.check_pattern(text)
+    except configuration.ConfigurationError as exc:
+        raise argparse.ArgumentTypeError(str(exc))
+
+
+#: What each retired `dlm` value becomes. The attachment is left open (`*`) on every record: none
+#: of them recorded which attachment its evidence came from, and a reach is narrowed only from a
+#: record's own evidence, never by a migration.
+DLM_TO_CONFIG = {"any": "*/*/*", "tcp": "net/mesh/*", "caw": "disk/caw/*",
+                 "cawd": "disk/caw/*", "cawp": "disk/caw/*", "xfs": "xfs"}
+
+
+def cmd_migrate_config(data: dict, args) -> int:
+    """ONE TIME: replace each record's `dlm` with a `config` pattern, keeping field order."""
+    if any("config" in e for e in data["defects"]):
+        sys.exit("defects: %s is already migrated" % LEDGER)
+    counts: dict[str, int] = {}
+    for position, entry in enumerate(data["defects"]):
+        old = str(entry.get("dlm", "any")).lower()
+        pattern = DLM_TO_CONFIG.get(old, DEFAULT_CONFIG)
+        counts["%s -> %s" % (old, pattern)] = counts.get("%s -> %s" % (old, pattern), 0) + 1
+        rebuilt = {}
+        for key, value in entry.items():
+            if key == "dlm":
+                rebuilt["config"] = pattern
+            else:
+                rebuilt[key] = value
+        if "config" not in rebuilt:
+            rebuilt["config"] = pattern
+        data["defects"][position] = rebuilt
+    for line in sorted(counts):
+        print("%-24s %d" % (line, counts[line]))
+    print("records: %d" % len(data["defects"]))
+    if args.dry_run:
+        print("dry run: nothing written")
+        return 0
+    save(data)
+    print("migrated %s" % LEDGER)
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="what is broken and still needs work",
@@ -701,9 +751,10 @@ def main() -> int:
     parser.add_argument("-d", "--detail", action="store_true",
                         help="include each one's next step")
     parser.add_argument("-s", "--severity", help="filter the queue by severity")
-    parser.add_argument("--at", metavar="NODES/DLM[@PLATFORM]",
-                        help="only what blocks that release configuration, e.g. 2/tcp or "
-                             "2/tcp@pve9. May also be given bare: `defects.py 2 tcp`")
+    parser.add_argument("--at", metavar="NODES[/CLASS[/METHOD[/ATTACH]]][@PLATFORM]",
+                        help="only what blocks those configurations, e.g. 2/net/mesh/direct, "
+                             "2/disk or 2/net/mesh/direct@pve9. May also be given bare: "
+                             "`defects.py 2/net/mesh/direct`")
     parser.add_argument("--release", action="store_true",
                         help="only what blocks a release: data integrity and stability. "
                              "An unadjudicated record blocks.")
@@ -724,8 +775,9 @@ def main() -> int:
     add.add_argument("-n", "--next", help="the next step")
     add.add_argument("-N", "--nodes", type=int,
                      help="smallest cluster it was observed on (default %d)" % DEFAULT_NODES)
-    add.add_argument("-D", "--dlm", choices=TRANSPORTS,
-                     help="transport the evidence is on (default %s)" % DEFAULT_DLM)
+    add.add_argument("-C", "--config", type=config_pattern,
+                     help="class/method/attach pattern the evidence reaches, e.g. disk/caw "
+                          "(default %s)" % DEFAULT_CONFIG)
     add.add_argument("-P", "--platform", choices=PLATFORMS,
                      help="platform it reaches, from data/platforms.json (default %s)"
                           % DEFAULT_PLATFORM)
@@ -747,8 +799,8 @@ def main() -> int:
                              "replacing it")
     update.add_argument("-N", "--nodes", type=int,
                         help="smallest cluster it was observed on")
-    update.add_argument("-D", "--dlm", choices=TRANSPORTS,
-                        help="transport the evidence is on")
+    update.add_argument("-C", "--config", type=config_pattern,
+                        help="class/method/attach pattern the evidence reaches, e.g. disk/caw")
     update.add_argument("-P", "--platform", choices=PLATFORMS,
                         help="platform it reaches, from data/platforms.json")
     update.add_argument("-I", "--impact", choices=IMPACTS,
@@ -767,8 +819,12 @@ def main() -> int:
     rename.add_argument("new_id", help="the new id, D-WORDS-LIKE-THIS-0962 (keep the number); "
                         "at most %d characters" % MAX_ID)
 
+    migrate = subs.add_parser("migrate-config",
+                              help="one time: replace each record's dlm field with a config pattern")
+    migrate.add_argument("--dry-run", action="store_true")
+
     args = parser.parse_args(lift_config(sys.argv)[1:])
-    for missing in ("at", "release", "gate", "nodes", "dlm", "platform", "next_step", "summary",
+    for missing in ("at", "release", "gate", "nodes", "config", "platform", "next_step", "summary",
                     "evidence", "id", "next", "impact", "impact_why"):
         if not hasattr(args, missing):
             setattr(args, missing, None)
@@ -790,6 +846,8 @@ def main() -> int:
         return cmd_remove(data, args)
     if args.command == "rename":
         return cmd_rename(data, args)
+    if args.command == "migrate-config":
+        return cmd_migrate_config(data, args)
     return cmd_list(data, args)
 
 

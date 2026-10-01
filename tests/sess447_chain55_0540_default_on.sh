@@ -5,7 +5,7 @@
 #   1. domain_admission_matrix (7 mount-time rows on test32);
 #   2. prep with the PRODUCTION declaration only (prep_node.sh caw MODARGS =
 #      target_cache_protected=1; no harness enforce override anywhere);
-#   3. the full 32/caw board (production defaults) — every node must print
+#   3. the full 32/disk/caw/mpath board (production defaults) — every node must print
 #      P-DOMAIN-ADMITTED ... COHERENCE-ONLY;
 #   4. node_death_replay x N laps (N from arg 2, default 3 here; the ruling
 #      wants >= 10 consecutive — later chains continue the streak).
@@ -25,22 +25,22 @@ LOG=tests/evidence/sess447_chain55_0540_default_on_$LABEL.log
   echo "STAGE build rc=$brc old_sv=$OLD new_sv=$NEW errors=$(grep -c 'error:' tests/evidence/sess447_chain55_build_$LABEL.log) newstrings=$(strings -a mxfs.ko | grep -c 'P-DOMAIN-REFUSED\|enforce DEFAULT since\|truth=%s')"
   echo "PARM $(modinfo mxfs.ko | grep 'parm:.*foreign_replay_token_enforce' | cut -c1-160)"
   if [ "$brc" -ne 0 ] || [ "$NEW" = "$OLD" ] || [ "$(strings -a mxfs.ko | grep -c 'P-DOMAIN-REFUSED')" -eq 0 ]; then echo "ABORT: build failed / srcversion unchanged / new strings missing"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
-  timeout 300 ./run.sh 32 caw prep_cluster; prc=$?; echo "STAGE prep rc=$prc"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; prc=$?; echo "STAGE prep rc=$prc"
   if [ "$prc" -ne 0 ]; then echo "ABORT: prep failed"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
   echo "ADMITTED nodes: $(for i in $(seq 1 32); do timeout 20 tools/mxfs_sshpass.sh test$i "journalctl -k --since -10min --no-pager 2>/dev/null | grep -ac 'P-DOMAIN-ADMITTED'" 2>/dev/null | tr -dc '0-9'; echo -n ' '; done)"
   T0=$(date +%s); timeout 240 tests/domain_admission_matrix.sh $LABEL test32; echo "STAGE domain_matrix rc=$? wall=$(( $(date +%s) - T0 ))s"
-  timeout 300 ./run.sh 32 caw prep_cluster; prc=$?; echo "STAGE prep2 rc=$prc"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; prc=$?; echo "STAGE prep2 rc=$prc"
   if [ "$prc" -ne 0 ]; then echo "ABORT: prep2 failed"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
-  T0=$(date +%s); timeout 900 ./run.sh 32 caw; echo "STAGE board rc=$? wall=$(( $(date +%s) - T0 ))s"
-  tools/criteria.py 32 caw 2>/dev/null | grep -a 'PASS\|FAIL\|SKIP\|PENDING' | cut -c1-140
+  T0=$(date +%s); timeout 900 ./run.sh 32/disk/caw/mpath; echo "STAGE board rc=$? wall=$(( $(date +%s) - T0 ))s"
+  tools/criteria.py 32/disk/caw/mpath 2>/dev/null | grep -a 'PASS\|FAIL\|SKIP\|PENDING' | cut -c1-140
   for lap in $(seq 1 $NLAPS); do
-    timeout 300 ./run.sh 32 caw prep_cluster; prc=$?; echo "STAGE prep_ndr$lap rc=$prc"
+    timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; prc=$?; echo "STAGE prep_ndr$lap rc=$prc"
     if [ "$prc" -ne 0 ]; then echo "ABORT: prep failed"; break; fi
-    T0=$(date +%s); timeout 500 ./run.sh 32 caw node_death_replay; echo "STAGE node_death_replay$lap rc=$? wall=$(( $(date +%s) - T0 ))s"
+    T0=$(date +%s); timeout 500 ./run.sh 32/disk/caw/mpath node_death_replay; echo "STAGE node_death_replay$lap rc=$? wall=$(( $(date +%s) - T0 ))s"
     D=$(ls -dt tests/evidence/board_*_node_death_replay | head -1); echo "EVIDENCE $D"
     for l in shared single; do echo "LAP$lap $l: $(grep -a '^VERDICT\|WAIT ' $D/$l.log 2>/dev/null | head -2 | cut -c1-160 | tr '\n' ' ')"; done
     echo "LAP$lap f4truth: $(cat $D/*/recov_test*.txt 2>/dev/null | grep -ao 'truth=[A-Z-]*' | sort | uniq -c | tr '\n' ' ')"
   done
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep_final rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep_final rc=$?"
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

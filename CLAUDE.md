@@ -29,6 +29,17 @@ because..." exception, no "I was being practical" exception, no
 
 ---
 
+### THE THREE MUST-HAVES, IN ORDER
+
+(User directive, 2026-09-30.)
+
+1. **Data integrity.** No corruption at all.  Corruption stops the work until
+   it is understood and fixed.
+2. **Stability.** It CANNOT crash the host.
+3. **Performance.**
+
+---
+
 ### RULE 0 — TIMEOUTS ARE PERFORMANCE ASSERTIONS, NOT SAFETY NETS
 
 (User directive, sess130 — repeated ~10 times across sessions.)
@@ -557,7 +568,7 @@ four were already written down in both places. This file is rules, not design.
 | `_XBF_DELWRI_Q` collision vs `_XBF_MXFS_ALLOC_QUEUED` | `subsystems/xfs.md`, `subsystems/pal.md` |
 | ILOCK held across a CAW poll | `docs/ag-metadata-coherency.md`, `docs/perf.md`, `subsystems/xfs.md` |
 | CAW vs TCP transport selection | `docs/dlm-protocol.md`, `subsystems/dlm.md` |
-| LIO target drops the SCSI FUA bit | `docs/condition4_multipath_scope.md`, `subsystems/pal.md` |
+| LIO target drops the SCSI FUA bit | `docs/multipath-attach.md`, `subsystems/pal.md` |
 
 ## Build & Test
 

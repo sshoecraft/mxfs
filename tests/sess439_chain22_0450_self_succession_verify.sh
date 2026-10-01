@@ -35,15 +35,15 @@ mkdir -p "$EV"
   grep -c 'error:' "$EV/build.txt" | sed 's/^/build errors=/'
   grep -a 'warning:' "$EV/build.txt" | grep -v 'compiler differs\|xfs_platform.h\|xfs_fs_report_error' | cut -c1-200 | head -20
   if [ "$brc" -ne 0 ] || [ "$trc" -ne 0 ] || [ "$NEW" = "$OLD" ]; then echo "ABORT: build failed or srcversion unchanged"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
-  timeout 300 ./run.sh 32 caw prep_cluster; prc=$?; echo "STAGE prep rc=$prc"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; prc=$?; echo "STAGE prep rc=$prc"
   if [ "$prc" -ne 0 ]; then echo "ABORT: prep failed on 0.45.0"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
   timeout 100 tests/lone_mount_create.sh ${LABEL}_refused test1 32 remount_refused; echo "STAGE remount_refused rc=$?"
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep2 rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep2 rc=$?"
   T0=$(date -u '+%Y-%m-%d %H:%M:%S')
   timeout 840 tests/no_survivor_crash_replay.sh $LABEL 32 test1; echo "STAGE nosurv rc=$?"
   timeout 40 $SSH test1 "journalctl -k -b --no-pager | grep -a 'P305\|P-PRKEY\|P236-FENCEKIND\|P238-FENCE-SELF\|P238-FENCE-ABSENT\|SELF_SUCCESSION\|P-BOOT-STATE' | cut -c1-230 | head -40" > "$EV/nosurv_test1.txt" 2>&1
   echo "--- test1 nosurv lines: $(grep -ac 'P305\|P-PRKEY\|P236\|P238\|P-BOOT' "$EV/nosurv_test1.txt")"; grep -a 'P305-PR-PREDECESSOR\|P305-PR-SELF\|P305-PR-HOST\|SELF_SUCCESSION\|P238-FENCE-ABSENT\|P-PRKEY-PUBLISHED' "$EV/nosurv_test1.txt" | head -12
   sleep 60
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep3 rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep3 rc=$?"
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

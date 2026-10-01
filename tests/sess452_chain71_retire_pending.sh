@@ -39,7 +39,7 @@ lap() { # <budget_s> <label> <cmd...>
   if [ "$(strings -a mxfs.ko | grep -c 'P305-RETIRE-SETTLED-OWN')" = 0 ]; then echo "ABORT: mxfs.ko is not a 0.59.2+ build"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
   if [ -n "$EXPECT_SV" ] && [ "$(modinfo mxfs.ko | awk '/srcversion/{print $2}')" != "$EXPECT_SV" ]; then echo "ABORT: mxfs.ko srcversion $(modinfo mxfs.ko | awk '/srcversion/{print $2}') != expected $EXPECT_SV"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
   lap 120 tools make tools
-  lap 300 prep ./run.sh 32 caw prep_cluster
+  lap 300 prep ./run.sh 32/disk/caw/mpath prep_cluster
   lap 200 "retire_adm arm=sameboot victim=test5"      tests/retire_pending_admission.sh 32 test5  test6  test1 sameboot
   lap 270 "retire_adm arm=joiner victim=test7"        tests/retire_pending_admission.sh 32 test7  test8  test1 joiner
   # sess453 widened the fencing arms and the restamp laps by +150 s for the
@@ -58,6 +58,6 @@ lap() { # <budget_s> <label> <cmd...>
   lap 170 "retire_adm arm=multipending victim=test23" tests/retire_pending_admission.sh 32 test23 test24 test1 multipending
   lap 100 "pr_restamp mode=restamp victim=test2"      tests/pr_unregister_fail_restamp.sh 32 test2 test1 restamp
   lap 160 "pr_restamp mode=crash victim=test25"       tests/pr_unregister_fail_restamp.sh 32 test25 test1 crash
-  lap 300 prep_after ./run.sh 32 caw prep_cluster
+  lap 300 prep_after ./run.sh 32/disk/caw/mpath prep_cluster
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

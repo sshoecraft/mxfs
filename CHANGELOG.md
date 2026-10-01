@@ -1,3 +1,420 @@
+## 2026-10-01 — 0.90.37 — directory data-loss fixes; {2,4,8}/net/mesh/direct and {2,4,8}/disk/caw/direct released on Proxmox VE 9, RHEL 9.8, Ubuntu 24.04 and Debian 13
+
+**Upgrade from 0.90.36.**  0.90.36 can lose directory entries and link counts
+when one node removes directories other nodes are writing into, and a
+`symlink` into such a directory can shut nodes down.  0.90.37 fixes each of
+these; the fixes and their verification are below.
+
+**Release verification** (`tests/release_verify_chain.sh 0.90.37`, CLAIM=8,
+POWER=1, log `tests/evidence/release_verify_0.90.37.log`): window laps of
+`8/net/mesh/direct` and `2/net/mesh/direct`, the full `8/net/mesh/direct` and
+`8/disk/caw/direct` boards, the packaged rounds and freeze-death tests of both
+configurations on every platform (`tests/evidence/full_verify_0.90.37*.log`),
+then the `4/*` and `2/*` boards, all on module srcversion
+`85AEE4625B3EA2BBDBA2B96`.
+
+**Configurations replace condition codes in every tool, record and document.**
+
+What the rig tests is now named by a **configuration**,
+`<nodes>/<class>/<method>/<attach>`: how many nodes, where the DLM keeps lock
+state (`net` or `disk`), which DLM implementation (`mesh`, `caw`), and how the
+shared LUN reaches each node (`direct`, `mpath`, `pass`).  `8/net/mesh/direct`
+is what the rig called 8-node `tcp`.  The design is
+`docs/attachment-methods.md`; the definitions are `data/configurations.json`;
+the only parser is the new `tools/configuration.py`, which every tool, harness
+and record now goes through.  No kernel code and no module behaviour changed.
+
+**Why.**  The condition codes `tcp`, `cawd`, `cawp` and `caw` each fused the
+lock manager with the attachment.  That hid that every release so far was
+verified on direct single-path iSCSI only, left `net/mesh` with no multipath
+or passthrough cell although it fences through the LUN exactly as `disk/caw`
+does, and
+let exact string matches drop records silently:
+
+- a defect tagged `caw` never appeared in a `cawd` view, or the reverse; the
+  view the loop's session prompt printed was `cawd`, so every `disk/caw`
+  record was missing from it;
+- the board's declared configuration list had no `cawd` or `cawp` column, so
+  the whole-board roll-up and `--gaps` never looked at them;
+- a criterion that applies only to `disk/caw` was compared to the whole column
+  name, so `dlm_lock_correctness` was hidden from the `disk/caw/direct` and
+  `disk/caw/pass` boards although the rig wrote it there.  With the pattern
+  match it appears, and on the 0.90.36 module it reads PASS: the
+  `disk/caw/direct` boards are 31 of 31, not the 30 of 30 the old view showed;
+- a key the board could not parse made every criterion count as applicable.
+  It now applies to nothing.
+
+**The retired codes map one to one** and are refused by name with their
+replacement, never translated: `tcp` → `net/mesh/direct`, `cawd` →
+`disk/caw/direct`, `caw` → `disk/caw/mpath`, `cawp` → `disk/caw/pass`,
+`tcpmp` → `net/mesh/mpath`.  The native-XFS baseline is `1/xfs`.
+
+**Records migrated, not restarted**, each through its own writer where it has
+one:
+
+- the board (`tools/criteria.py migrate-keys`): 27 columns renamed with their
+  cells and history (cell and history totals identical before and after,
+  checked per column); each criterion's `transport` became an `applies_to`
+  pattern (`net/mesh`, `disk/caw`, `any`).  The `2/net/mesh/direct`,
+  `4/net/mesh/direct` and `8/net/mesh/direct` boards read identical row for
+  row before and after;
+- the defect queue (`tools/defects.py migrate-config`): each record's `dlm`
+  became a `config` pattern, 23 `any` → `*/*/*`, 37 `caw` → `disk/caw/*`, 30
+  `tcp` → `net/mesh/*`.  The attachment is left open on every record, because
+  none recorded which attachment its evidence came from.  The views
+  `32/disk/caw/mpath`, `2/net/mesh/direct` and `32/net/mesh/direct` hold
+  exactly the records `32 caw`, `2 tcp` and `32 tcp` did, and nothing blocks any
+  of the six released configurations;
+- `scripts/migrate_configuration_keys.py`: 658 `bench.json` entries (`dlm` →
+  `configuration`, labels to the slug form), the eleven per-rig native-XFS
+  baseline and raw-ceiling files renamed one to one
+  (`.xfs_fio_baseline.net-mesh-direct.scst-fio.json`), and the cluster marker
+  and last-run record.
+
+History carried over includes runs from before 2026-09-26, when the rig's
+`net/mesh` laps reached their LUN through LIO or the QNAP rather than direct
+iSCSI; they keep the `net/mesh/direct` name.  A failure among them still counts in a flake
+window, so the carry-over can only make a board stricter.
+
+**Tools and harnesses.**
+
+- `run.sh <configuration>` (`./run.sh 8/net/mesh/direct`); the device default
+  and the restore after a power cycle come from the attachment.
+  `net/mesh/direct` now gets the same single-portal iSCSI restore as
+  `disk/caw/direct`, because both use the same device; before, `tcp` got no
+  restore, a leftover from when its disk was wired into the VM XML.
+- `criteria.py` and `defects.py` take one key; `defects.py` also takes a
+  partial view (`8`, `8/disk`, `8/disk/caw`).  `-D/--dlm` became
+  `-C/--config`.
+- The release matrix (`data/configurations.json`) drives `tests/full_verify.sh`
+  and `tests/release_verify_chain.sh`, instead of `tcp` and `cawd` spelled out
+  in each.  Its content is unchanged: `{2,4,8}/net/mesh/direct` and
+  `{2,4,8}/disk/caw/direct`.
+- `tests/packaged_round.sh` and `tests/tcp_peer_freeze_death.sh` take
+  `CONFIG=<configuration>`.  Each refuses a configuration whose node count is
+  not the set it runs on, and any attachment but `direct`, which is the only one
+  either builds.
+- `scripts/rig.sh` and `scripts/verify_infra.sh` take the attachment names
+  (`direct`, `mpath`, `pass`).  The LIO/tcm_loop XML wiring they used to bring
+  up as a fourth rig fakes COMPARE AND WRITE and is no configuration's
+  attachment; switching still unwires it.
+- Harnesses read `MXFS_CONFIG` where they read `MXFS_TRANSPORT` and
+  `MXFS_DLM`.  `scripts/rekey_invocations.py` rewrote 1092 lines in 460
+  scripts (`run.sh 2 tcp` → `run.sh 2/net/mesh/direct`, "prep 2/tcp first",
+  `criteria.py 32 caw`); the harnesses with their own transport handling were
+  converted by hand.
+- `tools/criteria_window.py` takes one configuration and reads the board
+  `MXFS_CRIT` names, instead of always the primary one.
+- **Every tool and script that selects what to run takes the same key**, the
+  full configuration, and nothing takes a node count and a DLM or attachment
+  separately any more:
+  - `scripts/rig.sh <configuration>` and `scripts/verify_infra.sh <configuration>`
+    wire and verify its attachment on its node count;
+  - `scripts/ladder.sh` and `scripts/raw_fio_ceiling.sh` take a list of
+    configurations;
+  - `tests/board_4node_chain.sh` takes `<configuration>[:rows]`;
+  - the release chain's `LAPS` entries are `<configuration>:<rows>:<count>`;
+  - about fifty harnesses that took `<N>` (or `NNODES=`/`N=`) with a
+    hard-coded DLM now take a configuration, positionally or as `CONFIG=`.
+  Tools that act on node counts alone (`lab_power.sh rig:N`, the release
+  chain's `CLAIM`/`NODES`, which select entries of the release matrix) are
+  unchanged.
+
+**Documents.**  `conditions.md` is gone, replaced by
+`docs/attachment-methods.md` (the grammar; both DLM classes and every method,
+implemented or not; each attachment and what it needs from the device; DRBD
+dual-primary; fabric; device layers MXFS refuses) and `docs/fencing.md` (the
+design for pluggable fencing methods).  `docs/condition4_multipath_scope.md`
+is now `docs/multipath-attach.md`.  The README names the six released
+configurations.  The man page (`mxfs.5`) and `docs/iscsi_setup.md` no longer
+list NVMe-oF, Fibre Channel and SAS as supported storage, or call `disk/caw`
+usable on LIO, or say 2 nodes is the only released size.
+
+**`ROADMAP.md`** is new. It is the list of wanted, unbuilt work, and an item
+leaves it when done. It holds the lock methods named but not implemented
+(`net/server`, `disk/reserve`, `disk/pr`, `disk/fused`, `disk/paxos`),
+pluggable fencing, death-threshold validation at 16+ nodes, DRBD dual-primary,
+NVMe, `net/mesh/mpath` and `net/mesh/pass`, and multipath and passthrough in
+the release matrix.  It replaces `docs/future.md`, which is deleted.  That file
+still listed `disk/caw/mpath` as not started, although it has run for months, and most of its other entries named `frontend/` and
+`libmxfs/`, which the move to the XFS fork removed.  Platforms stay in
+`data/platforms.json`.
+
+**`tools/mxfs_rig_tag.sh` identifies the rig behind a multipath map.**  It
+read the SCSI vendor from `/sys/block/<dev>/device/vendor`, which a
+device-mapper node does not have.  On `/dev/mapper/mpatha` (dm-1 on test1) it
+therefore printed nothing, the `2/disk/caw/mpath` prep recorded an empty `rig`,
+and the fio tests that score against a per-rig yardstick could not be scored
+on any multipath configuration.  It now reads the vendor of the map's first
+slave path.  The paths of one map are one LUN, and on test1 both slaves, sda
+and sdb, report `SCST_FIO`.  Verified: the multipath map and the single-path
+by-path device both resolve to `scst-fio`.
+
+**Rig groups: several configurations run on the rig at once.**  A rig group
+is a disjoint slice of test1..test32, named by a new `group` line in the lab
+file (`tools/mxfs_lab.sh group|groups`).  The shape comes from the host: each
+rig VM has 4 GiB and 4 vCPUs, so the 28 nodes that all six release boards need
+at once do not fit in 94 GiB.  Groups `g2`, `g4` and `g8` (test1..14, 56 GiB)
+hold one DLM class's three release boards at a time.
+
+- `scripts/rig_groups.sh setup` gives each group a LUN of its own, built the
+  same way as the platform targets: a sparse 20G image, a target whose LUN 0
+  only the group's initiators can see, and each node logged out of everything
+  and into its own group's target alone.
+- `run.sh <configuration> --group <name>` runs on the group's nodes and LUN.
+  It keeps its own cluster marker and last-run file, gives its run id a group
+  suffix, declares the group LUN's WWID and host image to the harness library,
+  and after a power cycle logs a node back into the group target only.  Only
+  the `direct` attachment runs on a group.
+- Locking (`tests/lib/runlock.sh`).  A whole-rig run takes the rig lock
+  exclusive, as before.  A group run takes it shared, plus an exclusive lock
+  on each of its nodes and on its configuration.  So group runs coexist, a run
+  on an overlapping node or the same configuration is refused, and so is any
+  run of the other kind.  `scripts/rig.sh` now refuses to rewire the rig while
+  any run holds the lock.
+- Only whole-rig runs clear state that belongs to other runs.  A group run's
+  stale-marker cleanup covers only its own configuration's column
+  (`criteria.py finalize --at`).  Its broker cleanup removes only the retained
+  messages of runs whose configuration lock is no longer held.
+- `tools/criteria.py` holds a lock across every mutating command, as
+  `tools/defects.py` already did.  Several runs write one board, and without
+  the lock 11 of 12 concurrent writers failed to save.  Every writer then
+  shares one temp file (`tests/tooling/criteria_lock_concurrency.sh --control`).
+  With the lock, all twelve writers' cells land.
+- `MXFS_MARKER` tells `tools/mxfs_rig_tag.sh`, `tests/lib/rig.sh` and
+  `fio_perf_vs_xfs` which marker is theirs.  `mxfs_rig_tag.sh` takes the node
+  to ask from `MXFS_RIG_NODE`, because a group's first prep has no earlier
+  marker to name one.
+
+Verified on the rig:
+- `2/net/mesh/direct` on g2 and `4/net/mesh/direct` on g4 prepped side by
+  side, in 51 s together, each on its own LUN with its own WWID and fsid.
+  Every node's latest membership beacon read `active_count` 2 in g2 and 4 in
+  g4, so neither cluster saw the other's nodes over the shared multicast group.
+- A second run on g2, a whole-rig run and `rig.sh` were each refused while
+  those two ran, and each named the holder.
+
+- A group run exports `MXFS_NODE_LIST` (comma-separated) and `MXFS_GROUP`.
+  Host-coordinated harnesses name their nodes from the node list, and a
+  `run.sh` they re-enter picks up the group.  Without them, wave 1's
+  `crash_audit` on g4 asked test1, a g2 node, for g4's LUN and aborted at
+  its device stage before any victim was cut.
+- **Board: crash_audit at 4/net/mesh/direct, the FAIL of
+  2026-09-30T17:49:09Z was the detector's.**  That was the abort above.  The
+  rerun on the same cluster and build passed: oracle=PASS acked=1458
+  replay_s=77, in 158 s.
+
+**Wave 1, `{2,4,8}/net/mesh/direct` in parallel on g2, g4 and g8, finished
+in 876 s.**
+- 2 nodes: 31/31.
+- 4 nodes: 31/31 after the crash_audit rerun.
+- 8 nodes: directory corruption.  The cold audit after the board found two
+  lost directory updates, both in `ag_strand_repair`'s tree, where one node's
+  `rm -rf` races the other nodes' `mkdir`.  One is fixed below.  The other,
+  an entry kept after its inode was freed, is open as
+  `D-8TCP-RM-OF-A-CHILD-LEAVES-ITS-ENTRY-IN-A-SHORTFORM-PARENT-PEERS-ARE-ADDING-TO`.
+  `alloc_witness` also exhausted its budget on all eight nodes: one node's
+  fill never carved a chunk on the 20G group LUN's 9 AGs.  The two rows
+  after the audit failed their pre-assert because the audit leaves its node
+  unmounted.
+
+**Fixed: a peer's `mkdir` into a directory another node had just removed
+left the child with no name.**  In `xfs_create`, the node that did not run the
+`rmdir` learns of the removal only through the grant it acquires.  That grant
+reloads the directory with nlink 0 and nothing else.  Nothing checked the
+nlink.  On one node the VFS refuses this (`IS_DEADDIR`), but only the node
+that ran `rmdir` marks the directory dead.  So the create committed its entry
+into the unlinked directory, and the directory was then freed with the entry.
+`xfs_create` now refuses with `-ENOENT` when the parent's nlink is 0 once its
+grant is held.  The refusal comes before `xfs_dialloc`, while the transaction
+is still clean.
+
+- **Proven by instrument.** `tests/stress_rmdir_mkdir_race.sh` runs every
+  node of a rig group making directories in a shared parent while rank 1
+  removes that parent mid-slot.  On an idle host it reproduced the damage in
+  a 300 s lap: the cold audit found `dangling=1`, directory 37729751 with `..`
+  naming the free inode 37729750.  On test10, a probe in the create path's
+  platter read had fired for inode 37729750 during a `mkdir`, with nlink 0
+  both in core and on the platter.
+- **Verified.** Three 300 s laps of the same stress on the fixed build, all
+  with clean cold audits.  64 creates met an already-removed parent and were
+  refused.  A probe after the allocation window never fired, so refusing
+  before `xfs_dialloc` covers it.
+- **The same gap on the other name-creating paths is still open:**
+  `D-LINK-SYMLINK-RENAME-INSERT-NAMES-INTO-A-PEER-REMOVED-DIRECTORY`.
+- **Instruments kept.** `P-DEADPARENT` (a directory about to be modified is
+  dead on the platter and was not created by this node),
+  `P-CREATE-DEADPARENT-REFUSED`, and `P-CREATE-DEADDIR-POSTDIALLOC`, all
+  KERN_ERR and capped.
+
+**`chk_mxfs` checks link counts.**  The directory pass checked only what
+each entry names: allocated, a valid dinode, the right type.  A name *lost*
+from a directory leaves nothing of that kind behind.  The inode it named stays
+allocated and valid, and its nlink still counts the lost name.  The pass now
+counts every entry naming each allocated inode, including `.` and `..` (a
+shortform directory's `.` is implicit), and compares that with di_nlink.  It
+reports `nlink_mismatch=` and `disconnected=` at the end of the summary line
+and exits 4 on either.  It skips the superblock's own metadata inodes,
+dirshard-flagged inodes and unnamed unlinked inodes.  It compares nothing when
+any directory could not be walked, because a skipped directory would
+undercount its children.
+
+- **Clean where it should be.** The idle g2 and g4 group images, 31,530
+  inodes: no mismatch.
+- **It sees what the old pass could not.** The kept image from the pre-fix
+  mkdir race lap had read `dangling=1`.  It now shows 28 subdirectories that no
+  entry names.  In 27 of them `..` names a directory created 85–720 ms after
+  them, which is a reused incarnation of their removed parent
+  (`tools/mxfs_dinode.py`).  So all 28 are the mkdir-into-a-removed-directory
+  damage above, not a separate loss.
+- **What this means for earlier verdicts.** Every clean cold audit before
+  this one, including the three verification laps of the mkdir fix above, was
+  blind to lost names.  The mkdir fix's own damage (a `..` naming a free inode)
+  was visible to the old pass, so that verification stands.
+- `chk_clean` on the rig runs the tree's `tools/chk_mxfs`, so every board
+  audit now includes the check.
+
+**Fixed: `link`, `symlink` and `rename` into a directory a peer had removed
+lost the name.**  They had the same gap as `mkdir`: nothing checked the target
+directory's nlink once its grant was held.  `mxfs_insert_deadparent` now
+refuses with `-ENOENT` on all three paths, while the transaction is still
+clean.  The module parameter `insert_deadparent_refuse` (default 1) set to 0
+only reports `P-INSERT-DEADPARENT-SEEN` and inserts anyway.  That is the
+control arm of a same-build A/B, and it loses the name.
+
+- **Proven by instrument**, `tests/stress_rmdir_mkdir_race.sh` with its new
+  `link`, `symlink` and `rename` arms at 8/net/mesh/direct, 300 s per lap,
+  refusal off:
+  - `link`: 57 links met a target with nlink 0.  The audit found 86 regular
+    files with nlink 2 and one name.
+  - `rename`: 99 renames met a target with nlink 0.  The audit found 146
+    regular files with nlink 1 and no name.
+  - Neither image had a dangling entry, so the old audit would have passed
+    both.
+  - `symlink`: 55 inserts into a removed directory in one lap, and the lap
+    broke down before it could be audited, below.
+- **The symlink control took nodes down.**  With the refusal off, two of two
+  symlink laps ended with filesystems shut down on several nodes and two
+  nodes' workloads hung.  A per-node kernel-log watcher caught the chain.  A
+  node that commits a symlink into a directory a peer has removed can never
+  prove it released that directory's grant.  50–71 s later it logs
+  `P-INODE-WEDGE` on exactly that directory ("release unprovable within
+  bounds; grant PINNED … forcing shutdown") and withdraws.  The other nodes'
+  requests on the pinned grant then time out.  All 6 wedges in the lap were on
+  a removed directory the same node had inserted into.  With the refusal off
+  the module behaves as 0.90.36 does, so the released build can do this.
+- **Verified** with the refusal on, three 300 s laps per operation:
+  - link: 68, 86 and 103 refusals;
+  - rename: 116, 181 and 164;
+  - symlink: 205, 225 and 239.
+
+  Every audit was clean with link counts.  The seven watched laps showed no
+  insert into a removed directory, no wedge and no withdraw, and every node
+  returned its full count.
+- Removed from the queue: `D-LINK-SYMLINK-RENAME-INSERT-NAMES-INTO-A-PEER-REMOVED-DIRECTORY`
+  (integrity) and `D-8TCP-SYMLINK-INTO-PEER-REMOVED-DIRS-WITHDRAWS-NODES-AND-HANGS-LOADS`
+  (stability, found and fixed in this version).
+- **Seen, not a defect of this fix:** single lock waits of up to about 5 s
+  (`P-LKTIMEOUT-REMOTE`, one retry interval each) on the stress's hot slot
+  parents, with per-node throughput unchanged.
+- **Still open:**
+  `D-8TCP-RM-OF-A-CHILD-LEAVES-ITS-ENTRY-IN-A-SHORTFORM-PARENT-PEERS-ARE-ADDING-TO`.
+  None of four forced-overlap laps reproduced it under the link-count audit:
+  two `child` laps and two `mkdir` laps on the fixed build, on an idle host.
+- The stress script also gained a `child` arm (the parent is kept alive and
+  rank 1 removes children beside the other ranks' adds), a per-node watcher
+  that keeps kernel failure lines from the start of the lap, and a start line
+  per rank, so a hung rank reads as NO RESULT rather than as a blank.
+
+**Fixed: a task holding a stale demoter claim modified a directory with no
+lock grant.**  A demoter claim exempts the task draining an inode's release
+from the waits its own re-entry would otherwise deadlock on, and the demoter
+bypass in `mxfs_dlm_ilock_begin` admitted that task to the inode without asking
+the DLM.  It admitted any claim, including one whose release had already
+finished: the grant was gone, the task modified the directory anyway, and a
+peer's concurrent changes to it were lost.  The bypass now admits only while a
+drain is actually behind the claim: the cached mode covers the request, or the
+release is in flight (DEMOTING, or its flush) with the grant still held.
+Otherwise the task acquires like any other (`P-DEMOTER-NOGRANT`).  The module
+parameter `demoter_bypass_grant_gate` (default 1) set to 0 admits as before,
+for a control arm.
+
+- **Proven by instrument.**  The 8-node board's own kernel logs from wave 1
+  named the stale claim and the admission behind the lost removal.  A test
+  injector (`dbg_demoter_keep_inject`, `dbg_demoter_keep_skip_ino`, written on
+  rank 1 only during the load through the stress script's `RANK1_SYSFS`) makes
+  that state on demand.  Control lap, gate 0: 4 no-grant admissions, and in the
+  same second as one of them a dropped committed change on that very directory
+  (`P177-OBLIGATION-DROPPED-AT-ADOPT`).  The cold audit was CORRUPT: a peer's
+  child directory whose `..` names the removed, freed directory.
+- **Verified.**  Gate 1 on the same build, and two laps on the final build:
+  every no-grant request refused (3, 1 and 5), no dropped directory
+  obligation, no wedge or withdraw, every rank returned its full count, all
+  audits clean with link counts.
+
+**Fixed: a claim whose owner had exited stayed in force, could be inherited
+by an unrelated process, and wedged the directory's node.**  The claim slots
+held a bare `task_struct` pointer and no reference.  When the owner exited
+with its claim set, two things followed, both measured at 8/net/mesh/direct:
+
+- the next task given the same memory compared equal to the slot and was
+  treated as the drain: an `rm` 28 ms later and a `mkdir` 12 s later presented
+  a dead `rm`'s claim on the shared base directory, and without the grant gate
+  the `mkdir` modified it with no grant, leaving its link count 3 above its
+  entries;
+- with the gate on, nothing ever retired the dead claim, so every release of
+  the directory failed to claim it (`P15-REL-ABORT` 116 times) until
+  `P-INODE-WEDGE` shut the node down and it withdrew.
+
+A slot now holds a reference on its owner.  The reference is taken by the side
+that wins the empty-to-owner swap and dropped by the side that wins the swap
+back: the owner's clear, the punt sweep, final release, or retirement.  A
+claimed `task_struct` can therefore never be reissued to another task.  A
+claim whose owner has reached `exit_state` cannot be a drain in progress.  It
+is retired when a task checks for a foreign drain or tries to claim the inode
+(`P-DEMOTER-DEAD-REAP`), under a hashed lock it shares with the punt sweep.
+`mxfs_clayer/pinned_resource.c`'s bare claim now goes through the claim
+helpers.  The module parameter `demoter_dead_claim_reap` (default 1) set to 0
+leaves a dead claim in place, for a control arm.
+
+- **Control**, retirement off, dead-owner claims planted on the base
+  directory: rank 1 wedged and withdrew, made 3 mkdirs against about 980 on
+  each other rank, and the audit could not run.
+- **Verified**, retirement on, two 300 s laps: 13 and 15 dead claims retired
+  (10 and 9 on the base directory) 10–36 ms after planting, no wedge or
+  withdraw, every rank returned its full count, audits clean with link counts.
+- Removed from the queue as fixed and verified:
+  `D-8TCP-RM-OF-A-CHILD-LEAVES-ITS-ENTRY-IN-A-SHORTFORM-PARENT-PEERS-ARE-ADDING-TO`
+  and `D-SHARED-PARENT-NLINK-EXCEEDS-ITS-ENTRIES-AFTER-CONCURRENT-RM-AND-MKDIR`
+  (both integrity).
+- **Still open**, outside the release bar:
+  `D-A-DEMOTER-CLAIM-OUTLIVES-ITS-RELEASE-AND-PEERS-WAIT-10S-FOR-A-DIRECTORY`.
+  The exit that leaves a claim set while its owner is still alive is not yet
+  named, and retirement does not touch a live owner's claim.
+
+**The stress script records what it scores live.**  The injector,
+no-grant, retirement, dropped-obligation, wedge and withdraw lines now go to
+each node's `<node>.watch` as they are logged.  A lap's dmesg ring wraps
+long before it ends: 86K kernel lines named the base directory on rank 1
+alone.  So counts read from dmesg afterwards were 0 whatever happened, and
+one control lap could not be scored.  `tests/rmrace_gate_lap.sh` runs one arm
+of these A/Bs: fresh boots, the lap, and a per-node score from the watch
+files.
+
+**Group LUNs are the size of the rig's own.**  `scripts/rig_groups.sh`
+defaulted to 20G, which formats 9 AGs against the rig LUN's 63.  The group
+boards were therefore not graded on the release geometry.  The default is now
+the rig image's size.  The image is sparse, so the size costs only the blocks
+written.
+
+**`tools/netconsole_listen.sh` no longer keeps its caller's files open.**
+Started by `run.sh`'s prep, the listener inherited `run.sh`'s rig lock on
+fd 9.  It is meant to outlive the run, so it held the lock from PPID 1 after
+the run ended.  The next whole-rig run killed it as an "orphan" and restarted
+it, and a group run could not take the lock at all.  The listener now closes
+every inherited descriptor above 2 before it starts.  Verified: started from a
+shell holding the rig lock on fd 9 and another file on fd 7, it holds neither.
+
 ## 2026-09-30 — 0.90.36 — 8-node TCP and 8-node CAW are released on Proxmox VE 9, RHEL 9.8, Ubuntu 24.04 and Debian 13
 
 Clusters of eight nodes are now released on both transports, alongside

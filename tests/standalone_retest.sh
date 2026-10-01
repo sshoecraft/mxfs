@@ -1,13 +1,13 @@
 #!/bin/bash
-# standalone_retest.sh — run each named 2/tcp test in TRUE ISOLATION to split
+# standalone_retest.sh — run each named 2/net/mesh/direct test in TRUE ISOLATION to split
 # REAL-bug failures from suite CONTAMINATION (sess44, ccloop 8ddb16a2).
 #
-# The criterion is the full `./run.sh 2 tcp` suite (ONE prep, all tests back to
+# The criterion is the full `./run.sh 2/net/mesh/direct` suite (ONE prep, all tests back to
 # back).  A test that fails in-suite may be a real bug OR contamination from a
 # prior test that degraded the cluster (esp. coord=fault tests that kill nodes).
 # To tell them apart, this harness — for EACH named test — does a full virsh
 # destroy/start of both nodes (pristine), clears dmesg, then runs exactly that
-# one test via `./run.sh 2 tcp <test>` (which does its own fresh mkfs+mount).
+# one test via `./run.sh 2/net/mesh/direct <test>` (which does its own fresh mkfs+mount).
 # A test that PASSES here but FAILED in-suite => contamination.  A test that
 # FAILS here too => real bug.  Per-run it also reports any FS shutdown /
 # corruption / self-fence seen in either node's (now-fresh) dmesg.
@@ -53,7 +53,7 @@ declare -A RESULT
 for t in "${TESTS[@]}"; do
     echo "--- [$t] reboot to pristine, then run isolated ---"
     reboot_clean
-    out=$(timeout 600 ./run.sh 2 tcp "$t" 2>&1)
+    out=$(timeout 600 ./run.sh 2/net/mesh/direct "$t" 2>&1)
     line=$(echo "$out" | grep -E "^  (PASS|FAIL|PEND) " | tail -1)
     verdict=$(echo "$line" | awk '{print $1}')
     RESULT[$t]="${verdict:-NORESULT}"

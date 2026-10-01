@@ -1,21 +1,20 @@
 #!/bin/bash
 # suite_cycle_run.sh — one clean-cycle full-suite iteration for flake hunting.
 #
-#   usage: suite_cycle_run.sh <N> <dlm> [logfile]
+#   usage: suite_cycle_run.sh <configuration> [logfile] [test ...]
 #
 # Destroys+starts test1..testN (fresh boot = fresh kernel ring, no cross-run
-# residue), waits for SSH on all nodes, then runs the full `run.sh N dlm`
+# residue), waits for SSH on all nodes, then runs the full `run.sh N/<class>/<method>/<attach>`
 # suite with MXFS_EXTRA_MODARGS preserved from the environment (default
 # 'watch_ino=1' — the sess10 probe-scope sentinel; dir_reuse/fence arm the
 # real storm-dir ino per round themselves).
 #
-# budget: healthy 4/tcp suite wall is ~11-13 min; the 1100s cap makes a hung
+# budget: healthy 4/net/mesh/direct suite wall is ~11-13 min; the 1100s cap makes a hung
 # suite a FAIL, not a wait.
 set -u
-N="${1:?usage: suite_cycle_run.sh <N> <dlm> [logfile] [test ...]}"
-DLM="${2:?usage: suite_cycle_run.sh <N> <dlm> [logfile] [test ...]}"
-LOG="${3:-/tmp/suite_cycle_run.log}"
-shift; shift; [ $# -gt 0 ] && shift
+CONFIG=$(python3 "$(dirname "$0")/../tools/configuration.py" parse "${1:?usage: suite_cycle_run.sh <configuration> [logfile] [test ...]}") || exit 2; N=${CONFIG%%/*}; DLM=${CONFIG#*/}
+LOG="${2:-/tmp/suite_cycle_run.log}"
+shift; [ $# -gt 0 ] && shift
 ONLY=("$@")	# optional explicit test subset passed to run.sh
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 SSH="$REPO/tools/mxfs_sshpass.sh"
@@ -52,7 +51,7 @@ fi
     fi
     echo "--- cycle OK: $N nodes up ---"
     cd "$REPO"
-    MXFS_EXTRA_MODARGS="$MODARGS" timeout 1100 ./run.sh "$N" "$DLM" ${ONLY[@]+"${ONLY[@]}"}
+    MXFS_EXTRA_MODARGS="$MODARGS" timeout 1100 ./run.sh "$CONFIG" ${ONLY[@]+"${ONLY[@]}"}
     rc=$?
     # Archive every node's current-boot kernel log BEFORE the next cycle
     # destroys it (virsh destroy skips the journald flush — this is how the

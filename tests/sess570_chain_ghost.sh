@@ -50,7 +50,7 @@ while [ $lap -le "$LAPS" ]; do
     tag=$(printf '%s%c' "$LABEL" "$(printf "\\$(printf '%03o' $((96 + lap)))")")
 
     t=$(date +%s)
-    MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2 tcp prep_cluster > "$OUT/prep$lap.log" 2>&1
+    MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2/net/mesh/direct prep_cluster > "$OUT/prep$lap.log" 2>&1
     rc=$?
     echo "STAGE lap$lap prep rc=$rc wall=$(( $(date +%s) - t ))s  $(grep -am1 'prep_cluster OK\|FAIL' "$OUT/prep$lap.log" | cut -c1-160)"
     [ $rc = 0 ] || { echo "RESULT: FAIL label=$LABEL lap=$lap stage=prep evidence=$OUT"; exit 2; }

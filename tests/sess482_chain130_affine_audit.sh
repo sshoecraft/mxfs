@@ -107,14 +107,14 @@ done
   sv=$(modinfo mxfs.ko | awk '/srcversion/{print $2}')
   echo "STAGE instrument_present sv=$sv"
 
-  timeout 300 ./run.sh 32 caw prep_cluster; prc=$?
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; prc=$?
   echo "STAGE prep rc=$prc"
   [ "$prc" = 0 ] || { echo "ABORT: prep rc=$prc"; echo "DONE $(date -u +%FT%TZ)"; exit 1; }
 
   # ---- CONTROL LAP: knob off (its default). Establishes the baseline wall and
   # ---- proves the instrument is genuinely gated rather than always-on.
   T0=$(date +%s); SINCE0=$(date -u +'%Y-%m-%d %H:%M:%S')
-  timeout 500 ./run.sh 32 caw node_death_replay; c_rc=$?
+  timeout 500 ./run.sh 32/disk/caw/mpath node_death_replay; c_rc=$?
   echo "STAGE control_lap rc=$c_rc wall=$(( $(date +%s) - T0 ))s budget=470s (run.sh enforces)"
 
   timeout 120 bash tests/fleet_probe_sweep.sh "$EV/sweep_control" "$SINCE0" 32 \
@@ -173,7 +173,7 @@ done
 
   # ---- ARMED LAP: same row, same budget. The audit cost is not an excuse to widen it.
   T1=$(date +%s); SINCE1=$(date -u +'%Y-%m-%d %H:%M:%S')
-  timeout 500 ./run.sh 32 caw node_death_replay; a_rc=$?
+  timeout 500 ./run.sh 32/disk/caw/mpath node_death_replay; a_rc=$?
   a_wall=$(( $(date +%s) - T1 ))
   echo "STAGE armed_lap rc=$a_rc wall=${a_wall}s budget=470s pct=$PCT"
 

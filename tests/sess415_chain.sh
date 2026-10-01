@@ -15,13 +15,13 @@ cd /src/mxfs || exit 1
 LOG=tests/evidence/sess415_chain.log
 {
   echo "=== sess415 chain start $(date -u +%FT%TZ) build=$(cat VERSION) ==="
-  timeout 300 ./run.sh 32 caw prep_cluster
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster
   echo "STAGE prep rc=$?"
-  timeout 500 ./run.sh 32 caw node_death_replay
+  timeout 500 ./run.sh 32/disk/caw/mpath node_death_replay
   echo "STAGE ndr rc=$?"
-  timeout 140 ./run.sh 32 caw crash_consistency
+  timeout 140 ./run.sh 32/disk/caw/mpath crash_consistency
   echo "STAGE cc1 rc=$?"
-  timeout 140 ./run.sh 32 caw crash_consistency
+  timeout 140 ./run.sh 32/disk/caw/mpath crash_consistency
   echo "STAGE cc2 rc=$?"
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

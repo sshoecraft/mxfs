@@ -377,8 +377,9 @@ ensure_src_or_abort() {
 # format) and MXFS_DEV_SOURCE, and prints one DEVICE line into the lap's
 # log.  The candidate is, in order: MXFS_DEV when the caller set it; the
 # device of the node's live mxfs mount; the declared LUN found by its own
-# identifier (/dev/disk/by-id/wwn-0x<wwid>); the transport's rig default
-# only when MXFS_TRANSPORT is set explicitly.  Whatever chose it, the
+# identifier (/dev/disk/by-id/wwn-0x<wwid>); the configuration's rig default
+# (tools/configuration.py: the attachment's device) only when MXFS_CONFIG is
+# set explicitly.  Whatever chose it, the
 # candidate must be a block device on the node carrying the declared WWID,
 # and when the node has a live mxfs mount the candidate must BE that mount's
 # device (major:minor): a caller may not name another device on a node that
@@ -441,11 +442,10 @@ mxfs_dev_resolve() {
             d=/dev/disk/by-id/wwn-0x$decl; src=declared-wwid
             q=$(rsx 20 "$n" "test -e $d && echo BYID_OK")
             if [ "$(echo "$q" | tail -1)" != BYID_OK ]; then
-                case ${MXFS_TRANSPORT:-} in
-                    tcp) d=/dev/sda; src=transport-default ;;
-                    caw*) d=/dev/mapper/mpatha; src=transport-default ;;
-                    *) mxfs_dev_abort "no MXFS device basis on $n: no MXFS_DEV, no live mxfs mount, no /dev/disk/by-id/wwn-0x$decl, no MXFS_TRANSPORT" ;;
-                esac
+                [ -n "${MXFS_CONFIG:-}" ] || mxfs_dev_abort "no MXFS device basis on $n: no MXFS_DEV, no live mxfs mount, no /dev/disk/by-id/wwn-0x$decl, no MXFS_CONFIG"
+                d=$(python3 "$MXFS_RIG_LIB_DIR/../../tools/configuration.py" get "$MXFS_CONFIG" device) \
+                    || mxfs_dev_abort "MXFS_CONFIG=$MXFS_CONFIG is not a configuration"
+                src=configuration-default
             fi
         fi
     fi
@@ -532,7 +532,7 @@ mxfs_host_image() {
         [ -n "$MXFS_DEV_RESOLVED" ] || mxfs_dev_resolve "$n"
         ref=$MXFS_DEV_FSID; refsrc="$n:$MXFS_DEV_RESOLVED"
     else
-        ref=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("fsid") or "")' "$MXFS_RIG_LIB_DIR/../../.cluster_marker.json" 2>/dev/null)
+        ref=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("fsid") or "")' "${MXFS_MARKER:-$MXFS_RIG_LIB_DIR/../../.cluster_marker.json}" 2>/dev/null)
         refsrc=cluster-marker
         [ -n "$ref" ] || mxfs_dev_abort "no reference identity for the host image: no node was named and the cluster marker records no fsid — name the node whose LUN the image must match"
     fi
@@ -664,18 +664,22 @@ d=json.load(open(sys.argv[1])); print((d.get(sys.argv[2]) or {}).get("task_retir
 # refuses to certify a boot succession — which is the intended state, not a
 # harness failure to paper over.
 #
-# The transport follows MXFS_TRANSPORT (tcp unless it names a CAW rig: caw,
-# cawd or cawp), as the prep's does.  It used to be force_transport=1 always,
+# The transport follows MXFS_CONFIG (tools/configuration.py; tcp when unset),
+# as the prep's does.  It used to be force_transport=1 always,
 # so a lap that reloads the module after a reboot put a CAW node back on TCP,
 # and the mount was refused as a transport mismatch before the path under test
 # was reached (tests/evidence/20260926T065606Z_btk_btk_caw_s1:
 # P-TRANSPORT-MISMATCH-REFUSED forced=tcp platter=caw).  Matching only the
 # exact word `caw` did the same thing again once the takeover harness moved to
-# the SCST direct rig, `cawd`
-# (tests/evidence/20260926T160431Z_btk_preempt_foreign_s6b).
+# the SCST direct rig as a CAW configuration of its own
+# (tests/evidence/20260926T160431Z_btk_preempt_foreign_s6b).  The transport is
+# now asked of the configuration, never matched against a spelling.
 mxfs_rig_modargs() {
-    local c ft=1
-    case "${MXFS_TRANSPORT:-tcp}" in caw*) ft=0 ;; esac
+    local c ft=1 t
+    if [ -n "${MXFS_CONFIG:-}" ]; then
+        t=$(python3 "$MXFS_RIG_LIB_DIR/../../tools/configuration.py" get "$MXFS_CONFIG" transport) || return 1
+        [ "$t" = caw ] && ft=0
+    fi
     c=$(mxfs_rig_retirement_contract)
     if [ -n "$c" ]; then
         printf '%s\n' "target_cache_protected=1 force_transport=$ft 'target_retire_contract=\"$c\"'"

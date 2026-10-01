@@ -2,7 +2,7 @@
 # sess433 chain: wait for the detached 0.39.13 board to finish (it insmods
 # the tree's mxfs.ko over NFS — NEVER rebuild while it runs), then build
 # 0.40.0 (D-379(B)/D-0355 PR-key retention + plain-REGISTER predecessor
-# guard), prep 32/caw, and run the directed arms in dependency order:
+# guard), prep 32/disk/caw/mpath, and run the directed arms in dependency order:
 #   lone_mount_create fixed            (D-0353 regression, 60 s)
 #   lone_mount_create remount_refused  (P302 + P305-PRESENT, refused; 100 s)
 #   lone_mount_create remount_snx      (P302 + P305-REPLACED + replay; 100 s)
@@ -26,7 +26,7 @@ BOARD=tests/evidence/sess432_board_03913_s432b.log
   echo "BUILD_RC=$brc TOOLS_RC=$trc VERSION=$(cat VERSION) sv_old=$OLD sv_new=$NEW"
   grep -c 'error:' tests/evidence/sess433_build_$LABEL.txt | sed 's/^/build errors=/'
   if [ "$brc" -ne 0 ] || [ "$NEW" = "$OLD" ]; then echo "ABORT: build failed or srcversion unchanged"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep rc=$?"
   timeout 60  tests/lone_mount_create.sh ${LABEL}_fixed test1 32 fixed;             echo "STAGE fixed rc=$?"
   timeout 100 tests/lone_mount_create.sh ${LABEL}_refused test1 32 remount_refused; echo "STAGE remount_refused rc=$?"
   timeout 100 tests/lone_mount_create.sh ${LABEL}_snx test1 32 remount_snx;         echo "STAGE remount_snx rc=$?"

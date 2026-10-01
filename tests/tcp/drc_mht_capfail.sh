@@ -1,5 +1,5 @@
 #!/bin/bash
-# Run 8/tcp dir_reuse at given MHT; on FAIL, dump failure signature from the
+# Run 8/net/mesh/direct dir_reuse at given MHT; on FAIL, dump failure signature from the
 # (still-booted) cluster BEFORE returning. sess2 ccloop.
 set -u
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd); cd "$REPO"

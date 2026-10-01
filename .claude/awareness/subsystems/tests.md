@@ -11,7 +11,7 @@
 <!-- 2026-09-04: (1) tests/setup/prep_node.sh — the tcp transport branch now
      carries target_cache_protected=1 like the caw branch; the declaration
      describes the TARGET's cache, not the lock transport, and without it the
-     0.54.0 durability gate refuses every 2/tcp prep with EACCES
+     0.54.0 durability gate refuses every 2/net/mesh/direct prep with EACCES
      (P-DOMAIN-REFUSED fua_disable=1 target_cache_protected=0).  (2) since
      0.73.0 the production build ADMITS a TCP clustered RW mount
      (pal/linux/xfs_super.c mxfs_transport_domain_admit; 0.55.0-0.72.x
@@ -28,7 +28,7 @@
      MXFS_DEV=/dev/disk/by-path/ip-192.168.1.4:3260-iscsi-iqn.2004-04.com.qnap:
      ts-453pro:iscsi.target-0.f35772-lun-0 ./run.sh 2 <caw|tcp> ...; set the
      path's /sys/block/sdX/device/timeout to 180 first.  Measured 2026-09-04 on
-     0.70.19: 2/caw prep 50 s + 9 rows 184 s; 2/tcp (lab) prep 39 s + 9 rows
+     0.70.19: 2/disk/caw/mpath prep 50 s + 9 rows 184 s; 2/net/mesh/direct (lab) prep 39 s + 9 rows
      228 s — derive TCP wrapper budgets from TCP walls, they run ~2x CAW. -->
 
 **Owner files**: `tests/` (37 files, 3.4K LOC), `bench/` (1 file), `scripts/` (3 files), `packaging/` (5 files)
@@ -127,7 +127,8 @@ Superseding the 2-node material above for coordinated (2-32 node) testing:
   (an earlier on-FS `.mxfs_barriers/` scheme could mask/poison the exact
   coherency bugs the suite exists to catch).
 - `criteria.json` — the live scoreboard; `run.sh`'s `record()` writes one
-  entry per test per `"<N>/<dlm>"` condition.
+  entry per test per configuration (`<nodes>/<class>/<method>/<attach>`,
+  parsed only by `tools/configuration.py`; `docs/attachment-methods.md`).
 
 ### Harness failure-state protocol (added 2026-07-11)
 
@@ -138,7 +139,7 @@ timed out. This made a single node's genuine kernel-level hang (a syscall
 that never returns — not a correctness bug) indistinguishable, in the
 aggregated `nodes_pass=X/Y` metric, from every node independently failing a
 correctness check, and it cost real wall-clock: rank 1's `rm -rf` wedged
-D-state in `xfs_buf_iowait` (`dir_reuse_coherency@32/caw`, run61b) and the
+D-state in `xfs_buf_iowait` (`dir_reuse_coherency@32/disk/caw/mpath`, run61b) and the
 other 31 nodes spent ~2 hours cycling through repeated 120s barrier
 timeouts — one per remaining round — before the outer per-run `timeout`
 killed everything with **zero** `RESULT:` lines printed by any of the 32
@@ -350,11 +351,10 @@ script's side effect, not a filesystem defect).
   loses the cmdline marker — write `sleep 900 9<&-; :` so bash stays resident
   (and the child doesn't inherit fd9), then pkill -f RUNID works.
 - **tests/setup/prep_fs.sh** now refuses to mkfs a device with /sys/block
-  holders (a claimed device = the condition's rig is not wired).  On this
-  fleet /dev/sda is a PATH MEMBER of the caw mpath map; the legacy tcp/cawp
-  default would have mkfs'd into a live path of the shared LUN but for
-  multipathd's EBUSY.  tcp condition is UNRUNNABLE until the rig is rewired
-  (no XML-wired disk, no /dev/mxfs-shared on host).
+  holders (a claimed device = the attachment's rig is not wired).  On an
+  mpath fleet /dev/sda is a PATH MEMBER of the mpath map; the old /dev/sda
+  default of the LIO and pass rigs would have mkfs'd into a live path of the
+  shared LUN but for multipathd's EBUSY.
 
 ## sess48 — iunl_soak_sweep.sh (P53/iunlink-store soak sweeper)
 
@@ -633,7 +633,7 @@ unflushed stdout when the kill lands.
 barrier — the shape that actually happens in the field. Inert unless set, and
 it touches no filesystem state (it is a `sleep`).
 
-    MXFS_TEST_ENV="MXFS_STALL_RANK=7 MXFS_STALL_S=300" ./run.sh 32 caw posix_multi
+    MXFS_TEST_ENV="MXFS_STALL_RANK=7 MXFS_STALL_S=300" ./run.sh 32/disk/caw/mpath posix_multi
     -> FAIL nodes_pass=0/32 states:BUDGET_EXHAUSTED=32 ...
        steps[injected-stall=1,pm barrier clean=31] [30s/30s]
 
@@ -853,7 +853,7 @@ A wedged host's journal going quiet is the wedge, not the absence of one.
 ## sess404 — fleet param setter + kill-lap evidence layout
 - `tests/fleet_set_params.sh "<k=v> [k=v ...]" [nodes] [outfile]` — sets runtime mxfs
   module params on every node IN ORDER (parallel ssh, per-node rc + readback, SETFAIL
-  -> exit 2).  Use after `run.sh 32 caw prep_cluster` to run a board with enforcement
+  -> exit 2).  Use after `run.sh 32/disk/caw/mpath prep_cluster` to run a board with enforcement
   armed: `tests/fleet_set_params.sh "target_cache_protected=1 foreign_replay_token_enforce=1"`
   (prerequisite first — the enforce setter fails closed without it).
 - tmpfile_churn_kill.sh laps on 0.24.2: kill5e/5f/5g (auto:shared) + kill4d (auto:single)
@@ -967,7 +967,7 @@ A wedged host's journal going quiet is the wedge, not the absence of one.
   tmpfile_churn_kill laps — auto:shared (--no-prep, uses the board's mounted
   cluster) then auto:single (full tck prep; lap 1 unmounts the fleet). It is
   the board's ONLY node-kill + foreign-replay row (sess404 gate finding).
-  Measured 32/caw on 0.27.5: shared 111s, single 231s, row 343s/470 budget.
+  Measured 32/disk/caw/mpath on 0.27.5: shared 111s, single 231s, row 343s/470 budget.
   TERMINAL: leaves the fleet unmounted; anything after it needs prep.
 - **Run-lock re-entrancy**: run.sh exports MXFS_RUNLOCK_OWNER=$$ after taking
   /tmp/mxfs_run.lock; a child invocation (host row -> tck -> d385 prep ->
@@ -1006,7 +1006,7 @@ A wedged host's journal going quiet is the wedge, not the absence of one.
 ## sess420 harnesses (TCP tokens, no-survivor crash, zero-incarnation refusal)
 - `tests/tcp_token_plumbing_verify.sh <label> [nodes] [files]` — step 1 of
   docs/tcp-authority-ledger.md: per-node P228-TOKCLASS / P239-OWNAUTH deltas
-  across a private-dir small-file workload on 32/tcp; PASS = noepoch 0,
+  across a private-dir small-file workload on 32/net/mesh/direct; PASS = noepoch 0,
   durnoep 0, ag>0, durable>0 on every node.  Chain: `tests/sess420_token_chain.sh`.
 - `tests/no_survivor_crash_replay.sh <label> [N] [remounter]` — D-OWN-CRASH-
   RECLAIM item 2: fsync'd payload on all N, virsh destroy ALL, boot one node,
@@ -1056,7 +1056,7 @@ A wedged host's journal going quiet is the wedge, not the absence of one.
   lost-GRANT idempotent retry, activation barrier, clean unmount).  The engine test
   links the REAL `dlm/dlm.c` (`dlm/dlm_user_compat.h` shim).  Any dlm.c change: run it.
 - `tests/sess422_chain.sh` / `tests/sess424_chain.sh` — build + proof + usermode gate +
-  32/tcp (mpatha, `MXFS_DEV`/`MXFS_CRIT`) token verify + d0287 + P-TAUTH sweep + 32/caw
+  32/net/mesh/direct (mpatha, `MXFS_DEV`/`MXFS_CRIT`) token verify + d0287 + P-TAUTH sweep + 32/disk/caw/mpath
   board.  s424 adds `tests/evidence/sess424_<label>_dmesg/<stage>_testN.txt`: per-node
   RAW dmesg lines (P-TAUTH*, membership, REMASTER status=12, lock-retry exhaustion,
   mount refusals) after every tcp prep/stage — the s422 run captured only counts and
@@ -1069,10 +1069,10 @@ A wedged host's journal going quiet is the wedge, not the absence of one.
 
 
 ## sess429 — sweeps read journald, not the dmesg ring; new reproducer
-- The node dmesg ring wraps within minutes under a 32/caw board (test1: ~2 min retained after s433), so kmsg-marker-bounded sweeps read ZERO. `tests/sess429_chain.sh` (mark()/sweep()), `tests/sess416_board_0286.sh` (gate-3 sweep) and `tests/free_home_settle_repro.sh` now record the mark TIME and sweep `journalctl -k -q --since "$MARKTIME"`; each prints JOURNAL_LINES per node so a rebooted node's short window is visible. ccmemory `trap-dmesg-ring-wraps-under-board-kmsg-marker-sweeps-read-zero-use-journalctl-since`.
+- The node dmesg ring wraps within minutes under a 32/disk/caw/mpath board (test1: ~2 min retained after s433), so kmsg-marker-bounded sweeps read ZERO. `tests/sess429_chain.sh` (mark()/sweep()), `tests/sess416_board_0286.sh` (gate-3 sweep) and `tests/free_home_settle_repro.sh` now record the mark TIME and sweep `journalctl -k -q --since "$MARKTIME"`; each prints JOURNAL_LINES per node so a rebooted node's short window is visible. ccmemory `trap-dmesg-ring-wraps-under-board-kmsg-marker-sweeps-read-zero-use-journalctl-since`.
 - `tests/free_home_settle_repro.sh <label> [node] [files] [peer]`: the s432 ino-133 sequence (dd 4 KiB + rm ×N, then drop_caches reclaim) on a prepped multi-node mount; asserts zero P237-EVICT-OBLIGATION / P-SESSION-POISON / P55C-FREE-HOME-UNSETTLED and FREE-HOME == SETTLED; ABORTs if `/mnt/shared` is not an mxfs mount (after node_death_replay the cluster is torn down and the workload would hit the root fs). Wired into sess429_chain.sh as stage `fhs` (after prep, before dre).
 - `tests/free_foreign_realloc_repro.sh <label> [node] [files] [peer]` (sess430): same-node `dd; sync; rm; dd; rm` chains (records both lives' inos — same ino = the recycle path) then drop_caches, then the PEER creates 4×N files in the same dir to reallocate the numbers. FAIL on any P55C-FREE-FOREIGN whose ino is a chain ino, any P-CR62 DISK-LIVE / P-CR63-DEFER-DISKLIVE / shutdown signature on either node. Expected FAIL on 0.39.0 (the D-0351 chain defect), PASS on 0.39.1. `tests/classify_free_foreign.py` buckets a board sweep's FOREIGN lines (gen delta, per-ino cross-node tag timelines). `tests/sess430_chain.sh <label> <waitlog>`: pre-fix measure on the deployed build → build → post-fix repro → fhs → dre ×2 → board, journald sweeps with `chain_live`/`chain_written`/`disklive` verdict counters.
-- `tests/sess429_chain.sh <label> [wait_on_log]`: build → build-proof → tauth usermode gate (now incl. view_format_test) → prep → chk-geometry (authority ledger + authority view) → fhs → dre1/dre2 → 32/caw board → journald sweeps with settled/unsettled/P237 verdict counts.
+- `tests/sess429_chain.sh <label> [wait_on_log]`: build → build-proof → tauth usermode gate (now incl. view_format_test) → prep → chk-geometry (authority ledger + authority view) → fhs → dre1/dre2 → 32/disk/caw/mpath board → journald sweeps with settled/unsettled/P237 verdict counts.
 ## sess431 — FREE-publication claim verification + wall-clock analysis
 - `tests/sess430_containment_chain.sh <label> <waitlog>` (sess430/431): wait → pre-fix injector (only if fleet sv == tree sv) → build+proof → tauth gate → prep → injector (or `AB=1` → `tests/dialloc_validate_ab.sh`) → (`SHORT=1` stops here) → ffr → fhs → dre ×2 → board (`tests/sess416_board_0286.sh`) → journald sweeps. Sweep HIGHVOL now prints `fp_claim/fp_keep/fp_write/fp_durable/fp_clear_other` and the verdict line `freepub_stale=` (P-FREEPUB-CLAIM-STALE + P238 cls=freepub-stale). Launch with `setsid nohup ... & disown` (survives the relay); ~27 min for a full lap (build no-op) — RULE 0: measured s439 16:54→17:21Z.
 - `tests/dialloc_validate_ab.sh <label> nodeA nodeB`: arm0 (knob off) now PASSES on EITHER pre-containment shape — P-CR62/shutdown signatures OR the silent one (X handed out to a created file; s438 on 0.39.4 measured exactly that: rc=1 sig=0 X_handed_out=1). arm1 (knob on) must contain (P-DIALLOC-DISKLIVE for X, X never handed out).
@@ -1141,7 +1141,7 @@ A wedged host's journal going quiet is the wedge, not the absence of one.
   bench x2 + d379b + lone_crash_replay e1/e0).
 
 ### sess435 (0.41.2)
-- `tests/sess435_chain8_0412.sh <label>` — build 0.41.2, prep, `lone_crash_replay enforce1` ×2 (test5/6, test7/8), prep, `lone_rsync_bench`, prep, knob-armed 32/caw board + journal sweep (adds P308/P308NA/P310 counters). Log `tests/evidence/sess435_chain8_0412_<label>.log`.
+- `tests/sess435_chain8_0412.sh <label>` — build 0.41.2, prep, `lone_crash_replay enforce1` ×2 (test5/6, test7/8), prep, `lone_rsync_bench`, prep, knob-armed 32/disk/caw/mpath board + journal sweep (adds P308/P308NA/P310 counters). Log `tests/evidence/sess435_chain8_0412_<label>.log`.
 - `tests/lone_crash_replay.sh`: `quarantine=` now excludes the barrier line's `quarantined=0x0` (was a false FAIL on a real pass, s434j).
 - `tests/lone_rsync_bench.sh`: aborts the node-side script on `mrc!=0` (s434j ran rsync onto a rebooted node's root fs — the module was not loaded; never run it on a node that was virsh-destroyed without a prep in between).
 
@@ -1318,7 +1318,7 @@ A wedged host's journal going quiet is the wedge, not the absence of one.
   readdir/stat cross-node, rmdir barrier, 1500-entry listing, zero
   P-DIRSHARD corruption lines); leaves dirshard_vectors + dirshard_n64 for
   the platter check.  Chain: `tests/sess466_chain97_dirshard_stage1.sh`
-  (install frozen 0.64.0, prep, selftests, fleet umount + chk, 32/caw board).
+  (install frozen 0.64.0, prep, selftests, fleet umount + chk, 32/disk/caw/mpath board).
 - `tests/depart_crash_cuts.sh` cut 5: S1 may already be EMPTY (a peer settles
   inside its heartbeat lap); the key-naming proof is then the peer's
   P304-RETIRE-PENDING-SEEN ... via=ident line.  Chain 96 re-runs it.
@@ -1339,7 +1339,7 @@ A wedged host's journal going quiet is the wedge, not the absence of one.
   comm (D-FOREIGN-SLICE-INTENTS-ABANDONED RULE-4 attribution).
 - `tests/sess467_chain99_d0523_peerloss_attrib.sh`: install frozen 0.64.2,
   joiner + peerloss arms, attribution lap, preps between.  Gated on chain 98.
-- Board wrapper: a full 28-row 32/caw board measures 1283-1303 s; a
+- Board wrapper: a full 28-row 32/disk/caw/mpath board measures 1283-1303 s; a
   `timeout 1200` wrapper (chains 94/97 as written) kills node_death_replay
   mid-row.  Chain 97 corrected to 1320 s.
 
@@ -1431,7 +1431,7 @@ A wedged host's journal going quiet is the wedge, not the absence of one.
 
 - `tests/mxfs_sb_bytecmp.sh snap <img> <out> [xfs_data_offset]` / `cmp <label> <pre> <post>`: 512-byte XFS SB sector snapshot + byte-compare excluding icount/ifree/fdblocks/crc/lsn (GPT bar for D-0133).  chk_mxfs -v prints `xfs_data_offset=` (793497600 on the current image).
 - `tests/sess474_chain116_d0133_sb_recount.sh` now snapshots the SB around the fleet unmount and prints `SB-BYTECMP` + `SB-CHK-MATCH`.
-- `tests/sess475_chain116_d0133_sb_seal.sh` (chain 116 v2, 0.64.30): arms normal/adversarial/latedirty/holderfail; verdict = 32/32 lock rc=0 at put_super, distinct grant epochs, 32/32 P-SB-SEAL-OK, 0 seal violations, highest-epoch writer == chk, every node's last P-SB-WRITE-SUBMIT locked=1; adversarial = waiter's epoch == holder's + 1 and wall >= 0.8 x pause (+ D-0536 measurement from a bursting mounted peer); latedirty = dirty departure + peer P163 recovery; holderfail = virsh destroy inside the hold, waiter recounts fresh.  `N=4 COND=tcp|cawd` runs it at four nodes (workers `test1:test2 test3:test4 test1:test3`, HF_X/HF_Y test3/test4).  0.90.12: the chain exports `MXFS_MKFS_OPTS=-D` — its normal-lap workload is the sharded-directory reuse harness, which is refused (EOPNOTSUPP) on a format made without `-D`, and a lap whose counters never moved (icount=64 every lap) verifies nothing; the lock-line grep now allows the `master_self=` field between `epoch=` and `at=`.  At 4/tcp the holderfail arm fails by design of the DLM today (D-UNMOUNT-DURING-DEAD-MASTERS-RECOVERY-DEPARTS-DIRTY-AT-3-PLUS-NODES: the waiter's put_super lock fails fast on the dead master and it departs DIRTY); the arm's assertions are the 2-node design and stay.
+- `tests/sess475_chain116_d0133_sb_seal.sh` (chain 116 v2, 0.64.30): arms normal/adversarial/latedirty/holderfail; verdict = 32/32 lock rc=0 at put_super, distinct grant epochs, 32/32 P-SB-SEAL-OK, 0 seal violations, highest-epoch writer == chk, every node's last P-SB-WRITE-SUBMIT locked=1; adversarial = waiter's epoch == holder's + 1 and wall >= 0.8 x pause (+ D-0536 measurement from a bursting mounted peer); latedirty = dirty departure + peer P163 recovery; holderfail = virsh destroy inside the hold, waiter recounts fresh.  `N=4 COND=tcp|cawd` runs it at four nodes (workers `test1:test2 test3:test4 test1:test3`, HF_X/HF_Y test3/test4).  0.90.12: the chain exports `MXFS_MKFS_OPTS=-D` — its normal-lap workload is the sharded-directory reuse harness, which is refused (EOPNOTSUPP) on a format made without `-D`, and a lap whose counters never moved (icount=64 every lap) verifies nothing; the lock-line grep now allows the `master_self=` field between `epoch=` and `at=`.  At 4/net/mesh/direct the holderfail arm fails by design of the DLM today (D-UNMOUNT-DURING-DEAD-MASTERS-RECOVERY-DEPARTS-DIRTY-AT-3-PLUS-NODES: the waiter's put_super lock fails fast on the dead master and it departs DIRTY); the arm's assertions are the 2-node design and stay.
 - `tests/d_intents_undischarged_verify.sh` burst arm publishes the frag files through a peer (`INTENTS_PEER`, default test2) before the rm — chain 105 s472m was VACUOUS for fix A (try=7 UNPUB).
 - TRAP: a chain launched gated on a log that already has DONE starts immediately; re-gating = kill the waiter (its pid from `tools/mxfs_pgrep.sh 'bash tests/sess4'`) and relaunch.  `tools/mxfs_pgrep.sh <pat>` also matches the calling shell if the pattern appears in its command text — check `/proc/<pid>/cmdline`.
 
@@ -1544,7 +1544,7 @@ Three rules it encodes:
 
 - `tests/sess488_ailpin_inject.sh` — `D-AIL-UNHELD-GRANT-SKIP-PERMANENT-SILENT-PIN-0487`. One leg per module build: installs the frozen ko, preps 32 nodes, then on the victim writes an AG number to `/sys/kernel/debug/mxfs/<dev>/inject_unheld_agmeta_dirty` (0.69.6+): the injector refuses (`-EBUSY`) any AG the node holds, so the harness walks a list of AGs until one is accepted and reports which. It then waits the grace period, runs a 200-create workload on two peers (unaffected = rc 0 inside 30 s), sweeps the victim's journal for `P126-XFSAILD-REFUSE`/`P126-AIL-PINNED`/shutdown lines, and attempts `timeout 50 umount` on the victim. **Leg A (0.69.6, report-only push) is expected to HANG the umount** — the harness captures the umount task's stack and the `P128-AILSTUCK` dumps (which must name the injected AGI's daddr), sweeps the whole journal before touching the node (journald is volatile), and only then virsh-destroys/starts it. Leg B (0.70.0, fail-stop) expects the umount to return, then remounts the victim and reports the slice replay's decision lines on the injected image. Node journals are swept **before** any power cycle, always.
 - `tests/sess488_ailpin_fleet_umount.sh` — `D-SB-SUMMARY-LOCK-HELD-ACROSS-UNBOUNDED-LOG-QUIESCE-FLEET-CONVOY-0487`. Same injector on one node, then all 32 unmount at once, each timed on the node (`UMOUNT_MS`); reports the 31 peers' umount_ms distribution and the fleet-wide `P-SB-SUMMARY-BAST` (refused-while-held) count. Leg X = 0.70.0 (peers stall up to the grace period behind the victim's lock), leg Y = 0.70.1 (pre-lock push: peers unaffected, victim's `P126-AIL-PINNED` precedes any lock line).
-- **`run.sh 32 caw <rows>` with a test filter never preps.** If the fleet marker's srcversion differs from the tree's it refuses outright ("Run './run.sh 32 caw' or prep_cluster first", rc 1 in ~8 s); if it matches it runs no prep at all, so `MXFS_EXTRA_MODARGS` never reaches insmod. Chain 139's first attempt (s488a) lost both legs to this in 8 s each and its readbacks then reported the *previous* chain's fleet state. Every A/B that ships a module argument must `./run.sh 32 caw prep_cluster` per leg and read the parameter back from all 32 nodes **before** the rows (the s488c version does).
+- **`run.sh 32/disk/caw/mpath <rows>` with a test filter never preps.** If the fleet marker's srcversion differs from the tree's it refuses outright ("Run './run.sh 32/disk/caw/mpath' or prep_cluster first", rc 1 in ~8 s); if it matches it runs no prep at all, so `MXFS_EXTRA_MODARGS` never reaches insmod. Chain 139's first attempt (s488a) lost both legs to this in 8 s each and its readbacks then reported the *previous* chain's fleet state. Every A/B that ships a module argument must `./run.sh 32/disk/caw/mpath prep_cluster` per leg and read the parameter back from all 32 nodes **before** the rows (the s488c version does).
 - **A chain's cleanup can change the tree's module.** `tests/sess485_chain133_agfree_hoist_ab.sh` ends with `install_ko "$FIX_KO" restore`, which copied the frozen 0.69.3 ko over `mxfs.ko`; the next chain read `ko_sv` at its START line from a different module than the one it later found after its gate, and its `strings` probe gate aborted. Read the ko identity **after** the gate and the rig wait, and re-check it against what the harness needs — `STAGE install_ko` lines exist for this.
 - `tests/sess487_handoff_coldread.sh` round 2 of every kill set printed `SETUP FAIL (mkdir on test1)` with no artefact: the mkdir check discards stderr (`2>/dev/null | grep -q MKDIR_OK`). The holder of the previous kill round was virsh-destroyed and test1 was its peer; whether test1's mount was briefly unwritable or the ssh timed out is not recorded. Capture stderr to a file in that check before reading anything into it.
 
@@ -1617,7 +1617,7 @@ Three rules it encodes:
   ssh, `mount 192.168.1.4:/src /src` on the rebooted node (NFS is not an
   fstab automount), then re-run the chain.
 - `tests/transport_conformance.sh <label> [A] [B]` (0.75.0): from a live
-  2/tcp cluster, arm A (B rejoins with default modargs → adopts TCP; A
+  2/net/mesh/direct cluster, arm A (B rejoins with default modargs → adopts TCP; A
   discovers it; B's clean umount is seen as `P163-CLEAN-DEPART`), arm B (A
   re-forms on CAW, B `force_transport=1` → `P-TRANSPORT-MISMATCH-REFUSED`,
   not mounted), arm C (B default → joins CAW, `P-TRANSPORT-CONFORMED caw`),
@@ -2001,11 +2001,13 @@ freezes the set's second node and measures the first.
 
 `NODES=4 tests/full_verify.sh <version>` refuses to start unless every set
 holds N nodes; then: clean-copy build + tools + tauth + the extern and
-inode-flag audits, `./run.sh N tcp`, `./run.sh N cawd`, both boards read
-through `tools/criteria.py` (the board is the verdict, not the run's PASS
-lines), packages unless `dist/<version>` exists, then the four platforms in
-parallel (packaged round on each transport, both pve kernels, freeze-death on
-each transport, sVirt on rhel9), each to
+inode-flag audits, `./run.sh` on every configuration of the release matrix at N
+(`tools/configuration.py release-matrix --nodes N`, e.g. `N/net/mesh/direct`
+then `N/disk/caw/direct`), each board read through `tools/criteria.py` (the
+board is the verdict, not the run's PASS lines), packages unless
+`dist/<version>` exists, then the four platforms in parallel (packaged round
+on each configuration with `CONFIG=`, both pve kernels, freeze-death on each
+configuration, sVirt on rhel9), each to
 `tests/evidence/full_verify_<version>_<platform>.log`, merged into
 `full_verify_<version>.log`. Launch it `nohup setsid` (a background Bash task
 dies at a session relay) and never build the module while it runs: the
@@ -2025,27 +2027,28 @@ blocked-arm injection (`pr_fence_inject_key_absent`, `fence_gate_inject_refuse`,
 `fence_blocked_after_ms`) on every survivor and finds the prover by its
 transition line. `tests/death/crash_audit.sh` derives all members and unmounts
 the peers before the cold audit; `tests/tcp_2node_death_chain.sh` takes N
-nodes (`MXFS_NODE_LIST`). The one 4/cawd `crash_audit` FAIL of the campaign
+nodes (`MXFS_NODE_LIST`). The one 4/disk/caw/direct `crash_audit` FAIL of the campaign
 was the oracle reading only W's log while test3 proved the fence;
-`tools/criteria.py amend <row> --at N/<dlm> --iso <run> --detector-defect
+`tools/criteria.py amend <row> --at <configuration> --iso <run> --detector-defect
 "<why>"` keeps such a FAIL on the board annotated as the detector's, so it
-does not count in the flake window. `tests/board_4node_chain.sh <label> tcp
-cawd` captures the native-XFS yardstick and runs both boards; `NODES=2` runs
-the two-node ones, and `tcp:row,row` runs one lap of those rows on a freshly
-forced cluster under one run id — the unit a flake window is cleared with.
+does not count in the flake window. `tests/board_4node_chain.sh <label>
+4/net/mesh/direct 4/disk/caw/direct` captures the native-XFS yardstick and
+runs both boards; `2/...` configurations run the two-node ones, and
+`4/net/mesh/direct:row,row` runs one lap of those rows on a freshly forced
+cluster under one run id — the unit a flake window is cleared with.
 
 **Clearing a flake window before a release.** A row whose newest genuine
 FAIL sits at window index k (0 = the live run, 11-run window) reads PASS
 again only after 11-k more runs of that row; the board run that closes the
 verification is one of them, so it takes 10-k single-row laps first, then the
 board. `tests/release_verify_chain.sh <version>` runs the whole sequence
-detached on one module: `W4_LAPS` laps of 4/tcp `alloc_witness,chk_clean`,
-`NODES=4 tests/full_verify.sh`, `W2TCP` laps of 2/tcp `fio_perf,guard_census`,
-`W2CAWD` laps of 2/cawd `alloc_witness,chk_clean,crash_audit`, then both
+detached on one module: `W4_LAPS` laps of 4/net/mesh/direct `alloc_witness,chk_clean`,
+`NODES=4 tests/full_verify.sh`, `W2TCP` laps of 2/net/mesh/direct `fio_perf,guard_census`,
+`W2CAWD` laps of 2/disk/caw/direct `alloc_witness,chk_clean,crash_audit`, then both
 two-node boards, each step to `tests/evidence/release_verify_<version>.log`
 with an `=== rc=N: <step> ===` line and `RELEASE_CHAIN_DONE` at the end. The
-lap counts are read from `data/criteria.json` (0.90.17: 4/tcp chk_clean k=6
-with two chain laps pending -> 2; 2/tcp fio_perf k=3 -> 7; 2/cawd crash_audit
+lap counts are read from `data/criteria.json` (0.90.17: 4/net/mesh/direct chk_clean k=6
+with two chain laps pending -> 2; 2/net/mesh/direct fio_perf k=3 -> 7; 2/disk/caw/direct crash_audit
 k=2 -> 8). A window lap's `board_4node_chain.sh` exits 1 while the board still
 reads FLAKY; that rc says nothing about the lap's rows, which the log's
 `Total:` line does.
@@ -2088,7 +2091,7 @@ only one) now makes the same mount-and-readdir probe on every node that
 node has no readable MXFS mount.  `tools/criteria.py` excludes that reason
 from the flake window (`RIG_NOISE`), so a row that inherits an unformed fleet
 from a budget-killed row before it is not counted as a genuine fault of the
-mechanism it tests.  Measured twice at 4/tcp before the change: `chk_clean`
+mechanism it tests.  Measured twice at 4/net/mesh/direct before the change: `chk_clean`
 killed at its budget with the fleet unmounted, then `crash_audit`'s oracle
 aborting at its own member mount check and the row recording a failed death
 oracle (two genuine-looking FAILs in the window, amended with
@@ -2180,9 +2183,9 @@ directory, and judges whether the survivors contained it.
   tenure, naming three sites as `<file-id>:<line>`; the file ids are the
   `MXFS_TU_ID` of each `xfs/xfs_mxfs_*.c` (21 = ilock, 22 = publish,
   5 = authority).
-- **Queue x8e, the first results** (0.90.25): two victims at 8/tcp and at
-  4/tcp end in a refused slice or a platter that contradicts itself; the same
-  kills on cawd were clean; one victim at 8/tcp was clean once.
+- **Queue x8e, the first results** (0.90.25): two victims at 8/net/mesh/direct and at
+  4/net/mesh/direct end in a refused slice or a platter that contradicts itself; the same
+  kills on cawd were clean; one victim at 8/net/mesh/direct was clean once.
 
 ## 0.90.28–0.90.29 — what a lap can and cannot see of a guest kernel
 
@@ -2253,3 +2256,50 @@ After the tree has been rebuilt, that file is the build the fleet last
 loaded: copy it to the host and disassemble it to map a panic's return
 addresses (`objdump -dr --disassemble=<fn>` for the call a return address
 follows, `-dl` for its source line).
+
+## Rig groups: several configurations at once (0.90.37)
+
+`run.sh <configuration> --group <name>` runs one board on a rig group, which
+is a disjoint slice of test1..32 named by a `group` line in the lab file.
+Each group has an SCST LUN of its own, built by `scripts/rig_groups.sh setup`
+the same way as the platform targets: its LUN is visible only to the group's
+initiators, and there is no default LUN.  Several group runs share the rig;
+see `tests/lib/runlock.sh` for which locks each kind of run takes.
+
+- **Per-group state.** Each group has its own `.cluster_marker.<g>.json` and
+  `.last_run.<g>.json`, and `MXFS_MARKER` names the marker to every tool and
+  node script.  The run id is `<stamp>-<g>`.  `MXFS_LUN_WWID` and
+  `MXFS_HOST_IMAGE_PATH` are exported, because `data/rigs.json` declares only
+  the `:shared` LUN for the `scst-fio` tag.
+- **Only whole-rig runs clear other runs' state.** A group run finalizes only
+  its own configuration's column, and sweeps the broker only for runs whose
+  configuration lock is free.
+- **Capacity.** The host fits 14 rig VMs under load (4 GiB each on 94 GiB), so
+  g2/g4/g8 run one DLM class's release boards per wave.
+- **Only the `direct` attachment runs on a group.** A multipath group needs a
+  dual-portal group target and a guest multipath map, and neither is built.
+
+### PITFALL — anything run.sh starts that outlives it must close inherited fds
+
+The netconsole listener inherited `run.sh`'s rig-lock fd and held the lock
+from PPID 1 after the run.  `tools/netconsole_listen.sh` now closes every fd
+above 2 before it launches.
+
+### tests/stress_rmdir_mkdir_race.sh arms (0.90.37)
+
+`<config> <group> <seconds> [slot_ms] [arm]`.  The arm is one of:
+- `mkdir` (the default): rank 1 runs `rm -rf` on the slot parent mid-slot while
+  the other ranks `mkdir` in it.
+- `link`, `symlink`, `rename`: the other ranks put a name into the parent
+  instead.
+- `child`: the parent is kept alive.  Rank 1 makes c1..c4 and removes them
+  mid-slot, while each other rank adds once in each half of the slot.
+
+`MXFS_EXTRA_MODARGS=insert_deadparent_refuse=0` is the same-build control for
+the dead-parent refusal.  Each node runs a `journalctl -k -f` watcher that keeps
+withdraw, shutdown, lock-timeout, corruption and dead-parent lines from the
+start of the lap, because a guest journal keeps only about 2 minutes under this
+load; the files are saved as `<node>.watch` in the evidence directory.  A rank
+that hangs reads as `NO RESULT (1 start line)`.  The per-node `refused=` and
+`insert_*` counts are dmesg greps over a ring that is not cleared between laps,
+so for per-lap numbers read the `.watch` files instead.

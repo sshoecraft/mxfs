@@ -10,7 +10,7 @@
 # forever, with no operator-facing quarantine ever reaching the platter — the
 # D-513 shape, reached from the other direction.
 #
-# Staging (requires a TWO-node cluster: ./run.sh 2 caw prep_cluster):
+# Staging (requires a TWO-node cluster: ./run.sh 2/disk/caw/mpath prep_cluster):
 #   1. dirty the victim's journal slice with pure inode-item churn
 #   2. kill the victim
 #   3. unmount the survivor IMMEDIATELY, before its ~62 s dead-confirm window

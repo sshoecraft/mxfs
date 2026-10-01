@@ -40,7 +40,7 @@ lap() { # <budget_s> <label> <cmd...>
   if [ "$brc" -ne 0 ] || [ "$LAB" -ne 1 ]; then echo "ABORT: lab build"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
   lap 120 tools make tools
   export MXFS_EXTRA_MODARGS='icluster_dlm=1 dino_clobber_check=1'
-  lap 300 prep_lab ./run.sh 32 caw prep_cluster
+  lap 300 prep_lab ./run.sh 32/disk/caw/mpath prep_cluster
   unset MXFS_EXTRA_MODARGS
   echo "knob check: $(for i in 1 16; do printf 'test%s:%s ' $i "$(timeout 20 $SSH test$i 'cat /sys/module/mxfs/parameters/dino_clobber_check /sys/module/mxfs/parameters/icluster_dlm /sys/module/mxfs/parameters/release_proof_enforce 2>/dev/null | tr "\n" ,' 2>/dev/null)"; done)"
   M=$EV/matrix; mkdir -p "$M"
@@ -52,6 +52,6 @@ lap() { # <budget_s> <label> <cmd...>
   T0=$(date +%s)
   timeout 600 make modules > tests/evidence/sess461_chain89_build_prod_$LABEL.log 2>&1; brc=$?
   echo "STAGE build_prod rc=$brc wall=$(( $(date +%s) - T0 ))s modinfo_lab=$(modinfo mxfs.ko | grep -c 'mxfs_iclus_relmark_lab') sv=$(modinfo mxfs.ko | awk '/srcversion/{print $2}') errors=$(grep -c 'error:' tests/evidence/sess461_chain89_build_prod_$LABEL.log)"
-  lap 300 prep_prod ./run.sh 32 caw prep_cluster
+  lap 300 prep_prod ./run.sh 32/disk/caw/mpath prep_cluster
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

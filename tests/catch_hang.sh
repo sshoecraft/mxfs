@@ -12,9 +12,9 @@ for k in $(seq 1 "$ITERS"); do
   bash $S test1 $P "rm -rf /mnt/shared/.posix_multi; sync; dmesg -C" >/dev/null 2>&1
   bash $S test2 $P "dmesg -C" >/dev/null 2>&1
   # launch (long cap so kernel stays wedged for the dump)
-  timeout 200 bash $S test1 $P "MXFS_NODES=2 MXFS_RANK=1 MXFS_DLM=tcp MXFS_COORD_BROKER=$BROKER MXFS_COORD_PREFIX=$PFX COORD_TIMEOUT=120 bash /src/mxfs/tests/suite/posix_multi.sh /mnt/shared" >"$LOGD/ch1.out" 2>&1 &
+  timeout 200 bash $S test1 $P "MXFS_NODES=2 MXFS_RANK=1 MXFS_CONFIG=2/net/mesh/direct MXFS_COORD_BROKER=$BROKER MXFS_COORD_PREFIX=$PFX COORD_TIMEOUT=120 bash /src/mxfs/tests/suite/posix_multi.sh /mnt/shared" >"$LOGD/ch1.out" 2>&1 &
   j1=$!
-  timeout 200 bash $S test2 $P "MXFS_NODES=2 MXFS_RANK=2 MXFS_DLM=tcp MXFS_COORD_BROKER=$BROKER MXFS_COORD_PREFIX=$PFX COORD_TIMEOUT=120 bash /src/mxfs/tests/suite/posix_multi.sh /mnt/shared" >"$LOGD/ch2.out" 2>&1 &
+  timeout 200 bash $S test2 $P "MXFS_NODES=2 MXFS_RANK=2 MXFS_CONFIG=2/net/mesh/direct MXFS_COORD_BROKER=$BROKER MXFS_COORD_PREFIX=$PFX COORD_TIMEOUT=120 bash /src/mxfs/tests/suite/posix_multi.sh /mnt/shared" >"$LOGD/ch2.out" 2>&1 &
   j2=$!
   # wait WINDOW seconds, then check for RESULT
   for s in $(seq 1 "$WINDOW"); do

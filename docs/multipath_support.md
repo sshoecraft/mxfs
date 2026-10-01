@@ -7,7 +7,7 @@ Running mxfs mounted on a whole-LUN `dm-multipath` device
 transport — the enterprise-SAN deployment (any FC or iSCSI SAN with ≥2
 paths and multipathd).  The storage substrate (raw CAW + PR through
 dm-multipath) was characterised green in
-`docs/condition4_multipath_scope.md`; this document covers the mxfs
+`docs/multipath-attach.md`; this document covers the mxfs
 KERNEL work that makes the filesystem itself run there, plus the test
 rig.  Runtime rig: `scripts/mpath_up.sh {up|status|down} N` (synthetic
 2-path: SCST on two br0 portals, each guest logs into both).

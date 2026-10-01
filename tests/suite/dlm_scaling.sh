@@ -30,7 +30,7 @@ OPS="${DLM_SCALING_OPS:-2000}"
 WINDOW="${DLM_SCALING_WINDOW:-60}"
 # Per-node ops/sec floor — a COLLAPSE detector (wedged/starved node), not an
 # exact-pace assertion.  Derivation (2026-07-18, measured):
-#   N<=16: 50 keeps >=40% headroom (16/caw median ~71 ops/s).
+#   N<=16: 50 keeps >=40% headroom (16/disk/caw/mpath median ~71 ops/s).
 #   N=32:  two independent rigs put the healthy per-node band AT the old 50
 #          floor — direct-iSCSI 48-58 (all 32 nodes, tight unimodal band,
 #          median 54) and dm-multipath ~50-58 — because the structural CAW

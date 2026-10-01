@@ -30,16 +30,16 @@ mkdir -p "$EV"
   echo "build errors=$(grep -c 'error:\|ERROR:' "$EV/build.txt")"
   grep -a 'error:\|ERROR:' "$EV/build.txt" | cut -c1-200 | head -10
   if [ "$brc" -ne 0 ] || [ "$trc" -ne 0 ] || [ "$NEW" = "$OLD" ]; then echo "ABORT: build failed or srcversion unchanged"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
-  timeout 300 ./run.sh 32 caw prep_cluster; prc=$?; echo "STAGE prep rc=$prc"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; prc=$?; echo "STAGE prep rc=$prc"
   if [ "$prc" -ne 0 ]; then echo "ABORT: prep failed on $(cat VERSION)"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
   timeout 1080 tests/bootstrap_full_restart.sh $LABEL 32 test1; echo "STAGE bootstrap_full_restart rc=$?"
   HOST_IMG=$(tools/mxfs_host_image.sh) || { echo "$HOST_IMG"; exit 2; }
   timeout 240 tools/chk_mxfs -v "$HOST_IMG" 2>&1 | grep -a 'bootstrap' | head -8
   for pt in 3 1 2; do
-    timeout 300 ./run.sh 32 caw prep_cluster; prc=$?; echo "STAGE prep_before_resume$pt rc=$prc"
+    timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; prc=$?; echo "STAGE prep_before_resume$pt rc=$prc"
     if [ "$prc" -ne 0 ]; then echo "ABORT: prep failed before resume $pt"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
     timeout 1260 tests/bootstrap_resume.sh ${LABEL}p$pt $pt 32 test1; echo "STAGE bootstrap_resume$pt rc=$?"
   done
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep2 rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep2 rc=$?"
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

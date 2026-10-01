@@ -34,7 +34,7 @@ for run in $(seq 1 "$RUNS"); do
     echo "=== VALIDATE run $run/$RUNS — $(date -u +%H:%M:%SZ) ==="
     echo "============================================================"
     boot_wait || { echo "run $run: BOOT FAIL"; fail=$((fail+1)); continue; }
-    out=$(./run.sh 4 tcp dir_reuse_coherency 2>&1)
+    out=$(./run.sh 4/net/mesh/direct dir_reuse_coherency 2>&1)
     echo "$out" | grep -vE '^Warning:|^Unauthorized|^If you' | tail -25
     if echo "$out" | grep -qE '  PASS  dir_reuse_coherency'; then
         echo ">>> run $run: PASS"; pass=$((pass+1))

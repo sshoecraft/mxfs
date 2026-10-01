@@ -3,7 +3,7 @@
 # runs the D-379 item-5 verification (chk_mxfs in-progress guard classification,
 # forged on an unmounted fleet, sector restored) and re-preps.
 #   chk_guard_inprogress_verify   90 s (harness-derived)
-#   prep 32/caw                   300 s
+#   prep 32/disk/caw/mpath                   300 s
 # NEVER `make modules` before this prints DONE.
 cd /src/mxfs || exit 1
 LABEL=${1:-s434g}
@@ -15,6 +15,6 @@ GATE=tests/evidence/sess434_chain3_0410_s434e.log
   grep -q '^DONE' "$GATE" || { echo "ABORT: chain3 not DONE after 3600 s"; echo "DONE $(date -u +%FT%TZ)"; exit 1; }
   echo "gate passed at $(date -u +%FT%TZ) (iter $t) sv=$(modinfo mxfs.ko | awk '/srcversion/{print $2}')"
   timeout 90 tests/chk_guard_inprogress_verify.sh ${LABEL}_gip 5 test1 32; echo "STAGE chk_guard_inprogress rc=$?"
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep rc=$?"
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

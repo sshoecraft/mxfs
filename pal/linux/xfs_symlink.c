@@ -173,6 +173,15 @@ xfs_symlink(
 	}
 	unlock_dp_on_error = true;
 
+	if (mp->m_mxfs_dlm) {
+		extern int mxfs_insert_deadparent(struct xfs_inode *,
+						  const char *);
+
+		error = mxfs_insert_deadparent(dp, "symlink");
+		if (error)
+			goto out_trans_cancel;
+	}
+
 	/*
 	 * Check whether the directory allows new symlinks or not.
 	 */

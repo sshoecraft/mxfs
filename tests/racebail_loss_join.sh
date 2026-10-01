@@ -3,7 +3,7 @@
 # that lost an entry?
 #
 # WHY (ccloop c7ee71c6 sess27, D-SILENT-MKDIR-LOSS)
-#   Caught at 8/caw on 0.11.237: dirent_durability FAIL, test3
+#   Caught at 8/disk/caw/mpath on 0.11.237: dirent_durability FAIL, test3
 #   durable_loss=5 late_ok=15 at a 91s wall, and the scoped window held
 #   P34J-RELOAD-RACE-BAIL=5 with EVERY other mechanism marker at zero
 #   (P195/P194/P32E/P189/P146V/P177/P188/P65 all 0).  5 == 5 is a strong hint
@@ -23,7 +23,7 @@
 #   INTERSECTION EMPTY with both counts nonzero -> the 5==5 is coincidence and
 #   the bail is exonerated; look elsewhere and record that.
 #
-# NOTE ON WHAT THE SYMPTOM IS.  In the 8/caw capture every entry was PRESENT
+# NOTE ON WHAT THE SYMPTOM IS.  In the 8/disk/caw/mpath capture every entry was PRESENT
 # minutes later, and SETTLE_MS is 4000ms.  So this shape is a bounded-staleness
 # violation (a committed mkdir invisible to a peer for >4s), not permanent loss.
 # Still a correctness defect; describe it accurately.
@@ -33,10 +33,10 @@ set -u
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$REPO"
 ITERS="${1:-6}"
-N="${2:-8}"
+CONFIG=$(python3 "$(dirname "$0")/../tools/configuration.py" parse "${2:-8/disk/caw/mpath}") || exit 2; N=${CONFIG%%/*}
 
 # budget: derived from the manifest budget plus measured harness overhead.
-# Measured this session at 8/caw: prep 35s, dirent_durability 91-119s.
+# Measured this session at 8/disk/caw/mpath: prep 35s, dirent_durability 91-119s.
 PREP_BUDGET=$((300 + 40))
 DD_BUDGET=$((240 + 40))
 # aging batch: crash 90 + dir_reuse 120 + fence 60 + netpart 60 + soak 60
@@ -45,17 +45,17 @@ SSH_BUDGET=60
 
 for k in $(seq 1 "$ITERS"); do
     echo "########## iteration $k of $ITERS (${N}/caw) ##########"
-    MXFS_FORCE_PREP=1 timeout "$PREP_BUDGET" ./run.sh "$N" caw prep_cluster 2>&1 | tail -1
-    # AGE THE MOUNT FIRST.  The 8/caw capture did NOT come from
+    MXFS_FORCE_PREP=1 timeout "$PREP_BUDGET" ./run.sh "$CONFIG" prep_cluster 2>&1 | tail -1
+    # AGE THE MOUNT FIRST.  The 8/disk/caw/mpath capture did NOT come from
     # prep-then-dirent_durability: it came during the matrix sweep, after this
     # exact P6 batch had run on the same mount.  Seven fresh-prep iterations
     # produced ZERO failures, so the aging is load-bearing — same lesson as the
     # typeflip reproducer, where cache_coherency only fails AFTER an aging pass
     # and passes on a fresh mount (which is why the board showed it green).
-    timeout "$AGE_BUDGET" ./run.sh "$N" caw crash_consistency dir_reuse_coherency \
+    timeout "$AGE_BUDGET" ./run.sh "$CONFIG" crash_consistency dir_reuse_coherency \
         fence_during_write fault_netpartition soak 2>&1 \
         | grep -E "  (FAIL|BLOCK|ABORT)" || true
-    out=$(timeout "$DD_BUDGET" ./run.sh "$N" caw dirent_durability 2>&1 | grep -E "  (PASS|FAIL|BLOCK)")
+    out=$(timeout "$DD_BUDGET" ./run.sh "$CONFIG" dirent_durability 2>&1 | grep -E "  (PASS|FAIL|BLOCK)")
     echo "$out"
     case "$out" in
         *FAIL*) ;;

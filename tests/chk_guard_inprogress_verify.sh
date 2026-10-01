@@ -23,7 +23,7 @@ FORGE=/src/mxfs/tools/recov_forge
 # the forge runs on a node against the shared LUN and the checker runs on the
 # host against the LUN's backing image: this is the CAW multipath rig's
 # shape.  The device is resolved, never assumed (MXFS_DEV overrides).
-export MXFS_TRANSPORT=${MXFS_TRANSPORT:-caw}
+export MXFS_CONFIG=${MXFS_CONFIG:-2/disk/caw/mpath}
 IMG=$(tools/mxfs_host_image.sh) || { echo "$IMG"; exit 2; }
 OUT=tests/evidence/$(date -u +%Y%m%dT%H%M%SZ)_chk_guard_inprogress_$LABEL
 mkdir -p "$OUT"

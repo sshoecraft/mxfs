@@ -10,7 +10,7 @@
 # node's registers for a while (to distinguish a static RIP — genuine
 # spin/deadlock — from a moving one — just slow) before giving up on it.
 #
-# Sess: diagnosing the fence_during_write@8/caw CPU-pin regression seen
+# Sess: diagnosing the fence_during_write@8/disk/caw/mpath CPU-pin regression seen
 # with caw_fair_handoff=1 (ccloop cc87fed3 sess2).  Serial console evidence
 # (test4-serial.log) showed two CONSECUTIVE boots both hitting
 # "watchdog: BUG: soft lockup" with bash+kworker/uNN pinned in pairs of 2
@@ -22,7 +22,7 @@ SSH="$REPO/tools/mxfs_sshpass.sh"
 PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"
 cd "$REPO"
 
-N="${1:-8}"
+CONFIG=$(python3 "$(dirname "$0")/../tools/configuration.py" parse "${1:-8/disk/caw/mpath}") || exit 2; N=${CONFIG%%/*}
 OUT="${2:?usage: diag_cpu_pin_capture.sh <N> <outdir> [extra_modargs]}"
 EXTRA_MODARGS="${3:-caw_fair_handoff=1}"
 mkdir -p "$OUT"
@@ -43,7 +43,7 @@ OUTER=$(( DRC_TT + 300 ))
 echo "$(date -u +%H:%M:%S) launching run.sh N=$N modargs='$EXTRA_MODARGS' DRC_TT=$DRC_TT OUTER=$OUTER" | tee "$OUT/monitor.log"
 
 ( MXFS_EXTRA_MODARGS="$EXTRA_MODARGS" TEST_TIMEOUT="$DRC_TT" timeout "$OUTER" \
-    ./run.sh "$N" caw dir_reuse_coherency fence_during_write \
+    ./run.sh "$CONFIG" dir_reuse_coherency fence_during_write \
     > "$OUT/run.log" 2>&1
   echo "RUN_EXIT=$?" >> "$OUT/run.log" ) &
 RUNPID=$!

@@ -1,5 +1,5 @@
 #!/bin/bash
-# MXFS SCST passthrough wiring — HOST side (clyde).  Condition 2 (FC-fabric sim).
+# MXFS SCST passthrough wiring — HOST side (clyde).  The pass attachment (FC-fabric sim).
 #
 # Simulates a Fibre-Channel fabric where each physical host has its own HBA path
 # to a shared LUN, using VMs behind clyde.  clyde is the iSCSI INITIATOR: it logs
@@ -16,7 +16,7 @@
 # give each node a stable, distinct by-path device AND a real distinct nexus.
 #
 # Prereq: scripts/scst_setup.sh setup   (creates the shared vdisk device "mxfs").
-# The end-to-end bring-up is scripts/caw_cluster_up.sh passthrough N.
+# The end-to-end bring-up is scripts/rig.sh N/<class>/<method>/pass.
 #
 # NOTE: this is the clyde-loopback-initiator path that SCST_PROBLEM.md documents
 # as wedge-prone under heavy concurrent CAW.  The 180s guest SCSI timeout

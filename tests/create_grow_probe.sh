@@ -6,7 +6,7 @@
 # the shortform -> block -> leaf transitions show as steps in ms per create.
 # Then rm -rf the directory and print that wall too.
 #
-# budget: measured 0.75.60 on the 2/tcp rig = 6-7 ms per create small, 13-22
+# budget: measured 0.75.60 on the 2/net/mesh/direct rig = 6-7 ms per create small, 13-22
 # ms past ~400 entries, 27 s for 2000; the ssh bound below is 2x that.
 #
 # Usage: tests/create_grow_probe.sh <node> [total=2000] [batch=200]

@@ -1,6 +1,6 @@
 #!/bin/bash
-# fg_one_run.sh — ONE reliability run of `./run.sh 2 tcp`, FOREGROUND.
-# Reboots both nodes clean, runs the full 2/tcp suite once, reports 17/17 vs
+# fg_one_run.sh — ONE reliability run of `./run.sh 2/net/mesh/direct`, FOREGROUND.
+# Reboots both nodes clean, runs the full 2/net/mesh/direct suite once, reports 17/17 vs
 # partial, and on a partial dumps both nodes' dmesg.  Designed to be invoked
 # from a single foreground Bash call (set the Bash tool timeout to 600000ms) so
 # the turn BLOCKS on it — NEVER background+poll (user directive, sess10/sess47).
@@ -40,7 +40,7 @@ fi
 
 LOG="/tmp/fg_${LABEL}.log"
 t0=$(date +%s)
-timeout "$RUN_TIMEOUT" ./run.sh 2 tcp > "$LOG" 2>&1
+timeout "$RUN_TIMEOUT" ./run.sh 2/net/mesh/direct > "$LOG" 2>&1
 rc=$?
 t1=$(date +%s)
 np=$(grep -c '^  PASS ' "$LOG"); nf=$(grep -c '^  FAIL ' "$LOG")

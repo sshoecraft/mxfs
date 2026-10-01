@@ -15,7 +15,7 @@ source "$SCRIPT_DIR/lib.sh"
 R="$RANK"; T="$NODES"
 D="$MNT/.fence_during_write"
 HOT="$D/hot"
-# sess11 (8/cawd): this mkdir silently failed on 4/8 nodes right after a
+# sess11 (8/disk/caw/direct): this mkdir silently failed on 4/8 nodes right after a
 # dir_reuse_coherency row — every storm write then ENOENTed for the whole
 # window and the row failed as "still writable" with zero diagnostic.  Keep
 # the failure a FAILURE (no masking) but make it loud and typed, and retry

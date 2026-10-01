@@ -2,7 +2,7 @@
 # create_race_last_free_inode_2node.sh — several concurrent create loops on
 # ONE node, each in its own directory, on the two-node TCP rig.
 #
-# What it exists to catch.  On 0.75.44 (sess525/526 rig logs, test1, 2/tcp)
+# What it exists to catch.  On 0.75.44 (sess525/526 rig logs, test1, 2/net/mesh/direct)
 # a plain create returned EUCLEAN twice with 'Internal error i != 1 && j != 1'
 # from xfs_dialloc_ag_finobt_near and 'Corruption detected' — on a healthy
 # filesystem: every later create in the same AG succeeded and the AG kept

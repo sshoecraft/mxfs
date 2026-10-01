@@ -38,13 +38,13 @@ lap() { # <budget_s> <label> <cmd...>
       sharded32) ENV="CC_SHARDED=32" ;;
       sharded64) ENV="CC_SHARDED=64" ;;
     esac
-    lap 300 "prep_$variant" ./run.sh 32 caw prep_cluster
+    lap 300 "prep_$variant" ./run.sh 32/disk/caw/mpath prep_cluster
     for l in $(seq 1 "$LAPS"); do
       T1=$(date +%s)
       if [ -n "$ENV" ]; then
-        out=$(MXFS_TEST_ENV="$ENV" timeout 160 ./run.sh 32 caw crash_consistency 2>&1); rc=$?
+        out=$(MXFS_TEST_ENV="$ENV" timeout 160 ./run.sh 32/disk/caw/mpath crash_consistency 2>&1); rc=$?
       else
-        out=$(timeout 160 ./run.sh 32 caw crash_consistency 2>&1); rc=$?
+        out=$(timeout 160 ./run.sh 32/disk/caw/mpath crash_consistency 2>&1); rc=$?
       fi
       echo "STAGE cc variant=$variant lap=$l rc=$rc wall=$(( $(date +%s) - T1 ))s $(echo "$out" | grep -a '^  \(PASS\|FAIL\) *crash_consistency' | tail -1 | tr -s ' ' | cut -c1-200)"
       echo "$out" | grep -a 'cc sharded\|EOPNOTSUPP\|BUDGET_EXHAUSTED\|NO_TERMINAL' | head -4 | cut -c1-200
@@ -55,6 +55,6 @@ lap() { # <budget_s> <label> <cmd...>
       echo "dirshard dmesg $variant: $(for n in test1 test2 test17; do printf '%s=%s ' $n "$(timeout 20 $SSH $n 'dmesg | grep -c "P-DIRSHARD-CORRUPT\|P-DIRSHARD-STRANGER\|P-DIRSHARD-ABANDON"' 2>/dev/null | tr -d '\r\n ')"; done)"
     fi
   done
-  lap 300 prep_final ./run.sh 32 caw prep_cluster
+  lap 300 prep_final ./run.sh 32/disk/caw/mpath prep_cluster
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

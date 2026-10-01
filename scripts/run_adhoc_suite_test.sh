@@ -5,18 +5,21 @@
 # matrix rows (adding a manifest row retroactively un-greens every completed
 # board by growing its row count).
 #
-# Usage: scripts/run_adhoc_suite_test.sh <N> <dlm> <testname> [timeout_s]
+# Usage: scripts/run_adhoc_suite_test.sh <configuration> <testname> [timeout_s]
+#   e.g. scripts/run_adhoc_suite_test.sh 2/net/mesh/direct dir_reuse_coherency
 #   Env passthrough: MXFS_TEST_ENV="K=V K2=V2" like run.sh.
-# Requires: cluster already prepped for N/dlm (marker not checked — caller's
+# Requires: cluster already prepped for that configuration (marker not checked — caller's
 # responsibility); test script at tests/suite/<testname>.sh (NFS-visible).
 set -u
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 SSH="$REPO/tools/mxfs_sshpass.sh"
 PASS="${MXFS_PASS:-$("$REPO/tools/mxfs_secrets.sh" passfile 2>/dev/null || echo /tmp/.mxfs_pass)}"
-N="${1:?usage: run_adhoc_suite_test.sh <N> <dlm> <test> [timeout_s]}"
-DLM="${2:?}"
-NAME="${3:?}"
-TT="${4:-300}"
+CONFIG=$(python3 "$REPO/tools/configuration.py" parse "${1:?usage: run_adhoc_suite_test.sh <configuration> <test> [timeout_s]}") || exit 2
+N=${CONFIG%%/*}
+SLUG=${CONFIG//\//-}
+export MXFS_CONFIG=$CONFIG
+NAME="${2:?}"
+TT="${3:-300}"
 BROKER="${MXFS_COORD_BROKER:-192.168.1.149}"
 RUN_ID="adhoc$(date -u +%H%M%S)"
 PREFIX="mxfs/coord/${RUN_ID}/${NAME}"
@@ -41,12 +44,12 @@ else
 fi
 
 tmpd=$(mktemp -d /tmp/adhoc_${NAME}_XXXX)
-echo "=== adhoc $NAME @ ${N}/${DLM} (run_id=$RUN_ID, logs $tmpd, nodes=${NODES[*]}) ==="
+echo "=== adhoc $NAME @ ${CONFIG} (run_id=$RUN_ID, logs $tmpd, nodes=${NODES[*]}) ==="
 pids=()
 for i in $(seq 1 "$N"); do
     ( timeout "$TT" "$SSH" "${NODES[$((i-1))]}" "$PASS" \
-        "MXFS_NODES=$N MXFS_RANK=$i MXFS_DLM=$DLM MXFS_DEV='$DEV' \
-         MXFS_EXPECT_FSTYPE=mxfs MXFS_FS_LABEL=$DLM \
+        "MXFS_NODES=$N MXFS_RANK=$i MXFS_CONFIG=$CONFIG MXFS_CONFIG_SLUG=$SLUG MXFS_DEV='$DEV' \
+         MXFS_EXPECT_FSTYPE=mxfs MXFS_FS_LABEL=$SLUG \
          MXFS_COORD_BROKER=$BROKER MXFS_COORD_PREFIX=$PREFIX COORD_TIMEOUT=$CT \
          ${MXFS_TEST_ENV:-} \
          bash $SCRIPT '$MNT'" 2>&1 \

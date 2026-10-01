@@ -1,5 +1,5 @@
 #!/bin/bash
-# drc_passrate2.sh N "MODARGS" — dir_reuse_coherency 8/tcp reliability.
+# drc_passrate2.sh N "MODARGS" — dir_reuse_coherency 8/net/mesh/direct reliability.
 # Clean-reboots all 8 nodes + CLEARS the stale /root/drc_* markers (sess27
 # contamination) before EVERY run, runs dir_reuse with the given modargs,
 # records PASS/FAIL + wall + the actual readdir count on FAIL (from the fresh
@@ -25,7 +25,7 @@ for run in $(seq 1 "$N"); do
     done
     for n in 1 2 3 4 5 6 7 8; do timeout 8 $SSH test$n /tmp/.mxfs_pass 'rm -f /root/drc_failrounds.txt /root/drc_*.dmesg 2>/dev/null' >/dev/null 2>&1; done
     t0=$(date +%s)
-    MXFS_EXTRA_MODARGS="$MODARGS" timeout 590 /src/mxfs/run.sh 8 tcp dir_reuse_coherency > "$SCR/pr2_run${run}.log" 2>&1
+    MXFS_EXTRA_MODARGS="$MODARGS" timeout 590 /src/mxfs/run.sh 8/net/mesh/direct dir_reuse_coherency > "$SCR/pr2_run${run}.log" 2>&1
     rc=$?
     t1=$(date +%s)
     if grep -q "PASS  dir_reuse_coherency" "$SCR/pr2_run${run}.log"; then

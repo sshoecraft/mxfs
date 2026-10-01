@@ -108,7 +108,7 @@ s0=$(date +%s); el() { echo $(( $(date +%s) - s0 )); }
 SV=$(modinfo mxfs.ko | sed -n 's/^srcversion: *//p')
 echo "=== d0932_retire_pending_takeover label=$LABEL A(prover)=$A B(victim,judge)=$B sv=$SV hold=${HOLD_MS}ms $(date -u +%FT%TZ) ==="
 
-MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2 tcp prep_cluster > "$OUT/prep.log" 2>&1
+MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2/net/mesh/direct prep_cluster > "$OUT/prep.log" 2>&1
 prc=$?
 echo "STAGE prep rc=$prc wall=$(el)s  $(grep -am1 'prep_cluster OK\|FAIL' "$OUT/prep.log" | cut -c1-120)"
 [ $prc = 0 ] || { echo "RESULT: ABORT label=$LABEL stage=prep evidence=$OUT"; exit 2; }

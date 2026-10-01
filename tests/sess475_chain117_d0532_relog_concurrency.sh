@@ -68,7 +68,7 @@ ck() { if [ "$2" = "$3" ]; then echo "  PASS $1 ($2)"; else echo "  FAIL $1 got=
 # test.  Stop instead of scoring: an unprepped fleet measures nothing.
 prep_arm() { # <tag>
   local t=$1 T0=$(date +%s) rc
-  timeout 300 ./run.sh 32 caw prep_cluster; rc=$?
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; rc=$?
   echo "STAGE prep $t rc=$rc wall=$(( $(date +%s) - T0 ))s"
   [ "$rc" = 0 ] && return 0
   echo "ABORT $t: prep_cluster rc=$rc — no arm can yield a verdict; scoring one would be fabricating evidence."

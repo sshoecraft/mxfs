@@ -25,7 +25,7 @@
 #     rather than hiding them).
 #
 # the budget rule (derived, not padded): per-node mxfs churn measured 15-20 ms/iter at
-# 32/caw (sess400 E4-E10) -> ITERS=2000 ~ 30-40 s; a survivor may additionally
+# 32/disk/caw/mpath (sess400 E4-E10) -> ITERS=2000 ~ 30-40 s; a survivor may additionally
 # stall on victim-held grants for the 32-node recovery window (~120 s HB
 # timeout + fence + replay + purge, measured sess213/386).  The per-node loop
 # is bounded at 2x(0.02 s x ITERS) + 120 s; overrunning it IS a FAIL line.

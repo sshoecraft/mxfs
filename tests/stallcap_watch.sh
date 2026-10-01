@@ -1,5 +1,5 @@
 #!/bin/bash
-# stallcap_watch.sh — per-node stall forensics for the 32/caw spurious-shutdown
+# stallcap_watch.sh — per-node stall forensics for the 32/disk/caw/mpath spurious-shutdown
 # family (ccloop c7ee71c6 sess12-D).  Polls dmesg for the AG-AIL-STALL /
 # NOINO-LISTDRAIN prints; on first hit, snapshots every candidate holder's
 # kernel stack so the >150s folio/ILOCK holder that hung_task never dumps

@@ -13,7 +13,7 @@
 #       checks = 7 * rounds + 2
 #
 # Verified integral against every recorded condition in criteria.json (1..32
-# nodes, caw/cawd/cawp/tcp/xfs -- all 25 conditions give an exact integer).
+# nodes, every configuration and 1/xfs -- all 25 give an exact integer).
 #
 # Why this matters: DRC_MIN_ROUNDS=8 is a hard floor, and the 32-node column sat
 # at EXACTLY 8 rounds pre-fix (7 on the run that failed).  Zero margin is why
@@ -46,7 +46,7 @@ done
 echo "=== arm caw_pr_defer_max_ms=$ARM verified on all $N nodes ==="
 
 for r in $(seq 1 "$RUNS"); do
-    out=$(cd "$REPO" && timeout 380 ./run.sh 32 caw dir_reuse_coherency 2>&1 \
+    out=$(cd "$REPO" && timeout 380 ./run.sh 32/disk/caw/mpath dir_reuse_coherency 2>&1 \
           | grep -E "dir_reuse_coherency" | tail -1)
     ch=$(echo "$out" | grep -oE "checks=[0-9]+" | head -1 | cut -d= -f2)
     st=$(echo "$out" | grep -oE "^ *(PASS|FAIL|BLOCKED|ABORTED|NOT_RUN)" | tr -d ' ')

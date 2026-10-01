@@ -55,13 +55,13 @@
 #   = 480 s.  Caller bound 660 s (480 x 1.375).
 #
 # Usage: tests/proto_gen_cutover.sh <label>
-# Env:   MXFS_NODE_LIST (test1,test2), MXFS_TRANSPORT (tcp)
+# Env:   MXFS_NODE_LIST (test1,test2), MXFS_CONFIG (2/net/mesh/direct)
 # Exit 0 PASS, 1 FAIL, 2 ABORT/INFRA, 3 VACUOUS.
 set -u
 LABEL=${1:?label}
 cd "$(dirname "$0")/.." || exit 2
 export MXFS_NODE_LIST=${MXFS_NODE_LIST:-test1,test2}
-export MXFS_TRANSPORT=${MXFS_TRANSPORT:-tcp}
+export MXFS_CONFIG=${MXFS_CONFIG:-2/net/mesh/direct}
 A=${MXFS_NODE_LIST%%,*}
 B=${MXFS_NODE_LIST##*,}
 SSH=tools/mxfs_sshpass.sh

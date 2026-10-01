@@ -186,7 +186,7 @@ def test_impact_noblock_leaves_the_release_set():
         tool, ledger = sandbox(tmp)
         first = json.loads(run(tool, "2", "tcp", "--release", "--json").stdout)["defects"]
         if not first:
-            report(False, "the 2/tcp release set is already empty in this copy")
+            report(False, "the 2/net/mesh/direct release set is already empty in this copy")
             return
         victim = first[0]["id"]
         setbar = run(tool, "update", victim, "-I", "noblock",
@@ -195,7 +195,7 @@ def test_impact_noblock_leaves_the_release_set():
         without = json.loads(run(tool, "2", "tcp", "--json").stdout)["defects"]
         left_release = victim not in [e["id"] for e in after]
         still_open = victim in [e["id"] for e in without]
-        note("release %d -> %d, still in plain 2/tcp: %s"
+        note("release %d -> %d, still in plain 2/net/mesh/direct: %s"
              % (len(first), len(after), still_open))
         report(setbar.returncode == 0 and left_release and still_open
                and len(after) == len(first) - 1,

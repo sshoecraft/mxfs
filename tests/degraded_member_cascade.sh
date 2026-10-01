@@ -12,7 +12,7 @@
 #
 # Arms (N nodes, default 8; victim = testN), selected by MODE:
 #   freeze  — virsh-suspend the victim so it answers NOTHING.  MEASURED
-#             RESULT (sess43, 8/caw): every node reports NO_TERMINAL_RECORD
+#             RESULT (sess43, 8/disk/caw/mpath): every node reports NO_TERMINAL_RECORD
 #             (the run dies on its budget).  This does NOT match the
 #             recorded incident, because for cache_coherency the harness
 #             sets COORD_TIMEOUT=120 above a 60s budget: a barrier stall is
@@ -51,7 +51,7 @@
 #
 # usage: degraded_member_cascade.sh [N=8] [test=cache_coherency]
 set -u
-N="${1:-8}"
+CONFIG=$(python3 "$(dirname "$0")/../tools/configuration.py" parse "${1:-8/disk/caw/mpath}") || exit 2; N=${CONFIG%%/*}
 TEST="${2:-cache_coherency}"
 MODE="${3:-fsdown}"          # fsdown | freeze
 SSH=tools/mxfs_sshpass.sh
@@ -92,7 +92,7 @@ cell() { # cell <field> — read this test's cell from the scratch file
 
 # ── baseline ───────────────────────────────────────────────────────────────
 say "=== baseline: all $N nodes healthy, running $TEST via the real harness ==="
-MXFS_CRIT="$SCRATCH" timeout 300 ./run.sh "$N" caw "$TEST" >/dev/null 2>&1
+MXFS_CRIT="$SCRATCH" timeout 300 ./run.sh "$CONFIG" "$TEST" >/dev/null 2>&1
 BST=$(cell .status); BME=$(cell .measured)
 say "baseline: $BST | $BME"
 if [ "$BST" != PASS ]; then
@@ -124,7 +124,7 @@ else
     && echo "[$(date +%H:%M:%S)] $VICTIM MOUNT DROPPED at cv-write-done (node alive, barriers still answered)" ) &
 fi
 DEGRADER=$!
-MXFS_CRIT="$SCRATCH" timeout 400 ./run.sh "$N" caw "$TEST" >/dev/null 2>&1
+MXFS_CRIT="$SCRATCH" timeout 400 ./run.sh "$CONFIG" "$TEST" >/dev/null 2>&1
 wait "$DEGRADER" 2>/dev/null
 DST=$(cell .status); DME=$(cell .measured); DRE=$(cell .reason)
 if [ "$MODE" = freeze ]; then

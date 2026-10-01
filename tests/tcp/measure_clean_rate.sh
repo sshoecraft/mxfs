@@ -1,5 +1,5 @@
 #!/bin/bash
-# measure_clean_rate.sh — measure the per-run clean (16/16) rate of the 2/tcp
+# measure_clean_rate.sh — measure the per-run clean (16/16) rate of the 2/net/mesh/direct
 # suite on FRESHLY-REBOOTED clusters (one suite run per fresh boot, so the
 # cumulative back-to-back wedge doesn't confound the per-run coherency result).
 # Usage: tests/tcp/measure_clean_rate.sh [iters]
@@ -25,7 +25,7 @@ for it in $(seq 1 "$ITERS"); do
     done
     sleep 5
     echo "----- ITER $it: run suite -----"
-    out=$(timeout 560 ./run.sh 2 tcp 2>&1 | grep -vE '^Warning:|^Unauthorized|^If you')
+    out=$(timeout 560 ./run.sh 2/net/mesh/direct 2>&1 | grep -vE '^Warning:|^Unauthorized|^If you')
     fails=$(echo "$out" | grep -cE '  FAIL ')
     echo "$out" | grep -E '  (PASS|FAIL) ' | sed "s/^/it$it: /"
     if [ "$fails" = 0 ] && echo "$out" | grep -q 'ran=16'; then

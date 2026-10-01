@@ -90,7 +90,7 @@ if [ "$have_window" != 1 ]; then
     # ccloop c7ee71c6 sess27: have_window was COMPUTED and PRINTED but never
     # consulted, so a node that could not locate this run's window scanned an
     # EMPTY string, counted zero hits and reported PASS -- passing precisely
-    # BECAUSE it had no evidence.  Observed on a full 32/caw board:
+    # BECAUSE it had no evidence.  Observed on a full 32/disk/caw/mpath board:
     # `window=0 win_src= win_trunc=` and PASS at 0s.  That is the vacuous green
     # the comment at line 59 warns about, one branch away from the
     # probe_built=0 rule directly below which already says unverifiable is not

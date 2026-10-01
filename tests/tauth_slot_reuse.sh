@@ -44,7 +44,7 @@ cd "$(dirname "$0")/.." || exit 2
 SSH=tools/mxfs_sshpass.sh
 VIRSH="sudo -n virsh -c qemu:///system"
 MNT=${MXFS_MNT:-/mnt/shared}
-export MXFS_TRANSPORT=${MXFS_TRANSPORT:-tcp}
+export MXFS_CONFIG=${MXFS_CONFIG:-2/net/mesh/direct}
 NFILES=${SR_NFILES:-32}
 MODARGS=${SR_MODARGS:-force_transport=1 target_cache_protected=1}
 KO=/src/mxfs/mxfs.ko
@@ -98,7 +98,7 @@ A_ID=$(echo "$pre" | awk '{print $3}'); X_ID=$(echo "$prex" | awk '{print $2}');
 ck "precondition: $A mounted on force_transport=1 (id ${A_ID:-?})" "$(echo "$pre" | grep -c '^A_M 1 [0-9]')" "1"
 ck "precondition: $X mounted (id ${X_ID:-?} slot ${X_SLOT:-?})" "$(echo "$prex" | grep -c '^X_M [0-9]* [0-9]')" "1"
 ck "precondition: no module on $N and $J" "${pren:-1}${prej:-1}" "00"
-[ "$fails" = 0 ] || { echo "INFRA: preconditions not met — prep 2/tcp on $A,$X first"; exit 2; }
+[ "$fails" = 0 ] || { echo "INFRA: preconditions not met — prep 2/net/mesh/direct on $A,$X first"; exit 2; }
 # the LUN as MXFS actually uses it, from A's live mount (MXFS_DEV overrides)
 mxfs_dev_resolve "$A"
 DEV=$MXFS_DEV_RESOLVED

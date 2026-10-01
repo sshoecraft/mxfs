@@ -16,17 +16,17 @@ VIRSH="sudo virsh -c qemu:///system"
   echo "gate passed at $(date -u +%FT%TZ) (iter $t)"
   timeout 300 tests/d_recov_zero_epoch_verify.sh $LABEL; echo "STAGE zeroinc rc=$?"
   $VIRSH start test8 >/dev/null 2>&1; sleep 45
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep_zeroinc rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep_zeroinc rc=$?"
   for arm in transient deadline invariant; do
     timeout 480 tests/d_recov_advance_bounded_verify.sh $LABEL $arm; echo "STAGE radv_$arm rc=$?"
     for i in $(seq 1 32); do $VIRSH start test$i >/dev/null 2>&1; done; sleep 45
-    timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep_radv_$arm rc=$?"
+    timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep_radv_$arm rc=$?"
   done
   timeout 200 tests/d_recov_advance_bounded_verify.sh $LABEL takeover; echo "STAGE radv_takeover rc=$?"
   for i in $(seq 1 32); do $VIRSH start test$i >/dev/null 2>&1; done; sleep 45
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep_takeover rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep_takeover rc=$?"
   timeout 840 tests/no_survivor_crash_replay.sh $LABEL; echo "STAGE nosurv rc=$?"
   for i in $(seq 1 32); do $VIRSH start test$i >/dev/null 2>&1; done; sleep 90
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep_final rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep_final rc=$?"
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

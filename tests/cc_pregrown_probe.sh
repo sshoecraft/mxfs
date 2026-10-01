@@ -1,5 +1,5 @@
 #!/bin/bash
-# cc_pregrown_probe.sh — DECISIVE discriminator for the 2/tcp durable dirent
+# cc_pregrown_probe.sh — DECISIVE discriminator for the 2/net/mesh/direct durable dirent
 # lost-update: is it the shortform->block FORMAT TRANSITION window, or a
 # steady-state block-format bug?
 #

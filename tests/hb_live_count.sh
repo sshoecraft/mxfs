@@ -8,7 +8,7 @@
 # so after every fault-injecting test the lease legitimately reads N+1 for
 # up to ten minutes while the disk table — the real membership — already
 # reads exactly N.  Gating a board on the beacon therefore blocks whole
-# chunks on a healthy cluster (sess43: crash_consistency at 32/caw left
+# chunks on a healthy cluster (sess43: crash_consistency at 32/disk/caw/mpath left
 # active_count=33 and BLOCKED the rest of the chunk; the disk table showed
 # exactly 32 correct members the whole time, and the beacon returned to 32
 # on schedule).

@@ -5,7 +5,7 @@
 # item 2; lone_mount_create.sh now keeps P300-/P274-/P308-/P309- lines).
 #   lone_mount_create remount_refused   100 s
 #   lone_mount_create remount_snx       100 s
-#   prep 32/caw                         300 s
+#   prep 32/disk/caw/mpath                         300 s
 # NEVER `make modules` before this prints DONE.
 cd /src/mxfs || exit 1
 LABEL=${1:-s434k}
@@ -18,6 +18,6 @@ GATE=tests/evidence/sess434_chain6_0411_s434j.log
   echo "gate passed at $(date -u +%FT%TZ) (iter $t) sv=$(modinfo mxfs.ko | awk '/srcversion/{print $2}')"
   timeout 100 tests/lone_mount_create.sh ${LABEL}_refused test1 32 remount_refused; echo "STAGE remount_refused rc=$?"
   timeout 100 tests/lone_mount_create.sh ${LABEL}_snx test1 32 remount_snx;         echo "STAGE remount_snx rc=$?"
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep rc=$?"
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

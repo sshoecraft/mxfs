@@ -2,7 +2,7 @@
 # agifc_churn_experiment.sh — instrumented experiment driver for the sess399
 # AGI-freecount "+1" divergence (ledger: the 0.23.9 AG0/AG5 regression).
 #
-# One experiment = fresh 32/caw prep -> knobs -> tmpfile churn (mode) ->
+# One experiment = fresh 32/disk/caw/mpath prep -> knobs -> tmpfile churn (mode) ->
 # fleet sweep of the P-AGIFC audits (0.23.10) + P72/Internal-error counters
 # -> host-side platter decode of the two-owner AGs (tools/mxfs_agi_dump.py)
 # -> chk_mxfs error lines.  Everything lands in $OUT; the summary is printed.

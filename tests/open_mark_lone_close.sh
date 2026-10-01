@@ -28,7 +28,7 @@
 # the unlink, or a defer that stops.  VACUOUS: B never published its mark in
 # step 2 (P90 absent), so the arm measured nothing.
 #
-# derived time budgets: prep 400 s (the same 2/tcp prep bound as
+# derived time budgets: prep 400 s (the same 2/net/mesh/direct prep bound as
 # tests/dirent_durability_loop.sh); unmount and mount ~5 s each (d0959
 # harness measurement); OBSERVE_S = 75 s covers the first reap attempt (5 s)
 # and two 30 s retries (MXFS_REAP_FIRST_MS / MXFS_REAP_RETRY_MS); each ssh
@@ -48,7 +48,7 @@ mkdir -p "$OUT"
 SV=$(modinfo mxfs.ko | sed -n 's/^srcversion: *//p')
 echo "=== open_mark_lone_close label=$LABEL arm=$ARM sv=$SV out=$OUT $(date -u +%FT%TZ) ==="
 
-timeout 400 ./run.sh 2 tcp prep_cluster > "$OUT/prep.log" 2>&1 \
+timeout 400 ./run.sh 2/net/mesh/direct prep_cluster > "$OUT/prep.log" 2>&1 \
     || { echo "RESULT: ABORT label=$LABEL stage=prep evidence=$OUT"; exit 2; }
 mxfs_dev_resolve "$A"; DEV=$MXFS_DEV_RESOLVED
 

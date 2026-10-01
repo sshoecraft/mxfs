@@ -29,7 +29,7 @@ PASS=$(tools/mxfs_secrets.sh passfile 2>/dev/null)
   echo "=== sess445 chain38 start $(date -u +%FT%TZ) sv=$(modinfo mxfs.ko | awk '/srcversion/{print $2}') VERSION=$(cat VERSION) ==="
   if ! grep -q 'P-AUTHCAP-VOID' pal/linux/xfs_buf_item.c; then echo "ABORT: tree lacks the P-AUTHCAP-VOID probe"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
   if ! strings mxfs.ko | grep -q 'P-AUTHCAP-VOID'; then echo "ABORT: mxfs.ko lacks the P-AUTHCAP-VOID probe (chain 36 did not build 0.52.0?)"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
-  timeout 300 ./run.sh 32 caw prep_cluster; prc=$?; echo "STAGE prep rc=$prc"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; prc=$?; echo "STAGE prep rc=$prc"
   if [ "$prc" -ne 0 ]; then echo "ABORT: prep failed"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
   STAMP=@$(date +%s)
   T0=$(date +%s); timeout 240 tests/handoff_anatomy.sh $LABEL 32 4 keep 50; echo "STAGE burst rc=$? wall=$(( $(date +%s) - T0 ))s"
@@ -42,6 +42,6 @@ PASS=$(tools/mxfs_secrets.sh passfile 2>/dev/null)
   echo "--- P228-TOKCLASS (incomplete= is the producer's aggregate counter):"
   grep -ah 'P228-TOKCLASS' "$EV"/test*.void | tail -3 | cut -c1-200
   echo "VERDICT: void_lines=$(cat "$EV"/test*.void | grep -ac 'P-AUTHCAP-VOID') blftchg=$(cat "$EV"/test*.void | grep -ac 'why=blftchg') nocap=$(cat "$EV"/test*.void | grep -ac 'why=nocap')"
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep2 rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep2 rc=$?"
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

@@ -14,7 +14,7 @@ for i in $(seq 1 "$MAX"); do
     echo "==================== ITER $i ===================="
     # clear dmesg on both nodes
     for h in "$T1" "$T2"; do timeout 8 "$SSH" "$h" "$P" 'dmesg -C' >/dev/null 2>&1; done
-    out=$(timeout 300 ./run.sh 2 tcp tcp_dlm_scaling 2>&1)
+    out=$(timeout 300 ./run.sh 2/net/mesh/direct tcp_dlm_scaling 2>&1)
     verdict=$(echo "$out" | grep -E 'tcp_dlm_scaling|done:')
     echo "$verdict"
     if echo "$out" | grep -q 'FAIL  tcp_dlm_scaling'; then

@@ -1499,7 +1499,7 @@ mxfs_dir_modify_adopt_disk_format(struct xfs_inode *dp, unsigned int lock_flags)
 	uint64_t		lba;
 	int			rc;
 	struct xfs_dinode	*dip;
-	uint16_t		disk_magic;
+	uint16_t		disk_magic, disk_mode;
 	uint8_t			disk_fmt;
 	uint32_t		disk_gen, disk_nx, disk_nlink;
 	uint64_t		disk_sz, disk_chg;
@@ -1595,7 +1595,40 @@ mxfs_dir_modify_adopt_disk_format(struct xfs_inode *dp, unsigned int lock_flags)
 	disk_nx  = be32_to_cpu(dip->di_nextents);
 	disk_nlink = be32_to_cpu(dip->di_nlink);
 	disk_chg = be64_to_cpu(dip->di_changecount);
+	disk_mode = be16_to_cpu(dip->di_mode);
 	kfree(tmp);
+
+	/*
+	 * Instrument for D-8TCP-CONCURRENT-RMDIR-AND-MKDIR-LOSE-SHORTFORM-
+	 * DIRECTORY-UPDATES.  The directory this node is about to modify has
+	 * been freed on the platter by a peer (xfs_ifree zeroes the mode and
+	 * bumps the generation), yet the generation test below returns "not
+	 * stale" and the modify proceeds into a dead directory.  Observation
+	 * only: KERN_ERR so it reaches the rig's netconsole, capped.
+	 */
+	/*
+	 * A directory this node created and has not flushed still shows its
+	 * previous, freed incarnation on the platter: that is not a dead
+	 * parent (measured: every hit of the first version of this probe was
+	 * that shape).  Only a directory this node did not create -- loaded
+	 * from disk, or created here and since handed to a peer, whose
+	 * release drain flushed it -- can be dead on the platter while live
+	 * in core, so only that case prints in full.
+	 */
+	if (disk_gen != VFS_I(dp)->i_generation || disk_mode == 0 ||
+	    disk_nlink == 0) {
+		static atomic_t pdead = ATOMIC_INIT(0);
+
+		if (!dp->i_mxfs_self_created) {
+			if (atomic_inc_return(&pdead) <= 200)
+				pr_err("mxfs: P-DEADPARENT ino=%llu incore_gen=%u disk_gen=%u disk_mode=0%o disk_nlink=%u incore_nlink=%u incore_fmt=%d disk_fmt=%d dlm_mode=%d dir_gen=%u comm=%s pid=%d\n",
+					(unsigned long long)dp->i_ino,
+					VFS_I(dp)->i_generation, disk_gen, disk_mode,
+					disk_nlink, VFS_I(dp)->i_nlink,
+					dp->i_df.if_format, disk_fmt, dp->i_dlm_mode,
+					dp->i_dlm_dir_gen, current->comm, current->pid);
+		}
+	}
 
 	{
 		/* 6000→300 — printk-storm DoS (see P82-ADD). */

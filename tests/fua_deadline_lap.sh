@@ -8,7 +8,7 @@
 # it should have given up.  The only budgeted FUA read is the CAW cached-grant
 # ownership verify, so this runs on a CAW cluster.
 #
-# On W, with the cluster already prepped (run.sh <N> caw|cawd|cawp) and mounted
+# On W, with the cluster already prepped (run.sh <N>/disk/caw/<attach>) and mounted
 # at MNT on H and W:
 #   1. dlm_verify_deadline_ms=DEADLINE_MS (default 20) and
 #      dbg_fua_read_fail_budgeted=INJECT (default 40): each budgeted FUA-read

@@ -30,14 +30,14 @@ lap() { # <budget_s> <label> <cmd...>
   FSV=$(timeout 20 $SSH test1 'cat /sys/module/mxfs/srcversion' 2>/dev/null | grep -aE '^[0-9A-F]{20,}$')
   echo "=== sess462 chain93 START $(date -u +%FT%TZ) tree VERSION=$(cat VERSION) sv=$SV fleet_sv=$FSV obl_string=$(strings -a mxfs.ko | grep -c 'P226-OBL-WRITE') chk_obl=$(strings -a tools/chk_mxfs | grep -c 'obligation list') ==="
   if [ "$(strings -a mxfs.ko | grep -c 'P226-OBL-WRITE')" = 0 ] || [ "$(strings -a tools/chk_mxfs | grep -c 'obligation list')" = 0 ]; then echo "ABORT: tree mxfs.ko/chk_mxfs do not carry item-5 increment 2"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
-  lap 300 prep ./run.sh 32 caw prep_cluster
+  lap 300 prep ./run.sh 32/disk/caw/mpath prep_cluster
   lap 180 "intents burst lap1" tests/d_intents_undischarged_verify.sh ${LABEL}a burst
-  lap 300 prep_after_burst ./run.sh 32 caw prep_cluster
+  lap 300 prep_after_burst ./run.sh 32/disk/caw/mpath prep_cluster
   lap 180 "intents clean" tests/d_intents_undischarged_verify.sh ${LABEL}b clean
-  lap 300 prep_after_clean ./run.sh 32 caw prep_cluster
+  lap 300 prep_after_clean ./run.sh 32/disk/caw/mpath prep_cluster
   lap 180 "intents burst lap2" tests/d_intents_undischarged_verify.sh ${LABEL}c burst
   echo "=== laps done $(date -u +%FT%TZ) ==="
   grep -a '^STAGE\|fails=\|FAIL ' "$LOG" | tail -40
-  lap 300 prep_final ./run.sh 32 caw prep_cluster
+  lap 300 prep_final ./run.sh 32/disk/caw/mpath prep_cluster
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

@@ -1,17 +1,17 @@
 #!/bin/bash
-# suite_loop.sh — run the FULL `./run.sh <N> <dlm>` suite K times and aggregate
+# suite_loop.sh — run the FULL `./run.sh <N> <class>/<method>/<attach>` suite K times and aggregate
 # per-test PASS/FAIL across runs, to confirm REPRODUCIBLE 100% success (esp. the
 # historically-flaky dir_reuse_coherency).  Production config: pass NO
 # MXFS_EXTRA_MODARGS (module defaults) unless the caller exports it.
 # run.sh prep asserts the build srcversion on every node, so all runs use the
-# local .ko.  budget: a full 2/tcp suite is ~15-25 min (17 tests; dir_reuse
+# local .ko.  budget: a full 2/net/mesh/direct suite is ~15-25 min (17 tests; dir_reuse
 # alone ~284s) => K runs ~ K*20min.
 #
-# Usage: tests/suite_loop.sh <N> <dlm> <iters>
+# Usage: tests/suite_loop.sh <configuration> <iters>
 set -u
 cd /src/mxfs
-N="${1:?usage: suite_loop.sh <N> <dlm> <iters>}"
-DLM="${2:?}"; K="${3:?}"
+CONFIG=$(python3 "$(dirname "$0")/../tools/configuration.py" parse "${1:?usage: suite_loop.sh <configuration> <iters>}") || exit 2; N=${CONFIG%%/*}; DLM=${CONFIG#*/}
+K="${2:?}"
 CAPDIR=/src/mxfs/tests/_cap
 SUM="$CAPDIR/suite_loop_summary.txt"
 mkdir -p "$CAPDIR"
@@ -22,7 +22,7 @@ allpass=0
 for i in $(seq 1 "$K"); do
     echo "--- run $i/$K @ $(date -u +%T) ---" | tee -a "$SUM"
     log="$CAPDIR/suite_run_${i}.log"
-    ./run.sh "$N" "$DLM" > "$log" 2>&1
+    ./run.sh "$CONFIG" > "$log" 2>&1
     # run.sh prints "  PASS  name" / "  FAIL  name" per test and a done summary.
     npass=$(grep -cE '^  PASS ' "$log")
     nfail=$(grep -cE '^  FAIL ' "$log")

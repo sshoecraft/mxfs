@@ -89,7 +89,7 @@
 # targets and their occupants, every floor's numbers), sealed by its sha256
 # in witness.sha.  chk_clean refuses a witness whose fsid is not the
 # platter's or whose run id is not its own — so the two rows must run in ONE
-# run.sh invocation (`./run.sh 2 tcp alloc_witness chk_clean`); run apart,
+# run.sh invocation (`./run.sh 2/net/mesh/direct alloc_witness chk_clean`); run apart,
 # the audit's verdict is INDETERMINATE by design.  No workload may touch the
 # filesystem between this row and chk_clean; the tooling manifest places them
 # adjacently and the run id ties them.
@@ -107,7 +107,7 @@ BURST_S="${AW_BURST_S:-25}"
 BURST_MAX="${AW_BURST_MAX:-6000}"
 EMPTY_WAIT_S="${AW_EMPTY_WAIT_S:-30}"
 # the reuse bound: the allocator fills the free inodes nearest the parent
-# first (the cohort's two partial edge chunks, ~115 creates measured at 2/tcp)
+# first (the cohort's two partial edge chunks, ~115 creates measured at 2/net/mesh/direct)
 # before a whole emptied target wins, so the bound carries 4x that margin
 REUSE_MAX="${AW_REUSE_MAX:-512}"
 
@@ -201,7 +201,7 @@ cqval(){ # <chunk line> <key>
 # The carve is counted over the node's whole partition (agno mod stride ==
 # slot mod stride, the model the verdict half grades), never over AG slot
 # alone: the allocator may place the fill directory in any AG of the
-# partition.  Measured 2/cawd, 0.90.6: test1 (slot 0, stride 32, agcount 63)
+# partition.  Measured 2/disk/caw/direct, 0.90.6: test1 (slot 0, stride 32, agcount 63)
 # filled AG 32, carved there, and the loop, watching AG 0 only, ran all 8192
 # creates and aborted the row.
 D="$MNT/alloc_witness"
@@ -485,7 +485,7 @@ if not unknown:
     say("partition: multi=%s strides=%s carvers=%s breaches=%s" % (multi_ok, sorted(strides), {a: ks for a, ks in carvers.items() if ks}, breaches))
     # own_ag: >= 2 phase-1 carves in each node's own AGs, i.e. its partition
     # (agno mod stride == slot mod stride), not AG slot alone: the allocator
-    # may put the node's directory in any AG it owns (2/cawd 0.90.6: rank 1,
+    # may put the node's directory in any AG it owns (2/disk/caw/direct 0.90.6: rank 1,
     # slot 0, carved 17 times in AG 32 and the single-AG count read 0)
     def owns(k, a):
         s = int(node[k]["stride"]); slot = int(node[k]["slot"])

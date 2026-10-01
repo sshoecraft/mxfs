@@ -58,7 +58,7 @@
 # the CAW arm.  The tree says so at :15653 -- "the TCP transport carries its own
 # durable authority ledger and no PR-fence bootstrap; the record is opened for
 # the owner-liveness view only ... (bootstrap is a CAW path)".  Two laps of this
-# harness on 2/tcp (s86d, s86e) drove the exact shape and neither reached a
+# harness on 2/net/mesh/direct (s86d, s86e) drove the exact shape and neither reached a
 # claim: the mount read the record, took an ordinary heartbeat slot 12 ms later,
 # and was refused by the admission barrier 122 s on.  So a TCP run of this
 # harness can only ever report VACUOUS, and it refuses up front rather than
@@ -85,7 +85,7 @@
 #
 # Usage: tests/bootstrap_takeover_2n.sh <label> [self|foreign|stale]
 # Env:   MXFS_NODE_LIST (default test1,test2), MXFS_DEV, NFILES (32),
-#        CLAIM_BOUND (200), JOIN_BOUND (300), MXFS_TRANSPORT (cawd),
+#        CLAIM_BOUND (200), JOIN_BOUND (300), MXFS_CONFIG (2/disk/caw/direct),
 #        STALE_POINT (15|16, stale arm), CUT (destroy|freeze), PURGE_WAIT (60),
 #        PURGE (target|emulate|none; default from the rig's declared class)
 # Exit 0 PASS, 1 FAIL, 2 ABORT/INFRA, 3 VACUOUS.
@@ -101,17 +101,17 @@ case "$STALE" in ''|15|16) ;; *) echo "STALE_POINT must be 15 or 16"; exit 2;; e
 PURGE_WAIT=${PURGE_WAIT:-60}
 cd "$(dirname "$0")/.." || exit 2
 export MXFS_NODE_LIST=${MXFS_NODE_LIST:-test1,test2}
-# the run.sh condition the prep uses: cawd (direct in-guest iSCSI) is the
-# 2-node rig's CAW condition; 'caw' is the multipath map, which only a
-# multipath rig presents
-export MXFS_TRANSPORT=${MXFS_TRANSPORT:-cawd}
-if [ "$MXFS_TRANSPORT" = tcp ]; then
+# the configuration the prep uses: disk/caw/direct (in-guest iSCSI, one path)
+# is the 2-node rig's CAW configuration; disk/caw/mpath is the multipath map,
+# which only a multipath rig presents
+export MXFS_CONFIG=${MXFS_CONFIG:-2/disk/caw/direct}
+if [ "$(python3 tools/configuration.py get "$MXFS_CONFIG" transport)" != caw ]; then
     echo "ABORT: the whole-cluster bootstrap is a CAW path — v5_bootstrap_run has one"
     echo "       call site and it is in the CAW arm of mxfs_v5_dlm_init, after the TCP"
     echo "       arm has returned.  On TCP the record is read for the owner-liveness"
     echo "       view and the pre-register admission gate, and never advanced, so this"
     echo "       lap cannot reach a claim.  Measured twice (s86d, s86e).  Run it as:"
-    echo "       MXFS_TRANSPORT=caw $0 <label> [arm]"
+    echo "       MXFS_CONFIG=2/disk/caw/direct $0 <label> [arm]"
     exit 2
 fi
 A=${MXFS_NODE_LIST%%,*}          # claims the bootstrap term, then is power-cut
@@ -239,7 +239,7 @@ fi
 SV=$(modinfo mxfs.ko | sed -n 's/^srcversion: *//p')
 MD5=$(md5sum mxfs.ko | cut -c1-32)
 waitboot "$A" "$B"
-MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2 "$MXFS_TRANSPORT" prep_cluster > "$OUT/prep.log" 2>&1
+MXFS_FORCE_PREP=1 timeout 300 ./run.sh "$MXFS_CONFIG" prep_cluster > "$OUT/prep.log" 2>&1
 prc=$?
 echo "STAGE prep rc=$prc wall=$(el)s  $(grep -am1 'prep_cluster OK\|FAIL' "$OUT/prep.log" | cut -c1-140)"
 [ $prc = 0 ] || { echo "RESULT: ABORT label=$LABEL stage=prep evidence=$OUT"; exit 2; }

@@ -3,7 +3,7 @@
 # ccloop-4dd7 dialloc/liveness campaign.
 #
 # Does, in order:
-#   1. MXFS_FORCE_PREP=1 ./run.sh 2 tcp prep_cluster   (fresh mkfs every round)
+#   1. MXFS_FORCE_PREP=1 ./run.sh 2/net/mesh/direct prep_cluster   (fresh mkfs every round)
 #   2. per-node probe params: iwr=1 (P28-IWR write decisions), watch_ino=131
 #      (dlmtr transition ring on the deterministic hot dir)
 #   3. LIVE journalctl -kf streams from clyde into $LOGDIR/<tag>_testN.live
@@ -27,7 +27,7 @@ PASS=${MXFS_PASS:-/tmp/.mxfs_pass}
 SSH=/src/mxfs/tools/mxfs_sshpass.sh
 mkdir -p "$LOGDIR"
 
-MXFS_FORCE_PREP=1 ./run.sh 2 tcp prep_cluster > "$LOGDIR/${TAG}_prep.log" 2>&1
+MXFS_FORCE_PREP=1 ./run.sh 2/net/mesh/direct prep_cluster > "$LOGDIR/${TAG}_prep.log" 2>&1
 grep -q "prep_cluster OK" "$LOGDIR/${TAG}_prep.log" || { echo "PREP FAIL"; tail -3 "$LOGDIR/${TAG}_prep.log"; exit 1; }
 
 for n in test1 test2; do

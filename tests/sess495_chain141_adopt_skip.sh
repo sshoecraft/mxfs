@@ -103,7 +103,7 @@ print("  ADOPT-READ lines=%d by mismatched term: %s" % (n, " ".join("%s=%d" % kv
 cc_row() { # <name> <outfile> [MXFS_TEST_ENV]
     local name=$1 out=$2 env=${3:-} t0 rc
     t0=$(date +%s)
-    MXFS_TEST_ENV="$env" timeout 160 ./run.sh 32 caw crash_consistency > "$out" 2>&1; rc=$?
+    MXFS_TEST_ENV="$env" timeout 160 ./run.sh 32/disk/caw/mpath crash_consistency > "$out" 2>&1; rc=$?
     echo "STAGE $name rc=$rc wall=$(( $(date +%s) - t0 ))s budget=160s env='$env'"
     grep -aE 'crash_consistency' "$out" | grep -a 'nodes_pass' | cut -c1-300 | sed "s/^/  $name ROW: /"
 }
@@ -134,7 +134,7 @@ cc_row() { # <name> <outfile> [MXFS_TEST_ENV]
     esac
     echo "--- leg=$leg dir_adopt_skip_held_ex=$knob $(date -u +%FT%TZ) ---"
     t0=$(date +%s)
-    timeout 300 ./run.sh 32 caw prep_cluster > "$O/prep_$leg.out" 2>&1; prc=$?
+    timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster > "$O/prep_$leg.out" 2>&1; prc=$?
     echo "STAGE prep_$leg rc=$prc wall=$(( $(date +%s) - t0 ))s budget=300s"
     [ "$prc" = 0 ] || { echo "  LEG $leg NOT RUN: prep rc=$prc"; continue; }
     idok=0
@@ -148,7 +148,7 @@ cc_row() { # <name> <outfile> [MXFS_TEST_ENV]
     cc_row "cc_fresh_$leg" "$O/cc_fresh_$leg.out"
     sweep "$SINCE" "$O/${leg}_fresh"
     SINCE=$(date -u +'%Y-%m-%d %H:%M:%S'); t0=$(date +%s)
-    MXFS_TEST_ENV="CC_TAG=rows" timeout 1300 ./run.sh 32 caw $ROWS > "$O/rows_$leg.out" 2>&1; rc=$?
+    MXFS_TEST_ENV="CC_TAG=rows" timeout 1300 ./run.sh 32/disk/caw/mpath $ROWS > "$O/rows_$leg.out" 2>&1; rc=$?
     echo "STAGE rows_$leg rc=$rc wall=$(( $(date +%s) - t0 ))s budget=1300s"
     [ "$rc" = 124 ] && echo "  budget: the row set hit its wrapper budget — a result, not a number to widen."
     grep -aE '^\s+(PASS|FAIL)\s' "$O/rows_$leg.out" | cut -c1-230 | sed "s/^/  $leg ROW: /"

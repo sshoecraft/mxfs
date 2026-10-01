@@ -1,0 +1,51 @@
+{
+  "_": "What a configuration is: <nodes>/<class>/<method>/<attach>, e.g. 8/net/mesh/direct. tools/configuration.py is the only thing that parses one; everything else asks it. The design is docs/attachment-methods.md. A value with implemented=false is a real method or attachment MXFS does not have yet; it is named here so the grammar has a place for it, and a configuration using it is refused until it exists. The native-XFS baseline is not a configuration of MXFS and is spelled 1/xfs.",
+  "classes": {
+    "net": {"doc": "lock state is held in node memory and exchanged over the interconnect"},
+    "disk": {"doc": "lock state lives on the shared LUN and is claimed with a storage primitive"}
+  },
+  "methods": {
+    "net/mesh": {"implemented": true, "transport": "tcp",
+                 "doc": "peer-to-peer network DLM; lock mastership is spread across the members"},
+    "net/server": {"implemented": false,
+                   "doc": "a central lock server (or active/standby pair) holds every lock"},
+    "disk/caw": {"implemented": true, "transport": "caw",
+                 "doc": "SCSI COMPARE AND WRITE on a lock block"},
+    "disk/reserve": {"implemented": false,
+                     "doc": "SCSI-2 RESERVE/RELEASE around a plain lock-block write"},
+    "disk/pr": {"implemented": false,
+                "doc": "SCSI persistent reservations as the lock, or guarding its write"},
+    "disk/fused": {"implemented": false,
+                   "doc": "NVMe fused Compare+Write; the Linux block layer cannot issue it today"},
+    "disk/paxos": {"implemented": false,
+                   "doc": "Disk Paxos / Disk Lease: consensus on plain reads and writes"}
+  },
+  "attaches": {
+    "direct": {"implemented": true, "rig_mode": "direct",
+               "device": "/dev/disk/by-path/ip-192.168.120.1:3260-iscsi-iqn.2026-05.local.mxfs:shared-lun-0",
+               "doc": "each node's own initiator, one path: an in-guest iSCSI login to the rig's SCST target on one portal"},
+    "mpath": {"implemented": true, "rig_mode": "mpath",
+              "device": "/dev/mapper/mpatha",
+              "doc": "each node's own initiator over two or more paths, assembled by dm-multipath"},
+    "pass": {"implemented": true, "rig_mode": "pass",
+             "device": "/dev/sda",
+             "doc": "the hypervisor's initiator; the disk is passed into the VM as a SCSI LUN"},
+    "drbd": {"implemented": false,
+             "doc": "DRBD dual-primary replica of two local disks; needs a fencing method other than SCSI reservations"}
+  },
+  "baseline": {"key": "1/xfs", "device": "/dev/sda",
+               "doc": "native XFS on one node, no mxfs.ko: what the 2x performance ceiling is measured against"},
+  "ladder_nodes": [1, 2, 4, 8, 16, 32],
+  "release_matrix": [
+    "2/net/mesh/direct", "4/net/mesh/direct", "8/net/mesh/direct",
+    "2/disk/caw/direct", "4/disk/caw/direct", "8/disk/caw/direct"
+  ],
+  "retired_keys": {
+    "_": "The condition codes the rig used before 0.90.37. A tool given one refuses it and names the replacement; only the migrations translate them.",
+    "tcp": "net/mesh/direct",
+    "cawd": "disk/caw/direct",
+    "caw": "disk/caw/mpath",
+    "cawp": "disk/caw/pass",
+    "tcpmp": "net/mesh/mpath"
+  }
+}

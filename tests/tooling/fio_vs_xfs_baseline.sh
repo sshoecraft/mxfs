@@ -95,15 +95,16 @@ worst_w=$(printf '%s\n' "$psw" "$prw" | sort -n | head -1)
 measured="seqW=${msw}/${xsw}MiB rounds=$(IFS=,; echo "${rsw[*]}")→${psw}% randW=${mrw}/${xrw}iops rounds=$(IFS=,; echo "${rrw[*]}")→${prw}% worst_write=${worst_w}% [reads cache-bound: seqR ${psr}% randR ${prr}%]"
 
 # Append XFS baseline + mxfs numbers + ratios to bench.json (perf history).
-BENCH="${MXFS_BENCH:-/src/mxfs/bench.json}"; DLM="${MXFS_DLM:-tcp}"
+BENCH="${MXFS_BENCH:-/src/mxfs/bench.json}"
+CONFIG="${MXFS_CONFIG:?run.sh names the configuration in MXFS_CONFIG}"; SLUG="${CONFIG//\//-}"
 [ -s "$BENCH" ] || echo '{}' > "$BENCH" 2>/dev/null
 btmp=$(mktemp 2>/dev/null) && jq \
-  --arg l "fio_vs_xfs_${NODES}n_${DLM}_$(date +%s)" --arg ts "$(date -u +%FT%TZ)" \
-  --argjson n "$NODES" --arg d "$DLM" --arg sz "$SIZE" \
+  --arg l "fio_vs_xfs_${SLUG}_$(date +%s)" --arg ts "$(date -u +%FT%TZ)" \
+  --argjson n "$NODES" --arg d "$CONFIG" --arg sz "$SIZE" \
   --argjson xsw "${xsw:-0}" --argjson xsr "${xsr:-0}" --argjson xrw "${xrw:-0}" --argjson xrr "${xrr:-0}" \
   --argjson msw "${msw:-0}" --argjson msr "${msr:-0}" --argjson mrw "${mrw:-0}" --argjson mrr "${mrr:-0}" \
   --argjson psw "${psw:-0}" --argjson psr "${psr:-0}" --argjson prw "${prw:-0}" --argjson prr "${prr:-0}" \
-  '.[$l] = {ts:$ts, test:"fio_vs_xfs_baseline", nodes:$n, dlm:$d, size:$sz,
+  '.[$l] = {ts:$ts, test:"fio_vs_xfs_baseline", nodes:$n, configuration:$d, size:$sz,
             xfs:{seq_write_1m:{bw_mib:$xsw}, seq_read_1m:{bw_mib:$xsr}, rand_write_4k:{iops:$xrw}, rand_read_4k:{iops:$xrr}},
             mxfs:{seq_write_1m:{bw_mib:$msw}, seq_read_1m:{bw_mib:$msr}, rand_write_4k:{iops:$mrw}, rand_read_4k:{iops:$mrr}},
             ratio_pct:{seqW:$psw, seqR:$psr, randW:$prw, randR:$prr}}' \

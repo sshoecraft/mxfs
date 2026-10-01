@@ -27,8 +27,8 @@
 # Env:   MXFS_DEV (default: the device of A's live mxfs mount, resolved by
 #        mxfs_dev_resolve — no rig's device path is assumed), MXFS_MNT,
 #        MXFS_MODARGS (default target_cache_protected=1 force_transport=1),
-#        MXFS_TRANSPORT (the transport every join must come up on, default
-#        tcp), ARMS (comma list of arms to run, default 1,2,3 — arm 1 alone
+#        MXFS_CONFIG (the configuration whose transport every join must come
+#        up on, default 2/net/mesh/direct), ARMS (comma list of arms to run, default 1,2,3 — arm 1 alone
 #        reproduces the s510b whole-cluster-restart hang without dragging
 #        arms 2-3 through the wreckage), MXFS_FAULT_UNREACHABLE=<stage>
 #        (capture-contract verification only: the named acquisition,
@@ -53,8 +53,8 @@ B=${3:-test2}
 cd "$(dirname "$0")/.." || exit 2
 SSH=tools/mxfs_sshpass.sh
 MNT=${MXFS_MNT:-/mnt/shared}
-TRANSPORT=${MXFS_TRANSPORT:-tcp}
-export MXFS_TRANSPORT=$TRANSPORT
+export MXFS_CONFIG=${MXFS_CONFIG:-2/net/mesh/direct}
+TRANSPORT=$(python3 tools/configuration.py get "$MXFS_CONFIG" transport) || exit 2
 ARMS=${ARMS:-1,2,3}
 arm() { case ",$ARMS," in *",$1,"*) return 0;; *) return 1;; esac; }
 KO=/root/mxfs.ko.prep

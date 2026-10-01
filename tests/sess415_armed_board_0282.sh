@@ -15,13 +15,13 @@ EV=tests/evidence/sess415_armed_0282
 mkdir -p "$EV"
 {
   echo "=== sess415 armed board start $(date -u +%FT%TZ) build=$(cat VERSION) sv=$(modinfo mxfs.ko | awk '/srcversion/{print $2}') ==="
-  timeout 300 ./run.sh 32 caw prep_cluster
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster
   echo "STAGE prep rc=$?"
   timeout 60 tests/fleet_set_params.sh "target_cache_protected=1 foreign_replay_token_enforce=1" 32 "$EV/knobs.txt"
   prc=$?
   echo "STAGE params rc=$prc"
   if [ "$prc" -ne 0 ]; then echo "ABORT: knob arming failed"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
-  timeout 1400 ./run.sh 32 caw
+  timeout 1400 ./run.sh 32/disk/caw/mpath
   echo "STAGE board rc=$?"
   # Gate-3 + P-D512 sweep: per-node counts, one parallel bounded fan-out.
   D=$(mktemp -d)

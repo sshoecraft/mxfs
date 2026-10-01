@@ -28,7 +28,7 @@ lap() { # <budget_s> <label> <cmd...>
   if [ "$FSV" != "$SV" ]; then
     echo "fleet sv differs from tree; re-prepping"
   fi
-  lap 300 prep ./run.sh 32 caw prep_cluster
+  lap 300 prep ./run.sh 32/disk/caw/mpath prep_cluster
   lap 120 "settle arm=plain victim=test3"       tests/settle_token_arms.sh 32 test3  test1 plain
   lap 160 "settle arm=untokened victim=test4"   tests/settle_token_arms.sh 32 test4  test1 untokened
   lap 120 "settle arm=latewait victim=test29"   tests/settle_token_arms.sh 32 test29 test1 latewait

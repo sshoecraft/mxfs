@@ -14,7 +14,7 @@ SSH="$REPO/tools/mxfs_sshpass.sh"
 PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"
 cd "$REPO"
 
-N="${1:-8}"
+CONFIG=$(python3 "$(dirname "$0")/../tools/configuration.py" parse "${1:-8/disk/caw/mpath}") || exit 2; N=${CONFIG%%/*}
 ITERS="${2:-10}"
 OUT="${3:?usage: repro_fdw_only_loop.sh <N> <iters> <outdir>}"
 mkdir -p "$OUT"
@@ -27,7 +27,7 @@ wait
 for i in $(seq 1 "$ITERS"); do
     echo "$(date -u +%H:%M:%S) === iter $i/$ITERS ===" | tee -a "$OUT/loop.log"
     rm -f /tmp/mxfs_run.lock
-    TEST_TIMEOUT=180 timeout 240 ./run.sh "$N" caw fence_during_write \
+    TEST_TIMEOUT=180 timeout 240 ./run.sh "$CONFIG" fence_during_write \
         > "$OUT/iter${i}.log" 2>&1
     rc=$?
     tail -5 "$OUT/iter${i}.log" | tee -a "$OUT/loop.log"

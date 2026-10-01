@@ -11,11 +11,11 @@
 # and must be investigated, never retried away).  A run with any stamp >=
 # CLEAN was burst-contaminated: ignored, retried.  Bounded attempts.
 #
-# usage: clean_load_run.sh <nodes> <transport> <test...>
+# usage: clean_load_run.sh <configuration> <test...>
 #   env: GATE (default 16) CLEAN (default 22) TRIES (default 8)
 set -u
 cd "$(dirname -- "${BASH_SOURCE[0]}")/.."
-N="$1"; TR="$2"; shift 2
+CONFIG=$(python3 "$(dirname "$0")/../tools/configuration.py" parse "${1:?configuration}") || exit 2; N=${CONFIG%%/*}; TR=${CONFIG#*/}; shift
 GATE="${GATE:-16}"; CLEAN="${CLEAN:-22}"; TRIES="${TRIES:-8}"
 
 for try in $(seq 1 "$TRIES"); do
@@ -25,7 +25,7 @@ for try in $(seq 1 "$TRIES"); do
         sleep 20
     done
     echo "== attempt $try (load $(cut -d' ' -f1-3 /proc/loadavg)) =="
-    OUT=$(timeout 300 ./run.sh "$N" "$TR" "$@" 2>&1 | grep -E "  PASS|  FAIL")
+    OUT=$(timeout 300 ./run.sh "$CONFIG" "$@" 2>&1 | grep -E "  PASS|  FAIL")
     echo "$OUT"
     # every row's hostload stamp must be < CLEAN for the run to count
     STAMPS=$(echo "$OUT" | grep -oE 'hostload=[0-9]+' | cut -d= -f2)

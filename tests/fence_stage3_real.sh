@@ -13,7 +13,7 @@
 # victim mid-write".  IT DOES NOT.  fence_during_write is a NEGATIVE test: it
 # runs a concurrent write storm and asserts that NO node is fenced
 # (`ckeq "no fence/shutdown in window" 0 "$hits"`).  Measured 2026-08-20: a full
-# 32/caw board — fence_during_write, crash_consistency, fault_netpartition,
+# 32/disk/caw/mpath board — fence_during_write, crash_consistency, fault_netpartition,
 # dlm_membership — produced ZERO fence markers on all 32 nodes (dmesg ring
 # verified to cover the whole window; the prints are MXFS_LOG_WARN, not gated).
 # crash_consistency says so itself: "a true node-KILL + survivor
@@ -43,7 +43,7 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 REPO=$(cd "$HERE/.." && pwd)
 SSH="$REPO/tools/mxfs_sshpass.sh"
 VICTIM="${1:-test30}"
-N="${2:-32}"
+CONFIG=$(python3 "$(dirname "$0")/../tools/configuration.py" parse "${2:-32/disk/caw/mpath}") || exit 2; N=${CONFIG%%/*}
 MNT=/mnt/shared
 # the device under test by identity, not by path: the LUN this rig declares
 # (data/rigs.json), verified by its WWID on the node, and the node's live mxfs
@@ -81,7 +81,7 @@ up=0
 for h in "$VICTIM" "${survivors[@]:0:3}"; do
     timeout 15 "$SSH" "$h" "mountpoint -q $MNT && echo MOUNTED" 2>/dev/null | grep -q MOUNTED && up=$((up+1))
 done
-[ "$up" -ge 3 ] || { echo "PRECONDITION-NOT-MET: cluster not mounted (only $up/4 sampled nodes) — run ./run.sh $N caw prep_cluster"; exit 2; }
+[ "$up" -ge 3 ] || { echo "PRECONDITION-NOT-MET: cluster not mounted (only $up/4 sampled nodes) — run ./run.sh $CONFIG prep_cluster"; exit 2; }
 
 # The victim must be HOLDING GRANTS when it dies, otherwise the survivors have
 # nothing to fence it out of and take the KEY_ABSENT/NO-op path.

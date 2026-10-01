@@ -25,7 +25,7 @@
 
 set -u
 cd "$(dirname "$0")/.." || exit 1
-N="${1:-32}"
+CONFIG=$(python3 "$(dirname "$0")/../tools/configuration.py" parse "${1:-32/disk/caw/mpath}") || exit 2; N=${CONFIG%%/*}
 ITERS="${2:-3}"
 SSH=tools/mxfs_sshpass.sh
 OUT=$(mktemp -d)
@@ -58,7 +58,7 @@ for it in $(seq 1 "$ITERS"); do
     echo "--- iter $it/$ITERS ---"
     up=$(start_sampler)
     [ "$up" -ge 1 ] || { echo "    sampler did not start"; continue; }
-    timeout 400 ./run.sh "$N" caw dirent_durability > "$OUT/run$it.txt" 2>&1
+    timeout 400 ./run.sh "$CONFIG" dirent_durability > "$OUT/run$it.txt" 2>&1
     v=$(grep -E '^[[:space:]]+(PASS|FAIL|BLOCK)[[:space:]]+dirent_durability' "$OUT/run$it.txt" | tail -1)
     [ -z "$v" ] && { echo "    NO VERDICT — run did not execute"; sed -n '1,4p' "$OUT/run$it.txt" | sed 's/^/      /'; break; }
     echo "    $v"

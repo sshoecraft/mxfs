@@ -51,7 +51,7 @@ while ! grep -q "^DONE" "$GATE" 2>/dev/null; do sleep 30; done
   pre_id=$(python3 -c "import json;print(json.load(open('.last_run.json'))['run_id'])" 2>/dev/null || echo none)
   echo "STAGE board pre_run_id=$pre_id"
   T0=$(date +%s)
-  timeout "$BOARD_BUDGET" ./run.sh 32 caw; rc=$?
+  timeout "$BOARD_BUDGET" ./run.sh 32/disk/caw/mpath; rc=$?
   wall=$(( $(date +%s) - T0 ))
   echo "STAGE board rc=$rc wall=${wall}s budget=${BOARD_BUDGET}s"
   [ "$rc" = 124 ] && echo "FAIL: the board exceeded its ${BOARD_BUDGET}s budget (wall=${wall}s).  The slowness is the defect."
@@ -63,6 +63,6 @@ while ! grep -q "^DONE" "$GATE" 2>/dev/null; do sleep 30; done
   fi
   echo "--- conditions (run_id=$post_id) ---"
   # harness-lint: ok - unreachable unless post_run_id != pre_run_id proved above that THIS run recorded a board
-  timeout 120 tools/criteria.py 32 caw 2>&1 | grep -av '^\s*$'
+  timeout 120 tools/criteria.py 32/disk/caw/mpath 2>&1 | grep -av '^\s*$'
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

@@ -50,7 +50,7 @@
 #
 # NOTE: this leaves the slot frozen.  The victim's grants are held by a dead
 #   node and the descriptor is unowned-by-anyone-live.  A re-prep is REQUIRED
-#   afterwards:  MXFS_FORCE_PREP=1 ./run.sh 32 caw prep_cluster
+#   afterwards:  MXFS_FORCE_PREP=1 ./run.sh 32/disk/caw/mpath prep_cluster
 #
 # TIMING (the budget rule — derived, not chosen)
 #   guard appears : DEAD_THRESHOLD(31)*HB_INTERVAL_MS(2000) declare  = 62s
@@ -75,7 +75,7 @@ OBSERVE_S="${4:-120}"
 # mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
 . "$(dirname "$0")/lib/rig.sh"
 mxfs_dev_resolve "$VICTIM"; DEV=$MXFS_DEV_RESOLVED
-NODES_N="${MXFS_NODES:-32}"
+CONFIG=$(python3 "$(dirname "$0")/../tools/configuration.py" parse "${CONFIG:-32/disk/caw/mpath}") || exit 2; NODES_N=${CONFIG%%/*}
 
 cd "$(dirname "$0")/.." || exit 2
 SSH=tools/mxfs_sshpass.sh
@@ -250,6 +250,6 @@ fi
 echo
 echo "probe: THE SLOT IS LEFT FROZEN BY DESIGN — re-prep before any other test:"
 echo "       virsh -c qemu:///system start $VICTIM"
-echo "       MXFS_FORCE_PREP=1 ./run.sh $NODES_N caw prep_cluster"
+echo "       MXFS_FORCE_PREP=1 ./run.sh $CONFIG prep_cluster"
 echo "probe: artifacts in $TD"
 exit $rc

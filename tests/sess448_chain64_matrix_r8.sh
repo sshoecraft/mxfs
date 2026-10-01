@@ -12,6 +12,6 @@ LOG=tests/evidence/sess448_chain64_matrix_r8_$LABEL.log
 {
   echo "=== sess448 chain64 start $(date -u +%FT%TZ) sv=$(modinfo mxfs.ko | awk '/srcversion/{print $2}') VERSION=$(cat VERSION) modinfo_lab=$(modinfo mxfs.ko | grep -c '_lab') tcpstr=$(strings -a mxfs.ko | grep -c 'transport is not CAW') ==="
   T0=$(date +%s); timeout 120 tests/domain_admission_matrix.sh ${LABEL}m test32; echo "STAGE domain_matrix rc=$? wall=$(( $(date +%s) - T0 ))s"
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep_after rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep_after rc=$?"
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

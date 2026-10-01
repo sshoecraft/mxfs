@@ -16,14 +16,14 @@ LOG=tests/evidence/sess448_chain61_incarnation_zero_$LABEL.log
 sweep() { for i in 1 32; do printf "test%s:%s " "$i" "$(timeout 25 tools/mxfs_sshpass.sh test$i "journalctl -k --since -8min --no-pager 2>/dev/null | grep -ac '$1'" 2>/dev/null | tr -dc '0-9')"; done; echo; }
 {
   echo "=== sess448 chain61 start $(date -u +%FT%TZ) sv=$(modinfo mxfs.ko | awk '/srcversion/{print $2}') modinfo_lab=$(modinfo mxfs.ko | grep -c mxfs_iclus_relmark_lab) ==="
-  timeout 300 ./run.sh 32 caw prep_cluster; prc=$?; echo "STAGE prep rc=$prc"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; prc=$?; echo "STAGE prep rc=$prc"
   if [ "$prc" -ne 0 ]; then echo "ABORT: prep"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
   for arm in zero nonzero; do
     T0=$(date +%s); timeout 260 tests/incarnation_mismatch_probe.sh $arm test32 test1 > tests/evidence/sess448_chain61_${arm}_$LABEL.txt 2>&1; rc=$?
     echo "STAGE probe_$arm rc=$rc wall=$(( $(date +%s) - T0 ))s"
     grep -a 'PASS\|FAIL\|VERDICT\|RESULT\|budget' tests/evidence/sess448_chain61_${arm}_$LABEL.txt | head -12 | cut -c1-200
     for p in P-HB-INC-ZERO P237-RECOV-INC-UNOBSERVED P237-RECOV-INC-MISMATCH P237-RECOV-SUPERSEDED RECOVERY_GUARD P234-COMPLETE-FENCEFAIL; do echo "$arm $p: $(sweep $p)"; done
-    timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep_after_$arm rc=$?"
+    timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep_after_$arm rc=$?"
   done
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

@@ -1,6 +1,6 @@
 #!/bin/bash
 # drc_catch3.sh [MAXRUNS] — instrumented (dirwr=1 + DRC_STREAM NFS capture) reboot+run
-# dir_reuse 8/tcp until a FAIL.  Clears the stale /root/drc_* markers each run (the
+# dir_reuse 8/net/mesh/direct until a FAIL.  Clears the stale /root/drc_* markers each run (the
 # sess27 contamination), streams every node's dmesg to NFS (/src/mxfs/tests/tcp/drc_cap,
 # immune to ring rotation), and on FAIL extracts the decisive grown-dir probes for the
 # fail round: P68-GROWREL-VERIFY (does disk reflect in-core after release?), P-DIRIFLUSH
@@ -23,7 +23,7 @@ for run in $(seq 1 "$MAX"); do
     rm -f "$STREAMDIR"/stream_rank*.log 2>/dev/null
     t0=$(date +%s)
     MXFS_EXTRA_MODARGS="$MODARGS" MXFS_TEST_ENV="DRC_STREAM=1 DRC_ROUNDS=16" \
-        timeout 590 /src/mxfs/run.sh 8 tcp dir_reuse_coherency > "$SCR/c3_run${run}.log" 2>&1
+        timeout 590 /src/mxfs/run.sh 8/net/mesh/direct dir_reuse_coherency > "$SCR/c3_run${run}.log" 2>&1
     t1=$(date +%s)
     if grep -q "PASS  dir_reuse_coherency" "$SCR/c3_run${run}.log"; then
         echo "run $run: PASS wall=$((t1-t0))s" | tee -a "$SCR/catch3.log"

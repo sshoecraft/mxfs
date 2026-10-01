@@ -1,5 +1,5 @@
 #!/bin/bash
-# drc_cap8.sh — 8/tcp dir_reuse_coherency capture loop that, on a FAIL, pulls
+# drc_cap8.sh — 8/net/mesh/direct dir_reuse_coherency capture loop that, on a FAIL, pulls
 # the DECISIVE diagnostics from each node BEFORE the next reboot wipes them:
 #   - mxfs-drc-RDMISS  (which expected name is absent from readdir)
 #   - mxfs-drc-CLASS   (LOOKUP_OK = enumeration/leaf-data divergence;
@@ -29,7 +29,7 @@ reboot_clean() {
 for i in $(seq 1 "$ITERS"); do
   echo "########## ITER $i/$ITERS reboot @ $(date -u +%T) ##########"
   reboot_clean
-  OUT=$(env MXFS_EXTRA_MODARGS="$MODARGS" ./run.sh 8 tcp dir_reuse_coherency 2>&1)
+  OUT=$(env MXFS_EXTRA_MODARGS="$MODARGS" ./run.sh 8/net/mesh/direct dir_reuse_coherency 2>&1)
   res=$(echo "$OUT" | grep -E 'dir_reuse_coherency' | tail -1)
   echo "ITER $i: $res"
   if echo "$res" | grep -q 'PASS'; then continue; fi

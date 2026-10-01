@@ -1,8 +1,8 @@
 {
-  "run_id": "20260930T151252Z",
+  "run_id": "20261001T083456Z",
   "nodes": 2,
-  "dlm": "cawd",
+  "configuration": "2/disk/caw/direct",
   "ran": 30,
   "pending": 0,
-  "iso": "2026-09-30T15:26:39Z"
+  "iso": "2026-10-01T08:48:36Z"
 }

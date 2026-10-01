@@ -182,9 +182,11 @@ set -u
 LABEL=${1:?label}
 cd "$(dirname "$0")/.." || exit 2
 export MXFS_NODE_LIST=${MXFS_NODE_LIST:-test1,test2}
-export MXFS_TRANSPORT=${MXFS_TRANSPORT:-tcp}
 NODES=(${MXFS_NODE_LIST//,/ })
 NN=${#NODES[@]}
+export MXFS_CONFIG=${MXFS_CONFIG:-$NN/net/mesh/direct}
+MXFS_CONFIG=$(python3 tools/configuration.py parse "$MXFS_CONFIG") || exit 2
+[ "${MXFS_CONFIG%%/*}" = "$NN" ] || { echo "MXFS_CONFIG=$MXFS_CONFIG names ${MXFS_CONFIG%%/*} nodes; the node list has $NN"; exit 2; }
 [ "$NN" = 2 ] || [ "$NN" = 3 ] || { echo "ABORT: MXFS_NODE_LIST must name two or three nodes (got '$MXFS_NODE_LIST')"; exit 2; }
 N1=${NODES[0]}
 N2=${NODES[1]}
@@ -266,7 +268,7 @@ waitboot() {
     echo "STAGE boot-wait $* polls=$w at +$(el)s"
 }
 waitboot "${NODES[@]}"
-MXFS_FORCE_PREP=1 timeout 300 ./run.sh "$NN" tcp prep_cluster > "$OUT/prep.log" 2>&1
+MXFS_FORCE_PREP=1 timeout 300 ./run.sh "$MXFS_CONFIG" prep_cluster > "$OUT/prep.log" 2>&1
 prc=$?
 echo "STAGE prep rc=$prc wall=$(el)s  $(grep -am1 'prep_cluster OK\|FAIL' "$OUT/prep.log" | cut -c1-140)"
 [ $prc = 0 ] || { echo "RESULT: ABORT label=$LABEL stage=prep evidence=$OUT"; exit 2; }

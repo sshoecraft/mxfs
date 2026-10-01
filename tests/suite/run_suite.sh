@@ -2,7 +2,7 @@
 # run_suite.sh — the overarching FS test battery. Runs the suite against a
 # given node count.
 #
-# Usage:  tests/suite/run_suite.sh <N> [node1 node2 ...]
+# Usage:  MXFS_CONFIG=<configuration> tests/suite/run_suite.sh <N> [node1 node2 ...]
 #   <N>    : node count this run targets (1..32)
 #   nodes  : explicit node list; defaults to test1..testN
 #
@@ -25,7 +25,7 @@ REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 MANIFEST="${MXFS_MANIFEST:-$REPO/tests/suite/manifest}"
 RESULTS="${MXFS_RESULTS:-$REPO/.suite_results.json}"
 SUITE_DIR="${MXFS_SUITE_DIR:-tests/suite}"
-DLM="${MXFS_DLM:-tcp}"
+CONFIG="${MXFS_CONFIG:?set MXFS_CONFIG to the configuration this runs under, e.g. 2/net/mesh/direct}"
 RUNONE="$REPO/tests/suite/run_one.sh"
 [ -s "$RESULTS" ] || echo '{}' > "$RESULTS"
 
@@ -50,7 +50,7 @@ while read -r ph test coord minn _rest; do
         printf "  PENDING  %-22s (no script yet)\n" "$test"
     elif [ "$coord" = none ]; then
         printf "  RUN      %-22s on %s\n" "$test" "$NODE1"
-        MXFS_SUITE_DIR="$SUITE_DIR" MXFS_RESULTS="$RESULTS" MXFS_DLM="$DLM" \
+        MXFS_SUITE_DIR="$SUITE_DIR" MXFS_RESULTS="$RESULTS" MXFS_CONFIG="$CONFIG" \
             "$RUNONE" "$test" "$NODE1" "$N" </dev/null >/dev/null 2>&1 || true
     else
         record "$test" SKIP "coord=$coord" "coordinated multi-node runner not yet implemented"

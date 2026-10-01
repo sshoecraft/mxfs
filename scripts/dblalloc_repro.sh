@@ -2,7 +2,7 @@
 # dblalloc_repro.sh — one iteration of the AG free-space double-allocation
 # reproducer (sess3 ccloop 8ba7ae5c, GPT probe plan).
 #
-# Sequence mirrors the failing 32/caw ladder segment (minus fio): fresh prep
+# Sequence mirrors the failing 32/disk/caw/mpath ladder segment (minus fio): fresh prep
 # (mkfs + remount, module reload → probe counters reset), then
 # precond_readiness + cache_coherency, then strong_consistency + posix_multi.
 # Afterwards: pull probe-filtered kernel journals from every node (beating
@@ -32,7 +32,7 @@ ITER="${1:?usage: dblalloc_repro.sh <iter-label>}"
 # mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
 . "$(dirname "$0")/../tests/lib/rig.sh"
 mxfs_dev_resolve test1; DEV=$MXFS_DEV_RESOLVED
-N="${DBLALLOC_NODES:-32}"
+CONFIG=$(python3 "$(dirname "$0")/../tools/configuration.py" parse "${CONFIG:-32/disk/caw/mpath}") || exit 2; N=${CONFIG%%/*}
 BACKING=$(tools/mxfs_host_image.sh) || { echo "$BACKING"; exit 2; }
 SSH="$REPO/tools/mxfs_sshpass.sh"
 PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"
@@ -47,7 +47,7 @@ echo "=== iter $ITER start $T0_UTC (nodes=$N dev=$DEV) ===" | tee "$LOGDIR/summa
 
 # 1. fresh prep (forced; resets module → probe caps/counters reset)
 MXFS_DEV="$DEV" MXFS_EXTRA_MODARGS="${MXFS_EXTRA_MODARGS:-dblalloc_probe=1}" \
-    ./run.sh "$N" caw prep_cluster > "$LOGDIR/prep.log" 2>&1
+    ./run.sh "$CONFIG" prep_cluster > "$LOGDIR/prep.log" 2>&1
 rc=$?
 if [ $rc -ne 0 ]; then
     echo "PREP FAILED rc=$rc (see prep.log)" | tee -a "$LOGDIR/summary.txt"
@@ -61,9 +61,9 @@ fi
 # enforced kill mid-create-storm reads as NO_TERMINAL_RECORD=32 — a false
 # "reproduction" that masks the real corruption channels.  Functional check
 # failures still FAIL under calibration; only budget overruns are tolerated.
-MXFS_DEV="$DEV" RULE0_CALIBRATE=1 ./run.sh "$N" caw precond_readiness cache_coherency \
+MXFS_DEV="$DEV" RULE0_CALIBRATE=1 ./run.sh "$CONFIG" precond_readiness cache_coherency \
     > "$LOGDIR/batch1.log" 2>&1
-MXFS_DEV="$DEV" RULE0_CALIBRATE=1 ./run.sh "$N" caw strong_consistency posix_multi \
+MXFS_DEV="$DEV" RULE0_CALIBRATE=1 ./run.sh "$CONFIG" strong_consistency posix_multi \
     > "$LOGDIR/batch2.log" 2>&1
 grep -E '^  (PASS|FAIL)' "$LOGDIR"/batch1.log "$LOGDIR"/batch2.log | tee -a "$LOGDIR/summary.txt"
 

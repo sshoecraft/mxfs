@@ -3,7 +3,7 @@
 # child inode is cached by a peer?  (ccloop c7ee71c6 sess28.)
 #
 # WHY
-#   sustained_load at 32/caw was failing its 180 s budget with per_op=198 ms and
+#   sustained_load at 32/disk/caw/mpath was failing its 180 s budget with per_op=198 ms and
 #   wall=3978 ms — numbers that make the mount look healthy.  Phase timers added
 #   to that criterion showed the truth: rank 1's `rm -rf $MNT/.sustained_load`
 #   accounted for 38379 of 38402 ms of setup (mkdir 5 ms, sync 18 ms), and it was

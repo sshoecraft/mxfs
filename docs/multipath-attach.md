@@ -1,12 +1,12 @@
-# Condition 4 — CAW over multipath (BUILT + verified)
+# The mpath attachment — dm-multipath under MXFS (built and characterised)
 
 **Status:** built and run 2026-07-05 (see RESULTS at the bottom). Extends the 3
-infra conditions in `test_infra_scst_caw.md`. The scope/design below is retained
+single-path attachments in `test_infra_scst_caw.md`. The scope/design below is retained
 for context.
 
 ## Why
 
-Conditions 1–3 all run **single-path** (we pinned `allowed_portal` to one portal
+The `direct` and `pass` attachments all run **single-path** (we pinned `allowed_portal` to one portal
 and set `find_multipaths strict` specifically to *avoid* multipath). But the #1
 real deployment — any enterprise SAN, FC *or* iSCSI — has ≥2 paths and runs
 multipathd, mounting `/dev/mapper/mpathX`. A clustered FS that can't operate on a
@@ -16,7 +16,7 @@ multipathed LUN doesn't ship for the datacenter. So we must be able to test it.
 
 The single un-retried `caw_verify` through `/dev/mapper/mpatha` returned UNIT
 ATTENTION (sense `0x29`, power-on/reset) — a **transient/retryable** condition,
-NOT proven failure. Condition 4 answers, at the raw storage layer (SG_IO +
+NOT proven failure. The `mpath` attachment answers, at the raw storage layer (SG_IO +
 sg_persist, no mxfs), **which layer actually needs work**:
 
 1. **CAW atomicity through dm-multipath** — likely just a UA-retry. dm-multipath
@@ -45,17 +45,17 @@ CAW/PR questions. Real-2-network only adds failover realism, which we defer.
 
 ## What gets built
 
-1. **Host (extend `scst_setup.sh` or a cond4 wrapper):**
+1. **Host (extend `scst_setup.sh` or an mpath wrapper):**
    - Add a 2nd br0 IP alias (`ip addr add 192.168.120.2/24 dev br0`), removed on teardown.
    - `allowed_portal` set to BOTH intended portals (`.1` and `.2`) — note this is
      *two intended* portals, distinct from the 9 *accidental* bridge portals we
      pin away; do NOT reopen to all interfaces.
 2. **Guest buildup (multipath must ASSEMBLE the 2-path device):**
-   - Conditions 1–3 use `find_multipaths strict` (don't wrap a lone path). Cond 4
+   - The single-path attachments use `find_multipaths strict` (don't wrap a lone path). `mpath`
      needs the 2-path device wrapped. Candidate: switch guests to
      `find_multipaths yes` universally — validate it leaves single-path unwrapped
      (so 1–3 still get raw `/dev/sda`) AND wraps the 2-path device into `mpatha`.
-     Fallback: keep `strict` and add the LUN wwid to `/etc/multipath/wwids` for cond4.
+     Fallback: keep `strict` and add the LUN wwid to `/etc/multipath/wwids` for `mpath`.
    - multipathd stays RUNNING (prod-correct).
 3. **Tool (`tools/caw_verify.c`):** add `--retry-ua` (retry the pre-read/CAW on
    UNIT ATTENTION, sense key 0x06, a bounded number of times). Small C change. A
@@ -73,29 +73,29 @@ CAW/PR questions. Real-2-network only adds failover realism, which we defer.
 5. **Teardown:** logout both sessions, `multipath -F`, remove the 2nd IP alias,
    `scst_setup.sh teardown`.
 
-## Scope boundary (unchanged from the other conditions)
+## Scope boundary (unchanged from the other attachments)
 
 This harness is **storage-layer**: raw SG_IO CAW + `sg_persist`, no mxfs mount,
 no filesystem. It tells us whether the *transport/storage* honours CAW+PR through
 `dm-multipath`. The actual **fix is mxfs kernel work** — UA-retry in
 `dlm/dlm_caw.c` and ALL_TG_PT / per-path PR registration in the fencing path —
-and is FS work, informed by this harness's output. Not part of condition 4 itself.
+and is FS work, informed by this harness's output. Not part of the `mpath` attachment itself.
 
 ## Decisions (locked 2026-07-05)
 
 - **Fidelity: synthetic 2-path first** (2nd br0 IP alias + 2 portals). Real
   2-network failover deferred.
-- **`find_multipaths yes` universally** on the guests — replaces the per-condition
+- **`find_multipaths yes` universally** on the guests — replaces the per-attachment
   `strict`. MUST validate during build that `yes` leaves a single path as raw
-  `/dev/sda` (so conditions 1–3 keep working) while assembling the 2-path device
-  into `mpatha` for condition 4. If `yes` turns out to wrap single paths on this
-  distro, fall back to `strict` + per-cond4 wwid.
+  `/dev/sda` (so the single-path attachments keep working) while assembling the 2-path device
+  into `mpatha` for `mpath`. If `yes` turns out to wrap single paths on this
+  distro, fall back to `strict` + per-`mpath` wwid.
 - **Characterize at N=2 first**, then confirm the presentation at N=32.
 
 ## Build order (when green-lit)
 
 1. `caw_verify.c`: add `--retry-ua` (retry pre-read/CAW on sense key 0x06). Rebuild `make tools`.
-2. Host: 2nd br0 IP alias + `scst_setup` `allowed_portal` = {`.1`,`.2`} (cond4 variant/flag).
+2. Host: 2nd br0 IP alias + `scst_setup` `allowed_portal` = {`.1`,`.2`} (`mpath` variant/flag).
 3. Guest buildup: set `find_multipaths yes` on all 32; validate single-path 1–3 still raw `/dev/sda`.
 4. `verify_infra.sh` mode `multipath`: present via both portals → `mpatha` (2 paths)
    → identity/readable checks → retry-aware cross-node CAW → `sg_persist` PR-across-paths
@@ -149,7 +149,7 @@ code map (2026-07-05):
   all underlying paths**, so mxfs's kernel PR may work UNCHANGED on
   `/dev/mapper/mpathX`. Verify first (register+reserve while mounted on the mpath
   dev, confirm fencing). The ALL_TG_PT concern (`sg_persist --param-alltgpt`, which
-  the condition-4 harness proved necessary) applies to the RAW SG_IO userspace path
+  the `mpath` harness proved necessary) applies to the RAW SG_IO userspace path
   (`pal/linux/user.c`, PROUT 0x5F), NOT necessarily the kernel `pr_ops` path — so
   don't assume a change is needed until the pr_ops path is tested on mpath.
 

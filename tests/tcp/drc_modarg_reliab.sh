@@ -1,5 +1,5 @@
 #!/bin/bash
-# drc_modarg_reliab.sh N "MODARGS" — N clean-reboot 8/tcp dir_reuse iters with
+# drc_modarg_reliab.sh N "MODARGS" — N clean-reboot 8/net/mesh/direct dir_reuse iters with
 # arbitrary MXFS_EXTRA_MODARGS, logging PASS/FAIL + wall. sess2 ccloop.
 set -u
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd); cd "$REPO"

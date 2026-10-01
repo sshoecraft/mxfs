@@ -7,7 +7,7 @@
 # host-side transport (qemu/loopback-iSCSI/SCST) service latency that the
 # metadata-storm tests amplify (~6 sync round trips per create+stat+unlink).
 #
-# Derivation (2026-07-25, v0.11.81 32/cawp forensics): healthy band 48-58
+# Derivation (2026-07-25, v0.11.81 32/disk/caw/pass forensics): healthy band 48-58
 # ops/s needs <= ~3.3ms storm RTT; idle-fleet RTT on a healthy host is
 # ~1.8-2.0ms.  Gate: p50 <= 2500us AND 1-min loadavg <= 12 -> storm cells
 # have their 7/20-era margin.  Neighbor workloads (game servers, vLLM) or

@@ -680,6 +680,10 @@ void mxfs_dir_merge_peer_into_tp(struct xfs_trans *tp, struct xfs_inode *dp,
 /* rewrite a rename/link dirent ftype from the post-ILOCK mode
  * (module_param rename_ftype_revalidate, default 0 = probe only). */
 extern int mxfs_rename_ftype_revalidate;
+/* link/symlink/rename refuse a peer-removed target directory
+ * (module_param insert_deadparent_refuse, default 1). */
+extern int mxfs_insert_deadparent_refuse;
+int mxfs_insert_deadparent(struct xfs_inode *dp, const char *op);
 /* ROOT FIX: RELOAD-TYPEFLIP-STALE-SKIP requires the same
  * incarnation (module_param typeflip_skip_same_incarn, default 1). */
 extern int mxfs_typeflip_skip_same_incarn;

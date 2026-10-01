@@ -70,7 +70,7 @@
 # 4 x 3 x 30 + captures 60 => 880 s worst case; a healthy lap measures about
 # 100 s.  The control arm adds 4 x 30 for its second sweep.
 # Usage: tests/quiesce_remount_access.sh <label> [node ...]   (default test1..test4)
-# Env:   FILES (default 200), MXFS_MNT, MXFS_DEV, MXFS_TRANSPORT (default tcp),
+# Env:   FILES (default 200), MXFS_MNT, MXFS_DEV, MXFS_CONFIG (default 2/net/mesh/direct),
 #        ACCESS_BOUND, MOUNT_BOUND, UMOUNT_BOUND, SETTLED_RETIRE (default 1),
 #        TENANT_ATTRIBUTE (default 1), INJECT_UNRESOLVABLE (default 0),
 #        UNHELD_ANSWER (default 1; 0 switches off the lock layer's own answer
@@ -84,8 +84,8 @@ NODES=("$@")
 [ ${#NODES[@]} -ge 1 ] || NODES=(test1 test2 test3 test4)
 cd "$(dirname "$0")/.." || exit 2
 MNT=${MXFS_MNT:-/mnt/shared}
-TRANSPORT=${MXFS_TRANSPORT:-tcp}
-export MXFS_TRANSPORT=$TRANSPORT
+export MXFS_CONFIG=${MXFS_CONFIG:-2/net/mesh/direct}
+TRANSPORT=$(python3 tools/configuration.py get "$MXFS_CONFIG" transport) || exit 2
 FILES=${FILES:-200}
 ACCESS_BOUND=${ACCESS_BOUND:-30}
 MOUNT_BOUND=${MOUNT_BOUND:-10}

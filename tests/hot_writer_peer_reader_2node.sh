@@ -20,7 +20,7 @@
 # after D-0917 (sess523), so 100 ms per write is the bound the design
 # claims.  A_loop_wall_ms <= ITERS * 100.
 #
-# Measured s525h-j (0.75.44, 2/tcp QNAP): 23.9-28.2 ms per write, 292-318
+# Measured s525h-j (0.75.44, 2/net/mesh/direct QNAP): 23.9-28.2 ms per write, 292-318
 # reads overlapping 300 writes, 0 torn, 0 short.  One cycle from the merged
 # realns timeline (s525h): writer EX acquire -> BAST processed at +0.2 ms,
 # release complete at +7.5 ms (P138 median 7.1 ms: sb 2.0 drain, sc 1.2,
@@ -29,7 +29,7 @@
 # P7B inter-arrival min 17.6 / median 23.6 / p90 31.3 ms: continuous, no
 # sleep cadence.
 #
-# the budget rule (derived): prep 55 s measured (2/tcp QNAP) + loop <= ITERS*0.1 s
+# the budget rule (derived): prep 55 s measured (2/net/mesh/direct QNAP) + loop <= ITERS*0.1 s
 # + capture 10 s; ITERS=300 -> ~100 s; chain bound 300 (prep manifest) + 150.
 #
 # Usage: tests/hot_writer_peer_reader_2node.sh <label> [ITERS=300]
@@ -40,7 +40,7 @@ LABEL=${1:?label}
 ITERS=${2:-300}
 cd "$(dirname "$0")/.." || exit 2
 export MXFS_NODE_LIST=${MXFS_NODE_LIST:-test1,test2}
-export MXFS_TRANSPORT=${MXFS_TRANSPORT:-tcp}
+export MXFS_CONFIG=${MXFS_CONFIG:-2/net/mesh/direct}
 A=${MXFS_NODE_LIST%%,*}
 B=${MXFS_NODE_LIST##*,}
 SSH=tools/mxfs_sshpass.sh
@@ -66,7 +66,7 @@ SZ=65536
 echo "=== hot_writer_peer_reader_2node label=$LABEL A=$A B=$B iters=$ITERS sv=$(modinfo mxfs.ko | sed -n 's/^srcversion: *//p') $(date -u +%FT%TZ) ==="
 s=$(date +%s)
 if [ -z "${NOPREP:-}" ]; then
-    MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2 tcp prep_cluster > "$OUT/prep.log" 2>&1
+    MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2/net/mesh/direct prep_cluster > "$OUT/prep.log" 2>&1
     prc=$?
     echo "STAGE prep rc=$prc wall=$(( $(date +%s) - s ))s"
     if [ $prc != 0 ]; then echo "RESULT: FAIL label=$LABEL prep rc=$prc"; exit 2; fi

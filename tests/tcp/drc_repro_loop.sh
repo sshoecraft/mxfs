@@ -1,6 +1,6 @@
 #!/bin/bash
 # drc_repro_loop.sh [ITERS] [MODARGS] — reboot all 8 nodes (so the first prep
-# insmods fresh with MODARGS), then loop 8/tcp dir_reuse_coherency until a
+# insmods fresh with MODARGS), then loop 8/net/mesh/direct dir_reuse_coherency until a
 # single-dirent loss (readdir!=800) / DUP (readdir>800), or ITERS exhausted.
 # sess31: hunt the rare durable single-dirent loss now the duplicate-IQN infra
 # noise is gone. Logs HIT to stdout (steve cannot write /root for a marker).
@@ -17,7 +17,7 @@ for n in 1 2 3 4 5 6 7 8; do timeout 6 $SSH test$n /tmp/.mxfs_pass "rm -f /root/
 export MXFS_EXTRA_MODARGS="$MA"
 for it in $(seq 1 "$ITERS"); do
     echo "=== iter $it $(date -u +%H:%M:%S) MA=[$MA] ==="
-    MXFS_TEST_ENV="DRC_STREAM=1 DRC_ROUNDS=$RNDS" timeout 540 ./run.sh 8 tcp dir_reuse_coherency 2>&1 \
+    MXFS_TEST_ENV="DRC_STREAM=1 DRC_ROUNDS=$RNDS" timeout 540 ./run.sh 8/net/mesh/direct dir_reuse_coherency 2>&1 \
         | grep -vE '^Warning:|^Unauthorized|^If you' | grep -E "  (PASS|FAIL)  |prep OK|ABORT"
     if [ "$it" = 1 ]; then
         echo -n "  param dir_write_merge="

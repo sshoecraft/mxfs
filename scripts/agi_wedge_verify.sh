@@ -1,7 +1,7 @@
 #!/bin/bash
 # agi_wedge_verify.sh — verify the AG-meta track-hold reclaim fix.
 #
-# Assumes a prepped, mounted 2/tcp cluster.  Triggers a forced shutdown via
+# Assumes a prepped, mounted 2/net/mesh/direct cluster.  Triggers a forced shutdown via
 # agi_wedge_repro.sh (heavy 2-node AG-meta churn -> stale-inode dialloc
 # corruption -> dirty xfs_trans_cancel -> shutdown), then unmounts the
 # shut-down node and asserts the umount COMPLETES: the drain must NOT wedge on

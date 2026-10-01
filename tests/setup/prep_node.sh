@@ -41,7 +41,7 @@ case "$TRANSPORT" in
     # The declaration describes the TARGET, not the lock transport, so the
     # tcp condition carries it too: without it the 0.54.0 domain gate refuses
     # the clustered RW mount outright (P-DOMAIN-REFUSED, EACCES), which is
-    # what a 2/tcp prep on the QNAP LUN hit on 2026-09-04.  Every rig this
+    # what a 2/net/mesh/direct prep on the QNAP LUN hit on 2026-09-04.  Every rig this
     # harness targets (SCST fileio, LIO fileio, the QNAP) is write-through.
     tcp) MODARGS="force_transport=1 target_cache_protected=1 dyndbg=+p" ;;
     caw) MODARGS="force_transport=0 target_cache_protected=1 dyndbg=+p" ;;   # CAW must be asked for: the module defaults to TCP

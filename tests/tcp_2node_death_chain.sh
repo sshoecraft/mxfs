@@ -11,8 +11,8 @@
 # D-0904 open leg: a non-prover's path op on the victim's directory while the
 # recovery is blocked).
 #
-# the budget rule (derived): prep 2/tcp measured 48 s wall incl. preflight
-# (2026-09-04), prep 4/tcp 65 s (the 2026-09-28 board); manifest budget 300 s;
+# the budget rule (derived): prep 2/net/mesh/direct measured 48 s wall incl. preflight
+# (2026-09-04), prep 4/net/mesh/direct 65 s (the 2026-09-28 board); manifest budget 300 s;
 # the oracle's own bound is 240 s (TDR_LAP_BOUND for the arms).  Chain bound =
 # 300 + TDR_LAP_BOUND + 15 s harness per lap.
 #
@@ -26,11 +26,13 @@ cd "$(dirname "$0")/.." || exit 2
 export MXFS_NODE_LIST=${MXFS_NODE_LIST:-test1,test2}
 # the LUN is resolved by identity BEFORE the prep, when nothing is mounted, so
 # the resolver needs the transport to know which rig device to look for
-export MXFS_TRANSPORT=${MXFS_TRANSPORT:-tcp}
 # every mounted member, for the oracle: at 3+ nodes the prover and the
 # replayer can be any survivor, so it reads every survivor's kernel log
 export TDR_MEMBERS=${TDR_MEMBERS:-$MXFS_NODE_LIST}
 N=$(echo "$MXFS_NODE_LIST" | tr ',' '\n' | grep -c .)
+export MXFS_CONFIG=${MXFS_CONFIG:-$N/net/mesh/direct}
+MXFS_CONFIG=$(python3 tools/configuration.py parse "$MXFS_CONFIG") || exit 2
+[ "${MXFS_CONFIG%%/*}" = "$N" ] || { echo "MXFS_CONFIG=$MXFS_CONFIG names ${MXFS_CONFIG%%/*} nodes; MXFS_NODE_LIST has $N"; exit 2; }
 [ "$N" -ge 2 ] || { echo "MXFS_NODE_LIST needs at least two nodes (got '$MXFS_NODE_LIST')" >&2; exit 2; }
 # the device under test by identity, not by path: the LUN this rig declares
 # (data/rigs.json), verified by its WWID on the node, and the node's live mxfs
@@ -58,7 +60,7 @@ for lap in $(seq 1 "$LAPS"); do
         echo "STAGE boot-wait lap=$lap node=$n polls=$w" | tee -a "$LOG"
     done
     echo "--- lap $lap: prep_cluster $N/tcp $(date -u +%T) ---" | tee -a "$LOG"
-    MXFS_FORCE_PREP=1 timeout 300 ./run.sh "$N" tcp prep_cluster >> "$LOG" 2>&1
+    MXFS_FORCE_PREP=1 timeout 300 ./run.sh "$MXFS_CONFIG" prep_cluster >> "$LOG" 2>&1
     prc=$?
     echo "STAGE prep lap=$lap rc=$prc wall=$(( $(date +%s) - s ))s" | tee -a "$LOG"
     if [ $prc != 0 ]; then fails=$((fails+1)); echo "STAGE abort: prep failed" | tee -a "$LOG"; break; fi

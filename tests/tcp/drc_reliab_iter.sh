@@ -3,15 +3,15 @@
 # nodes over tcp.  Each invocation: virsh destroy+start all N VMs, wait for
 # ssh, run ./run.sh N tcp dir_reuse_coherency, print PASS/FAIL.
 #
-# The 8/tcp MASS failure mode (sess46/this-session) is a VM-state CARRYOVER:
+# The 8/net/mesh/direct MASS failure mode (sess46/this-session) is a VM-state CARRYOVER:
 # run.sh does NOT reboot between runs, so a node left fenced/wedged by a prior
 # run stays bad.  A clean reboot before every run is the reliability fix.  This
 # harness proves the per-run pass rate the criterion ("working 100%") needs.
 #
-# Usage: tests/tcp/drc_reliab_iter.sh <N>
+# Usage: tests/tcp/drc_reliab_iter.sh <configuration>
 set -u
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd); cd "$REPO"
-N="${1:?usage: drc_reliab_iter.sh <N>}"
+CONFIG=$(python3 "$(dirname "$0")/../../tools/configuration.py" parse "${1:?usage: drc_reliab_iter.sh <configuration>}") || exit 2; N=${CONFIG%%/*}
 SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass
 mapfile -t NODES < <(seq 1 "$N" | sed 's/^/test/')
 
@@ -38,7 +38,7 @@ if [ "${QUIET_CONSOLE:-1}" = 1 ]; then
     timeout 6 $SSH "$n" $PASS 'echo 4 > /proc/sys/kernel/printk' >/dev/null 2>&1
   done
 fi
-echo "## run.sh $N tcp dir_reuse_coherency @ $(date -u +%T)"
-OUT=$(./run.sh "$N" tcp dir_reuse_coherency 2>&1)
+echo "## run.sh $CONFIG dir_reuse_coherency @ $(date -u +%T)"
+OUT=$(./run.sh "$CONFIG" dir_reuse_coherency 2>&1)
 echo "$OUT" | grep -E 'PASS|FAIL|dir_reuse_coherency' | tail -3
 echo "$OUT" | grep -q 'PASS  dir_reuse_coherency' && echo "ITER_RESULT=PASS" || echo "ITER_RESULT=FAIL"

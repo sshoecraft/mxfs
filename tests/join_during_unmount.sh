@@ -3,7 +3,7 @@
 # join_during_unmount.sh — a peer's mount that lands while the lone member is
 # unmounting must hang neither the unmount nor the mount.
 #
-# The hazard (0.90.14, 4/tcp chk_clean): the lone member's join worker froze
+# The hazard (0.90.14, 4/net/mesh/direct chk_clean): the lone member's join worker froze
 # the mount for the single→multi transition with freeze_super, which takes
 # s_umount; an unmount in progress holds s_umount through its whole teardown
 # and joins that worker inside it.  The worker waited for the unmount, the
@@ -33,7 +33,7 @@
 # Usage: [LAPS=20] [HOLD_MS=3000] tests/join_during_unmount.sh [A] [B]
 #   A and B default to test1 test2; MXFS_DEV and MXFS_MOUNT as run.sh (the
 #   by-path rig LUN, /mnt/shared).  Both nodes must have the module loaded and
-#   the LUN formatted (MXFS_FORCE_PREP=1 ./run.sh 2 tcp prep_cluster does
+#   the LUN formatted (MXFS_FORCE_PREP=1 ./run.sh 2/net/mesh/direct prep_cluster does
 #   both); the test unmounts them first.
 #   Evidence: tests/evidence/join_during_unmount/<stamp>/.  Exit 0 only on PASS.
 #

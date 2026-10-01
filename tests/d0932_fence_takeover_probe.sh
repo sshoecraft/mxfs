@@ -50,7 +50,7 @@ cd "$(dirname "$0")/.." || exit 2
 export MXFS_NODE_LIST=${MXFS_NODE_LIST:-test1,test2}
 # MXFS_DEV: the caller's, else the device of A's live mxfs mount after prep
 # (mxfs_dev_resolve; no rig's device path is assumed)
-export MXFS_TRANSPORT=${MXFS_TRANSPORT:-tcp}
+export MXFS_CONFIG=${MXFS_CONFIG:-2/net/mesh/direct}
 A=${MXFS_NODE_LIST%%,*}          # the prover that will die mid-attempt
 B=${MXFS_NODE_LIST##*,}          # the victim whose slot the attempt guards
 SSH=tools/mxfs_sshpass.sh
@@ -130,7 +130,7 @@ echo "=== d0932_fence_takeover_probe label=$LABEL A(prover)=$A B(victim)=$B sv=$
 s0=$(date +%s)
 
 waitboot
-MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2 tcp prep_cluster > "$OUT/prep.log" 2>&1
+MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2/net/mesh/direct prep_cluster > "$OUT/prep.log" 2>&1
 prc=$?
 echo "STAGE prep rc=$prc wall=$(( $(date +%s) - s0 ))s  $(grep -am1 'prep_cluster OK\|FAIL' "$OUT/prep.log" | cut -c1-140)"
 [ $prc = 0 ] || { echo "RESULT: FAIL label=$LABEL stage=prep evidence=$OUT"; exit 2; }

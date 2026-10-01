@@ -13,9 +13,9 @@ GATE=tests/evidence/sess436_chain5_cc_private_s436e.log
   grep -q '^DONE' "$GATE" || { echo "ABORT: chain5 not DONE"; echo "DONE $(date -u +%FT%TZ)"; exit 1; }
   echo "gate passed at $(date -u +%FT%TZ) (iter $t)"
   timeout 400 tests/crossnode_unlink_ubsweep.sh $LABEL; echo "STAGE ubsweep rc=$?"
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep rc=$?"
   timeout 180 tests/d_intents_undischarged_verify.sh ${LABEL}b burst; echo "STAGE intents burst rc=$?"
   sudo virsh -c qemu:///system start test8 >/dev/null 2>&1; sleep 45
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep2 rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep2 rc=$?"
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

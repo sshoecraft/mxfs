@@ -1,5 +1,5 @@
 #!/bin/bash
-# wedge_load.sh — ambient-load generator for the 32/caw wedge hunt
+# wedge_load.sh — ambient-load generator for the 32/disk/caw/mpath wedge hunt
 # (ccloop c7ee71c6 sess13).  The original 11:11 hit had concurrent python
 # probe storms (host load ~30) alongside the test chain; clean-rig laps have
 # not reproduced.  This recreates that ingredient: a per-node python3

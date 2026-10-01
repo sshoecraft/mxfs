@@ -42,7 +42,7 @@ cd "$(dirname "$0")/.." || exit 2
 SSH=tools/mxfs_sshpass.sh
 VIRSH="sudo virsh -c qemu:///system"
 MNT=${MXFS_MNT:-/mnt/shared}
-export MXFS_TRANSPORT=${MXFS_TRANSPORT:-tcp}
+export MXFS_CONFIG=${MXFS_CONFIG:-2/net/mesh/direct}
 P=/sys/module/mxfs/parameters
 OUT=tests/evidence/$(date -u +%Y%m%dT%H%M%SZ)_d0287_2node_$LABEL
 mkdir -p "$OUT"

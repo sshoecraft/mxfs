@@ -42,7 +42,7 @@ for it in $(seq 1 "$MAX"); do
     echo "=== iter $it: reboot + reset + standalone tcp_dlm_scaling ==="
     boot_wait || exit 1
     timeout 260 bash tests/setup/reset2_tcp.sh >/dev/null 2>&1
-    res=$(timeout 200 ./run.sh 2 tcp tcp_dlm_scaling 2>&1 | grep -E 'PASS  tcp|FAIL  tcp')
+    res=$(timeout 200 ./run.sh 2/net/mesh/direct tcp_dlm_scaling 2>&1 | grep -E 'PASS  tcp|FAIL  tcp')
     echo "  $res"
     if echo "$res" | grep -q FAIL; then
         DIRINO=$(ssh1 "$N1" "stat -c %i /mnt/shared/.tcp_dlm_scaling" | grep -oE '^[0-9]+' | head -1)

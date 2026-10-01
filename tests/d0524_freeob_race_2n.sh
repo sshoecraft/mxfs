@@ -50,7 +50,7 @@ sweep() { # <tag> -> prints the FLEET line; per-node lines kept in $EV
 
 prep() { # <tag>
   local t0=$(date +%s) rc
-  MXFS_FORCE_PREP=1 timeout 180 ./run.sh 2 cawd prep_cluster > "$EV/prep_$1.log" 2>&1
+  MXFS_FORCE_PREP=1 timeout 180 ./run.sh 2/disk/caw/direct prep_cluster > "$EV/prep_$1.log" 2>&1
   rc=$?
   say "prep $1 rc=$rc wall=$(( $(date +%s) - t0 ))s modargs='${MXFS_EXTRA_MODARGS:-}' knob=$(timeout 20 tools/mxfs_sshpass.sh test1 'cat /sys/module/mxfs/parameters/freeob_commit_delay_ms' 2>/dev/null | tr -d '\r\n') sv=$(timeout 20 tools/mxfs_sshpass.sh test1 'cat /sys/module/mxfs/srcversion' 2>/dev/null | tr -d '\r\n')"
   return $rc
@@ -60,7 +60,7 @@ laps() { # <tag> <n>
   local i t0 rc line
   for i in $(seq 1 "$2"); do
     t0=$(date +%s)
-    timeout 150 ./run.sh 2 cawd dir_reuse_coherency > "$EV/drc_$1_$i.log" 2>&1
+    timeout 150 ./run.sh 2/disk/caw/direct dir_reuse_coherency > "$EV/drc_$1_$i.log" 2>&1
     rc=$?
     line=$(grep -a 'dir_reuse_coherency' "$EV/drc_$1_$i.log" | grep -a 'PASS\|FAIL' | tail -1 | cut -c1-200)
     say "drc $1 lap $i rc=$rc wall=$(( $(date +%s) - t0 ))s $line"

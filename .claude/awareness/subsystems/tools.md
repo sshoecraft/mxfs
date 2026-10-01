@@ -23,7 +23,7 @@ Standalone user-space binaries that build against the user-PAL variant. Used for
 | ~~`ledger_backfill_dates.py`~~ | **ARCHIVED 2026-09-10** → `/src/archive/mxfs/tools/` | One-shot date repair for a file that is no longer in this tree. |
 | ~~`hook_ledger_guard.sh`~~ | **ARCHIVED 2026-09-10** → `/src/archive/mxfs/tools/` | Was a PostToolUse hook in `.claude/settings.json`. **The hook entry was removed with it** — `settings.json` now has no `hooks` block at all. |
 | ~~`ledger_set.py`, `ledger_owed_work.py`, `ledger_session_dates.py`, `ledger_repair_backtick_damage.py`~~ | **ARCHIVED 2026-09-10** → `/src/archive/mxfs/tools/` | One-off editors and readers for `OPEN_DEFECTS.json`. `defects.py add/update/remove` is the writer now, which is why none of these are needed. |
-| `defects.py` | `defects.py` (sess575) | **The defect work queue** over `data/defects.json` — sole reader and sole writer. Takes `2 tcp` positionally. No `status` field: an entry is in the queue or it is `remove`d with mandatory `--why`, and the fix becomes a `CHANGELOG.md` entry. Carries `nodes`/`dlm` saying which configuration the defect was observed on, so `--at 2/tcp` answers what actually blocks a release. Both fields default fail-closed (`1`/`any` = blocks everything). |
+| `defects.py` | `defects.py` (sess575) | **The defect work queue** over `data/defects.json` — sole reader and sole writer. Takes `2 tcp` positionally. No `status` field: an entry is in the queue or it is `remove`d with mandatory `--why`, and the fix becomes a `CHANGELOG.md` entry. Carries `nodes`/`dlm` saying which configuration the defect was observed on, so `--at 2/net/mesh/direct` answers what actually blocks a release. Both fields default fail-closed (`1`/`any` = blocks everything). |
 | `criteria.py` | `criteria.py` (sess575) | **The criteria board** over `data/criteria.json` — sole reader and sole writer. Takes `2 tcp` positionally, filters rows to what `applies()` in that configuration, and applies the FLAKY rule (FAIL-only, 11-run window, rig-noise excluded). Every criterion is proved once per `<nodes>/<transport>` configuration and is `UNKNOWN` for every column absent from its map. A cell over its `budget_s` records `FAIL` whatever status the caller passed; a cell read back against a different `--build` reads `STALE`. |
 | ~~`criteria_import.py`~~, ~~`defects_import.py`~~ | **ARCHIVED 2026-09-10** → `/src/archive/mxfs/tools/` | One-shot migrations. They ran on 2026-09-10, moving the 95 OPEN records and 4 categories / 44 tests / 601 cells into `data/`. Their source files went to the archive with them, so keeping them in the tree meant shipping a script whose only input path does not exist in a clone. |
 | `mxfs_sshpass.sh` | shell wrapper for ssh+sshpass | Bench harness uses this to talk to test1/test2. |
@@ -50,8 +50,8 @@ caw_slot_hash.py pick    <dump> <inolist> <inoshift>        # one usable collidi
 #   ARCHIVED 2026-09-10 -> /src/archive/mxfs/tools/.  Not in this tree.  Their data file
 #   (tests/criteria/OPEN_DEFECTS.json) went with them.
 
-defects.py [2 tcp | 2/tcp | 2] [-d] [-s SEV] [--json]   # bare config == --at
-defects.py [-d] [-s SEV] [--at 2/tcp] [--json]  # the queue; --at = what blocks that configuration
+defects.py [2 tcp | 2/net/mesh/direct | 2] [-d] [-s SEV] [--json]   # bare config == --at
+defects.py [-d] [-s SEV] [--at 2/net/mesh/direct] [--json]  # the queue; --at = what blocks that configuration
 defects.py show <id>                            # id or unique substring
 defects.py add    -s SEV -m "..." [-N 2] [-D tcp] [-n next] [-w evidence] [--id ID]
 defects.py update <id> [-s|-m|-n|-w|-N|-D]      # -N smallest cluster seen on, -D transport
@@ -60,11 +60,11 @@ defects.py rename <id> D-SHORT-NEW-ID-0962         # new id only (sess596); keep
                                                    # evidence dirs and memories cite it
 # defects_import.py / criteria_import.py — ARCHIVED 2026-09-10, the migrations are done.
 
-criteria.py [2 tcp | 2/tcp] [-v] [--build SRCVER] [--gaps]   # bare config == --at
-criteria.py [-v] [--at 2/tcp] [--build SRCVER] [--gaps]
+criteria.py [2 tcp | 2/net/mesh/direct] [-v] [--build SRCVER] [--gaps]   # bare config == --at
+criteria.py [-v] [--at 2/net/mesh/direct] [--build SRCVER] [--gaps]
 criteria.py show <id> [--build SRCVER]
 criteria.py add    -i ID -r "req" -d "detector" [-b BUDGET_S] [-p PHASE] [--why] [--source]
-criteria.py update <id> --at 2/tcp -s PASS -m "..." [-e ELAPSED_S] [--build SRCVER]
+criteria.py update <id> --at 2/net/mesh/direct -s PASS -m "..." [-e ELAPSED_S] [--build SRCVER]
 criteria.py update <id> [-r|-d|-b|--why]        # no --at: edits the criterion, not a cell
 criteria.py remove <id> --why "no longer required"
 ```
@@ -111,7 +111,7 @@ mkfs_mxfs writes super, zeros journal+disklock regions, then runs `format_xfs_na
 - **mkfs's pwrite-O_SYNC zero is not durable on the LIO target stack.** CAW slot stale-disk garbage is a real concern; v0.3.83 added popcount-based detection in `dlm/dlm_caw.c::slot_appears_corrupt`. Workaround: `dd if=/dev/zero of=/dev/sda bs=1M count=256 oflag=direct` BEFORE mkfs (sess33 cluster_reset.sh prepends this on test1).
 - **caw_verify must run with FS unmounted on both nodes.** Otherwise it competes with the kernel's CAW poll and corrupts state.
 - **caw_verify is NOT built by `make tools`.** That target builds mkfs/chk/resize/fua only. Compile it directly: `cd tools && cc -Wall -Wextra -O2 -o caw_verify caw_verify.c` (no mxfs/PAL headers needed — pure `scsi/sg.h`).
-- **On `dm-multipath`, always use `--retry-ua`** (or expect a spurious first-command UNIT ATTENTION). CAW and PR work through `/dev/mapper/mpathX`; verified at the storage layer 2026-07-05 (see `docs/condition4_multipath_scope.md`). PR-across-paths uses `sg_persist --param-alltgpt` (NOT `--all-tg-pt`, which sg_persist rejects).
+- **On `dm-multipath`, always use `--retry-ua`** (or expect a spurious first-command UNIT ATTENTION). CAW and PR work through `/dev/mapper/mpathX`; verified at the storage layer 2026-07-05 (see `docs/multipath-attach.md`). PR-across-paths uses `sg_persist --param-alltgpt` (NOT `--all-tg-pt`, which sg_persist rejects).
 - **mkfs version bumps:** the MXFS super has a layout version. Bump on every layout change so older tools refuse to read newer layouts.
 
 ## 2026-07-25 refresh (post-7/16 changes)
@@ -1314,7 +1314,7 @@ design, a queue is not an archive — and they are preserved in the archived sna
 | `.claude/settings.json` PostToolUse hook -> `hook_ledger_guard.sh` | no `hooks` block at all |
 | `.claude/settings.json` allow `Bash(./showstat.sh:*)` | `Bash(tools/defects.py:*)`, `Bash(tools/criteria.py:*)` |
 | `open_defects` row in `tests/suite/manifest` | replaced by a comment saying why it was retired |
-| `open_defects` test in `criteria.json` AND `data/criteria.json` | removed from both — the board is 29 rows at 2/tcp, was 30 |
+| `open_defects` test in `criteria.json` AND `data/criteria.json` | removed from both — the board is 29 rows at 2/net/mesh/direct, was 30 |
 | `./showstat.sh` in `run.sh`, `scripts/caw_ladder_fua.sh`, `tests/suite/run_suite.sh`, `README.md` | `tools/criteria.py` |
 
 **CLOSED in 0.77.0 (sess576): the harness no longer writes a board file.** `run.sh`,
@@ -1361,10 +1361,11 @@ VERIFIED` + 14 `DISPROVED` records as history — 2.8 MB that no session can loa
 | field | means | default |
 |---|---|---|
 | `nodes` | the SMALLEST cluster the defect has been observed on | `1` |
-| `dlm` | transport the evidence is on: `any`/`xfs`/`caw`/`cawd`/`cawp`/`tcp` | `any` |
+| `config` | the configurations the evidence reaches: a `class/method/attach` pattern, `*` per field (`disk/caw/*`, `net/mesh/direct`, `xfs`) | `*/*/*` |
 
-`blocks(entry, nodes, dlm)` is true when `entry.nodes <= nodes` and the transport matches or is
-`any`. So a 32/caw defect does not block a 2/tcp release, and the defaults (`1/any`) block
+`blocks(entry, nodes, selector)` is true when `entry.nodes <= nodes` and the record's pattern overlaps
+the configurations the view names (`configuration.overlaps`; a field the view left open matches
+anything). So a 32/disk/caw/mpath defect does not block a 2/net/mesh/direct release, and the defaults (`1/any`) block
 **every** release — an unclassified entry holds everything up rather than quietly sliding out of a
 gate. Narrowing these fields is a claim about reach that needs evidence; it disposes of nothing and
 the defect stays in the queue.
@@ -1372,11 +1373,11 @@ the defect stays in the queue.
 ```
 tools/defects.py                          the queue, severity order, one line each
 tools/defects.py -d                       the same queue with each one's next step
-tools/defects.py --at 2/tcp               only what blocks that release configuration
+tools/defects.py 2/net/mesh/direct        only what blocks that configuration (2/disk: every disk one)
 tools/defects.py -s critical              filter by severity
 tools/defects.py show <id>                one entry in full (id, or unique substring)
-tools/defects.py add    -s SEV -m "..." [-N 2] [-D tcp] [-n next] [-w evidence] [--id ID]
-tools/defects.py update <id> [-s|-m|-n|-w|-N|-D]
+tools/defects.py add    -s SEV -m "..." [-N 2] [-C net/mesh] [-n next] [-w evidence] [--id ID]
+tools/defects.py update <id> [-s|-m|-n|-w|-N|-C]
 tools/defects.py remove <id> --why "what was measured and what it said"
 tools/defects.py --json                   the queue as JSON
 ```
@@ -1389,20 +1390,22 @@ Ids are minted from the first 9 words of the summary (`D-DIALLOC-VALIDATOR-TREAT
 Data: `data/criteria.json`. Sole reader and sole writer.
 
 **The per-configuration axis is the whole adaptation.** The source project proved each criterion
-once per character class; MXFS proves each one per `<nodes>/<transport>` — which is what
-`criteria.json` already does, keyed `runs["2/tcp"]`, `runs["32/caw"]`. So `per_class`/`CLASSES`
-became `per_config`/`CONFIGS` one-to-one, and a criterion is `UNKNOWN` for every configuration
+once per character class; MXFS proves each one per configuration (`<nodes>/<class>/<method>/<attach>`,
+`tools/configuration.py`), keyed `per_config["2/net/mesh/direct"]`, `per_config["32/disk/caw/mpath"]`. So
+`per_class`/`CLASSES` became `per_config`/`CONFIGS` one-to-one (`CONFIGS` now comes from
+`data/configurations.json`: the baseline plus every implemented configuration at every laddered node count), and a criterion is `UNKNOWN` for every configuration
 absent from its map. A board that hid the empty columns would read green; that is exactly what
 `D-MATRIX-UNMEASURED` is about, and `--gaps` now reports never-run columns as gaps alongside
 missing detectors.
 
-**Both tools take the configuration positionally** — `defects.py 2 tcp`,
-`criteria.py 2 tcp`, `2/tcp` equivalently, in any argument position. `lift_config()` rewrites it to
-`--at` before argparse sees it, skipping flags and their values (so `-s major 2 tcp` is a severity
-and a cluster, not a cluster twice) and stopping at a subcommand name, which is why a leading
-config can never shadow `show`/`add`/`update`/`remove`. `defects.py 2` alone means every transport
-at that size; `criteria.py 2` alone is refused, because a cell is one exact column and picking one
-of five silently is how a tcp green gets read as a caw one.
+**Both tools take the configuration positionally** — `defects.py 2/net/mesh/direct`,
+`criteria.py 2/net/mesh/direct`, in any argument position. `lift_config()` rewrites it to `--at`
+before argparse sees it, skipping flags and their values (so `-s major 2/disk` is a severity and a
+view, not a view twice) and stopping at a subcommand name, which is why a leading config can never
+shadow `show`/`add`/`update`/`remove`. The two-token form (`2 tcp`) and every retired condition code
+are refused with the replacement named. `defects.py 2` alone means every configuration at that
+size, and `2/disk` every disk one; `criteria.py 2` alone is refused, because a cell is one exact
+column and picking one silently is how a TCP green gets read as a CAW one.
 
 **`criteria.py` keeps the FLAKY rule of the retired `showstat.sh` exactly** (user directive, sess43, two
 rounds), and it must stay that way:
@@ -1411,14 +1414,14 @@ rounds), and it must stay that way:
   runs, current cell plus its `history`. It is not green and does not count toward the bar.
 - **`FAIL` only, never `ABORTED`.** An `ABORTED` cell says the run died mid-test and the result is
   UNKNOWN; counting it makes "we never found out" indistinguishable from "a fault was detected".
-  `ag_strand_repair` at 2/tcp is the case that proves it — one `ABORTED` reading "run died while
+  `ag_strand_repair` at 2/net/mesh/direct is the case that proves it — one `ABORTED` reading "run died while
   this test was executing", and it is a PASS.
 - Failures whose `reason` matches `RIG_NOISE` (`pre-assert|NO_TERMINAL_RECORD|run was killed|prep
   fail`) are rig formation, not MXFS faults, and never count.
 - `prep_cluster` and `open_defects` never flake at all.
 
 **`applies()` filters the board to what is runnable in a configuration**, from the criterion's
-`transport` + `min_nodes`/`max_nodes`. Without it the 2/tcp board printed 44 rows against
+`transport` + `min_nodes`/`max_nodes`. Without it the 2/net/mesh/direct board printed 44 rows against
 the retired `showstat.sh`'s 30, padding it with single-node tooling checks and a CAW-only criterion as
 `UNKNOWN` columns nothing will ever fill — which buries the genuinely unmeasured ones. Verified
 equal: 30 rows, 4 FLAKY, both tools.
@@ -1438,12 +1441,12 @@ equal: 30 rows, 4 FLAKY, both tools.
 
 ```
 tools/criteria.py                         the board, rolled up across every configuration
-tools/criteria.py --at 2/tcp [--build S]  one configuration's column
+tools/criteria.py --at 2/net/mesh/direct [--build S]  one configuration's column
 tools/criteria.py -v                      add each criterion's requirement and why
 tools/criteria.py --gaps                  no detector / detector file absent / never-run columns
 tools/criteria.py show <id> [--build S]   every configuration's cell for one criterion
 tools/criteria.py add    -i ID -r "req" -d "detector" [-b BUDGET_S] [-p PHASE] [--why] [--source]
-tools/criteria.py update <id> --at 2/tcp -s PASS -m "..." [-e ELAPSED_S] [--build SRCVER]
+tools/criteria.py update <id> --at 2/net/mesh/direct -s PASS -m "..." [-e ELAPSED_S] [--build SRCVER]
 tools/criteria.py update <id> [-r|-d|-b|--why]        (no --at: edits the criterion, not a cell)
 tools/criteria.py remove <id> --why "no longer something we must achieve"
 ```
@@ -1481,11 +1484,11 @@ at a time against its own evidence. As of the import, 1 of 95 is narrowed.
 > record of what the field mapping was.
 
 Ran 2026-09-10: `criteria.json`'s 4 categories / 44 tests / 601 configuration cells into
-`data/criteria.json`. `runs{"2/tcp": …}` becomes `per_config`, which is the same shape under a
+`data/criteria.json`. `runs{"2/net/mesh/direct": …}` becomes `per_config`, which is the same shape under a
 different name. Source never written; refuses to run into a non-empty board.
 
 **`history` and `reason` come across because the flake signal lives in them.** Importing only each
-cell's latest status would turn `fence_during_write` at 2/tcp green and lose the six genuine
+cell's latest status would turn `fence_during_write` at 2/net/mesh/direct green and lose the six genuine
 failures behind it in eleven runs — the one fact about that cell that matters.
 
 **Requirements are read from the detector, not invented.** The old board records whether a test
@@ -1503,8 +1506,8 @@ specification from the implementation.
 - **Criteria and defects are different lists and must stay apart.** A criterion is the
   specification: permanent, and it can regress. A defect is transient and leaves when fixed.
   `open_defects` as a board criterion was the defect queue wearing a criterion's clothes, which is
-  why it could never go green. Ask `defects.py --at 2/tcp` what blocks a release; ask
-  `criteria.py --at 2/tcp` whether the requirements are met.
+  why it could never go green. Ask `defects.py --at 2/net/mesh/direct` what blocks a release; ask
+  `criteria.py --at 2/net/mesh/direct` whether the requirements are met.
 - **Both tools are the only writer of their file.** Anything that needs to change data goes
   through the CLI, not through an Edit of the JSON.
 - **Unmeasured is never a pass, in either tool.** An unclassified defect blocks every
@@ -1675,3 +1678,16 @@ capturing the same state.
   (disk, hostname, address, iSCSI initiator name); an enforcing RHEL clone
   needs a relabel afterwards, because a file rewritten from a host without
   SELinux is a new unlabeled inode.
+
+### chk_mxfs: link counts (0.90.37)
+
+`check_dirents` counts every directory entry naming each allocated inode,
+including `.` and `..` (a shortform directory's `.` is implicit), and compares
+the count with di_nlink.  It reports `nlink_mismatch=` and `disconnected=` at
+the end of the "Directory entries" summary, and either one makes the exit code 4.
+It skips the superblock metadata inodes, dirshard-flagged inodes and unnamed
+unlinked inodes, and it compares nothing if any directory was skipped or had a
+bad block.  This is the only pass that sees a *lost* name: the inode it named
+stays valid.  To tell a child whose `..` names a reused incarnation of its
+removed parent from a real lost update, compare crtimes with
+`tools/mxfs_dinode.py --img IMG INO...`.

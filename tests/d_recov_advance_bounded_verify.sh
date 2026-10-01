@@ -4,7 +4,7 @@
 # are CLASSIFIED and BOUNDED, and every terminating outcome is loud and
 # hands the recovery to a survivor instead of looping quietly for ever.
 #
-# Arms (one per invocation; the fleet must be prepped 32/caw before each):
+# Arms (one per invocation; the fleet must be prepped 32/disk/caw/mpath before each):
 #   transient  recov_complete_inject=3 on the elected replayer R: ONE -EIO at
 #              the IMAGES_REPLAYED advance.  Expect exactly one
 #              P234-COMPLETE-RETRY (site=replayed-advance attempt=1), then

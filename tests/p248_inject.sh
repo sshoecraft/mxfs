@@ -188,8 +188,8 @@ dump_probes() { # stdin = window
 }
 
 do_prep() {
-    echo "=== prep_cluster 2/caw (force, tree srcversion $WANT_SV) ==="
-    MXFS_FORCE_PREP=1 timeout 580 ./run.sh 2 caw prep_cluster 2>&1 | tail -3
+    echo "=== prep_cluster 2/disk/caw/mpath (force, tree srcversion $WANT_SV) ==="
+    MXFS_FORCE_PREP=1 timeout 580 ./run.sh 2/disk/caw/mpath prep_cluster 2>&1 | tail -3
     local rc=${PIPESTATUS[0]} n sv
     [ "$rc" -eq 0 ] || { echo "PREP FAILED rc=$rc"; exit 2; }
     for n in test1 test2; do

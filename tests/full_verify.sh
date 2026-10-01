@@ -14,13 +14,15 @@
 #   1. a build from a clean copy of the tree (no objects), warnings counted;
 #      the userspace tools, the user-mode tests (tests/tauth) and the extern
 #      declaration audit
-#   2. both released suites on the rig at NODES: ./run.sh N tcp, then
-#      ./run.sh N cawd, alone on the host (they grade pace, and a loaded host
-#      has failed them before)
+#   2. the rig suite for every configuration of the release matrix at NODES
+#      (tools/configuration.py release-matrix --nodes N, e.g. 8/net/mesh/direct
+#      then 8/disk/caw/direct), one after another and alone on the host (they
+#      grade pace, and a loaded host has failed them before)
 #   3. the release packages (scripts/release.sh), unless dist/VERSION holds them
-#   4. every platform's packaged round on EACH transport (TRANSPORT=tcp, caw):
-#      ubuntu2404, pve9 on both claimed kernels, rhel9, debian13
-#   5. every platform's hung-node test on each transport, and on the rhel9
+#   4. every platform's packaged round on EACH configuration of the matrix
+#      (CONFIG=N/net/mesh/direct, N/disk/caw/direct): ubuntu2404, pve9 on both
+#      claimed kernels, rhel9, debian13
+#   5. every platform's hung-node test on each configuration, and on the rhel9
 #      set the SELinux sVirt test, then STALL_LAPS laps of
 #      tests/svirt_stall_laps.sh (default 0)
 #
@@ -139,21 +141,23 @@ grep -E 'warning:|error:' "$B/build.log" | grep -v 'compiler differs\|Clock skew
 timeout 120 python3 scripts/extern_decl_audit.py >> "$L" 2>&1; echo "extern_audit_rc=$?" | tee -a "$L"
 timeout 60 python3 scripts/inode_flag_bits_audit.py >> "$L" 2>&1; echo "inode_flag_audit_rc=$?" | tee -a "$L"
 
-# --- 2. both released suites on the rig at the claimed node count
+# --- 2. the release matrix's suites on the rig at the claimed node count
+MATRIX=$(python3 tools/configuration.py release-matrix --nodes "$NODES")
+[ -n "$MATRIX" ] || { echo "the release matrix (data/configurations.json) has no configuration at $NODES nodes" | tee -a "$L"; exit 2; }
 if [ "$POWER" = 1 ]; then
     # shellcheck disable=SC2086  # one argument per platform
     run scripts/lab_power.sh down $ALL_PLATFORMS
     run scripts/lab_power.sh up "rig:$NODES"
 fi
-run ./run.sh "$NODES" tcp
-echo "suite_tcp_pass=$(grep -cE '^\s+PASS' "$L") suite_tcp_fail=$(grep -cE '^\s+(FAIL|TIMEOUT)' "$L")" | tee -a "$L"
-n0=$(wc -l < "$L")
-run ./run.sh "$NODES" cawd
-echo "suite_cawd_pass=$(tail -n +$n0 "$L" | grep -cE '^\s+PASS') suite_cawd_fail=$(tail -n +$n0 "$L" | grep -cE '^\s+(FAIL|TIMEOUT)')" | tee -a "$L"
+for cfg in $MATRIX; do
+    slug=${cfg//\//-}
+    n0=$(wc -l < "$L")
+    run ./run.sh "$cfg"
+    echo "suite_${slug}_pass=$(tail -n +$n0 "$L" | grep -cE '^\s+PASS') suite_${slug}_fail=$(tail -n +$n0 "$L" | grep -cE '^\s+(FAIL|TIMEOUT)')" | tee -a "$L"
+done
 # the board is the verdict, not the run's own PASS lines: a row FLAKY or SKIP
 # on the board is not a pass, and the board is what tools/criteria.py reads
-run python3 tools/criteria.py "$NODES" tcp
-run python3 tools/criteria.py "$NODES" cawd
+for cfg in $MATRIX; do run python3 tools/criteria.py "$cfg"; done
 
 # --- 3. packages
 if [ ! -d "dist/$V" ]; then
@@ -165,19 +169,15 @@ fi
 PR=tests/packaged_round.sh
 FZ=tests/tcp_peer_freeze_death.sh
 steps_of() {  # <platform>: that platform's steps, in order
-    local s
+    local s=() cfg kernels=("") k
+    [ "$1" = pve9 ] && kernels=("KERNEL=6.17.2-1-pve " "KERNEL=7.0.14-19-pve ")
+    for k in "${kernels[@]}"; do
+        for cfg in $MATRIX; do s+=("${k}CONFIG=$cfg $PR $1 $V"); done
+    done
+    for cfg in $MATRIX; do s+=("CONFIG=$cfg PREP=$1 $FZ"); done
     case "$1" in
-        ubuntu2404|debian13)
-            s=("TRANSPORT=tcp $PR $1 $V" "TRANSPORT=caw $PR $1 $V"
-               "TRANSPORT=tcp PREP=$1 $FZ" "TRANSPORT=caw PREP=$1 $FZ") ;;
-        pve9)
-            s=("KERNEL=6.17.2-1-pve TRANSPORT=tcp $PR pve9 $V" "KERNEL=6.17.2-1-pve TRANSPORT=caw $PR pve9 $V"
-               "KERNEL=7.0.14-19-pve TRANSPORT=tcp $PR pve9 $V" "KERNEL=7.0.14-19-pve TRANSPORT=caw $PR pve9 $V"
-               "TRANSPORT=tcp PREP=pve9 $FZ" "TRANSPORT=caw PREP=pve9 $FZ") ;;
         rhel9)
-            s=("TRANSPORT=tcp $PR rhel9 $V" "TRANSPORT=caw $PR rhel9 $V"
-               "TRANSPORT=tcp PREP=rhel9 $FZ" "TRANSPORT=caw PREP=rhel9 $FZ"
-               "PREP=rhel9 tests/selinux_svirt_mxfs.sh")
+            s+=("PREP=rhel9 tests/selinux_svirt_mxfs.sh")
             # one step, whatever it holds: an unquoted expansion here made
             # three steps of the command and its two arguments
             [ "$LAPS" -gt 0 ] && s+=("tests/svirt_stall_laps.sh $V $LAPS") ;;
@@ -207,4 +207,4 @@ for k in $ALL_PLATFORMS; do
     grep -a '^=== rc=' "$HERE/tests/evidence/full_verify_${V}_$k.log"
 done
 
-grep -E "=== rc=|RESULT|VERDICT|both nodes on kernel|suite_tcp_|suite_cawd_|clean_build_rc|tools_rc|tauth_rc|extern_audit_rc|inode_flag_audit_rc|all .* laps passed|STALL|STOP" "$L" | cut -c1-200
+grep -E "=== rc=|RESULT|VERDICT|both nodes on kernel|suite_[0-9]+-|clean_build_rc|tools_rc|tauth_rc|extern_audit_rc|inode_flag_audit_rc|all .* laps passed|STALL|STOP" "$L" | cut -c1-200

@@ -4,7 +4,7 @@
 # the rig is idle, then verify landing groups 2 and 3 on the fleet:
 #   1  make modules + make tools (abort unless the srcversion CHANGES from the
 #      0.60.0 build 0EB2C07B99A80502A11C6B1 and the 0.61.0 strings are present)
-#   2  prep_cluster @ 32/caw
+#   2  prep_cluster @ 32/disk/caw/mpath
 #   3  tests/settle_token_arms.sh: plain, inval, double, slowrace (group 2:
 #      settle worker, proof token, CAS race), probehang (group 2: bounded join
 #      + quarantine), latecomp (group 3: freeze/drain timeout, DIRTY, late
@@ -38,7 +38,7 @@ lap() { # <budget_s> <label> <cmd...>
     echo "DONE $(date -u +%FT%TZ)"; exit 1
   fi
   lap 120 tools make tools
-  lap 300 prep ./run.sh 32 caw prep_cluster
+  lap 300 prep ./run.sh 32/disk/caw/mpath prep_cluster
   lap 120 "settle arm=plain victim=test3"      tests/settle_token_arms.sh 32 test3  test1 plain
   lap 120 "settle arm=inval victim=test4"      tests/settle_token_arms.sh 32 test4  test1 inval
   lap 120 "settle arm=double victim=test26"    tests/settle_token_arms.sh 32 test26 test1 double

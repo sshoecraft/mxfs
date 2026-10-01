@@ -11,18 +11,21 @@
 #
 # Read from the environment:
 #   CLAIM   (default 4)  the node count the release claims
-#   LAPS    (default none)  window laps, each "<nodes>:<dlm>:<row>[,<row>...]:<count>":
-#           <count> laps of NODES=<nodes> tests/board_4node_chain.sh
-#           w<nodes><dlm><i>_V <dlm>:<rows>.  Laps at the claimed node count
-#           run first; laps at a smaller count run before that count's boards.
+#   LAPS    (default none)  window laps, each "<configuration>:<row>[,<row>...]:<count>",
+#           e.g. "4/net/mesh/direct:chk_clean:2": <count> laps of
+#           tests/board_4node_chain.sh w<slug><i>_V <configuration>:<rows>.
+#           Laps at the claimed node count run first; laps at a smaller count
+#           run before that count's boards.
 #   FULL    (default 1)  NODES=CLAIM tests/full_verify.sh VERSION — the clean
-#           build, both boards at the claimed node count, the packages unless
-#           dist/VERSION holds them, every platform's packaged round and
-#           hung-node test on both transports, sVirt on RHEL
+#           build, the release matrix's boards at the claimed node count, the
+#           packages unless dist/VERSION holds them, every platform's packaged
+#           round and hung-node test on each configuration, sVirt on RHEL
 #   LOWER   (default: the released node counts below CLAIM, largest first —
 #           "4 2" under CLAIM=8, "2" under CLAIM=4)  for each, that count's
-#           laps and then NODES=<count> tests/board_4node_chain.sh b<count>_V
-#           tcp cawd, the boards last so their read-back sees every lap
+#           laps and then tests/board_4node_chain.sh b<count>_V
+#           with every configuration of the release matrix at that count
+#           (tools/configuration.py release-matrix --nodes <count>), the
+#           boards last so their read-back sees every lap
 #   POWER, PLATFORM_GROUPS  passed on to tests/full_verify.sh, which documents
 #           them.  With POWER=1 the chain also starts with every platform set
 #           off and the rig's CLAIM nodes up, so the laps and the boards run
@@ -32,11 +35,12 @@
 # genuine failure sits at window index k (0 = the live run, 11-run window,
 # tools/criteria.py) reads PASS again only after 11-k more runs of that row,
 # and the board run that ends each half is one of them.  So a row at k needs
-# 10-k laps here before its board.  Derived 2026-09-29 for 0.90.17: 4/tcp
-# chk_clean k=6 with two chain laps still to land -> 4:tcp:alloc_witness,chk_clean:2
-# (the four-node quiesce row and the witness its release verdict needs under
-# one run id); 2/tcp fio_perf k=3 -> 2:tcp:fio_perf,guard_census:7; 2/cawd
-# crash_audit k=2 -> 2:cawd:alloc_witness,chk_clean,crash_audit:8.
+# 10-k laps here before its board.  Derived 2026-09-29 for 0.90.17: 4/net/mesh/direct
+# chk_clean k=6 with two chain laps still to land ->
+# 4/net/mesh/direct:alloc_witness,chk_clean:2 (the four-node quiesce row and
+# the witness its release verdict needs under one run id); 2/net/mesh/direct
+# fio_perf k=3 -> 2/net/mesh/direct:fio_perf,guard_census:7; 2/disk/caw/direct
+# crash_audit k=2 -> 2/disk/caw/direct:alloc_witness,chk_clean,crash_audit:8.
 #
 # Every run.sh enforces its own per-row budget and full_verify.sh its own
 # per-step bounds, so nothing here wraps a step in a timeout.  A failing step
@@ -47,7 +51,7 @@
 #
 # Log: tests/evidence/release_verify_<VERSION>.log — each step ends with
 # "=== rc=N: <step> ===", and the last line is RELEASE_CHAIN_DONE.  The
-# sub-steps keep their own logs (board_<N><dlm>_<label>.log,
+# sub-steps keep their own logs (board_<N-class-method-attach>_<label>.log,
 # full_verify_<VERSION>*.log).
 #
 # Launch it detached with its output in a file (nohup setsid ... &): a chain
@@ -75,8 +79,9 @@ for s in tests/board_4node_chain.sh tests/full_verify.sh scripts/lab_power.sh ru
     [ -x "$s" ] || { echo "$(date -u +%FT%TZ) chain defect: $s is not executable; nothing run" | tee -a "$L"; exit 2; }
 done
 for spec in $LAPS; do
-    [[ "$spec" =~ ^[0-9]+:(tcp|cawd|caw|cawp):[a-z0-9_,]+:[0-9]+$ ]] \
-        || { echo "$(date -u +%FT%TZ) chain defect: LAPS entry '$spec' is not <nodes>:<dlm>:<rows>:<count>; nothing run" | tee -a "$L"; exit 2; }
+    [[ "$spec" =~ ^[0-9]+(/[a-z]+){3}:[a-z0-9_,]+:[0-9]+$ ]] \
+        && python3 tools/configuration.py parse "${spec%%:*}" >/dev/null \
+        || { echo "$(date -u +%FT%TZ) chain defect: LAPS entry '$spec' is not <configuration>:<rows>:<count>; nothing run" | tee -a "$L"; exit 2; }
 done
 
 step() {  # step <name> <command...>: run it, log its output and rc
@@ -90,13 +95,14 @@ step() {  # step <name> <command...>: run it, log its output and rc
 }
 
 laps_at() {  # laps_at <nodes>: every LAPS entry for that node count, in order
-    local want=$1 spec n dlm rows count i
+    local want=$1 spec cfg n rows count i
     for spec in $LAPS; do
-        IFS=: read -r n dlm rows count <<<"$spec"
+        IFS=: read -r cfg rows count <<<"$spec"
+        n=${cfg%%/*}
         [ "$n" = "$want" ] || continue
         for ((i = 1; i <= count; i++)); do
-            NODES=$n step "w$n $dlm lap $i/$count" tests/board_4node_chain.sh "w${n}${dlm}${i}_$V" "$dlm:$rows"
-            python3 tools/criteria.py "$n" "$dlm" | grep -E "^Total|${rows//,/|}" | cut -c1-160 >> "$L"
+            step "w $cfg lap $i/$count" tests/board_4node_chain.sh "w${cfg//\//-}${i}_$V" "$cfg:$rows"
+            python3 tools/criteria.py "$cfg" | grep -E "^Total|${rows//,/|}" | cut -c1-160 >> "$L"
         done
     done
 }
@@ -112,10 +118,12 @@ if [ "$FULL" = 1 ]; then
 fi
 for n in $LOWER; do
     laps_at "$n"
-    NODES=$n step "boards nodes=$n" tests/board_4node_chain.sh "b${n}_$V" tcp cawd
-    for dlm in tcp cawd; do
-        echo "=== board $n/$dlm ===" >> "$L"
-        python3 tools/criteria.py "$n" "$dlm" | grep -vE '\| PASS ' | cut -c1-160 >> "$L"
+    matrix=$(python3 tools/configuration.py release-matrix --nodes "$n")
+    # shellcheck disable=SC2086  # one argument per configuration
+    step "boards nodes=$n" tests/board_4node_chain.sh "b${n}_$V" $matrix
+    for cfg in $matrix; do
+        echo "=== board $cfg ===" >> "$L"
+        python3 tools/criteria.py "$cfg" | grep -vE '\| PASS ' | cut -c1-160 >> "$L"
     done
 done
 grep -E '^=== rc=|^Total:|^VERDICT:' "$L" | tail -n 40

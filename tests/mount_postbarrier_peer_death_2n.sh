@@ -34,14 +34,14 @@
 # after prep; caller bound 700 s including prep.
 #
 # Usage: tests/mount_postbarrier_peer_death_2n.sh <label>
-# Env:   MXFS_NODE_LIST (default test1,test2), MXFS_TRANSPORT (cawd),
+# Env:   MXFS_NODE_LIST (default test1,test2), MXFS_CONFIG (2/disk/caw/direct),
 #        NFILES (32), HOLD_MS (15000), MOUNT_BOUND (270)
 # Exit 0 PASS, 1 FAIL, 2 ABORT/INFRA.
 set -u
 LABEL=${1:?label}
 cd "$(dirname "$0")/.." || exit 2
 export MXFS_NODE_LIST=${MXFS_NODE_LIST:-test1,test2}
-export MXFS_TRANSPORT=${MXFS_TRANSPORT:-cawd}
+export MXFS_CONFIG=${MXFS_CONFIG:-2/disk/caw/direct}
 A=${MXFS_NODE_LIST%%,*}          # holds the root EX, then is destroyed
 B=${MXFS_NODE_LIST##*,}          # mounts across A's death
 SSH=tools/mxfs_sshpass.sh
@@ -57,9 +57,9 @@ fails=0
 VIRSH="timeout 30 virsh -c qemu:///system"
 s0=$(date +%s)
 el() { echo $(( $(date +%s) - s0 )); }
-echo "=== mount_postbarrier_peer_death_2n label=$LABEL A(holder)=$A B(mounter)=$B transport=$MXFS_TRANSPORT $(date -u +%FT%TZ) ==="
+echo "=== mount_postbarrier_peer_death_2n label=$LABEL A(holder)=$A B(mounter)=$B configuration=$MXFS_CONFIG $(date -u +%FT%TZ) ==="
 
-MXFS_FORCE_PREP=1 ./run.sh 2 "$MXFS_TRANSPORT" prep_cluster > "$OUT/prep.log" 2>&1
+MXFS_FORCE_PREP=1 ./run.sh "$MXFS_CONFIG" prep_cluster > "$OUT/prep.log" 2>&1
 prc=$?
 echo "STAGE prep rc=$prc wall=$(el)s  $(grep -a 'prep_cluster OK' "$OUT/prep.log" | tail -1)"
 [ "$prc" = 0 ] || { echo "ABORT: prep failed: $(tail -3 "$OUT/prep.log" | tr '\n' ' ')"; echo "RESULT: ABORT label=$LABEL stage=prep evidence=$OUT"; exit 2; }

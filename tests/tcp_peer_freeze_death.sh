@@ -11,7 +11,7 @@
 # worker prints every 30 s, also stopped.  When the peer came back the
 # reconnect cancelled the still-pending death; the lease layer expired it at
 # 836 s with no incarnation, so no fence ran and the survivor's mount went to
-# EIO.  The 2/tcp suite never freezes a node: fault_netpartition drops only
+# EIO.  The 2/net/mesh/direct suite never freezes a node: fault_netpartition drops only
 # the DLM's TCP port while lease and disk heartbeats keep flowing.
 #
 # virsh suspend is that shape without vSphere: the guest's vCPUs stop, its
@@ -36,7 +36,7 @@
 #
 # Usage: tests/tcp_peer_freeze_death.sh [victim] [survivor] [watch_seconds]
 #   Victim and survivor are VM names.  PREP=rig (default) forms the cluster
-#   with ./run.sh 2 tcp prep_cluster on test1/test2.  PREP=<platform>, a
+#   with ./run.sh "$CONFIG" prep_cluster on test1/test2.  PREP=<platform>, a
 #   data/platforms.json key, uses that platform's verification pair from the
 #   lab file (tools/mxfs_lab.sh; survivor = its first node, victim = its
 #   second, unless named) as a user installs it: the packaged module, in-guest
@@ -49,9 +49,12 @@
 #   file, which is what virsh suspend sends underneath.
 #   Leaves the victim resumed and the cluster as it ended, for inspection.
 #
-# TRANSPORT=caw runs the same freeze on the CAW transport (the name is
-# historical: the harness began on TCP).  PREP=rig forms the cluster with
-# ./run.sh 2 cawd; a platform pair loads its packaged module and sets
+# CONFIG names the configuration (tools/configuration.py; default
+# 2/net/mesh/direct).  Its node count must be the set's size and its attachment
+# direct: the rig pair is test1/test2 on the direct LUN, and a platform set logs
+# in by in-guest iSCSI.  A disk/caw configuration runs the same freeze on the
+# CAW transport (the harness's name is historical: it began on TCP).  PREP=rig
+# forms the cluster with ./run.sh "$CONFIG"; a platform pair loads its packaged module and sets
 # force_transport=0 before mounting, and each mount must announce
 # transport=CAW.  On CAW there is no TCP socket to lose: the survivor sees the
 # victim's disk heartbeat stop, declares it dead (P236-FENCE-INTENT), fences it
@@ -69,18 +72,20 @@ WATCH_S="${3:-300}"
 DEATH_BUDGET_S=120
 WRITE_BUDGET_S=180
 PREP="${PREP:-rig}"
-TRANSPORT="${TRANSPORT:-tcp}"
+CONFIG=$(python3 "$HERE/tools/configuration.py" parse "${CONFIG:-2/net/mesh/direct}") || exit 2
+eval "$(python3 "$HERE/tools/configuration.py" shell "$CONFIG")"
+[ "$CFG_ATTACH" = direct ] || { echo "$CONFIG: this harness attaches the LUN directly; it does not build $CFG_ATTACH" >&2; exit 2; }
+TRANSPORT=$CFG_TRANSPORT                      # what the module takes: tcp | caw
 case "$TRANSPORT" in
-    tcp) TNAME=TCP; RIGDLM=tcp; FT=1
+    tcp) TNAME=TCP; FT=1
          DEATH_RE="did not reconnect within|has left the cluster" ;;
     # "is no longer responding (heartbeat expired" is the heartbeat monitor's
     # WARN-level declaration and prints on every build.  P236-FENCE-INTENT is
     # a debug probe: a packaged module loaded without dyndbg never prints it,
     # so on every platform pair the death read as "never" while the fence
     # certified at +62 s and the survivor wrote at +65 s (0.90.7, all four).
-    caw) TNAME=CAW; RIGDLM=cawd; FT=0
+    caw) TNAME=CAW; FT=0
          DEATH_RE="is no longer responding \(heartbeat expired|P236-FENCE-INTENT|declar(ed|ing) dead" ;;
-    *) echo "TRANSPORT must be tcp or caw" >&2; exit 2 ;;
 esac
 if [ "$PREP" = rig ]; then
     PACKAGED=0; MNT=/mnt/shared
@@ -100,6 +105,7 @@ else
     LUN=${MXFS_LUN:-$(lab_need storage lun)} || exit 2   # MXFS_LUN: another target (e.g. the LIO bench LUN)
 fi
 NN=$(echo $SET | wc -w)
+[ "$NN" = "$CFG_NODES" ] || { echo "$CONFIG names $CFG_NODES nodes; the set is $NN ($SET)" >&2; exit 2; }
 SURV=$(for h in $SET; do [ "$h" = "$V" ] || printf '%s ' "$h"; done)
 case " $SET " in *" $S "*" $V "*|*" $V "*" $S "*) ;; *) echo "survivor $S and victim $V must both be in the set [$SET]" >&2; exit 2 ;; esac
 
@@ -107,7 +113,7 @@ SSH="$HERE/tools/mxfs_sshpass.sh"
 VIRSH="virsh -c qemu:///system"
 # the pair's name is part of the directory: tests/full_verify.sh runs every
 # platform's pair at once, and three started in one second shared a directory
-EV="$HERE/tests/evidence/tcp_peer_freeze_death/$(date +%Y%m%dT%H%M%S)_${PREP}_$TRANSPORT"
+EV="$HERE/tests/evidence/tcp_peer_freeze_death/$(date +%Y%m%dT%H%M%S)_${PREP}_$CFG_SHAPE"
 mkdir -p "$EV"
 exec > >(tee -a "$EV/run.log") 2>&1
 say() { echo "[$(date +%T)] $*"; }
@@ -140,7 +146,7 @@ vm_freeze() { if is_domain "$1"; then $VIRSH suspend "$1" >/dev/null; else qmp "
 vm_thaw() { if is_domain "$1"; then $VIRSH resume "$1" >/dev/null; else qmp "$1" cont | grep -q '"return"'; fi; }
 on() { local h t=$2; h=$(addr "$1"); shift 2; timeout "$t" "$SSH" "$h" "$@" 2>&1 | grep --line-buffered -v -E "^Warning: Permanently|^$|Unauthorized access|authorized user, disconnect"; return "${PIPESTATUS[0]}"; }
 
-say "victim=$V survivor=$S members=[$SET] transport=$TRANSPORT watch=${WATCH_S}s evidence=$EV"
+say "victim=$V survivor=$S members=[$SET] configuration=$CONFIG transport=$TRANSPORT watch=${WATCH_S}s evidence=$EV"
 vm_running "$V" || fail "$V is not running"
 # the mount option that names a node's peers: two nodes name each other
 # (peer=), a larger set names every member (peers=)
@@ -156,7 +162,7 @@ popt() {
 
 # --- 1. a fresh 2-node cluster on the shared LUN
 if [ "$PREP" = rig ]; then
-    (cd "$HERE" && ./run.sh 2 $RIGDLM prep_cluster) > "$EV/prep_cluster.log" 2>&1 || { tail -20 "$EV/prep_cluster.log"; fail "prep_cluster"; }
+    (cd "$HERE" && ./run.sh "$CONFIG" prep_cluster) > "$EV/prep_cluster.log" 2>&1 || { tail -20 "$EV/prep_cluster.log"; fail "prep_cluster"; }
 else
     # free the LUN: no other node may hold it while it is reformatted; one
     # that does not answer is not running, so it holds nothing

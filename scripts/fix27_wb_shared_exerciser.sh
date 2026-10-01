@@ -2,7 +2,7 @@
 # fix27_wb_shared_exerciser.sh — targeted trigger + negative control for the
 # FIX-27 SHARED-class writeback-submission admit.
 #
-# THE DEADLOCK (ccloop c7ee71c6 sess24, captured live on test27 @32/caw 0.11.201)
+# THE DEADLOCK (ccloop c7ee71c6 sess24, captured live on test27 @32/disk/caw/mpath 0.11.201)
 # -----------------------------------------------------------------------------
 #   kworker/u9:29+mxfs-ino-bast/dm-1   wchan=folio_wait_bit_common
 #     folio_wait_bit_common <- __folio_lock <- write_cache_pages

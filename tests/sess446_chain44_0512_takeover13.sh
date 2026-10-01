@@ -16,7 +16,7 @@ LABEL=${1:-s446a}
 LOG=tests/evidence/sess446_chain44_0512_takeover13_$LABEL.log
 {
   echo "=== sess446 chain44 start $(date -u +%FT%TZ) sv=$(modinfo mxfs.ko | awk '/srcversion/{print $2}') VERSION=$(cat VERSION) ==="
-  timeout 300 ./run.sh 32 caw prep_cluster; prc=$?; echo "STAGE prep rc=$prc"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; prc=$?; echo "STAGE prep rc=$prc"
   if [ "$prc" -ne 0 ]; then echo "ABORT: prep failed"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
   T0=$(date +%s); MXFS_TK_LIVE_PROBE=1 timeout 1700 tests/bootstrap_takeover.sh $LABEL 13 32 test1 test2; echo "STAGE bootstrap_takeover13 rc=$? wall=$(( $(date +%s) - T0 ))s"
   D=$(ls -dt tests/evidence/*_boottakeover13 | head -1); echo "EVIDENCE $D"
@@ -24,6 +24,6 @@ LOG=tests/evidence/sess446_chain44_0512_takeover13_$LABEL.log
     echo "TOKENS $(basename $f): classless=$(grep -ac 'P227-TOKEN.*class=0 st=6' $f) refused=$(grep -ac 'POLICY-REFUSED\|REFUSED slot' $f) void=$(grep -ac 'P-AUTHCAP-VOID' $f) retype_ok=$(grep -ac 'P-AUTHCAP-RETYPE-OK' $f) mixed=$(grep -ac 'P-AUTHCAP-RETYPE-MIXED' $f)"
   done
   grep -a 'RECOVERY_COMPLETE\|foreign replay of slot\|bootstrap: REFUSED' $D/contender_dmesg.txt 2>/dev/null | tail -5 | cut -c1-160
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep2 rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep2 rc=$?"
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

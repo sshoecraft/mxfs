@@ -6,7 +6,7 @@
 # The purge's interlock against a second survivor is the phase-0 freeze
 # gate (purge_recov_gate: owner-only at GRANTS_RELEASED), re-derived at the
 # mid-scan cadence and on the exact heartbeat image the final CAS publishes
-# against.  Three arms, each on a freshly prepped 32/caw fleet, each ending
+# against.  Three arms, each on a freshly prepped 32/disk/caw/mpath fleet, each ending
 # with the victim dead and the fs needing prep (arms 2/3 leave a DBG_INJECTED
 # quarantine on the victim slot by design):
 #

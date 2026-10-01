@@ -35,8 +35,8 @@ mkdir -p "$EV"
   grep -a 'warning:' "$EV/build.txt" | grep -v 'compiler differs' | cut -c1-200 | head -20
   if [ "$brc" -ne 0 ] || [ "$trc" -ne 0 ] || [ "$NEW" = "$OLD" ]; then echo "ABORT: build failed or srcversion unchanged"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
   T0=$(date -u '+%Y-%m-%d %H:%M:%S')
-  timeout 300 ./run.sh 32 caw prep_cluster; prc=$?; echo "STAGE prep rc=$prc"
-MXFS_DEV=${MXFS_DEV:?this chain ran the tcpmp condition, TCP over the multipath LUN: name that LUN with MXFS_DEV (never assumed from a rig path)}
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; prc=$?; echo "STAGE prep rc=$prc"
+MXFS_DEV=${MXFS_DEV:?this chain ran net/mesh/mpath, TCP over the multipath LUN: name that LUN with MXFS_DEV (never assumed from a rig path)}
   timeout 90 $SSH test1 "/src/mxfs/tools/chk_mxfs -v $MXFS_DEV 2>&1" > "$EV/chk_after_prep.txt"; echo "STAGE chk rc=$?"
   echo "chk: bootstrap: $(grep -a 'bootstrap' "$EV/chk_after_prep.txt" | cut -c1-220 | head -3)"
   echo "chk: identity lines=$(grep -ac 'identity host=' "$EV/chk_after_prep.txt") crc_err=$(grep -ac 'identity crc expected' "$EV/chk_after_prep.txt") ledger: $(grep -a 'PR registrant ledger' "$EV/chk_after_prep.txt" | cut -c1-160)"
@@ -50,14 +50,14 @@ MXFS_DEV=${MXFS_DEV:?this chain ran the tcpmp condition, TCP over the multipath 
   timeout 30 $SSH test1 "journalctl -k --since '$T0' | grep -a 'P236-FENCE-INTENT\|P236-FENCE-CERTIFIED\|P-PRKEY-FENCED\|P-PRKEY-VICTIM-UNKNOWN\|P-PRKEY-FENCE-REFUSED\|NO_VICTIM_KEY' | cut -c1-230 | head -12" > "$EV/fence_test1.txt" 2>&1
   echo "--- test1 fence lines: $(wc -l < "$EV/fence_test1.txt")"; head -8 "$EV/fence_test1.txt"
   $VIRSH start test20 >/dev/null 2>&1; sleep 45
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep2 rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep2 rc=$?"
   timeout 300 tests/d_recov_advance_bounded_verify.sh $LABEL takeover; echo "STAGE radv_takeover rc=$?"
   sleep 45
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep3 rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep3 rc=$?"
   timeout 300 tests/d_recov_zero_epoch_verify.sh $LABEL; echo "STAGE zeroinc rc=$?"
   $VIRSH start test8 >/dev/null 2>&1; sleep 45
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep4 rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep4 rc=$?"
   timeout 400 tests/openunlink_deaths.sh unlinker_death test1 test2 > "$EV/deaths_unlinker_death.txt" 2>&1; echo "STAGE deaths rc=$?"; grep -a 'PASS\|FAIL\|RESULT\|forensics\|armed' "$EV/deaths_unlinker_death.txt" | tail -8
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep5 rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep5 rc=$?"
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

@@ -8,7 +8,7 @@
 # Usage: tests/drc_timeline.sh [rounds] [N] [owner] [daddr]
 set -u
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd); cd "$REPO"
-ROUNDS="${1:-16}"; N="${2:-8}"; OWNER="${3:-131}"; DADDR="${4:-120}"
+ROUNDS="${1:-16}"; CONFIG=$(python3 "$(dirname "$0")/../tools/configuration.py" parse "${2:-8/net/mesh/direct}") || exit 2; N=${CONFIG%%/*}; OWNER="${3:-131}"; DADDR="${4:-120}"
 SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass
 CAPDIR="$REPO/tests/_timeline_cap"; mkdir -p "$CAPDIR"
 ALL="test1 test2 test3 test4 test5 test6 test7 test8"
@@ -25,7 +25,7 @@ done
 sleep 20
 echo "########## TIMELINE rounds=$ROUNDS N=$N owner=$OWNER daddr=$DADDR ts=$TS @ $(date -u +%T) ##########"
 OUT=$(env MXFS_EXTRA_MODARGS='dirwr=1 dataclobber=1' MXFS_TEST_ENV="DRC_ROUNDS=$ROUNDS" \
-      ./run.sh "$N" tcp dir_reuse_coherency 2>&1)
+      ./run.sh "$CONFIG" dir_reuse_coherency 2>&1)
 VERD=$(echo "$OUT" | grep -E 'nodes_pass=' | tail -1)
 echo "VERDICT: $VERD"
 

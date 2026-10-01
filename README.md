@@ -10,69 +10,142 @@
 > Everything that turns XFS into a filesystem many machines can mount at once
 > is AI-authored.
 
-> ## ⚠️ Released configurations: clusters of 2, 4 and 8 nodes, TCP or CAW transport — nothing else
+> ## ⚠️ Released: six configurations, all on `direct` attachment — nothing else
 >
-> **The supported configurations are a cluster of two, four or eight
-> nodes, on either DLM transport:**
+> A configuration is four fields, `<nodes>/<class>/<method>/<attach>`, for
+> example `8/net/mesh/direct`. Each field is explained in the tables below and in
+> [`docs/attachment-methods.md`](docs/attachment-methods.md).
 >
-> - **TCP** — the lock manager talks over the network between the nodes.
->   Works on any shared block device. The release packages default to it.
-> - **CAW** — the lock state lives on the shared LUN itself and is claimed
->   with SCSI COMPARE AND WRITE. Needs a storage target that implements
->   COMPARE AND WRITE atomically (see "Choosing the transport" below).
+> ### Released
 >
-> For every released configuration no known defect has been shown to corrupt
-> or lose data, or to crash, hang or shut down a node, with the one exception
-> named below, and the full test suite passes on each, at two, four and
-> eight nodes. That is not the same as having no defects: the public queue
-> (`data/defects.json`, read with `tools/defects.py`) holds **90 open
-> defects**. **24 of them reach 2-node TCP**, **7 reach 2-node CAW**, **30
-> reach 4-node TCP**, **10 reach 4-node CAW**, **31 reach 8-node TCP** and
-> **10 reach 8-node CAW**; apart from the exception below, each is classified
-> as not crossing the data-loss or crash bar, most of them as slowness. Each
-> record carries its own evidence. Read them before relying on MXFS:
-> `tools/defects.py 8 tcp -d`, `tools/defects.py 8 caw -d` (`4 tcp`, `2 tcp`
-> and so on for the smaller clusters).
+> | configuration | first released in | platforms |
+> |---|---|---|
+> | `2/net/mesh/direct` | 0.89.77 | Ubuntu 24.04 from 0.89.77, Proxmox VE 9 from 0.89.78, RHEL 9.8 from 0.89.84, Debian 13 from 0.90.0 |
+> | `2/disk/caw/direct` | 0.90.7 | Proxmox VE 9, RHEL 9.8, Ubuntu 24.04, Debian 13 |
+> | `4/net/mesh/direct` | 0.90.24 | Proxmox VE 9, RHEL 9.8, Ubuntu 24.04, Debian 13 |
+> | `4/disk/caw/direct` | 0.90.24 | Proxmox VE 9, RHEL 9.8, Ubuntu 24.04, Debian 13 |
+> | `8/net/mesh/direct` | 0.90.36 | Proxmox VE 9, RHEL 9.8, Ubuntu 24.04, Debian 13 |
+> | `8/disk/caw/direct` | 0.90.36 | Proxmox VE 9, RHEL 9.8, Ubuntu 24.04, Debian 13 |
 >
-> **Verified storage attachment: single-path iSCSI only.** In every
-> verification of every release, each node ran its own iSCSI initiator and
-> reached the shared LUN on one path, with nothing between MXFS and the
-> target. **dm-multipath and hypervisor SCSI passthrough (e.g. a LUN handed
-> to a VM by QEMU or as a VMware RDM) are not verified on either
-> transport** — they carry the fencing reservations and, on CAW, the COMPARE
-> AND WRITE lock commands through a layer no release has tested. Fibre
-> Channel and SAS are not verified. A device without SCSI persistent
-> reservations (virtio-blk, NVMe) is refused at mount.
+> All six were verified again on the current release, 0.90.37, on all four
+> platforms. A release claims exactly the configurations it lists.
+>
+> ### Implemented, not released: do not use
+>
+> The code runs these and the test rig can build them, but no release has
+> verified them.
+>
+> | method and attach | configurations |
+> |---|---|
+> | `net/mesh/direct` | `16/net/mesh/direct`, `32/net/mesh/direct` |
+> | `net/mesh/mpath` | `2/net/mesh/mpath`, `4/net/mesh/mpath`, `8/net/mesh/mpath`, `16/net/mesh/mpath`, `32/net/mesh/mpath` |
+> | `net/mesh/pass` | `2/net/mesh/pass`, `4/net/mesh/pass`, `8/net/mesh/pass`, `16/net/mesh/pass`, `32/net/mesh/pass` |
+> | `disk/caw/direct` | `16/disk/caw/direct`, `32/disk/caw/direct` |
+> | `disk/caw/mpath` | `2/disk/caw/mpath`, `4/disk/caw/mpath`, `8/disk/caw/mpath`, `16/disk/caw/mpath`, `32/disk/caw/mpath` |
+> | `disk/caw/pass` | `2/disk/caw/pass`, `4/disk/caw/pass`, `8/disk/caw/pass`, `16/disk/caw/pass`, `32/disk/caw/pass` |
+>
+> Every other node count from 3 to 64 (3, 5 to 7, and 9 and up) is in the same
+> state on `net/mesh` and `disk/caw` with `direct`, `mpath` or `pass`. From 9
+> nodes up, open defects in the queue include ones that can lose data or hang a
+> node.
+>
+> ### The four fields
+>
+> **`nodes`**: how many nodes mount the filesystem, 2 to 64. Released: 2, 4 and 8.
+>
+> **`class`**: where the lock manager keeps lock state.
+>
+> | class | lock state lives |
+> |---|---|
+> | `net` | in node memory, exchanged over the network |
+> | `disk` | on the shared LUN, claimed with a storage primitive |
+>
+> **`method`**: which lock manager of that class.
+>
+> | method | implemented | how it works |
+> |---|---|---|
+> | `net/mesh` | yes | Peer to peer over the network; lock mastership is spread across the members. The release packages default to it (`force_transport=1`). |
+> | `net/server` | no | One lock server, or an active/standby pair, holds every lock. |
+> | `disk/caw` | yes | SCSI COMPARE AND WRITE on a lock block on the LUN (`force_transport=0`). The storage target must implement COMPARE AND WRITE atomically (see "Choosing the transport" below). |
+> | `disk/reserve` | no | SCSI-2 RESERVE/RELEASE around a plain write of the lock block. |
+> | `disk/pr` | no | SCSI persistent reservations as the lock, or guarding its write. |
+> | `disk/fused` | no | NVMe fused Compare+Write; the Linux block layer cannot issue it today. |
+> | `disk/paxos` | no | Disk Paxos / Disk Lease: consensus on plain reads and writes. |
+>
+> **`attach`**: how the shared LUN reaches each node.
+>
+> | attach | implemented | released | the node's path to the LUN |
+> |---|---|---|---|
+> | `direct` | yes | yes | its own initiator, one path: bare metal, or an in-guest iSCSI login |
+> | `mpath` | yes | no | its own initiator over two or more paths, assembled by dm-multipath |
+> | `pass` | yes | no | the hypervisor's initiator: the LUN is passed into the VM (QEMU SCSI passthrough, VMware RDM) |
+> | `drbd` | no | no | a DRBD dual-primary replica of two local disks |
+>
+> A configuration that names a method or an attach that is not implemented does
+> not exist yet. `drbd` can never be more than two nodes, because DRBD allows
+> exactly two primaries, and `docs/attachment-methods.md` limits it to `net`,
+> because COMPARE AND WRITE cannot be atomic across two replicas. It also needs a
+> fencing method other than SCSI reservations, which DRBD does not have.
+>
+> Both implemented methods fence a dead node with SCSI persistent reservations
+> on the LUN, so both need storage that implements them
+> ([`docs/fencing.md`](docs/fencing.md)).
+>
+> **0.90.36 and earlier have defects that can lose data; upgrade to 0.90.37.**
+> They were found after 0.90.36 shipped, measured on `8/net/mesh/direct`; the
+> code involved is not specific to that configuration. All are fixed and
+> verified in 0.90.37:
+>
+> - A name created in a directory that another node had just removed was lost
+>   (`mkdir`, `link`, `symlink`, `rename`), and a `symlink` into such a
+>   directory could shut nodes down.
+> - An entry removed while other nodes were adding to its directory could
+>   survive with its inode freed, and a shared directory's link count could
+>   end up above its entries. A task whose lock-release claim had outlived its
+>   release modified the directory with no lock grant.
+> - A release claim whose owning process had exited was never retired, could
+>   be inherited by an unrelated process, and could shut a node down.
+>
+> The public defect queue (`data/defects.json`, read with `tools/defects.py`)
+> holds **91 open defects**: 24 reach `2/net/mesh/direct`, 7 reach
+> `2/disk/caw/direct`, 30 reach `4/net/mesh/direct`, 10 reach
+> `4/disk/caw/direct`, 32 reach `8/net/mesh/direct` and 10 reach
+> `8/disk/caw/direct`. None of them blocks a released configuration: each is
+> classified as not crossing the data-loss or crash bar, most of them as
+> slowness. Each record
+> carries its own evidence. Read them before relying on MXFS:
+> `tools/defects.py --at 8/net/mesh/direct -d`, and the same for each
+> configuration.
+>
+> **Verified attachment: `direct` only**, over iSCSI. In every verification of
+> every release, each node ran its own iSCSI initiator and reached the shared
+> LUN on one path, with nothing between MXFS and the target. `mpath` and `pass`
+> are not verified with either method: they carry the fencing reservations and,
+> for `disk/caw`, the COMPARE AND WRITE lock commands through a layer no release
+> has tested. Fibre Channel and SAS are not verified. A device without SCSI
+> persistent reservations (virtio-blk, NVMe, DRBD, md RAID) is refused at mount.
 >
 > What a build has to pass before it is called a release, and what that does
 > not cover, is in "How a release is validated" below.
 >
-> **The exception, on TCP:** once, in 39 attempts on RHEL 9.8, a file create on
-> the surviving node stalled for about 60 s after its peer was declared dead,
-> fenced and replayed and then resumed
+> **The exception, on `2/net/mesh/direct`:** once, in 39 attempts on RHEL 9.8,
+> a file create on the surviving node stalled for about 60 s after its peer was
+> declared dead, fenced and replayed, and then resumed
 > (`D-SURVIVOR-CREATE-STALLS-60S-AFTER-PEER-DEATH-UNTIL-RESUMED-VICTIM-UNMOUNTS`).
 > Its cause is not known, it has not recurred since, and it is shipped open by
 > the owner's decision.
 >
-> **In development — do not use:**
-> - **Three nodes**, on either transport: unverified. A release claims
->   exactly the cluster sizes it was verified at, and three has not been.
-> - **Five to seven nodes**, on either transport: unverified, for the same
->   reason as three.
-> - **More than 8 nodes** (9 to 32), on either transport: still has open
->   defects in the queue, including ones that can lose data or hang a node.
-> - **Directory sharding** (`mkfs.mxfs -D` with the module parameter
->   `dirshard_mkdir_enable=1`): experimental, off by default and part of no
->   release. At four nodes on CAW a node's listing of a sharded directory
->   another node had just re-created failed with "Structure needs cleaning"
->   in 3 of 10 laps
->   (`D-DIRSHARD-REUSE-PEER-READDIR-EUCLEAN-ON-CAW-AT-4-NODES`).
+> **Directory sharding** (`mkfs.mxfs -D` with the module parameter
+> `dirshard_mkdir_enable=1`) is experimental, off by default and part of no
+> release. On `4/disk/caw/direct` a node's listing of a sharded directory that
+> another node had just re-created failed with "Structure needs cleaning" in 3
+> of 10 laps (`D-DIRSHARD-REUSE-PEER-READDIR-EUCLEAN-ON-CAW-AT-4-NODES`).
 >
 > Performance work is also still open on every configuration.
 >
 > **Released for exactly these kernels**, each installed from the release
 > packages and verified on two, four and eight x86-64 nodes sharing an iSCSI LUN,
-> on both transports:
+> on both DLMs:
 >
 > | platform | kernel verified |
 > |---|---|
@@ -97,18 +170,18 @@
 > survive. Crash-durable operation on unprotected caches is in development.
 >
 > The release packages configure both for you: `/etc/modprobe.d/mxfs.conf`
-> sets `options mxfs force_transport=1` (TCP) and
+> sets `options mxfs force_transport=1` (`net/mesh`) and
 > `options mxfs target_cache_protected=1` (the storage declaration above).
 > Building from source, load the module with
 > `modprobe mxfs target_cache_protected=1`: without it a clustered mount is
-> refused. The module forms a new cluster on TCP by default; CAW has to be
+> refused. A new cluster forms on `net/mesh` by default; `disk/caw` has to be
 > asked for with `force_transport=0` (see "Choosing the transport"). To see
 > what still blocks each configuration:
 >
 > ```
-> tools/defects.py 8 tcp --release   # released (8 nodes; `4 tcp`, `2 tcp` for fewer)
-> tools/defects.py 8 caw --release   # released (8 nodes; `4 caw`, `2 caw` for fewer)
-> tools/defects.py 32 caw            # 32 nodes, in development
+> tools/defects.py 8/net/mesh/direct --release   # released; 4/... and 2/... for fewer nodes
+> tools/defects.py 8/disk/caw/direct --release   # released; 4/... and 2/... for fewer nodes
+> tools/defects.py 32/disk/caw/mpath             # 32 nodes, in development
 > ```
 
 ---
@@ -146,18 +219,20 @@ overlay.
   intercepts the points where nodes would otherwise collide — allocation-group
   metadata, the inode cache, the buffer cache — and coordinates them across the
   cluster. It is not a patch series against upstream today.
-- **Distributed lock manager (`dlm/`).** Two transports can carry lock state:
-  - **TCP (released, 2, 4 and 8 nodes)** — a network DLM spoken over TCP between nodes.
-  - **CAW (released, 2, 4 and 8 nodes)** — lock state lives *in-band on the shared
+- **Distributed lock manager (`dlm/`).** Two lock managers are implemented:
+  - **`net/mesh`** (released as `2/net/mesh/direct`, `4/net/mesh/direct` and
+    `8/net/mesh/direct`) — a network DLM spoken over TCP between nodes.
+  - **`disk/caw`** (released as `2/disk/caw/direct`, `4/disk/caw/direct` and
+    `8/disk/caw/direct`) — lock state lives *in-band on the shared
     disk*, claimed with the SCSI **COMPARE AND WRITE** (opcode `0x89`) atomic
     primitive plus SCSI Persistent Reservations. No separate lock network is
     required, which is what lets it scale past the point where a network DLM
     stops keeping up (more than 8 nodes is still in development).
 
-  The module parameter `force_transport` picks the transport a new cluster
-  forms on: `1` (the default) is TCP, `0` is CAW. The release packages also
-  set `1` explicitly. A node joining an existing cluster adopts the
-  transport the cluster's members are already using.
+  The module parameter `force_transport` picks the lock manager a new cluster
+  forms on: `1` (the default) is `net/mesh`, `0` is `disk/caw`. The release
+  packages also set `1` explicitly. A node joining an existing cluster adopts
+  the lock manager the cluster's members are already using.
 - **Membership and fencing.** Peers are found by UDP-multicast discovery;
   liveness is tracked by an on-disk heartbeat with per-node slot claiming; a
   departed or partitioned node is fenced with SCSI Persistent Reservations
@@ -214,8 +289,11 @@ is clean:
 
 ## How a release is validated
 
-A release claims a cluster size, a transport and a kernel, and it claims
-each only after that exact build passed everything below on it. Nothing is
+A release claims configurations (`<nodes>/<class>/<method>/<attach>`,
+[`docs/attachment-methods.md`](docs/attachment-methods.md)) and kernels, and it
+claims each only after that exact build passed everything below on it. The set
+of configurations a release must have green is its release matrix
+(`data/configurations.json`). Nothing is
 carried over from an earlier version: when a larger cluster size is
 released, the smaller ones are run again on the same build. One script
 drives the whole sequence and logs every step with its exit code
@@ -228,8 +306,7 @@ headers are the reference for what follows.
    userspace tools, the user-mode tests of the lock manager's authority
    ledger (`tests/tauth`), and two source audits (every cross-file
    declaration matches its definition; no two inode flags share a bit).
-2. **The cluster suite, on both transports, at every released cluster
-   size.** About thirty rows (`tests/suite/manifest`), each run on a real
+2. **The cluster suite, on every configuration of the release matrix.** About thirty rows (`tests/suite/manifest`), each run on a real
    cluster of that many nodes mounting one LUN:
    - what one node writes, every other node reads, and nothing is lost
      silently (`cache_coherency`, `strong_consistency`, `mmap_coherency`,
@@ -248,8 +325,8 @@ headers are the reference for what follows.
    - pace, against native XFS on the same storage (`fio_perf`,
      `fio_perf_vs_xfs`).
 
-   The manifest lists every row with its budget.  Every row must read PASS on the board (`tools/criteria.py <nodes>
-   <transport>`). The board keeps each row's last eleven runs, and a row
+   The manifest lists every row with its budget.  Every row must read PASS on the board (`tools/criteria.py
+   <configuration>`). The board keeps each row's last eleven runs, and a row
    with a genuine failure anywhere in that window does not read PASS: it
    has to pass lap after lap until the failure has left the window. A row
    that was skipped is not a pass either.
@@ -266,9 +343,9 @@ headers are the reference for what follows.
    checksum; files created on one node are counted and removed on another;
    the checker exits 0; the nodes find each other by static `peer=`
    addresses with multicast dropped; every node is rebooted and the data is
-   intact. Both transports; Proxmox on both of its kernels; RHEL with
+   intact. Each configuration of the matrix; Proxmox on both of its kernels; RHEL with
    SELinux enforcing and its sVirt test (`tests/selinux_svirt_mxfs.sh`).
-4. **A hung node, on every released platform, on both transports.** One
+4. **A hung node, on every released platform, on each configuration of the matrix.** One
    node's CPUs are stopped in the middle of a write, so it answers nothing
    and closes nothing. The others have 120 s to declare it dead and 180 s
    to have fenced it, replayed its journal and written again
@@ -282,11 +359,12 @@ headers are the reference for what follows.
 
 The defect queue is public (`data/defects.json`, read with
 `tools/defects.py`). Each record says what was observed, on what evidence,
-and the smallest cluster and the transport it was observed on; a record
-nobody has classified counts against every configuration.
+and the smallest cluster and the configurations its evidence reaches (a
+pattern such as `disk/caw/*`); a record nobody has classified counts against
+every configuration.
 
-- A configuration is released only when `tools/defects.py <nodes>
-  <transport> --release` lists nothing: no open defect that reaches it and
+- A configuration is released only when `tools/defects.py <configuration>
+  --release` lists nothing: no open defect that reaches it and
   can corrupt or lose data, or crash, hang or shut down a node. An exception
   is the owner's decision and is named at the top of this file.
 - A defect leaves the queue in two ways only. It is disproved by direct
@@ -363,11 +441,13 @@ resize.mxfs [-v] [-n] [-V] DEVICE               # -n = dry run
 
 ## Quick start
 
-The released configurations are **two, four or eight nodes on the TCP or the
-CAW transport**, each node reaching the LUN over single-path iSCSI. Install the release package on every node (it loads the module
-with `force_transport=1 target_cache_protected=1`, i.e. TCP), or load a source
+The released configurations are `2/net/mesh/direct`, `4/net/mesh/direct`,
+`8/net/mesh/direct`, `2/disk/caw/direct`, `4/disk/caw/direct` and
+`8/disk/caw/direct`: each node reaches the LUN over single-path iSCSI. Install
+the release package on every node (it loads the module with
+`force_transport=1 target_cache_protected=1`, i.e. `net/mesh`), or load a source
 build with `modprobe mxfs force_transport=1 target_cache_protected=1` on every node.
-For CAW, see "Choosing the transport" below before the first mount.
+For `disk/caw`, see "Choosing the transport" below before the first mount.
 
 ```
 apt install ./mxfs_<version>_amd64.deb                  # Ubuntu 24.04, Proxmox VE 9
@@ -378,8 +458,8 @@ dnf install ./mxfs-<version>-1.el8.x86_64.rpm
 With firewalld on, open the DLM, discovery, lock-hint and heartbeat ports on
 every node:
 `firewall-cmd --permanent --add-port=7600/tcp --add-port=7601/udp --add-port=7602/udp --add-port=7603/udp && firewall-cmd --reload`.
-(7600/tcp carries the TCP transport's locks; 7602/udp carries the CAW
-transport's lock-release requests and grant notices between the nodes.)
+(7600/tcp carries the locks of `net/mesh`; 7602/udp carries the lock-release
+requests and grant notices of `disk/caw` between the nodes.)
 
 On the first node, format and mount the shared device:
 
@@ -412,18 +492,18 @@ other sender. See `mxfs(5)` and [`docs/discovery.md`](docs/discovery.md).
 
 ### Choosing the transport
 
-Both transports are released for clusters of two, four and eight nodes. Pick one
-per cluster, before its first mount:
+Both lock managers are released for clusters of two, four and eight nodes on
+`direct`. Pick one per cluster, before its first mount:
 
-| | TCP | CAW |
+| | `net/mesh` | `disk/caw` |
 |---|---|---|
 | Where the locks live | messages between the nodes | slots on the shared LUN, claimed with SCSI COMPARE AND WRITE |
 | Storage it needs | any shared block device with SCSI Persistent Reservations | a target that implements COMPARE AND WRITE **atomically**, plus Persistent Reservations |
 | Network it needs | a reliable low-latency link between the nodes | discovery and lock-release notices only (UDP) |
 | How to select it | the package default (`force_transport=1`) | `force_transport=0` |
 
-To run CAW, change the line in `/etc/modprobe.d/mxfs.conf` on **both** nodes
-before the first mount, then reload the module (or reboot):
+To run `disk/caw`, change the line in `/etc/modprobe.d/mxfs.conf` on **every**
+node before the first mount, then reload the module (or reboot):
 
 ```
 options mxfs force_transport=0
@@ -440,20 +520,21 @@ module is always loaded with the file on the root filesystem rather than a
 copy baked into the boot image; an initramfs built by an earlier MXFS
 package is rebuilt when the package is installed.
 
-The setting only chooses the transport of a **new** cluster: a node that mounts
-a volume the other node already has mounted joins on that cluster's
-transport, and a mount that asks for TCP on a volume that already has CAW
-members is refused. On a device that does not implement COMPARE AND WRITE a
-CAW mount is refused at admission (`P311-CAW-ADMISSION-REFUSED`), so nothing is
-written. Each mount logs which transport it runs:
+The setting only chooses the lock manager of a **new** cluster: a node that
+mounts a volume other nodes already have mounted joins on that cluster's lock
+manager, and a mount that asks for `net/mesh` on a volume that already has
+`disk/caw` members is refused. On a device that does not implement COMPARE AND
+WRITE a `disk/caw` mount is refused at admission (`P311-CAW-ADMISSION-REFUSED`),
+so nothing is written. Each mount logs which lock manager it runs:
 
 ```
 dmesg | grep P-DOMAIN-ADMITTED       # ... transport=CAW)
 ```
 
 **Not every target that accepts COMPARE AND WRITE honours it.** The Linux LIO
-target reports success without an atomic compare-and-swap; on LIO use TCP.
-This release's CAW verification ran on an SCST `vdisk_fileio` iSCSI target.
+target reports success without an atomic compare-and-swap; on LIO use
+`net/mesh`. This release's `disk/caw` verification ran on an SCST
+`vdisk_fileio` iSCSI target.
 For any other target, prove it first with `caw_verify` from both nodes
 ([`docs/iscsi_setup.md`](docs/iscsi_setup.md) §4).
 
@@ -468,7 +549,7 @@ format.
 | Path | Contents |
 |---|---|
 | `xfs/` | XFS forked from the Linux 6.19 development tree and heavily modified, plus the MXFS coordination overlay — the bulk of the code. |
-| `dlm/` | Distributed lock manager: CAW + TCP transports, discovery, membership, lease, disklock heartbeat, SCSI-PR fencing, journal slicing. |
+| `dlm/` | Distributed lock managers `net/mesh` and `disk/caw`, discovery, membership, lease, disklock heartbeat, SCSI-PR fencing, journal slicing. |
 | `pal/` | Platform abstraction layer — kernel/userspace split, VFS + block-I/O glue, module init. |
 | `mxfs_clayer/` | Cluster-layer helpers (pinned resources, adaptive yield quantum). |
 | `tools/` | Userspace binaries: `mkfs` / `chk` / `resize` / `fua_verify` / `caw_verify`. |

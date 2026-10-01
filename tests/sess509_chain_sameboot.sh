@@ -4,9 +4,9 @@
 # transport-conformance harness, each behind its own prep.  Builds NOTHING:
 # the tree's mxfs.ko must already be the build under test.
 #
-#   1  prep 2/tcp                          300 s (measured 45 s)
+#   1  prep 2/net/mesh/direct                          300 s (measured 45 s)
 #   2  tests/sameboot_remount.sh           200 s (7 mount/umount cycles)
-#   3  prep 2/tcp (step 2 leaves both unmounted)
+#   3  prep 2/net/mesh/direct (step 2 leaves both unmounted)
 #   4  tests/transport_conformance.sh      240 s
 #
 # Usage: tests/sess509_chain_sameboot.sh <label> [steps=1,2,3,4]
@@ -32,7 +32,7 @@ say "=== sess509_chain_sameboot label=$LABEL steps=$STEPS sv=$(modinfo mxfs.ko |
 
 prep() {   # <bound>
     local s=$(date +%s)
-    MXFS_FORCE_PREP=1 timeout "$1" ./run.sh 2 tcp prep_cluster >> "$LOG" 2>&1
+    MXFS_FORCE_PREP=1 timeout "$1" ./run.sh 2/net/mesh/direct prep_cluster >> "$LOG" 2>&1
     local rc=$?; stage "prep" $rc $(( $(date +%s) - s )); return $rc
 }
 

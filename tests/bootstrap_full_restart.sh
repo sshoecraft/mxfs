@@ -11,7 +11,7 @@
 # N-1 nodes be admitted — they boot, load the same build and mount without
 # a mkfs in between.
 #
-# Shape (fleet prepped 32/caw by the caller):
+# Shape (fleet prepped 32/disk/caw/mpath by the caller):
 #   1. srcgate; 2. payload (64 KiB fsync'd private file per node, md5 kept);
 #   3. virsh destroy all N; 4. start ONE node (REMOUNTER), insmod the tree
 #   build, mount (expect MOUNT_OK); 5. assert on its dmesg: P-BOOT-SEALED
@@ -59,7 +59,7 @@ MNT=${MXFS_MNT:-/mnt/shared}
 # mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
 . "$(dirname "$0")/lib/rig.sh"
 mxfs_dev_resolve "$RM"; DEV=$MXFS_DEV_RESOLVED
-# The host-side image is a rig declaration, and the shipping 2/tcp LUN is an
+# The host-side image is a rig declaration, and the shipping 2/net/mesh/direct LUN is an
 # appliance that has none — the platter is only readable from a node.  The
 # sequential arm and the negative arm both read it directly, so they still
 # require it; the concurrent arm reads the platter through the node-side
@@ -243,7 +243,7 @@ fi
 # fails as VACUOUS rather than reporting a verdict it did not earn.
 if [ -n "$CONC" ]; then
     # The owner's mount budget, derived from the parts it actually pays and
-    # not rounded.  Measured on lap s111a (0.89.40, 2/tcp): 190.9 s from
+    # not rounded.  Measured on lap s111a (0.89.40, 2/net/mesh/direct): 190.9 s from
     # module load to the LU-reset convergence line, which already contains
     # both 62.5 s survivor-scan windows, the term claim, the seal and the
     # manifest write.  Remaining: the post-reset barrier, bounded by the

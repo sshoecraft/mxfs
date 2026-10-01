@@ -11,7 +11,7 @@
 #     "Internal error xfs_trans_cancel", shutdown, self-fence.
 #
 # Stages:
-#   1. prep 2/tcp (fresh mkfs, both nodes mounted, tree build deployed)
+#   1. prep 2/net/mesh/direct (fresh mkfs, both nodes mounted, tree build deployed)
 #   2. tests/dirshard_stage1_selftest.sh x LAPS on the same mount.  Every lap
 #      rmdirs its N=16 dir; laps 2.. also rm -rf the previous lap's N=16 (64
 #      files) and N=64 (1500 files) dirs, so each lap after the first frees
@@ -24,7 +24,7 @@
 #   4. umount both, chk_mxfs -v on the platter from test1.
 #
 # derived time budgets: prep 400 s (tests/lu_reset_bystander_eh.sh's bound for
-# the same 2/tcp prep); selftest 240 s each (its header); one repeat cycle =
+# the same 2/net/mesh/direct prep); selftest 240 s each (its header); one repeat cycle =
 # mkdir N=16 < 2 s + 64 creates ~1 s + unlink ~1 s + rmdir < 5 s (the 0530
 # record's own bound) + ssh ~2 s = 11 s, bound 30 s per cycle; capture 40 s
 # per node; umount 60 s per node; chk 120 s.
@@ -74,7 +74,7 @@ health() { # <tag>: capture both nodes, count every signature, FAIL on any
 echo "=== dirshard_rmdir_verify $LABEL START $(date -u +%FT%TZ) VERSION=$(cat VERSION) sv=$(modinfo -F srcversion mxfs.ko) LAPS=$LAPS CYCLES=$CYCLES out=$OUT ==="
 
 # sharding is off unless the format carries its gates
-MXFS_MKFS_OPTS=-D MXFS_FORCE_PREP=1 stage 400 prep ./run.sh 2 tcp prep_cluster || { echo "RESULT: ABORT label=$LABEL stage=prep evidence=$OUT"; exit 2; }
+MXFS_MKFS_OPTS=-D MXFS_FORCE_PREP=1 stage 400 prep ./run.sh 2/net/mesh/direct prep_cluster || { echo "RESULT: ABORT label=$LABEL stage=prep evidence=$OUT"; exit 2; }
 SV=$(modinfo -F srcversion mxfs.ko)
 for n in $N1 $N2; do
     o=$(rs 20 "$n" "cat /sys/module/mxfs/srcversion; grep -c ' $MNT mxfs ' /proc/mounts; grep -rh . /sys/module/mxfs/parameters/dlm_transport 2>/dev/null" | tr '\n' ' ')

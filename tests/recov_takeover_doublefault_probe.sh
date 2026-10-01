@@ -51,7 +51,7 @@
 #   Total wall ~ 63 + 200 + harvest.
 #
 # NOTE: leaves TWO nodes destroyed.  Re-prep afterwards:
-#   MXFS_FORCE_PREP=1 ./run.sh 32 caw prep_cluster
+#   MXFS_FORCE_PREP=1 ./run.sh 32/disk/caw/mpath prep_cluster
 #
 # usage: recov_takeover_doublefault_probe.sh [victim=test32] [claim_s=150] [observe_s=200]
 set -u

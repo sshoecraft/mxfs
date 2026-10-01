@@ -14,12 +14,12 @@ LOG=tests/evidence/sess448_chain60_iclus_relmark_faults_$LABEL.log
   LAB=$(modinfo mxfs.ko | grep -c 'mxfs_iclus_relmark_lab')
   echo "STAGE build_lab rc=$brc modinfo_lab=$LAB errors=$(grep -c 'error:' tests/evidence/sess448_chain60_build_lab_$LABEL.log)"
   if [ "$brc" -ne 0 ] || [ "$LAB" -ne 1 ]; then echo "ABORT: lab build"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
-  MXFS_EXTRA_MODARGS='icluster_dlm=1' timeout 300 ./run.sh 32 caw prep_cluster; prc=$?; echo "STAGE prep_lab rc=$prc"
+  MXFS_EXTRA_MODARGS='icluster_dlm=1' timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; prc=$?; echo "STAGE prep_lab rc=$prc"
   if [ "$prc" -ne 0 ]; then echo "ABORT: prep"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
   T0=$(date +%s); timeout 2000 tests/iclus_relmark_faults.sh tests/evidence/sess448_iclusfaults_$LABEL; echo "STAGE faults rc=$? wall=$(( $(date +%s) - T0 ))s"
   cat tests/evidence/sess448_iclusfaults_$LABEL/matrix.txt 2>/dev/null | cut -c1-300
   timeout 300 make modules > tests/evidence/sess448_chain60_build_prod_$LABEL.log 2>&1; brc=$?
   echo "STAGE build_prod rc=$brc modinfo_lab=$(modinfo mxfs.ko | grep -c 'mxfs_iclus_relmark_lab') errors=$(grep -c 'error:' tests/evidence/sess448_chain60_build_prod_$LABEL.log)"
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep_prod rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep_prod rc=$?"
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

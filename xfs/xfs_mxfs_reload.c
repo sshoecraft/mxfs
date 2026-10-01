@@ -4182,7 +4182,8 @@ static int mxfs_reload_wait_foreign_demoter(struct xfs_inode *ip)
 								"SET-REFUSED",
 								"CLEAR-NEST",
 								"CLEAR-REFUSED",
-								"PUNT-RECLAIM" };
+								"PUNT-RECLAIM",
+								"DEAD-REAP" };
 							uint8_t o = ip->i_dlm_demev_op[idx];
 
 							if (!ip->i_dlm_demev_cookie[idx])

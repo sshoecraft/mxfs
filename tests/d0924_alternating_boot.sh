@@ -73,7 +73,7 @@ echo "=== d0924_alternating_boot label=$LABEL rounds=$ROUNDS sv=$SV out=$OUT $(d
 
 if [ "${PREP:-0}" = 1 ]; then
     s=$(date +%s)
-    MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2 tcp prep_cluster > "$OUT/prep.log" 2>&1
+    MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2/net/mesh/direct prep_cluster > "$OUT/prep.log" 2>&1
     prc=$?
     echo "STAGE prep rc=$prc wall=$(( $(date +%s) - s ))s"
     [ $prc = 0 ] || { echo "RESULT: INFRA label=$LABEL prep rc=$prc"; exit 2; }

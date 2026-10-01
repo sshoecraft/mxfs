@@ -33,7 +33,7 @@ for r in $(seq 1 "$RUNS"); do
     echo "===== RELIABILITY RUN $r/$RUNS ($(date -u +%H:%M:%S)Z) ====="
     boot_wait || { echo "RUN $r: boot failed"; continue; }
     LOG="/tmp/relrun_${r}.log"
-    timeout 900 ./run.sh 2 tcp > "$LOG" 2>&1
+    timeout 900 ./run.sh 2/net/mesh/direct > "$LOG" 2>&1
     np=$(grep -c 'PASS ' "$LOG"); nf=$(grep -c 'FAIL ' "$LOG")
     total=$((total+1))
     if grep -q '=== done: ran=17' "$LOG" && [ "$nf" -eq 0 ] && [ "$np" -eq 17 ]; then

@@ -114,7 +114,7 @@ for lap in $(seq 1 "$LAPS"); do
     for n in $A $B; do rs 20 "$n" "echo $mark > /dev/kmsg" >/dev/null; done
 
     t0=$(date +%s)
-    timeout 130 ./run.sh 2 tcp cache_coherency > "$OUT/lap${lap}_run.log" 2>&1
+    timeout 130 ./run.sh 2/net/mesh/direct cache_coherency > "$OUT/lap${lap}_run.log" 2>&1
     rc=$?
     wall=$(( $(date +%s) - t0 ))
 

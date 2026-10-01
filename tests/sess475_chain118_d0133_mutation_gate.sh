@@ -27,7 +27,7 @@ install_ko() {
 {
   echo "=== sess475 chain118 START $(date -u +%FT%TZ) tree VERSION=$(cat VERSION) NODE=$NODE ==="
   install_ko "$PROD_KO" "$PROD_SV" || { echo "ABORT: prod install"; echo "DONE $(date -u +%FT%TZ)"; exit 1; }
-  lap 300 "prep" ./run.sh 32 caw prep_cluster
+  lap 300 "prep" ./run.sh 32/disk/caw/mpath prep_cluster
   lap 100 "d0133_sb_mutation_gate $NODE" tests/d0133_sb_mutation_gate.sh "$LABEL" "$NODE"
   echo "RESULTS: $(grep -a '^  FAIL\|fails=' "$LOG" | tr '\n' ';')"
   echo "DONE $(date -u +%FT%TZ)"

@@ -21,7 +21,7 @@ modargs="dir_postread_reread=1 dir_postread_leaf_only=0"
 echo "=== wedge_capture: modargs=[$modargs] ===" | tee "$CAP/run.log"
 
 # Launch the dir_reuse run in the background (it does prep+mount itself).
-( MXFS_EXTRA_MODARGS="$modargs" timeout 590 ./run.sh 8 tcp dir_reuse_coherency \
+( MXFS_EXTRA_MODARGS="$modargs" timeout 590 ./run.sh 8/net/mesh/direct dir_reuse_coherency \
     > "$CAP/drc_run.log" 2>&1 ) &
 RUNPID=$!
 echo "run pid=$RUNPID" | tee -a "$CAP/run.log"

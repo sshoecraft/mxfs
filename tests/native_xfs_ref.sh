@@ -7,7 +7,7 @@
 #     (shared_unlink_pace phase-C shape; "cold" via echo 3 > drop_caches,
 #     the native equivalent of "created by another node, not in cache")
 # PRECONDITION: test1 has native XFS mounted at /mnt/shared
-#   (MXFS_FORCE_PREP=1 ./run.sh 1 xfs prep_cluster)
+#   (MXFS_FORCE_PREP=1 ./run.sh 1/xfs prep_cluster)
 # usage: native_xfs_ref.sh [node=test1] [K=32]
 set -u
 N="${1:-test1}"

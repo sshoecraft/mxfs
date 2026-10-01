@@ -2,7 +2,7 @@
 # transport_conformance.sh — 0.75.0 (D-JOINER-TRANSPORT-NOT-CONFORMED-DEFAULT-
 # CAW-MOUNT-JOINS-LIVE-TCP-CLUSTER-SPLIT-DLM-0904): a mount must run the DLM
 # transport the cluster on the platter runs.  Four arms on two nodes A/B,
-# starting from a live 2/tcp cluster (prep_cluster 2 tcp beforehand):
+# starting from a live 2/net/mesh/direct cluster (prep_cluster 2 tcp beforehand):
 #
 #   A  B leaves (clean umount), reloads with DEFAULT module arguments (no
 #      force_transport) and mounts: it must ADOPT TCP (P-TRANSPORT-ADOPTED,
@@ -15,7 +15,7 @@
 #      mount rc!=0, no P-DOMAIN-ADMITTED, not mounted).
 #   C  B reloads with default arguments and mounts: joins on CAW
 #      (P-TRANSPORT-CONFORMED caw, 'transport=caw', rc=0).
-#   D  both leave cleanly; modules unloaded.  The caller re-preps 2/tcp.
+#   D  both leave cleanly; modules unloaded.  The caller re-preps 2/net/mesh/direct.
 #
 # Usage: tests/transport_conformance.sh <label> [A=test1] [B=test2]
 # Env:   MXFS_DEV (default: the device of A's live mxfs mount, resolved by
@@ -38,7 +38,7 @@ B=${3:-test2}
 cd "$(dirname "$0")/.." || exit 2
 SSH=tools/mxfs_sshpass.sh
 MNT=${MXFS_MNT:-/mnt/shared}
-export MXFS_TRANSPORT=${MXFS_TRANSPORT:-tcp}
+export MXFS_CONFIG=${MXFS_CONFIG:-2/net/mesh/direct}
 KO=/root/mxfs.ko.prep
 OUT=tests/evidence/$(date -u +%Y%m%dT%H%M%SZ)_transport_conformance_$LABEL
 mkdir -p "$OUT"
@@ -87,7 +87,7 @@ field() { grep -ao "^$2=[^ ]*" "$1" | head -1 | cut -d= -f2; }
 measure "$A" 15 "$OUT/rv_pre_a_1.txt" '^READ_RC=[0-9]+$' "pre_a on $A" "mountpoint -q $MNT && echo M; cat /sys/module/mxfs/parameters/force_transport 2>/dev/null; printf '\nREAD_RC=%s\n' \$?"; pre_a=$(grep -av '^READ_RC=' "$OUT/rv_pre_a_1.txt")
 measure "$B" 15 "$OUT/rv_pre_b_1.txt" '^READ_RC=[0-9]+$' "pre_b on $B" "mountpoint -q $MNT && echo M; cat /sys/module/mxfs/parameters/force_transport 2>/dev/null; printf '\nREAD_RC=%s\n' \$?"; pre_b=$(grep -av '^READ_RC=' "$OUT/rv_pre_b_1.txt")
 if ! echo "$pre_a" | grep -q '^M' || ! echo "$pre_b" | grep -q '^M'; then
-    echo "INFRA: precondition not met (A='$(echo $pre_a | tr '\n' ' ')' B='$(echo $pre_b | tr '\n' ' ')') — prep 2/tcp first"; exit 2
+    echo "INFRA: precondition not met (A='$(echo $pre_a | tr '\n' ' ')' B='$(echo $pre_b | tr '\n' ' ')') — prep 2/net/mesh/direct first"; exit 2
 fi
 ck "precondition: both nodes mounted on force_transport=1" "$(echo "$pre_a $pre_b" | tr '\n' ' ' | grep -c 'M 1 M 1')" "1"
 # the LUN as MXFS actually uses it, from A's live mount (MXFS_DEV overrides)

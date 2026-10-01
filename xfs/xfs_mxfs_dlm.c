@@ -413,6 +413,122 @@ mxfs_demev_rec(struct xfs_inode *ip, uint8_t op, uint32_t line)
  * cover EVERY live drain of the inode, not just the first one to claim, or the
  * others stall 3s per nested ilock.  See i_dlm_demoter2 in xfs_inode.h.
  */
+/*
+ * A CLAIM HOLDS A REFERENCE ON ITS OWNER, AND A CLAIM WHOSE OWNER HAS EXITED
+ * IS RETIRED.
+ *
+ * The slots used to hold a bare task_struct pointer with no reference.  Two
+ * failures followed, both measured on 8/net/mesh/direct:
+ *
+ *   1. A claim whose owner exited stayed set, and the task_struct went back to
+ *      the slab.  The next task given that memory compared equal to the slot
+ *      and was treated as the inode's drain: a mkdir 12 s later, and an rm 28
+ *      ms later, presented a dead rm's claim on a shared directory and were
+ *      offered the demoter bypass with no grant behind it (the corruption of
+ *      D-SHARED-PARENT-NLINK-EXCEEDS-ITS-ENTRIES-AFTER-CONCURRENT-RM-AND-MKDIR).
+ *   2. Nothing retired a dead owner's claim.  Every release of the directory
+ *      then met a foreign claim it could not take (P74, P15-REL-ABORT x116)
+ *      until P-INODE-WEDGE shut the node down 64 s later.
+ *
+ * Every NULL->task transition of a slot now takes a reference and every
+ * task->NULL transition drops it, each done only by the side that wins the
+ * atomic swap, so the pointer is valid memory for as long as it is in a slot
+ * and can never be reissued to another task while claimed.  A claim whose
+ * owner has reached exit_state is provably not a drain in progress (the owner
+ * runs no filesystem code after exit_files), so it is retired at the two places
+ * that meet it: a task asking whether a foreign drain is active, and a task
+ * trying to claim the inode.
+ *
+ * Retirement and the punt sweep are the only paths that remove a slot they do
+ * not own, and both drop the owner's reference.  They serialize on a hashed
+ * lock so neither reads ->exit_state through a pointer the other has just put.
+ * The owner's own clear needs no lock: a live owner's task_struct is pinned by
+ * its own usage count.
+ */
+int mxfs_demoter_dead_claim_reap = 1;
+module_param_named(demoter_dead_claim_reap, mxfs_demoter_dead_claim_reap,
+		   int, 0644);
+MODULE_PARM_DESC(demoter_dead_claim_reap,
+	"retire a demoter claim whose owner has exited (1, default); 0 = leave it set, for a control arm");
+atomic64_t mxfs_dem_dead_reap_n;
+
+#define MXFS_DEMOTER_REAP_LOCKS	64
+static spinlock_t mxfs_demoter_reap_locks[MXFS_DEMOTER_REAP_LOCKS] = {
+	[0 ... MXFS_DEMOTER_REAP_LOCKS - 1] =
+		__SPIN_LOCK_UNLOCKED(mxfs_demoter_reap_locks)
+};
+
+spinlock_t *
+mxfs_demoter_reap_lock(const struct xfs_inode *ip)
+{
+	return &mxfs_demoter_reap_locks[hash_ptr((void *)ip,
+					 ilog2(MXFS_DEMOTER_REAP_LOCKS))];
+}
+
+void
+mxfs_demoter_ref_take(void)
+{
+	get_task_struct(current);
+}
+
+void
+mxfs_demoter_ref_drop(struct task_struct *t)
+{
+	put_task_struct(t);
+}
+
+void
+mxfs_demoter_reap_dead(struct xfs_inode *ip)
+{
+	spinlock_t		*lock;
+	unsigned long		flags;
+	int			slot;
+
+	if (!READ_ONCE(mxfs_demoter_dead_claim_reap))
+		return;
+	if (likely(!READ_ONCE(ip->i_dlm_demoter) &&
+		   !READ_ONCE(ip->i_dlm_demoter2)))
+		return;
+
+	lock = mxfs_demoter_reap_lock(ip);
+	spin_lock_irqsave(lock, flags);
+	for (slot = 0; slot < 2; slot++) {
+		struct task_struct	**cell = slot ? &ip->i_dlm_demoter2 :
+							&ip->i_dlm_demoter;
+		struct task_struct	*d = READ_ONCE(*cell);
+		static atomic_t		p_reap_n = ATOMIC_INIT(0);
+		u64			set_ns;
+
+		if (!d || d == current || !READ_ONCE(d->exit_state))
+			continue;
+		if (cmpxchg(cell, d, NULL) != d)
+			continue;
+		set_ns = slot ? ip->i_dlm_demoter2_set_ns :
+				ip->i_dlm_demoter_set_ns;
+		if (slot)
+			ip->i_dlm_demoter2_depth = 0;
+		else
+			ip->i_dlm_demoter_depth = 0;
+		atomic64_inc(&mxfs_dem_dead_reap_n);
+		mxfs_demev_rec(ip, 7, MXFS_SITE);
+		if (atomic_inc_return(&p_reap_n) <= 2000)
+			pr_err("mxfs: P-DEMOTER-DEAD-REAP ino=%llu slot=%d owner_pid=%d owner_comm=%s claim_line=%u:%u claim_age_ms=%llu state=%u mode=%u by_pid=%d by_comm=%s — demoter claim whose owner exited retired\n",
+			       (unsigned long long)ip->i_ino, slot + 1,
+			       slot ? ip->i_dlm_demoter2_pid :
+				      ip->i_dlm_demoter_pid,
+			       slot ? ip->i_dlm_demoter2_comm :
+				      ip->i_dlm_demoter_comm,
+			       MXFS_SITE_ARGS(slot ? ip->i_dlm_demoter2_line :
+						     ip->i_dlm_demoter_line),
+			       set_ns ? (unsigned long long)((ktime_get_ns() -
+					set_ns) / NSEC_PER_MSEC) : 0ULL,
+			       ip->i_dlm_state, ip->i_dlm_mode,
+			       current->pid, current->comm);
+		put_task_struct(d);
+	}
+	spin_unlock_irqrestore(lock, flags);
+}
+
 bool
 mxfs_is_demoter(const struct xfs_inode *ip)
 {
@@ -434,8 +550,13 @@ mxfs_is_demoter(const struct xfs_inode *ip)
 bool
 mxfs_foreign_demoter(const struct xfs_inode *ip)
 {
-	struct task_struct	*d1 = READ_ONCE(ip->i_dlm_demoter);
-	struct task_struct	*d2 = READ_ONCE(ip->i_dlm_demoter2);
+	struct task_struct	*d1;
+	struct task_struct	*d2;
+
+	/* a dead owner's claim is not a drain anyone may wait for */
+	mxfs_demoter_reap_dead((struct xfs_inode *)ip);
+	d1 = READ_ONCE(ip->i_dlm_demoter);
+	d2 = READ_ONCE(ip->i_dlm_demoter2);
 
 	/*
 	 * SELF-EXEMPTION FIRST, and it is not optional.  The one-slot spelling
@@ -510,14 +631,23 @@ mxfs_dlm_inode_final_release(struct xfs_inode *ip)
 				ip->i_dlm_demoter2_pid,
 				MXFS_SITE_ARGS(ip->i_dlm_demoter2_line));
 	}
-	ip->i_dlm_demoter = NULL;
-	ip->i_dlm_demoter2 = NULL;
+	{
+		/* each slot holds a reference on its owner; give it back */
+		struct task_struct *d1 = xchg(&ip->i_dlm_demoter, NULL);
+		struct task_struct *d2 = xchg(&ip->i_dlm_demoter2, NULL);
+
+		if (d1)
+			put_task_struct(d1);
+		if (d2)
+			put_task_struct(d2);
+	}
 	ip->i_dlm_demoter_depth = 0;
 	ip->i_dlm_demoter2_depth = 0;
 	ip->i_dlm_demoter_punt = 0;
 	ip->i_dlm_punt_n[0] = 0;
 	ip->i_dlm_punt_n[1] = 0;
 	ip->i_dlm_demoter_punt_ns = 0;
+	ip->i_dlm_demoter_injected = NULL;
 	ip->i_dlm_strand_named = false;
 }
 
@@ -588,6 +718,7 @@ void
 mxfs_demoter_punt_reclaim_check(struct xfs_inode *ip, int site)
 {
 	struct task_struct	*owner;
+	spinlock_t		*reap_lock;
 	u64			age_ms;
 	u8			punt;
 	int			slot;
@@ -625,9 +756,11 @@ mxfs_demoter_punt_reclaim_check(struct xfs_inode *ip, int site)
 	owner = (struct task_struct *)
 		(atomic_long_read(&ip->i_lock.owner) & ~0x7UL);
 
+	reap_lock = mxfs_demoter_reap_lock(ip);
 	for (slot = 0; slot < 2; slot++) {
 		struct task_struct	**cell;
 		struct task_struct	*d;
+		unsigned long		flags;
 
 		if (!(punt & (1u << slot)))
 			continue;
@@ -636,8 +769,15 @@ mxfs_demoter_punt_reclaim_check(struct xfs_inode *ip, int site)
 		if (!d || d == owner || d == current)
 			continue;	/* window still open, or it is us */
 
-		if (cmpxchg(cell, d, NULL) != d)
+		/* the slot's reference is ours to drop once the swap is won;
+		 * under the reap lock, so retirement never reads a put task */
+		spin_lock_irqsave(reap_lock, flags);
+		if (cmpxchg(cell, d, NULL) != d) {
+			spin_unlock_irqrestore(reap_lock, flags);
 			continue;	/* the owner beat us to it — nothing to do */
+		}
+		put_task_struct(d);
+		spin_unlock_irqrestore(reap_lock, flags);
 
 		if (slot)
 			ip->i_dlm_demoter2_depth = 0;
@@ -1721,6 +1861,7 @@ mxfs_dlm_inode_init(
 	ip->i_dlm_punt_n[0] = 0;
 	ip->i_dlm_punt_n[1] = 0;
 	ip->i_dlm_demoter_punt_ns = 0;
+	ip->i_dlm_demoter_injected = NULL;	/* no test-planted claim */
 	ip->i_dlm_strand_named = false;		/* not yet named as stranded */
 	ip->i_dlm_demoter2_pid = 0;		/* slot-2 forensics */
 	ip->i_dlm_demoter2_comm[0] = '\0';

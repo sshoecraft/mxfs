@@ -1,6 +1,6 @@
 #!/bin/bash
 # tests/openunlink_outage.sh — FULL-OUTAGE open-bit residue arm (C6 audit item,
-# D-CROSSNODE-OPEN-UNLINK).  Requires a 2-node prep (2/caw) so that killing
+# D-CROSSNODE-OPEN-UNLINK).  Requires a 2-node prep (2/disk/caw/mpath) so that killing
 # both nodes is a genuine full-cluster outage: A opens the victim, B unlinks it
 # (A's open bit publishes under B's EX BAST; free defers), then BOTH nodes are
 # virsh-destroyed with the bit + zombie durable on disk and NO survivor to
@@ -38,7 +38,7 @@ DEV=$($SSH "$NA" "mount -t mxfs | awk '{print \$1; exit}'" 2>/dev/null | tr -d '
 [ -n "${DEV:-}" ] || { mxfs_dev_resolve "$NA"; DEV=$MXFS_DEV_RESOLVED; }
 
 for n in "$NA" "$NB"; do
-  $SSH "$n" "mount -t mxfs | grep -q mxfs" || fail "$n not mounted (prep 2/caw first)"
+  $SSH "$n" "mount -t mxfs | grep -q mxfs" || fail "$n not mounted (prep 2/disk/caw/mpath first)"
 done
 N_MOUNTED=$($SSH "$NA" "dmesg | grep -c 'disklock: claimed heartbeat slot'" 2>/dev/null)
 

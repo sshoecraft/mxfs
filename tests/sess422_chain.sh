@@ -6,7 +6,7 @@
 #     make compiles nothing — see sess419_master_chain.sh for why).
 #  1. usermode gate: tests/tauth (store + ledger + engine harness) must PASS
 #     on the built tree before any rig time is spent.
-#  2. prep 32/tcp on the multipath LUN (the `tcp` condition's own rig is
+#  2. prep 32/net/mesh/direct on the multipath LUN (the `tcp` condition's own rig is
 #     gone — trap-32-tcp-condition-device-is-xml-sda; MXFS_DEV + MXFS_CRIT
 #     keep the run off the primary board), then
 #     tests/tcp_token_plumbing_verify.sh (tokens now = durable grant ids)
@@ -14,7 +14,7 @@
 #     H's pause across a membership change — the step-3 blocker import)
 #  4. P-TAUTH sweep: every node's dmesg for ATTACH / IMPORT / GHOST /
 #     DOUBLE-GRANT / COLLISION / FAILSTOP / REFUSE / UNACKED counts
-#  5. prep 32/caw; full 32/caw board (CAW is untouched by step 3: this is
+#  5. prep 32/disk/caw/mpath; full 32/disk/caw/mpath board (CAW is untouched by step 3: this is
 #     the regression gate for the shared dlm.c / v5_mount.c edits)
 #
 # budget: build 500 + proof 500 + tauth 120 + 3 preps x 300 + token 400 +
@@ -24,10 +24,10 @@ cd /src/mxfs || exit 2
 LABEL=${1:-s422}
 E=tests/evidence
 mkdir -p "$E"
-MXFS_DEV=${MXFS_DEV:?this chain ran the tcpmp condition, TCP over the multipath LUN: name that LUN with MXFS_DEV (never assumed from a rig path)}
-TCPENV="MXFS_DEV=$MXFS_DEV MXFS_CRIT=/src/mxfs/criteria.tcpmp.json"
-prep_tcp() { env $TCPENV timeout 300 ./run.sh 32 tcp prep_cluster > "$E/sess422_${LABEL}_prep_$1.log" 2>&1; echo "STAGE prep tcp $1 rc=$?"; }
-prep_caw() { timeout 300 ./run.sh 32 caw prep_cluster > "$E/sess422_${LABEL}_prep_$1.log" 2>&1; echo "STAGE prep caw $1 rc=$?"; }
+MXFS_DEV=${MXFS_DEV:?this chain ran net/mesh/mpath, TCP over the multipath LUN: name that LUN with MXFS_DEV (never assumed from a rig path)}
+TCPENV="MXFS_DEV=$MXFS_DEV MXFS_CRIT=/src/mxfs/criteria.net-mesh-mpath.json"
+prep_tcp() { env $TCPENV timeout 300 ./run.sh 32/net/mesh/direct prep_cluster > "$E/sess422_${LABEL}_prep_$1.log" 2>&1; echo "STAGE prep tcp $1 rc=$?"; }
+prep_caw() { timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster > "$E/sess422_${LABEL}_prep_$1.log" 2>&1; echo "STAGE prep caw $1 rc=$?"; }
 {
   echo "=== sess422 chain $LABEL start $(date -u +%FT%TZ) build=$(cat VERSION) ==="
   B="$E/sess422_${LABEL}_build.log"

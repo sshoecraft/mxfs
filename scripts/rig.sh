@@ -1,24 +1,29 @@
 #!/bin/bash
 # device-adjudicated: switches and verifies the rig's storage wiring by vendor string and path; the configuration is the subject
-# rig.sh — switch the test cluster between the four deployment-condition rigs
-# (conditions.md; run.sh <dlm> axis) and verify the shared LUN is presented.
+# rig.sh — switch the test cluster between the rig's attachments (the <attach>
+# field of a configuration, docs/attachment-methods.md) and verify the shared
+# LUN is presented.  Either DLM runs on any of them: the attachment is how the
+# LUN reaches each node, not which lock manager uses it.
 #
-#   condition 1  tcp    LIO/tcm_loop commodity block: host /dev/mxfs-shared
-#                       wired into VM XML (wire_vms.sh) -> guest /dev/sda
-#                       (LIO-ORG).  mxfs runs force_transport=1.
-#   condition 2  pass   CAW FC-fabric sim: SCST per-node targets, clyde
-#                       loopback logins, by-path dev wired into VM XML
-#                       (scst_wire_passthrough.sh) -> guest /dev/sda.
-#   condition 3  direct CAW direct in-guest iSCSI: SCST :shared on portal .1
-#                       only; every VM does its own iscsiadm login -> raw
-#                       single-path sdX (stable by-path node used as MXFS_DEV).
-#   condition 4  mpath  CAW over dm-multipath: SCST :shared on portals .1+.2,
-#                       guests log into both -> /dev/mapper/mpatha (2 paths).
-#                       Delegated to scripts/mpath_up.sh (the proven path).
+#   direct  in-guest iSCSI: SCST :shared on portal .1 only; every VM does its
+#           own iscsiadm login -> raw single-path sdX (stable by-path node
+#           used as MXFS_DEV).
+#   mpath   dm-multipath: SCST :shared on portals .1+.2, guests log into both
+#           -> /dev/mapper/mpatha (2 paths).  Delegated to scripts/mpath_up.sh
+#           (the proven path).
+#   pass    hypervisor passthrough: SCST per-node targets, clyde loopback
+#           logins, by-path dev wired into VM XML (scst_wire_passthrough.sh)
+#           -> guest /dev/sda.
+#
+# The LIO/tcm_loop XML wiring this script used to bring up as a fourth rig
+# carries no COMPARE AND WRITE and is no configuration's attachment; switching
+# to any attachment still unwires it (unwire_xml) so a node can be brought off
+# it.
 #
 # Usage:
 #   scripts/rig.sh status
-#   scripts/rig.sh {mpath|direct|pass|tcp} [N]     # default N=32
+#   scripts/rig.sh <configuration>      # e.g. 32/disk/caw/mpath: wires its
+#                                       # attachment on its node count
 #
 # Always cleans ALL 32 nodes' stale device plumbing (any node may hold state
 # from the previous rig), then brings the target rig up on test1..testN.
@@ -40,9 +45,27 @@ TGT="iqn.2026-05.local.mxfs:shared"
 BYPATH="/dev/disk/by-path/ip-${PORTAL1}:3260-iscsi-${TGT}-lun-0"
 MAXNODE=32
 
-MODE="${1:?usage: rig.sh status|mpath|direct|pass|tcp [N]}"
-N="${2:-32}"
+ARG="${1:?usage: rig.sh status | rig.sh <configuration>, e.g. 32/disk/caw/mpath}"
+if [ "$ARG" = status ]; then
+    MODE=status; N=32
+else
+    CONFIG=$(python3 "$REPO/tools/configuration.py" parse "$ARG") || exit 2
+    [ "$CONFIG" != 1/xfs ] || { echo "1/xfs is not a rig attachment"; exit 2; }
+    MODE=$(python3 "$REPO/tools/configuration.py" get "$CONFIG" attach)
+    N=${CONFIG%%/*}
+fi
 [[ "$N" =~ ^[0-9]+$ ]] && [ "$N" -ge 1 ] && [ "$N" -le "$MAXNODE" ] || { echo "N must be 1..$MAXNODE"; exit 2; }
+# Rewiring logs every running rig node out of every target.  Under a live
+# run.sh -- a whole-rig run or any rig-group run (tests/lib/runlock.sh) -- that
+# turns a rig change into fabricated filesystem failures, so refuse, unless
+# this rig.sh was started by the run that holds the lock.
+. "$REPO/tests/lib/runlock.sh"
+if [ "$MODE" != status ] && ! runlock_rig_free \
+   && ! { [ -n "${MXFS_RUNLOCK_OWNER:-}" ] && [ "$(cat "/proc/$MXFS_RUNLOCK_OWNER/comm" 2>/dev/null)" = run.sh ]; }; then
+    echo "rig.sh: a run holds $RUNLOCK; rewiring now would pull its nodes' LUN away:"
+    sed 's/^/    /' "$RUNLOCK"
+    exit 3
+fi
 mapfile -t NODES < <(seq 1 "$N" | sed 's/^/test/')
 # ALLNODES drives the global cleanout.  Sweep only VMs that are actually
 # RUNNING (plus the requested set): sweeping all 32 when test17-32 are
@@ -145,7 +168,8 @@ clean_all_nodes() {
 }
 
 # ---------------------------------------------------------------------------
-# Host-side unwiring of XML LUNs (pass/tcp rigs edit persistent VM XML; a rig
+# Host-side unwiring of XML LUNs (the pass rig and the old LIO wiring edit
+# persistent VM XML; a rig
 # that stops using them MUST detach, else a later teardown of the backing
 # device leaves VMs pointing at a dead source and they fail to start).
 # Detach is idempotent.  Returns the list of VMs whose XML changed (they need
@@ -242,7 +266,7 @@ verify_nodes() {  # devpath vendor_re
 rig_mpath() {
     clean_all_nodes
     local changed; changed=$(unwire_xml)
-    # leaving pass/tcp: their host stacks conflict with the dual-portal SCST
+    # leaving pass or the old LIO wiring: their host stacks conflict with the dual-portal SCST
     # (mpath_up re-runs scst_setup itself; LIO must go first or scst_setup's
     # release_lio does it — either way harmless).  VMs whose XML changed must
     # cycle BEFORE mpath_up so their in-guest logins happen on clean boots.
@@ -294,7 +318,7 @@ rig_direct() {
 
 rig_pass() {
     clean_all_nodes
-    # tcp wiring must go (target sda collides); pass wiring is re-applied
+    # LIO wiring must go (target sda collides); pass wiring is re-applied
     # fresh below anyway, so unwire everything first.
     local changed; changed=$(unwire_xml)
     say "configuring SCST (shared vdisk) + per-node passthrough targets"
@@ -305,22 +329,10 @@ rig_pass() {
     verify_nodes /dev/sda SCST_FIO
 }
 
-rig_tcp() {
-    clean_all_nodes
-    local changed; changed=$(unwire_xml)
-    say "tearing down SCST passthrough logins + configuring LIO/tcm_loop"
-    "$REPO/scripts/lio_tcm_setup.sh" setup >/dev/null || { say "lio_tcm_setup failed"; return 1; }
-    [ -L /dev/mxfs-shared ] || { say "no /dev/mxfs-shared after LIO setup"; return 1; }
-    "$REPO/scripts/wire_vms.sh" attach "$N" || { say "wire_vms attach failed"; return 1; }
-    cycle_vms "${NODES[@]}" || return 1
-    verify_nodes /dev/sda LIO-ORG
-}
-
 case "$MODE" in
     status) rig_status ;;
     mpath)  rig_mpath  ;;
     direct) rig_direct ;;
     pass)   rig_pass   ;;
-    tcp)    rig_tcp    ;;
-    *) echo "usage: rig.sh {status|mpath|direct|pass|tcp} [N]"; exit 2 ;;
+    *) echo "usage: rig.sh status | rig.sh <configuration>"; exit 2 ;;
 esac

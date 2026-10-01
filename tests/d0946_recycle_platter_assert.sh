@@ -181,7 +181,7 @@ else
     ck "control: the assertion never fired for a number the fix arm would have handed out (refused)" "$(fld "$rl" refused)" "0"
     restore_knobs
     echo "  PRECOND: the control arm shut $A's filesystem down BY DESIGN.  Re-prep the fleet before any other measurement:"
-    echo "           MXFS_FORCE_PREP=1 ./run.sh 2 tcp prep_cluster   (or scripts/module_swap_deploy.sh 2 tcp)"
+    echo "           MXFS_FORCE_PREP=1 ./run.sh 2/net/mesh/direct prep_cluster   (or scripts/module_swap_deploy.sh 2 tcp)"
 fi
 rs 60 "$A" "dmesg | awk '/$MK0/{f=1} f'" > "$OUT/dmesg_${A}.txt"
 rs 60 "$B" "dmesg | tail -400" > "$OUT/dmesg_${B}_tail.txt"

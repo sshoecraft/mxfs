@@ -57,7 +57,7 @@ grep -q reclaim_done "$OUT/reclaim.txt" || { echo "  FAIL reclaim step did not c
 # evidence
 for n in $NODE $PEER; do
     # journald, not the dmesg ring: the ring wraps within minutes under the
-    # probe volume (sess429: a 32/caw board left ~2 min of ring on test1)
+    # probe volume (sess429: a 32/disk/caw/mpath board left ~2 min of ring on test1)
     rs 30 "$n" "journalctl -k -q --since '$MARKTIME' -o short-monotonic 2>/dev/null || dmesg | sed -n '/$MARK/,\$p'" > "$OUT/dmesg_$n.txt"
     echo "  INFO $n lines=$(wc -l < "$OUT/dmesg_$n.txt") tags: $(grep -aoE 'P55C-FREE-[A-Z-]+|P237-EVICT-[A-Z]+|P-SESSION-POISON|P128-INACT-DEFER|P32D-DEADINCARN-SKIP|P383-HOME-VS-OWED|P177-[A-Z-]+' "$OUT/dmesg_$n.txt" | sort | uniq -c | sort -rn | tr '\n' ' ')"
     ck0 "$n zero P237-EVICT-OBLIGATION" "$(grep -ac 'P237-EVICT-OBLIGATION' "$OUT/dmesg_$n.txt")"

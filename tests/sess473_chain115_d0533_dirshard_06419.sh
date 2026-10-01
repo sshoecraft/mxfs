@@ -6,7 +6,7 @@
 # Also carries the stage-1 selftest step-7 harness fix (info JSON header).
 #
 # Stages (chain-109 shape + the directed lap):
-#   1. install frozen prod, prep 32/caw
+#   1. install frozen prod, prep 32/disk/caw/mpath
 #   2. tests/dirshard_stage1_selftest.sh test1 test2   — the N=64 stage is the
 #      D-0533 reproducer (peer readdir after the vectors dir's number reuse)
 #   3. tests/dirshard_reuse_peer_list.sh test1 test2 20 — directed reuse laps,
@@ -65,7 +65,7 @@ capture() { # <tag> <node...>
   install_ko "$PROD_KO" "$PROD_SV" prod || { echo "ABORT: prod install"; echo "DONE $(date -u +%FT%TZ)"; exit 1; }
   echo "STAGE markers $(for s in P-DIRSHARD-SHELL-ADOPTED P-DIRSHARD-SHELL-UNCONVERGED P-DIRSHARD-STRANGER P-DIRSHARD-IGET-FAIL; do printf '%s=%s ' $s "$(strings -a mxfs.ko | grep -c "$s")"; done) chk_dirshard=$(strings -a tools/chk_mxfs | grep -c 'Directory sharding')"
 
-  lap 300 prep ./run.sh 32 caw prep_cluster
+  lap 300 prep ./run.sh 32/disk/caw/mpath prep_cluster
   echo "fleet: $(timeout 20 $SSH test1 'cat /sys/module/mxfs/srcversion; grep -c " mxfs " /proc/mounts' 2>/dev/null | grep -av '^Unauthorized\|^$\|^If you' | tr '\n' ' ')"
   lap 240 "dirshard_stage1 selftest test1 test2" tests/dirshard_stage1_selftest.sh test1 test2
   lap 30 "dirshard_format_selftest (user-mode)" tests/selftest/dirshard_format_selftest.sh
@@ -88,10 +88,10 @@ capture() { # <tag> <node...>
   echo "STAGE chk rc=$crc wall=$(( $(date +%s) - T1 ))s errors=$(grep -ac 'ERROR' tests/evidence/sess473_chain115_chk_$LABEL.txt) leaked=$(grep -ac 'leaked internal inode' tests/evidence/sess473_chain115_chk_$LABEL.txt) dirshard_line=$(grep -a 'Directory sharding' tests/evidence/sess473_chain115_chk_$LABEL.txt | head -1)"
   grep -a 'dirshard\|ERROR' tests/evidence/sess473_chain115_chk_$LABEL.txt | head -20
 
-  lap 300 prep_sharded16 ./run.sh 32 caw prep_cluster
+  lap 300 prep_sharded16 ./run.sh 32/disk/caw/mpath prep_cluster
   for l in $(seq 1 "$LAPS"); do
     T1=$(date +%s)
-    out=$(MXFS_TEST_ENV="CC_SHARDED=16" timeout 160 ./run.sh 32 caw crash_consistency 2>&1); rc=$?
+    out=$(MXFS_TEST_ENV="CC_SHARDED=16" timeout 160 ./run.sh 32/disk/caw/mpath crash_consistency 2>&1); rc=$?
     echo "STAGE cc variant=sharded16 lap=$l rc=$rc wall=$(( $(date +%s) - T1 ))s $(echo "$out" | grep -a '^  \(PASS\|FAIL\) *crash_consistency' | tail -1 | tr -s ' ' | cut -c1-200)"
     echo "$out" | grep -a 'cc sharded\|EOPNOTSUPP\|BUDGET_EXHAUSTED\|NO_TERMINAL' | head -4 | cut -c1-200
   done

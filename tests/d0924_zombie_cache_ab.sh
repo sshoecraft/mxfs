@@ -184,7 +184,7 @@ up=""
 for i in $(seq 1 15); do sleep 10; up=$(rs 15 "$A" "uptime" 2>/dev/null | grep -a 'load average' | head -1); [ -n "$up" ] && break; done
 echo "RESTORE $A back after $((i*10))s: ${up:-NOT BACK}"
 t0=$(date +%s)
-MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2 tcp prep_cluster > "$OUT/prep_after.txt" 2>&1; prc=$?
+MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2/net/mesh/direct prep_cluster > "$OUT/prep_after.txt" 2>&1; prc=$?
 echo "RESTORE prep rc=$prc wall=$(( $(date +%s) - t0 ))s $(grep -a 'prep OK\|PREP FAIL' "$OUT/prep_after.txt" | head -1)"
 TAINT1=$(rs 25 "$A" "cat /proc/sys/kernel/tainted")
 echo "RESTORE $A taint=$TAINT1 (was $TAINT0 before the lap)"

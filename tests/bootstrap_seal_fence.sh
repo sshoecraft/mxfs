@@ -12,7 +12,7 @@
 # lease).  Phase 4 (replay) is build item 5d; this build refuses the mount
 # after phase 3 with the record left RECOVERING (P-BOOT-REPLAY-UNBUILT).
 #
-# Shape (fleet prepped 32/caw by the caller), same crash choreography as
+# Shape (fleet prepped 32/disk/caw/mpath by the caller), same crash choreography as
 # no_survivor_crash_replay.sh:
 #   1. srcgate: every node runs the tree build.
 #   2. every node writes + fsyncs a private file (the slices are dirty).

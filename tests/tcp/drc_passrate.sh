@@ -1,5 +1,5 @@
 #!/bin/bash
-# drc_passrate.sh N "MODARGS" — characterize dir_reuse_coherency 8/tcp reliability.
+# drc_passrate.sh N "MODARGS" — characterize dir_reuse_coherency 8/net/mesh/direct reliability.
 # Clean-reboots all 8 nodes before EVERY run (a contaminated cluster gives false
 # cascade fails), runs dir_reuse with the given modargs, records PASS/FAIL + wall.
 # Usage: tests/tcp/drc_passrate.sh 4 "inode_mht_ms=1200"
@@ -22,7 +22,7 @@ for run in $(seq 1 "$N"); do
         sleep 3
     done
     t0=$(date +%s)
-    MXFS_EXTRA_MODARGS="$MODARGS" timeout 590 ./run.sh 8 tcp dir_reuse_coherency > "$SCR/pr_run${run}.log" 2>&1
+    MXFS_EXTRA_MODARGS="$MODARGS" timeout 590 ./run.sh 8/net/mesh/direct dir_reuse_coherency > "$SCR/pr_run${run}.log" 2>&1
     rc=$?
     t1=$(date +%s)
     if grep -q "PASS  dir_reuse_coherency" "$SCR/pr_run${run}.log"; then

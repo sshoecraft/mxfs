@@ -38,7 +38,7 @@ leaks=0
 fails=0
 for i in $(seq 1 "$LAPS"); do
     s=$(date +%s)
-    MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2 tcp prep_cluster > "tests/evidence/unload_laps_${LABEL}_prep$i.log" 2>&1
+    MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2/net/mesh/direct prep_cluster > "tests/evidence/unload_laps_${LABEL}_prep$i.log" 2>&1
     prc=$?
     say "LAP $i prep rc=$prc wall=$(( $(date +%s) - s ))s"
     if [ $prc != 0 ]; then say "RESULT: FAIL label=$LABEL lap=$i prep rc=$prc"; exit 2; fi

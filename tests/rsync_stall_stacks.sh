@@ -21,7 +21,7 @@
 set -u
 REPO=/src/mxfs
 SSH="$REPO/tools/mxfs_sshpass.sh"
-P="${1:-32}"
+CONFIG=$(python3 "$(dirname "$0")/../tools/configuration.py" parse "${1:-32/disk/caw/mpath}") || exit 2; P=${CONFIG%%/*}
 DUR="${2:-150}"
 STAMP=$(date -u +%H%M%S)
 OUT=$(mktemp -d)
@@ -57,7 +57,7 @@ for i in $(seq 1 "$P"); do [ -f "$OUT/arm$i" ] && armed=$((armed+1)); done
 echo "samplers armed: $armed/$P"
 
 t0=$(date +%s)
-( cd "$REPO" && timeout 200 ./run.sh "$P" caw rsync_paired ) > "$OUT/run.log" 2>&1
+( cd "$REPO" && timeout 200 ./run.sh "$CONFIG" rsync_paired ) > "$OUT/run.log" 2>&1
 echo "run rc=$? wall=$(( $(date +%s) - t0 ))s"
 grep -E "  (PASS|FAIL)  rsync_paired" "$OUT/run.log" | head -2
 RD=$(ls -dt /tmp/run_rsync_paired_* 2>/dev/null | head -1)

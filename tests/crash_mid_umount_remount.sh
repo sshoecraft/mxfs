@@ -13,7 +13,7 @@
 # peer to retire, so the question is whether the crashed node can recover
 # with that peer absent.
 #
-#   1. a fresh 2/tcp cluster (./run.sh 2 tcp prep_cluster), 500 files written
+#   1. a fresh 2/net/mesh/direct cluster (./run.sh 2/net/mesh/direct prep_cluster), 500 files written
 #      on the victim so its slice is dirty
 #   2. the peer unmounts cleanly
 #   3. the victim starts its unmount and is destroyed 1 s into it
@@ -68,7 +68,7 @@ mount_ms() { grep -o "mount_ms=[0-9]*" "$EV/$1.log" | cut -d= -f2; }
 say "arm=$ARM victim=$V peer=$P build=$(modinfo -F srcversion "$HERE/mxfs.ko") evidence=$EV"
 
 # --- 1. fresh cluster, the victim's slice dirty
-(cd "$HERE" && ./run.sh 2 tcp prep_cluster) > "$EV/prep_cluster.log" 2>&1 || { tail -20 "$EV/prep_cluster.log"; fail "prep_cluster"; }
+(cd "$HERE" && ./run.sh 2/net/mesh/direct prep_cluster) > "$EV/prep_cluster.log" 2>&1 || { tail -20 "$EV/prep_cluster.log"; fail "prep_cluster"; }
 on $V 60 "mkdir -p $MNT/cmur && for i in \$(seq 1 500); do echo \$i > $MNT/cmur/f\$i; done; ls $MNT/cmur | wc -l" > "$EV/write_$V.log"
 [ "$(tail -1 "$EV/write_$V.log")" = 500 ] || fail "writing 500 files on $V"
 # the device is whatever prep_cluster mounted, never assumed: the rig's

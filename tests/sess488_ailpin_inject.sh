@@ -85,7 +85,7 @@ leg() { # <name> <ko>
     echo "--- leg=$name ko=$ko ---"
     install_ko "$ko" "$name" || return 1
     t0=$(date +%s)
-    timeout 300 ./run.sh 32 caw prep_cluster > "$D/prep.out" 2>&1; rc=$?
+    timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster > "$D/prep.out" 2>&1; rc=$?
     echo "  STAGE prep rc=$rc wall=$(( $(date +%s) - t0 ))s budget=300s build=$(grep -ao 'build [0-9A-F]*' "$D/prep.out" | tail -1)"
     [ "$rc" = 0 ] || { echo "  LEG $name NOT RUN: prep rc=$rc"; return 1; }
 

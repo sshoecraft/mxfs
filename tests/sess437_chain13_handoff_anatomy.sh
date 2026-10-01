@@ -13,10 +13,10 @@ GATE=tests/evidence/sess437_chain12_04111_takeover_zeroinc_s437a.log
   for t in $(seq 1 900); do grep -q '^DONE' "$GATE" 2>/dev/null && break; sleep 10; done
   grep -q '^DONE' "$GATE" || { echo "ABORT: chain12 not DONE"; echo "DONE $(date -u +%FT%TZ)"; exit 1; }
   echo "gate passed at $(date -u +%FT%TZ) (iter $t) sv=$(modinfo mxfs.ko | awk '/srcversion/{print $2}')"
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep rc=$?"
   timeout 300 tests/handoff_anatomy.sh ${LABEL}_mht300 32 100 keep 50; echo "STAGE anatomy_mht300 rc=$?"
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep2 rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep2 rc=$?"
   timeout 300 tests/handoff_anatomy.sh ${LABEL}_mht0 32 100 0 50; echo "STAGE anatomy_mht0 rc=$?"
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep3 rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep3 rc=$?"
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

@@ -5,16 +5,16 @@
 # infrastructure failure.  Builds NOTHING: the tree's mxfs.ko must already be
 # the build under test (every prep copies it).
 #
-#   1  prep 2/tcp                                   300 s (measured 47-91 s)
+#   1  prep 2/net/mesh/direct                                   300 s (measured 47-91 s)
 #   2  tests/transport_conformance.sh               240 s (nine mount cycles)
-#   3  prep 2/tcp (step 2 leaves both unmounted)    300 s
+#   3  prep 2/net/mesh/direct (step 2 leaves both unmounted)    300 s
 #   4  tests/d513_write_eio_containment.sh verify   230 s (+ victim restart 120 s)
 #   5  tests/tcp_2node_death_chain.sh BLOCK_INJECT  555+160 s (prep + 400 s oracle)
 #   6  tests/domain_admission_matrix.sh on test2    240 s (test1 stays up)
 #   7  yardstick: both leave; raw ceiling N=1,2     RAWCEIL: 2 N x 3 samples x ~45 s = 270 s + 60
-#   8  native-XFS baseline: run.sh 1 xfs fio_perf   prep ~30 s + fio_perf 120 s = 150 s + 30
-#   9  prep 2/tcp + fio_perf + fio_perf_vs_xfs      300 + 120 + 10 + 24 = 454 s
-#  10  full 2/tcp board                             sum(elapsed) 553 s + 12 s x 28 + 15 s = 904 -> 1000 s
+#   8  native-XFS baseline: run.sh 1/xfs fio_perf   prep ~30 s + fio_perf 120 s = 150 s + 30
+#   9  prep 2/net/mesh/direct + fio_perf + fio_perf_vs_xfs      300 + 120 + 10 + 24 = 454 s
+#  10  full 2/net/mesh/direct board                             sum(elapsed) 553 s + 12 s x 28 + 15 s = 904 -> 1000 s
 #  11  umount-while-blocked arm (needs a prep first: run as "1,11"):
 #      tests/tcp_2node_death_chain.sh BLOCK_INJECT+BLOCK_UMOUNT   300 s oracle
 #      + the survivor's recovery (destroy if the umount hung) + both restarts.
@@ -44,7 +44,7 @@ mxfs_dev_resolve "${MXFS_NODE_LIST%%,*}"; export MXFS_DEV=$MXFS_DEV_RESOLVED
 # foreign hardware.  Derive it, and if the rig cannot be established,
 # capture nothing rather than write somebody else's file.
 RIGTAG=$(MXFS_DEV="$MXFS_DEV" tools/mxfs_rig_tag.sh "$MXFS_DEV" 2>/dev/null || true)
-YSUF="tcp${RIGTAG:+.$RIGTAG}"
+YSUF="net-mesh-direct${RIGTAG:+.$RIGTAG}"
 SSH=tools/mxfs_sshpass.sh
 VIRSH="sudo virsh -c qemu:///system"
 LOG=tests/evidence/sess507_chain_0750_${LABEL}.log
@@ -71,7 +71,7 @@ prep() {   # <bound>
         done
         [ "$got" = "$want" ] || say "WARN: $n still sees a stale mxfs.ko after 60 s (got ${got:-none} want $want)"
     done
-    MXFS_FORCE_PREP=1 timeout "$1" ./run.sh 2 tcp prep_cluster >> "$LOG" 2>&1
+    MXFS_FORCE_PREP=1 timeout "$1" ./run.sh 2/net/mesh/direct prep_cluster >> "$LOG" 2>&1
     local rc=$?; stage "prep" $rc $(( $(date +%s) - s )); return $rc
 }
 restart_node() {  # <node>: virsh start (if off) + wait ssh + restore /src
@@ -124,7 +124,7 @@ if want 7; then
     if [ -z "$RIGTAG" ]; then
         say "SKIP step 7: the rig could not be established, so a captured ceiling would be written under a name that claims hardware it may not describe"
     else
-    RAWCEIL_FORCE=1 RAWCEIL_DEV="$MXFS_DEV" timeout 330 scripts/raw_fio_ceiling.sh "$YSUF" 1,2 2>&1 | tee -a "$LOG" | grep -a 'MEDIAN\|wrote\|sample'
+    RAWCEIL_FORCE=1 RAWCEIL_DEV="$MXFS_DEV" RAWCEIL_RIGTAG="${RIGTAG:-}" timeout 330 scripts/raw_fio_ceiling.sh 1/net/mesh/direct 2/net/mesh/direct 2>&1 | tee -a "$LOG" | grep -a 'MEDIAN\|wrote\|sample'
     rc=${PIPESTATUS[0]}; stage "raw_ceiling" $rc $(( $(date +%s) - s )); [ $rc = 0 ] || fails=$((fails+1))
     say "ceiling file (rig=$RIGTAG): $(cat ".raw_fio_ceiling.$YSUF.json" 2>/dev/null | tr -d '\n ')"
     fi
@@ -134,11 +134,11 @@ if want 8; then
     # a one-node run needs a one-node list (s515h: 'MXFS_NODE_LIST has 2
     # entries, N=1 requires exactly 1' — the chain exports test1,test2)
     # s516a: with a test filter the runner refuses conditions that differ
-    # from the cluster marker ('cluster is prepped for 2/tcp, you requested
+    # from the cluster marker ('cluster is prepped for 2/net/mesh/direct, you requested
     # 1/xfs') — the one-node native prep must run first, on its own.
-    s=$(date +%s); MXFS_NODE_LIST=test1 MXFS_FORCE_PREP=1 timeout 120 ./run.sh 1 xfs prep_cluster 2>&1 | tee -a "$LOG" | grep -aE 'prep|ERROR|FAIL'
+    s=$(date +%s); MXFS_NODE_LIST=test1 MXFS_FORCE_PREP=1 timeout 120 ./run.sh 1/xfs prep_cluster 2>&1 | tee -a "$LOG" | grep -aE 'prep|ERROR|FAIL'
     rc=${PIPESTATUS[0]}; stage "xfs_prep" $rc $(( $(date +%s) - s ))
-    s=$(date +%s); MXFS_NODE_LIST=test1 MXFS_TEST_ENV="XFS_BASELINE=/src/mxfs/.xfs_fio_baseline.$YSUF.json" timeout 180 ./run.sh 1 xfs fio_perf 2>&1 | tee -a "$LOG" | grep -aE 'PASS|FAIL|prep|ERROR'
+    s=$(date +%s); MXFS_NODE_LIST=test1 MXFS_TEST_ENV="XFS_BASELINE=/src/mxfs/.xfs_fio_baseline.$YSUF.json" timeout 180 ./run.sh 1/xfs fio_perf 2>&1 | tee -a "$LOG" | grep -aE 'PASS|FAIL|prep|ERROR'
     rc=${PIPESTATUS[0]}; stage "xfs_baseline" $rc $(( $(date +%s) - s )); [ $rc = 0 ] || fails=$((fails+1))
     say "baseline file (rig=$RIGTAG): $(cat ".xfs_fio_baseline.$YSUF.json" 2>/dev/null | tr -d '\n ')"
     timeout 60 $SSH test1 "umount /mnt/shared 2>/dev/null; echo xfs_umount_rc=\$?" 2>/dev/null | grep -a rc | tee -a "$LOG"
@@ -146,14 +146,14 @@ fi
 
 if want 9; then
     prep 300 || { say "ABORT: prep failed"; exit 1; }
-    s=$(date +%s); timeout 160 ./run.sh 2 tcp fio_perf fio_perf_vs_xfs 2>&1 | tee -a "$LOG" | grep -aE '^\s+(PASS|FAIL|SKIP)'
+    s=$(date +%s); timeout 160 ./run.sh 2/net/mesh/direct fio_perf fio_perf_vs_xfs 2>&1 | tee -a "$LOG" | grep -aE '^\s+(PASS|FAIL|SKIP)'
     rc=${PIPESTATUS[0]}; stage "fio_rows" $rc $(( $(date +%s) - s )); [ $rc = 0 ] || fails=$((fails+1))
 fi
 
 if want 10; then
-    s=$(date +%s); timeout 1000 ./run.sh 2 tcp 2>&1 | tee -a "$LOG" | grep -aE '^\s+(PASS|FAIL|SKIP|ABORT)|^===|VERDICT'
+    s=$(date +%s); timeout 1000 ./run.sh 2/net/mesh/direct 2>&1 | tee -a "$LOG" | grep -aE '^\s+(PASS|FAIL|SKIP|ABORT)|^===|VERDICT'
     rc=${PIPESTATUS[0]}; stage "board_2tcp" $rc $(( $(date +%s) - s )); [ $rc = 0 ] || fails=$((fails+1))
-    tools/criteria.py 2 tcp 2>/dev/null | grep -aE 'FAIL|FLAKY|ABORT|Total|VERDICT' | tee -a "$LOG"
+    tools/criteria.py 2/net/mesh/direct 2>/dev/null | grep -aE 'FAIL|FLAKY|ABORT|Total|VERDICT' | tee -a "$LOG"
 fi
 
 if want 11; then

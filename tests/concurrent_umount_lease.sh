@@ -14,7 +14,7 @@
 # so the victim's teardown is held open there with the one-shot knob
 # dbg_teardown_lease_hold_ms, and the peer unmounts inside the hold:
 #
-#   1. a fresh 2/tcp cluster (./run.sh 2 tcp prep_cluster, test1 + test2)
+#   1. a fresh 2/net/mesh/direct cluster (./run.sh 2/net/mesh/direct prep_cluster, test1 + test2)
 #   2. arm the hold on the victim, unmount the victim in the background
 #   3. when the victim logs P-DBG-TEARDOWN-LEASE-HOLD, unmount the peer
 #   4. both unmounts must finish; the victim's log must show the GOODBYE
@@ -55,7 +55,7 @@ say "victim=$V peer=$P hold_ms=$HOLD_MS evidence=$EV"
 say "build: $(modinfo -F srcversion "$HERE/mxfs.ko")"
 
 # --- 1. fresh cluster
-(cd "$HERE" && ./run.sh 2 tcp prep_cluster) > "$EV/prep_cluster.log" 2>&1 || { tail -20 "$EV/prep_cluster.log"; fail "prep_cluster"; }
+(cd "$HERE" && ./run.sh 2/net/mesh/direct prep_cluster) > "$EV/prep_cluster.log" 2>&1 || { tail -20 "$EV/prep_cluster.log"; fail "prep_cluster"; }
 for h in $V $P; do
     on $h 20 "grep -c ' $MNT mxfs ' /proc/mounts; cat /sys/module/mxfs/srcversion" > "$EV/mounted_$h.log"
     [ "$(head -1 "$EV/mounted_$h.log")" = 1 ] || fail "$h is not mounted after prep_cluster"

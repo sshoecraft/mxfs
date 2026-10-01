@@ -7,15 +7,15 @@
 # XFS_ALL_IRECLAIM_FLAGS double-set) or a soft/hard lockup.
 #
 # Rationale (ccloopff21 sess1): an isolated fresh-prep fence_during_write loop
-# (15 iters) never reproduced the wedge seen in the original 8/caw "full" run,
+# (15 iters) never reproduced the wedge seen in the original 8/disk/caw/mpath "full" run,
 # where fence_during_write was the 14th of 17 tests in one continuous cluster
 # session (13 prior tests, including dir_reuse_coherency, had already run).
 # This script recreates that "warmed up" AG/inode state cheaply (2 tests
 # instead of 13) rather than a full 17-test replay.
 #
-# Usage: scripts/repro_dblreclaim.sh <N> <iters> [warmup_test]
+# Usage: scripts/repro_dblreclaim.sh <configuration> <iters> [warmup_test]
 set -u
-N="${1:?usage: repro_dblreclaim.sh <N> <iters> [warmup_test]}"
+CONFIG=$(python3 "$(dirname "$0")/../tools/configuration.py" parse "${1:?usage: repro_dblreclaim.sh <configuration> <iters> [warmup_test]}") || exit 2; N=${CONFIG%%/*}
 ITERS="${2:?usage: repro_dblreclaim.sh <N> <iters> [warmup_test]}"
 WARMUP="${3:-dir_reuse_coherency}"
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
@@ -33,7 +33,7 @@ for i in $(seq 1 "$ITERS"); do
     done
     wait
     TEST_TIMEOUT="$DRC_TT" timeout "$OUTER" \
-        ./run.sh "$N" caw "$WARMUP" fence_during_write
+        ./run.sh "$CONFIG" "$WARMUP" fence_during_write
     rc=$?
     hit=0
     for n in $(seq 1 "$N"); do

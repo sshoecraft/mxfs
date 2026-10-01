@@ -66,7 +66,7 @@ for i in $(seq 1 "$LAPS"); do
     if [ "$mounted" != "11" ] || [ "$knob" != "$ARM" ] || [ "$nodesv" != "$SV" ]; then
         p0=$(date +%s)
         MXFS_FORCE_PREP=1 MXFS_EXTRA_MODARGS="unpub_publish_owned_meta=$ARM" \
-            timeout 300 ./run.sh 2 tcp prep_cluster > "$OUT/prep_$i.log" 2>&1
+            timeout 300 ./run.sh 2/net/mesh/direct prep_cluster > "$OUT/prep_$i.log" 2>&1
         prc=$?
         prepped="rc=$prc/$(( $(date +%s) - p0 ))s"
         [ $prc != 0 ] && { echo "LAP $i PREP-FAIL $prepped"; bad=$((bad+1)); continue; }

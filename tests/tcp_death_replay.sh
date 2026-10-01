@@ -142,7 +142,7 @@
 #          + 22 s settle + 45 s workload + 20 s captures => TDR_LAP_BOUND 645.
 #        TDR_MEMBERS=<csv> — every mounted member (default: W, V and the probe
 #          nodes).  At 3+ nodes the prover and the replayer can be any
-#          survivor (measured 2026-09-28 at 4/cawd), so the fence, snapshot
+#          survivor (measured 2026-09-28 at 4/disk/caw/direct), so the fence, snapshot
 #          and replay assertions read every survivor's kernel log and the
 #          blocked arm arms every survivor and finds the prover by its
 #          transition line.  tests/death/crash_audit.sh and
@@ -269,7 +269,7 @@ VID=""; VSLOT=""                        # the victim's incarnation and slot, fro
 [ "$BLOCK_REALIGN" != 1 ] || { [ "$BLOCK_INJECT" = 1 ] && [ -n "$PROBE_NODES" ]; } || { echo "ABORT: TDR_BLOCK_REALIGN=1 needs TDR_BLOCK_INJECT=1 and TDR_PROBE_NODES (a probe node departs while blocked)"; exit 2; }
 # every mounted member (TDR_MEMBERS, csv): the caller's list, else W, V and
 # the probe nodes.  At 3+ nodes the PROVER (fence, snapshot, blocked series)
-# and the REPLAYER can be any survivor — measured 2026-09-28 at 4/cawd: test3
+# and the REPLAYER can be any survivor — measured 2026-09-28 at 4/disk/caw/direct: test3
 # fenced and snapshotted slot 1 while test1 logged "already certified fenced
 # by another prover" and replayed — so the prover-side and replay assertions
 # read every survivor's kernel log, merged, and the blocked arm arms its
@@ -408,7 +408,7 @@ if [ "$BLOCK_INJECT" = 1 ]; then
         # pr_fence_inject_key_absent: the targets this rig runs (SCST, LIO)
         # retain a destroyed initiator's registration, so without it the
         # present-key PREEMPT AND ABORT certifies on the first attempt and
-        # the series never becomes non-proving (measured 2026-09-28, 4/tcp:
+        # the series never becomes non-proving (measured 2026-09-28, 4/net/mesh/direct:
         # retries=0, PREEMPT_ABORT_PROVEN_V1, no P238 line, a vacuous lap).
         # The knob reports the key absent at the classification, which is
         # what the purging target produced.

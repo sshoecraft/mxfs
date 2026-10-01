@@ -78,7 +78,7 @@ LABEL=${1:-s483c}
 GATE=${GATE:-tests/evidence/sess482_chain130_affine_audit_s483b.log}
 LOG=tests/evidence/sess483_chain132_dirtenure_$LABEL.log
 EV=tests/evidence/sess483_dirtenure_$LABEL
-NNODES=${NNODES:-32}
+CONFIG=$(python3 "$(dirname "$0")/../tools/configuration.py" parse "${CONFIG:-32/disk/caw/mpath}") || exit 2; NNODES=${CONFIG%%/*}
 FWD=${FWD:-8 32 128}
 REV=${REV:-128 32 8}
 SSH=tools/mxfs_sshpass.sh
@@ -245,7 +245,7 @@ PY
   mkdir -p "$FREEZE" && cp mxfs.ko "$FREEZE/mxfs.ko"
   echo "STAGE identity sv=$SV freeze=$FREEZE"
 
-  timeout 300 ./run.sh "$NNODES" caw prep_cluster; prc=$?
+  timeout 300 ./run.sh "$CONFIG" prep_cluster; prc=$?
   echo "STAGE prep rc=$prc"
   [ "$prc" = 0 ] || { echo "ABORT: prep rc=$prc"; echo "DONE $(date -u +%FT%TZ)"; exit 1; }
 

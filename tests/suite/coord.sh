@@ -168,7 +168,7 @@ coord_done() {
 # (measured 10/10 hits, ~50ms) while cutting the empty-case poll floor
 # from ~1.0s to ~0.3s — this call sits in coord_barrier_or_abort's watch
 # loop and was measured adding ~2.2s/round of pure poll padding (4-5
-# barrier calls/round) to dir_reuse_coherency@32/cawp, the difference
+# barrier calls/round) to dir_reuse_coherency@32/disk/caw/pass, the difference
 # between 7 and 8 rounds fitting the 100s pace budget.
 coord_check_abort() {
     coord_enabled || return 1

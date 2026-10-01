@@ -30,7 +30,7 @@
 #
 # NOTE: on success this deliberately leaves the slice unrecovered and its grants
 #   frozen — that is the fail-closed outcome under test.  Re-prep afterwards:
-#   MXFS_FORCE_PREP=1 ./run.sh 32 caw prep_cluster
+#   MXFS_FORCE_PREP=1 ./run.sh 32/disk/caw/mpath prep_cluster
 #
 # TIMING (the budget rule — derived)
 #   certificate appears : DEAD_THRESHOLD(31) * HB_INTERVAL_MS(2000) + fence = 65s

@@ -4,7 +4,7 @@
 # sess29: validate the dir_release_invalidate + relinval_clean config across the
 # whole suite, not just dir_reuse_coherency.
 set -u
-N="${1:-8}"
+CONFIG=$(python3 "$(dirname "$0")/../../tools/configuration.py" parse "${1:-8/net/mesh/direct}") || exit 2; N=${CONFIG%%/*}
 MODARGS="${2:-}"
 SSH=/src/mxfs/tools/mxfs_sshpass.sh
 SCR="$(dirname "$0")/drc_cap"; mkdir -p "$SCR"
@@ -16,7 +16,7 @@ for n in $nodes; do virsh -c qemu:///system start test$n >/dev/null 2>&1; done
 for w in $(seq 1 40); do up=0; for n in $nodes; do timeout 5 $SSH test$n /tmp/.mxfs_pass true >/dev/null 2>&1 && up=$((up+1)); done; [ "$up" = "$N" ] && break; sleep 3; done
 echo "=== full${N} modargs=[$MODARGS] nodes_up=$up $(date -u) ===" | tee "$LOG"
 t0=$(date +%s)
-MXFS_EXTRA_MODARGS="$MODARGS" timeout 1500 /src/mxfs/run.sh "$N" tcp > "$SCR/full${N}_run.log" 2>&1
+MXFS_EXTRA_MODARGS="$MODARGS" timeout 1500 /src/mxfs/run.sh "$CONFIG" > "$SCR/full${N}_run.log" 2>&1
 t1=$(date +%s)
 echo "wall=$((t1-t0))s" | tee -a "$LOG"
 echo "--- per-test results ---" | tee -a "$LOG"

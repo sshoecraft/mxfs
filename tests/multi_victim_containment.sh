@@ -13,7 +13,7 @@
 # kill with the judging done, so a release can cite it.
 #
 # WHAT IT DOES
-#  1. forms the cluster: MXFS_FORCE_PREP=1 ./run.sh N <dlm> prep_cluster
+#  1. forms the cluster: MXFS_FORCE_PREP=1 ./run.sh <configuration> prep_cluster
 #  2. starts the load on every node (the loop of incident474_load_kill.sh:
 #     build a tree, rsync it into the node's own directory, sync, remove) and
 #     confirms from node 1 that it is landing in the shared filesystem
@@ -130,7 +130,7 @@
 #    printed, not judged.
 #  - chk_mxfs exits 0 on the LUN once the survivors have unmounted
 #
-# The first run of this harness (8/tcp, two victims, 0.90.25) is why the load
+# The first run of this harness (8/net/mesh/direct, two victims, 0.90.25) is why the load
 # and the quarantine are judged: its probes, each writing a file of its own,
 # never stalled, and chk_mxfs exited 0, while one victim's slice replay had
 # been refused, its allocation group quarantined on all six survivors, and
@@ -148,10 +148,11 @@
 # unmount on TCP with peers mounted measured 35-80 s), chk_mxfs at the 180 s
 # budget of the suite's chk_clean row.
 #
-# Usage: tests/multi_victim_containment.sh <N> <dlm> <victim>[,<victim>...] [label]
-#   N        nodes (test1..testN); dlm is a run.sh condition (tcp|cawd|caw|cawp)
+# Usage: tests/multi_victim_containment.sh <configuration> <victim>[,<victim>...] [label]
+#   configuration  e.g. 8/net/mesh/direct: its node count names the nodes
+#                  (test1..testN)
 #   victims  rig nodes to power-cut; node 1 is the probe host and may not be one
-# Evidence: tests/evidence/multi_victim/<UTC>_<N><dlm>_<label>/ (summary.txt
+# Evidence: tests/evidence/multi_victim/<UTC>_<N-class-method-attach>_<label>/ (summary.txt
 #   holds the verdict and one line per survivor; klog_<node>.txt.gz holds
 #   every node's kernel log from the moment the cluster formed, the victims'
 #   up to the power cut, and is what the log counts in the verdict are read
@@ -165,11 +166,11 @@ set -u
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$HERE" || exit 1
 SSH="$HERE/tools/mxfs_sshpass.sh"
-N="${1:?usage: multi_victim_containment.sh <N> <dlm> <victim>[,<victim>...] [label]}"
-DLM="${2:?usage: multi_victim_containment.sh <N> <dlm> <victim>[,<victim>...] [label]}"
-VCSV="${3:?usage: multi_victim_containment.sh <N> <dlm> <victim>[,<victim>...] [label]}"
-LABEL="${4:-mvc}"
-case "$DLM" in tcp|cawd|caw|cawp) ;; *) echo "dlm must be tcp|cawd|caw|cawp (got '$DLM')" >&2; exit 2 ;; esac
+CONFIG=$(python3 tools/configuration.py parse "${1:?usage: multi_victim_containment.sh <configuration> <victim>[,<victim>...] [label]}") || exit 2
+N=${CONFIG%%/*}
+SLUG=${CONFIG//\//-}
+VCSV="${2:?usage: multi_victim_containment.sh <configuration> <victim>[,<victim>...] [label]}"
+LABEL="${3:-mvc}"
 IFS=, read -r -a VICTIMS <<<"$VCSV"
 NV=${#VICTIMS[@]}
 VICTIM_GAP="${VICTIM_GAP:-2}"
@@ -194,8 +195,8 @@ case "$REAP_WAIT_MS" in ''|*[!0-9]*) echo "REAP_WAIT_MS must be a count of milli
 WRITE_BUDGET_S="${WRITE_BUDGET_S:-$(( 120 + 60 * NV ))}"
 LOAD_S="${LOAD_S:-$(( WRITE_BUDGET_S + 60 ))}"
 MNT="${MXFS_MNT:-/mnt/shared}"
-DEV="${MXFS_DEV:-/dev/disk/by-path/ip-192.168.120.1:3260-iscsi-iqn.2026-05.local.mxfs:shared-lun-0}"
-EV="$HERE/tests/evidence/multi_victim/$(date -u +%Y%m%dT%H%M%SZ)_${N}${DLM}_$LABEL"
+DEV="${MXFS_DEV:-$(python3 tools/configuration.py get "$CONFIG" device)}"
+EV="$HERE/tests/evidence/multi_victim/$(date -u +%Y%m%dT%H%M%SZ)_${SLUG}_$LABEL"
 mkdir -p "$EV"
 S="$EV/summary.txt"
 FAULTS='BUG:|Oops|Kernel panic|general protection|kernel NULL pointer|soft lockup|hard LOCKUP|scheduling while atomic|rcu_preempt self-detected'
@@ -247,10 +248,10 @@ for v in "${VICTIMS[@]}"; do
         || { echo "victim '$v' is not one of test2..test$N" >&2; exit 2; }
 done
 [ "${#SURVIVORS[@]}" -ge 2 ] || { echo "fewer than two survivors: nothing to contain" >&2; exit 2; }
-say "N=$N dlm=$DLM victims=[${VICTIMS[*]}] survivors=[${SURVIVORS[*]}] kill_mode=$KILL_MODE victim_reclaim_ms=$VICTIM_RECLAIM_MS victim_evict=$VICTIM_EVICT acq_delay_ms=$ACQ_DELAY_MS peer_read_ms=$PEER_READ_MS write_budget=${WRITE_BUDGET_S}s load=${LOAD_S}s evidence=$EV"
+say "N=$N configuration=$CONFIG victims=[${VICTIMS[*]}] survivors=[${SURVIVORS[*]}] kill_mode=$KILL_MODE victim_reclaim_ms=$VICTIM_RECLAIM_MS victim_evict=$VICTIM_EVICT acq_delay_ms=$ACQ_DELAY_MS peer_read_ms=$PEER_READ_MS write_budget=${WRITE_BUDGET_S}s load=${LOAD_S}s evidence=$EV"
 
 # --- 1. the cluster
-MXFS_FORCE_PREP=1 ./run.sh "$N" "$DLM" prep_cluster > "$EV/prep.log" 2>&1
+MXFS_FORCE_PREP=1 ./run.sh "$CONFIG" prep_cluster > "$EV/prep.log" 2>&1
 prc=$?
 grep -a -E 'PREP FAIL|PREP OK|converge|srcversion' "$EV/prep.log" | tail -n 4 | cut -c1-200 | tee -a "$S"
 [ $prc = 0 ] || { say "ABORT: prep_cluster rc=$prc (see $EV/prep.log); nothing measured"; exit 2; }
@@ -600,7 +601,7 @@ say "kernel logs kept: $(ls "$EV"/klog_test*.txt.gz 2>/dev/null | wc -l) of $N n
 for v in "${VICTIMS[@]}"; do timeout 60 virsh -c qemu:///system start "$v" >/dev/null 2>&1; done
 scripts/lab_power.sh up "rig:$N" > "$EV/rig_up.log" 2>&1 || say "the rig did not come back whole (see $EV/rig_up.log)"
 
-say "VERDICT $verdict ($N/$DLM, ${NV} victim(s) [${VICTIMS[*]}], ${#SURVIVORS[@]} survivors, write budget ${WRITE_BUDGET_S}s)"
+say "VERDICT $verdict ($CONFIG, ${NV} victim(s) [${VICTIMS[*]}], ${#SURVIVORS[@]} survivors, write budget ${WRITE_BUDGET_S}s)"
 # the line tests/lap_queue.sh reads back
-echo "RESULT $verdict multi_victim_containment $N/$DLM victims=${VICTIMS[*]} recoveries=${RECOVERED_ALL:-0}/$NV evidence=$EV"
+echo "RESULT $verdict multi_victim_containment $CONFIG victims=${VICTIMS[*]} recoveries=${RECOVERED_ALL:-0}/$NV evidence=$EV"
 [ "$verdict" = PASS ]

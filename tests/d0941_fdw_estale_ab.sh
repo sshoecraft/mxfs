@@ -54,7 +54,7 @@ for ARM in 1 0; do
         # artifacts again, which is how four laps in a row "reproduced" a
         # failure none of them had run.
         before=$(ls -dt tests/evidence/run_fence_during_write_* 2>/dev/null | head -1)
-        timeout 60 ./run.sh 2 tcp fence_during_write > "$OUT/arm${ARM}_lap$i.log" 2>&1
+        timeout 60 ./run.sh 2/net/mesh/direct fence_during_write > "$OUT/arm${ARM}_lap$i.log" 2>&1
         rc=$?
         ran=$((ran+1))
         d=$(ls -dt tests/evidence/run_fence_during_write_* 2>/dev/null | head -1)

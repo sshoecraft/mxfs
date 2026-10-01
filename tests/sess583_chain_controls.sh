@@ -77,7 +77,7 @@ waitboot() {
 prep() {  # <tag>
     local t=$(date +%s) rc
     waitboot
-    MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2 tcp prep_cluster > "$OUT/prep_$1.log" 2>&1
+    MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2/net/mesh/direct prep_cluster > "$OUT/prep_$1.log" 2>&1
     rc=$?
     echo "STAGE $1 prep rc=$rc wall=$(( $(date +%s) - t ))s  $(grep -am1 'prep_cluster OK\|FAIL' "$OUT/prep_$1.log" | cut -c1-140)"
     return $rc

@@ -24,14 +24,14 @@ mkdir -p "$EV"
   SV=$(modinfo mxfs.ko | awk '/srcversion/{print $2}')
   echo "VERSION=$(cat VERSION) sv=$SV"
   [ -x tools/mkfs_mxfs ] || { echo "ABORT: tools missing"; echo "DONE $(date -u +%FT%TZ)"; exit 1; }
-  timeout 300 ./run.sh 32 caw prep_cluster; prc=$?; echo "STAGE prep rc=$prc"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; prc=$?; echo "STAGE prep rc=$prc"
   if [ "$prc" -ne 0 ]; then echo "ABORT: prep failed on $(cat VERSION)"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
-  timeout 100 ./run.sh 32 caw fence_during_write; echo "STAGE fence_during_write rc=$?"
-  timeout 497 ./run.sh 32 caw node_death_replay; echo "STAGE node_death_replay rc=$?"
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep_mid rc=$?"
+  timeout 100 ./run.sh 32/disk/caw/mpath fence_during_write; echo "STAGE fence_during_write rc=$?"
+  timeout 497 ./run.sh 32/disk/caw/mpath node_death_replay; echo "STAGE node_death_replay rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep_mid rc=$?"
   timeout 100 tests/lone_mount_create.sh ${LABEL}_snx test1 32 remount_snx; echo "STAGE remount_snx rc=$?"
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep_mid2 rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep_mid2 rc=$?"
   timeout 100 tests/lone_mount_create.sh ${LABEL}_refused test1 32 remount_refused; echo "STAGE remount_refused rc=$?"
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep2 rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep2 rc=$?"
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

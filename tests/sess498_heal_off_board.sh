@@ -1,5 +1,5 @@
 #!/bin/bash
-# sess498: THE 32/caw BOARD WITH THE LEAF-HASH-HOLE HEAL SWITCHED OFF
+# sess498: THE 32/disk/caw/mpath BOARD WITH THE LEAF-HASH-HOLE HEAL SWITCHED OFF
 # (D-DIR-LEAF-HASH-INDEX-LOSES-ENTRIES-MASKED-BY-DATASCAN-HEAL-0496,
 #  D-32NODE-SHARED-DIR-CREATE-PACE).
 #
@@ -26,7 +26,7 @@
 # valid; it is NOT by itself the bar for flipping the default.
 #
 # derived time budgets, derived: prep 300 (measured 107-146 s); board 1411 =
-# 1048 s of measured row walls (tools/criteria.py 32/caw, 2026-09-04T13:04Z) + 12 s x 29
+# 1048 s of measured row walls (tools/criteria.py 32/disk/caw/mpath, 2026-09-04T13:04Z) + 12 s x 29
 # rows of harness overhead + 15 s startup; sweep 90 s per node in parallel.
 #
 # Usage:  setsid nohup bash tests/sess498_heal_off_board.sh s498a &
@@ -57,7 +57,7 @@ done_exit() { echo "DONE $(date -u +%FT%TZ)"; exit "${1:-0}"; }
   [ "$sv" = "$WANT_SV" ] || { echo "ABORT: wrong module"; done_exit 1; }
 
   SINCE=$(date -u +'%Y-%m-%d %H:%M:%S'); t0=$(date +%s)
-  MXFS_FORCE_PREP=1 MXFS_EXTRA_MODARGS="$MODARGS" timeout 300 ./run.sh 32 caw prep_cluster > "$O/prep.out" 2>&1; rc=$?
+  MXFS_FORCE_PREP=1 MXFS_EXTRA_MODARGS="$MODARGS" timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster > "$O/prep.out" 2>&1; rc=$?
   echo "STAGE prep rc=$rc wall=$(( $(date +%s) - t0 ))s budget=300s"
   [ "$rc" = 0 ] || { echo "NOT RUN: prep rc=$rc"; done_exit 1; }
   for n in $(nodes); do
@@ -72,7 +72,7 @@ done_exit() { echo "DONE $(date -u +%FT%TZ)"; exit "${1:-0}"; }
   pre_id=$(python3 -c "import json;print(json.load(open('.last_run.json'))['run_id'])" 2>/dev/null || echo none)
   echo "STAGE board pre_run_id=$pre_id"
   T0=$(date +%s)
-  MXFS_EXTRA_MODARGS="$MODARGS" timeout "$BOARD_BUDGET" ./run.sh 32 caw > "$O/board.out" 2>&1; rc=$?
+  MXFS_EXTRA_MODARGS="$MODARGS" timeout "$BOARD_BUDGET" ./run.sh 32/disk/caw/mpath > "$O/board.out" 2>&1; rc=$?
   wall=$(( $(date +%s) - T0 ))
   echo "STAGE board rc=$rc wall=${wall}s budget=${BOARD_BUDGET}s"
   [ "$rc" = 124 ] && echo "FAIL: the board exceeded its ${BOARD_BUDGET}s budget (wall=${wall}s); a timeout is a failure to diagnose, never a number to widen"
@@ -83,7 +83,7 @@ done_exit() { echo "DONE $(date -u +%FT%TZ)"; exit "${1:-0}"; }
     done_exit 1
   fi
   echo "--- conditions (run_id=$post_id) ---"
-  timeout 120 tools/criteria.py 32 caw 2>&1 | grep -av '^\s*$'
+  timeout 120 tools/criteria.py 32/disk/caw/mpath 2>&1 | grep -av '^\s*$'
 
   for n in $(nodes); do
     ( timeout 90 $SSH "$n" "journalctl -k --no-pager --since '$SINCE' 2>/dev/null | grep -aE 'P22-DATASCAN-HIT|P26-DSCAN|P26-LKERR|P21H-LEAFHOLE|P33-DSCAN-ONDISK|mxfs-cc-FAIL|lookup_fail|P285-F4-BLI-FREED-OPEN|P492-KEEP-UNDEST|P3R-RELAND|P3F-UNLANDED|P123-DIRFENCE-SKIP|P287-F4|shut down|Corruption|EUCLEAN|ESTALE'" 2>/dev/null | gzip > "$O/ctx_$n.gz" ) &

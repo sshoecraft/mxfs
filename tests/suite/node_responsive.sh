@@ -3,7 +3,7 @@
 # within a bounded time.
 #
 # WHY THIS EXISTS (ccloop c7ee71c6 sess21)
-#   During the 32/tcp wedge, test31 was:
+#   During the 32/net/mesh/direct wedge, test31 was:
 #     virsh domstate -> running
 #     ping           -> replies, 0.12 ms, 0% packet loss
 #     ssh            -> NOTHING; sshd could not fork

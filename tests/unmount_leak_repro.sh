@@ -18,15 +18,15 @@
 # attribution as PLAUSIBLE, not proven, and read P205-REFBAL alongside it: that
 # says whether the surviving reference came through a TRACKED igrab path at all.
 #
-# Usage: tests/unmount_leak_repro.sh [N] [cycles]
+# Usage: tests/unmount_leak_repro.sh [configuration] [cycles]
 set -u
-N="${1:-16}"; CYCLES="${2:-1}"
+CONFIG=$(python3 "$(dirname "$0")/../tools/configuration.py" parse "${1:-16/disk/caw/mpath}") || exit 2; N=${CONFIG%%/*}; CYCLES="${2:-1}"
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$REPO" || exit 2
 
 for c in $(seq 1 "$CYCLES"); do
   echo "=========== cycle $c/$CYCLES (N=$N) ==========="
-  MXFS_FORCE_PREP=1 timeout 580 ./run.sh "$N" caw prep_cluster 2>&1 | tail -1
+  MXFS_FORCE_PREP=1 timeout 580 ./run.sh "$CONFIG" prep_cluster 2>&1 | tail -1
   # A/B arm: MXFS_LEGACY_CLOBBER=1 restores the pre-sess25 unqualified
   # i_dlm_demoter claim, re-arming D-BAST-IRELE-INACTIVE-SELF-WEDGE.  Used to
   # test whether D-UNMOUNT-BUSY-INODES is a CONSEQUENCE of that wedge (a
@@ -39,7 +39,7 @@ for c in $(seq 1 "$CYCLES"); do
   done; wait
   echo "  demoter_legacy_clobber=$ARM on $N nodes"
   timeout 260 tests/inode_reuse_typeflip.sh 15 "$N" 2 8 2>&1 | tail -1
-  timeout 200 ./run.sh "$N" caw cache_coherency 2>&1 | grep -E "PASS|FAIL" | tail -1
+  timeout 200 ./run.sh "$CONFIG" cache_coherency 2>&1 | grep -E "PASS|FAIL" | tail -1
   timeout 300 tests/sf_mkdir_storm.sh 12 "$N" 2 1 2>&1 | tail -1
   out=$(timeout 260 tests/unmount_leak_check.sh "$N" 2>&1 | tail -3)
   printf '%s\n' "$out"

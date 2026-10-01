@@ -1,5 +1,5 @@
 #!/bin/bash
-# cc_df_capture.sh — run the full 2/tcp suite with dirwr=1 (always-on dir
+# cc_df_capture.sh — run the full 2/net/mesh/direct suite with dirwr=1 (always-on dir
 # coherency detectors), clean-rebooting before each iter, and on ANY failure of
 # the shared-dir-churn family (crash_consistency / dlm_fairness / tcp_dlm_scaling)
 # dump the dir detectors from BOTH nodes' dmesg so the exact stale-base / reload
@@ -19,7 +19,7 @@ for i in $(seq 1 "$ITERS"); do
     echo "----- ITER $i/$ITERS $(date -u +%T) -----" | tee -a "$LOG"
     bash "$REPO/tests/reboot_cluster.sh" 2 >/dev/null 2>&1
     for n in test1 test2; do timeout 8 "$SSH" "$n" "$PF" 'dmesg --clear' >/dev/null 2>&1; done
-    out=$(MXFS_EXTRA_MODARGS='dirwr=1' timeout 1400 ./run.sh 2 tcp 2>&1)
+    out=$(MXFS_EXTRA_MODARGS='dirwr=1' timeout 1400 ./run.sh 2/net/mesh/direct 2>&1)
     fails=$(echo "$out" | grep -E '  FAIL ' )
     echo "$out" | grep -E '  (PASS|FAIL) ' | tee -a "$LOG"
     # P-SFMERGE engagement count (confirms the merge actually ran)

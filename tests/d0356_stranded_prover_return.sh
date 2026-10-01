@@ -44,7 +44,7 @@ set -u
 LABEL=${1:?label}
 cd "$(dirname "$0")/.." || exit 2
 export MXFS_NODE_LIST=${MXFS_NODE_LIST:-test1,test2}
-export MXFS_TRANSPORT=${MXFS_TRANSPORT:-tcp}
+export MXFS_CONFIG=${MXFS_CONFIG:-2/net/mesh/direct}
 A=${MXFS_NODE_LIST%%,*}          # the prover that cannot certify, then leaves
 B=${MXFS_NODE_LIST##*,}          # the victim, then the lone rescuer
 SSH=tools/mxfs_sshpass.sh
@@ -79,7 +79,7 @@ keylist() { grep -oE '^  0x[0-9a-f]+' "$1" | tr -d ' ' | sort -u; }
 normkey() { printf '0x%016x' "$(( $1 ))" 2>/dev/null; }
 echo "=== d0356_stranded_prover_return label=$LABEL A(prover)=$A B(victim,rescuer)=$B sv=$SV $(date -u +%FT%TZ) ==="
 
-MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2 tcp prep_cluster > "$OUT/prep.log" 2>&1
+MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2/net/mesh/direct prep_cluster > "$OUT/prep.log" 2>&1
 prc=$?
 echo "STAGE prep rc=$prc wall=$(el)s  $(grep -am1 'prep_cluster OK\|FAIL' "$OUT/prep.log" | cut -c1-120)"
 [ $prc = 0 ] || { echo "RESULT: ABORT label=$LABEL stage=prep evidence=$OUT"; exit 2; }

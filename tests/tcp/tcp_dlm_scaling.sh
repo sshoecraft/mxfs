@@ -26,7 +26,7 @@ fi
 # sess9 (ccloop 72513a13): N-INVARIANT total volume, drc-precedent.  The old
 # flat 150 rounds/node made TOTAL shared-dir EX ops grow linearly with N
 # (450×N serialized through ONE dir's EX rotation) while WINDOW stayed 60s —
-# at 16/tcp the cluster ran a HEALTHY 8.6ms/op yet 6-12 nodes landed at
+# at 16/net/mesh/direct the cluster ran a HEALTHY 8.6ms/op yet 6-12 nodes landed at
 # 60-64s: the bar failed scale, not the FS.  1600 total rounds (×3 ops)
 # ≈ 4800 serialized ops ≈ 41s at the measured healthy rate at ANY N; the
 # 60s window now means the same thing on every rung.  Floor 50 keeps the

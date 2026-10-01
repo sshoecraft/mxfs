@@ -64,7 +64,7 @@ say() { echo "[$(date +%T) +$(el)s] $*"; }
 rsh() { local n=$1; shift; timeout "$1" "$SSH" "$n" "$2" </dev/null 2>/dev/null | grep -avE '^Warning|Unauthorized|authorized user'; }
 
 say "label=$LABEL dur=$DUR opms_ceil=$OPMS_CEIL dev=${MXFS_DEV:-run.sh default} evidence=$EV"
-MXFS_FORCE_PREP=1 timeout 180 ./run.sh 2 cawd prep_cluster > "$EV/prep.log" 2>&1
+MXFS_FORCE_PREP=1 timeout 180 ./run.sh 2/disk/caw/direct prep_cluster > "$EV/prep.log" 2>&1
 rc=$?
 say "prep rc=$rc ($(grep -a 'prep_cluster OK' "$EV/prep.log" | tail -1 | cut -c1-120))"
 [ $rc = 0 ] || { say "RESULT INFRA: prep failed"; exit 2; }

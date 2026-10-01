@@ -58,7 +58,7 @@ set -u
 LABEL=${1:?label}
 cd "$(dirname "$0")/.." || exit 2
 export MXFS_NODE_LIST=${MXFS_NODE_LIST:-test1,test2}
-export MXFS_TRANSPORT=${MXFS_TRANSPORT:-tcp}
+export MXFS_CONFIG=${MXFS_CONFIG:-2/net/mesh/direct}
 A=${MXFS_NODE_LIST%%,*}
 B=${MXFS_NODE_LIST##*,}
 SSH=tools/mxfs_sshpass.sh
@@ -78,7 +78,7 @@ ckle() { if [ "${2:-999999}" -le "$3" ] 2>/dev/null; then echo "  PASS $1 ($2 <=
 # mxfs_dev_resolve (tests/lib/rig.sh): every capture a verdict is taken from
 # is proven to hold its tool's shape first; a failed acquisition is an
 # ABORT, never a count of zero.  MXFS_DEV: resolved on A (its live mount if
-# any, else the MXFS_TRANSPORT rig default); no rig's device is assumed.
+# any, else the MXFS_CONFIG rig default); no rig's device is assumed.
 . "$(dirname "$0")/lib/rig.sh"
 # a field is read wherever it sits on the line, not only at its start: an
 # arm that prints "SEEN=1 PAUSED=1" on one line had its second field read as
@@ -97,7 +97,7 @@ echo "=== sole_survivor_restart label=$LABEL survivor=$A absent=$B sv=$SV nf=$NF
 s0=$(date +%s)
 
 for n in $A $B; do boot_wait "$n" 24 > /dev/null; done
-MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2 tcp prep_cluster > "$OUT/prep.log" 2>&1
+MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2/net/mesh/direct prep_cluster > "$OUT/prep.log" 2>&1
 prc=$?
 echo "STAGE prep rc=$prc wall=$(( $(date +%s) - s0 ))s  $(grep -am1 'prep_cluster OK\|FAIL' "$OUT/prep.log" | cut -c1-140)"
 [ $prc = 0 ] || { echo "RESULT: FAIL label=$LABEL stage=prep evidence=$OUT"; exit 2; }

@@ -1,6 +1,6 @@
 #!/bin/bash
 # raw_fio_ceiling.sh — capture the shared LUN's RAW N-sharer write ceilings
-# for one deployment condition (conditions.md rig), so fio_perf_vs_xfs can
+# for one configuration's attachment and DLM (docs/attachment-methods.md), so fio_perf_vs_xfs can
 # gate cluster write aggregates against what the TRANSPORT+DEVICE actually
 # delivers to N concurrent sharers instead of against the 1-stream native-XFS
 # baseline (which a shared device cannot match at N>1 by physics: measured
@@ -9,21 +9,30 @@
 #
 # ⚠ DESTRUCTIVE: writes RAW over the shared LUN (offset-split per node).
 #   The filesystem on it is destroyed.  Run ONLY between rungs — the next
-#   `MXFS_FORCE_PREP=1 ./run.sh N <cond> prep_cluster` re-mkfs's anyway.
+#   `MXFS_FORCE_PREP=1 ./run.sh <configuration> prep_cluster` re-mkfs's anyway.
 #   Refuses to run if any node has /mnt/shared mounted (override RAWCEIL_FORCE=1).
 #
-# Usage: scripts/raw_fio_ceiling.sh <cond> [Nlist]
-#   cond  = tcp | cawd | cawp | caw   (names the output file only)
-#   Nlist = comma list, default "2,4,8,16,32"
-# Output: /src/mxfs/.raw_fio_ceiling.<cond>.json
+# Usage: [RAWCEIL_RIGTAG=<rigtag>] scripts/raw_fio_ceiling.sh <configuration> [configuration ...]
+#   e.g. scripts/raw_fio_ceiling.sh 2/net/mesh/direct 4/net/mesh/direct 8/net/mesh/direct
+#   Every configuration names the same class/method/attach; each one's node
+#   count is a sharer count measured.  The output file is named by that shape
+#   (the configuration without its node count) and holds one entry per count.
+# Output: /src/mxfs/.raw_fio_ceiling.<class-method-attach>[.<rigtag>].json
 #   { "2": {"seqW_mib": 651, "randW_iops": 1100}, ... }
 # the source-tree rule: measurement infrastructure lives in scripts/.
 set -u
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 SSH="$REPO/tools/mxfs_sshpass.sh"
 PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"
-COND="${1:?usage: raw_fio_ceiling.sh <cond> [Nlist]}"
-NLIST="${2:-2,4,8,16,32}"
+[ $# -ge 1 ] || { echo "usage: raw_fio_ceiling.sh <configuration> [configuration ...]"; exit 2; }
+COND=""; NLIST=""
+for arg in "$@"; do
+    cfg=$(python3 "$REPO/tools/configuration.py" parse "$arg") || exit 2
+    shape=$(python3 "$REPO/tools/configuration.py" get "$cfg" shape)
+    [ -z "$COND" ] || [ "$COND" = "$shape" ] || { echo "every configuration must share one shape ($COND vs $shape)"; exit 2; }
+    COND=$shape; NLIST="$NLIST${NLIST:+,}${cfg%%/*}"
+done
+COND="$COND${RAWCEIL_RIGTAG:+.$RAWCEIL_RIGTAG}"
 OUT="$REPO/.raw_fio_ceiling.${COND}.json"
 # the device under test by identity, not by path: the LUN this rig declares
 # (data/rigs.json), verified by its WWID on the node, and the node's live mxfs
@@ -34,7 +43,7 @@ MXFS_DEV=${RAWCEIL_DEV:-${MXFS_DEV:-}}; mxfs_dev_resolve test1; DEV=$MXFS_DEV_RE
 # fio's --filename splits on ':' (multi-file syntax) — an unescaped by-path
 # device name silently becomes several CREATED regular files (one lands in
 # guest devtmpfs = RAM) and the "ceiling" measures memory bandwidth
-# (2026-07-25: cawd captured 95GiB/s seqW this way).  Escape every colon.
+# (2026-07-25: disk/caw/direct captured 95GiB/s seqW this way).  Escape every colon.
 # 2026-09-05 (s515h): ONE backslash is eaten by the remote shell that parses
 # the ssh command line (the unquoted word '\:' becomes ':'), so fio still
 # split the QNAP by-path name and wrote a 22 GB regular file under /root on
@@ -62,7 +71,7 @@ fi
 # own 2048/N MB formula; rand scales 256/N (floor 8m); the size is the STRIPE
 # SPAN only — legs are time_based (ramp 5s, measure 15s) so the number is the
 # sustained pipe, not burst absorption.  (2026-07-25: the old size-bounded
-# 2-pass legs completed sub-second on the cawd in-guest-iSCSI path and
+# 2-pass legs completed sub-second on the disk/caw/direct in-guest-iSCSI path and
 # reported 68GiB/s "seqW" at N=32 — 24x the physical NVMe — pure in-flight
 # pipelining.  time_based steady-state measures what the yardstick claims:
 # what the transport+device actually delivers to N concurrent sharers.)
@@ -149,7 +158,7 @@ if [ -n "$FRAG" ]; then
 fi
 # sess10 (ccloop 72513a13): MERGE into the existing file — a partial-N
 # capture used to REPLACE the whole JSON, wiping every other N's ceiling
-# (a 16-only recapture destroyed 2/4/8/32 and the 4/tcp vs row fell back
+# (a 16-only recapture destroyed 2/4/8/32 and the 4/net/mesh/direct vs row fell back
 # to the 1-stream xfs baseline = false 38% FAIL).
 if [ -s "$OUT" ]; then
     python3 - "$OUT" <<PYEOF

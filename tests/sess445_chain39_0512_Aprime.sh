@@ -25,7 +25,7 @@ PASS=$(tools/mxfs_secrets.sh passfile 2>/dev/null)
   grep -a 'error:\|ERROR:' "$EV/build.txt" | cut -c1-200 | head -10
   if [ "$brc" -ne 0 ] || [ "$trc" -ne 0 ] || [ "$NEW" = "$OLD" ]; then echo "ABORT: build failed or srcversion unchanged"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
   strings mxfs.ko | grep -q 'P-AUTHCAP-RETYPE-OK' && echo "probe: P-AUTHCAP-RETYPE-OK present" || { echo "ABORT: A′ probe missing from mxfs.ko"; echo "DONE $(date -u +%FT%TZ)"; exit 1; }
-  timeout 300 ./run.sh 32 caw prep_cluster; prc=$?; echo "STAGE prep rc=$prc"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; prc=$?; echo "STAGE prep rc=$prc"
   if [ "$prc" -ne 0 ]; then echo "ABORT: prep failed on $(cat VERSION)"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
   STAMP=@$(date +%s)
   T0=$(date +%s); timeout 240 tests/handoff_anatomy.sh ${LABEL}burst 32 4 keep 50; echo "STAGE burst rc=$? wall=$(( $(date +%s) - T0 ))s"
@@ -35,10 +35,10 @@ PASS=$(tools/mxfs_secrets.sh passfile 2>/dev/null)
   echo "BURST: void=$(cat "$EV"/test*.burst | grep -ac 'P-AUTHCAP-VOID') retype_ok=$(cat "$EV"/test*.burst | grep -ac 'P-AUTHCAP-RETYPE-OK') retype_mixed=$(cat "$EV"/test*.burst | grep -ac 'P-AUTHCAP-RETYPE-MIXED')"
   grep -aH 'P-AUTHCAP-VOID\|P-AUTHCAP-RETYPE' "$EV"/test*.burst | cut -c1-260 | head -12
   for arm in fix inject1 inject2; do
-    timeout 300 ./run.sh 32 caw prep_cluster; prc=$?; echo "STAGE prep_$arm rc=$prc"
+    timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; prc=$?; echo "STAGE prep_$arm rc=$prc"
     if [ "$prc" -ne 0 ]; then echo "ABORT: prep failed before arm $arm"; break; fi
     T0=$(date +%s); timeout 300 tests/d0512_sf_to_block_replay.sh $LABEL $arm test2 32 test1; echo "STAGE d0512_$arm rc=$? wall=$(( $(date +%s) - T0 ))s"
   done
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep2 rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep2 rc=$?"
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

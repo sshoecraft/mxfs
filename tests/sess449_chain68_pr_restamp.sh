@@ -12,12 +12,12 @@ LOG=tests/evidence/sess449_chain68_pr_restamp_$LABEL.log
   echo "=== sess449 chain68 start $(date -u +%FT%TZ) sv=$(modinfo mxfs.ko | awk '/srcversion/{print $2}') VERSION=$(cat VERSION) p303=$(strings -a mxfs.ko | grep -c 'P303-RETIRE-PENDING-RESTAMPED') ==="
   if [ "$(strings -a mxfs.ko | grep -c 'P303-RETIRE-PENDING-RESTAMPED')" = 0 ]; then
     T0=$(date +%s); timeout 300 make modules -j8 > tests/evidence/sess449_chain68_build_$LABEL.log 2>&1; echo "STAGE build rc=$? wall=$(( $(date +%s) - T0 ))s sv=$(modinfo mxfs.ko | awk '/srcversion/{print $2}')"
-    timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep rc=$?"
+    timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep rc=$?"
   fi
   for lap in 1 2; do
     victim=$([ "$lap" = 1 ] && echo test2 || echo test11)
     T0=$(date +%s); timeout 300 tests/pr_unregister_fail_restamp.sh 32 "$victim" test1; echo "STAGE pr_restamp lap=$lap victim=$victim rc=$? wall=$(( $(date +%s) - T0 ))s"
   done
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep_after rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep_after rc=$?"
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

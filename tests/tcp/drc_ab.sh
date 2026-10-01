@@ -1,5 +1,5 @@
 #!/bin/bash
-# drc_ab.sh — A/B reliability comparison for the dir_reuse_coherency 8/tcp blocker.
+# drc_ab.sh — A/B reliability comparison for the dir_reuse_coherency 8/net/mesh/direct blocker.
 # Runs RUNS_PER iterations under each of the two modarg sets, clean-rebooting all
 # 8 nodes + clearing markers before EVERY run, and records PASS/FAIL + the
 # numeric-first fail round + loss count.  Lets us tell whether a lever is net
@@ -26,7 +26,7 @@ run_one() {  # $1=label $2=modargs
         sleep 15
         for n in 1 2 3 4 5 6 7 8; do timeout 8 $SSH test$n $PASS 'rm -f /root/drc_failrounds.txt /root/drc_*.dmesg 2>/dev/null; dmesg -C' >/dev/null 2>&1; done
         t0=$(date +%s)
-        MXFS_EXTRA_MODARGS="$modargs" timeout 590 ./run.sh 8 tcp dir_reuse_coherency > "$SCR/ab_${label}_${run}.log" 2>&1
+        MXFS_EXTRA_MODARGS="$modargs" timeout 590 ./run.sh 8/net/mesh/direct dir_reuse_coherency > "$SCR/ab_${label}_${run}.log" 2>&1
         rc=$?; t1=$(date +%s)
         if grep -q "PASS  dir_reuse_coherency" "$SCR/ab_${label}_${run}.log"; then
             res=PASS; pass=$((pass+1)); fr=""

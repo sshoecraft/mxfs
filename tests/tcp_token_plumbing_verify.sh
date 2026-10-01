@@ -10,7 +10,7 @@
 # (pal/linux/xfs_buf_item.c), which is exactly why the replay gate could never
 # match a TCP image against any manifest (D-0288).
 #
-# Shape (fleet already prepped 32/tcp by the caller):
+# Shape (fleet already prepped 32/net/mesh/direct by the caller):
 #   1. srcgate: every workload node runs the TREE's srcversion.
 #   2. Snapshot the last P228-TOKCLASS + P239-OWNAUTH block on each node.
 #   3. Each workload node creates FILES 4 KiB files in a private directory,

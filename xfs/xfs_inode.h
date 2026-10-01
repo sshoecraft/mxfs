@@ -659,6 +659,13 @@ typedef struct xfs_inode {
 	uint8_t			i_dlm_punt_n[2];
 	u64			i_dlm_demoter_punt_ns;
 	/*
+	 * TEST ONLY (dbg_demoter_keep_inject): the task that planted slot 1's
+	 * claim through the injector, not a drain (compared, never
+	 * dereferenced).  That task's next lock of this inode consumes the
+	 * claim, so a planted claim lives only between two of its operations.
+	 */
+	void			*i_dlm_demoter_injected;
+	/*
 	 * this inode has already been named by P214-DEMOTER-STRANDED.
 	 * A strand causes hundreds of bails; without this the one line that
 	 * identifies it is indistinguishable from the flood it causes, and

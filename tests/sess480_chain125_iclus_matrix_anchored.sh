@@ -66,7 +66,7 @@ install_ko() { # <ko> <label>
     echo "DONE $(date -u +%FT%TZ)"; exit 1; }
 
   export MXFS_EXTRA_MODARGS='icluster_dlm=1 dino_clobber_check=1'
-  timeout 300 ./run.sh 32 caw prep_cluster; prc=$?
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; prc=$?
   unset MXFS_EXTRA_MODARGS
   echo "STAGE prep rc=$prc"
   [ "$prc" = 0 ] || { echo "ABORT: prep rc=$prc"; echo "DONE $(date -u +%FT%TZ)"; exit 1; }
@@ -78,7 +78,7 @@ install_ko() { # <ko> <label>
   echo "STAGE preflight rc=$rc wall=$(( $(date +%s) - T0 ))s"
   if [ "$rc" != 0 ]; then
     echo "STOP: the cluster-release path is NOT reachable, so the 4-arm matrix would be vacuous exactly as chains 85/89/100/s480f_mx were.  NOT starting it — that is the whole point of this pre-flight.  Fix the trigger, then re-run this chain."
-    install_ko "$PROD_KO" prod; timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep_prod rc=$?"
+    install_ko "$PROD_KO" prod; timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep_prod rc=$?"
     echo "DONE $(date -u +%FT%TZ)"; exit 1
   fi
 
@@ -90,6 +90,6 @@ install_ko() { # <ko> <label>
   grep -a '^=== arm\|^VERDICT\|VACUOUS ARM\|^PREKILL\|PREKILL-ANCHORS\|anchors:' "$M/matrix.txt" 2>/dev/null | cut -c1-260 | head -60
 
   install_ko "$PROD_KO" prod || echo "WARN: prod restore failed — the tree is LEFT ON THE LAB MODULE"
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep_prod rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep_prod rc=$?"
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

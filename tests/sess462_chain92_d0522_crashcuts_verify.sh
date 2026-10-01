@@ -33,10 +33,10 @@ lap() { # <budget_s> <label> <cmd...>
   FSV=$(timeout 20 $SSH test1 'cat /sys/module/mxfs/srcversion' 2>/dev/null | grep -aE '^[0-9A-F]{20,}$')
   echo "=== sess462 chain92 START $(date -u +%FT%TZ) tree VERSION=$(cat VERSION) sv=$SV fleet_sv=$FSV modinfo_lab=$(modinfo mxfs.ko | grep -c 'mxfs_iclus_relmark_lab') fix_string=$(strings -a mxfs.ko | grep -c 'P304-RETIRE-QUARANTINE-AGAIN') r8_string=$(strings -a mxfs.ko | grep -c 'mxfs_domain_admitted_announce\|P-DOMAIN-ADMITTED') ==="
   if [ "$(strings -a mxfs.ko | grep -c 'P304-RETIRE-QUARANTINE-AGAIN')" = 0 ] || [ "$(modinfo mxfs.ko | grep -c 'mxfs_iclus_relmark_lab')" != 0 ]; then echo "ABORT: tree mxfs.ko is not the production build carrying the D-0522 fix"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
-  lap 300 prep ./run.sh 32 caw prep_cluster
+  lap 300 prep ./run.sh 32/disk/caw/mpath prep_cluster
   lap 200 "d0522 settle arm=workerhang victim=test5"      tests/settle_token_arms.sh 32 test5 test1 workerhang
   lap 240 "d0522 settle arm=workerhangheld victim=test7"  env SETTLE_VICTIM2=test8 tests/settle_token_arms.sh 32 test7 test1 workerhangheld
-  lap 300 prep_after_settle ./run.sh 32 caw prep_cluster
+  lap 300 prep_after_settle ./run.sh 32/disk/caw/mpath prep_cluster
   lap 300 "cond3 crashcut 1 precas victim=test9"     tests/depart_crash_cuts.sh 32 test9  test1 1
   lap 300 "cond3 crashcut 2 postcas victim=test10"   tests/depart_crash_cuts.sh 32 test10 test1 2
   lap 300 "cond3 crashcut 3 preunreg victim=test11"  tests/depart_crash_cuts.sh 32 test11 test1 3
@@ -44,6 +44,6 @@ lap() { # <budget_s> <label> <cmd...>
   lap 240 "cond4 domain_admission_matrix test32"     tests/domain_admission_matrix.sh $LABEL test32
   echo "=== laps done $(date -u +%FT%TZ) ==="
   grep -a '^STAGE\|PASS @\|FAIL\|VERDICT' "$LOG" | tail -40
-  lap 300 prep_final ./run.sh 32 caw prep_cluster
+  lap 300 prep_final ./run.sh 32/disk/caw/mpath prep_cluster
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

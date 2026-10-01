@@ -46,7 +46,7 @@
 # derived time budget (from MEASURED walls, not padded):
 #   oracle: setup ~10 s + 6 s writing + ~62 s death detection + fence/
 #     seal/replay ~15-25 s + verify ~10 s + V restart ~60 s = ~170 s
-#     (measured 167-169 s at 2/tcp, tests/criteria/TIMEOUT_BUDGETS.md);
+#     (measured 167-169 s at 2/net/mesh/direct, tests/criteria/TIMEOUT_BUDGETS.md);
 #     its own caller bound 240 s
 #   stat of the replayed files ~3 s; W's lone unmount typ 3 s, bound 120 s;
 #     chk_mxfs -v on the 50 G device 10-35 s, bound 120 s; geometry ~2 s

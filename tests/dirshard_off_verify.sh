@@ -5,7 +5,7 @@
 # (XFS sb incompat bit 29, envelope MXFS_FORMAT_F_DIRSHARD) unless given -D,
 # and the module refuses MXFS_IOC_DIRSHARD_MKDIR unless dirshard_mkdir_enable
 # is set.  This checks the default format end to end on the 2-node rig:
-#   1. prep 2/tcp with the default mkfs (no -D)
+#   1. prep 2/net/mesh/direct with the default mkfs (no -D)
 #   2. both nodes: the module parameter reads N, the mount logged dirshard=off
 #   3. both nodes: sharded mkdir refused EOPNOTSUPP with the parameter off,
 #      and STILL refused with it on (the format has no gates); nothing created
@@ -13,7 +13,7 @@
 #   5. umount both; chk_mxfs -v: both gates clear, rc=0, zero errors
 #
 # derived time budgets: prep 400 s (tests/lu_reset_bystander_eh.sh's bound for
-# the same 2/tcp prep); each probe is one ssh round trip plus at most a few
+# the same 2/net/mesh/direct prep); each probe is one ssh round trip plus at most a few
 # syscalls, bound 20 s; umount 60 s per node; chk 120 s.
 # Exit 0 PASS, 1 FAIL, 2 ABORT.
 set -u
@@ -34,7 +34,7 @@ bad() { echo "FAIL: $*"; fails=$((fails+1)); }
 echo "=== dirshard_off_verify $LABEL START $(date -u +%FT%TZ) VERSION=$(cat VERSION) sv=$(modinfo -F srcversion mxfs.ko) out=$OUT ==="
 
 T0=$(date +%s)
-MXFS_MKFS_OPTS= MXFS_FORCE_PREP=1 timeout 400 ./run.sh 2 tcp prep_cluster > "$OUT/prep.log" 2>&1; rc=$?
+MXFS_MKFS_OPTS= MXFS_FORCE_PREP=1 timeout 400 ./run.sh 2/net/mesh/direct prep_cluster > "$OUT/prep.log" 2>&1; rc=$?
 echo "STAGE prep rc=$rc wall=$(( $(date +%s) - T0 ))s"
 [ $rc = 0 ] || { echo "RESULT: ABORT label=$LABEL stage=prep evidence=$OUT"; exit 2; }
 SV=$(modinfo -F srcversion mxfs.ko)

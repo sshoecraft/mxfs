@@ -1,17 +1,18 @@
 #!/bin/bash
 # cc_loop.sh — targeted reproducer loop for the sess15 crash_consistency face
-# (2/tcp r3: durably-corrupt dinode + inobt CRC read-fail + EIO shutdown;
+# (2/net/mesh/direct r3: durably-corrupt dinode + inobt CRC read-fail + EIO shutdown;
 # see docs/history/sess15run-state-ladder-tally-and-crashcc-face.md).
 #
-# Recycles the cluster ONCE, then loops `./run.sh <N> <dlm> [pre] crash_consistency`
+# Recycles the cluster ONCE, then loops `./run.sh <N> <class>/<method>/<attach> [pre] crash_consistency`
 # on the same boot.  Each lap gets a fresh mkfs from run.sh; the P15I probe
 # (build 3AD15DA9+) fingerprints per-sector CRCs on any read-verify failure.
 # Stops at the FIRST failing lap and harvests both nodes' dmesg + the raw
 # platter block for any P15I daddr.
 #
-# Usage: tests/cc_loop.sh [N] [dlm] [laps] [pre_test]
+# Usage: tests/cc_loop.sh [configuration, default 2/net/mesh/direct] [laps] [pre_test]
 set -u
-N="${1:-2}"; DLM="${2:-tcp}"; LAPS="${3:-8}"; PRE="${4:-}"
+CONFIG=$(python3 "$(dirname "$0")/../tools/configuration.py" parse "${1:-2/net/mesh/direct}") || exit 2; N=${CONFIG%%/*}; DLM=${CONFIG#*/}
+LAPS="${2:-8}"; PRE="${3:-}"
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")"/.. && pwd)
 cd "$REPO"
 
@@ -26,7 +27,7 @@ echo "cc_loop: nodes up"
 for lap in $(seq 1 "$LAPS"); do
     echo "=== cc_loop lap $lap/$LAPS $(date -u +%H:%M:%S) ==="
     # budget: prep ~120s + drc 100*N + cc ~90s (budget)
-    out=$(timeout $((240 + 100*N)) ./run.sh "$N" "$DLM" ${PRE:+$PRE} crash_consistency 2>&1 | tail -8)
+    out=$(timeout $((240 + 100*N)) ./run.sh "$CONFIG" ${PRE:+$PRE} crash_consistency 2>&1 | tail -8)
     echo "$out"
     if echo "$out" | grep -q "FAIL"; then
         echo "=== cc_loop lap $lap FAILED — harvesting ==="

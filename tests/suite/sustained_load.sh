@@ -8,9 +8,9 @@
 #   been used by the preceding tests.
 #
 #     condition          test                fresh prep    after prior work
-#     32/caw @0.11.163   rsync_paired        PASS 14 s     0/32, hung at 60 s
-#     32/caw @0.11.163   crash_consistency   PASS 32/32    31/32
-#     32/caw @0.11.167   crash_consistency   PASS 57 s     0/32, hung at 90 s
+#     32/disk/caw/mpath @0.11.163   rsync_paired        PASS 14 s     0/32, hung at 60 s
+#     32/disk/caw/mpath @0.11.163   crash_consistency   PASS 32/32    31/32
+#     32/disk/caw/mpath @0.11.167   crash_consistency   PASS 57 s     0/32, hung at 90 s
 #
 #   Running the IDENTICAL 13-test sequence on a fresh prep passes every time,
 #   so this is NOT test ordering — it is accumulated mount state.  Every other
@@ -46,7 +46,7 @@ OPS=$(( 640 / T ))
 BASE="$MNT/.sustained_load"
 
 # ccloop c7ee71c6 sess28 — PHASE TIMERS.  This criterion used to time ONLY the
-# op loop, and that hid where its budget actually goes: measured 32/caw on an
+# op loop, and that hid where its budget actually goes: measured 32/disk/caw/mpath on an
 # aged mount, it reported wall=3978ms per_op=198ms and still consumed the full
 # 180 s budget with 4 of 32 nodes never producing a terminal record.  20 ops at
 # ~198 ms is ~4 s of operations against a 180 s wall, so ~97% of the elapsed

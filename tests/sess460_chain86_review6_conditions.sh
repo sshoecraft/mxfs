@@ -8,7 +8,7 @@
 # dbg_cas_nocaw_ops, all default-off).
 #   build   make modules + make tools; abort unless the .ko carries the three
 #           injector strings
-#   prep    prep_cluster @ 32/caw
+#   prep    prep_cluster @ 32/disk/caw/mpath
 #   cond 4  G1 admission matrix on 0.61.x: vergate noncaw_refuse,
 #           fence_capability_admission (3 arms), domain_admission_matrix (R8 =
 #           TCP refusal) — all on test32
@@ -38,7 +38,7 @@ lap() { # <budget_s> <label> <cmd...>
   s1=$(strings -a mxfs.ko | grep -c 'P-DBG-DEPART-CUT'); s2=$(strings -a mxfs.ko | grep -c 'P-DBG-RETIRE-HANG'); s3=$(strings -a mxfs.ko | grep -c 'P-DBG-CAS-NOCAW')
   echo "STAGE build rc=$brc wall=$(( $(date +%s) - T0 ))s sv=$(modinfo mxfs.ko | awk '/srcversion/{print $2}') errors=$(grep -c 'error:' tests/evidence/sess460_chain86_build_$LABEL.log) strings cut=$s1 hang=$s2 nocaw=$s3"
   if [ "$brc" != 0 ] || [ "$s1" = 0 ] || [ "$s2" = 0 ] || [ "$s3" = 0 ]; then echo "ABORT: build failed or injector strings missing"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
-  lap 300 prep ./run.sh 32 caw prep_cluster
+  lap 300 prep ./run.sh 32/disk/caw/mpath prep_cluster
   lap 120 "cond4 vergate noncaw_refuse test32"     tests/vergate.sh test32 noncaw_refuse
   lap 120 "cond4 fence_cap_admission test32"       tests/fence_capability_admission.sh test32
   lap 240 "cond4 domain_admission_matrix test32"   tests/domain_admission_matrix.sh $LABEL test32
@@ -58,6 +58,6 @@ lap() { # <budget_s> <label> <cmd...>
   lap 90  "cond4 nocaw arm=settleown victim=test19" tests/cas_nocaw_arms.sh 32 test19 test1 settleown
   lap 280 "cond4 nocaw arm=guard victim=test20"     tests/cas_nocaw_arms.sh 32 test20 test1 guard
   lap 280 "cond4 nocaw arm=milestone victim=test21" tests/cas_nocaw_arms.sh 32 test21 test1 milestone
-  lap 300 prep_after ./run.sh 32 caw prep_cluster
+  lap 300 prep_after ./run.sh 32/disk/caw/mpath prep_cluster
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

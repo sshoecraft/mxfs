@@ -3075,6 +3075,31 @@ xfs_create(
 		xfs_iunlock(dp, XFS_ILOCK_EXCL);
 		goto out_trans_cancel;
 	}
+	/*
+	 * A parent directory a peer has already removed takes no new names.
+	 * On one node the VFS refuses this (IS_DEADDIR: vfs_rmdir marks the
+	 * directory dead), but only on the node that ran the rmdir; every other
+	 * node learns of the removal through the grant it just acquired, which
+	 * reloads the directory with nlink 0 and nothing else.  Measured before
+	 * this check: a peer's mkdir committed its entry into a directory whose
+	 * nlink was 0 in core and on the platter; the directory was then freed
+	 * with the entry, leaving the child with no name and a '..' naming a
+	 * free inode (cold audit: dangling=1).  Refused here, before
+	 * xfs_dialloc, while the transaction is still clean.
+	 */
+	if (unlikely(VFS_I(dp)->i_nlink == 0)) {
+		static atomic_t pref = ATOMIC_INIT(0);
+
+		if (atomic_inc_return(&pref) <= 200)
+			pr_err("mxfs: P-CREATE-DEADPARENT-REFUSED dp=%llu dp_gen=%u is_dir=%d comm=%s pid=%d\n",
+				(unsigned long long)dp->i_ino,
+				VFS_I(dp)->i_generation, is_dir ? 1 : 0,
+				current->comm, current->pid);
+		ino = 0;
+		xfs_iunlock(dp, XFS_ILOCK_EXCL);
+		error = -ENOENT;
+		goto out_trans_cancel;
+	}
 	mxfs_inode_pin(dp);
 	xfs_iunlock(dp, XFS_ILOCK_EXCL);
 	error = xfs_dialloc(&tp, args, &ino);
@@ -3176,6 +3201,21 @@ xfs_create(
 		    dp->i_dlm_dir_gen > 0)
 			mxfs_dir_modify_adopt_disk_format(dp,
 					XFS_ILOCK_EXCL | XFS_ILOCK_PARENT);
+		/*
+		 * Instrument: the dead-parent refusal above runs before
+		 * xfs_dialloc, which drops dp's ILOCK.  If the parent can be
+		 * removed by a peer inside that window, this fires.
+		 * Observation only, capped, KERN_ERR.
+		 */
+		if (unlikely(VFS_I(dp)->i_nlink == 0)) {
+			static atomic_t ppd = ATOMIC_INIT(0);
+
+			if (atomic_inc_return(&ppd) <= 200)
+				pr_err("mxfs: P-CREATE-DEADDIR-POSTDIALLOC dp=%llu dp_gen=%u is_dir=%d dlm_mode=%d comm=%s pid=%d\n",
+					(unsigned long long)dp->i_ino,
+					VFS_I(dp)->i_generation, is_dir ? 1 : 0,
+					dp->i_dlm_mode, current->comm, current->pid);
+		}
 		if (p132_t0)
 			p132_trfr = ktime_get_ns();
 
@@ -3576,7 +3616,6 @@ xfs_create(
 		goto out_release_inode;
 	if (p132_t0)
 		p132_tcommit = ktime_get_ns();
-
 	xfs_qm_dqrele(udqp);
 	xfs_qm_dqrele(gdqp);
 	xfs_qm_dqrele(pdqp);
@@ -4065,6 +4104,37 @@ xfs_projid_differ(
 	return 0;
 }
 
+/*
+ * A directory a peer has removed takes no new names, whichever operation
+ * brings the name.  The reason is the one in xfs_create: the VFS refuses a
+ * removed directory through IS_DEADDIR only on the node that ran the rmdir,
+ * and every other node sees the removal only as nlink 0 on the inode its
+ * grant reloaded.  A name inserted there is freed with the directory, and
+ * the inode it named keeps a link count that no entry accounts for.
+ *
+ * Caller holds dp's ILOCK under its grant with the transaction still clean,
+ * so a refusal is an ordinary clean cancel.
+ */
+int
+mxfs_insert_deadparent(
+	struct xfs_inode	*dp,
+	const char		*op)
+{
+	static atomic_t		seen = ATOMIC_INIT(0);
+
+	if (likely(VFS_I(dp)->i_nlink != 0))
+		return 0;
+	if (atomic_inc_return(&seen) <= 200)
+		pr_err("mxfs: %s dp=%llu dp_gen=%u op=%s comm=%s pid=%d\n",
+			mxfs_insert_deadparent_refuse ?
+				"P-INSERT-DEADPARENT-REFUSED" :
+				"P-INSERT-DEADPARENT-SEEN",
+			(unsigned long long)dp->i_ino,
+			VFS_I(dp)->i_generation, op,
+			current->comm, current->pid);
+	return mxfs_insert_deadparent_refuse ? -ENOENT : 0;
+}
+
 int
 xfs_link(
 	struct xfs_inode	*tdp,
@@ -4162,6 +4232,10 @@ xfs_link(
 			goto out_parent;
 		}
 	}
+
+	error = mxfs_insert_deadparent(tdp, "link");
+	if (error)
+		goto error_return;
 
 	/*
 	 * We don't allow reservationless or quotaless hardlinking when parent
@@ -7987,6 +8061,9 @@ retry:
 				goto out_trans_cancel;
 		}
 	}
+	error = mxfs_insert_deadparent(target_dp, "rename");
+	if (error)
+		goto out_trans_cancel;
 
 	/*
 	 * Join all the inodes to the transaction.

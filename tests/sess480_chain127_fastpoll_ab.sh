@@ -56,7 +56,7 @@ while ! grep -q "^DONE" "$GATE" 2>/dev/null; do sleep 30; done
   echo "STAGE install_prod sv=$sv want=$PROD_SV"
   [ "$sv" = "$PROD_SV" ] || { echo "ABORT: srcversion mismatch"; echo "DONE $(date -u +%FT%TZ)"; exit 1; }
 
-  timeout 300 ./run.sh 32 caw prep_cluster >/dev/null 2>&1; prc=$?
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster >/dev/null 2>&1; prc=$?
   echo "STAGE prep rc=$prc"
   [ "$prc" = 0 ] || { echo "ABORT: prep rc=$prc"; echo "DONE $(date -u +%FT%TZ)"; exit 1; }
 
@@ -78,7 +78,7 @@ while ! grep -q "^DONE" "$GATE" 2>/dev/null; do sleep 30; done
     fi
     # harness-lint: ok - pinned before the row and compared with $post below
     pre=$(ls -dt tests/evidence/run_crash_consistency_* 2>/dev/null | head -1)
-    timeout 160 ./run.sh 32 caw crash_consistency > "$O/cc_fp${fp}_$lap.out" 2>&1
+    timeout 160 ./run.sh 32/disk/caw/mpath crash_consistency > "$O/cc_fp${fp}_$lap.out" 2>&1
     echo "STAGE cc_fp${fp}_$lap rc=$?"
     # harness-lint: ok - compared against $pre, which is the freshness check
     post=$(ls -dt tests/evidence/run_crash_consistency_* 2>/dev/null | head -1)

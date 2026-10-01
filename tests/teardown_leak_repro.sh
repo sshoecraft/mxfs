@@ -16,7 +16,7 @@
 # prepped at N first; each cycle leaves the cluster UNMOUNTED+rmmod'd and
 # re-preps at the start of the next via run.sh prep_cluster.)
 set -u
-N="${1:-8}"; CYCLES="${2:-1}"
+CONFIG=$(python3 "$(dirname "$0")/../tools/configuration.py" parse "${1:-8/disk/caw/mpath}") || exit 2; N=${CONFIG%%/*}; CYCLES="${2:-1}"
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 REPO=$(cd -- "$SCRIPT_DIR/.." && pwd)
 SSH="$REPO/tools/mxfs_sshpass.sh"
@@ -26,7 +26,7 @@ cd "$REPO" || exit 2
 leaks_total=0
 for c in $(seq 1 "$CYCLES"); do
 	echo "=========== teardown cycle $c/$CYCLES (N=$N) ==========="
-	MXFS_FORCE_PREP=1 timeout 580 ./run.sh "$N" caw prep_cluster 2>&1 | tail -1
+	MXFS_FORCE_PREP=1 timeout 580 ./run.sh "$CONFIG" prep_cluster 2>&1 | tail -1
 	# churn: cross-node create/rm in ONE shared dir (stranded releases need
 	# cross-node grant-gen movement), 10s, backgrounded on every node
 	for i in $(seq 1 "$N"); do

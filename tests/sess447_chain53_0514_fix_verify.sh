@@ -22,7 +22,7 @@ LOG=tests/evidence/sess447_chain53_0514_fix_verify_$LABEL.log
   NEW=$(modinfo mxfs.ko | awk '/srcversion/{print $2}')
   echo "STAGE build rc=$brc old_sv=$OLD new_sv=$NEW errors=$(grep -c 'error:' tests/evidence/sess447_chain53_build_$LABEL.log)"
   if [ "$brc" -ne 0 ] || [ "$NEW" = "$OLD" ]; then echo "ABORT: build failed or srcversion unchanged"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
-  timeout 300 ./run.sh 32 caw prep_cluster; prc=$?; echo "STAGE prep rc=$prc"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; prc=$?; echo "STAGE prep rc=$prc"
   if [ "$prc" -ne 0 ]; then echo "ABORT: prep failed"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
   timeout 30 tools/mxfs_sshpass.sh test1 "echo 30000 > /sys/module/mxfs/parameters/dbg_sweep_hold_ms; echo knob=\$(cat /sys/module/mxfs/parameters/dbg_sweep_hold_ms)" 2>/dev/null | grep -a knob
   OUT=tests/evidence/$(date -u +%Y%m%dT%H%M%SZ)_d0514_fixF_$LABEL; mkdir -p "$OUT"
@@ -36,13 +36,13 @@ LOG=tests/evidence/sess447_chain53_0514_fix_verify_$LABEL.log
   if [ -n "$th" ] && [ -n "$te" ] && [ -n "$tl" ] && [[ "$tl" > "$th" ]] && [[ "$tl" < "$te" ]]; then echo "LAPF VERDICT PASS: victim B's lease landed during the parked sweep"; else echo "LAPF VERDICT FAIL: lease not inside the hold window"; fi
   timeout 30 tools/mxfs_sshpass.sh test1 "echo 0 > /sys/module/mxfs/parameters/dbg_sweep_hold_ms" 2>/dev/null
   for lap in 1 2 3; do
-    timeout 300 ./run.sh 32 caw prep_cluster; prc=$?; echo "STAGE prep$lap rc=$prc"
+    timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; prc=$?; echo "STAGE prep$lap rc=$prc"
     if [ "$prc" -ne 0 ]; then echo "ABORT: prep failed"; break; fi
-    T0=$(date +%s); timeout 500 ./run.sh 32 caw node_death_replay; echo "STAGE node_death_replay$lap rc=$? wall=$(( $(date +%s) - T0 ))s"
+    T0=$(date +%s); timeout 500 ./run.sh 32/disk/caw/mpath node_death_replay; echo "STAGE node_death_replay$lap rc=$? wall=$(( $(date +%s) - T0 ))s"
     D=$(ls -dt tests/evidence/board_*_node_death_replay | head -1); echo "EVIDENCE $D"
     for l in shared single; do echo "LAP$lap $l: $(grep -a '^VERDICT\|WAIT ' $D/$l.log 2>/dev/null | head -2 | cut -c1-160 | tr '\n' ' ')"; done
     echo "LAP$lap steps>=1s: $(cat $D/*/recov_test*.txt 2>/dev/null | grep -ac 'P97-SWEEP-STEP') deferred: $(cat $D/*/recov_test*.txt 2>/dev/null | grep -ac 'SWEEP-DEFERRED')"
   done
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep_final rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep_final rc=$?"
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

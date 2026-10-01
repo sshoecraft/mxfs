@@ -111,7 +111,7 @@
 #     AG, refused by the guard); the harness counts both.
 #   FIX closes it only with window lines from 32/32 nodes, no hang, every
 #     after-publication counter zero, zero xfsaild refusals, pre_wr>0 on >=1
-#     node, seal violations 0 — then a plain 32/caw board on the fixed build.
+#     node, seal violations 0 — then a plain 32/disk/caw/mpath board on the fixed build.
 #
 # Usage:  setsid nohup bash tests/sess485_chain133_agfree_hoist_ab.sh s485a &
 #         LEGS=base GATE=<log> setsid nohup bash tests/sess485_chain133_agfree_hoist_ab.sh s486a &
@@ -125,7 +125,7 @@ LOG=tests/evidence/sess485_chain133_agfree_hoist_$LABEL.log
 EV=tests/evidence/sess485_agfree_hoist_$LABEL
 BASE_KO=${BASE_KO:-tests/evidence/sess483_chain132_frozen_0692/mxfs.ko}
 FIX_KO=${FIX_KO:-tests/evidence/sess485_frozen_0693/mxfs.ko}
-NNODES=${NNODES:-32}
+CONFIG=$(python3 "$(dirname "$0")/../tools/configuration.py" parse "${CONFIG:-32/disk/caw/mpath}") || exit 2; NNODES=${CONFIG%%/*}
 FILES=${FILES:-400}
 MNT=/mnt/shared
 IMG=$(tools/mxfs_host_image.sh) || { echo "$IMG"; exit 2; }
@@ -167,7 +167,7 @@ leg() {
     install_ko "$KO" "$NAME" || { echo "  ABORT LEG: install failed"; return 1; }
     local SV; SV=$(modinfo mxfs.ko | awk '/srcversion/{print $2}')
 
-    timeout 300 ./run.sh "$NNODES" caw prep_cluster; rc=$?
+    timeout 300 ./run.sh "$CONFIG" prep_cluster; rc=$?
     echo "  STAGE prep rc=$rc"
     [ "$rc" = 0 ] || { echo "  ABORT LEG: prep rc=$rc — nothing below measures anything"; return 1; }
 

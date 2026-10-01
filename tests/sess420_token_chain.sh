@@ -4,8 +4,8 @@
 #
 #  0. build VERSION (make modules + make tools) and PROVE it complete (second
 #     make compiles nothing — see sess419_master_chain.sh for why).
-#  1. 32/tcp prep (mpatha condition); tests/tcp_token_plumbing_verify.sh
-#  2. 32/caw prep; full board (tests/sess416_board_0286.sh) — CAW regression
+#  1. 32/net/mesh/direct prep (mpatha condition); tests/tcp_token_plumbing_verify.sh
+#  2. 32/disk/caw/mpath prep; full board (tests/sess416_board_0286.sh) — CAW regression
 #     for a change that only touches the TCP arms, but the arms are shared
 #     entry points and the zero-defect bar wants the board green on every build boarded.
 #
@@ -15,11 +15,11 @@
 LABEL=${1:?label}
 cd "$(dirname "$0")/.." || exit 2
 LOG=tests/evidence/sess420_token_${LABEL}.log
-MXFS_DEV=${MXFS_DEV:?this chain ran the tcpmp condition, TCP over the multipath LUN: name that LUN with MXFS_DEV (never assumed from a rig path)}
-TCPENV="MXFS_DEV=$MXFS_DEV MXFS_CRIT=/src/mxfs/criteria.tcpmp.json"
+MXFS_DEV=${MXFS_DEV:?this chain ran net/mesh/mpath, TCP over the multipath LUN: name that LUN with MXFS_DEV (never assumed from a rig path)}
+TCPENV="MXFS_DEV=$MXFS_DEV MXFS_CRIT=/src/mxfs/criteria.net-mesh-mpath.json"
 E=tests/evidence
-prep_caw() { timeout 300 ./run.sh 32 caw prep_cluster > "$E/sess420_token_${LABEL}_prep_$1.log" 2>&1; echo "STAGE prep caw $1 rc=$?"; }
-prep_tcp() { env $TCPENV timeout 300 ./run.sh 32 tcp prep_cluster > "$E/sess420_token_${LABEL}_prep_$1.log" 2>&1; echo "STAGE prep tcp $1 rc=$?"; }
+prep_caw() { timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster > "$E/sess420_token_${LABEL}_prep_$1.log" 2>&1; echo "STAGE prep caw $1 rc=$?"; }
+prep_tcp() { env $TCPENV timeout 300 ./run.sh 32/net/mesh/direct prep_cluster > "$E/sess420_token_${LABEL}_prep_$1.log" 2>&1; echo "STAGE prep tcp $1 rc=$?"; }
 {
   echo "=== token chain $LABEL start $(date -u +%FT%TZ) build=$(cat VERSION) ==="
   B="$E/sess420_token_${LABEL}_build.log"

@@ -230,7 +230,7 @@ for ent in $pending; do
     # the probe census uses.  Without this the loss can only be matched to a
     # kernel probe by round NUMBER, and the losing rounds are torn down
     # (TEARDOWN_LAG) before anything can stat them — which is exactly what
-    # blocked the 8/caw capture where P34J-RELOAD-RACE-BAIL=5 matched
+    # blocked the 8/disk/caw/mpath capture where P34J-RELOAD-RACE-BAIL=5 matched
     # durable_loss=5 but bail and loss could not be tied to the same round.
     # The parent inode is what the reload/bail machinery names, so this is the
     # join key.

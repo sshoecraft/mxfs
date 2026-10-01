@@ -28,17 +28,17 @@ mkdir -p "$EV"
   if [ "$brc" -ne 0 ] || [ "$NEW" = "$OLD" ]; then echo "ABORT: build failed or srcversion unchanged"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
   for arm in concurrent midscan; do
     for t in $(seq 1 20); do timeout 10 tools/mxfs_sshpass.sh test8 "uptime" >/dev/null 2>&1 && break; sleep 10; done
-    timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep_$arm rc=$?"
+    timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep_$arm rc=$?"
     timeout 200 tests/d_purge_nonatomic_verify.sh ${LABEL}_$arm $arm; echo "STAGE $arm rc=$?"
   done
   for t in $(seq 1 20); do timeout 10 tools/mxfs_sshpass.sh test8 "uptime" >/dev/null 2>&1 && break; sleep 10; done
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep_cc rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep_cc rc=$?"
   timeout 60 tests/quiet_console.sh 32 2>/dev/null; echo "STAGE quiet rc=$?"
   timeout 60 tests/cc_grantwait.sh mark 32; echo "STAGE mark rc=$?"
-  timeout 130 ./run.sh 32 caw crash_consistency; echo "STAGE cc rc=$?"
-  tools/criteria.py 32 caw 2>/dev/null | grep -a 'crash_consistency'
+  timeout 130 ./run.sh 32/disk/caw/mpath crash_consistency; echo "STAGE cc rc=$?"
+  tools/criteria.py 32/disk/caw/mpath 2>/dev/null | grep -a 'crash_consistency'
   timeout 240 tests/cc_grantwait.sh report 32 > "$EV/grantwait_report.txt" 2>&1; echo "STAGE report rc=$?"
   head -60 "$EV/grantwait_report.txt"
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep_final rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep_final rc=$?"
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

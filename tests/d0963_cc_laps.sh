@@ -12,7 +12,7 @@
 # not.  So the reproduction IS the criterion, driven by run.sh exactly as the
 # board drives it, with the merge diagnostics armed on both nodes.
 #
-# Per lap: a kernel-log marker on both nodes, one `run.sh 2 tcp
+# Per lap: a kernel-log marker on both nodes, one `run.sh 2/net/mesh/direct
 # cache_coherency`, then from each node's log window since the marker:
 #   readd    P-SFM-READD lines      (the merge re-added an entry: the defect's
 #                                    own signature, printed under sfm_dbg=1)
@@ -77,7 +77,7 @@ own_total=0
 for r in $(seq 1 "$LAPS"); do
     MK="D0963CC-$LABEL-$$-r$r"
     for n in $A $B; do rs 15 "$n" "echo '$MK' > /dev/kmsg" >/dev/null; done
-    ./run.sh 2 tcp cache_coherency > "$OUT/run_lap$r.log" 2>&1
+    ./run.sh 2/net/mesh/direct cache_coherency > "$OUT/run_lap$r.log" 2>&1
     rrc=$?
     verdict=$(grep -a '^  \(PASS\|FAIL\|FLAKY\|INFRA\)  cache_coherency' "$OUT/run_lap$r.log" | head -1 | sed 's/^ *//')
     v=""

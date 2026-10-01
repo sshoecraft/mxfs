@@ -30,7 +30,7 @@ echo "  INFO arm0 (knob off) rc=$rc0 disklive_or_shutdown_signatures=$sig0 X_han
 # shutdown, i.e. the live platter dinode was clobbered by the create).  Either
 # is the defect; the arm only fails to reproduce when NEITHER appears.
 if [ "$rc0" -ne 0 ] && { [ "${sig0:-0}" -gt 0 ] || [ "${gotx0:-0}" -gt 0 ]; }; then echo "  PASS arm0 reproduced the pre-containment failure (sig=$sig0 X_handed_out=$gotx0)"; else echo "  FAIL arm0 did not reproduce the pre-containment failure (rc=$rc0 sig=$sig0 X_handed_out=${gotx0:-?})"; fails=$((fails+1)); fi
-timeout 300 ./run.sh 32 caw prep_cluster > "$E/ab_${LABEL}_prep.log" 2>&1; prc=$?
+timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster > "$E/ab_${LABEL}_prep.log" 2>&1; prc=$?
 echo "  INFO prep rc=$prc"
 [ $prc -eq 0 ] || { echo "  FAIL prep after arm0 failed"; fails=$((fails+1)); }
 MXFS_DIALLOC_VALIDATE=1 timeout 180 tests/dialloc_disklive_inject.sh "${LABEL}k1" "$NODE" "$PEER" 16 > "$E/ab_${LABEL}_k1.txt" 2>&1; rc1=$?

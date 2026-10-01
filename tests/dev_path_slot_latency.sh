@@ -13,7 +13,7 @@
 #     /dev/mapper/mpatha       (dm-multipath over sda+sdb)  CAW  FAIL >90s
 #     /dev/sda                 (direct)                     TCP  PASS  37s
 #
-# cawp vs caw is the same CAW protocol with only mpatha-vs-sda changed, so the
+# disk/caw/pass vs disk/caw/mpath is the same CAW protocol with only mpatha-vs-sda changed, so the
 # 66s -> >90s step is attributable to the device path, not the lock protocol.
 # That reframes D-CRASH-CONSISTENCY-32-BUDGET: it is not (only) a DLM scaling
 # defect, it is dm-multipath in the CAW/FUA command path.

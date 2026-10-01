@@ -2,7 +2,7 @@
 # lio_bench_target.sh — a RESTARTABLE iSCSI target on a bench VM, for the
 # laps whose subject is the target's own behaviour across a restart of its
 # service or a crash of its host (tests/target_restart_pr.sh, the fence-matrix
-# ruling's target-restart tranche).  The 2/tcp rig's target is never restarted
+# ruling's target-restart tranche).  The 2/net/mesh/direct rig's target is never restarted
 # for tests, so those laps run against this one, declared in data/rigs.json
 # under its own tag.
 #

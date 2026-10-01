@@ -5,10 +5,10 @@
 # the D-0517 LAB verification) prints DONE, then:
 #   1  make modules + make tools (abort unless the srcversion CHANGES from the
 #      chain-82 production build and the P304-IOCNT-UNTOKENED string is present)
-#   2  prep_cluster @ 32/caw
+#   2  prep_cluster @ 32/disk/caw/mpath
 #   3  tests/settle_token_arms.sh: plain, untokened (the new fail-closed arm),
 #      latewait, probehang, inval, double, slowrace
-#   4  the full 32/caw board (per-row budgets from the manifest; run.sh
+#   4  the full 32/disk/caw/mpath board (per-row budgets from the manifest; run.sh
 #      enforces them, no outer timeout) — the post-D-0517-fix baseline
 # derived time budgets: build measured 310-326 s in tree → 600; prep 300; settle
 # arms per the harness header (plain/inval/double/latewait 120, slowrace 130,
@@ -36,7 +36,7 @@ lap() { # <budget_s> <label> <cmd...>
     echo "DONE $(date -u +%FT%TZ)"; exit 1
   fi
   lap 120 tools make tools
-  lap 300 prep ./run.sh 32 caw prep_cluster
+  lap 300 prep ./run.sh 32/disk/caw/mpath prep_cluster
   lap 120 "settle arm=plain victim=test3"       tests/settle_token_arms.sh 32 test3  test1 plain
   lap 160 "settle arm=untokened victim=test4"   tests/settle_token_arms.sh 32 test4  test1 untokened
   lap 120 "settle arm=latewait victim=test29"   tests/settle_token_arms.sh 32 test29 test1 latewait
@@ -44,10 +44,10 @@ lap() { # <budget_s> <label> <cmd...>
   lap 120 "settle arm=inval victim=test26"      tests/settle_token_arms.sh 32 test26 test1 inval
   lap 120 "settle arm=double victim=test27"     tests/settle_token_arms.sh 32 test27 test1 double
   lap 130 "settle arm=slowrace victim=test30"   tests/settle_token_arms.sh 32 test30 test1 slowrace
-  echo "=== settle arms done $(date -u +%FT%TZ); full board 32/caw ==="
-  lap 300 prep_board ./run.sh 32 caw prep_cluster
+  echo "=== settle arms done $(date -u +%FT%TZ); full board 32/disk/caw/mpath ==="
+  lap 300 prep_board ./run.sh 32/disk/caw/mpath prep_cluster
   T0=$(date +%s)
-  ./run.sh 32 caw > tests/evidence/sess459_chain83_board_$LABEL.log 2>&1; echo "STAGE board rc=$? wall=$(( $(date +%s) - T0 ))s"
-  tools/criteria.py 32 caw 2>&1 | tail -40
+  ./run.sh 32/disk/caw/mpath > tests/evidence/sess459_chain83_board_$LABEL.log 2>&1; echo "STAGE board rc=$? wall=$(( $(date +%s) - T0 ))s"
+  tools/criteria.py 32/disk/caw/mpath 2>&1 | tail -40
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

@@ -13,6 +13,6 @@ GATE=tests/evidence/sess436_chain10_estale_dlmscaling_s436j.log
   grep -q '^DONE' "$GATE" || { echo "ABORT: chain10 not DONE"; echo "DONE $(date -u +%FT%TZ)"; exit 1; }
   echo "gate passed at $(date -u +%FT%TZ) (iter $t)"
   timeout 420 tests/fence_live_node.sh $LABEL churn test20 test1 32; echo "STAGE fln_churn rc=$?"
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep rc=$?"
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

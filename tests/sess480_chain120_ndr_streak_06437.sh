@@ -66,7 +66,7 @@ while ! grep -q "^DONE" "$GATE" 2>/dev/null; do sleep 30; done
     # is a real failure and still resets the streak.
     prc=1; tries=0
     while [ $tries -lt 6 ]; do
-      timeout 300 ./run.sh 32 caw prep_cluster; prc=$?
+      timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; prc=$?
       [ "$prc" != 3 ] && break
       tries=$((tries+1))
       echo "STAGE prep_lap$lap rc=3 (run lock held by a peer run.sh — NOT a lap result); waiting, retry $tries/6"
@@ -83,7 +83,7 @@ while ! grep -q "^DONE" "$GATE" 2>/dev/null; do sleep 30; done
     fi
     pre_dir=$(ls -dt tests/evidence/board_*_node_death_replay 2>/dev/null | head -1)
     T0=$(date +%s)
-    timeout 500 ./run.sh 32 caw node_death_replay; rrc=$?
+    timeout 500 ./run.sh 32/disk/caw/mpath node_death_replay; rrc=$?
     wall=$(( $(date +%s) - T0 ))
     echo "STAGE node_death_replay$lap rc=$rrc wall=${wall}s budget=500s"
     post_dir=$(ls -dt tests/evidence/board_*_node_death_replay 2>/dev/null | head -1)

@@ -22,7 +22,7 @@ for run in $(seq 1 "$MAX"); do
     for n in 1 2 3 4 5 6 7 8; do timeout 8 $SSH test$n /tmp/.mxfs_pass 'rm -f /root/drc_failrounds.txt 2>/dev/null' >/dev/null 2>&1; done
     t0=$(date +%s)
     MXFS_EXTRA_MODARGS="$MODARGS" \
-        timeout 590 /src/mxfs/run.sh 8 tcp dir_reuse_coherency > "$SCR/platter_run${run}.log" 2>&1
+        timeout 590 /src/mxfs/run.sh 8/net/mesh/direct dir_reuse_coherency > "$SCR/platter_run${run}.log" 2>&1
     t1=$(date +%s)
     RES=$(grep -qE "PASS  dir_reuse_coherency" "$SCR/platter_run${run}.log" && echo PASS || echo FAIL)
     echo "run $run: $RES wall=$((t1-t0))s" | tee -a "$LOG"

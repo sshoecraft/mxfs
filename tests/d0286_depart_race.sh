@@ -21,7 +21,7 @@
 # Unreachable points are reported SKIP with the knob disarmed.
 # Every P is followed by a full prep_cluster (P=1 leaves N dirty by design;
 # the rig must re-form) — the caller does that between invocations:
-#   for p in 1 2 3 4 5; do ./run.sh 32 $dlm prep_cluster; \
+#   for p in 1 2 3 4 5; do ./run.sh 32/$dlm prep_cluster; \
 #       tests/d0286_depart_race.sh s418 $p; done
 #
 # the budget rule (derived): srcgate 5s + umount <=45s + 4 sweeps ~10s + P=1's

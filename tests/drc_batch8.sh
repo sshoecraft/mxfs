@@ -1,5 +1,5 @@
 #!/bin/bash
-# drc_batch8.sh — 8/tcp dir_reuse_coherency reliability batch (sess45 ccloop).
+# drc_batch8.sh — 8/net/mesh/direct dir_reuse_coherency reliability batch (sess45 ccloop).
 # Runs ITERS clean-reboot iterations, NEVER breaks, classifies each result:
 #   PASS | FLAP (TCP false-death/split-brain) | SINGLE (1-dirent loss) | MASS (>1)
 # Prints a summary distribution at the end so the dominant 8-node failure mode
@@ -28,7 +28,7 @@ echo "=== drc_batch8 ITERS=$ITERS MODARGS=[$MODARGS] build=$(modinfo mxfs.ko|awk
 for i in $(seq 1 "$ITERS"); do
   echo "########## ITER $i/$ITERS reboot @ $(date -u +%T) ##########"
   reboot_clean
-  OUT=$(env MXFS_EXTRA_MODARGS="$MODARGS" ./run.sh 8 tcp dir_reuse_coherency 2>&1)
+  OUT=$(env MXFS_EXTRA_MODARGS="$MODARGS" ./run.sh 8/net/mesh/direct dir_reuse_coherency 2>&1)
   res=$(echo "$OUT" | grep -E 'dir_reuse_coherency' | tail -1)
   if echo "$res" | grep -q 'PASS'; then
     np=$((np+1)); echo "ITER $i: PASS"; continue

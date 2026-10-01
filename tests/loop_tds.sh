@@ -1,6 +1,6 @@
 #!/bin/bash
 # loop_tds.sh — run the real tcp_dlm_scaling criterion repeatedly to measure the
-# true 2/tcp failure rate and capture dmesg + residual on the first failure.
+# true 2/net/mesh/direct failure rate and capture dmesg + residual on the first failure.
 # Usage: loop_tds.sh [ITERS]
 set -u
 cd /src/mxfs
@@ -11,7 +11,7 @@ export MXFS_EXTRA_MODARGS='dirwr=1'
 pass=0; fail=0
 for i in $(seq 1 "$ITERS"); do
   for n in test1 test2; do "$SSH" "$n" "$P" 'dmesg -C >/dev/null 2>&1' >/dev/null 2>&1; done
-  out=$(timeout 200 ./run.sh 2 tcp tcp_dlm_scaling 2>&1)
+  out=$(timeout 200 ./run.sh 2/net/mesh/direct tcp_dlm_scaling 2>&1)
   line=$(echo "$out" | grep -E '(PASS|FAIL) +tcp_dlm_scaling +\(nodes_pass')
   if echo "$line" | grep -q 'PASS'; then
     pass=$((pass+1)); echo "iter $i: PASS"

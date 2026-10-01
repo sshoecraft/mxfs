@@ -19,7 +19,7 @@
 # inside one DLM request deadline (~1 s) and the rename returns while A's
 # loop is still running.
 #
-# the budget rule (derived): prep 55 s measured (2/tcp QNAP) + create 1 s + loop ~3.5 s
+# the budget rule (derived): prep 55 s measured (2/net/mesh/direct QNAP) + create 1 s + loop ~3.5 s
 # + capture 10 s = ~70 s; chain bound 300 (prep manifest) + 120.
 #
 # Usage: tests/hot_inode_peer_rename_2node.sh <label> [ITERS=4000]
@@ -32,7 +32,7 @@ cd "$(dirname "$0")/.." || exit 2
 export MXFS_NODE_LIST=${MXFS_NODE_LIST:-test1,test2}
 # MXFS_DEV: the caller's, else prep_cluster's per-transport rig default
 # (no other rig's device path is assumed here)
-export MXFS_TRANSPORT=${MXFS_TRANSPORT:-tcp}
+export MXFS_CONFIG=${MXFS_CONFIG:-2/net/mesh/direct}
 A=${MXFS_NODE_LIST%%,*}
 B=${MXFS_NODE_LIST##*,}
 SSH=tools/mxfs_sshpass.sh
@@ -60,7 +60,7 @@ offset_ms() {
 echo "=== hot_inode_peer_rename_2node label=$LABEL A=$A B=$B iters=$ITERS sv=$(modinfo mxfs.ko | sed -n 's/^srcversion: *//p') $(date -u +%FT%TZ) ==="
 s=$(date +%s)
 if [ -z "${NOPREP:-}" ]; then
-    MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2 tcp prep_cluster > "$OUT/prep.log" 2>&1
+    MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2/net/mesh/direct prep_cluster > "$OUT/prep.log" 2>&1
     prc=$?
     echo "STAGE prep rc=$prc wall=$(( $(date +%s) - s ))s"
     if [ $prc != 0 ]; then echo "RESULT: FAIL label=$LABEL prep rc=$prc"; exit 2; fi

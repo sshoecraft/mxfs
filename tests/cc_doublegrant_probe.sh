@@ -1,6 +1,6 @@
 #!/bin/bash
 # cc_doublegrant_probe.sh — test the DOUBLE-GRANT hypothesis for the block-dir
-# concurrent-create durable dirent LOSS (2/tcp crash_consistency blocker).
+# concurrent-create durable dirent LOSS (2/net/mesh/direct crash_consistency blocker).
 #
 # Each round: both nodes concurrently create NF data+NF md5 into ONE shared dir
 # (=block format).  Then test1 readdir-counts.  On a SHORT count (lost dirent):

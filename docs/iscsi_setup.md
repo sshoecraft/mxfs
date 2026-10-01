@@ -1,7 +1,8 @@
 # MXFS Shared-Storage Requirements & iSCSI/SAN Setup
 
-**Audience:** operators deploying MXFS on a real shared LUN (iSCSI, FC, or
-NVMe-oF). This is the "what the storage has to provide, and how to prove it
+**Audience:** operators deploying MXFS on a real shared SCSI LUN (iSCSI, FC or
+SAS; NVMe and NVMe-oF cannot carry MXFS, see
+[`attachment-methods.md`](attachment-methods.md)). This is the "what the storage has to provide, and how to prove it
 before you trust data to it" guide.
 
 MXFS is a shared-LUN clustered filesystem: every node opens the **same** block
@@ -15,7 +16,10 @@ nodes and you will get silent corruption. **Read this before formatting a LUN.**
 ## 1. Pick a transport: TCP DLM or CAW
 
 MXFS coordinates nodes with a distributed lock manager (DLM) that runs over one
-of two transports. Both are released for 2-node clusters.
+of two transports. Both are released for 2-, 4- and 8-node clusters, each node
+reaching the LUN over its own single-path iSCSI login (the `direct` attachment;
+multipath and hypervisor passthrough are not verified). A configuration names
+the transport by class and method: TCP is `net/mesh`, CAW is `disk/caw`.
 
 | Transport | How locks travel | What the LUN must support | Node-to-node network |
 |---|---|---|---|
@@ -113,7 +117,7 @@ but it only helps if the target actually re-reads media on FUA. Prove it with
 |---|---|---|
 | **SCST** (`vdisk_fileio`, `write_through`) | ✅ Yes | Implements CAW (0x89) + PR natively. Recommended CAW target. |
 | **LIO** (`fileio`/`iblock`, kernel target / `targetcli`) | ❌ No — CAW **faked** | Reports CAS-success without an atomic persist. **Use TCP DLM** (`force_transport=1`), not CAW, on LIO. |
-| Vendor SAN arrays (FC / iSCSI / NVMe-oF) | ⚠️ Verify | Many enterprise arrays honour CAW+PR (VMware VAAI ATS uses the same 0x89 primitive), but you **must** run §4 to confirm before trusting it. |
+| Vendor SAN arrays (FC / iSCSI) | ⚠️ Verify | Many enterprise arrays honour CAW+PR (VMware VAAI ATS uses the same 0x89 primitive), but you **must** run §4 to confirm before trusting it. |
 
 **Rule of thumb:** never assume — a target either passes the §4 cross-node
 `caw_verify`/`fua_verify` checks or you run TCP DLM instead.

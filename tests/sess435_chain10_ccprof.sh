@@ -4,11 +4,11 @@
 # row under the wall-clock kernel stack profiler (tests/cc_stackprof.sh), so the
 # blocked wall is attributed to stacks (find_slot_skip caller chains, grant
 # poll, BAST thread) rather than guessed.  Waits for chain 9's DONE.
-#   prep 32/caw                       300 s
+#   prep 32/disk/caw/mpath                       300 s
 #   cc_stackprof start 110 s on 32    ~20 s deploy
-#   run.sh 32 caw crash_consistency   row budget 90 s + 12 s overhead + 15 s startup = 117 s
+#   run.sh 32/disk/caw/mpath crash_consistency   row budget 90 s + 12 s overhead + 15 s startup = 117 s
 #   cc_stackprof agg                  ~60 s
-#   prep 32/caw
+#   prep 32/disk/caw/mpath
 # NEVER `make modules` before this prints DONE.
 cd /src/mxfs || exit 1
 LABEL=${1:-s435c}
@@ -21,11 +21,11 @@ mkdir -p "$EV"
   for t in $(seq 1 420); do grep -q '^DONE' "$GATE" 2>/dev/null && break; sleep 10; done
   grep -q '^DONE' "$GATE" || { echo "ABORT: chain9 not DONE after 4200 s"; echo "DONE $(date -u +%FT%TZ)"; exit 1; }
   echo "gate passed at $(date -u +%FT%TZ) (iter $t) sv=$(modinfo mxfs.ko | awk '/srcversion/{print $2}')"
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep rc=$?"
   timeout 60 tests/quiet_console.sh 32 2>/dev/null; echo "STAGE quiet rc=$?"
   timeout 60 tests/cc_stackprof.sh start 110 32; echo "STAGE prof_start rc=$?"
-  timeout 130 ./run.sh 32 caw crash_consistency; echo "STAGE cc rc=$?"
-  tools/criteria.py 32 caw 2>/dev/null | grep -a 'crash_consistency'
+  timeout 130 ./run.sh 32/disk/caw/mpath crash_consistency; echo "STAGE cc rc=$?"
+  tools/criteria.py 32/disk/caw/mpath 2>/dev/null | grep -a 'crash_consistency'
   timeout 120 tests/cc_stackprof.sh agg 32 > "$EV/agg.txt" 2>&1; echo "STAGE prof_agg rc=$?"
   head -80 "$EV/agg.txt"
   timeout 120 tests/cc_stackprof.sh harvest 32 > "$EV/harvest.txt" 2>&1; echo "STAGE prof_harvest rc=$?"
@@ -36,6 +36,6 @@ mkdir -p "$EV"
   wait
   cp -r "$D" "$EV/nodes"
   for i in 1 2 17 32; do echo "-- test$i"; cat "$D/test$i.txt"; done
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep2 rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep2 rc=$?"
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

@@ -16,7 +16,7 @@ MAX="${1:-10}"
 for i in $(seq 1 "$MAX"); do
     echo "==================== ITER $i ===================="
     for h in "$T1" "$T2"; do timeout 8 "$SSH" "$h" "$P" 'dmesg -C' >/dev/null 2>&1; done
-    out=$(MXFS_EXTRA_MODARGS='lockwr=1' timeout 300 ./run.sh 2 tcp tcp_dlm_scaling 2>&1)
+    out=$(MXFS_EXTRA_MODARGS='lockwr=1' timeout 300 ./run.sh 2/net/mesh/direct tcp_dlm_scaling 2>&1)
     echo "$out" | grep -E 'tcp_dlm_scaling|done:|PREP FAIL|ABORT'
     if echo "$out" | grep -q 'FAIL  tcp_dlm_scaling'; then
         echo ">>>>> FAILURE iter $i — capturing P-LKT ring <<<<<"

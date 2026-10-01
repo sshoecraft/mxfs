@@ -1,5 +1,5 @@
 #!/bin/bash
-# drc_mht_reliab.sh N MHT — run N clean-reboot 8/tcp dir_reuse iters at given
+# drc_mht_reliab.sh N MHT — run N clean-reboot 8/net/mesh/direct dir_reuse iters at given
 # inode_mht_ms, logging PASS/FAIL + wall time each. (sess2 ccloop)
 set -u
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd); cd "$REPO"

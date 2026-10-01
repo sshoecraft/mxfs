@@ -18,11 +18,11 @@ LOG=tests/evidence/sess450_chain69_retire_pending_$LABEL.log
   if [ "$(strings -a mxfs.ko | grep -c 'P304-RETIRE-EXPIRED-WITHDRAWN')" = 0 ]; then
     T0=$(date +%s); timeout 420 make modules -j8 > tests/evidence/sess450_chain69_build_$LABEL.log 2>&1; echo "STAGE build rc=$? wall=$(( $(date +%s) - T0 ))s sv=$(modinfo mxfs.ko | awk '/srcversion/{print $2}') p304=$(strings -a mxfs.ko | grep -c 'P304-RETIRE')"
     timeout 120 make tools > tests/evidence/sess450_chain69_tools_$LABEL.log 2>&1; echo "STAGE tools rc=$?"
-    timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep rc=$?"
+    timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep rc=$?"
   fi
   T0=$(date +%s); timeout 300 tests/pr_unregister_fail_restamp.sh 32 test2 test1 restamp; echo "STAGE pr_restamp mode=restamp victim=test2 rc=$? wall=$(( $(date +%s) - T0 ))s"
   T0=$(date +%s); timeout 330 tests/pr_unregister_fail_restamp.sh 32 test11 test1 crash; echo "STAGE pr_restamp mode=crash victim=test11 rc=$? wall=$(( $(date +%s) - T0 ))s"
   T0=$(date +%s); timeout 330 tests/pr_unregister_fail_restamp.sh 32 test20 test1 crash; echo "STAGE pr_restamp mode=crash victim=test20 rc=$? wall=$(( $(date +%s) - T0 ))s"
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep_after rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep_after rc=$?"
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

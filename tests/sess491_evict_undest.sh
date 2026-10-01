@@ -58,7 +58,7 @@ nodes() { seq 1 32 | sed 's/^/test/'; }
   cp "$KO" mxfs.ko
   echo "STAGE install_ko sv=$(modinfo mxfs.ko | awk '/srcversion/{print $2}') marker=$(strings -a mxfs.ko | grep -ac 'P491-EVICT-UNDEST')"
   SINCE=$(date -u +'%Y-%m-%d %H:%M:%S'); t0=$(date +%s)
-  MXFS_EXTRA_MODARGS="$MODARGS" timeout 300 ./run.sh 32 caw prep_cluster > "$O/prep.out" 2>&1; rc=$?
+  MXFS_EXTRA_MODARGS="$MODARGS" timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster > "$O/prep.out" 2>&1; rc=$?
   echo "STAGE prep rc=$rc wall=$(( $(date +%s) - t0 ))s budget=300s build=$(grep -ao 'build [0-9A-F]*' "$O/prep.out" | tail -1)"
   if [ "$rc" = 0 ]; then
     for n in $(nodes); do
@@ -70,7 +70,7 @@ nodes() { seq 1 32 | sed 's/^/test/'; }
     echo "READBACK sv+persig0: $ok/32"
     for lap in $(seq 1 "$LAPS"); do
       t0=$(date +%s)
-      MXFS_EXTRA_MODARGS="$MODARGS" MXFS_TEST_ENV="CC_TAG=s491lap$lap" timeout 160 ./run.sh 32 caw crash_consistency > "$O/cc_$lap.out" 2>&1; rc=$?
+      MXFS_EXTRA_MODARGS="$MODARGS" MXFS_TEST_ENV="CC_TAG=s491lap$lap" timeout 160 ./run.sh 32/disk/caw/mpath crash_consistency > "$O/cc_$lap.out" 2>&1; rc=$?
       echo "STAGE cc_$lap rc=$rc wall=$(( $(date +%s) - t0 ))s budget=160s $(grep -a 'crash_consistency' "$O/cc_$lap.out" | grep -ao 'nodes_pass=[0-9/]*' | head -1)"
     done
     for n in $(nodes); do

@@ -15,14 +15,14 @@ LOG=tests/evidence/sess449_chain67_d513b_write_eio_$LABEL.log
   echo "=== sess449 chain67 start $(date -u +%FT%TZ) sv=$(modinfo mxfs.ko | awk '/srcversion/{print $2}') VERSION=$(cat VERSION) knob=$(strings -a mxfs.ko | grep -c 'P227-FR-INJECT-WRITE-EIO') ==="
   if [ "$(strings -a mxfs.ko | grep -c 'P227-FR-INJECT-WRITE-EIO')" = 0 ]; then
     T0=$(date +%s); timeout 300 make modules -j8 > tests/evidence/sess449_chain67_build_$LABEL.log 2>&1; echo "STAGE build rc=$? wall=$(( $(date +%s) - T0 ))s sv=$(modinfo mxfs.ko | awk '/srcversion/{print $2}')"
-    timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep rc=$?"
+    timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep rc=$?"
   fi
   for lap in 1 2; do
     victim=$([ "$lap" = 1 ] && echo test2 || echo test9)
     T0=$(date +%s); timeout 300 tests/d513_write_eio_containment.sh 32 "$victim" test3; echo "STAGE write_eio lap=$lap victim=$victim rc=$? wall=$(( $(date +%s) - T0 ))s"
     timeout 60 sudo virsh -c qemu:///system start "$victim" >/dev/null 2>&1
     sleep 45
-    timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep_after_lap$lap rc=$?"
+    timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep_after_lap$lap rc=$?"
   done
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

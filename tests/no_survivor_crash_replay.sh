@@ -14,7 +14,7 @@
 # slices — its own previous incarnation's included — before the payload is
 # visible.  Nothing has ever measured that path; this harness does.
 #
-# Shape (fleet prepped 32/caw by the caller):
+# Shape (fleet prepped 32/disk/caw/mpath by the caller):
 #   1. srcgate: every node runs the tree build.
 #   2. Every node writes a private 64 KiB random file + fsync; md5 recorded
 #      on the writer.  (Metadata for the file lives only in that node's slice.)

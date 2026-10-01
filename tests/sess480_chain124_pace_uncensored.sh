@@ -58,7 +58,7 @@ while ! grep -q "^DONE" "$GATE" 2>/dev/null; do sleep 30; done
   echo "STAGE install_prod sv=$sv want=$PROD_SV"
   [ "$sv" = "$PROD_SV" ] || { echo "ABORT: srcversion mismatch"; echo "DONE $(date -u +%FT%TZ)"; exit 1; }
 
-  timeout 300 ./run.sh 32 caw prep_cluster; prc=$?
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; prc=$?
   echo "STAGE prep rc=$prc"
   [ "$prc" = 0 ] || { echo "ABORT: prep rc=$prc — no fleet, so nothing below would measure anything"; echo "DONE $(date -u +%FT%TZ)"; exit 1; }
 

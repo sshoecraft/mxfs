@@ -1,16 +1,18 @@
 #!/bin/bash
-# run.sh — conditions-runner.  Prep the cluster for a (node-count, transport)
-# condition, run EVERY applicable test under that condition, aggregate per-node
-# results, and record them through tools/criteria.py (the only writer) keyed by
-# "<N>/<dlm>".  Also writes .last_run.json (this run's summary).
+# run.sh — configuration runner.  Prep the cluster for one configuration, run
+# EVERY applicable test under it, aggregate per-node results, and record them
+# through tools/criteria.py (the only writer) keyed by the configuration.  Also
+# writes .last_run.json (this run's summary).
 #
-# Usage:  ./run.sh <N> <dlm> [test ...]
-#   <N>    participating node count (nodes test1..testN)
-#   <dlm>  transport: tcp | caw
-#   [test] optional explicit test names to run (default: all applicable)
+# Usage:  ./run.sh <configuration> [test ...]
+#   <configuration>  <nodes>/<class>/<method>/<attach>, e.g. 8/net/mesh/direct
+#                    or 2/disk/caw/direct; 1/xfs is the native-XFS baseline.
+#                    What each field means: docs/attachment-methods.md; the
+#                    only parser: tools/configuration.py.
+#   [test]           optional explicit test names to run (default: all applicable)
 #
-# Applicability of a matrix test at (N, dlm):
-#   - category transport is "any" OR == dlm, AND
+# Applicability of a matrix test at a configuration:
+#   - its applies_to pattern (any | net/mesh | disk/caw ...) covers it, AND
 #   - min_nodes <= N <= (max_nodes==0 ? infinity : max_nodes), AND
 #   - a script exists for it (else PENDING, not recorded).
 #
@@ -28,42 +30,77 @@ set -u
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 cd "$REPO"
 
-N="${1:?usage: run.sh <N> <dlm> [test ...]}"
-DLM="${2:?usage: run.sh <N> <dlm> [test ...]}"
-shift 2 || true
-ONLY=("$@")                                   # explicit test subset (optional)
+CONFIG_ARG="${1:?usage: run.sh <configuration> [--group <name>] [test ...]   e.g. run.sh 8/net/mesh/direct}"
+shift || true
+# --group <name>: run on a rig group (a `group` line in the lab file, wired by
+# scripts/rig_groups.sh) instead of test1..testN: the group's nodes, the
+# group's own LUN, and locks that let other groups run at the same time
+# (tests/lib/runlock.sh).  Without it the run owns the whole rig, as before.
+# MXFS_GROUP carries the group into the harnesses a group run starts, and into
+# the run.sh they re-enter to re-prep: a child that saw only the node list
+# would prep the rig LUN onto the group's nodes.
+GROUP="${MXFS_GROUP:-}"
+ONLY=()                                       # explicit test subset (optional)
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --group) GROUP="${2:?--group needs a group name}"; shift 2 ;;
+        --group=*) GROUP="${1#--group=}"; shift ;;
+        *) ONLY+=("$1"); shift ;;
+    esac
+done
 
-case "$DLM" in tcp|caw|cawd|cawp|xfs) ;; *) echo "dlm must be tcp|caw|cawd|cawp|xfs (got '$DLM')"; exit 2 ;; esac
-[[ "$N" =~ ^[0-9]+$ ]] && [ "$N" -ge 1 ] || { echo "N must be a positive integer"; exit 2; }
-# ---------------------------------------------------------------------------
-# Deployment conditions (conditions.md): the <dlm> axis doubles as the rig/
-# condition axis, so board cells stay keyed "<N>/<dlm>" and each of
-# the four deployment conditions gets its own column:
-#   tcp  = condition 1: TCP DLM / commodity block (LIO tcm_loop rig,
-#          /dev/mxfs-shared wired into VM XML -> guest /dev/sda, LIO-ORG).
-#   cawp = condition 2: CAW via FC-fabric-sim passthrough (SCST per-node
-#          targets, host by-path dev wired into VM XML -> guest /dev/sda).
-#   cawd = condition 3: CAW via direct in-guest iSCSI (single portal .1,
-#          raw single-path sdX; stable by-path symlink used as MXFS_DEV).
-#   caw  = condition 4: CAW over dm-multipath (dual portal + multipathd ->
-#          /dev/mapper/mpatha).  Every historical "N/caw" cell was recorded
-#          on this rig, so the name keeps its meaning.
-# BASE_TRANSPORT is what the module/prep layer consumes (tcp|caw|xfs); the
-# full $DLM string keys board cells, the cluster marker, and bench
-# labels.  Category applicability matches on the BASE transport (a "caw"
-# category test applies to all three CAW conditions).
-# ---------------------------------------------------------------------------
-case "$DLM" in
-    cawd|cawp) BASE_TRANSPORT=caw ;;
-    *)         BASE_TRANSPORT="$DLM" ;;
-esac
-transport_matches() {  # <category-transport> -> 0 iff applicable under $DLM
-    [ "$1" = any ] || [ "$1" = "$BASE_TRANSPORT" ]
+# Every field of the configuration comes from tools/configuration.py:
+#   CFG_KEY/CFG_SLUG      the normalised key and its file-name form
+#   CFG_NODES             participating node count (nodes test1..testN)
+#   CFG_TRANSPORT         what the module and node prep consume: tcp | caw | xfs
+#   CFG_ATTACH            direct | mpath | pass: how the LUN reaches each node
+#   CFG_DEV_DEFAULT       the rig's guest device for that attachment
+#   CFG_BASELINE          1 for the native-XFS baseline (1/xfs), else 0
+# A retired condition code is refused with its replacement named, and so is the
+# old two-argument spelling (a node count, then a condition code).
+if [[ "$CONFIG_ARG" =~ ^[0-9]+$ ]] && [ "${#ONLY[@]}" -ge 1 ]; then
+    echo "run.sh takes the configuration as one key, e.g. ./run.sh $CONFIG_ARG/net/mesh/direct"
+    k=$(python3 "$REPO/tools/configuration.py" parse "$CONFIG_ARG/${ONLY[0]}") && echo "  did you mean ./run.sh $k ?"
+    exit 2
+fi
+CFG_OUT=$(python3 "$REPO/tools/configuration.py" shell "$CONFIG_ARG") || exit 2
+eval "$CFG_OUT"
+CONFIG="$CFG_KEY"
+N="$CFG_NODES"
+BASE_TRANSPORT="$CFG_TRANSPORT"
+if [ -n "$GROUP" ]; then
+    [ "$CFG_BASELINE" = 0 ] || { echo "ERROR: 1/xfs is not run on a rig group"; exit 2; }
+    # Only direct is built per group: a multipath group needs the second portal
+    # on its own target, which scripts/rig_groups.sh does not wire.
+    [ "$CFG_ATTACH" = direct ] || { echo "ERROR: --group runs the direct attachment only; $CONFIG is $CFG_ATTACH"; exit 2; }
+    GROUP_NODES=$("$REPO/tools/mxfs_lab.sh" group "$GROUP") || exit 2
+    [ "$(wc -w <<<"$GROUP_NODES")" -eq "$N" ] || {
+        echo "ERROR: group $GROUP is [$GROUP_NODES], $(wc -w <<<"$GROUP_NODES") node(s); $CONFIG needs exactly $N"
+        exit 2
+    }
+    # Exported: host-coordinated harnesses (tests/death/crash_audit.sh) name
+    # their nodes from MXFS_NODE_LIST, and default to test1..testN without it.
+    export MXFS_NODE_LIST="$(tr ' ' ',' <<<"$GROUP_NODES")" MXFS_GROUP="$GROUP"
+    GROUP_DEV=$("$REPO/scripts/rig_groups.sh" dev "$GROUP") || exit 2
+    GROUP_TGT="iqn.2026-05.local.mxfs:grp-$GROUP"
+fi
+# Does a criterion's applies_to pattern cover this configuration?  Asked once
+# per pattern: `rows` repeats the same few patterns for every row.
+declare -A APPLIES_CACHE
+config_applies() {  # <applies_to pattern> -> 0 iff it covers $CONFIG
+    if [ -z "${APPLIES_CACHE[$1]+x}" ]; then
+        if python3 "$REPO/tools/configuration.py" matches "$1" "$CONFIG"; then
+            APPLIES_CACHE[$1]=0
+        else
+            APPLIES_CACHE[$1]=1
+        fi
+    fi
+    return "${APPLIES_CACHE[$1]}"
 }
 # xfs = native-XFS single-node timing baseline (no mxfs.ko, no DLM, no cluster
 # — XFS isn't clustered). Only meaningful at N=1; used to derive the native-XFS
-# budgets for the mxfs conditions (see tests/suite/manifest header).
-[ "$DLM" = xfs ] && [ "$N" -ne 1 ] && { echo "dlm=xfs is a single-node baseline — N must be 1 (got $N)"; exit 2; }
+# budgets for the mxfs configurations (see tests/suite/manifest header).
+# configuration.py already refuses any baseline but 1/xfs.
 # Tests that are pure FS-content/perf correctness (agnostic to mxfs internals),
 # PLUS the device/mount-lifecycle tooling tests that have a direct native-XFS
 # tool equivalent (mkfs.xfs, xfs_repair, xfs_growfs, plain mount/umount) --
@@ -78,7 +115,7 @@ XFS_APPLICABLE=(precond_readiness posix_single fsx fio_verify integrity_filetype
                 cache_coherency strong_consistency posix_multi mmap_coherency zero_silent_loss
                 dlm_fairness scaling_curve dlm_scaling rsync_paired crash_consistency)
 xfs_applicable() { local t; for t in "${XFS_APPLICABLE[@]}"; do [ "$t" = "$1" ] && return 0; done; return 1; }
-# Explicit SKIP (not silent PENDING) under DLM=xfs: no native-XFS equivalent.
+# Explicit SKIP (not silent PENDING) under the 1/xfs baseline: no native-XFS equivalent.
 XFS_NO_EQUIVALENT=(dkms_install single_node_paired fio_vs_xfs_baseline fio_perf_vs_xfs alloc_witness)
 xfs_no_equivalent() { local t; for t in "${XFS_NO_EQUIVALENT[@]}"; do [ "$t" = "$1" ] && return 0; done; return 1; }
 
@@ -98,31 +135,27 @@ SSH="$REPO/tools/mxfs_sshpass.sh"
 # a pre-existing /tmp/.mxfs_pass if the store is absent. MXFS_PASS still overrides.
 PASS="${MXFS_PASS:-$("$REPO/tools/mxfs_secrets.sh" passfile 2>/dev/null || echo /tmp/.mxfs_pass)}"
 MNT="${MXFS_MOUNT:-/mnt/shared}"
-# Per-condition default shared-LUN device (MXFS_DEV always overrides):
-#   caw  -> the multipathd-assembled map (2 paths).
-#   cawd -> the stable by-path node for the single-portal login; identical on
-#           every node regardless of sdX ordering.
-#   tcp  -> the same by-path LUN as cawd: clyde's SCST target (data/rigs.json
-#           "scst-fio") has served both transports since the QNAP was retired
-#           (2026-09-26).  Never /dev/sda: the nodes also see the LIO bench
-#           target on test32, and which of the two enumerates as sda is not
-#           fixed — the 2/tcp suite ran on the bench target for a day that way,
-#           and a PREEMPT AND ABORT that deadlocked LIO read as an MXFS recovery
-#           failure.
-#   cawp -> the XML-wired guest disk (virsh target dev=sda).
-#   xfs  -> whatever LUN the live rig presents at sda (baseline only).
-case "$DLM" in
-    caw)  DEV_DEFAULT=/dev/mapper/mpatha ;;
-    cawd) DEV_DEFAULT="/dev/disk/by-path/ip-192.168.120.1:3260-iscsi-iqn.2026-05.local.mxfs:shared-lun-0" ;;
-    tcp)  DEV_DEFAULT="/dev/disk/by-path/ip-192.168.120.1:3260-iscsi-iqn.2026-05.local.mxfs:shared-lun-0" ;;
-    *)    DEV_DEFAULT=/dev/sda ;;
-esac
+# The attachment's default shared-LUN device (MXFS_DEV always overrides),
+# from data/configurations.json:
+#   direct -> the stable by-path node for the single-portal login to clyde's
+#             SCST target (data/rigs.json "scst-fio"); identical on every node
+#             regardless of sdX ordering.  Never /dev/sda: the nodes also see
+#             the LIO bench target on test32, and which of the two enumerates
+#             as sda is not fixed — the 2-node TCP suite ran on the bench
+#             target for a day that way, and a PREEMPT AND ABORT that
+#             deadlocked LIO read as an MXFS recovery failure.
+#   mpath  -> the multipathd-assembled map (2 paths).
+#   pass   -> the XML-wired guest disk (virsh target dev=sda).
+#   1/xfs  -> whatever LUN the live rig presents at sda (baseline only).
+#   --group -> the group's own LUN (scripts/rig_groups.sh dev <group>).
+DEV_DEFAULT="$CFG_DEV_DEFAULT"
+[ -n "$GROUP" ] && DEV_DEFAULT="$GROUP_DEV"
 DEV="${MXFS_DEV:-$DEV_DEFAULT}"
 # The rig's own iSCSI target, so prep can tell a platform pair on a LUN of its
 # own from a leftover node on this one.
 RIG_TGT="${MXFS_RIG_TGT:-iqn.2026-05.local.mxfs:shared}"
-# Cells are keyed "<N>/<dlm>" with no rig dimension, so running the same
-# condition against a DIFFERENT rig overwrites the board in place.  Point
+# Cells are keyed by configuration with no rig dimension, so running the same
+# configuration against a DIFFERENT rig overwrites the board in place.  Point
 # MXFS_CRIT at a separate file to keep a second rig's results off the primary
 # board (e.g. MXFS_CRIT=$REPO/data/criteria.pve.json for the Proxmox nodes).
 #: THE HARNESS DOES NOT WRITE THE BOARD.  Every read and every write goes through
@@ -132,7 +165,11 @@ RIG_TGT="${MXFS_RIG_TGT:-iqn.2026-05.local.mxfs:shared}"
 #: MXFS_CRIT still selects an alternate board file; criteria.py honours it.
 CRIT="${MXFS_CRIT:-$REPO/data/criteria.json}"
 CRITPY="$REPO/tools/criteria.py"
-LAST="$REPO/.last_run.json"
+# A group run keeps its own summary and cluster marker: each group is a
+# separate cluster on a separate LUN, and one file would describe whichever
+# group wrote last.  MXFS_MARKER tells the tools a run calls which one is
+# theirs (tools/mxfs_rig_tag.sh, tests/lib/rig.sh).
+LAST="$REPO/.last_run${GROUP:+.$GROUP}.json"
 # ---------------------------------------------------------------------------
 # Cluster-state marker (2026-07-14): records what (nodes, dlm, build) the
 # cluster is CURRENTLY formed for. A filtered invocation (specific test names)
@@ -144,25 +181,26 @@ LAST="$REPO/.last_run.json"
 # wait for a cluster that was already correctly formed). An unfiltered
 # invocation (no test names = "fully validate this condition") always preps
 # and refreshes the marker regardless of its prior content.
-MARKER="$REPO/.cluster_marker.json"
-# srcversion identifies the BUILD, not just the DLM/N — a rebuilt mxfs.ko
+MARKER="$REPO/.cluster_marker${GROUP:+.$GROUP}.json"
+export MXFS_MARKER="$MARKER"
+# srcversion identifies the BUILD, not just the configuration — a rebuilt mxfs.ko
 # needs reform even at the same node count/transport (mirrors prep_cluster's
 # own existing build-mismatch check). xfs mode has no module, so it gets a
 # fixed sentinel instead.
-if [ "$DLM" = xfs ]; then
+if [ "$CFG_BASELINE" = 1 ]; then
     WANT_SRCVER="xfs-no-module"
 else
     WANT_SRCVER=$(modinfo "$REPO/mxfs.ko" 2>/dev/null | awk '/^srcversion:/{print $2}')
 fi
-marker_read() {  # sets MK_NODES / MK_DLM / MK_SRCVER / MK_NODELIST (empty if no marker file)
-    MK_NODES=""; MK_DLM=""; MK_SRCVER=""; MK_NODELIST=""
+marker_read() {  # sets MK_NODES / MK_CONFIG / MK_SRCVER / MK_NODELIST (empty if no marker file)
+    MK_NODES=""; MK_CONFIG=""; MK_SRCVER=""; MK_NODELIST=""
     [ -s "$MARKER" ] || return 0
     MK_NODES=$(jq -r '.nodes // empty' "$MARKER" 2>/dev/null)
-    MK_DLM=$(jq -r '.dlm // empty' "$MARKER" 2>/dev/null)
+    MK_CONFIG=$(jq -r '.configuration // empty' "$MARKER" 2>/dev/null)
     MK_SRCVER=$(jq -r '.srcversion // empty' "$MARKER" 2>/dev/null)
     MK_NODELIST=$(jq -r '.node_list // empty' "$MARKER" 2>/dev/null)
 }
-marker_write() {  # nodes dlm srcver — node_list records WHICH hosts were prepped
+marker_write() {  # nodes configuration srcver — node_list records WHICH hosts were prepped
     local nl; nl=$(IFS=,; echo "${NODES[*]}")
     # `dev` records WHICH PHYSICAL RIG this cluster was prepped against.  The
     # rig identity is a property of the prepped cluster, not of whoever invokes
@@ -182,7 +220,7 @@ marker_write() {  # nodes dlm srcver — node_list records WHICH hosts were prep
     # yardstick unselectable and its measurement unscored.  Resolve it once,
     # here, while a prepped node is available to be asked, and let every
     # consumer read the answer instead of re-deriving it.
-    local rig; rig=$(MXFS_RIG_TAG_FRESH=1 MXFS_DEV="${DEV:-}" "$REPO/tools/mxfs_rig_tag.sh" "${DEV:-}" 2>/dev/null || true)
+    local rig; rig=$(MXFS_RIG_TAG_FRESH=1 MXFS_RIG_NODE="${NODES[0]}" MXFS_DEV="${DEV:-}" "$REPO/tools/mxfs_rig_tag.sh" "${DEV:-}" 2>/dev/null || true)
     # `wwid`/`fsid`/`gen` record WHICH LUN and WHICH FORMAT this cluster was
     # formed on, read from the first node by identity (tests/setup/dev_identity.sh)
     # rather than from the device's spelling: a harness that resolves its device
@@ -198,7 +236,7 @@ marker_write() {  # nodes dlm srcver — node_list records WHICH hosts were prep
     jq -n --argjson n "$1" --arg d "$2" --arg s "$3" --arg nl "$nl" \
           --arg dev "${DEV:-}" --arg rig "$rig" --arg t "$(date -u +%FT%TZ)" \
           --arg wwid "${wwid:-}" --arg fsid "${fsid:-}" --argjson gen "$gen" \
-        '{nodes:$n, dlm:$d, srcversion:$s, node_list:$nl, dev:$dev, rig:$rig, wwid:$wwid, fsid:$fsid, gen:$gen, iso:$t}' > "$MARKER" 2>/dev/null
+        '{nodes:$n, configuration:$d, srcversion:$s, node_list:$nl, dev:$dev, rig:$rig, wwid:$wwid, fsid:$fsid, gen:$gen, iso:$t}' > "$MARKER" 2>/dev/null
 }
 # A marker match is a claim about LIVE cluster state, so verify it live: the
 # marker file survives reboots, other campaigns' module reloads, and rig
@@ -206,7 +244,7 @@ marker_write() {  # nodes dlm srcver — node_list records WHICH hosts were prep
 # (2026-07-25: a physrig-session marker matched a VM-fleet invocation and 5
 # tests were recorded PASS against a stale build — hence this check.)
 marker_live_ok() {
-    [ "$DLM" = xfs ] && return 0
+    [ "$CFG_BASELINE" = 1 ] && return 0
     local cn live
     for cn in "${NODES[@]}"; do
         live=$(ssh_node "$cn" "cat /sys/module/mxfs/srcversion 2>/dev/null; mountpoint -q /mnt/shared && echo MOUNTED" | tr '\n' ' ')
@@ -219,7 +257,7 @@ marker_live_ok() {
     return 0
 }
 marker_matches() {
-    [ "$MK_NODES" = "$N" ] && [ "$MK_DLM" = "$DLM" ] && [ "$MK_SRCVER" = "$WANT_SRCVER" ] \
+    [ "$MK_NODES" = "$N" ] && [ "$MK_CONFIG" = "$CONFIG" ] && [ "$MK_SRCVER" = "$WANT_SRCVER" ] \
         && [ "$MK_NODELIST" = "$(IFS=,; echo "${NODES[*]}")" ] && marker_live_ok
 }
 BROKER="${MXFS_COORD_BROKER:-192.168.1.149}"
@@ -242,7 +280,9 @@ else
     mapfile -t NODES < <(seq 1 "$N" | sed 's/^/test/')
 fi
 NODE1="${NODES[0]}"
-RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)"
+# The stamp alone is one second wide, and group runs start side by side: the
+# group keeps two runs' coordination topics and evidence directories apart.
+RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)${GROUP:+-$GROUP}"
 
 [ -s "$CRIT" ] || { echo "ERROR: $CRIT missing — the board is data/criteria.json, managed by tools/criteria.py"; exit 1; }
 [ -x "$CRITPY" ] || { echo "ERROR: $CRITPY missing or not executable — nothing can record a result"; exit 1; }
@@ -266,9 +306,23 @@ RUNLOCK=/tmp/mxfs_run.lock
 # a child invocation that finds that exact pid still alive as run.sh skips the
 # lock — its ancestor holds it for the same logical run.  A stale/dead owner
 # pid falls through to the normal lock path.
+. "$REPO/tests/lib/runlock.sh"
 if [ -n "${MXFS_RUNLOCK_OWNER:-}" ] && [ "$MXFS_RUNLOCK_OWNER" != "$$" ] \
    && [ "$(cat "/proc/$MXFS_RUNLOCK_OWNER/comm" 2>/dev/null)" = "run.sh" ]; then
     echo "--- run lock: re-entrant invocation under run.sh pid $MXFS_RUNLOCK_OWNER (host criterion) ---"
+elif [ -n "$GROUP" ]; then
+    # A group run shares the rig with other group runs and owns its nodes and
+    # its configuration outright.  No orphan reaping here: a refusal names the
+    # holder, and a leftover of a dead group run is the operator's to kill.
+    what="run.sh $CONFIG --group $GROUP run_id=$RUN_ID"
+    runlock_take "$RUNLOCK" shared "$what" || {
+        echo "ERROR: a whole-rig run holds $RUNLOCK — refusing to run beside it: $(runlock_holder "$RUNLOCK")"
+        exit 3
+    }
+    runlock_nodes "$what" "${NODES[@]}" || exit 3
+    runlock_config "$CFG_SLUG" "$what" || exit 3
+    echo "--- run lock: group $GROUP [${NODES[*]}] shares the rig; holds its nodes and $CONFIG ---"
+    export MXFS_RUNLOCK_OWNER=$$
 else
 exec 9>"$RUNLOCK"
 if ! flock -n 9; then
@@ -302,7 +356,7 @@ if ! flock -n 9; then
         exit 3
     fi
 fi
-echo "$$ $(date -u +%FT%TZ) run.sh $N $DLM ${ONLY[*]:-}" >&9
+echo "$$ $(date -u +%FT%TZ) run.sh $CONFIG ${ONLY[*]:-}" >&9
 export MXFS_RUNLOCK_OWNER=$$
 fi
 
@@ -336,7 +390,7 @@ ssh_node() {
 # accepted as the cluster's IDENTITY and written into the marker.  Measured:
 # prep then reports success and prints the correct build on its own line, while
 # the marker holds the banner, after which every row refuses with
-#   ERROR: cluster is prepped for 2/tcp (srcver="Systemisbootingup...")
+#   ERROR: cluster is prepped for 2/net/mesh/direct (srcver="Systemisbootingup...")
 # and prints no verdict at all — which reads like a broken harness rather than
 # a stale marker.  Both fields are shape-checked before they are believed: a
 # srcversion is hex, and a kernel release is not a sentence.
@@ -347,7 +401,7 @@ srcver_valid() {  # a srcversion is hex and long enough to be one
 krel_valid() {    # a kernel release starts with a digit and carries a dot
     case "${1:-}" in ''|[!0-9]*) return 1 ;; *.*) return 0 ;; *) return 1 ;; esac
 }
-if [ "$DLM" != xfs ]; then
+if [ "$CFG_BASELINE" != 1 ]; then
     _repo_vermagic=$(modinfo "$REPO/mxfs.ko" 2>/dev/null | awk '/^vermagic:/{print $2}')
     _node_krel=$(ssh_node "$NODE1" "uname -r" 2>/dev/null | tr -d '\r\n ')
     if ! krel_valid "$_node_krel" && [ -n "$_node_krel" ]; then
@@ -418,7 +472,7 @@ record() {  # name status measured reason [elapsed] [budget]
     # "UNROOTED: which check failed is not yet captured" and why the Aug-1
     # 23:32 cache_coherency/zsl failures could not be attributed from the
     # record: the answer had been written down and then discarded.
-    local args=(update "$name" --at "${N}/${DLM}" -s "$status" -m "$measured")
+    local args=(update "$name" --at "$CONFIG" -s "$status" -m "$measured")
     [ -n "$reason" ]  && args+=(--reason "$reason")
     [ -n "$elapsed" ] && args+=(-e "$elapsed")
     [ "${RULE0_CALIBRATE:-0}" = 1 ] && args+=(--calibrate)
@@ -494,7 +548,7 @@ wait_converged() {   # <deadline_seconds> -> 0 converged, 1 did not
                     # lease.h:58) — far longer than this gate's window.  The
                     # old code read that as disagreement and BLOCKED every
                     # remaining criterion in the chunk on a fully healthy
-                    # cluster (measured at 32/caw after crash_consistency:
+                    # cluster (measured at 32/disk/caw/mpath after crash_consistency:
                     # beacon 33, disk table exactly 32 correct members, beacon
                     # back to 32 on schedule).  Defer the verdict to the
                     # authoritative on-disk heartbeat table below; a count
@@ -647,22 +701,29 @@ power_cycle_node() {  # <node>  -> 0 once node is reachable and DEV present
             # re-logs only ONE iSCSI portal, so /dev/mapper/mpatha never
             # assembles.  Without this, prep dies later with "prep_fs.sh /
             # prep_node.sh: No such file" or this DEV wait times out.  Restore
-            # /src + the CONDITION-appropriate device path before waiting for
-            # $DEV: caw (mpath) needs both portals + multipath assembly; cawd
-            # (direct) needs a clean single-portal login (logout+delete stale
-            # records first — leftover mpath-era .2 records would otherwise
-            # create a second path and multipathd would swallow the raw sdX);
-            # cawp/tcp/xfs devices are XML-wired and appear at boot on their
-            # own.
+            # /src + the ATTACHMENT's device path before waiting for $DEV:
+            # mpath needs both portals + multipath assembly; direct needs a
+            # clean single-portal login (logout+delete stale records first —
+            # leftover mpath-era .2 records would otherwise create a second
+            # path and multipathd would swallow the raw sdX); pass and the
+            # xfs baseline are XML-wired and appear at boot on their own.
+            # Keyed on the attachment, not the DLM: both DLMs reach the direct
+            # LUN the same way.
             local restore_iscsi=''
-            case "$DLM" in
-                caw)  restore_iscsi='
+            # A group node logs back into its own group's target and nothing
+            # else: a discovery and bare login would add :shared beside it.
+            [ -n "$GROUP" ] && restore_iscsi="
+                    iscsiadm -m node -T $GROUP_TGT -p 192.168.120.1:3260 >/dev/null 2>&1 || iscsiadm -m node -o new -T $GROUP_TGT -p 192.168.120.1:3260 >/dev/null 2>&1
+                    iscsiadm -m node -T $GROUP_TGT -p 192.168.120.1:3260 --login >/dev/null 2>&1
+                    iscsiadm -m session --rescan >/dev/null 2>&1"
+            [ -z "$GROUP" ] && case "$CFG_ATTACH" in
+                mpath)  restore_iscsi='
                     iscsiadm -m discovery -t st -p 192.168.120.1:3260 >/dev/null 2>&1
                     iscsiadm -m discovery -t st -p 192.168.120.2:3260 >/dev/null 2>&1
                     iscsiadm -m node --login >/dev/null 2>&1
                     iscsiadm -m session --rescan >/dev/null 2>&1
                     multipath >/dev/null 2>&1' ;;
-                cawd) restore_iscsi='
+                direct) restore_iscsi='
                     iscsiadm -m node -u >/dev/null 2>&1
                     iscsiadm -m node -o delete >/dev/null 2>&1
                     iscsiadm -m discovery -t st -p 192.168.120.1:3260 >/dev/null 2>&1
@@ -674,7 +735,7 @@ power_cycle_node() {  # <node>  -> 0 once node is reachable and DEV present
                 $restore_iscsi" >/dev/null 2>&1
             local dl2=$(( SECONDS + 90 ))
             local retry_mp=''
-            [ "$DLM" = caw ] && retry_mp='multipath >/dev/null 2>&1'
+            [ "$CFG_ATTACH" = mpath ] && retry_mp='multipath >/dev/null 2>&1'
             while [ "$SECONDS" -lt "$dl2" ]; do
                 timeout 8 "$SSH" "$n" "$PASS" "[ -e '$DEV' ] && mountpoint -q /src && echo DEV_UP" 2>/dev/null | grep -q DEV_UP && return 0
                 timeout 20 "$SSH" "$n" "$PASS" "mountpoint -q /src || { mkdir -p /src; timeout 12 mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; }; $retry_mp" >/dev/null 2>&1
@@ -690,10 +751,10 @@ power_cycle_node() {  # <node>  -> 0 once node is reachable and DEV present
 }
 
 prep_cluster() {
-    echo "--- prep: $N node(s) [${NODES[*]}] transport=$DLM ---"
+    echo "--- prep: $N node(s) [${NODES[*]}] configuration=$CONFIG (transport=$BASE_TRANSPORT) ---"
 
     # 0. Tear down leftover mxfs on running test VMs OUTSIDE this run's set.
-    #    A downward ladder transition (4/caw -> 2/caw) otherwise leaves
+    #    A downward ladder transition (4/disk/caw/mpath -> 2/disk/caw/mpath) otherwise leaves
     #    test(N+1..) mounted + heartbeating on the LUN we are about to
     #    re-mkfs: they join the new cluster's discovery (active_count
     #    inflates past N so the converge gate can never pass) and later
@@ -709,7 +770,7 @@ prep_cluster() {
     # A platform verification pair (tools/mxfs_lab.sh) can be test VMs too —
     # Ubuntu's is test3/test4 — and it verifies on a LUN of its own
     # (scripts/scst_platform_targets.sh).  Tearing it down here does not
-    # protect this LUN, it kills that pair's round: a 2/cawd prep unmounted
+    # protect this LUN, it kills that pair's round: a 2/disk/caw/direct prep unmounted
     # test4 in the middle of a platform mount and power-cycled test3
     # (tests/evidence/unmount_agrelease/20260926T112315_uaw_caw_s6c/prep.log).
     # So a pair node is left alone unless it holds MXFS on this rig's target
@@ -816,7 +877,7 @@ prep_cluster() {
     # /src unmounted (NFS is deliberately NOT an fstab automount — see
     # ccmemory feedback-src-nfs-not-fstab-automount) and prep then dies at
     # step 3/4 with "prep_node.sh: No such file" — hit twice today
-    # (test17/23, then test10/12/25/31 at the 32/tcp rung).
+    # (test17/23, then test10/12/25/31 at the 32/net/mesh/direct rung).
     local sp_tmpd sp_bad="" sp_n
     local -a sp_pids=()
     sp_tmpd=$(mktemp -d)
@@ -880,7 +941,7 @@ d=json.load(open(sys.argv[1])); print((d.get(sys.argv[2]) or {}).get("task_retir
     # 2b. The LUN's identity, read from the node that just formatted it.  A
     #     path is a locator: the SAME spelling names a different LUN on a node
     #     that logs into more than one target, in whatever order its sessions
-    #     came up.  Measured 2026-09-28 (4/tcp prep): test3 also belonged to a
+    #     came up.  Measured 2026-09-28 (4/net/mesh/direct prep): test3 also belonged to a
     #     platform verification set, its platform LUN came up as /dev/sda ahead
     #     of the rig LUN, prep_node.sh mounted it there, and the "cluster" was
     #     three members plus a mount of one that never saw a peer — reported
@@ -970,7 +1031,7 @@ d=json.load(open(sys.argv[1])); print((d.get(sys.argv[2]) or {}).get("task_retir
     # workload must not start before the mxfs cluster has converged to N members:
     # during the 1->N formation ramp, nodes hold DIVERGENT active-node views, so
     # master = nodes[hash%count] differs across nodes -> two nodes grant EX for
-    # the same dir -> divergent RMW -> durable mass dirent loss (8/tcp dir_reuse
+    # the same dir -> divergent RMW -> durable mass dirent loss (8/net/mesh/direct dir_reuse
     # MASS split-brain, sess39/sess45).  A real clustered FS forms membership
     # before serving I/O; this gate establishes that precondition.  Wait until
     # EVERY node's LATEST "MXFS-MEMBERSHIP active_count" beacon == N and stays
@@ -1035,11 +1096,11 @@ d=json.load(open(sys.argv[1])); print((d.get(sys.argv[2]) or {}).get("task_retir
 }
 
 # ---------------------------------------------------------------------------
-# Prep the native-XFS single-node timing baseline (DLM=xfs, N=1 only): no
+# Prep the native-XFS single-node timing baseline (1/xfs only): no
 # mxfs.ko, no DLM, no cluster membership — just mkfs.xfs + a plain mount on
 # NODE1, so the FS-agnostic single-node battery (posix_single/fsx/fio_verify/
 # integrity_filetypes/fio_perf/fault_enospc/precond_readiness) can be timed
-# against real native XFS to derive time budgets for the mxfs conditions.
+# against real native XFS to derive time budgets for the mxfs configurations.
 # ---------------------------------------------------------------------------
 prep_cluster_xfs() {
     echo "--- prep: 1 node [xfs baseline: $NODE1] ---"
@@ -1071,7 +1132,7 @@ prep_cluster_xfs() {
 run_none() {  # name cat budget
     local name="$1" cat="$2" real_budget="${3:-300}"
     local script="/src/mxfs/tests/$cat/$name.sh"
-    local fstype=mxfs; [ "$DLM" = xfs ] && fstype=xfs
+    local fstype=mxfs; [ "$CFG_BASELINE" = 1 ] && fstype=xfs
     # RULE0_CALIBRATE=1: this is a first-time measurement run with no real
     # budget yet -- inflate the KILL-timeout only, so a genuinely slow (but
     # not hung) test can finish and produce a number instead of getting
@@ -1093,7 +1154,7 @@ run_none() {  # name cat budget
     # Empty output with a NON-124 rc is an ssh/connection-layer hiccup, not a
     # functional test failure: lib.sh's finish() unconditionally emits a
     # RESULT: line for any test that actually started running, pass or fail.
-    # Proven transient 2026-07-20: 2/tcp precond_readiness "no-result" once,
+    # Proven transient 2026-07-20: 2/net/mesh/direct precond_readiness "no-result" once,
     # immediately after the fresh xfs-baseline-detour prep's reformat/remount
     # churn on the same node, then instant PASS on a manual same-state retry
     # seconds later. Bounded retry (kill_budget still applies PER attempt, so
@@ -1109,8 +1170,8 @@ run_none() {  # name cat budget
     for attempt in 1 2 3; do
         local dl_ms=$(( $(date +%s%3N) + kill_budget * 1000 ))
         raw=$(timeout --kill-after=3 "$kill_budget" "$SSH" "$NODE1" "$PASS" \
-            "MXFS_NODES=$N MXFS_RANK=1 MXFS_DLM=$DLM MXFS_DEV='$DEV' MXFS_EXPECT_FSTYPE=$fstype MXFS_FS_LABEL=$DLM \
-             ${MXFS_TEST_ENV:-} \
+            "MXFS_NODES=$N MXFS_RANK=1 MXFS_CONFIG=$CONFIG MXFS_CONFIG_SLUG=$CFG_SLUG MXFS_DEV='$DEV' MXFS_EXPECT_FSTYPE=$fstype MXFS_FS_LABEL=$CFG_SLUG \
+             MXFS_MARKER='$MARKER' ${MXFS_TEST_ENV:-} \
              MXFS_DEADLINE_MS=$dl_ms MXFS_RESERVE_MS=$reserve_ms MXFS_SPOOL='$spool' bash $script '$MNT'" \
             2>&1)
         rc=$?
@@ -1159,7 +1220,7 @@ run_host() {  # name cat budget
     local out line rc t0 t1 elapsed
     # PRE-ASSERT (2026-09-29): a host row needs the cluster formed as much as
     # a coordinated one, and until now it was the only kind of row launched
-    # without checking.  Measured twice at 4/tcp (runs 20260928T221236Z and
+    # without checking.  Measured twice at 4/net/mesh/direct (runs 20260928T221236Z and
     # 20260929T004057Z): chk_clean was killed at its budget with every node
     # unmounted, crash_audit's death oracle then aborted at its own member
     # mount check before any kill, and the row recorded that as a failed
@@ -1169,7 +1230,7 @@ run_host() {  # name cat budget
     # reason, which tools/criteria.py excludes from the flake count as
     # rig-formation noise.  Runs before t0 so it never counts against the
     # row's budget.
-    local fstype=mxfs; [ "$DLM" = xfs ] && fstype=xfs
+    local fstype=mxfs; [ "$CFG_BASELINE" = 1 ] && fstype=xfs
     local pa_bad="" pa_pids=() pa_n pa_i
     for pa_n in "${NODES[@]}"; do
         ( timeout 15 "$SSH" "$pa_n" "$PASS" \
@@ -1190,7 +1251,7 @@ run_host() {  # name cat budget
         return
     fi
     t0=$(date +%s)
-    out=$(MXFS_NODES=$N MXFS_DLM=$DLM MXFS_DEV="$DEV" MXFS_MNT="$MNT" \
+    out=$(MXFS_NODES=$N MXFS_CONFIG=$CONFIG MXFS_CONFIG_SLUG=$CFG_SLUG MXFS_DEV="$DEV" MXFS_MNT="$MNT" \
           MXFS_RUN_ID=$RUN_ID \
           timeout --kill-after=5 "$kill_budget" bash "$script" 2>&1); rc=$?
     t1=$(date +%s); elapsed=$(( t1 - t0 ))
@@ -1270,13 +1331,13 @@ run_coord() {  # name cat budget scale
     # manifest/formula target computed above) stays UNINFLATED for
     # record()/display -- showing the calibration-inflated kill-ceiling as
     # if it were the intended budget is misleading (e.g. dir_reuse_coherency
-    # at 2/caw: real target is 140*2=280s, but the kill-ceiling is 5600s --
+    # at 2/disk/caw/mpath: real target is 140*2=280s, but the kill-ceiling is 5600s --
     # displaying "256s/5600s" reads as an absurd/broken budget when the real
     # comparison is 256s/280s).
     local real_budget="$tt"
     [ "${RULE0_CALIBRATE:-0}" = 1 ] && tt=$(( tt * 20 ))
 
-    local fstype=mxfs; [ "$DLM" = xfs ] && fstype=xfs
+    local fstype=mxfs; [ "$CFG_BASELINE" = 1 ] && fstype=xfs
     local tmpd; tmpd=$(mktemp -d) pids=() i=0
     local t0 t1 elapsed
 
@@ -1290,7 +1351,7 @@ run_coord() {  # name cat budget scale
     # Derived time budget.
     # ccloop c7ee71c6 sess12: mountpoint+fstype alone passes a SHUTDOWN
     # ZOMBIE (fs_shut=1 but still in the mount table — test14 after the
-    # 32/caw spurious shutdown).  A zombie at a coord barrier then stalls
+    # 32/disk/caw/mpath spurious shutdown).  A zombie at a coord barrier then stalls
     # every healthy node to the row budget (the all-32 NO_TERMINAL_RECORD
     # cache_coherency rerun).  Require a live readdir of the mount root:
     # a shutdown FS fences it (P-SHUTDOWN-FENCE → EIO) while a healthy
@@ -1438,8 +1499,8 @@ run_coord() {  # name cat budget scale
         # pipeline status was grep's and that evidence was thrown away.
         ( nrc=0
           timeout --kill-after=3 "$tt" "$SSH" "$n" "$PASS" \
-            "MXFS_NODES=$N MXFS_RANK=$i MXFS_DLM=$DLM MXFS_DEV='$DEV' \
-             MXFS_EXPECT_FSTYPE=$fstype MXFS_FS_LABEL=$DLM \
+            "MXFS_NODES=$N MXFS_RANK=$i MXFS_CONFIG=$CONFIG MXFS_CONFIG_SLUG=$CFG_SLUG MXFS_DEV='$DEV' \
+             MXFS_EXPECT_FSTYPE=$fstype MXFS_FS_LABEL=$CFG_SLUG MXFS_MARKER='$MARKER' \
              MXFS_COORD_BROKER=$BROKER MXFS_COORD_PREFIX=$prefix COORD_TIMEOUT=$ct \
              MXFS_DEADLINE_MS=$dl_ms MXFS_RESERVE_MS=$reserve_ms MXFS_SPOOL='$spool' \
              ${MXFS_TEST_ENV:-} \
@@ -1790,7 +1851,7 @@ in_only() {
     # chk_clean's release verdict needs the coverage witness that alloc_witness
     # seals under the SAME run id (tests/evidence/alloc_witness/<run>/witness.txt).
     # A chk_clean run without it grades its CLEAN audit INDETERMINATE and FAILs
-    # ("no sealed witness for run ..."; measured 2026-09-29 on a 4/tcp lap of
+    # ("no sealed witness for run ..."; measured 2026-09-29 on a 4/net/mesh/direct lap of
     # chk_clean alone), and the flake window then counts a clean platter as a
     # fault of the filesystem.  So asking for chk_clean asks for alloc_witness
     # too; the matrix order runs it first.
@@ -1800,7 +1861,7 @@ in_only() {
     return 1
 }
 
-# applicable: is this matrix row going to be run under (N, DLM, ONLY)?
+# applicable: is this matrix row going to be run under (CONFIG, ONLY)?
 applicable() {  # cat tr name coord minn maxn
     local cat="$1" tr="$2" name="$3" minn="$5" maxn="$6"
     # prep_cluster is handled specially before this loop (marker check /
@@ -1808,11 +1869,11 @@ applicable() {  # cat tr name coord minn maxn
     # reset_pending's PENDING-marker lifecycle doesn't touch it.
     [ "$name" = "prep_cluster" ] && return 1
     in_only "$name" || return 1
-    transport_matches "$tr" || return 1
+    config_applies "$tr" || return 1
     [ "$N" -ge "$minn" ] || return 1
     [ "$maxn" -eq 0 ] || [ "$N" -le "$maxn" ] || return 1
     [ -f "$REPO/tests/$cat/$name.sh" ] || return 1
-    [ "$DLM" = xfs ] && ! xfs_applicable "$name" && return 1
+    [ "$CFG_BASELINE" = 1 ] && ! xfs_applicable "$name" && return 1
     return 0
 }
 
@@ -1836,11 +1897,18 @@ applicable() {  # cat tr name coord minn maxn
 #   3. fail_stale_pending heals markers left by a kill -9 (trap never ran): the
 #      flock above serializes runs, so at startup EVERY pre-existing
 #      running-marker belongs to a dead run — convert them all to FAIL.
+#      A group run heals its own configuration's column only: other groups'
+#      runs are live beside it, and it holds its configuration's lock, so the
+#      markers in that column are the only ones it knows to be dead.
 fail_stale_pending() {
-    "$CRITPY" finalize
+    if [ -n "$GROUP" ]; then
+        "$CRITPY" finalize --at "$CONFIG"
+    else
+        "$CRITPY" finalize
+    fi
 }
 reset_pending() {
-    local cond="${N}/${DLM}" names=() tmp row cat tr name coord minn maxn budget scale
+    local cond="$CONFIG" names=() tmp row cat tr name coord minn maxn budget scale
     for row in "${ROWS[@]}"; do
         IFS=$'\t' read -r cat tr name coord minn maxn budget scale <<<"$row"
         applicable "$cat" "$tr" "$name" "$coord" "$minn" "$maxn" && names+=("$name")
@@ -1861,7 +1929,7 @@ reset_pending() {
 #   * a test the run never reached at all — which says nothing whatever about
 #     the filesystem.
 # A truncated sweep therefore painted the board red and was indistinguishable
-# at a glance from a broken filesystem (live example: a 16/caw board showed 5
+# at a glance from a broken filesystem (live example: a 16/disk/caw/mpath board showed 5
 # reds, of which THREE were "aborted" tests that never executed and two had
 # `checks=354 passed=354 failed=0` / `hits=0 kinds=[]`, i.e. zero failing
 # checks).  That destroys the board's only job — being believable.
@@ -1873,7 +1941,7 @@ reset_pending() {
 # Neither is PASS, so neither can make the board green (tools/criteria.py only greens a
 # cell on a real PASS, and reports NOT_RUN/ABORTED in their own columns).
 mark_executing() {  # <test-name>
-    "$CRITPY" executing "$1" --at "${N}/${DLM}" --run-id "$RUN_ID"
+    "$CRITPY" executing "$1" --at "$CONFIG" --run-id "$RUN_ID"
 }
 finalize_pending() {
     "$CRITPY" finalize --run-id "$RUN_ID"
@@ -1891,7 +1959,7 @@ finalize_pending() {
 # itself is what is broken.
 # ---------------------------------------------------------------------------
 if ! "$REPO/scripts/clyde_preflight.sh"; then
-    echo "=== run.sh ABORTED: host-safety preflight failed at ${N}/${DLM} ===" >&2
+    echo "=== run.sh ABORTED: host-safety preflight failed at ${CONFIG} ===" >&2
     echo "    Do not widen or skip this to make a run start.  Fix the host." >&2
     exit 3
 fi
@@ -1909,12 +1977,12 @@ pc_budget=$(printf '%s\n' "${ROWS[@]}" | awk -F'\t' '$3=="prep_cluster"{print $7
 # running any other tests.
 if [ "${#ONLY[@]}" -eq 1 ] && [ "${ONLY[0]}" = "prep_cluster" ]; then
     t0=$(date +%s)
-    if [ "$DLM" = xfs ]; then prep_cluster_xfs; else prep_cluster; fi; rc=$?
+    if [ "$CFG_BASELINE" = 1 ]; then prep_cluster_xfs; else prep_cluster; fi; rc=$?
     t1=$(date +%s); elapsed=$(( t1 - t0 ))
     if [ "$rc" -eq 0 ]; then
-        marker_write "$N" "$DLM" "$WANT_SRCVER"
+        marker_write "$N" "$CONFIG" "$WANT_SRCVER"
         record "prep_cluster" PASS "elapsed=${elapsed}s (fresh prep)" "" "$elapsed" "$pc_budget"
-        echo "=== prep_cluster OK @ ${N}/${DLM} (${elapsed}s) — marker updated ==="
+        echo "=== prep_cluster OK @ ${CONFIG} (${elapsed}s) — marker updated ==="
     else
         record "prep_cluster" FAIL "elapsed=${elapsed}s" "prep failed" "$elapsed" "$pc_budget"
         echo "ABORT: cluster prep failed"
@@ -1930,25 +1998,25 @@ if [ "${#ONLY[@]}" -gt 0 ]; then
     # masks that and burns a full teardown/reform+converge cycle (the
     # convergence gate alone is 90+5*N) for no reason.
     if marker_matches; then
-        echo "--- cluster already prepped for ${N}/${DLM} (srcver=$WANT_SRCVER) — skipping prep ---"
-        record "prep_cluster" PASS "skipped (marker matched ${N}/${DLM})" "" 0 "$pc_budget"
+        echo "--- cluster already prepped for ${CONFIG} (srcver=$WANT_SRCVER) — skipping prep ---"
+        record "prep_cluster" PASS "skipped (marker matched ${CONFIG})" "" 0 "$pc_budget"
     else
-        echo "ERROR: cluster is prepped for ${MK_NODES:-<none>}/${MK_DLM:-<none>} (srcver=${MK_SRCVER:-<none>}), you requested ${N}/${DLM} (srcver=$WANT_SRCVER)."
-        echo "  Run './run.sh $N $DLM' (no test filter) or './run.sh $N $DLM prep_cluster' first."
+        echo "ERROR: cluster is prepped for ${MK_CONFIG:-<none>} (srcver=${MK_SRCVER:-<none>}), you requested ${CONFIG} (srcver=$WANT_SRCVER)."
+        echo "  Run './run.sh $CONFIG' (no test filter) or './run.sh $CONFIG prep_cluster' first."
         exit 1
     fi
 else
     # Unfiltered (no test names given): always fully (re)validate this
     # condition -- the deliberate "make it so" invocation.
     t0=$(date +%s)
-    if [ "$DLM" = xfs ]; then prep_cluster_xfs; else prep_cluster; fi
+    if [ "$CFG_BASELINE" = 1 ]; then prep_cluster_xfs; else prep_cluster; fi
     rc=$?
     t1=$(date +%s); elapsed=$(( t1 - t0 ))
     if [ "$rc" -ne 0 ]; then
         record "prep_cluster" FAIL "elapsed=${elapsed}s" "prep failed" "$elapsed" "$pc_budget"
         echo "ABORT: cluster prep failed"; exit 1
     fi
-    marker_write "$N" "$DLM" "$WANT_SRCVER"
+    marker_write "$N" "$CONFIG" "$WANT_SRCVER"
     record "prep_cluster" PASS "elapsed=${elapsed}s (fresh prep)" "" "$elapsed" "$pc_budget"
 fi
 
@@ -1992,6 +2060,45 @@ coord_broker_hygiene() {
         echo "       NOT read those as filesystem failures."
         exit 1
     fi
+    # A group run may not sweep the whole namespace: other groups' runs are
+    # live beside it and their barriers are retained messages too.  It sweeps
+    # every run that is NOT live instead.  A live group run holds its
+    # configuration's lock, and the holder line carries its run id
+    # (tests/lib/runlock.sh), so "live" is read from the locks rather than
+    # guessed from the topics.
+    if [ -n "$GROUP" ]; then
+        local f fd live=" $RUN_ID " ids dead topics=() id
+        for f in /tmp/mxfs_config.*.lock; do
+            [ -e "$f" ] || continue
+            exec {fd}>>"$f" || continue
+            if ! flock -n -x "$fd"; then
+                for id in $(grep -o 'run_id=[^ ]*' "$f" | cut -d= -f2); do live="$live$id "; done
+            fi
+            exec {fd}>&-
+        done
+        for round in 1 2 3; do
+            ids=$(timeout 12 mosquitto_sub -h "$BROKER" -t 'mxfs/coord/#' -v -W 4 2>/dev/null \
+                  | awk '{print $1}' | cut -d/ -f3 | sort -u)
+            dead=""; topics=()
+            for id in $ids; do
+                [ "$id" = .hygiene ] && continue
+                case "$live" in *" $id "*) continue ;; esac
+                dead="$dead $id"; topics+=(-t "mxfs/coord/$id/#")
+            done
+            [ "${#topics[@]}" -eq 0 ] && break
+            echo "--- coord broker: sweeping retained messages of $(wc -w <<<"$dead") run(s) no longer live (round $round) ---"
+            timeout 12 mosquitto_sub -h "$BROKER" "${topics[@]}" --remove-retained -W 5 >/dev/null 2>&1
+        done
+        if [ "${#topics[@]}" -gt 0 ]; then
+            left=$(timeout 12 mosquitto_sub -h "$BROKER" "${topics[@]}" -v -W 4 2>/dev/null | grep -c . || true)
+            if [ "${left:-0}" -gt 200 ]; then
+                echo "ERROR: coord broker still holds $left retained messages of runs that are not live."
+                echo "       Aborting rather than recording infrastructure failure as filesystem defects."
+                exit 1
+            fi
+        fi
+        return 0
+    fi
     # Sweep every run's leftovers.  NOTE: mosquitto_sub -W is an ABSOLUTE exit
     # timer, not an idle window -- a single `-W 300` sweep would add 300s to every
     # run even on a clean broker (it did; that is why this loops instead).  Probe
@@ -2028,12 +2135,26 @@ coord_broker_hygiene() {
 }
 coord_broker_hygiene
 
+# A group's LUN is not the rig LUN data/rigs.json declares for its tag, so
+# every harness that checks a device's identity (tests/lib/rig.sh) would
+# refuse it.  Declare the group's own: the WWID its first node reads through
+# the group target's path, and the host image behind that target, which the
+# library still accepts only after its fsid matches the LUN's.
+if [ -n "$GROUP" ]; then
+    MXFS_LUN_WWID=$(ssh_node "$NODE1" "d=\$(readlink -f '$DEV') && cat /sys/block/\$(basename \$d)/device/wwid" 2>/dev/null \
+                    | grep -a -E '^(eui|naa|t10)\.' | tail -1 | tr -d ' ')
+    [ -n "$MXFS_LUN_WWID" ] || { echo "ERROR: group $GROUP: $NODE1 reads no WWID through $DEV — run scripts/rig_groups.sh setup $GROUP"; exit 1; }
+    MXFS_HOST_IMAGE_PATH=$("$REPO/scripts/rig_groups.sh" image "$GROUP")
+    export MXFS_LUN_WWID MXFS_HOST_IMAGE_PATH
+    echo "--- group $GROUP: LUN wwid=$MXFS_LUN_WWID host image=$MXFS_HOST_IMAGE_PATH ---"
+fi
+
 fail_stale_pending
 reset_pending
 trap finalize_pending EXIT
 trap 'exit 143' TERM INT
 
-echo "=== run @ ${N}/${DLM} (run_id=$RUN_ID) ==="
+echo "=== run @ ${CONFIG} (run_id=$RUN_ID) ==="
 
 for row in "${ROWS[@]}"; do
     IFS=$'\t' read -r cat tr name coord minn maxn budget scale <<<"$row"
@@ -2042,7 +2163,7 @@ for row in "${ROWS[@]}"; do
     [ "$name" = "prep_cluster" ] && continue
     in_only "$name" || continue
     # transport applicability
-    transport_matches "$tr" || continue
+    config_applies "$tr" || continue
     # node-count applicability
     [ "$N" -ge "$minn" ] || { continue; }
     [ "$maxn" -eq 0 ] || [ "$N" -le "$maxn" ] || { continue; }
@@ -2051,7 +2172,7 @@ for row in "${ROWS[@]}"; do
     # so tools/criteria.py shows a deliberate, documented state instead of an eternal
     # "not run yet". Everything else under xfs (multi-node/coordinated tests)
     # is simply not applicable and stays PENDING like any other unrun test.
-    if [ "$DLM" = xfs ]; then
+    if [ "$CFG_BASELINE" = 1 ]; then
         if xfs_no_equivalent "$name"; then
             record "$name" SKIP "n/a" "no native-XFS equivalent under the xfs baseline condition"
             printf "  SKIP  %s (no native-XFS equivalent)\n" "$name"
@@ -2113,8 +2234,8 @@ for row in "${ROWS[@]}"; do
 done
 
 # Summary -> .last_run.json
-jq -n --argjson n "$N" --arg dlm "$DLM" --arg id "$RUN_ID" \
+jq -n --argjson n "$N" --arg cfg "$CONFIG" --arg id "$RUN_ID" \
    --argjson ran "$ran" --argjson pend "$pending" --arg t "$(date -u +%FT%TZ)" \
-   '{run_id:$id, nodes:$n, dlm:$dlm, ran:$ran, pending:$pend, iso:$t}' > "$LAST"
+   '{run_id:$id, nodes:$n, configuration:$cfg, ran:$ran, pending:$pend, iso:$t}' > "$LAST"
 
-echo "=== done: ran=$ran pending=$pending @ ${N}/${DLM} — see tools/criteria.py $N $DLM ==="
+echo "=== done: ran=$ran pending=$pending @ ${CONFIG} — see tools/criteria.py $CONFIG ==="

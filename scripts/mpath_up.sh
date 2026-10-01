@@ -4,7 +4,7 @@
 # presentation of the shared SCST LUN on N test nodes.
 #
 # This is the RUNTIME rig for the CAW-on-multipath FS matrix (the substrate
-# that docs/condition4_multipath_scope.md characterised): SCST advertises the
+# that docs/multipath-attach.md characterised): SCST advertises the
 # LUN on TWO portals (both br0 IPs, synthetic 2-path), every guest logs into
 # both, and multipathd assembles /dev/mapper/mpatha (2 paths) on every node.
 # The FS harness then runs with MXFS_DEV=/dev/mapper/mpatha.

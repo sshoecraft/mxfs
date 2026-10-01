@@ -24,7 +24,7 @@
 # completion with garbage content would be a real defect: md5s printed.
 #
 # Uses DISJOINT holder nodes per kind so one wedge cannot mask the next
-# trigger; leaves up to 3 nodes wedged/shutdown — RUN `./run.sh 32 caw
+# trigger; leaves up to 3 nodes wedged/shutdown — RUN `./run.sh 32/disk/caw/mpath
 # prep_cluster` AFTER this test before any other rig work.
 #
 # the budget rule (derived): srcgate 10s + kind2 ~45s + 3 destructive triggers
@@ -192,6 +192,6 @@ for n in "$W" "$H2" "$H1" "$H3" "$H4"; do
     ck "zero splats on $n" "${s:-nossh}" "0"
 done
 
-echo "NOTE: nodes $H1 $H3 $H4 are wedged/shutdown by design — run './run.sh 32 caw prep_cluster' before further rig work."
+echo "NOTE: nodes $H1 $H3 $H4 are wedged/shutdown by design — run './run.sh 32/disk/caw/mpath prep_cluster' before further rig work."
 if [ "$fails" -eq 0 ]; then echo "VERDICT PASS: T8 injector matrix 4/4 kinds contained"; exit 0; fi
 echo "VERDICT FAIL: $fails assertion(s)"; exit 1

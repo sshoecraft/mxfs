@@ -13,17 +13,17 @@ cd /src/mxfs || exit 1
 LOG=tests/evidence/sess415_verify_0283.log
 {
   echo "=== sess415 0.28.3 verify start $(date -u +%FT%TZ) build=$(cat VERSION) sv=$(modinfo mxfs.ko | awk '/srcversion/{print $2}') ==="
-  timeout 300 ./run.sh 32 caw prep_cluster
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster
   echo "STAGE prep rc=$?"
   timeout 100 tests/d512_incarn_gate_verify.sh s415c test5
   echo "STAGE d512 rc=$?"
   timeout 100 tests/d512_race_verify.sh s415r test5
   echo "STAGE race rc=$?"
-  timeout 120 ./run.sh 32 caw zero_silent_loss
+  timeout 120 ./run.sh 32/disk/caw/mpath zero_silent_loss
   echo "STAGE zsl1 rc=$?"
-  timeout 120 ./run.sh 32 caw zero_silent_loss
+  timeout 120 ./run.sh 32/disk/caw/mpath zero_silent_loss
   echo "STAGE zsl2 rc=$?"
-  timeout 1400 ./run.sh 32 caw
+  timeout 1400 ./run.sh 32/disk/caw/mpath
   echo "STAGE board rc=$?"
   D=$(mktemp -d)
   for i in $(seq 1 32); do

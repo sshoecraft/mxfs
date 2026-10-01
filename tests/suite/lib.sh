@@ -476,7 +476,7 @@ fi
 #
 # Inert unless MXFS_STALL_RANK is set, and it touches no filesystem state — it
 # is a sleep.  Set through the harness with:
-#     MXFS_TEST_ENV="MXFS_STALL_RANK=7 MXFS_STALL_S=300" ./run.sh 32 caw <test>
+#     MXFS_TEST_ENV="MXFS_STALL_RANK=7 MXFS_STALL_S=300" ./run.sh 32/disk/caw/mpath <test>
 if [ -n "${MXFS_STALL_RANK:-}" ] && [ "${MXFS_STALL_RANK}" = "$RANK" ]; then
     suite_step "injected-stall"
     echo "mxfs-INJECTED-STALL rank=$RANK for ${MXFS_STALL_S:-600}s" > /dev/kmsg 2>/dev/null

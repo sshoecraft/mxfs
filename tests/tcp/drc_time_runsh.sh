@@ -3,9 +3,9 @@
 # at a given MHT, to compare against the derived time budget (60*N). sess2 ccloop.
 set -u
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd); cd "$REPO"
-N="${1:-8}"; MHT="${2:-1500}"
+CONFIG=$(python3 "$(dirname "$0")/../../tools/configuration.py" parse "${1:-8/net/mesh/direct}") || exit 2; N=${CONFIG%%/*}; MHT="${2:-1500}"
 t0=$SECONDS
-OUT=$(MXFS_EXTRA_MODARGS="inode_mht_ms=$MHT" ./run.sh "$N" tcp dir_reuse_coherency 2>&1)
+OUT=$(MXFS_EXTRA_MODARGS="inode_mht_ms=$MHT" ./run.sh "$CONFIG" dir_reuse_coherency 2>&1)
 dt=$((SECONDS-t0))
 echo "$OUT" | grep -E 'PASS|FAIL|dir_reuse' | tail -3
 echo "RUNSH_WALL=${dt}s  BUDGET=$((60*N))s  $([ $dt -le $((60*N)) ] && echo WITHIN || echo OVER)"

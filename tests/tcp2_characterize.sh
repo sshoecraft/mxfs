@@ -1,12 +1,12 @@
 #!/bin/bash
-# tcp2_characterize.sh — repeatedly run the full 2/tcp suite (or a subset),
+# tcp2_characterize.sh — repeatedly run the full 2/net/mesh/direct suite (or a subset),
 # clean-rebooting both nodes before each run, and log per-test PASS/FAIL plus
 # any dmesg shutdown/oops markers from both nodes.  Used to measure the true
-# flake rate of the 2/tcp criterion and capture failure evidence (instrumented).
+# flake rate of the 2/net/mesh/direct criterion and capture failure evidence (instrumented).
 #
 # Usage: tcp2_characterize.sh <iters> [test ...]
 #   <iters>      number of full clean-reboot suite runs
-#   [test ...]   optional explicit subset (default: all 2/tcp tests)
+#   [test ...]   optional explicit subset (default: all 2/net/mesh/direct tests)
 set -u
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/..
 cd "$REPO"
@@ -22,7 +22,7 @@ for i in $(seq 1 "$ITERS"); do
     for n in test1 test2; do
         timeout 8 "$SSH" "$n" "$PF" 'dmesg --clear 2>/dev/null' >/dev/null 2>&1
     done
-    out=$(timeout 1500 ./run.sh 2 tcp "${ONLY[@]}" 2>&1)
+    out=$(timeout 1500 ./run.sh 2/net/mesh/direct "${ONLY[@]}" 2>&1)
     echo "$out" | grep -E '  (PASS|FAIL) ' | tee -a "$LOG"
     # capture shutdown/oops/corruption markers
     for n in test1 test2; do

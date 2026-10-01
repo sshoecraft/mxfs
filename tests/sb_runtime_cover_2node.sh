@@ -19,7 +19,7 @@
 #     at least the pause; Y is healthy afterwards; X remounts.
 # On the unfixed build the first two checks FAIL — that is the measurement.
 #
-# the budget rule (derived): prep 50 s measured (2/tcp QNAP) + pause 20 s + umount
+# the budget rule (derived): prep 50 s measured (2/net/mesh/direct QNAP) + pause 20 s + umount
 # ~3 s + burst/capture ~25 s + remount ~5 s = ~105 s; chain bound 300 (prep
 # manifest) + 120 = 420 s.
 #
@@ -30,7 +30,7 @@ LABEL=${1:?label}
 PAUSE_MS=${2:-20000}
 cd "$(dirname "$0")/.." || exit 2
 export MXFS_NODE_LIST=${MXFS_NODE_LIST:-test1,test2}
-export MXFS_TRANSPORT=${MXFS_TRANSPORT:-tcp}
+export MXFS_CONFIG=${MXFS_CONFIG:-2/net/mesh/direct}
 X=${MXFS_NODE_LIST%%,*}
 Y=${MXFS_NODE_LIST##*,}
 SSH=tools/mxfs_sshpass.sh
@@ -50,7 +50,7 @@ SBPAT='P-SB-\|P30-QUIESCE-RECOUNT\|will fix summary\|P-UNMOUNT'
 
 echo "=== sb_runtime_cover_2node label=$LABEL X=$X Y=$Y pause_ms=$PAUSE_MS sv=$(modinfo mxfs.ko | sed -n 's/^srcversion: *//p') $(date -u +%FT%TZ) ==="
 s=$(date +%s)
-MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2 tcp prep_cluster > "$OUT/prep.log" 2>&1
+MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2/net/mesh/direct prep_cluster > "$OUT/prep.log" 2>&1
 prc=$?
 echo "STAGE prep rc=$prc wall=$(( $(date +%s) - s ))s"
 if [ $prc != 0 ]; then echo "RESULT: FAIL label=$LABEL prep rc=$prc"; exit 2; fi

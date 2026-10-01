@@ -1,12 +1,12 @@
 #!/bin/bash
-# drc_dirtyskip.sh (sess48 ccloop) — reboot-clean once, run 8/tcp dir_reuse with
+# drc_dirtyskip.sh (sess48 ccloop) — reboot-clean once, run 8/net/mesh/direct dir_reuse with
 # given modargs + reduced rounds, then pull the DECISIVE correlation:
 #   P48-OWNEREVICT-DIRTYSKIP (stale-base survivor at handoff)  vs
 #   mxfs-drc-RDMISS / CLASS (the durable single-dirent loss).
 # Usage: tests/drc_dirtyskip.sh "<modargs>" [rounds]
 set -u
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd); cd "$REPO"
-MODARGS="${1:-}"; ROUNDS="${2:-16}"; N="${3:-8}"
+MODARGS="${1:-}"; ROUNDS="${2:-16}"; CONFIG=$(python3 "$(dirname "$0")/../tools/configuration.py" parse "${3:-8/net/mesh/direct}") || exit 2; N=${CONFIG%%/*}
 SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass
 ALL="test1 test2 test3 test4 test5 test6 test7 test8"
 NODES=$(echo $ALL | tr ' ' '\n' | head -n "$N" | tr '\n' ' ')
@@ -20,7 +20,7 @@ done
 sleep 20
 for n in $NODES; do timeout 8 $SSH $n $PASS "rm -f /root/drc_failrounds.txt; dmesg -C" >/dev/null 2>&1; done
 echo "########## RUN modargs=[$MODARGS] rounds=$ROUNDS @ $(date -u +%T) ##########"
-OUT=$(env MXFS_EXTRA_MODARGS="$MODARGS" MXFS_TEST_ENV="DRC_ROUNDS=$ROUNDS" ./run.sh "$N" tcp dir_reuse_coherency 2>&1)
+OUT=$(env MXFS_EXTRA_MODARGS="$MODARGS" MXFS_TEST_ENV="DRC_ROUNDS=$ROUNDS" ./run.sh "$CONFIG" dir_reuse_coherency 2>&1)
 echo "$OUT" | grep -E 'dir_reuse_coherency|converged|prep OK' | tail -3
 echo "===== per-node correlation ====="
 for n in $NODES; do

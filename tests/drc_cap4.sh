@@ -1,5 +1,5 @@
 #!/bin/bash
-# drc_cap4.sh — 4/tcp dir_reuse_coherency capture loop (sess45 ccloop).
+# drc_cap4.sh — 4/net/mesh/direct dir_reuse_coherency capture loop (sess45 ccloop).
 # Adapted from drc_cap8.sh.  On a FAIL pulls the DECISIVE materialization
 # detectors that are ALWAYS-ON in the build:
 #   - mxfs-drc-RDMISS / drc-FAIL  (which expected name is absent)
@@ -30,7 +30,7 @@ reboot_clean() {
 for i in $(seq 1 "$ITERS"); do
   echo "########## ITER $i/$ITERS reboot @ $(date -u +%T) ##########"
   reboot_clean
-  OUT=$(env MXFS_EXTRA_MODARGS="$MODARGS" ./run.sh 4 tcp dir_reuse_coherency 2>&1)
+  OUT=$(env MXFS_EXTRA_MODARGS="$MODARGS" ./run.sh 4/net/mesh/direct dir_reuse_coherency 2>&1)
   res=$(echo "$OUT" | grep -E 'dir_reuse_coherency' | tail -1)
   echo "ITER $i: $res"
   if echo "$res" | grep -q 'PASS'; then continue; fi

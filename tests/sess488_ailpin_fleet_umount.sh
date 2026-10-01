@@ -75,7 +75,7 @@ leg() { # <name> <ko>
     t0=$(date +%s)
     local modargs=""
     [ "$name" = S ] && modargs="closure_skip_publisher_purge=1"
-    MXFS_EXTRA_MODARGS="$modargs" timeout 300 ./run.sh 32 caw prep_cluster > "$D/prep.out" 2>&1; rc=$?
+    MXFS_EXTRA_MODARGS="$modargs" timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster > "$D/prep.out" 2>&1; rc=$?
     echo "  STAGE prep rc=$rc wall=$(( $(date +%s) - t0 ))s budget=300s modargs='$modargs' build=$(grep -ao 'build [0-9A-F]*' "$D/prep.out" | tail -1)"
     [ "$rc" = 0 ] || { echo "  LEG $name NOT RUN: prep rc=$rc"; return 1; }
     if [ "$name" = S ]; then
@@ -194,7 +194,7 @@ leg() { # <name> <ko>
         # bootstrap's classification can be checked against the platter.
         local CHK=/src/mxfs/tools/chk_mxfs     # the tree build: it reports which flag binding a re-flagged identity validates against
         [ -x "$CHK" ] || CHK="$(dirname "$ko")/tools/chk_mxfs"
-MXFS_DEV=${MXFS_DEV:?this chain ran the tcpmp condition, TCP over the multipath LUN: name that LUN with MXFS_DEV (never assumed from a rig path)}
+MXFS_DEV=${MXFS_DEV:?this chain ran net/mesh/mpath, TCP over the multipath LUN: name that LUN with MXFS_DEV (never assumed from a rig path)}
         timeout 90 $SSH test2 "$CHK -v $MXFS_DEV 2>&1 | grep -a 'disklock HB slot\|identity\|GUARD\|RETIRE_PENDING'; echo ===KEYS; (sg_persist --in -k -d $MXFS_DEV 2>&1 || mpathpersist --in -k $MXFS_DEV 2>&1) | head -12; echo ===RECOV; /src/mxfs/tools/recov_forge $MXFS_DEV dump 0 2>&1 | head -12" > "$D/platter_before_remount.txt" 2>/dev/null
         echo "  PLATTER before remount: guard_slots=$(grep -ac 'RECOVERY GUARD' "$D/platter_before_remount.txt") retire_pending=$(grep -ac 'RETIRE_PENDING' "$D/platter_before_remount.txt") identities=$(grep -ac 'identity' "$D/platter_before_remount.txt") keys=$(sed -n '/===KEYS/,/===RECOV/p' "$D/platter_before_remount.txt" | grep -aci '0x')"
         grep -a 'slot 0:\|slot 0 \|GUARD\|ident.*slot 0' "$D/platter_before_remount.txt" | cut -c1-200 | head -4 | sed 's/^/    P: /'

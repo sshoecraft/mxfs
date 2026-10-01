@@ -1,5 +1,5 @@
 #!/bin/bash
-# d3_dirring.sh — D3 (32/caw durable data loss) provenance-capture laps
+# d3_dirring.sh — D3 (32/disk/caw/mpath durable data loss) provenance-capture laps
 # (ccloop c7ee71c6 sess14).  sess13 proved the tight recipe reproduces the
 # co-resident stale clobber ~1/1 with dir tracing OFF (printk at the write
 # path suppresses the µs-wide race), so v0.11.118 records every dir-metadata
@@ -11,7 +11,7 @@
 # the evidence in place.  Analyze with tests/d3_ring_analyze.py.
 #
 # Usage:  tests/d3_dirring.sh [laps]        (default 4)
-# Precondition: 32/caw cluster prepped at the P172 build (v0.11.118+),
+# Precondition: 32/disk/caw/mpath cluster prepped at the P172 build (v0.11.118+),
 # dirwr=0 everywhere (KEEP 0 — dirwr>=1 hides the race).
 
 set -u
@@ -38,7 +38,7 @@ poke_and_harvest() {   # $1 = destination dir
             "$(grep -c 'P26-IGET-FAIL' "$dest/test$i.dmesg" 2>/dev/null)" \
             "$(grep -c 'P171-SFNULL' "$dest/test$i.dmesg" 2>/dev/null)"
     done | tee "$dest/harvest_summary.txt"
-    jq -r '.categories[].tests[] | select(.name=="cache_coherency") | .runs["32/caw"]' \
+    jq -r '.categories[].tests[] | select(.name=="cache_coherency") | .runs["32/disk/caw/mpath"]' \
         "$REPO/criteria.json" > "$dest/criteria_row.json" 2>/dev/null
 }
 
@@ -62,11 +62,11 @@ for lap in $(seq 1 "$LAPS"); do
     #    comes from rank1's view) — so ALSO treat any per-node check-name in
     #    the reason (rv/cv/cwr/uv ...) as a real hit.
     failed=$(jq -r '.categories[].tests[] | select(.name=="cache_coherency")
-                    | .runs["32/caw"].measured' "$REPO/criteria.json" 2>/dev/null \
+                    | .runs["32/disk/caw/mpath"].measured' "$REPO/criteria.json" 2>/dev/null \
              | grep -o 'failed=[0-9]*' | cut -d= -f2)
     failed="${failed:-0}"
     reason=$(jq -r '.categories[].tests[] | select(.name=="cache_coherency")
-                    | .runs["32/caw"].reason' "$REPO/criteria.json" 2>/dev/null)
+                    | .runs["32/disk/caw/mpath"].reason' "$REPO/criteria.json" 2>/dev/null)
     if [ "$failed" = 0 ] && echo "$reason" | grep -qE ':FAIL:(rv|cv|cwr|uv) '; then
         failed=$(echo "$reason" | grep -oE 'test[0-9]+:FAIL' | wc -l)
         echo "--- reason-derived real coherency FAIL on $failed node(s)"
@@ -85,7 +85,7 @@ for lap in $(seq 1 "$LAPS"); do
     # NOT interference — capture it too, with a distinct exit code.
     wedge=0
     measured=$(jq -r '.categories[].tests[] | select(.name=="cache_coherency")
-                      | .runs["32/caw"].measured' "$REPO/criteria.json" 2>/dev/null)
+                      | .runs["32/disk/caw/mpath"].measured' "$REPO/criteria.json" 2>/dev/null)
     case "$measured" in *NO_TERMINAL_RECORD*|*BARRIER_TIMEOUT*) wedge=1;; esac
 
     if [ "$failed" != 0 ] || [ "$unreach" != 0 ] || [ "$wedge" != 0 ]; then

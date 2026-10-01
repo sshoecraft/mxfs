@@ -1,6 +1,6 @@
 #!/bin/bash
 # agi_wedge_verify_det.sh — DETERMINISTIC verification of the AG-meta track-hold
-# reclaim fix (one cycle; assumes a prepped, mounted 2/tcp cluster).
+# reclaim fix (one cycle; assumes a prepped, mounted 2/net/mesh/direct cluster).
 #
 # Runs heavy inode alloc/free churn on BOTH nodes (so AG-meta buffers AGI /
 # inobt / finobt are actively mxfs_ag_meta_track'd), then forces a NOLOGFLUSH

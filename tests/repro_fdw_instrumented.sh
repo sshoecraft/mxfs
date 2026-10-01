@@ -1,16 +1,16 @@
 #!/bin/bash
 # repro_fdw_instrumented.sh — one dir_reuse_coherency+fence_during_write pass
-# at 8/caw with a live sampler running alongside (ps state histogram + any
+# at 8/disk/caw/mpath with a live sampler running alongside (ps state histogram + any
 # non-R/S process names + dmesg tail per node, every 15s) so a stall is
 # caught with a timeline instead of requiring a post-mortem D-state search.
-# Sess: diagnosing the NEW (non-hung, non-D-state) fence_during_write@8/caw
+# Sess: diagnosing the NEW (non-hung, non-D-state) fence_during_write@8/disk/caw/mpath
 # timeout that survived the ccloop703f-sess1 demoter/irele fix.
 set -u
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 SSH="$REPO/tools/mxfs_sshpass.sh"
 PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"
 cd "$REPO"
-N=8
+CONFIG=$(python3 "$(dirname "$0")/../tools/configuration.py" parse "${CONFIG:-8/disk/caw/mpath}") || exit 2; N=${CONFIG%%/*}
 OUT="${1:?usage: repro_fdw_instrumented.sh <outdir>}"
 mkdir -p "$OUT"
 
@@ -23,7 +23,7 @@ DRC_TT=$(( 140 * N + 300 ))
 OUTER=$(( DRC_TT + 300 ))
 
 ( TEST_TIMEOUT="$DRC_TT" timeout "$OUTER" \
-    ./run.sh "$N" caw dir_reuse_coherency fence_during_write \
+    ./run.sh "$CONFIG" dir_reuse_coherency fence_during_write \
     > "$OUT/run.log" 2>&1
   echo "RUN_EXIT=$?" >> "$OUT/run.log" ) &
 RUNPID=$!

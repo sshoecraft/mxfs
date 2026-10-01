@@ -4,11 +4,11 @@
 #
 #  0. build VERSION (make modules + make tools) and PROVE it complete (second
 #     make compiles nothing — see sess419_master_chain.sh for why).
-#  1. prep 32/caw; tests/d_intents_undischarged_verify.sh burst   (180 s)
+#  1. prep 32/disk/caw/mpath; tests/d_intents_undischarged_verify.sh burst   (180 s)
 #  2. prep;        tests/d_intents_undischarged_verify.sh clean   (180 s)
 #  3. prep;        tests/d_mount_window_death_verify.sh window    (220 s)
 #  4. prep;        tests/d_mount_window_death_verify.sh control   (160 s)
-#  5. prep;        full 32/caw board (tests/sess416_board_0286.sh, 1900 s) —
+#  5. prep;        full 32/disk/caw/mpath board (tests/sess416_board_0286.sh, 1900 s) —
 #     node_death_replay is EXPECTED to go red on a churn kill that leaves an
 #     EFI open (honest red, docs/dlm-protocol.md census section).
 #
@@ -21,7 +21,7 @@ LABEL=${1:?label}
 cd "$(dirname "$0")/.." || exit 2
 LOG=tests/evidence/sess421_${LABEL}.log
 E=tests/evidence
-prep_caw() { timeout 300 ./run.sh 32 caw prep_cluster > "$E/sess421_${LABEL}_prep_$1.log" 2>&1; echo "STAGE prep caw $1 rc=$?"; }
+prep_caw() { timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster > "$E/sess421_${LABEL}_prep_$1.log" 2>&1; echo "STAGE prep caw $1 rc=$?"; }
 {
   echo "=== sess421 chain $LABEL start $(date -u +%FT%TZ) build=$(cat VERSION) ==="
   B="$E/sess421_${LABEL}_build.log"

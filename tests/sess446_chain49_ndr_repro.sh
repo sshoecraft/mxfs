@@ -13,12 +13,12 @@ LOG=tests/evidence/sess446_chain49_ndr_repro_$LABEL.log
 {
   echo "=== sess446 chain49 start $(date -u +%FT%TZ) sv=$(modinfo mxfs.ko | awk '/srcversion/{print $2}') VERSION=$(cat VERSION) ==="
   for lap in 1 2; do
-    timeout 300 ./run.sh 32 caw prep_cluster; prc=$?; echo "STAGE prep$lap rc=$prc"
+    timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; prc=$?; echo "STAGE prep$lap rc=$prc"
     if [ "$prc" -ne 0 ]; then echo "ABORT: prep failed"; break; fi
-    T0=$(date +%s); timeout 500 ./run.sh 32 caw node_death_replay; echo "STAGE node_death_replay$lap rc=$? wall=$(( $(date +%s) - T0 ))s"
+    T0=$(date +%s); timeout 500 ./run.sh 32/disk/caw/mpath node_death_replay; echo "STAGE node_death_replay$lap rc=$? wall=$(( $(date +%s) - T0 ))s"
     D=$(ls -dt tests/evidence/board_*_node_death_replay | head -1); echo "EVIDENCE $D"
     for l in shared single; do echo "LAP $l: $(grep -a '^VERDICT\|WAIT ' $D/$l.log 2>/dev/null | head -2 | cut -c1-160 | tr '\n' ' ')"; done
   done
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep_final rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep_final rc=$?"
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

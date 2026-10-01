@@ -2,7 +2,7 @@
 # sess467 chain 99: 0.64.2 on the rig —
 #   1. install the frozen 0.64.2 module + tools (SCRATCH_KO/SCRATCH_SV) into
 #      the tree (else build the tree);
-#   2. prep_cluster 32/caw;
+#   2. prep_cluster 32/disk/caw/mpath;
 #   3. tests/guard_race_arms.sh joiner test2 test1  (D-0523 claim wait, with
 #      the sess467 harness fix: the holder's DONE precedes the claim);
 #   4. prep_cluster; tests/guard_race_arms.sh peerloss test2 test1 (D-0523
@@ -46,15 +46,15 @@ lap() { # <budget_s> <label> <cmd...>
   fi
   if [ "$brc" -ne 0 ] || [ "$(strings -a mxfs.ko | grep -c 'P300-CLAIM-WAIT-RESTART-BOOTSTRAP')" = 0 ]; then echo "ABORT: build/install (no 0.64.2 markers)"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
 
-  lap 300 prep_joiner ./run.sh 32 caw prep_cluster
+  lap 300 prep_joiner ./run.sh 32/disk/caw/mpath prep_cluster
   T1=$(date +%s); timeout 560 tests/guard_race_arms.sh joiner test2 test1 > tests/evidence/sess467_chain99_guard_joiner_$LABEL.log 2>&1; echo "STAGE guard_race joiner rc=$? wall=$(( $(date +%s) - T1 ))s $(grep -a '^RESULT' tests/evidence/sess467_chain99_guard_joiner_$LABEL.log | tail -1 | cut -c1-300)"
   grep -a 'joiner claim\|claim-wait lines\|refusal' tests/evidence/sess467_chain99_guard_joiner_$LABEL.log | cut -c1-300 | tail -n 4
 
-  lap 300 prep_peerloss ./run.sh 32 caw prep_cluster
+  lap 300 prep_peerloss ./run.sh 32/disk/caw/mpath prep_cluster
   T1=$(date +%s); timeout 700 tests/guard_race_arms.sh peerloss test2 test1 > tests/evidence/sess467_chain99_guard_peerloss_$LABEL.log 2>&1; echo "STAGE guard_race peerloss rc=$? wall=$(( $(date +%s) - T1 ))s $(grep -a '^RESULT' tests/evidence/sess467_chain99_guard_peerloss_$LABEL.log | tail -1 | cut -c1-300)"
   grep -a 'peerloss:\|refusal\|survivors\|inconclusive\|SAFETY\|AVAILABILITY' tests/evidence/sess467_chain99_guard_peerloss_$LABEL.log | cut -c1-300 | tail -n 6
 
-  lap 300 prep_attrib ./run.sh 32 caw prep_cluster
+  lap 300 prep_attrib ./run.sh 32/disk/caw/mpath prep_cluster
   T1=$(date +%s); timeout 60 tests/intents_classless_attribute.sh "$LABEL" test1 2 > tests/evidence/sess467_chain99_attrib_$LABEL.log 2>&1; echo "STAGE attribute rc=$? wall=$(( $(date +%s) - T1 ))s $(grep -a '^=== VERDICT' tests/evidence/sess467_chain99_attrib_$LABEL.log | tail -1 | cut -c1-200)"
   grep -a 'INFO\|outcome=\|PASS\|FAIL' tests/evidence/sess467_chain99_attrib_$LABEL.log | cut -c1-200 | tail -n 16
 
@@ -63,13 +63,13 @@ lap() { # <budget_s> <label> <cmd...>
   #    the harness counts fault lines as one integer — chain 95's two
   #    harness FAILs; the kernel contract itself passed 32/32 arms there.
   #    budget: 150 s per invocation (script header: 4 arms x ~26 s + harvest).
-  lap 300 prep_samenode ./run.sh 32 caw prep_cluster
+  lap 300 prep_samenode ./run.sh 32/disk/caw/mpath prep_cluster
   for lapn in 1 2 3; do
     T1=$(date +%s); timeout 150 tests/caw_samenode_selftest.sh test1 test2 all > tests/evidence/sess467_chain99_samenode_${lapn}_$LABEL.log 2>&1; echo "STAGE samenode lap=$lapn rc=$? wall=$(( $(date +%s) - T1 ))s $(grep -a '^=== caw_samenode_selftest' tests/evidence/sess467_chain99_samenode_${lapn}_$LABEL.log | tail -1 | cut -c1-160)"
   done
   T1=$(date +%s); timeout 150 tests/caw_samenode_selftest.sh test7 test19 all > tests/evidence/sess467_chain99_samenode_pair2_$LABEL.log 2>&1; echo "STAGE samenode pair2 rc=$? wall=$(( $(date +%s) - T1 ))s $(grep -a '^=== caw_samenode_selftest' tests/evidence/sess467_chain99_samenode_pair2_$LABEL.log | tail -1 | cut -c1-160)"
   grep -ah '\[samenode\] FAIL\|INFRA' tests/evidence/sess467_chain99_samenode_*_$LABEL.log | sort | uniq -c | sort -rn | head -n 8
 
-  lap 300 prep_final ./run.sh 32 caw prep_cluster
+  lap 300 prep_final ./run.sh 32/disk/caw/mpath prep_cluster
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

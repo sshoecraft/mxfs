@@ -135,7 +135,7 @@ sweep() { # <since> <dir>
 
   for leg in $LEGS; do
     echo "--- leg=$leg ---"
-    timeout 300 ./run.sh 32 caw prep_cluster >/dev/null 2>&1; prc=$?
+    timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster >/dev/null 2>&1; prc=$?
     echo "STAGE prep_$leg rc=$prc"
     if [ "$prc" -ne 0 ]; then
         echo "LEG $leg NOT RUN: prep rc=$prc"
@@ -164,9 +164,9 @@ sweep() { # <since> <dir>
     SINCE=$(date -u +'%Y-%m-%d %H:%M:%S')
     t0=$(date +%s)
     if [ "$leg" = private ]; then
-        MXFS_TEST_ENV="CC_PRIVATE=1" timeout 160 ./run.sh 32 caw crash_consistency > "$O/cc_$leg.out" 2>&1
+        MXFS_TEST_ENV="CC_PRIVATE=1" timeout 160 ./run.sh 32/disk/caw/mpath crash_consistency > "$O/cc_$leg.out" 2>&1
     else
-        timeout 160 ./run.sh 32 caw crash_consistency > "$O/cc_$leg.out" 2>&1
+        timeout 160 ./run.sh 32/disk/caw/mpath crash_consistency > "$O/cc_$leg.out" 2>&1
     fi
     echo "STAGE cc_$leg rc=$? wall=$(( $(date +%s) - t0 ))s"
     grep -aE 'crash_consistency' "$O/cc_$leg.out" | grep -a 'nodes_pass' | cut -c1-320 | sed "s/^/  $leg ROW: /"

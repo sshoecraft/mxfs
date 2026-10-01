@@ -28,12 +28,12 @@
 # another node published, so it only reaches zero once the fix is fleet-wide.
 #
 # budget: budgets are derived from MEASURED walls, never padded.  Re-derive
-# them from `tools/criteria.py 32 caw` if the rig's numbers move; do not pad.
+# them from `tools/criteria.py 32/disk/caw/mpath` if the rig's numbers move; do not pad.
 #
 # the unkillable-wedge rule: no `pgrep -f`, no unbounded ssh; every remote call is bounded and
 # captures its own per-node rc and output.
 #
-# Usage: tests/d385_publication_verify.sh [laps_per_arm] [nodes]
+# Usage: tests/d385_publication_verify.sh [laps_per_arm] [configuration, default 32/disk/caw/mpath]
 #
 # STEPWISE MODE (for callers bounded to <10min foreground calls, e.g. a
 # ccloop session obeying the sess47 foreground directive): set D385_OUT to a
@@ -49,8 +49,8 @@ REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$REPO"
 
 LAPS="${1:-3}"
-N="${2:-32}"
-DLM=caw
+CONFIG=$(python3 "$(dirname "$0")/../tools/configuration.py" parse "${2:-32/disk/caw/mpath}") || exit 2
+N=${CONFIG%%/*}; DLM=${CONFIG#*/}
 MIN_HEADS="${MIN_HEADS:-100}"
 SSH=tools/mxfs_sshpass.sh
 
@@ -61,7 +61,7 @@ SSH=tools/mxfs_sshpass.sh
 # in the ROW walls only (never widen this to make a run pass; a row that
 # overruns its own manifest budget is already a FAIL inside run.sh).
 #
-# RE-DERIVED 2026-08-23 (sess401, 0.23.13, 32/caw) after all six laps of a
+# RE-DERIVED 2026-08-23 (sess401, 0.23.13, 32/disk/caw/mpath) after all six laps of a
 # board died at 280 s with the 4th row (dirent_durability) in flight and no
 # row FAIL: the bound, not a row, was wrong.  Measured that day:
 #   rows   posix_multi 7-17 s, rsync_paired 16-32 s (lap-1 fresh fs 16 s,
@@ -149,7 +149,7 @@ arm_prep() {  # arm_prep <label> -- re-prep + probes + knob + dmesg -C
     knob=$(arm_knob "$arm") || exit 2
     echo
     echo "--- ARM $arm (publish_inodes=$knob) ---"
-    timeout "$PREP_TIMEOUT" ./run.sh "$N" "$DLM" prep_cluster \
+    timeout "$PREP_TIMEOUT" ./run.sh "$CONFIG" prep_cluster \
         > "$OUT/prep.$arm.log" 2>&1
     local prc=$?
     echo "  prep rc=$prc : $(tail -1 "$OUT/prep.$arm.log")"
@@ -189,7 +189,7 @@ arm_lap() {  # arm_lap <label> <lapno>
         for row in "${CHUNK[@]}"; do
             budget=$(awk -v r="$row" '$2==r {print $5}' tests/suite/manifest | head -1)
             budget=${budget:-240}
-            timeout $((budget + 42)) ./run.sh "$N" "$DLM" "$row" \
+            timeout $((budget + 42)) ./run.sh "$CONFIG" "$row" \
                 >> "$OUT/lap.$arm.$lap.log" 2>&1
             rc=$?
             echo "  [row $row rc=$rc bound=$((budget + 42))s]" >> "$OUT/lap.$arm.$lap.log"
@@ -198,7 +198,7 @@ arm_lap() {  # arm_lap <label> <lapno>
         grep -E '^  FAIL|^  \[row .* rc=[1-9]' "$OUT/lap.$arm.$lap.log" | sed 's/^/      /'
         return 0
     fi
-    timeout "$CHUNK_TIMEOUT" ./run.sh "$N" "$DLM" "${CHUNK[@]}" \
+    timeout "$CHUNK_TIMEOUT" ./run.sh "$CONFIG" "${CHUNK[@]}" \
         > "$OUT/lap.$arm.$lap.log" 2>&1
     echo "  lap $lap rc=$? : $(grep -cE '^  PASS' "$OUT/lap.$arm.$lap.log") PASS, $(grep -cE '^  FAIL' "$OUT/lap.$arm.$lap.log") FAIL"
     grep -E '^  FAIL' "$OUT/lap.$arm.$lap.log" | sed 's/^/      /'
@@ -254,7 +254,7 @@ print("Treatment arm: heads=%d joint_ok=%d REPAIRED=%d SPLIT=0 BADHEAD=%d"
 print("Cause exercised at %d heads with zero unrepaired splits." % heads)
 print("BADHEAD is informational: a head another node published cannot be "
       "repaired here, so it only reaches 0 once the fix is fleet-wide.")
-print("STILL REQUIRED before closing: a full 28-row board at 32/caw.")
+print("STILL REQUIRED before closing: a full 28-row board at 32/disk/caw/mpath.")
 PY
 }
 

@@ -1,5 +1,5 @@
 #!/bin/bash
-# drc_phase_profile.sh <nodes> [dlm]
+# drc_phase_profile.sh [configuration, default 32/disk/caw/mpath]
 #
 # WHY THIS EXISTS (ccloop c7ee71c6 sess24)
 # ----------------------------------------
@@ -32,8 +32,7 @@
 set -u
 REPO=/src/mxfs
 SSH="$REPO/tools/mxfs_sshpass.sh"
-N="${1:-32}"
-DLM="${2:-caw}"
+CONFIG=$(python3 "$(dirname "$0")/../tools/configuration.py" parse "${1:-32/disk/caw/mpath}") || exit 2; N=${CONFIG%%/*}; DLM=${CONFIG#*/}
 OUT=$(mktemp -d)
 echo "=== harvesting DRCph markers from $N nodes (out=$OUT) ==="
 

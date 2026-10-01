@@ -1,6 +1,6 @@
 #!/bin/bash
 # drc_probe.sh — standalone reproducer for the dir_reuse_coherency LEAF-HASH
-# durable loss (2/tcp).  Mirrors tests/suite/dir_reuse_coherency.sh but without
+# durable loss (2/net/mesh/direct).  Mirrors tests/suite/dir_reuse_coherency.sh but without
 # the MQTT coord harness: test1 owns the dir lifecycle (mkdir/rm-rf of the SAME
 # name each round → maximal inode/daddr REUSE), both nodes concurrently create
 # NF data+md5 files, then test1 cold-reads and verifies EVERY entry is

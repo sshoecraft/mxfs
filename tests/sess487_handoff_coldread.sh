@@ -3,7 +3,7 @@
 # the holder to give up a directory see the holder's LAST DELETES?
 #
 # THE GAP THIS REPRODUCES.  sess48 proved (raw-disk parse + cross-node write
-# trace, 2/tcp) that a node's committed FINAL directory deletes were NOT
+# trace, 2/net/mesh/direct) that a node's committed FINAL directory deletes were NOT
 # destaged at its EX->PR downgrade, so a peer's cold read listed files the
 # holder had deleted (uv "none remain got=10").  The per-modify synchronous
 # directory flush (mxfs_dlm_dir_durable_signal, mxfs.dir_persig_flush=1) was
@@ -150,7 +150,7 @@ round() { # <mode> <r> <kill 0|1>
   for mode in $MODES; do
     echo "--- mode dir_persig_flush=$mode ---"
     t0=$(date +%s)
-    MXFS_EXTRA_MODARGS="dir_persig_flush=$mode" timeout 300 ./run.sh 32 caw prep_cluster > "$O/prep_m$mode.out" 2>&1; prc=$?
+    MXFS_EXTRA_MODARGS="dir_persig_flush=$mode" timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster > "$O/prep_m$mode.out" 2>&1; prc=$?
     echo "STAGE prep_m$mode rc=$prc wall=$(( $(date +%s) - t0 ))s"
     [ "$prc" = 0 ] || { echo "MODE $mode NOT RUN: prep rc=$prc"; continue; }
     readback dir_persig_flush "$mode" || { echo "MODE $mode NOT RUN: the fleet is not uniformly at dir_persig_flush=$mode"; continue; }

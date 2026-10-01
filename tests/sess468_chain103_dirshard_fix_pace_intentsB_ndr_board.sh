@@ -13,7 +13,7 @@
 # Stages, in order:
 #   1. install the frozen 0.64.6 + tools into the tree; objdump proof of the
 #      ioctl dispatch; marker strings.
-#   2. prep 32/caw; tests/dirshard_stage1_selftest.sh test1 test2 (VERDICT
+#   2. prep 32/disk/caw/mpath; tests/dirshard_stage1_selftest.sh test1 test2 (VERDICT
 #      PASS wanted this time); user-mode format selftest; fleet unmount +
 #      chk_mxfs platter walk (parents=2 published=2 containers=80).
 #   3. pace: crash_consistency x LAPS (default 3, first functional pass) for
@@ -26,7 +26,7 @@
 #      POLICY-REFUSED: classless must drop from 41 to 39, not to 0).
 #   5. node_death_replay x 2 (D-0524's owed NDR on a build carrying its fix;
 #      chains 94 and 97 both had the row cut by an under-derived wrapper).
-#   6. the full 32/caw board (D-0524 'unchanged board' half; item-1 criterion
+#   6. the full 32/disk/caw/mpath board (D-0524 'unchanged board' half; item-1 criterion
 #      (2)).  Wrapper = WEDGE BOUND, not a walls sum: per-row pace is already
 #      enforced by run.sh from tests/suite/manifest, so the outer timeout only
 #      bounds a wedge — sum of row budgets 2060 + node_death_replay 470 + 12 s
@@ -72,7 +72,7 @@ install_ko() { # <ko> <sv> <label>
   if [ "${DISP:-0}" = 0 ]; then echo "ABORT: dispatch not linked"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
 
   # ── 2. stage-1 functional contract + platter walk ──
-  lap 300 prep ./run.sh 32 caw prep_cluster
+  lap 300 prep ./run.sh 32/disk/caw/mpath prep_cluster
   echo "fleet: $(timeout 20 $SSH test1 'cat /sys/module/mxfs/srcversion; grep -c " mxfs " /proc/mounts' 2>/dev/null | grep -av '^Unauthorized\|^$\|^If you' | tr '\n' ' ')"
   lap 240 "dirshard_stage1 selftest test1 test2" tests/dirshard_stage1_selftest.sh test1 test2
   lap 30 "dirshard_format_selftest (user-mode)" tests/selftest/dirshard_format_selftest.sh
@@ -99,13 +99,13 @@ install_ko() { # <ko> <sv> <label>
       sharded32) ENV="CC_SHARDED=32" ;;
       sharded64) ENV="CC_SHARDED=64" ;;
     esac
-    lap 300 "prep_$variant" ./run.sh 32 caw prep_cluster
+    lap 300 "prep_$variant" ./run.sh 32/disk/caw/mpath prep_cluster
     for l in $(seq 1 "$LAPS"); do
       T1=$(date +%s)
       if [ -n "$ENV" ]; then
-        out=$(MXFS_TEST_ENV="$ENV" timeout 160 ./run.sh 32 caw crash_consistency 2>&1); rc=$?
+        out=$(MXFS_TEST_ENV="$ENV" timeout 160 ./run.sh 32/disk/caw/mpath crash_consistency 2>&1); rc=$?
       else
-        out=$(timeout 160 ./run.sh 32 caw crash_consistency 2>&1); rc=$?
+        out=$(timeout 160 ./run.sh 32/disk/caw/mpath crash_consistency 2>&1); rc=$?
       fi
       echo "STAGE cc variant=$variant lap=$l rc=$rc wall=$(( $(date +%s) - T1 ))s $(echo "$out" | grep -a '^  \(PASS\|FAIL\) *crash_consistency' | tail -1 | tr -s ' ' | cut -c1-200)"
       echo "$out" | grep -a 'cc sharded\|EOPNOTSUPP\|BUDGET_EXHAUSTED\|NO_TERMINAL' | head -4 | cut -c1-200
@@ -117,22 +117,22 @@ install_ko() { # <ko> <sv> <label>
   done
 
   # ── 4. intents burst (fix shape B delta) ──
-  lap 300 prep_burst ./run.sh 32 caw prep_cluster
+  lap 300 prep_burst ./run.sh 32/disk/caw/mpath prep_cluster
   lap 180 "intents burst (fix B)" tests/d_intents_undischarged_verify.sh ${LABEL}b burst
   echo "fixB census: $(for n in test1 test2; do printf '%s: agclass=%s tokcls=%s ' $n "$(timeout 20 $SSH $n 'dmesg | grep -a -c P-IUNLINK-AGCLASS' 2>/dev/null | tr -d '\r\n ')" "$(timeout 20 $SSH $n 'dmesg | grep -a P228-TOKCLASS | tail -1' 2>/dev/null | grep -ao 'iunlink_ag=[0-9]*')"; done)"
   echo "fixB replayer: $(D=$(ls -dt tests/evidence/*_intents_burst 2>/dev/null | head -1); echo "$D"; grep -ah 'P227-TOKENSUM' "$D"/dmesg_*.txt 2>/dev/null | grep -ao 'classless=[0-9]* untagged=[0-9]*\|dino_none=[0-9]* dino_agsib=[0-9]*' | sort | uniq -c | tr '\n' ';')"
 
   # ── 5. node_death_replay x 2 ──
   for ndr in 1 2; do
-    lap 300 "prep_ndr$ndr" ./run.sh 32 caw prep_cluster
-    lap 500 "node_death_replay$ndr" ./run.sh 32 caw node_death_replay
+    lap 300 "prep_ndr$ndr" ./run.sh 32/disk/caw/mpath prep_cluster
+    lap 500 "node_death_replay$ndr" ./run.sh 32/disk/caw/mpath node_death_replay
     D=$(ls -dt tests/evidence/board_*_node_death_replay | head -1); echo "EVIDENCE $D"
   done
 
   # ── 6. the full board ──
-  lap 300 prep_board ./run.sh 32 caw prep_cluster
-  T1=$(date +%s); timeout 2900 ./run.sh 32 caw > tests/evidence/sess468_chain103_board_32caw_$LABEL.log 2>&1; echo "STAGE board 32/caw rc=$? wall=$(( $(date +%s) - T1 ))s"
+  lap 300 prep_board ./run.sh 32/disk/caw/mpath prep_cluster
+  T1=$(date +%s); timeout 2900 ./run.sh 32/disk/caw/mpath > tests/evidence/sess468_chain103_board_32caw_$LABEL.log 2>&1; echo "STAGE board 32/disk/caw/mpath rc=$? wall=$(( $(date +%s) - T1 ))s"
   grep -a 'Total:\|FAIL \|POLICY\|node_death_replay' tests/evidence/sess468_chain103_board_32caw_$LABEL.log | tail -n 8 | cut -c1-200
-  lap 300 prep_final ./run.sh 32 caw prep_cluster
+  lap 300 prep_final ./run.sh 32/disk/caw/mpath prep_cluster
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

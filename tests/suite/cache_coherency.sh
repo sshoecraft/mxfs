@@ -53,8 +53,8 @@ D="$BASE/rename_visibility"; mkdir -p "$D" 2>/dev/null
 # checks every OTHER node's every file) is O(T^2) total cluster work --
 # fine at low N, but at T=32 that's 640 renames x 32 verifiers x 3 checks
 # = 61440 checks (measured 12.3s rename + 15.6s verify alone), pushing the
-# whole 9-phase test past its flat 60s budget under cawp's higher per-op
-# DLM latency (cawd/caw had just enough margin to hide the same O(T^2)
+# whole 9-phase test past its flat 60s budget under disk/caw/pass's higher per-op
+# DLM latency (disk/caw/direct and disk/caw/mpath had just enough margin to hide the same O(T^2)
 # shape -- historical median 56-62s, already razor-thin).  RV_TOTAL is a
 # CONSTANT pool size (mirrors dir_reuse_coherency's N-invariant DRC_TOTAL
 # rewrite) so per-node count shrinks as T grows and total cluster verify

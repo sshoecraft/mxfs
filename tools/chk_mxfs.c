@@ -289,6 +289,7 @@ struct xfs_geo {
     uint8_t     agblklog;
     uint64_t    dblocks;
     uint64_t    rootino;
+    uint64_t    metaino[5];     /* rbm, rsum, user/group/project quota: no name */
     uint64_t    icount;
     uint64_t    ifree;
     uint64_t    fdblocks;
@@ -3085,6 +3086,13 @@ static int check_xfs_superblock(int fd, const struct mxfs_ondisk_super *super,
     geo->agblklog = agblklog;
     geo->dblocks = dblocks;
     geo->rootino = rootino;
+    /* sb_rbmino, sb_rsumino, sb_uquotino, sb_gquotino, sb_pquotino: inodes
+     * the superblock names and no directory does */
+    geo->metaino[0] = get_be64(buf + 0x40);
+    geo->metaino[1] = get_be64(buf + 0x48);
+    geo->metaino[2] = get_be64(buf + 0xA0);
+    geo->metaino[3] = get_be64(buf + 0xA8);
+    geo->metaino[4] = get_be64(buf + 0xE8);
     geo->icount = icount;
     geo->ifree = ifree;
     geo->fdblocks = fdblocks;
@@ -5613,9 +5621,53 @@ static int de_cmp_u64(const void *a, const void *b)
     return x < y ? -1 : x > y;
 }
 
-static bool de_allocated(const struct de_u64list *set, uint64_t ino)
+/* the position of ino in the sorted allocated set, or -1 when it is free */
+static int64_t de_index(const struct de_u64list *set, uint64_t ino)
 {
-    return bsearch(&ino, set->v, set->n, sizeof(uint64_t), de_cmp_u64) != NULL;
+    const uint64_t *hit = bsearch(&ino, set->v, set->n, sizeof(uint64_t),
+                                  de_cmp_u64);
+
+    return hit ? hit - set->v : -1;
+}
+
+/* what the link-count pass needs of one allocated inode, gathered from the
+ * inode chunk the collection already read */
+struct de_inode {
+    uint64_t ino;
+    uint32_t nlink;
+    uint16_t mode;
+    bool known;         /* the chunk was readable and the dinode valid */
+    bool exempt;        /* named by the superblock or the sharding manifests */
+};
+
+struct de_inolist {
+    struct de_inode *v;
+    uint32_t n, cap;
+    bool oom;
+};
+
+static void de_ino_push(struct de_inolist *l, const struct de_inode *e)
+{
+    if (l->n == l->cap) {
+        uint32_t ncap = l->cap ? l->cap * 2 : 1024;
+        struct de_inode *nv = realloc(l->v, (size_t)ncap * sizeof(*nv));
+
+        if (!nv) {
+            l->oom = true;
+            return;
+        }
+        l->v = nv;
+        l->cap = ncap;
+    }
+    l->v[l->n++] = *e;
+}
+
+static int de_ino_cmp(const void *a, const void *b)
+{
+    uint64_t x = ((const struct de_inode *)a)->ino;
+    uint64_t y = ((const struct de_inode *)b)->ino;
+
+    return x < y ? -1 : x > y;
 }
 
 /* one data extent of a directory's data fork */
@@ -5634,6 +5686,8 @@ struct de_extlist {
 struct de_stats {
     uint64_t dirs, entries, blocks, dangling, mode0, ftype_bad;
     uint64_t dot_bad, dotdot_bad, blocks_bad, dirs_skipped, errors_shown;
+    uint64_t nlink_bad, nameless;
+    uint32_t *refs;     /* entries naming each allocated inode, by set index */
     bool root_seen;
 };
 
@@ -5858,6 +5912,7 @@ static void de_check_entry(int fd, const struct xfs_geo *geo,
                            int ftype, struct de_stats *st, uint8_t *dip)
 {
     uint16_t mode;
+    int64_t at;
     bool dot = namelen == 1 && name[0] == '.';
     bool dotdot = namelen == 2 && name[0] == '.' && name[1] == '.';
 
@@ -5868,7 +5923,8 @@ static void de_check_entry(int fd, const struct xfs_geo *geo,
                   (unsigned long long)dirino, (unsigned long long)ino);
         return;
     }
-    if (!de_allocated(set, ino)) {
+    at = de_index(set, ino);
+    if (at < 0) {
         st->dangling++;
         de_report(st, "directory %llu: entry '%.*s' names inode %llu which "
                   "the inobt holds FREE (dangling entry)",
@@ -5876,6 +5932,10 @@ static void de_check_entry(int fd, const struct xfs_geo *geo,
                   (unsigned long long)ino);
         return;
     }
+    /* '.' and '..' count too: a directory's nlink is its name, its own '.'
+     * and each subdirectory's '..' */
+    if (st->refs)
+        st->refs[at]++;
     if (ds_read_dinode(fd, geo, ino, dip) < 0) {
         st->dangling++;
         de_report(st, "directory %llu: entry '%.*s' names inode %llu whose "
@@ -6220,7 +6280,8 @@ static void de_walk_blocks(int fd, const struct xfs_geo *geo,
 /* collect the allocated set and the directory list from one inobt leaf */
 static void de_collect_leaf(int fd, const struct xfs_geo *geo, uint32_t agno,
                             const uint8_t *blk, uint16_t numrecs,
-                            struct de_u64list *set, struct de_u64list *dirs)
+                            struct de_u64list *set, struct de_u64list *dirs,
+                            struct de_inolist *inos)
 {
     size_t chunk_bytes = 64 * (size_t)geo->inodesize;
     uint8_t *chunk = malloc(chunk_bytes);
@@ -6255,12 +6316,26 @@ static void de_collect_leaf(int fd, const struct xfs_geo *geo, uint32_t agno,
             ino = ((uint64_t)agno << (geo->agblklog + geo->inopblog)) |
                   (startino + i);
             de_push(set, ino);
-            if (have_chunk) {
-                const uint8_t *dip = chunk + (size_t)i * geo->inodesize;
+            {
+                struct de_inode e = { .ino = ino };
 
-                if (get_be16(dip) == MXFS_DINODE_MAGIC &&
-                    (get_be16(dip + DS_DI_MODE) & DS_S_IFMT) == DS_S_IFDIR)
-                    de_push(dirs, ino);
+                if (have_chunk) {
+                    const uint8_t *dip = chunk + (size_t)i * geo->inodesize;
+
+                    if (get_be16(dip) == MXFS_DINODE_MAGIC) {
+                        e.known = true;
+                        e.mode = get_be16(dip + DS_DI_MODE);
+                        e.nlink = get_be32(dip + DS_DI_NLINK);
+                        e.exempt = (get_be64(dip + DS_DI_FLAGS2) &
+                                    MXFS_DIFLAG2_DIRSHARD_ANY) != 0;
+                        for (int m = 0; m < 5; m++)
+                            if (ino == geo->metaino[m])
+                                e.exempt = true;
+                        if ((e.mode & DS_S_IFMT) == DS_S_IFDIR)
+                            de_push(dirs, ino);
+                    }
+                }
+                de_ino_push(inos, &e);
             }
         }
     }
@@ -6269,7 +6344,7 @@ static void de_collect_leaf(int fd, const struct xfs_geo *geo, uint32_t agno,
 
 static void de_walk_inobt(int fd, const struct xfs_geo *geo, uint32_t agno,
                           uint32_t agbno, int depth, struct de_u64list *set,
-                          struct de_u64list *dirs)
+                          struct de_u64list *dirs, struct de_inolist *inos)
 {
     uint8_t *blk;
 
@@ -6290,7 +6365,7 @@ static void de_walk_inobt(int fd, const struct xfs_geo *geo, uint32_t agno,
         uint16_t numrecs = get_be16(blk + 0x06);
 
         if (level == 0) {
-            de_collect_leaf(fd, geo, agno, blk, numrecs, set, dirs);
+            de_collect_leaf(fd, geo, agno, blk, numrecs, set, dirs, inos);
         } else if (numrecs <= sbtree_node_maxrecs(geo->blocksize, 4)) {
             uint32_t ptr_off = sbtree_ptr_off(geo->blocksize, 4);
 
@@ -6299,7 +6374,8 @@ static void de_walk_inobt(int fd, const struct xfs_geo *geo, uint32_t agno,
 
                 if (child == XFS_NULLAGBLOCK || child >= geo->agblocks)
                     continue;
-                de_walk_inobt(fd, geo, agno, child, depth + 1, set, dirs);
+                de_walk_inobt(fd, geo, agno, child, depth + 1, set, dirs,
+                              inos);
             }
         }
     }
@@ -6310,6 +6386,7 @@ static void check_dirents(int fd, const struct xfs_geo *geo)
 {
     int pre_errors = errors;
     struct de_u64list set = { 0 }, dirs = { 0 };
+    struct de_inolist inos = { 0 };
     struct de_stats st = { 0 };
     uint8_t *dip = malloc(geo->inodesize);
     uint8_t *tdip = malloc(geo->inodesize);
@@ -6338,13 +6415,21 @@ static void check_dirents(int fd, const struct xfs_geo *geo)
         ino_root  = get_be32(agi_buf + 0x14);
         ino_level = get_be32(agi_buf + 0x18);
         if (ino_level >= 1 && ino_root < geo->agblocks)
-            de_walk_inobt(fd, geo, agno, ino_root, 0, &set, &dirs);
+            de_walk_inobt(fd, geo, agno, ino_root, 0, &set, &dirs, &inos);
     }
-    if (set.oom || dirs.oom) {
+    if (set.oom || dirs.oom || inos.oom || inos.n != set.n) {
         err("dirents: out of memory, audit incomplete");
         goto out;
     }
     qsort(set.v, set.n, sizeof(uint64_t), de_cmp_u64);
+    /* the same inode numbers sorted the same way: index i is one inode in
+     * both, which is how refs[] is read back against its nlink */
+    qsort(inos.v, inos.n, sizeof(*inos.v), de_ino_cmp);
+    st.refs = calloc(set.n ? set.n : 1, sizeof(*st.refs));
+    if (!st.refs) {
+        err("dirents: out of memory, audit incomplete");
+        goto out;
+    }
 
     for (uint32_t d = 0; d < dirs.n; d++) {
         uint64_t dirino = dirs.v[d];
@@ -6362,9 +6447,11 @@ static void check_dirents(int fd, const struct xfs_geo *geo)
             uint64_t e0 = st.entries, b0 = st.blocks, d0 = st.dangling +
                           st.mode0, x0 = st.blocks_bad;
 
-            if (dip[DS_DI_FORMAT] == DS_FMT_LOCAL)
+            if (dip[DS_DI_FORMAT] == DS_FMT_LOCAL) {
+                /* a shortform directory stores no '.', but it counts */
+                st.refs[de_index(&set, dirino)]++;
                 de_walk_shortform(fd, geo, &set, dirino, dip, &st, tdip);
-            else
+            } else
                 de_walk_blocks(fd, geo, &set, dirino, dip, &st, tdip);
             /* one line per directory under -v: a harness asserts the
              * walk's count against what it created */
@@ -6385,21 +6472,60 @@ static void check_dirents(int fd, const struct xfs_geo *geo)
     else if (!st.root_seen)
         err("dirents: the root directory %llu was not walked",
             (unsigned long long)geo->rootino);
+
+    /*
+     * Link counts.  A name lost from a directory leaves no bad entry behind
+     * for the walk above to find: the inode it named is still allocated and
+     * still counts the lost name in di_nlink, and nothing names it any more.
+     * Only comparing every allocated inode's nlink against the entries that
+     * actually name it sees that.  A directory the walk could not read would
+     * undercount its children, so the comparison is made only over a walk
+     * that read everything.
+     */
+    if (st.dirs_skipped || st.blocks_bad) {
+        info("dirents: link counts not compared (%llu directories skipped, "
+             "%llu bad blocks)", (unsigned long long)st.dirs_skipped,
+             (unsigned long long)st.blocks_bad);
+    } else {
+        for (uint32_t i = 0; i < inos.n; i++) {
+            const struct de_inode *e = &inos.v[i];
+
+            if (!e->known || e->exempt || e->mode == 0)
+                continue;
+            if (e->nlink == 0 && st.refs[i] == 0)
+                continue;       /* unlinked: the AGI bucket audit owns it */
+            if (st.refs[i] == 0) {
+                st.nameless++;
+                de_report(&st, "inode %llu (mode 0%o) has nlink %u but no "
+                          "directory entry names it (disconnected)",
+                          (unsigned long long)e->ino, e->mode, e->nlink);
+            } else if (st.refs[i] != e->nlink) {
+                st.nlink_bad++;
+                de_report(&st, "inode %llu (mode 0%o) has nlink %u but %u "
+                          "directory entries name it",
+                          (unsigned long long)e->ino, e->mode, e->nlink,
+                          st.refs[i]);
+            }
+        }
+    }
 out:
     printf("%s%s  (dirs=%llu entries=%llu blocks=%llu dangling=%llu mode0=%llu "
            "ftype_mismatch=%llu bad_blocks=%llu dirs_skipped=%llu "
-           "allocated=%u)\n",
+           "allocated=%u nlink_mismatch=%llu disconnected=%llu)\n",
            verbose ? "Directory entries ....... " : "",
            errors == pre_errors ? "OK" : "ERRORS",
            (unsigned long long)st.dirs, (unsigned long long)st.entries,
            (unsigned long long)st.blocks, (unsigned long long)st.dangling,
            (unsigned long long)st.mode0, (unsigned long long)st.ftype_bad,
            (unsigned long long)st.blocks_bad,
-           (unsigned long long)st.dirs_skipped, set.n);
+           (unsigned long long)st.dirs_skipped, set.n,
+           (unsigned long long)st.nlink_bad, (unsigned long long)st.nameless);
     free(dip);
     free(tdip);
     free(set.v);
     free(dirs.v);
+    free(inos.v);
+    free(st.refs);
 }
 
 /* ─── Usage ─── */

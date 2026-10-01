@@ -26,7 +26,7 @@ lap() { # <budget_s> <label> <cmd...>
 }
 {
   echo "=== sess469 chain107 START $(date -u +%FT%TZ) tree VERSION=$(cat VERSION) sv=$(modinfo mxfs.ko | awk '/srcversion/{print $2}') ==="
-  lap 300 prep_samenode ./run.sh 32 caw prep_cluster
+  lap 300 prep_samenode ./run.sh 32/disk/caw/mpath prep_cluster
   for lapn in 1 2 3; do
     T1=$(date +%s); timeout 150 tests/caw_samenode_selftest.sh test1 test2 all > tests/evidence/sess469_chain107_samenode_${lapn}_$LABEL.log 2>&1; echo "STAGE samenode lap=$lapn rc=$? wall=$(( $(date +%s) - T1 ))s $(grep -a '^=== caw_samenode_selftest' tests/evidence/sess469_chain107_samenode_${lapn}_$LABEL.log | tail -1)"
   done

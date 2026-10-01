@@ -1,6 +1,7 @@
 #!/bin/bash
 # MXFS INFRA verifier — INFRA ONLY.  Confirms the shared LUN is correctly
-# PRESENTED to each node for a given deploy condition.  It does NOT touch the
+# PRESENTED to each node for a given attachment (the <attach> field of a
+# configuration, docs/attachment-methods.md).  It does NOT touch the
 # filesystem: no mkfs, no `mount -t mxfs`, no mxfs module load, no workload.
 # Testing the filesystem/CAW coordination is the test harness's job
 # (tests/run_tests.sh) and is deliberately out of scope here.
@@ -9,35 +10,37 @@
 #   * the shared LUN is present with the expected vendor + size
 #   * it is readable as a raw block device (a direct dd of one block)
 #   * it is the SAME LUN on every node — proven by the cross-node SCSI CAW
-#     check for CAW modes, or by matching SCSI unit serial for TCP/LIO
+#     check, and by matching SCSI unit serial
 # The raw SCSI COMPARE AND WRITE check (tools/caw_verify) is a STORAGE
 # capability check on the LUN (does the target honour CAW 0x89 cross-initiator),
 # NOT a filesystem test.
 #
-# Usage: scripts/verify_infra.sh {tcp|direct|passthrough|multipath} [N]
-#   tcp         — LIO/tcm_loop shared LUN, virtio passthrough (vendor LIO-ORG)
-#   passthrough — SCST + clyde-initiator passthrough (vendor SCST_FIO, N sd* on clyde)
-#   direct      — SCST + each VM its own iSCSI initiator, single path (SCST_FIO)
-#   multipath   — SCST advertised on TWO portals; each VM logs into both -> a
-#                 2-path dm-multipath device /dev/mapper/mpathX.  CHARACTERISES
-#                 whether CAW (retry-aware) and PR work through dm-multipath —
-#                 the enterprise-SAN case.  See docs/condition4_multipath_scope.md.
-#   N — node count 1..32 (default 2)
+# Usage: scripts/verify_infra.sh <configuration>
+#   e.g. scripts/verify_infra.sh 2/disk/caw/mpath: verifies its attachment on
+#   its node count (the DLM half is not used; the check is below the FS)
+#   direct — SCST + each VM its own iSCSI initiator, single path (SCST_FIO)
+#   mpath  — SCST advertised on TWO portals; each VM logs into both -> a
+#            2-path dm-multipath device /dev/mapper/mpathX.  CHARACTERISES
+#            whether CAW (retry-aware) and PR work through dm-multipath —
+#            the enterprise-SAN case.  See docs/multipath-attach.md.
+#   pass   — SCST + clyde-initiator passthrough (vendor SCST_FIO, N sd* on clyde)
+#   the node count is 1..32
 
 set -u
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 source "$SCRIPT_DIR/../tests/criteria/lib.sh"
 
-MODE="${1:-}"; N="${2:-2}"
-case "$MODE" in tcp|direct|passthrough|multipath) ;; *) echo "usage: $0 {tcp|direct|passthrough|multipath} [N]" >&2; exit 2 ;; esac
+CONFIG=$(python3 "$(dirname "$0")/../tools/configuration.py" parse "${1:?usage: verify_infra.sh <configuration>, e.g. 2/disk/caw/mpath}") || exit 2
+[ "$CONFIG" != 1/xfs ] || { echo "1/xfs is not a rig attachment" >&2; exit 2; }
+MODE=$(python3 "$(dirname "$0")/../tools/configuration.py" get "$CONFIG" attach); N=${CONFIG%%/*}
 [[ "$N" =~ ^[0-9]+$ ]] && [ "$N" -ge 1 ] && [ "$N" -le 32 ] || { echo "N out of range 1..32" >&2; exit 2; }
 
 export MXFS_SSH_TIMEOUT=120
 CAW="$MXFS_REPO/tools/caw_verify"
 PORTAL1="192.168.120.1:3260"
-PORTAL2_IP="192.168.120.2"                     # 2nd br0 alias for the multipath cond
+PORTAL2_IP="192.168.120.2"                     # 2nd br0 alias for the mpath attachment
 PORTAL2="${PORTAL2_IP}:3260"
-EXPECT_VENDOR=$([ "$MODE" = "tcp" ] && echo LIO-ORG || echo SCST_FIO)
+EXPECT_VENDOR=SCST_FIO
 EXPECT_SECTORS=$((50*1024*1024*1024/512))     # 50 GiB LUN
 SUDO=""; [ "$(id -u)" -eq 0 ] || SUDO="sudo"
 NODES=(); for i in $(seq 1 "$N"); do NODES+=("test$i"); done
@@ -214,28 +217,21 @@ verify_multipath() {
 }
 
 # ---- dispatch ----
-if [ "$MODE" = multipath ]; then verify_multipath; exit $?; fi
+if [ "$MODE" = mpath ]; then verify_multipath; exit $?; fi
 
 # ======================================================================
-# CONDITIONS 1-3 — single-path presentation
+# direct and pass — single-path presentation
 # ======================================================================
 say "=== INFRA verify: mode=$MODE N=$N nodes=${NODES[*]} (no filesystem ops) ==="
 
-if [ "$MODE" = "tcp" ]; then
-    say "--- host: lio_tcm_setup.sh setup ---"
-    "$SCRIPT_DIR/lio_tcm_setup.sh" setup >/dev/null || { echo "LIO setup failed"; exit 1; }
-    "$SCRIPT_DIR/scst_wire_passthrough.sh" detach "$N" >/dev/null 2>&1 || true
-    "$SCRIPT_DIR/wire_vms.sh" attach "$N" >/dev/null 2>&1 || { echo "wire failed"; exit 1; }
+say "--- host: scst_setup.sh setup ---"
+"$SCRIPT_DIR/scst_setup.sh" setup >/dev/null || { echo "SCST setup failed"; exit 1; }
+if [ "$MODE" = "pass" ]; then
+    "$SCRIPT_DIR/wire_vms.sh" detach "$N" >/dev/null 2>&1 || true
+    "$SCRIPT_DIR/scst_wire_passthrough.sh" attach "$N" >/dev/null 2>&1 || { echo "passthrough wiring failed"; exit 1; }
 else
-    say "--- host: scst_setup.sh setup ---"
-    "$SCRIPT_DIR/scst_setup.sh" setup >/dev/null || { echo "SCST setup failed"; exit 1; }
-    if [ "$MODE" = "passthrough" ]; then
-        "$SCRIPT_DIR/wire_vms.sh" detach "$N" >/dev/null 2>&1 || true
-        "$SCRIPT_DIR/scst_wire_passthrough.sh" attach "$N" >/dev/null 2>&1 || { echo "passthrough wiring failed"; exit 1; }
-    else
-        "$SCRIPT_DIR/wire_vms.sh" detach "$N" >/dev/null 2>&1 || true
-        "$SCRIPT_DIR/scst_wire_passthrough.sh" detach "$N" >/dev/null 2>&1 || true
-    fi
+    "$SCRIPT_DIR/wire_vms.sh" detach "$N" >/dev/null 2>&1 || true
+    "$SCRIPT_DIR/scst_wire_passthrough.sh" detach "$N" >/dev/null 2>&1 || true
 fi
 
 say "--- restarting ${NODES[*]} to apply wiring ---"
@@ -267,8 +263,8 @@ done
 [ "$got" -ge 1 ] || serial_same=unknown
 say "  serial=$base read_on=$got/$N match=$serial_same"
 
-CAWRES="n/a(tcp)"; caw_ok=no
-if [ "$MODE" != "tcp" ] && [ "$N" -ge 2 ]; then
+CAWRES="n/a(one node)"; caw_ok=no
+if [ "$N" -ge 2 ]; then
     A="${NODES[0]}"; B="${NODES[1]}"
     da=$(find_dev "$A"); db=$(find_dev "$B")
     if [ -n "$da" ] && [ -n "$db" ]; then
@@ -287,12 +283,11 @@ say "  clyde iSCSI sessions=$sess  sd*=$sdc"
 foot=ok
 case "$MODE" in
     direct)      say "  expect: sessions=0  sd*=0";  { [ "$sess" -eq 0 ] && [ "$sdc" -eq 0 ]; } || foot=MISMATCH ;;
-    passthrough) say "  expect: sessions=$N sd*=$N"; { [ "$sess" -eq "$N" ] && [ "$sdc" -eq "$N" ]; } || foot=MISMATCH ;;
-    tcp)         say "  expect: sessions=0  sd*=1";  { [ "$sess" -eq 0 ] && [ "$sdc" -eq 1 ]; } || foot=MISMATCH ;;
+    pass)        say "  expect: sessions=$N sd*=$N"; { [ "$sess" -eq "$N" ] && [ "$sdc" -eq "$N" ]; } || foot=MISMATCH ;;
 esac
 say "  footprint: $foot"
 
-if [ "$MODE" = tcp ]; then sharing="$serial_same"; else sharing="$caw_ok"; fi
+sharing="$caw_ok"
 say ""
 say "=== INFRA VERIFY: mode=$MODE  nodes_ok=$ok/$N  same_lun=$sharing  footprint=$foot ==="
 { [ "$ok" -eq "$N" ] && [ "$sharing" = yes ] && [ "$foot" = ok ]; } || exit 1

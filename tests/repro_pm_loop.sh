@@ -18,8 +18,8 @@ for k in $(seq 1 "$ITERS"); do
     # clean the test's dir on test1 (covers .posix_multi etc.)
     timeout 20 bash $S test1 $P "rm -rf /mnt/shared/.${TEST} /mnt/shared/.posix_multi; sync" >/dev/null 2>&1
     t0=$(date +%s.%N)
-    timeout 150 bash $S test1 $P "MXFS_NODES=2 MXFS_RANK=1 MXFS_DLM=tcp MXFS_COORD_BROKER=$BROKER MXFS_COORD_PREFIX=$PFX COORD_TIMEOUT=60 bash /src/mxfs/tests/suite/${TEST}.sh /mnt/shared" >"$LOGD/rl_t1.out" 2>&1 &
-    timeout 150 bash $S test2 $P "MXFS_NODES=2 MXFS_RANK=2 MXFS_DLM=tcp MXFS_COORD_BROKER=$BROKER MXFS_COORD_PREFIX=$PFX COORD_TIMEOUT=60 bash /src/mxfs/tests/suite/${TEST}.sh /mnt/shared" >"$LOGD/rl_t2.out" 2>&1 &
+    timeout 150 bash $S test1 $P "MXFS_NODES=2 MXFS_RANK=1 MXFS_CONFIG=2/net/mesh/direct MXFS_COORD_BROKER=$BROKER MXFS_COORD_PREFIX=$PFX COORD_TIMEOUT=60 bash /src/mxfs/tests/suite/${TEST}.sh /mnt/shared" >"$LOGD/rl_t1.out" 2>&1 &
+    timeout 150 bash $S test2 $P "MXFS_NODES=2 MXFS_RANK=2 MXFS_CONFIG=2/net/mesh/direct MXFS_COORD_BROKER=$BROKER MXFS_COORD_PREFIX=$PFX COORD_TIMEOUT=60 bash /src/mxfs/tests/suite/${TEST}.sh /mnt/shared" >"$LOGD/rl_t2.out" 2>&1 &
     wait
     t1=$(date +%s.%N)
     r1=$(grep -E '^RESULT:' "$LOGD/rl_t1.out" | tail -1)

@@ -4,7 +4,7 @@
 #
 # Chasing: XFS_ALL_IRECLAIM_FLAGS double-set assert in xfs_inode_mark_reclaimable
 # (xfs_icache.c) immediately preceding a permanent multi-CPU soft lockup, first
-# seen at fence_during_write@8/caw (after a dir_reuse_coherency warmup in the
+# seen at fence_during_write@8/disk/caw/mpath (after a dir_reuse_coherency warmup in the
 # same cluster session).  assfail() is non-fatal by default (bug_on_assert=0),
 # so execution continues past the assert into a second synchronous-inactivation
 # pass — the leading hypothesis.

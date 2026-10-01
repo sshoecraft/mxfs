@@ -50,7 +50,7 @@
 #
 # Usage: tests/d0531_stale_slice_recovery.sh <label>
 # Env:   MXFS_NODE_LIST (default test1,test2), MXFS_DEV (default /dev/sda),
-#        MXFS_TRANSPORT (tcp|caw, default tcp)
+#        MXFS_CONFIG (default 2/net/mesh/direct)
 #        MXFS_FAULT_UMOUNT_SRC=<node>:<stage> (verification of the capture
 #        contract only): lazily unmounts /src on <node> immediately before
 #        the named acquisition (home_probe | dump | recover), a real fault
@@ -75,7 +75,8 @@ export MXFS_NODE_LIST=${MXFS_NODE_LIST:-test1,test2}
 mxfs_dev_resolve "${MXFS_NODE_LIST%%,*}"; export MXFS_DEV=$MXFS_DEV_RESOLVED
 A=${MXFS_NODE_LIST%%,*}          # crashes and recovers its own slice
 B=${MXFS_NODE_LIST##*,}          # fill partner, then the probe that images the LUN
-TR=${MXFS_TRANSPORT:-tcp}
+export MXFS_CONFIG=${MXFS_CONFIG:-2/net/mesh/direct}
+TR=$(python3 tools/configuration.py get "$MXFS_CONFIG" transport) || exit 2
 SI=/src/mxfs/tools/slice_image.py
 OUT=tests/evidence/$(date -u +%Y%m%dT%H%M%SZ)_d0531ssr_$LABEL
 mkdir -p "$OUT"
@@ -113,7 +114,7 @@ boot_wait_into() {
 }
 
 # ── U1: fill both slices with real records, then save slot 0's image ──────
-MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2 tcp prep_cluster > "$OUT/prep_u1.log" 2>&1
+MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2/net/mesh/direct prep_cluster > "$OUT/prep_u1.log" 2>&1
 prc=$?
 echo "STAGE prep U1 rc=$prc wall=$(el)s  $(grep -am1 'prep_cluster OK\|FAIL' "$OUT/prep_u1.log" | cut -c1-120)"
 [ $prc = 0 ] || { echo "RESULT: ABORT label=$LABEL stage=prep evidence=$OUT"; exit 2; }
@@ -275,7 +276,7 @@ run_arm control
 run_arm variant
 
 # ── leave the fleet formed on a fresh, zeroed filesystem ─────────────────
-MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2 tcp prep_cluster > "$OUT/prep_final.log" 2>&1
+MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2/net/mesh/direct prep_cluster > "$OUT/prep_final.log" 2>&1
 echo "STAGE final prep rc=$? wall=$(el)s"
 echo "ROWS:"; sed 's/^/  /' "$OUT/rows.txt"
 if [ $fails = 0 ] && [ $vacuous -gt 0 ]; then

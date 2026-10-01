@@ -105,7 +105,7 @@ setup() {
     #    - With the default buffered (write_back=true) mode + WCE=1, guests
     #      re-probe DPOFUA and the guest xlog adds PREFLUSH/FUA to every iclog
     #      write; each SYNCHRONIZE CACHE then fsyncs the whole dirty backing
-    #      file.  Measured on drc 8/tcp: write phases ~doubled (create 4.6->7.7s,
+    #      file.  Measured on drc 8/net/mesh/direct: write phases ~doubled (create 4.6->7.7s,
     #      rm gap 3.6->8s, verify unchanged) -> 24 rounds no longer fit the
     #      480s budget.  write_back=false makes every write O_DSYNC-durable so
     #      SYNC CACHE / FUA fsyncs are no-ops, keeping honest semantics AND

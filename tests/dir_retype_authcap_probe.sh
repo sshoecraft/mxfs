@@ -53,7 +53,7 @@ echo "=== evidence $OUT"
 # 400 concurrent creates per node each, zero directory-buffer captures).
 if [ "${PREP:-0}" = 1 ]; then
     t0=$(date +%s)
-    MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2 tcp prep_cluster > "$OUT/prep.log" 2>&1
+    MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2/net/mesh/direct prep_cluster > "$OUT/prep.log" 2>&1
     rc=$?
     echo "STAGE prep rc=$rc wall=$(( $(date +%s) - t0 ))s  $(grep -am1 'prep_cluster OK\|FAIL' "$OUT/prep.log" | cut -c1-140)"
     [ $rc = 0 ] || { echo "RESULT: FAIL label=$LABEL stage=prep evidence=$OUT"; exit 2; }

@@ -163,6 +163,102 @@ MODULE_PARM_DESC(file_yield_n, "read-only: how many file fast-path admissions yi
 int mxfs_dir_gen_per_handoff = 1;	/* DEFAULT 0.  The fast-path epoch-handoff gen-bump is CAPPED by `i_dlm_dir_gen <= i_dlm_dir_loaded_gen` → it bumps only ONCE per reload cycle, so the 2nd+ intra-round fast-path handoff does NOT re-invalidate (cached block stays bgen==dirgen==N and aliases a peer-superseded image as fresh = the readdir=799/whole-block clobber, PROVEN dataclobber=1: bufgen==dirgen==379).  When set, bump i_dlm_dir_gen on EVERY cross-node epoch handoff (uncapped) so the read-path pre-read invalidation (bgen<dir_gen) fires on every handoff and the holder never RMWs/destages a stale base.  Safe: the master epoch advances ONLY on a real cross-node handoff (a peer held EX) — never while we hold EX continuously — so it cannot spuriously re-read mid-tenure.  TCP write-through stack only (the refutation — FUA-refresh misses own target-write-cached dirent — does NOT apply: emulate_write_cache=0, writes are platter-durable). */
 module_param_named(dir_gen_per_handoff, mxfs_dir_gen_per_handoff, int, 0644);
 
+/*
+ * The demoter bypass in mxfs_dlm_ilock_begin admits a task that holds a demoter
+ * claim without asking the DLM, because a release drain must re-enter the lock
+ * of the inode it is draining.  That is sound only while a drain is behind the
+ * claim: the cached mode still covers the request, or the release is in flight
+ * and holds the grant on the platter.  A claim that outlived its release (the
+ * release finished in another task, mode NL) admitted its task's next
+ * modification with no grant: on 8/net/mesh/direct an rm removed a
+ * subdirectory from its parent that way, the write fence restored the parent's
+ * platter image at write-out, the next acquire dropped the undrained change
+ * (P177-OBLIGATION-DROPPED-AT-ADOPT pending=5 durable=3), and the parent kept
+ * the entry of an inode that was then freed.
+ *
+ * 1 (default): such a claim does not bypass; the task takes the acquire.
+ * 0: the bypass as it was, for a same-build control arm.  Never ship 0.
+ */
+int mxfs_demoter_bypass_grant_gate = 1;
+module_param_named(demoter_bypass_grant_gate, mxfs_demoter_bypass_grant_gate,
+		   int, 0644);
+MODULE_PARM_DESC(demoter_bypass_grant_gate,
+		 "refuse the demoter bypass when no drain holds the grant (1, default); 0 = the bypass as it was, for a control arm");
+static atomic64_t mxfs_demoter_nogrant_n;
+
+/*
+ * TEST ONLY.  Writing N makes the next N user tasks that drop an EX hold on a
+ * directory keep a demoter claim on it, with no release behind the claim.  A
+ * peer's request then releases the directory in a worker while the task still
+ * holds the claim, and the task's next lock of the directory meets the demoter
+ * bypass with the grant gone: the state a stale claim left an rm in on
+ * 8/net/mesh/direct, made on demand so the grant gate can be measured against
+ * its control arm (demoter_bypass_grant_gate=0).  0 = off (default).
+ */
+int mxfs_dbg_demoter_keep_inject;
+module_param_named(dbg_demoter_keep_inject, mxfs_dbg_demoter_keep_inject,
+		   int, 0644);
+MODULE_PARM_DESC(dbg_demoter_keep_inject,
+		 "TEST ONLY: the next N user tasks that drop an EX hold on a directory keep a demoter claim on it; 0=off (default)");
+/*
+ * TEST ONLY.  An inode the injector never plants on: the stress run's base
+ * directory, which the remover's last operation (the removal of a slot
+ * directory from it) touches and never touches again.  A claim planted there
+ * outlives its task, and a claim whose owner is dead stalls the directory's
+ * releases until the node wedges and withdraws (measured), which is not the
+ * state under test.  0 = none.
+ */
+unsigned long long mxfs_dbg_demoter_keep_skip_ino;
+module_param_named(dbg_demoter_keep_skip_ino, mxfs_dbg_demoter_keep_skip_ino,
+		   ullong, 0644);
+MODULE_PARM_DESC(dbg_demoter_keep_skip_ino,
+		 "TEST ONLY: an inode dbg_demoter_keep_inject never plants a claim on; 0=none (default)");
+
+/*
+ * The planted claim's end: its task's next lock of the inode, once the grant
+ * question has been asked.  Called with i_dlm_lock held.
+ */
+static void mxfs_demoter_injected_consume(struct xfs_inode *ip)
+{
+	if (likely(!ip->i_dlm_demoter_injected) ||
+	    ip->i_dlm_demoter_injected != current)
+		return;
+	ip->i_dlm_demoter_injected = NULL;
+	if (READ_ONCE(ip->i_dlm_demoter) == current)
+		MXFS_CLEAR_DEMOTER(ip);
+}
+
+/*
+ * One of the injector's N, taken: true when this task keeps a claim.  Only the
+ * remover of tests/stress_rmdir_mkdir_race.sh (comm rm), which comes back to
+ * the same directory for each child it removes and for the directory itself:
+ * a claim planted for a task that never locks the directory again would never
+ * be consumed, and a claim nobody clears stalls every later release of the
+ * directory (measured: withdraws on every node in both arms of a lap whose
+ * injector planted claims for every mkdir).
+ */
+static bool mxfs_demoter_keep_take(struct xfs_inode *ip, uint8_t mode)
+{
+	int left = READ_ONCE(mxfs_dbg_demoter_keep_inject);
+
+	if (left <= 0 || mode != MXFS_LOCK_EX ||
+	    strcmp(current->comm, "rm") != 0 ||
+	    ip->i_ino == READ_ONCE(mxfs_dbg_demoter_keep_skip_ino) ||
+	    !S_ISDIR(VFS_I(ip)->i_mode) || (current->flags & PF_KTHREAD) ||
+	    !ip->i_mount->m_mxfs_dlm ||
+	    mxfs_v5_dlm_is_single_node(ip->i_mount->m_mxfs_dlm) ||
+	    READ_ONCE(ip->i_dlm_demoter) || READ_ONCE(ip->i_dlm_demoter2))
+		return false;
+	while (left > 0) {
+		int seen = cmpxchg(&mxfs_dbg_demoter_keep_inject, left, left - 1);
+
+		if (seen == left)
+			return true;
+		left = seen;
+	}
+	return false;
+}
+
 int mxfs_dir_stalegen_adopt = 1;
 module_param_named(dir_stalegen_adopt, mxfs_dir_stalegen_adopt, int, 0644);
 MODULE_PARM_DESC(dir_stalegen_adopt,
@@ -2422,7 +2518,7 @@ static int mxfs_ilock_wait_for_transition(struct xfs_inode *ip, uint8_t mode,
 						"SET", "CLEAR", "WAIT",
 						"SET-REFUSED", "CLEAR-NEST",
 						"CLEAR-REFUSED",
-						"PUNT-RECLAIM" };
+						"PUNT-RECLAIM", "DEAD-REAP" };
 					uint8_t o = ip->i_dlm_demev_op[idx];
 
 					if (!ip->i_dlm_demev_cookie[idx])
@@ -4440,6 +4536,11 @@ restart:
 
 	spin_lock(&ip->i_dlm_lock);
 
+	/* TEST ONLY: a planted claim whose grant still covers this request met
+	 * no release in between; it ends here. */
+	if (unlikely(ip->i_dlm_demoter_injected) && ip->i_dlm_mode >= mode)
+		mxfs_demoter_injected_consume(ip);
+
 	/*
 	 * NEWARCH Phase 0 force_coherent NOTE: an earlier version of this
 	 * measurement instrument clobbered i_dlm_mode/state here under
@@ -4491,8 +4592,47 @@ restart:
 	 * above didn't catch us (e.g. a needed upgrade), don't block on
 	 * the DEMOTING wait if we're the thread driving bast_process —
 	 * that would self-deadlock.
+	 *
+	 * Only while a drain is behind the claim: the cached mode covers
+	 * the request, or the release is in flight (DEMOTING, or its flush)
+	 * and the platter grant is still held.  A claim whose release has
+	 * already finished admits nothing; its task asks the DLM like any
+	 * other (see mxfs_demoter_bypass_grant_gate).
 	 */
-	if (mxfs_is_demoter(ip)) {
+	bool demoter_admit = mxfs_is_demoter(ip);
+
+	if (demoter_admit &&
+	    !(ip->i_dlm_mode >= mode ||
+	      ip->i_dlm_state == MXFS_DLM_ISTATE_DEMOTING ||
+	      xfs_iflags_test(ip, MXFS_IF_DLM_RELFLUSH))) {
+		static atomic_t p_ng_n = ATOMIC_INIT(0);
+		bool slot1 = READ_ONCE(ip->i_dlm_demoter) == current;
+		u64 set_ns = slot1 ? ip->i_dlm_demoter_set_ns :
+				     ip->i_dlm_demoter2_set_ns;
+		u32 set_line = slot1 ? ip->i_dlm_demoter_line :
+				       ip->i_dlm_demoter2_line;
+		int gate = READ_ONCE(mxfs_demoter_bypass_grant_gate);
+
+		atomic64_inc(&mxfs_demoter_nogrant_n);
+		if (atomic_inc_return(&p_ng_n) <= 2000)
+			pr_err("mxfs: P-DEMOTER-NOGRANT ino=%llu dir=%d req=%u mode=%u state=%u relflush=%d slot=%d claim_age_ms=%llu claim_line=%u:%u gate=%d n=%lld pid=%d comm=%s — a demoter claim with no drain behind it asked to bypass the acquire; %s\n",
+			       (unsigned long long)ip->i_ino,
+			       S_ISDIR(VFS_I(ip)->i_mode) ? 1 : 0,
+			       mode, ip->i_dlm_mode, ip->i_dlm_state,
+			       xfs_iflags_test(ip, MXFS_IF_DLM_RELFLUSH) ? 1 : 0,
+			       slot1 ? 1 : 2,
+			       set_ns ? (unsigned long long)((ktime_get_ns() -
+						set_ns) / NSEC_PER_MSEC) : 0ULL,
+			       MXFS_SITE_ARGS(set_line), gate,
+			       (long long)atomic64_read(&mxfs_demoter_nogrant_n),
+			       current->pid, current->comm,
+			       gate ? "refused, acquiring" :
+				      "admitted with no grant (control arm)");
+		demoter_admit = !gate;
+	}
+	/* TEST ONLY: a planted claim ends once the grant question is asked */
+	mxfs_demoter_injected_consume(ip);
+	if (demoter_admit) {
 		/* dir-EX served via demoter-bypass = NO refresh. */
 		if (S_ISDIR(VFS_I(ip)->i_mode) && mode == MXFS_LOCK_EX)
 			atomic64_inc(&mxfs_dirEX_demoter_bypass);
@@ -5454,6 +5594,16 @@ mxfs_dlm_ilock_end(
 		WRITE_ONCE(ip->i_dlm_demoter_punt,
 			   (ip->i_dlm_punt_n[0] ? 1 : 0) |
 			   (ip->i_dlm_punt_n[1] ? 2 : 0));
+	}
+
+	if (unlikely(mxfs_demoter_keep_take(ip, mode))) {
+		MXFS_SET_DEMOTER(ip);
+		if (READ_ONCE(ip->i_dlm_demoter) == current)
+			WRITE_ONCE(ip->i_dlm_demoter_injected, current);
+		pr_err("mxfs: P-DEMOTER-KEEP-INJECT ino=%llu mode=%u state=%u pid=%d comm=%s left=%d — test-only: this task keeps a demoter claim on the directory with no release behind it\n",
+		       (unsigned long long)ip->i_ino, ip->i_dlm_mode,
+		       ip->i_dlm_state, current->pid, current->comm,
+		       READ_ONCE(mxfs_dbg_demoter_keep_inject));
 	}
 }
 

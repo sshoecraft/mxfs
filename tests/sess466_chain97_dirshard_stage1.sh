@@ -1,18 +1,18 @@
 #!/bin/bash
 # sess466 chain 97: directory sharding stage 1 on the rig (tree 0.64.0,
-# docs/dir-sharding.md "Stage 1 wiring checklist"), then the full 32/caw board
+# docs/dir-sharding.md "Stage 1 wiring checklist"), then the full 32/disk/caw/mpath board
 # as the regression gate for the tree-wide changes it carries (sb incompat bit
 # 29, MXFS_PROTO_GEN 17->18 => every node re-mkfs's, dinode verifier, BLFT 30 in
 # replay, dispatch hooks in iops/file/dentry).
 #   1. install the frozen 0.64.0 module + tools (SCRATCH_KO/SCRATCH_SV) into
 #      the tree, else build the tree;
-#   2. prep_cluster 32/caw (gen-18 format);
+#   2. prep_cluster 32/disk/caw/mpath (gen-18 format);
 #   3. tests/dirshard_stage1_selftest.sh test1 test2 (two-node functional
 #      contract) + tests/selftest/dirshard_format_selftest.sh (user-mode);
 #   4. fleet unmount, tools/chk_mxfs -v on the LUN image: 'Directory sharding
 #      ...... OK' with parents=2 published=2 containers=82 (16+64+2 holders),
 #      zero ERROR;
-#   5. prep_cluster + the full 32/caw board (production defaults; no board
+#   5. prep_cluster + the full 32/disk/caw/mpath board (production defaults; no board
 #      directory is sharded — the feature is ioctl opt-in);
 #   6. prep_final.
 # Gated on chain 96 DONE.
@@ -52,7 +52,7 @@ lap() { # <budget_s> <label> <cmd...>
   if [ "$brc" -ne 0 ] || [ "$(strings -a mxfs.ko | grep -c 'P-DIRSHARD-CORRUPT')" = 0 ]; then echo "ABORT: build/install (no dirshard markers)"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
   echo "chk_mxfs --dirshard-hash vector: $(tools/chk_mxfs --dirshard-hash 000102030405060708090a0b0c0d0e0f hex:000102030405060708090a0b0c0d0e)"
 
-  lap 300 prep ./run.sh 32 caw prep_cluster
+  lap 300 prep ./run.sh 32/disk/caw/mpath prep_cluster
   echo "fleet: $(timeout 20 $SSH test1 'cat /sys/module/mxfs/srcversion; grep -c " mxfs " /proc/mounts; dmesg | grep -a "MXFS envelope" | tail -1' 2>/dev/null | grep -av '^Unauthorized\|^$\|^If you' | tr '\n' ' ')"
 
   lap 240 "dirshard_stage1 selftest test1 test2" tests/dirshard_stage1_selftest.sh test1 test2
@@ -72,10 +72,10 @@ lap() { # <budget_s> <label> <cmd...>
   echo "STAGE chk rc=$crc wall=$(( $(date +%s) - T1 ))s errors=$(grep -ac 'ERROR' tests/evidence/sess466_chain97_chk_$LABEL.txt) dirshard_line=$(grep -a 'Directory sharding' tests/evidence/sess466_chain97_chk_$LABEL.txt | head -1) gates=$(grep -a 'features_incompat' tests/evidence/sess466_chain97_chk_$LABEL.txt | head -1)"
   grep -a 'dirshard' tests/evidence/sess466_chain97_chk_$LABEL.txt | head -20
 
-  lap 300 prep_board ./run.sh 32 caw prep_cluster
-  T1=$(date +%s); timeout 1320 ./run.sh 32 caw > tests/evidence/sess466_chain97_board_32caw_$LABEL.log 2>&1; echo "STAGE board 32/caw rc=$? wall=$(( $(date +%s) - T1 ))s"
+  lap 300 prep_board ./run.sh 32/disk/caw/mpath prep_cluster
+  T1=$(date +%s); timeout 1320 ./run.sh 32/disk/caw/mpath > tests/evidence/sess466_chain97_board_32caw_$LABEL.log 2>&1; echo "STAGE board 32/disk/caw/mpath rc=$? wall=$(( $(date +%s) - T1 ))s"
   grep -a 'Total:\|FAIL \|POLICY' tests/evidence/sess466_chain97_board_32caw_$LABEL.log | tail -n 8 | cut -c1-200
   echo "dirshard lines fleet after board: $(for n in test1 test2 test9 test17; do printf '%s=%s ' $n "$(timeout 20 $SSH $n 'dmesg | grep -c P-DIRSHARD' 2>/dev/null | tr -d '\r\n ')"; done)"
-  lap 300 prep_final ./run.sh 32 caw prep_cluster
+  lap 300 prep_final ./run.sh 32/disk/caw/mpath prep_cluster
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

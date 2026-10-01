@@ -4,7 +4,7 @@
 # 0.41.0 (real on-disk lone grants, D-0354 candidate A) has a same-rig, same-day
 # comparison.  Two laps; leaves the fleet prepped.
 #   lone_rsync_bench x2   120 s each (harness-derived)
-#   prep 32/caw           300 s
+#   prep 32/disk/caw/mpath           300 s
 # NEVER `make modules` before this prints DONE.
 cd /src/mxfs || exit 1
 LABEL=${1:-s434c}
@@ -15,6 +15,6 @@ LOG=tests/evidence/sess434_chain2b_0401_$LABEL.log
   echo "gate passed at $(date -u +%FT%TZ) (iter $t)"
   timeout 120 tests/lone_rsync_bench.sh ${LABEL}_b1 test1 32; echo "STAGE bench1 rc=$?"
   timeout 120 tests/lone_rsync_bench.sh ${LABEL}_b2 test1 32; echo "STAGE bench2 rc=$?"
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep rc=$?"
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

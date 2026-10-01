@@ -6,15 +6,15 @@
 # and the wedge probes (P36-STACK / P12-HOLDERTASK / P12-*) start with empty
 # per-boot caps.
 #
-# Usage: tests/suite_iter.sh [N] [dlm]     (default 4 tcp)
+# Usage: tests/suite_iter.sh [configuration]     (default 4/net/mesh/direct)
 set -u
-N="${1:-4}"; DLM="${2:-tcp}"
+CONFIG=$(python3 "$(dirname "$0")/../tools/configuration.py" parse "${1:-4/net/mesh/direct}") || exit 2; N=${CONFIG%%/*}; DLM=${CONFIG#*/}
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")"/.. && pwd)
 cd "$REPO"
 
 # sess15(a9a03929): destroy ALL 8 lab nodes, not just 1..N — leftover nodes
 # from a previous wider run keep the LUN mounted and race the fresh mkfs's
-# disklock zeroing (FS_PREP_FAIL rc=1, 4/tcp r4a).
+# disklock zeroing (FS_PREP_FAIL rc=1, 4/net/mesh/direct r4a).
 for i in $(seq 1 8); do virsh -c qemu:///system destroy "test$i" >/dev/null 2>&1; done
 sleep 3
 for i in $(seq 1 "$N"); do virsh -c qemu:///system start "test$i" >/dev/null 2>&1; done
@@ -29,7 +29,7 @@ echo "iter: nodes up, launching suite"
 # 100*N=800s at 8 nodes; 12 tests + drc + its fail-path artifact pull > 1100),
 # silently dropping the last 4 tests (r4, 20260704T163522Z).  Budget: prep
 # ~300s + Σ per-test budgets (~16×90s + drc 800s) ≈ 2540s → 2600.
-MXFS_EXTRA_MODARGS="${MXFS_EXTRA_MODARGS:-watch_ino=999999999999}" timeout 2600 ./run.sh "$N" "$DLM" 2>&1 | tail -25
+MXFS_EXTRA_MODARGS="${MXFS_EXTRA_MODARGS:-watch_ino=999999999999}" timeout 2600 ./run.sh "$CONFIG" 2>&1 | tail -25
 
 # sess12(a9a03929): harvest starvation-proximity signals from every node's
 # dmesg BEFORE the next iteration's recycle wipes them — PASSING runs carry

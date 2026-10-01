@@ -1,5 +1,5 @@
 #!/bin/bash
-# drc_phantom_diag.sh — ONE clean-reboot 8/tcp dir_reuse run; on the first
+# drc_phantom_diag.sh — ONE clean-reboot 8/net/mesh/direct dir_reuse run; on the first
 # failing round, grep EACH node's FULL fail-dmesg for the decisive
 # phantom-vs-read-staleness signatures and correlate them with the lost dirent:
 #   P42-STALEEX-SERVE   — fast-path served cached dir-EX with held=0 (PHANTOM:
@@ -32,7 +32,7 @@ done
 sleep 20
 for n in $NODES; do timeout 8 $SSH $n $PASS "rm -f /root/drc_fail_r*.dmesg /root/drc_failverify_r*.dmesg /root/drc_failrounds.txt; dmesg -C" >/dev/null 2>&1; done
 
-OUT=$(env MXFS_EXTRA_MODARGS="$MODARGS" ./run.sh 8 tcp dir_reuse_coherency 2>&1)
+OUT=$(env MXFS_EXTRA_MODARGS="$MODARGS" ./run.sh 8/net/mesh/direct dir_reuse_coherency 2>&1)
 res=$(echo "$OUT" | flt | grep -E 'dir_reuse_coherency' | tail -1)
 echo "RESULT: $res"
 if echo "$res" | grep -q PASS; then echo "PASSED — no fail to diagnose"; exit 0; fi

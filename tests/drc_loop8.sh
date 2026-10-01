@@ -1,5 +1,5 @@
 #!/bin/bash
-# drc_loop8.sh — run the 8/tcp dir_reuse_coherency criterion N times with a clean
+# drc_loop8.sh — run the 8/net/mesh/direct dir_reuse_coherency criterion N times with a clean
 # reboot between each, recording PASS/FAIL per iteration.  Measures the
 # intermittent-loss rate and validates a fix toward 100%.
 # Usage: tests/drc_loop8.sh <iters> [modargs]
@@ -27,7 +27,7 @@ PASSC=0; FAILC=0
 for i in $(seq 1 "$ITERS"); do
   echo "########## ITER $i/$ITERS reboot @ $(date -u +%T) ##########"
   reboot_clean
-  OUT=$(env MXFS_EXTRA_MODARGS="$MODARGS" ./run.sh 8 tcp dir_reuse_coherency 2>&1)
+  OUT=$(env MXFS_EXTRA_MODARGS="$MODARGS" ./run.sh 8/net/mesh/direct dir_reuse_coherency 2>&1)
   res=$(echo "$OUT" | grep -E 'dir_reuse_coherency' | tail -1)
   echo "ITER $i: $res"
   # always snapshot membership-churn counts (even on PASS)

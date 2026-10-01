@@ -111,26 +111,30 @@ be verified here, and the harness says so and stops.
 So the libvirt coupling is real and lives in **both** run.sh's VM path *and* the
 rig-setup scripts — `MXFS_NODE_LIST` is the escape hatch, not a full abstraction.
 
-## Deployment conditions (`conditions.md`) → which rig provides each
-| cond | shape | rig | doc |
+## Attachments → which rig provides each
+A configuration is `<nodes>/<class>/<method>/<attach>`
+(`docs/attachment-methods.md`). Either DLM (`net/mesh`, `disk/caw`) runs on any
+attachment; the rig provides the attachment:
+
+| attach | shape | rig | doc |
 |---|---|---|---|
-| `tcp`  | commodity block, no CAW | LIO `tcm_loop` | `docs/test_infra_lio_tcm.md` |
-| `cawp` | CAW FC-fabric passthrough (per-nexus PR) | SCST per-node targets | `docs/test_infra_scst_caw.md` |
-| `cawd` | CAW direct iSCSI, no fabric | SCST shared target | `docs/test_infra_scst_caw.md` |
-| `caw`  | **CAW over dm-multipath — #1 enterprise target** | SCST dual-portal + multipathd | `docs/condition4_multipath_scope.md`, `docs/multipath_support.md` |
+| `direct` | each VM its own iSCSI login, one path | SCST shared target, portal .1 | `docs/test_infra_scst_caw.md` |
+| `mpath`  | **dm-multipath over two portals — the common enterprise shape** | SCST dual-portal + multipathd | `docs/multipath-attach.md`, `docs/multipath_support.md` |
+| `pass`   | hypervisor passthrough (per-nexus PR) | SCST per-node targets wired into VM XML | `docs/test_infra_scst_caw.md` |
 
 SCST's `vdisk_fileio` does SCSI **COMPARE AND WRITE (0x89) + Persistent
 Reservations** natively — the two real FC-array primitives — which is why it's
-the faithful CAW/FC emulation (the LIO stack is CAW-off, used only for `tcp`).
+the faithful CAW/FC emulation. The LIO/`tcm_loop` stack fakes COMPARE AND WRITE
+and is no configuration's attachment (`docs/test_infra_lio_tcm.md` is its history).
 
 ## Lab-management scripts (in `scripts/`, referenced — not moved)
-- `rig.sh {tcp|pass|direct|mpath} <N>` — **front door**; owns ALL condition
+- `rig.sh <configuration>` — **front door**; owns ALL attachment
   transitions (node cleanout, VM XML wiring, portal/wwids hygiene, VM restarts).
 - `define_vms.sh` — define the libvirt domains.
-- `wire_vms.sh` — wire the shared LUN into VMs (LIO/`tcp` path).
+- `wire_vms.sh` — wire the LIO LUN into VMs; `rig.sh` uses only its `detach`.
 - `scst_setup.sh` / `scst_wire_passthrough.sh` / `mpath_up.sh` — SCST CAW rigs.
-- `lio_tcm_setup.sh` — LIO `tcp` rig.
-- `verify_infra.sh {tcp|direct|passthrough|multipath} [N]` — infra-only bring-up +
+- `lio_tcm_setup.sh` — the LIO/`tcm_loop` stack (no configuration uses it).
+- `verify_infra.sh <configuration>` — infra-only bring-up +
   verify (no `mkfs`/mount/module — pure substrate check; runs `tools/caw_verify`).
 - `cluster_reset_n.sh` — reset N VMs.
 - `lab_clone_node.sh <source> <clone> <ip> ...` — grow a platform's set by
@@ -143,17 +147,18 @@ the faithful CAW/FC emulation (the LIO stack is CAW-off, used only for `tcp`).
   (`POWER=1` in `tests/full_verify.sh`).
 
 ## Test harness (in `scripts/` + root)
-- `run.sh <N> <cond>` — one test run (`xfs` baseline also accepted).
-- `scripts/ladder_rung.sh <N> <cond>` — full rung; `RULE0_CALIBRATE=0` enforces
+- `run.sh <configuration>` — one test run, e.g. `run.sh 8/net/mesh/direct`
+  (`1/xfs` is the native-XFS baseline).
+- `scripts/ladder_rung.sh <configuration>` — full rung; `RULE0_CALIBRATE=0` enforces
   each test's time budget, so a run over budget fails.
 - `tests/packaged_round.sh <platform>` — a release installed on every node of
   a platform's verification set as a user installs it, and verified there.
 - `NODES=<N> tests/full_verify.sh <version>` — everything a version must pass
-  before it is published: the clean build and audits, both rig suites at N
-  nodes, the packages, and every platform's packaged round and hung-node test
-  on each transport.
-- `scripts/matrix_check.py --cond <c|all>` — 4-condition × node-count board.
-- `tools/criteria.py <N> <cond>` — recorded results; `data/criteria.json` = the board.
+  before it is published: the clean build and audits, the rig suite of every
+  configuration of the release matrix at N nodes (`data/configurations.json`),
+  the packages, and every platform's packaged round and hung-node test on each
+  of those configurations.
+- `tools/criteria.py <configuration>` — recorded results; `data/criteria.json` = the board.
 
 ## Credentials / test secrets → `~/.config/mxfslab/secrets`
 Testing secrets are **not** in the repo. The single source of truth is

@@ -51,7 +51,12 @@
 #   REBOOT_S   Ubuntu 24.04 logged in to the LUN takes ~3 min to reboot whether
 #              or not mxfs is loaded (lvm2-monitor, platforms.json note) -> 420 s.
 #
-# TRANSPORT=caw runs the round on the CAW transport, configured the way the
+# CONFIG names the configuration the round verifies, <N>/<class>/<method>/<attach>
+# (tools/configuration.py).  N must be the size of the platform's verification
+# set, since that is how many nodes the round runs on, and the attachment must
+# be direct: the round logs every node into the platform's own target by
+# in-guest iSCSI, one path, and builds nothing else.  A disk/caw configuration
+# runs the round on the CAW transport, configured the way the
 # README tells a user to: after the install, force_transport=1 in the
 # package's /etc/modprobe.d/mxfs.conf becomes force_transport=0, so the module
 # forms the cluster on CAW, and it keeps doing so after the reboot.  Every
@@ -60,12 +65,13 @@
 # every exit.  The LUN must implement COMPARE AND WRITE (clyde's SCST
 # vdisk_fileio targets do).
 #
-# Usage: [TRANSPORT=tcp|caw] [KERNEL=<krel>] tests/packaged_round.sh <platform> [version]
+# Usage: CONFIG=<configuration> [KERNEL=<krel>] tests/packaged_round.sh <platform> [version]
+#   e.g. CONFIG=8/disk/caw/direct tests/packaged_round.sh rhel9
 #   version defaults to VERSION; the packages come from dist/<version>/.
 #   KERNEL (pve only): pin that installed kernel with proxmox-boot-tool, reboot
 #   into it, and run the round there, its reboot step included; unpinned when
 #   the round ends.  A release claims kernels, so each claimed kernel is a round.
-#   Evidence: tests/evidence/packaged_round/<platform>_<version>_<stamp>/.
+#   Evidence: tests/evidence/packaged_round/<platform>_<version>_<class-method-attach>_<stamp>/.
 #   Exit 0 only if every step passed.  The nodes are left unmounted.
 #
 set -u
@@ -74,11 +80,13 @@ PLAT="${1:?usage: packaged_round.sh <platform> [version]}"
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 V="${2:-$(cat "$HERE/VERSION")}"
 KERNEL="${KERNEL:-}"
-TRANSPORT="${TRANSPORT:-tcp}"
+CONFIG=$(python3 "$HERE/tools/configuration.py" parse "${CONFIG:?CONFIG must name the configuration, e.g. CONFIG=8/net/mesh/direct}") || exit 2
+eval "$(python3 "$HERE/tools/configuration.py" shell "$CONFIG")"
+[ "$CFG_ATTACH" = direct ] || { echo "$CONFIG: the packaged round attaches by in-guest iSCSI (direct); it does not build $CFG_ATTACH" >&2; exit 2; }
+TRANSPORT=$CFG_TRANSPORT                      # what the module takes: tcp | caw
 case "$TRANSPORT" in
     tcp) FT=1; TNAME=TCP ;;
     caw) FT=0; TNAME=CAW ;;
-    *) echo "TRANSPORT must be tcp or caw" >&2; exit 2 ;;
 esac
 DIST="$HERE/dist/$V"
 SSH="$HERE/tools/mxfs_sshpass.sh"
@@ -90,6 +98,7 @@ LUN=$(lab_need storage lun) || exit 2
 NODES=$(lab_nodes "$PLAT") || exit 2
 set -- $NODES
 A=$1; B=$2; NN=$#
+[ "$NN" = "$CFG_NODES" ] || { echo "$CONFIG names $CFG_NODES nodes; $PLAT's verification set is $NN ($NODES)" >&2; exit 2; }
 INSTALL_S=660
 MOUNT_S=60
 IO_S=60
@@ -103,7 +112,7 @@ case "$PLAT" in
     *) echo "no package family for platform '$PLAT'" >&2; exit 2 ;;
 esac
 
-EV="$HERE/tests/evidence/packaged_round/${PLAT}_${V}_${TRANSPORT}_$(date +%Y%m%dT%H%M%S)"
+EV="$HERE/tests/evidence/packaged_round/${PLAT}_${V}_${CFG_SHAPE}_$(date +%Y%m%dT%H%M%S)"
 mkdir -p "$EV"
 exec > >(tee -a "$EV/run.log") 2>&1
 say() { echo "[$(date +%T)] $*"; }
@@ -186,7 +195,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-say "platform=$PLAT nodes=$NODES version=$V transport=$TRANSPORT evidence=$EV"
+say "platform=$PLAT nodes=$NODES version=$V configuration=$CONFIG transport=$TRANSPORT evidence=$EV"
 say "host load: $(cat /proc/loadavg)"
 for p in $PKGS; do [ -f "$DIST/$p" ] || die "missing $DIST/$p"; done
 (cd "$DIST" && sha256sum -c --ignore-missing SHA256SUMS) > "$EV/sha256_clyde.log" 2>&1 || die "dist/$V does not match its SHA256SUMS"

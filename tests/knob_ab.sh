@@ -8,7 +8,7 @@
 #   was hand-rolling the same fan-out; this is it, once, in the tree.
 #
 # USAGE
-#   tests/knob_ab.sh <nodes> <dlm> <knob> <value> <probe,probe,...> <criteria...>
+#   tests/knob_ab.sh <configuration> <knob> <value> <probe,probe,...> <criteria...>
 #
 #   e.g. tests/knob_ab.sh 32 caw relog_holds_version 0 \
 #          P34F-RELOAD-SELFAHEAD-SKIP,P146V-UNLANDED dir_reuse_coherency
@@ -23,8 +23,9 @@
 set -u
 cd "$(dirname "$0")/.."
 
-N=${1:?nodes}; DLM=${2:?dlm}; KNOB=${3:?knob}; VAL=${4:?value}
-PROBES=${5:?comma-separated probe list}; shift 5
+CONFIG=$(python3 "$(dirname "$0")/../tools/configuration.py" parse "${1:?configuration, e.g. 2/net/mesh/direct}") || exit 2; N=${CONFIG%%/*}; DLM=${CONFIG#*/}
+KNOB=${2:?knob}; VAL=${3:?value}
+PROBES=${4:?comma-separated probe list}; shift 4
 CRIT=${*:?criteria}
 NODES=$(seq 1 "$N" | sed 's/^/test/')
 
@@ -50,7 +51,7 @@ d=$(mktemp -d)
 for h in $NODES; do ( timeout 15 tools/mxfs_sshpass.sh "$h" "dmesg -C" >"$d/$h" 2>&1 ) & done
 wait 2>/dev/null
 
-./run.sh "$N" "$DLM" $CRIT 2>&1 | grep -E "  (PASS|FAIL|ABORT) "
+./run.sh "$CONFIG" $CRIT 2>&1 | grep -E "  (PASS|FAIL|ABORT) "
 
 d=$(mktemp -d)
 for h in $NODES; do

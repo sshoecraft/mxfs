@@ -7,9 +7,9 @@
 # DOUBLE-GRANT counts (both must be ZERO for D-0341's closure).
 #
 #  0. build VERSION + prove complete; 1. tests/tauth usermode gate
-#  2. prep 32/tcp (mpatha) + sweep; tcp_token_plumbing_verify + sweep
+#  2. prep 32/net/mesh/direct (mpatha) + sweep; tcp_token_plumbing_verify + sweep
 #  3. prep + sweep; d0287_remaster_measure + sweep
-#  4. prep 32/caw; full 32/caw board (regression gate for the shared edits)
+#  4. prep 32/disk/caw/mpath; full 32/disk/caw/mpath board (regression gate for the shared edits)
 #
 # budget: build 500 + proof 500 + tauth 180 + 3 preps x 300 + 4 sweeps x 60
 # + token 400 + d0287 600 + board 1900 => ~5320 s.  Each stage has its own
@@ -20,11 +20,11 @@ LABEL=${1:-s425}
 E=tests/evidence
 D="$E/sess425_${LABEL}_dmesg"
 mkdir -p "$E" "$D"
-MXFS_DEV=${MXFS_DEV:?this chain ran the tcpmp condition, TCP over the multipath LUN: name that LUN with MXFS_DEV (never assumed from a rig path)}
-TCPENV="MXFS_DEV=$MXFS_DEV MXFS_CRIT=/src/mxfs/criteria.tcpmp.json"
+MXFS_DEV=${MXFS_DEV:?this chain ran net/mesh/mpath, TCP over the multipath LUN: name that LUN with MXFS_DEV (never assumed from a rig path)}
+TCPENV="MXFS_DEV=$MXFS_DEV MXFS_CRIT=/src/mxfs/criteria.net-mesh-mpath.json"
 PAT='P-TAUTH|P-GOODBYE|MXFS-MEMBERSHIP|P-TCPDEATH|status=12|lock request failed after|P-LKTIMEOUT|P240-QUAR|mount.*refus|can.t read superblock|P-D512|P-DEPART|bad superblock|mxfs: mount'
-prep_tcp() { env $TCPENV timeout 300 ./run.sh 32 tcp prep_cluster > "$E/sess425_${LABEL}_prep_$1.log" 2>&1; echo "STAGE prep tcp $1 rc=$?"; }
-prep_caw() { timeout 300 ./run.sh 32 caw prep_cluster > "$E/sess425_${LABEL}_prep_$1.log" 2>&1; echo "STAGE prep caw $1 rc=$?"; }
+prep_tcp() { env $TCPENV timeout 300 ./run.sh 32/net/mesh/direct prep_cluster > "$E/sess425_${LABEL}_prep_$1.log" 2>&1; echo "STAGE prep tcp $1 rc=$?"; }
+prep_caw() { timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster > "$E/sess425_${LABEL}_prep_$1.log" 2>&1; echo "STAGE prep caw $1 rc=$?"; }
 sweep() {
   # per-node raw evidence, own file + own rc; one fleet call
   local st=$1 i

@@ -4,12 +4,12 @@
 # nodes, wait for SSH+settle, then run the FULL `./run.sh N tcp` suite and print
 # the per-test PASS/FAIL aggregate.
 #
-# Usage: tests/suite_tcp_clean.sh <N> [TEST_TIMEOUT] [modargs] [test ...]
+# Usage: tests/suite_tcp_clean.sh <configuration> [TEST_TIMEOUT] [modargs] [test ...]
 #   e.g. tests/suite_tcp_clean.sh 8 480
 #        tests/suite_tcp_clean.sh 8 480 "" cache_coherency zero_silent_loss
 set -u
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd); cd "$REPO"
-N="${1:?usage: suite_tcp_clean.sh <N> [TEST_TIMEOUT] [modargs] [test...]}"
+CONFIG=$(python3 "$(dirname "$0")/../tools/configuration.py" parse "${1:?usage: suite_tcp_clean.sh <configuration> [TEST_TIMEOUT] [modargs] [test...]}") || exit 2; N=${CONFIG%%/*}
 TMO="${2:-480}"; MODARGS="${3:-}"; shift 3 2>/dev/null || shift $#
 ONLY="$*"
 SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass
@@ -25,7 +25,7 @@ for t in $(seq 1 60); do
 done
 sleep 20
 echo "--- nodes up, launching full suite @ $(date -u +%T) ---"
-OUT=$(env MXFS_EXTRA_MODARGS="$MODARGS" TEST_TIMEOUT="$TMO" ./run.sh "$N" tcp $ONLY 2>&1)
+OUT=$(env MXFS_EXTRA_MODARGS="$MODARGS" TEST_TIMEOUT="$TMO" ./run.sh "$CONFIG" $ONLY 2>&1)
 echo "$OUT" | grep -E '  (PASS|FAIL)  '
 echo "===== AGGREGATE ====="
 echo "$OUT" | grep -E 'PASS|FAIL' | grep -cE '  PASS  ' | sed 's/^/PASS_tests=/'

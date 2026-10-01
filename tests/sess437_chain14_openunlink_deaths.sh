@@ -18,7 +18,7 @@ mkdir -p "$EV"
   for c in unlinker_death opener_death; do
     timeout 360 tests/openunlink_deaths.sh $c test1 test2 > "$EV/deaths_$c.txt" 2>&1; echo "STAGE deaths_$c rc=$?"; grep -a 'PASS\|FAIL\|RESULT\|forensics' "$EV/deaths_$c.txt" | tail -8
     for i in 1 2; do $VIRSH start test$i >/dev/null 2>&1; done; sleep 60
-    timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep_$c rc=$?"
+    timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep_$c rc=$?"
   done
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

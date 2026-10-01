@@ -12,7 +12,7 @@
 # Usage: tests/drc_capture_clobber.sh [rounds] [N]
 set -u
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd); cd "$REPO"
-ROUNDS="${1:-24}"; N="${2:-8}"
+ROUNDS="${1:-24}"; CONFIG=$(python3 "$(dirname "$0")/../tools/configuration.py" parse "${2:-8/net/mesh/direct}") || exit 2; N=${CONFIG%%/*}
 SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass
 CAPDIR="$REPO/tests/_clobber_cap"; mkdir -p "$CAPDIR"
 ALL="test1 test2 test3 test4 test5 test6 test7 test8"
@@ -29,7 +29,7 @@ sleep 20
 echo "########## CLOBBER CAPTURE rounds=$ROUNDS N=$N ts=$TS @ $(date -u +%T) ##########"
 # CLEAN timing (no instr/dirwr — they perturb the race into a heisenbug).
 # P62-DATAINIT-BLK0, P13-COLLIDE, P49-STALEBASE are always-on for the storm dir.
-OUT=$(env MXFS_TEST_ENV="DRC_ROUNDS=$ROUNDS" ./run.sh "$N" tcp dir_reuse_coherency 2>&1)
+OUT=$(env MXFS_TEST_ENV="DRC_ROUNDS=$ROUNDS" ./run.sh "$CONFIG" dir_reuse_coherency 2>&1)
 VERD=$(echo "$OUT" | grep -E 'nodes_pass=' | tail -1)
 echo "VERDICT: $VERD"
 if echo "$VERD" | grep -q "PASS  dir_reuse_coherency  (nodes_pass=$N/$N)"; then

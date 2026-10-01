@@ -1,5 +1,5 @@
 #!/bin/bash
-# drc_catch2.sh [MAXRUNS] [MODARGS] — reboot+run dir_reuse 8/tcp until a FAIL,
+# drc_catch2.sh [MAXRUNS] [MODARGS] — reboot+run dir_reuse 8/net/mesh/direct until a FAIL,
 # then for the ACTUAL fail round (read from /root/drc_failrounds.txt) pull every
 # node's create+verify dmesg snapshot AND extract the loss-mechanism probe lines
 # (RDMISS/CLASS = which name + lookup-state; DIR-STALE-SKIP = stale base kept;
@@ -19,7 +19,7 @@ for run in $(seq 1 "$MAX"); do
     for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system start test$n >/dev/null 2>&1; done
     for w in $(seq 1 30); do up=0; for n in 1 2 3 4 5 6 7 8; do timeout 5 $SSH test$n /tmp/.mxfs_pass true >/dev/null 2>&1 && up=$((up+1)); done; [ "$up" = 8 ] && break; sleep 3; done
     t0=$(date +%s)
-    MXFS_EXTRA_MODARGS="$MODARGS" timeout 590 /src/mxfs/run.sh 8 tcp dir_reuse_coherency > "$SCR/c2_run${run}.log" 2>&1
+    MXFS_EXTRA_MODARGS="$MODARGS" timeout 590 /src/mxfs/run.sh 8/net/mesh/direct dir_reuse_coherency > "$SCR/c2_run${run}.log" 2>&1
     t1=$(date +%s)
     if grep -q "PASS  dir_reuse_coherency" "$SCR/c2_run${run}.log"; then
         echo "run $run: PASS wall=$((t1-t0))s" | tee -a "$SCR/catch2.log"

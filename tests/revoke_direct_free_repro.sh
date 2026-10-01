@@ -25,7 +25,7 @@
 #   VACUOUS     no poison was injected — the exit was never driven
 #
 # derived time budgets: prep 400 s (tests/dirent_durability_loop.sh's bound
-# for the same 2/tcp prep); 64 handle opens, each one untrusted iget under the
+# for the same 2/net/mesh/direct prep); 64 handle opens, each one untrusted iget under the
 # AG DLM (ms each), 30 s; the revocation runs 3-68 ms after its poison
 # (measured, xfs_inode.c retire-arm comment), so 3 s settles every worker.
 set -u
@@ -42,7 +42,7 @@ PROBE=/src/mxfs/tools/handle_probe
 nc_mark=$(wc -l < "$NC" 2>/dev/null || echo 0)
 echo "=== revdf $LABEL START $(date -u +%FT%TZ) VERSION=$(cat VERSION) sv=$(modinfo -F srcversion mxfs.ko) poisons=$POISONS out=$OUT netconsole_from_line=$nc_mark ==="
 
-timeout 400 ./run.sh 2 tcp prep_cluster > "$OUT/prep.log" 2>&1 \
+timeout 400 ./run.sh 2/net/mesh/direct prep_cluster > "$OUT/prep.log" 2>&1 \
     || { echo "RESULT: ABORT label=$LABEL stage=prep evidence=$OUT"; exit 2; }
 
 # The workload, run on test1 as one remote script.

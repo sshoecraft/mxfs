@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """How many more clean runs each board row needs before it reads PASS.
 
-Usage: tools/criteria_window.py NODES DLM [--build SRCVERSION]
+Usage: tools/criteria_window.py CONFIGURATION [--build SRCVERSION]
+       e.g. tools/criteria_window.py 8/disk/caw/direct
 
 tools/criteria.py grades a row FLAKY while a genuine FAIL sits anywhere in its
 11-run window (the live cell plus ten history entries).  A row whose newest
@@ -32,12 +33,13 @@ def main() -> int:
     if "--build" in sys.argv:
         build = sys.argv[sys.argv.index("--build") + 1]
         args = [a for a in args if a != build]
-    if len(args) != 2:
+    if len(args) != 1:
         print(__doc__.strip().splitlines()[2], file=sys.stderr)
         return 2
-    config = "%s/%s" % (args[0], args[1])
-    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "criteria.json")
-    with open(path) as fh:
+    config = criteria.parse_at(args[0])
+    #: The same board file criteria.py reads, MXFS_CRIT included: this read the primary board
+    #: whatever MXFS_CRIT named, so a second rig's window was computed from the first rig's runs.
+    with open(criteria.CRITERIA) as fh:
         rows = json.load(fh)["criteria"]
     owed = 0
     owing = []

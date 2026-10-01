@@ -1,7 +1,7 @@
 #!/bin/bash
 # repro_mkdir_race — N-way concurrent `mkdir -p SHARED_NEW_PARENT/nodeR`.
 #
-# Found 8/cawd fence_during_write 2026-07-26 (ccloop c7ee71c6 sess11): the
+# Found 8/disk/caw/direct fence_during_write 2026-07-26 (ccloop c7ee71c6 sess11): the
 # test's silent `mkdir -p $D/node$R` failed on 4/8 nodes and every subsequent
 # write into the missing subdir returned ENOENT for the whole window.  The
 # per-node child names are unique, so the only contended step is the shared

@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # pve_iscsi_login.sh — log THIS node into clyde's SCST CAW iSCSI target over a
-# single portal (the `cawd` condition: direct in-guest iSCSI, own I_T nexus / PR
+# single portal (the direct attachment: in-guest iSCSI, own I_T nexus / PR
 # registrant, real SCSI COMPARE-AND-WRITE).  Idempotent: logs out + purges stale
 # node records first so a re-run never leaves a second path for multipathd to
 # swallow.  Run ON the node.

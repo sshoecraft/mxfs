@@ -1,5 +1,5 @@
 #!/bin/bash
-# drc_cap2.sh — run ONE dir_reuse_coherency 2/tcp iteration with ROBUST full
+# drc_cap2.sh — run ONE dir_reuse_coherency 2/net/mesh/direct iteration with ROBUST full
 # kernel-log capture (sess36 ccloop).  The sess35 node-side `dmesg --follow`
 # approach lost the file (node-side backgrounding under non-TTY ssh hangs the
 # channel → output lost; /tmp wiped on the reset-reboot).  This version STREAMS
@@ -40,8 +40,8 @@ for i in "${!NODES[@]}"; do
 done
 
 # 2. Run the single test (run.sh handles prep/mkfs/mount/load + record).
-echo "--- running ./run.sh 2 tcp dir_reuse_coherency ---"
-timeout 450 ./run.sh 2 tcp dir_reuse_coherency 2>&1 | strip | tail -8
+echo "--- running ./run.sh 2/net/mesh/direct dir_reuse_coherency ---"
+timeout 450 ./run.sh 2/net/mesh/direct dir_reuse_coherency 2>&1 | strip | tail -8
 
 # 3. Stop streamers (kill host-side ssh + node-side follower).
 sleep 2

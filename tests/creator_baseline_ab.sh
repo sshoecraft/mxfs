@@ -21,7 +21,7 @@
 #     bit1 (2) = stamp i_dlm_cached_grant_gen
 #     0        = pre-fix sentinels (the negative control)
 #
-# THE REPRODUCER IS AGE-DEPENDENT.  Measured this session at 2/caw on one build:
+# THE REPRODUCER IS AGE-DEPENDENT.  Measured this session at 2/disk/caw/mpath on one build:
 #   fresh prep -> dirent_durability -> dirent_publish_integrity  => PASS (0 hits)
 #   fresh prep -> AGING BATCH -> same two                        => FAIL (3 hits)
 # Never judge this fix from a fresh-prep run; that shape passes in both arms.
@@ -51,7 +51,7 @@ cd "$REPO"
 OVERHEAD=30
 
 STAGE="${1:?usage: creator_baseline_ab.sh <arm|prep|mark|age|measure|census|budget> <N> [mask]}"
-N="${2:?node count}"
+CONFIG=$(python3 "$(dirname "$0")/../tools/configuration.py" parse "${2:?<configuration>}") || exit 2; N=${CONFIG%%/*}
 MASK="${3:-0}"
 
 # Per-criterion budgets, all from tests/suite/manifest.
@@ -119,7 +119,7 @@ stage_mark() {
 
 stage_prep() {
     echo "=== PREP $N/caw (mask=$MASK) budget=${B_PREP}s ==="
-    MXFS_FORCE_PREP=1 timeout "$(t $B_PREP)" ./run.sh "$N" caw prep_cluster \
+    MXFS_FORCE_PREP=1 timeout "$(t $B_PREP)" ./run.sh "$CONFIG" prep_cluster \
         || { echo "PREP FAILED/TIMED OUT"; exit 4; }
     set_mask "$MASK"
 }
@@ -127,17 +127,17 @@ stage_prep() {
 stage_age() {
     echo "=== AGE part 1: crash_consistency dir_reuse_coherency ==="
     timeout "$(t $((B_CRASH + B_DRC + OVERHEAD)))" \
-        ./run.sh "$N" caw crash_consistency dir_reuse_coherency || return 1
+        ./run.sh "$CONFIG" crash_consistency dir_reuse_coherency || return 1
     echo "=== AGE part 2: fence_during_write fault_netpartition soak ==="
     timeout "$(t $((B_FDW + B_FNP + B_SOAK + 2 * OVERHEAD)))" \
-        ./run.sh "$N" caw fence_during_write fault_netpartition soak || return 1
+        ./run.sh "$CONFIG" fence_during_write fault_netpartition soak || return 1
 }
 
 stage_measure() {
     echo "=== MEASURE: dirent_durability ==="
-    timeout "$(t $B_DD)" ./run.sh "$N" caw dirent_durability
+    timeout "$(t $B_DD)" ./run.sh "$CONFIG" dirent_durability
     echo "=== MEASURE: dirent_publish_integrity ==="
-    timeout "$(t $B_DPI)" ./run.sh "$N" caw dirent_publish_integrity
+    timeout "$(t $B_DPI)" ./run.sh "$CONFIG" dirent_publish_integrity
 }
 
 # Scoped census.  Per node take whichever kernel-log source still holds the most

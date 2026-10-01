@@ -29,7 +29,7 @@ LABEL=${1:?label}
 COUNT=${2:-300}
 cd "$(dirname "$0")/.." || exit 2
 export MXFS_NODE_LIST=${MXFS_NODE_LIST:-test1,test2}
-export MXFS_TRANSPORT=${MXFS_TRANSPORT:-tcp}
+export MXFS_CONFIG=${MXFS_CONFIG:-2/net/mesh/direct}
 A=${MXFS_NODE_LIST%%,*}
 B=${MXFS_NODE_LIST##*,}
 SSH=tools/mxfs_sshpass.sh
@@ -43,7 +43,7 @@ ck() { if [ "$2" = "$3" ]; then echo "  PASS $1 ($2)"; else echo "  FAIL $1 got=
 # rs/rsx/capture_require/mxfs_dev_resolve (tests/lib/rig.sh): every capture a
 # verdict is taken from is proven to hold its tool's shape first; a failed
 # acquisition is an ABORT, never a count of zero.  MXFS_DEV: resolved on A
-# (its live mount if any, else the MXFS_TRANSPORT rig default).
+# (its live mount if any, else the MXFS_CONFIG rig default).
 . "$(dirname "$0")/lib/rig.sh"
 field() { grep -ao "^$2=[^ ]*" "$1" | head -1 | cut -d= -f2; }
 MODARGS=${MXFS_MODARGS:-$(mxfs_rig_modargs)}   # rig-derived: includes this rig's retirement contract
@@ -57,7 +57,7 @@ export MXFS_DEV
 echo "=== cluster_restart_nomkfs label=$LABEL A=$A B=$B count=$COUNT sv=$(modinfo mxfs.ko | sed -n 's/^srcversion: *//p') $(date -u +%FT%TZ) ==="
 s=$(date +%s)
 if [ -n "${PREP:-}" ]; then
-    MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2 tcp prep_cluster > "$OUT/prep.log" 2>&1
+    MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2/net/mesh/direct prep_cluster > "$OUT/prep.log" 2>&1
     prc=$?
     echo "STAGE prep rc=$prc wall=$(( $(date +%s) - s ))s"
     if [ $prc != 0 ]; then echo "RESULT: FAIL label=$LABEL prep rc=$prc"; exit 2; fi

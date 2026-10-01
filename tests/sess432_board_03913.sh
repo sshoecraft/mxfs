@@ -14,7 +14,7 @@ EV=tests/evidence/sess432_board_03913_$LABEL
 mkdir -p "$EV"
 {
   echo "=== sess432 armed board start $(date -u +%FT%TZ) build=$(cat VERSION) sv=$(modinfo mxfs.ko | awk '/srcversion/{print $2}') ==="
-  timeout 300 ./run.sh 32 caw prep_cluster
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster
   echo "STAGE prep rc=$?"
   timeout 60 tests/fleet_set_params.sh "target_cache_protected=1 foreign_replay_token_enforce=1" 32 "$EV/knobs.txt"
   prc=$?
@@ -26,7 +26,7 @@ mkdir -p "$EV"
   done
   wait
   BMARKTIME=$(date -u '+%Y-%m-%d %H:%M:%S')
-  timeout 1400 ./run.sh 32 caw
+  timeout 1400 ./run.sh 32/disk/caw/mpath
   echo "STAGE board rc=$?"
   D=$(mktemp -d)
   for i in $(seq 1 32); do

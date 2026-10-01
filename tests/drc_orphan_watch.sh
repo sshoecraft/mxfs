@@ -1,5 +1,5 @@
 #!/bin/bash
-# drc_orphan_watch.sh — capture the dir_reuse@32/caw orphaned-EX-bit forensic
+# drc_orphan_watch.sh — capture the dir_reuse@32/disk/caw/mpath orphaned-EX-bit forensic
 # (P-ORPH-FORENSIC + the P12-DLMTR transition ring) from every test node the
 # moment it appears, before the FS-shutdown cascade floods/rotates the kernel
 # ring.  Polls each node's dmesg on a short interval and APPENDS any matching

@@ -27,9 +27,9 @@ lap() { # <budget_s> <label> <cmd...>
 }
 {
   echo "=== sess466 chain96 START $(date -u +%FT%TZ) tree VERSION=$(cat VERSION) sv=$(modinfo mxfs.ko | awk '/srcversion/{print $2}') cut_injector=$(strings -a mxfs.ko | grep -c 'P-DBG-DEPART-CUT') ==="
-  lap 300 prep ./run.sh 32 caw prep_cluster
+  lap 300 prep ./run.sh 32/disk/caw/mpath prep_cluster
   echo "fleet: $(timeout 20 $SSH test1 'cat /sys/module/mxfs/srcversion; grep -c " mxfs " /proc/mounts' 2>/dev/null | grep -av '^Unauthorized\|^$\|^If you' | tr '\n' ' ')"
   lap 300 "cond3 crashcut 5 postunreg victim=test12" tests/depart_crash_cuts.sh 32 test12 test1 5
-  lap 300 prep_final ./run.sh 32 caw prep_cluster
+  lap 300 prep_final ./run.sh 32/disk/caw/mpath prep_cluster
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

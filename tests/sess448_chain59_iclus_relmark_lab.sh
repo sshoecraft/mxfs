@@ -32,13 +32,13 @@ sweep() { # $1 pattern -> per-node counts since 15 min
   LAB=$(modinfo mxfs.ko | grep -c 'mxfs_iclus_relmark_lab')
   echo "STAGE build_lab rc=$brc old_sv=$OLD new_sv=$NEW errors=$(grep -c 'error:' tests/evidence/sess448_chain59_build_lab_$LABEL.log) modinfo_lab=$LAB iclusstr=$(strings -a mxfs.ko | grep -c 'P-RELMARK-ICLUS')"
   if [ "$brc" -ne 0 ] || [ "$LAB" -ne 1 ] || [ "$(strings -a mxfs.ko | grep -c 'P-RELMARK-ICLUS')" -eq 0 ]; then echo "ABORT: lab build failed or not a lab build"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
-  MXFS_EXTRA_MODARGS='icluster_dlm=1' timeout 300 ./run.sh 32 caw prep_cluster; prc=$?; echo "STAGE prep_lab rc=$prc"
+  MXFS_EXTRA_MODARGS='icluster_dlm=1' timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; prc=$?; echo "STAGE prep_lab rc=$prc"
   echo "LAB-ADMITTED nodes: $(sweep 'ICLUS-RELMARK-LAB-BUILD')"
   echo "DOMAIN-REFUSED nodes: $(sweep 'P-DOMAIN-REFUSED')"
   if [ "$prc" -ne 0 ]; then echo "ABORT: lab prep failed"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
   for lap in 1 2 3; do
-    [ $lap -gt 1 ] && { MXFS_EXTRA_MODARGS='icluster_dlm=1' timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep_ndr$lap rc=$?"; }
-    T0=$(date +%s); timeout 500 ./run.sh 32 caw node_death_replay; echo "STAGE node_death_replay$lap rc=$? wall=$(( $(date +%s) - T0 ))s"
+    [ $lap -gt 1 ] && { MXFS_EXTRA_MODARGS='icluster_dlm=1' timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep_ndr$lap rc=$?"; }
+    T0=$(date +%s); timeout 500 ./run.sh 32/disk/caw/mpath node_death_replay; echo "STAGE node_death_replay$lap rc=$? wall=$(( $(date +%s) - T0 ))s"
     D=$(ls -dt tests/evidence/board_*_node_death_replay | head -1); echo "EVIDENCE $D"
     for l in shared single; do
       echo "LAP$lap $l: $(grep -a '^VERDICT\|WAIT ' $D/$l.log 2>/dev/null | head -2 | cut -c1-140 | tr '\n' ' ')"
@@ -51,7 +51,7 @@ sweep() { # $1 pattern -> per-node counts since 15 min
     echo "LAP$lap f4truth: $(cat $D/*/recov_test*.txt 2>/dev/null | grep -ao 'truth=[A-Z-]*' | sort | uniq -c | tr '\n' ' ')"
   done
   for i in 1 2; do
-    MXFS_EXTRA_MODARGS='icluster_dlm=1' timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep_oud$i rc=$?"
+    MXFS_EXTRA_MODARGS='icluster_dlm=1' timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep_oud$i rc=$?"
     EV=tests/evidence/sess448_chain59_oud${i}_$LABEL; mkdir -p "$EV"
     T0=$(date +%s); timeout 400 tests/openunlink_deaths.sh unlinker_death test1 test2 > "$EV/deaths.txt" 2>&1; rc=$?
     echo "STAGE unlinker_death$i rc=$rc wall=$(( $(date +%s) - T0 ))s $(grep -a 'RESULT' "$EV/deaths.txt" | head -1 | cut -c1-160)"
@@ -60,6 +60,6 @@ sweep() { # $1 pattern -> per-node counts since 15 min
   # back to the PRODUCTION build
   timeout 300 make modules > tests/evidence/sess448_chain59_build_prod_$LABEL.log 2>&1; brc=$?
   echo "STAGE build_prod rc=$brc sv=$(modinfo mxfs.ko | awk '/srcversion/{print $2}') modinfo_lab=$(modinfo mxfs.ko | grep -c 'mxfs_iclus_relmark_lab') errors=$(grep -c 'error:' tests/evidence/sess448_chain59_build_prod_$LABEL.log)"
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep_prod rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep_prod rc=$?"
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

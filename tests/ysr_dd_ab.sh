@@ -4,7 +4,7 @@
 # an AGING mount (no re-prep between laps unless nodes died) — aging raises
 # contention, which is the regime the defect needs.
 #
-# Usage: tests/ysr_dd_ab.sh <nnodes> <fix|control>
+# Usage: tests/ysr_dd_ab.sh <configuration> <fix|control>
 # Prints one summary line:  LAP arm=<arm> verdict=<PASS|FAIL> exh=N shut=N p221=N
 # Exit 0 always (the caller reads the line); exit 2 on setup failure.
 #
@@ -12,7 +12,7 @@
 
 set -u
 cd "$(dirname "$0")/.."
-N=${1:?nnodes}
+CONFIG=$(python3 "$(dirname "$0")/../tools/configuration.py" parse "${1:?<configuration>}") || exit 2; N=${CONFIG%%/*}
 ARM=${2:?fix|control}
 SSH=tools/mxfs_sshpass.sh
 case "$ARM" in
@@ -25,7 +25,7 @@ for i in $(seq 1 "$N"); do
 done
 wait
 
-OUT=$(timeout 400 ./run.sh "$N" caw dirent_durability 2>&1 | grep -E "PASS|FAIL|BLOCK" | tail -1)
+OUT=$(timeout 400 ./run.sh "$CONFIG" dirent_durability 2>&1 | grep -E "PASS|FAIL|BLOCK" | tail -1)
 V=$(echo "$OUT" | grep -oE "PASS|FAIL|BLOCK" | head -1)
 
 D=$(mktemp -d)

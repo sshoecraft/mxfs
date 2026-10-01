@@ -6,7 +6,7 @@
 # slice must FAIL BEFORE PURGE — refused through the D-513 terminal-outcome
 # path with reason INTENTS_UNDISCHARGED (8) — never published as recovered.
 #
-# Two arms, each on a freshly prepped 32/caw fleet with enforcement armed
+# Two arms, each on a freshly prepped 32/disk/caw/mpath fleet with enforcement armed
 # (without the token knobs the blanket ATOMIC-SKIP refuses every image
 # transaction as POLICY_REFUSED and the census never gets to decide):
 #

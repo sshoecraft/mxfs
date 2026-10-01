@@ -2,7 +2,7 @@
 # d0346_reuse_dir_mkdir.sh — a peer's mkdir under a directory the other node
 # just removed and recreated must not answer ESTALE.
 #
-# THE SHAPE (measured on the 2026-09-12 2/tcp board, evidence
+# THE SHAPE (measured on the 2026-09-12 2/net/mesh/direct board, evidence
 # tests/evidence/run_fence_during_write_20260912T221211Z, both nodes' kernel
 # logs, 22:19:53-55, ino 10594):
 #   1. the READER (A) holds a live in-core inode for a directory, cached from a

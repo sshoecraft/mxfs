@@ -1,6 +1,6 @@
 #!/bin/bash
 # cc_dirvis_probe.sh — decisive reproducer + CASE-A/CASE-B discriminator for the
-# crash_consistency shared-dir entry-visibility lag (the 2/tcp blocker).
+# crash_consistency shared-dir entry-visibility lag (the 2/net/mesh/direct blocker).
 #
 # Both nodes concurrently create $NF files into ONE shared dir, test2 syncs,
 # test1 drops caches and READDIR-counts.  If test1 is short:

@@ -6,10 +6,10 @@
 #   mkfs-sized ledger geometry + seeded hash, PROTO_GEN 9, mkfs -t).
 #
 #  0. build VERSION + prove complete; tools; tests/tauth usermode gate
-#  1. prep 32/caw (format v2 mkfs); chk geometry line
+#  1. prep 32/disk/caw/mpath (format v2 mkfs); chk geometry line
 #  2. tests/dir_recreate_estale.sh (D-0351 reproducer) x2 + sweeps
-#  3. full 32/caw board (regression gate)
-#  4. prep 32/tcp (mpatha); tcp_token_plumbing_verify + sweep (D-0348 step 2,
+#  3. full 32/disk/caw/mpath board (regression gate)
+#  4. prep 32/net/mesh/direct (mpatha); tcp_token_plumbing_verify + sweep (D-0348 step 2,
 #     D-0349 measurement: collisions must stay 0, page_full 0, pace)
 #  5. prep tcp; d0287_remaster_measure + sweep
 #
@@ -21,12 +21,12 @@ LABEL=${1:-s431}
 E=tests/evidence
 D="$E/sess427_${LABEL}_dmesg"
 mkdir -p "$E" "$D"
-MXFS_DEV=${MXFS_DEV:?this chain ran the tcpmp condition, TCP over the multipath LUN: name that LUN with MXFS_DEV (never assumed from a rig path)}
-TCPENV="MXFS_DEV=$MXFS_DEV MXFS_CRIT=/src/mxfs/criteria.tcpmp.json"
+MXFS_DEV=${MXFS_DEV:?this chain ran net/mesh/mpath, TCP over the multipath LUN: name that LUN with MXFS_DEV (never assumed from a rig path)}
+TCPENV="MXFS_DEV=$MXFS_DEV MXFS_CRIT=/src/mxfs/criteria.net-mesh-mpath.json"
 PAT='P-TAUTH|P-GOODBYE|MXFS-MEMBERSHIP|P-TCPDEATH|status=12|lock request failed after|P-LKTIMEOUT|P240-QUAR|mount.*refus|can.t read superblock|P-D512|P-DEPART|bad superblock|mxfs: mount|P-HB-INC-ZERO|P34H-POISON|P283-REL-FINISH-SKIP|P55C-|P-FREEOB|P-CR62|P-CR3-CANCEL|P-CR63-DEFER-DISKLIVE|P-SESSION-POISON|Internal error|P119-NONEX-FLUSH-SKIP|P128-INACT-DEFER|P87-|P88-'
 TAGS='P-TAUTH-[A-Z0-9-]+|P34H-POISON-[A-Z]+|P-HB-INC-ZERO|P283-REL-FINISH-SKIP|P55C-[A-Z-]+|P-FREEOB-[A-Z-]+|P-CR62|P-CR3-CANCEL|P-CR63-DEFER-DISKLIVE|P-SESSION-POISON|P119-NONEX-FLUSH-SKIP|P128-INACT-DEFER|P8[78]-[A-Z-]+'
-prep_tcp() { env $TCPENV timeout 300 ./run.sh 32 tcp prep_cluster > "$E/sess427_${LABEL}_prep_$1.log" 2>&1; echo "STAGE prep tcp $1 rc=$?"; }
-prep_caw() { timeout 300 ./run.sh 32 caw prep_cluster > "$E/sess427_${LABEL}_prep_$1.log" 2>&1; echo "STAGE prep caw $1 rc=$?"; }
+prep_tcp() { env $TCPENV timeout 300 ./run.sh 32/net/mesh/direct prep_cluster > "$E/sess427_${LABEL}_prep_$1.log" 2>&1; echo "STAGE prep tcp $1 rc=$?"; }
+prep_caw() { timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster > "$E/sess427_${LABEL}_prep_$1.log" 2>&1; echo "STAGE prep caw $1 rc=$?"; }
 sweep() {
   local st=$1 i
   for i in $(seq 1 32); do

@@ -26,7 +26,7 @@ REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$REPO"
 
 ITERS="${1:-1}"
-N="${2:-32}"
+CONFIG=$(python3 "$(dirname "$0")/../tools/configuration.py" parse "${2:-32/disk/caw/mpath}") || exit 2; N=${CONFIG%%/*}
 
 set_knob() {   # <value> — set on every node, verify, abort if any node differs
     local v="$1" i n d bad=0
@@ -96,15 +96,15 @@ ARM_SSH_BUDGET=60
 
 arm_prep() {   # <knobval>
     local v="$1"
-    MXFS_FORCE_PREP=1 timeout "$ARM_PREP_BUDGET" ./run.sh "$N" caw prep_cluster 2>&1 | tail -1
+    MXFS_FORCE_PREP=1 timeout "$ARM_PREP_BUDGET" ./run.sh "$CONFIG" prep_cluster 2>&1 | tail -1
     set_knob "$v"
 }
 
 arm_measure() {  # <label>
     local label="$1"
-    timeout "$ARM_DD_BUDGET" ./run.sh "$N" caw dirent_durability 2>&1 | grep -E "  (PASS|FAIL|BLOCK)"
-    timeout "$ARM_CC_BUDGET" ./run.sh "$N" caw cache_coherency 2>&1 | grep -E "  (PASS|FAIL|BLOCK)"
-    timeout "$ARM_TI_BUDGET" ./run.sh "$N" caw dirent_type_integrity 2>&1 | grep -E "  (PASS|FAIL|BLOCK)"
+    timeout "$ARM_DD_BUDGET" ./run.sh "$CONFIG" dirent_durability 2>&1 | grep -E "  (PASS|FAIL|BLOCK)"
+    timeout "$ARM_CC_BUDGET" ./run.sh "$CONFIG" cache_coherency 2>&1 | grep -E "  (PASS|FAIL|BLOCK)"
+    timeout "$ARM_TI_BUDGET" ./run.sh "$CONFIG" dirent_type_integrity 2>&1 | grep -E "  (PASS|FAIL|BLOCK)"
     census "$label"
 }
 

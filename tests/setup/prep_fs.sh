@@ -26,7 +26,7 @@ CHK="$MXFS_REPO/tools/chk_mxfs"
 fail() { echo "FS_PREP_FAIL: $*" >&2; exit 1; }
 
 # 0. NEVER mkfs a device another layer has claimed (sess44).  On the current
-# caw rig the legacy tcp/cawp default /dev/sda enumerates as a PATH MEMBER of
+# mpath rig the old /dev/sda default of the LIO and pass rigs enumerates as a PATH MEMBER of
 # the caw multipath map — mkfs'ing it writes into a live path of the shared
 # caw LUN; only multipathd's exclusive claim turned that into a lucky EBUSY.
 # A claimed device means the condition's rig is NOT wired on this fleet:

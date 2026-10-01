@@ -50,6 +50,15 @@ start() {
             return 0
         fi
     fi
+    # The listener outlives whoever starts it, so it must not keep anything
+    # of theirs open.  Started by run.sh's prep it inherited run.sh's rig lock
+    # (fd 9 on /tmp/mxfs_run.lock) and held it from PPID 1 after the run
+    # ended: the next run's lock then found a holder that was not a run.
+    local fd
+    for fd in /proc/$$/fd/*; do
+        fd=${fd##*/}
+        [ "$fd" -gt 2 ] 2>/dev/null && eval "exec $fd>&-" 2>/dev/null
+    done
     if have socat; then
         nohup socat -u UDP-RECV:"$PORT",reuseaddr - >> "$LOG" 2>&1 &
     elif have ncat; then

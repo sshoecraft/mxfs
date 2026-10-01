@@ -41,7 +41,8 @@
 # Usage: tools/mxfs_rig_tag.sh [device]
 set -u
 REPO=$(cd "$(dirname "$0")/.." && pwd)
-MARKER="$REPO/.cluster_marker.json"
+# run.sh exports MXFS_MARKER: a rig-group run keeps a marker of its own.
+MARKER="${MXFS_MARKER:-$REPO/.cluster_marker.json}"
 
 mk() {  # mk <key> — one field out of the cluster marker, empty if absent
     [ -s "$MARKER" ] || return 0
@@ -104,19 +105,31 @@ vendor_of() {  # vendor_of <device> — the SCSI vendor of a device on THIS host
     [ -b "$d" ] || return 1
     b=$(basename "$d")
     # A partition has no `device` link of its own; fall back to the disk it
-    # sits on so a device named with a partition suffix still resolves.
+    # sits on so a device named with a partition suffix still resolves.  A
+    # device-mapper node (the dm-multipath map) has none either: its paths
+    # are its slaves, and every path of one map is the same LUN, so the first
+    # slave's vendor is the array's.
     [ -r "/sys/block/$b/device/vendor" ] || b=$(echo "$b" | sed 's/[0-9]*$//')
+    case "$b" in
+        dm-*) b=$(ls "/sys/block/$(basename "$d")/slaves" 2>/dev/null | head -1) ;;
+    esac
     cat "/sys/block/$b/device/vendor" 2>/dev/null
 }
 
 vendor=$(vendor_of "$DEV")
 if [ -z "${vendor:-}" ]; then
-    NODE=$(mk node_list | cut -d, -f1)
+    # MXFS_RIG_NODE first: the prep that establishes the identity may be
+    # writing a marker for the first time (a new rig group's), and a marker
+    # that does not exist yet names no node to ask.
+    NODE=${MXFS_RIG_NODE:-$(mk node_list | cut -d, -f1)}
     [ -n "$NODE" ] && [ -x "$REPO/tools/mxfs_sshpass.sh" ] || exit 1
     vendor=$(timeout 25 "$REPO/tools/mxfs_sshpass.sh" "$NODE" "
         d=\$(readlink -f '$DEV' 2>/dev/null) || exit 1
         b=\$(basename \"\$d\")
         [ -r /sys/block/\$b/device/vendor ] || b=\$(echo \"\$b\" | sed 's/[0-9]*\$//')
+        case \"\$b\" in
+            dm-*) b=\$(ls /sys/block/\$(basename \"\$d\")/slaves 2>/dev/null | head -1) ;;
+        esac
         cat /sys/block/\$b/device/vendor 2>/dev/null
       " 2>/dev/null | grep -av '^Unauthorized\|^Warning:\|^If you\|^$' | head -1)
 fi

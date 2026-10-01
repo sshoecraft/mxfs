@@ -107,7 +107,7 @@ ARM=${1:?usage: fence_kind_matrix.sh <arm> [label] [slot]}
 LABEL=${2:-$ARM}
 cd "$(dirname "$0")/.." || exit 2
 export MXFS_NODE_LIST=${MXFS_NODE_LIST:-test1,test2}
-export MXFS_TRANSPORT=${MXFS_TRANSPORT:-tcp}
+export MXFS_CONFIG=${MXFS_CONFIG:-2/net/mesh/direct}
 A=${MXFS_NODE_LIST%%,*}          # the survivor; stays mounted throughout
 B=${MXFS_NODE_LIST##*,}          # the reader; unmounts, meets the record, mounts
 SSH=tools/mxfs_sshpass.sh

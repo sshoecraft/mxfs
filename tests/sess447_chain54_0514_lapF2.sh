@@ -19,7 +19,7 @@ LABEL=${1:-s447d}
 LOG=tests/evidence/sess447_chain54_0514_lapF2_$LABEL.log
 {
   echo "=== sess447 chain54 start $(date -u +%FT%TZ) sv=$(modinfo mxfs.ko | awk '/srcversion/{print $2}') VERSION=$(cat VERSION) ==="
-  timeout 300 ./run.sh 32 caw prep_cluster; prc=$?; echo "STAGE prep rc=$prc"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; prc=$?; echo "STAGE prep rc=$prc"
   if [ "$prc" -ne 0 ]; then echo "ABORT: prep failed"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
   timeout 30 tools/mxfs_sshpass.sh test1 "echo 30000 > /sys/module/mxfs/parameters/dbg_sweep_hold_ms; echo knob=\$(cat /sys/module/mxfs/parameters/dbg_sweep_hold_ms)" 2>/dev/null | grep -a knob
   OUT=tests/evidence/$(date -u +%Y%m%dT%H%M%SZ)_d0514_fixF2_$LABEL; mkdir -p "$OUT"
@@ -36,6 +36,6 @@ LOG=tests/evidence/sess447_chain54_0514_lapF2_$LABEL.log
   echo "LAPF2 hold=$th notifyB=$tn leaseB=$tl hold_end=$te deferred=$dfr inline=$inl"
   if [ "$inl" -eq 0 ] && [ "$dfr" -ge 1 ] && [ -n "$th" ] && [ -n "$tn" ] && [ -n "$tl" ] && [ -n "$te" ] && [[ "$th" < "$tn" ]] && [[ "$tl" < "$te" ]]; then echo "LAPF2 VERDICT PASS: victim B's replay ran while the reap worker's sweep of A was parked"; else echo "LAPF2 VERDICT FAIL: shape or ordering not met"; fi
   timeout 30 tools/mxfs_sshpass.sh test1 "echo 0 > /sys/module/mxfs/parameters/dbg_sweep_hold_ms" 2>/dev/null
-  timeout 300 ./run.sh 32 caw prep_cluster; echo "STAGE prep2 rc=$?"
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster; echo "STAGE prep2 rc=$?"
   echo "DONE $(date -u +%FT%TZ)"
 } >> "$LOG" 2>&1

@@ -24,7 +24,7 @@
 # uninserted poisoning occurred — the race was never met), FAIL otherwise.
 #
 # derived time budgets: prep 400 s (tests/dirent_durability_loop.sh's bound for
-# the same 2/tcp prep); the workload runs SECS (default 120) on each node and
+# the same 2/net/mesh/direct prep); the workload runs SECS (default 120) on each node and
 # is bounded at SECS+60 s; evidence pulls 40 s per node.
 set -u
 cd /src/mxfs || exit 2
@@ -38,7 +38,7 @@ SSH=tools/mxfs_sshpass.sh
 nc_mark=$(wc -l < "$NC" 2>/dev/null || echo 0)
 echo "=== irls $LABEL START $(date -u +%FT%TZ) VERSION=$(cat VERSION) sv=$(modinfo -F srcversion mxfs.ko) legacy=$LEGACY secs=$SECS out=$OUT netconsole_from_line=$nc_mark ==="
 
-timeout 400 ./run.sh 2 tcp prep_cluster > "$OUT/prep.log" 2>&1 \
+timeout 400 ./run.sh 2/net/mesh/direct prep_cluster > "$OUT/prep.log" 2>&1 \
     || { echo "RESULT: ABORT label=$LABEL stage=prep evidence=$OUT"; exit 2; }
 
 D=/mnt/shared/irls.$LABEL

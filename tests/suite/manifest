@@ -46,10 +46,10 @@ P0  prep_cluster          none      1   300
 # --- P0 per-node readiness gate ---
 # precond_readiness..fault_enospc: budgets below are REAL derived numbers, not
 # estimates -- measured against native XFS on this exact LUN via
-# `./run.sh 1 xfs` (2026-07-14): precond_readiness=1s, posix_single=1s,
+# `./run.sh 1/xfs` (2026-07-14): precond_readiness=1s, posix_single=1s,
 # fsx=10s, fio_verify=4s, integrity_filetypes=2s, fio_perf=10s,
 # fault_enospc=1s. Budget = 2x that measured native wall, floored at 10s to
-# absorb ssh-dispatch jitter (see tools/criteria.py 1 xfs to reproduce/refresh).
+# absorb ssh-dispatch jitter (see tools/criteria.py 1/xfs to reproduce/refresh).
 # 2026-07-19 refresh (ccloop 72513a13 sess10): host under sustained load
 # (loadavg ~6-22) runs the SAME native yardstick at fsx=44s fio_verify=21s
 # (native fio seqW 525 vs 1116 MiB/s on 07-14) -- native XFS itself failed
@@ -88,7 +88,7 @@ P1  fio_perf              barrier   1   120
 P1  fio_perf_vs_xfs       none      1   10
 
 # --- P2 coherency / consistency (multi-node) ---
-# REAL derived numbers below, measured via RULE0_CALIBRATE=1 ./run.sh 2 caw
+# REAL derived numbers below, measured via RULE0_CALIBRATE=1 ./run.sh 2/disk/caw/mpath
 # (2026-07-14): cache_coherency=4s, strong_consistency=1s, posix_multi=3s,
 # mmap_coherency=1s, zero_silent_loss=1s -- all at N=2. Budgets are ~7-10x the
 # measured wall (generous first-calibration margin; only one N sampled so
@@ -112,7 +112,7 @@ P2  mmap_coherency         ordered   1   30
 P2  zero_silent_loss      barrier   1   60
 
 # --- P3 DLM behavior (multi-node) ---
-# Measured (2/caw): dlm_fairness=2s, dlm_membership=3s.
+# Measured (2/disk/caw/mpath): dlm_fairness=2s, dlm_membership=3s.
 # dlm_fairness: min_nodes=1, source-checked safe (no hard multi-node
 # assumption). dlm_membership stays min_nodes=2 -- it iptables-blocks the DLM
 # TCP port to simulate losing a PEER; with no peer there's nothing to lose,
@@ -124,7 +124,7 @@ P3  dlm_membership        fault     2   30
 # scaling_curve/dlm_scaling: each node does a FIXED-size private workload
 # (own subdir/file, own internal WINDOW constant baked into the script) in
 # parallel -- genuinely N-independent, not a function of node count. Measured
-# (2/caw): scaling_curve=2s, dlm_scaling=12s -- both have their own internal
+# (2/disk/caw/mpath): scaling_curve=2s, dlm_scaling=12s -- both have their own internal
 # WINDOW=60s ceiling in the script itself, so the budget floors at ~90s
 # (window + margin) rather than a small multiple of the fast measured wall.
 # min_nodes=1 (2026-07-14): both scripts' "aggregate > max single node"
@@ -136,7 +136,7 @@ P4  dlm_scaling           barrier   1   90
 
 # --- P5 performance (on-mount workload, multi-node) ---
 # rsync_paired: each node rsyncs into its OWN subdir, no cross-node verify
-# loop -- N-independent. Measured (2/caw): 4s; own internal RSYNC_WINDOW=90s.
+# loop -- N-independent. Measured (2/disk/caw/mpath): 4s; own internal RSYNC_WINDOW=90s.
 # min_nodes=1 (2026-07-14): source-checked safe.
 P5  rsync_paired          barrier   1   60
 
@@ -159,9 +159,9 @@ P6  crash_consistency     fault     1   90
 # every mxfs-specific probe in the script is guarded/best-effort (no-ops
 # under plain XFS or when absent). Gives a genuine no-coordination-cost floor
 # to compare the 2/4/8/16/32-node numbers against. Budget at N=1 is a
-# placeholder pending a real ./run.sh 1 xfs / 1 caw calibration measurement.
+# placeholder pending a real ./run.sh 1/xfs / 1 caw calibration measurement.
 P6  dir_reuse_coherency   barrier   1   120
-# fence_during_write/fault_netpartition measured (2/caw): 17s / 7s.
+# fence_during_write/fault_netpartition measured (2/disk/caw/mpath): 17s / 7s.
 P6  fence_during_write    fault     2   60
 P6  fault_netpartition    fault     2   60
 
@@ -205,7 +205,7 @@ P8  sustained_load        barrier   1   180
 # whatever configuration that record described, so it could never read green
 # and told you nothing about the configuration under test.  The queue is now
 # tools/defects.py over data/defects.json, and it answers the release question
-# per configuration: `tools/defects.py 2 tcp --release`.
+# per configuration: `tools/defects.py 2/net/mesh/direct --release`.
 # node_death_replay is NOT in this file's dispatch order: it is coord=host
 # (runs ON clyde, virsh-kills nodes mid-churn, survivors must foreign-replay)
 # and lives in criteria.json's terminal "death" category so it runs LAST —

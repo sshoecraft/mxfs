@@ -74,7 +74,7 @@ growth() { # <tag0> <tag1> -> prints per-node growth and totals
   [ "$sv" = "$WANT_SV" ] || { echo "ABORT: installed sv $sv != $WANT_SV"; echo "DONE $(date -u +%FT%TZ)"; exit 1; }
 
   t0=$(date +%s)
-  timeout 300 ./run.sh 32 caw prep_cluster > "$O/prep.out" 2>&1; prc=$?
+  timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster > "$O/prep.out" 2>&1; prc=$?
   echo "STAGE prep rc=$prc wall=$(( $(date +%s) - t0 ))s budget=300s"
   [ "$prc" = 0 ] || { echo "ABORT: prep rc=$prc"; echo "DONE $(date -u +%FT%TZ)"; exit 1; }
   idok=0

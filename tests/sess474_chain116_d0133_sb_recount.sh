@@ -75,7 +75,7 @@ probe_capture() { # <lap>
   set -- $WORKERS
   for L in $(seq 1 $LAPS); do
     pair=${1:-test1:test2}; [ $# -gt 0 ] && shift; W1=${pair%%:*}; W2=${pair##*:}
-    lap 300 "prep lap=$L" ./run.sh 32 caw prep_cluster
+    lap 300 "prep lap=$L" ./run.sh 32/disk/caw/mpath prep_cluster
     lap 150 "dirshard_reuse_peer_list $W1 $W2 $REUSE_LAPS lap=$L" tests/dirshard_reuse_peer_list.sh $W1 $W2 "$REUSE_LAPS"
     # sess474 (GPT A+ bar): the sb sector outside icount/ifree/fdblocks/crc/lsn
     # must be byte-identical before and after the fleet unmount.

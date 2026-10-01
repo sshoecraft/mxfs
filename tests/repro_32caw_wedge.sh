@@ -1,5 +1,5 @@
 #!/bin/bash
-# repro_32caw_wedge.sh — looped reproducer for the 32/caw spurious-shutdown
+# repro_32caw_wedge.sh — looped reproducer for the 32/disk/caw/mpath spurious-shutdown
 # wedge family (ccloop c7ee71c6 sess12-D: folio-wedge >150s → AG AIL-STALL
 # stuck_ino ilocked+in_ail → P-NOINO-RELFENCE-WEDGE shutdown at
 # xfs_mxfs_dlm.c:15884).  One spontaneous hit 2026-07-26 ~11:11 on the mpath
@@ -11,7 +11,7 @@
 # or any node logging the wedge signature — leaving the evidence in place.
 #
 # Usage:  MXFS_PASS=<passfile> tests/repro_32caw_wedge.sh <laps>
-# Precondition: rig.sh mpath 32 up + cluster prepped 32/caw (marker matches).
+# Precondition: rig.sh 32/disk/caw/mpath up + cluster prepped 32/disk/caw/mpath (marker matches).
 
 set -u
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)

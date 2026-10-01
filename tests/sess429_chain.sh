@@ -1,7 +1,7 @@
 #!/bin/bash
 # sess429_chain.sh — build + rig-verify 0.39.0 (D-0351 FREE-PUBLISH fix, third
 # lap: 0.38.4 home-free ledger settle; plus tauth view-record step 1, format
-# v3 — usermode/mkfs/chk only) on the CURRENT fleet, 32/caw only.
+# v3 — usermode/mkfs/chk only) on the CURRENT fleet, 32/disk/caw/mpath only.
 # sess429: every dmesg sweep is MARK-BOUNDED — a marker is written to each
 # node's kmsg before the stage and the sweep reads only lines after it, so the
 # ring's stale lines from earlier laps no longer pollute the verdict counters.
@@ -10,11 +10,11 @@
 #      insmods the TREE .ko over NFS — ccmemory trap-never-rebuild-mxfs-ko-
 #      while-rig-run-in-flight)
 #   1. build VERSION + prove complete; tools; tests/tauth usermode gate
-#   2. prep 32/caw; chk geometry line
+#   2. prep 32/disk/caw/mpath; chk geometry line
 #   3. tests/dir_recreate_estale.sh (D-0351 reproducer, sess428-fixed harness)
 #      x2 + sweeps (P55C-FREE-FOREIGN must be 0 for disk_mode=00 images;
 #      P32D-DEADINCARN-SKIP must be 0; P-RECYCLE-DEADSTAMP-CLEAR counted)
-#   4. full 32/caw board (the 0.38.1 regression gate: cache_coherency 32/32)
+#   4. full 32/disk/caw/mpath board (the 0.38.1 regression gate: cache_coherency 32/32)
 #   5. sweep board
 #
 # budget: wait <= 1800 + build 500 + proof 500 + tools 120 + tauth 240 +
@@ -28,7 +28,7 @@ D="$E/sess429_${LABEL}_dmesg"
 mkdir -p "$E" "$D"
 PAT='P55C-|P237-EVICT|P-RECYCLE-|P-EVICT-OBLIG|P-FREEOB|P-CR62|P-CR3-CANCEL|P-CR63-DEFER-DISKLIVE|P-SESSION-POISON|Internal error|P119-NONEX-FLUSH-SKIP|P128-INACT-DEFER|P32D-DEADINCARN|P-RECYCLE-DEADSTAMP|P-RECYCLE-GATE|P87-|P88-|P34H-POISON|force-shutdown|xfs_trans_cancel|status=12|lock request failed after'
 TAGS='P55C-[A-Z0-9-]+|P237-EVICT-[A-Z]+|P-FREEOB-[A-Z-]+|P-CR62|P-CR3-CANCEL|P-CR63-DEFER-DISKLIVE|P-SESSION-POISON|P119-NONEX-FLUSH-SKIP|P128-INACT-DEFER|P32D-DEADINCARN-SKIP|P-RECYCLE-DEADSTAMP-CLEAR|P34H-POISON-[A-Z]+|P8[78]-[A-Z-]+'
-prep_caw() { timeout 300 ./run.sh 32 caw prep_cluster > "$E/sess429_${LABEL}_prep_$1.log" 2>&1; echo "STAGE prep caw $1 rc=$?"; }
+prep_caw() { timeout 300 ./run.sh 32/disk/caw/mpath prep_cluster > "$E/sess429_${LABEL}_prep_$1.log" 2>&1; echo "STAGE prep caw $1 rc=$?"; }
 MARK="S429-${LABEL}-$$"
 mark() {
   local st=$1 i
@@ -73,13 +73,13 @@ sweep() {
   echo "STAGE tauth usermode rc=$urc $(grep -aoE '=== [a-z_]+ RESULT [A-Z]+ fails=[0-9]+|=== tauth_test: fails=[0-9]+' "$E/sess429_${LABEL}_tauth.log" | tr '\n' ' ')"
   if [ $urc -ne 0 ]; then echo "ABORT: usermode gate failed"; echo "DONE $(date -u +%FT%TZ)"; exit 1; fi
   prep_caw dre
-MXFS_DEV=${MXFS_DEV:?this chain ran the tcpmp condition, TCP over the multipath LUN: name that LUN with MXFS_DEV (never assumed from a rig path)}
+MXFS_DEV=${MXFS_DEV:?this chain ran net/mesh/mpath, TCP over the multipath LUN: name that LUN with MXFS_DEV (never assumed from a rig path)}
   echo "STAGE chk-geometry: $(timeout 60 tools/mxfs_sshpass.sh test1 '/src/mxfs/tools/chk_mxfs -v '"$MXFS_DEV"' 2>&1 | grep -a "authority ledger\|authority view\|control pages"' 2>/dev/null | tr '\n' ' ')"
   timeout 150 tests/free_home_settle_repro.sh "${LABEL}r" test1 200 test2; echo "STAGE fhs rc=$?"
   mark dre1; timeout 90 tests/dir_recreate_estale.sh "${LABEL}a" test1 test2 test3 test4 20 250; echo "STAGE dre1 rc=$?"; sweep dre1
   mark dre2; timeout 90 tests/dir_recreate_estale.sh "${LABEL}b" test5 test6 test7 test8 20 250; echo "STAGE dre2 rc=$?"; sweep dre2
   mark board; timeout 1900 bash tests/sess416_board_0286.sh; echo "STAGE boardchain rc=$?"
   sweep board
-  echo "STAGE board-rows: $(tools/criteria.py 32 caw 2>/dev/null | grep -E 'FAIL|FLAKY|BLOCKED|Total|VERDICT' | cut -c1-160 | tr '\n' ';')"
+  echo "STAGE board-rows: $(tools/criteria.py 32/disk/caw/mpath 2>/dev/null | grep -E 'FAIL|FLAKY|BLOCKED|Total|VERDICT' | cut -c1-160 | tr '\n' ';')"
   echo "DONE $(date -u +%FT%TZ)"
 } > "$E/sess429_${LABEL}.log" 2>&1
