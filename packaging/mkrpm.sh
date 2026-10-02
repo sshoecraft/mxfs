@@ -60,6 +60,7 @@ cp "$SRCDIR/tools/chk_mxfs.c" "$TARDIR/tools/"
 cp "$SRCDIR/tools/resize_mxfs.c" "$TARDIR/tools/"
 cp "$SRCDIR/tools/mxfs_admin.c" "$TARDIR/tools/"
 cp "$SRCDIR/tools/mxfs_offline.h" "$TARDIR/tools/"
+cp "$SRCDIR/tools/crc32c.h" "$TARDIR/tools/"
 cp "$SRCDIR/tools/mxfs_lu_reset_witness.py" "$TARDIR/tools/"
 cp -r "$SRCDIR/include" "$TARDIR/tools/"
 

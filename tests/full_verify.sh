@@ -16,8 +16,9 @@
 #      declaration audit
 #   2. the rig suite for every configuration of the release matrix at NODES
 #      (tools/configuration.py release-matrix --nodes N, e.g. 8/net/mesh/direct
-#      then 8/disk/caw/direct), one after another and alone on the host (they
-#      grade pace, and a loaded host has failed them before)
+#      and 8/disk/caw/direct), side by side: the i-th configuration runs on rig
+#      group g<N>, the next on g<N>b, and so on (the lab file's `group` lines),
+#      each on a LUN borrowed from the pool (tools/lun_pool.sh)
 #   3. the release packages (scripts/release.sh), unless dist/VERSION holds them
 #   4. every platform's packaged round on EACH configuration of the matrix
 #      (CONFIG=N/net/mesh/direct, N/disk/caw/direct): ubuntu2404, pve9 on both
@@ -27,9 +28,10 @@
 #      tests/svirt_stall_laps.sh (default 0)
 #
 # Steps 4-5 run the platforms of a group in parallel, each platform's own
-# steps in order, and the groups one after another: every set verifies on a
-# LUN of its own (scripts/scst_platform_targets.sh, lab file
-# ~/.config/mxfslab/lab.<platform>), so no set's format touches another's.
+# steps in order, and the groups one after another: every set borrows a LUN of
+# its own from the pool for its steps (tools/lun_pool.sh), and its lab file
+# ~/.config/mxfslab/lab.<platform> is written from that allocation, so no set's
+# format touches another's.
 # Each platform's steps also go to
 # tests/evidence/full_verify_<VERSION>_<platform>.log and are copied into the
 # main log when it finishes.
@@ -67,21 +69,33 @@ NODES="${NODES:-2}"
 [[ "$NODES" =~ ^[0-9]+$ ]] && [ "$NODES" -ge 2 ] || { echo "NODES must be an integer >= 2 (got '$NODES')" >&2; exit 2; }
 POWER="${POWER:-0}"
 ALL_PLATFORMS="ubuntu2404 pve9 rhel9 debian13"
-PLATFORM_GROUPS="${PLATFORM_GROUPS:-ubuntu2404,pve9,rhel9,debian13}"
-[ "$(echo "$PLATFORM_GROUPS" | tr ', ' '\n\n' | awk 'NF' | sort | tr '\n' ' ')" = "debian13 pve9 rhel9 ubuntu2404 " ] \
-    || { echo "PLATFORM_GROUPS must name each of [$ALL_PLATFORMS] exactly once (got '$PLATFORM_GROUPS')" >&2; exit 2; }
+# PLATFORMS (default all four) re-runs only the sets named, for a run whose
+# other sets already passed on this version.  The verdict at the end still
+# reads every platform's log, so a set not re-run is graded on its own last
+# run of $V and a failed one cannot drop out of it.
+PLATFORMS="${PLATFORMS:-$ALL_PLATFORMS}"
+for k in $PLATFORMS; do
+    case " $ALL_PLATFORMS " in *" $k "*) ;; *) echo "PLATFORMS: '$k' is not one of [$ALL_PLATFORMS]" >&2; exit 2 ;; esac
+done
+PLATFORM_GROUPS="${PLATFORM_GROUPS:-$(echo $PLATFORMS | tr ' ' ',')}"
+[ "$(echo "$PLATFORM_GROUPS" | tr ', ' '\n\n' | awk 'NF' | sort | tr '\n' ' ')" = "$(echo $PLATFORMS | tr ' ' '\n' | sort | tr '\n' ' ')" ] \
+    || { echo "PLATFORM_GROUPS must name each of [$PLATFORMS] exactly once (got '$PLATFORM_GROUPS')" >&2; exit 2; }
+for k in $ALL_PLATFORMS; do
+    [ -s "$(dirname "$0")/evidence/full_verify_${V}_$k.log" ] || case " $PLATFORMS " in *" $k "*) ;; *)
+        echo "PLATFORMS leaves out $k, which has no run of $V to be graded on" >&2; exit 2 ;; esac
+done
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$HERE" || exit 1
 L="$HERE/tests/evidence/full_verify_$V.log"
-: > "$L"
+# a run that resumes after the build keeps the log of the run it continues
+case ",${STEPS:-build}," in *,build,*) : > "$L" ;; esac
 SSH="$HERE/tools/mxfs_sshpass.sh"
 echo "=== full_verify $V nodes=$NODES power=$POWER groups=[$PLATFORM_GROUPS] $(date -u +%FT%TZ) ===" | tee -a "$L"
 # every platform's set must be the claimed size before anything runs: a
 # smaller set would verify a smaller claim
+. "$HERE/tools/mxfs_lab.sh"
 for k in ubuntu2404 pve9 rhel9 debian13; do
-    lab="$HOME/.config/mxfslab/lab.$k"
-    [ -r "$lab" ] || { echo "no lab file $lab (scripts/scst_platform_targets.sh setup)" | tee -a "$L"; exit 2; }
-    n=$(MXFS_LAB=$lab tools/mxfs_lab.sh nodes "$k" 2>/dev/null | wc -w)
+    n=$(lab_nodes "$k" 2>/dev/null | wc -w)
     [ "$n" -ge "$NODES" ] || { echo "$k: its verification set has $n node(s), the claim needs $NODES" | tee -a "$L"; exit 2; }
 done
 
@@ -97,7 +111,7 @@ run() {
 all_platform_nodes() {  # every node named by a platform lab file
     local k
     for k in ubuntu2404 pve9 rhel9 debian13; do
-        MXFS_LAB="$HOME/.config/mxfslab/lab.$k" tools/mxfs_lab.sh nodes "$k" 2>/dev/null
+        lab_nodes "$k" 2>/dev/null
     done | tr ' ' '\n' | awk 'NF && !seen[$0]++' | tr '\n' ' '
 }
 unmount_pairs() {  # [node...] — default: every platform node
@@ -110,14 +124,29 @@ unmount_pairs() {  # [node...] — default: every platform node
     wait
 }
 
+# pool_lab <key> <lab file>: borrow a pool LUN for the platform's whole
+# verification set, held by the calling shell for as long as it runs, and
+# write the lab file its steps read: the site's own lines, that set alone, and
+# the borrowed LUN as its storage.
+pool_lab() {
+    local key=$1 lab=$2 set line portal
+    set=$(lab_nodes "$key") || return 1
+    portal=$(lab_need storage portal) || return 1
+    line=$(tools/lun_pool.sh alloc --owner "$BASHPID" --what "full_verify $V $key" $set) || return 1
+    { grep -E '^#|^addr|^qemu|^paths' "$MXFS_LAB"
+      echo "storage portal=$portal target=$(sed -n 's/.* target=\([^ ]*\).*/\1/p' <<<"$line") lun=$(sed -n 's/.* dev=\([^ ]*\).*/\1/p' <<<"$line")"
+      echo "nodes $key=$(echo $set | tr ' ' ',')"; } > "$lab"
+    echo "$line"
+}
+
 # platform <key> <steps...>: one platform's steps in order against its own
 # lab file, logged to its own file.  A step is "[VAR=value ...] command args".
 platform() {
     local key=$1 lab="$HOME/.config/mxfslab/lab.$1" pl="$HERE/tests/evidence/full_verify_${V}_$1.log" pair step
     shift
     : > "$pl"
-    [ -r "$lab" ] || { echo "=== rc=2: $key: no lab file $lab (scripts/scst_platform_targets.sh setup) ===" >> "$pl"; return; }
-    pair=$(MXFS_LAB=$lab tools/mxfs_lab.sh nodes "$key")
+    pool_lab "$key" "$lab" >> "$pl" 2>&1 || { echo "=== rc=2: $key: no pool LUN for its verification set ===" >> "$pl"; return; }
+    pair=$(lab_nodes "$key")
     for step in "$@"; do
         MXFS_LAB=$lab unmount_pairs $pair >> "$pl"
         echo "=== $key: $step ===" >> "$pl"
@@ -127,7 +156,15 @@ platform() {
     MXFS_LAB=$lab unmount_pairs $pair >> "$pl"
 }
 
+# STEPS (default "build,suites,packages,platforms") names the steps to run.
+# A chain whose suites already ran, but whose packages failed, picks up with
+# STEPS=packages,platforms instead of running the suites again.
+STEPS=",${STEPS:-build,suites,packages,platforms},"
+want() { case "$STEPS" in *",$1,"*) return 0 ;; esac; return 1; }
+echo "steps:${STEPS//,/ }" | tee -a "$L"
+
 # --- 1. clean build, tools, user-mode tests, audit
+if want build; then
 B=$(mktemp -d) || exit 1
 timeout 300 rsync -a --exclude .git --exclude dist --exclude tests/evidence \
     --exclude '*.o' --exclude '*.ko' --exclude '.*.cmd' ./ "$B/"
@@ -140,29 +177,60 @@ grep -E 'warning:|error:' "$B/build.log" | grep -v 'compiler differs\|Clock skew
   timeout 240 make -C tests/tauth clean test > "$B/tauth.log" 2>&1; echo "tauth_rc=$? $(grep -aoE '=== tauth_test: fails=[0-9]+' "$B/tauth.log")" ) | tee -a "$L"
 timeout 120 python3 scripts/extern_decl_audit.py >> "$L" 2>&1; echo "extern_audit_rc=$?" | tee -a "$L"
 timeout 60 python3 scripts/inode_flag_bits_audit.py >> "$L" 2>&1; echo "inode_flag_audit_rc=$?" | tee -a "$L"
+fi
 
 # --- 2. the release matrix's suites on the rig at the claimed node count
 MATRIX=$(python3 tools/configuration.py release-matrix --nodes "$NODES")
 [ -n "$MATRIX" ] || { echo "the release matrix (data/configurations.json) has no configuration at $NODES nodes" | tee -a "$L"; exit 2; }
+# one rig group per configuration, g<N> then g<N>b, g<N>c ...: each the
+# claimed size, so the suites run side by side on disjoint nodes
+SUITE_GROUPS=""
+i=0
+for cfg in $MATRIX; do
+    g=g$NODES; [ "$i" -gt 0 ] && g=g$NODES$(printf "\\$(printf %o $((97 + i)))")
+    [ "$(lab_group "$g" 2>/dev/null | wc -w)" = "$NODES" ] \
+        || { echo "$cfg needs rig group $g of $NODES nodes in $MXFS_LAB" | tee -a "$L"; exit 2; }
+    SUITE_GROUPS="$SUITE_GROUPS $g"
+    i=$((i + 1))
+done
+if want suites; then
 if [ "$POWER" = 1 ]; then
     # shellcheck disable=SC2086  # one argument per platform
     run scripts/lab_power.sh down $ALL_PLATFORMS
-    run scripts/lab_power.sh up "rig:$NODES"
+    # shellcheck disable=SC2086
+    run scripts/lab_power.sh up $(for g in $SUITE_GROUPS; do echo "group:$g"; done)
 fi
+set -- $SUITE_GROUPS
+pids=()
 for cfg in $MATRIX; do
     slug=${cfg//\//-}
-    n0=$(wc -l < "$L")
-    run ./run.sh "$cfg"
-    echo "suite_${slug}_pass=$(tail -n +$n0 "$L" | grep -cE '^\s+PASS') suite_${slug}_fail=$(tail -n +$n0 "$L" | grep -cE '^\s+(FAIL|TIMEOUT)')" | tee -a "$L"
+    g=$1; shift
+    sl="$HERE/tests/evidence/full_verify_${V}_suite_$slug.log"
+    ( ./run.sh "$cfg" --group "$g" > "$sl" 2>&1; echo "=== rc=$?: ./run.sh $cfg --group $g ===" >> "$sl" ) &
+    pids+=($!)
+done
+for p in "${pids[@]}"; do wait "$p"; done
+for cfg in $MATRIX; do
+    slug=${cfg//\//-}
+    sl="$HERE/tests/evidence/full_verify_${V}_suite_$slug.log"
+    cat "$sl" >> "$L"
+    grep -a '^=== rc=' "$sl"
+    echo "suite_${slug}_pass=$(grep -cE '^\s+PASS' "$sl") suite_${slug}_fail=$(grep -cE '^\s+(FAIL|TIMEOUT)' "$sl")" | tee -a "$L"
 done
 # the board is the verdict, not the run's own PASS lines: a row FLAKY or SKIP
 # on the board is not a pass, and the board is what tools/criteria.py reads
 for cfg in $MATRIX; do run python3 tools/criteria.py "$cfg"; done
+fi
 
 # --- 3. packages
-if [ ! -d "dist/$V" ]; then
+# A finished build is dist/$V with a SHA256SUMS its packages match: release.sh
+# writes that file last.  The directory alone is not one -- a release.sh
+# stopped part way leaves it behind, and 0.90.39's chain found it empty, built
+# nothing, and failed every packaged round on a missing .deb.
+if want packages && ! { [ -f "dist/$V/SHA256SUMS" ] && (cd "dist/$V" && sha256sum --quiet -c SHA256SUMS); }; then
     run scripts/release.sh || { echo "release.sh failed; stopping" | tee -a "$L"; exit 1; }
 fi
+want platforms || { echo "=== full_verify $V done (steps:${STEPS//,/ }) ===" | tee -a "$L"; exit 0; }
 
 # --- 4-5. platform rounds and the set tests, one platform per LUN: a group's
 # platforms in parallel, the groups one after another
@@ -188,7 +256,7 @@ for g in $PLATFORM_GROUPS; do
     gs=${g//,/ }
     if [ "$POWER" = 1 ]; then
         # only this group's sets hold the host's memory while they verify
-        off="rig:$NODES"
+        off=$(for g in $SUITE_GROUPS; do echo -n "group:$g "; done)
         for k in $ALL_PLATFORMS; do case " $gs " in *" $k "*) ;; *) off="$off $k" ;; esac; done
         # shellcheck disable=SC2086  # one argument per set
         run scripts/lab_power.sh down $off
@@ -201,10 +269,17 @@ for g in $PLATFORM_GROUPS; do
     # shellcheck disable=SC2086
     [ "$POWER" = 1 ] && run scripts/lab_power.sh down $gs
 done
-[ "$POWER" = 1 ] && run scripts/lab_power.sh up "rig:$NODES"
+# shellcheck disable=SC2046
+[ "$POWER" = 1 ] && run scripts/lab_power.sh up $(for g in $SUITE_GROUPS; do echo "group:$g"; done)
+failed=0
 for k in $ALL_PLATFORMS; do
     cat "$HERE/tests/evidence/full_verify_${V}_$k.log" >> "$L"
     grep -a '^=== rc=' "$HERE/tests/evidence/full_verify_${V}_$k.log"
+    failed=$((failed + $(grep -ac '^=== rc=[1-9]' "$HERE/tests/evidence/full_verify_${V}_$k.log")))
 done
 
 grep -E "=== rc=|RESULT|VERDICT|both nodes on kernel|suite_[0-9]+-|clean_build_rc|tools_rc|tauth_rc|extern_audit_rc|inode_flag_audit_rc|all .* laps passed|STALL|STOP" "$L" | cut -c1-200
+# The exit status is the platforms' verdict.  It used to be the grep's above,
+# so 0.90.39's chain read rc=0 over twelve failed packaged rounds.
+echo "=== full_verify $V platform steps failed: $failed ===" | tee -a "$L"
+[ "$failed" = 0 ]

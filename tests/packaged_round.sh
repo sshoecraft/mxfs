@@ -339,7 +339,14 @@ mount_all() {  # label mode — mode: none (no options), peer (peer=/peers= by a
             peer)  o=$(peer_opt $h) ;;
             peers) o="peers=$(all_addrs)" ;;
         esac
-        on $h $MOUNT_S "mount -t mxfs ${o:+-o $o} $LUN $MNT; echo mount_rc=\$?" > "$EV/${lbl}_mount_$h.log" 2>&1
+        on $h $MOUNT_S "t0=\$(date +%s%N); mount -t mxfs ${o:+-o $o} $LUN $MNT; echo mount_rc=\$? mount_ms=\$(( (\$(date +%s%N) - t0) / 1000000 ))" > "$EV/${lbl}_mount_$h.log" 2>&1
+        # A mount that failed or never returned keeps its node's kernel log
+        # now: the next round reboots the set, and a platform's journal is not
+        # persistent.  0.90.39's rhel9 postboot joiner overran 60 s with
+        # nothing left to say where it waited.  A mount still running in the
+        # kernel keeps running; this reads its log, it does not stop it.
+        grep -q mount_rc=0 "$EV/${lbl}_mount_$h.log" ||
+            on $h 30 "date -u; grep ' $MNT ' /proc/mounts; dmesg -T" > "$EV/${lbl}_mount_fail_kernlog_$h.log" 2>&1
     done
     for h in $NODES; do grep -q mount_rc=0 "$EV/${lbl}_mount_$h.log" || ok=0; done
     if [ $ok = 1 ]; then
@@ -480,39 +487,55 @@ else
     DIO_OR_SELINUX=dio
 fi
 
-# --- 10. reboot
+# --- 10. reboot, POSTBOOT_LAPS times (default 1)
+# A lap: a marker written, every node unmounted, every node rebooted, the
+# postboot checks, every node mounted again one at a time with no mkfs, the
+# marker read back on every node, every node unmounted.  More than one lap is
+# for D-POSTBOOT-JOINER-MOUNT-OVERRAN-60S-NO-KERNEL-LOG: the first joiner after
+# a whole-set reboot once overran its 60 s mount budget on rhel9 8/net/mesh/
+# direct and passed the next run.  Each lap's mounts are logged with their own
+# mount_ms, and a mount that overruns keeps its node's kernel log.
+POSTBOOT_LAPS="${POSTBOOT_LAPS:-1}"
+for ((lap = 1; lap <= POSTBOOT_LAPS; lap++)); do
+pb=postboot; [ "$POSTBOOT_LAPS" -gt 1 ] && pb=postboot$lap
+# the first lap starts from the round's own mounts; a later one starts
+# unmounted, from the lap before
+up=$DIO_OR_SELINUX
+[ "$lap" -gt 1 ] && { up=${pb}_pre; mount_all $up none; }
 x=$(on $A $IO_S "head -c 16777216 /dev/urandom > $MNT/marker && sync && md5sum < $MNT/marker | cut -d' ' -f1")
 [ -n "$x" ] || fail "writing the marker"
-umount_all $DIO_OR_SELINUX
+umount_all $up
 reboot_all
-every postboot 60 "
+every $pb 60 "
     echo kernel=\$(uname -r)
     echo module=\$(lsmod | grep -c '^mxfs ')
     $MODID
     for i in \$(seq 1 30); do [ -b $LUN ] && break; sleep 1; done; [ -b $LUN ] && echo lun=ok
     command -v firewall-cmd >/dev/null && echo firewalld=\$(systemctl is-active firewalld) ports=\$(firewall-cmd --list-ports | tr ' ' ,)
-    true" || fail "postboot checks"
+    true" || fail "$pb checks"
 for h in $NODES; do
-    [ -z "$KERNEL" ] || grep -qx "kernel=$KERNEL" "$EV/postboot_$h.log" || fail "$h did not boot back into $KERNEL"
-    grep -q "module=1" "$EV/postboot_$h.log" || fail "$h: module not auto-loaded"
-    is_dkms_build $h "$EV/postboot_$h.log" || fail "$h: the module auto-loaded at boot is not the DKMS build of $V"
-    grep -q "lun=ok" "$EV/postboot_$h.log" || fail "$h: LUN not back after boot"
-    grep -qx "force_transport=$FT" "$EV/postboot_$h.log" || fail "$h: auto-loaded with $(grep '^force_transport=' "$EV/postboot_$h.log"), not force_transport=$FT"
+    [ -z "$KERNEL" ] || grep -qx "kernel=$KERNEL" "$EV/${pb}_$h.log" || fail "$h did not boot back into $KERNEL"
+    grep -q "module=1" "$EV/${pb}_$h.log" || fail "$h: module not auto-loaded"
+    is_dkms_build $h "$EV/${pb}_$h.log" || fail "$h: the module auto-loaded at boot is not the DKMS build of $V"
+    grep -q "lun=ok" "$EV/${pb}_$h.log" || fail "$h: LUN not back after boot"
+    grep -qx "force_transport=$FT" "$EV/${pb}_$h.log" || fail "$h: auto-loaded with $(grep '^force_transport=' "$EV/${pb}_$h.log"), not force_transport=$FT"
     # the README's firewall line opens 7602/udp for CAW's lock-release requests
-    if [ $TRANSPORT = caw ] && grep -q '^firewalld=active' "$EV/postboot_$h.log"; then
-        grep -q 'ports=.*7602/udp' "$EV/postboot_$h.log" || fail "$h: firewalld is active and 7602/udp (CAW lock-release requests) is not open"
+    if [ $TRANSPORT = caw ] && grep -q '^firewalld=active' "$EV/${pb}_$h.log"; then
+        grep -q 'ports=.*7602/udp' "$EV/${pb}_$h.log" || fail "$h: firewalld is active and 7602/udp (CAW lock-release requests) is not open"
     fi
 done
-mount_all postboot none
+mount_all $pb none
+say "$pb mount_ms: $(for h in $NODES; do echo -n "$h=$(grep -o 'mount_ms=[0-9]*' "$EV/${pb}_mount_$h.log" | cut -d= -f2) "; done)"
 ys=""; marker_ok=1
 for h in $NODES; do
     y=$(on $h $IO_S "md5sum < $MNT/marker | cut -d' ' -f1")
     ys="$ys $h $y"
     [ "$x" = "$y" ] || marker_ok=0
 done
-echo "marker before reboot $x, after:$ys" | tee "$EV/marker.log"
-[ $marker_ok = 1 ] && pass "data intact across the reboot on all $NN" || fail "marker md5 after reboot"
-umount_all postboot
+echo "marker before reboot $x, after:$ys" | tee "$EV/${pb}_marker.log"
+[ $marker_ok = 1 ] && pass "$pb: data intact across the reboot on all $NN" || fail "$pb: marker md5 after reboot"
+umount_all $pb
+done
 
 if [ $FAILS = 0 ]; then say "RESULT PASS"; exit 0; fi
 say "RESULT FAIL ($FAILS failed)"

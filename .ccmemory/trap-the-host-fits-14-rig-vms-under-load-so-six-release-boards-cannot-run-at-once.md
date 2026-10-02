@@ -1,12 +1,15 @@
 ---
 name: trap-the-host-fits-14-rig-vms-under-load-so-six-release-boards-cannot-run-at-once
-description: TRAP (0.90.37): rig VMs are 4 GiB / 4 vCPU; six release boards need 28 nodes = 112 GiB on a 94 GiB host. Groups g2/g4/g8 (14 nodes) run one class at…
+description: CORRECTED 2026-10-01: rig VMs run at 2.5 GiB (balloon; 4 GiB max) x 4 vCPU. 28 nodes = 70 GiB fits 94 GiB; the real limit is CPU (112 vCPU on 56 core…
 metadata:
   type: feedback
 ---
 
-The Part B plan assumed `{2,4,8} x {net/mesh, disk/caw}` = 28 nodes could run on test1..28 at once. It can't. `virsh dominfo` puts every rig VM at 4 GiB and 4 vCPUs. clyde has 94 GiB total, with about 61 GiB available while 9 VMs ran, and 56 cores.
+**Measured 2026-10-01 (virsh dominfo test1/3/9/17/25):** Max memory 4194304 KiB, Used memory 2621440 KiB, 4 vCPUs. The earlier version of this note said rig VMs are "4 GiB" and that six release boards (28 nodes) need 112 GiB on the 94 GiB host. That counted the balloon ceiling, not the allocation; the user caught it.
 
-What does fit is one class's three release boards: groups g2=test1-2, g4=test3-6 and g8=test7-14. That is 14 nodes, 56 GiB and 56 vCPUs, and it is recorded in the lab file's `group` line. Run `net/mesh` first, then `disk/caw` on the same groups.
+**What actually holds:**
+- Memory: 28 nodes x 2.5 GiB = 70 GiB, which fits 94 GiB with the rig alone up. It stops fitting if the balloons are raised toward 4 GiB, or with platform sets (8 x 2.5+ GiB each) up at the same time.
+- CPU: 28 x 4 = 112 vCPU on 56 cores (2x oversubscribed). The boards grade pace (native-XFS yardsticks, per-row budgets), so a fully parallel six-board run risks pace failures caused by host contention. Throughput rows already take a host-wide lock for this reason.
+- Platform sets compiling DKMS at 8 nodes oversubscribe on their own (see trap-two-8-node-platform-sets-compiling-dkms-at-once...).
 
-Before sizing any parallel rig layout, check `virsh dominfo` and `free -g`. Don't assume the node count is the only limit. The platform sets (pve9-*, alma9-*, and so on) are separate VMs, which is why `scripts/lab_power.sh` powers sets up and down.
+**Do:** check `virsh dominfo <vm>` Used memory before sizing a parallel run; don't quote the max.

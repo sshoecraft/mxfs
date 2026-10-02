@@ -130,41 +130,9 @@
 /* Null filesystem inode */
 #define NULLFSINO              0xFFFFFFFFFFFFFFFFULL
 
-/* ─── Software CRC32C (Castagnoli polynomial 0x82F63B78) ─── */
+/* ─── CRC32C (Castagnoli polynomial 0x82F63B78), hardware when present ─── */
 
-static uint32_t crc32c_table[256];
-static bool crc32c_initialized;
-
-static void crc32c_init(void)
-{
-    uint32_t i, j, crc;
-
-    for (i = 0; i < 256; i++) {
-        crc = i;
-        for (j = 0; j < 8; j++) {
-            if (crc & 1)
-                crc = (crc >> 1) ^ 0x82F63B78;
-            else
-                crc >>= 1;
-        }
-        crc32c_table[i] = crc;
-    }
-    crc32c_initialized = true;
-}
-
-static uint32_t crc32c(uint32_t crc, const void *data, size_t len)
-{
-    const uint8_t *p = data;
-    size_t i;
-
-    if (!crc32c_initialized)
-        crc32c_init();
-
-    for (i = 0; i < len; i++)
-        crc = (crc >> 8) ^ crc32c_table[(crc ^ p[i]) & 0xFF];
-
-    return crc;
-}
+#include "crc32c.h"
 
 /* ─── Big-endian write helpers ─── */
 
@@ -833,12 +801,36 @@ static int format_tauth_region(int fd, uint64_t tauth_offset, uint64_t tauth_siz
     if (write_sectors(fd, tauth_offset + mxfs_tauth_hdr_off(0), rh,
                       sizeof(*rh)) < 0)
         goto fail;
-    for (p = 0; p < npages; p++) {
-        mxfs_tauth_page_init_empty(pg, p, fs_gen, uuid, 1, stamp, crc32c);
-        if (write_sectors(fd, tauth_offset +
-                          mxfs_tauth_page_off(npages, p, 0),
-                          pg, sizeof(*pg)) < 0)
+    /*
+     * Copy A's pages are contiguous (mxfs_tauth_page_off: page p of copy 0
+     * sits at a fixed base + p pages), so build them in batches and write
+     * each batch in one call.  One synchronous write per page cost a 20 GiB
+     * format 10,571 writes and 25 s, a 128 GiB format 67,650; the bytes and
+     * their offsets are the same either way.
+     */
+    {
+        const uint32_t batch = 1024;    /* 4 MiB of pages per write */
+        struct mxfs_tauth_page *pages = calloc(batch, sizeof(*pages));
+
+        if (!pages) {
+            pr_err("mkfs.mxfs: out of memory\n");
             goto fail;
+        }
+        for (p = 0; p < npages; p += batch) {
+            uint32_t n = npages - p < batch ? npages - p : batch;
+            uint32_t i;
+
+            for (i = 0; i < n; i++)
+                mxfs_tauth_page_init_empty(&pages[i], p + i, fs_gen, uuid,
+                                           1, stamp, crc32c);
+            if (write_sectors(fd, tauth_offset +
+                              mxfs_tauth_page_off(npages, p, 0),
+                              pages, (uint64_t)n * sizeof(*pages)) < 0) {
+                free(pages);
+                goto fail;
+            }
+        }
+        free(pages);
     }
     /* (docs/tauth-view-table.md §13, build step 1): the control
      * pages.  View slots A/B stay all-zero (= empty, validated as such by
@@ -2144,8 +2136,16 @@ int main(int argc, char *argv[])
      * formatted.  O_EXCL keeps a mount from starting under the format (the
      * size probe above already took it once; the window between the two
      * opens is closed here).
+     *
+     * No O_SYNC: it made every write its own device flush, 3.4 ms per 4 KiB
+     * write on an NVMe-backed loop device, the bulk of a format's time.
+     * Durability comes from flushing at the commit point instead: everything
+     * is flushed before the MXFS superblock that declares the device
+     * formatted is written, and that superblock is flushed after it, both
+     * fatal on failure.  O_DIRECT stays, so every verify still reads the
+     * device and never the page cache.
      */
-    fd = open(device, O_RDWR | O_EXCL | O_DIRECT | O_SYNC);
+    fd = open(device, O_RDWR | O_EXCL | O_DIRECT);
     if (fd < 0) {
         if (errno == EBUSY)
             pr_err("mkfs.mxfs: %s: device is busy (mounted?)\n", device);
@@ -2278,6 +2278,13 @@ int main(int argc, char *argv[])
     /* ─── Step 5: Write MXFS superblock at offset 0 ─── */
 
     pr_info("Writing MXFS superblock...\n");
+    /* every region must be durable before the superblock names them */
+    if (fsync(fd) < 0) {
+        pr_err("mkfs.mxfs: flush before the superblock failed: %s\n",
+               strerror(errno));
+        close(fd);
+        return 1;
+    }
     {
         /* blocks → basic blocks (512B): multiply by blocksize/512 */
         uint32_t slice_blocks = xfs_logblocks / log_node_count;
@@ -2305,9 +2312,13 @@ int main(int argc, char *argv[])
     }
     } /* end log_slice_bblks scope */
 
-    /* Sync everything */
-    if (fsync(fd) < 0)
-        pr_err("mkfs.mxfs: warning: fsync failed: %s\n", strerror(errno));
+    /* the superblock is the commit: a format is not done until it is durable */
+    if (fsync(fd) < 0) {
+        pr_err("mkfs.mxfs: flush of the superblock failed: %s\n",
+               strerror(errno));
+        close(fd);
+        return 1;
+    }
 
     close(fd);
 

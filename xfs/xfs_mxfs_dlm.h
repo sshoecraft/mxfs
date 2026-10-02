@@ -1519,6 +1519,10 @@ uint16_t mxfs_dbg_disk_di_mode(struct xfs_mount *mp, uint64_t ino,
 /* owned/nestable demoter claim — never assign i_dlm_demoter directly. */
 void mxfs_dlm_claim_demoter(struct xfs_inode *ip);
 void mxfs_dlm_release_demoter(struct xfs_inode *ip);
+bool mxfs_dlm_claim_demoter_wait(struct xfs_inode *ip);
+void mxfs_dlm_claim_demoter_sync(struct xfs_inode *ip);
+bool mxfs_dlm_drain_defer(struct xfs_inode *ip);
+bool mxfs_dlm_drain_unclaimed(struct xfs_inode *ip);
 
 /* D-STATFS fix: cluster-coherent statfs sums from perag summaries
  * (returns false single-node → caller keeps the upstream percpu path), and

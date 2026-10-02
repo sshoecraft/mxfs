@@ -13,6 +13,7 @@
 #   <platform>   a key of the lab file's `nodes` line (tools/mxfs_lab.sh):
 #                every node of that platform's verification set
 #   rig:<N>      the development rig's first N nodes, test1..testN
+#   group:<name> a rig group's nodes (the lab file's `group` line)
 #   <domain>     one libvirt domain by name
 #
 # Usage: scripts/lab_power.sh up|down|state <set> [<set> ...]
@@ -49,6 +50,9 @@ expand() {  # <set> -> its domains, one per line
             n=${s#rig:}
             [[ "$n" =~ ^[0-9]+$ ]] && [ "$n" -ge 1 ] || { echo "lab_power: bad rig size in '$s'" >&2; return 1; }
             for ((i = 1; i <= n; i++)); do echo "test$i"; done ;;
+        group:*)
+            n=$(lab_group "${s#group:}") || return 1
+            echo "$n" | tr ' ' '\n' ;;
         *)
             if n=$(lab_nodes "$s" 2>/dev/null); then
                 echo "$n" | tr ' ' '\n'

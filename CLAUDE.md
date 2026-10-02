@@ -56,7 +56,11 @@ probably finishes."
   is the single most-repeated correction in this project's history.
 - **A timeout IS a test failure**, even with zero errors. Kill it, record FAIL,
   and diagnose the slowness as a first-class bug.
-- **2× native XFS is the hard performance ceiling.** If XFS does it in 7s and
+- **2× native XFS is the hard performance ceiling — for workloads, not tools.**
+  It grades what a filesystem does under load (I/O, metadata operations,
+  rsync, recovery under a workload), not the userspace tools (`mkfs_mxfs`,
+  `chk_mxfs`, `resize_mxfs`) against `mkfs.xfs`/`xfs_repair`/`xfs_growfs`.
+  (User directive, 2026-10-01.)  If XFS does it in 7s and
   mxfs takes 200s, mxfs FAILED even if every byte is correct. Nobody will use a
   clustered FS slower than GFS2/OCFS2; nobody uses those because they are slow.
 - **Never widen a timeout to make a test pass**, and never re-run with a bigger

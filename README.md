@@ -10,6 +10,42 @@
 > Everything that turns XFS into a filesystem many machines can mount at once
 > is AI-authored.
 
+> ## 0.90.39: `mkfs.mxfs` is no longer slow
+>
+> **If you tried MXFS before and the format alone put you off, try it again.**
+> `mkfs.mxfs` used to take tens of seconds on a small LUN and minutes on a
+> large one, where `mkfs.xfs` takes a moment.  It now formats a 20 GB LUN in a
+> quarter of a second.
+>
+> | LUN | before | 0.90.39 |
+> |---|---|---|
+> | 10 GB | 12.4 s | 0.13 s |
+> | 20 GB | 17.9–30.9 s | 0.24 s |
+>
+> The cause was the lock authority ledger, which mkfs lays out on the LUN and
+> sizes with it.  mkfs wrote every empty page of it as its own synchronous
+> 4 KiB write, about 2.3 ms each: 10,571 of them for 20 GB, 67,650 for
+> 128 GiB, so the wait grew with the LUN.  It now writes
+> them in large batches, flushes once at the end instead of opening the device
+> `O_SYNC`, and computes CRC32C in hardware.
+>
+> The formatted device is byte-for-byte identical: its sha256 matches the old
+> binary's output at 10 GB and 20 GB.  Every board of this release formatted
+> its LUN with it, and the 8-node boards' cold audit read clean on every node.
+>
+> Also in 0.90.39:
+>
+> - **Fixes for races that could crash or wedge a node**, all in the slots
+>   that let a lock-release drain re-enter the inode lock.  A design review
+>   found three; this version's own self-test found a fourth.  None was seen on
+>   the rig before the fixes.  A release drain that cannot claim a slot is now
+>   queued and retried instead of run without one.  0.90.37 has these races,
+>   so upgrade from it.
+> - **The RPM builds again.**  The 0.90.38 source tarball was missing a header
+>   the new mkfs needs.
+> - All six released configurations were verified on this version, and the
+>   release boards now run side by side, each on its own fixed-size test LUN.
+
 > ## ⚠️ Released: six configurations, all on `direct` attachment — nothing else
 >
 > A configuration is four fields, `<nodes>/<class>/<method>/<attach>`, for
@@ -27,7 +63,7 @@
 > | `8/net/mesh/direct` | 0.90.36 | Proxmox VE 9, RHEL 9.8, Ubuntu 24.04, Debian 13 |
 > | `8/disk/caw/direct` | 0.90.36 | Proxmox VE 9, RHEL 9.8, Ubuntu 24.04, Debian 13 |
 >
-> All six were verified again on the current release, 0.90.37, on all four
+> All six were verified again on the current release, 0.90.39, on all four
 > platforms. A release claims exactly the configurations it lists.
 >
 > ### Implemented, not released: do not use
@@ -91,10 +127,11 @@
 > on the LUN, so both need storage that implements them
 > ([`docs/fencing.md`](docs/fencing.md)).
 >
-> **0.90.36 and earlier have defects that can lose data; upgrade to 0.90.37.**
-> They were found after 0.90.36 shipped, measured on `8/net/mesh/direct`; the
-> code involved is not specific to that configuration. All are fixed and
-> verified in 0.90.37:
+> **0.90.36 and earlier have defects that can lose data, and 0.90.37 has races
+> that could crash or wedge a node; upgrade to 0.90.39.** The races are the
+> claim-slot ones described at the top. The data-loss defects were found
+> after 0.90.36 shipped, measured on `8/net/mesh/direct`; the code involved is
+> not specific to that configuration. All are fixed and verified in 0.90.37:
 >
 > - A name created in a directory that another node had just removed was lost
 >   (`mkdir`, `link`, `symlink`, `rename`), and a `symlink` into such a
@@ -107,9 +144,9 @@
 >   be inherited by an unrelated process, and could shut a node down.
 >
 > The public defect queue (`data/defects.json`, read with `tools/defects.py`)
-> holds **91 open defects**: 24 reach `2/net/mesh/direct`, 7 reach
-> `2/disk/caw/direct`, 30 reach `4/net/mesh/direct`, 10 reach
-> `4/disk/caw/direct`, 32 reach `8/net/mesh/direct` and 10 reach
+> holds **95 open defects**: 27 reach `2/net/mesh/direct`, 8 reach
+> `2/disk/caw/direct`, 33 reach `4/net/mesh/direct`, 11 reach
+> `4/disk/caw/direct`, 36 reach `8/net/mesh/direct` and 12 reach
 > `8/disk/caw/direct`. None of them blocks a released configuration: each is
 > classified as not crossing the data-loss or crash bar, most of them as
 > slowness. Each record

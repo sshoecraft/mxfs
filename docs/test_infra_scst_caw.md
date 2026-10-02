@@ -22,24 +22,36 @@ how many paths*.
 ## The chain
 
 ```
-~/disk.img
-  → SCST vdisk_fileio device "mxfs"  (o_direct=1 — sess26 perf; CAW 0x89 + PR native)
-  → iSCSI target iqn.2026-05.local.mxfs:shared, LUN 0   (br0 192.168.120.1:3260)
-        │
-   direct:                  pass:
-   each VM iscsiadm login   clyde logs into per-node targets iqn...:nodeK
-   → guest /dev/sda         → N host /dev/disk/by-path devices
-   (0 sdX on clyde)         → QEMU device='lun' one per VM → guest /dev/sda
-                            (N sdX on clyde; distinct target per node = real
-                             per-nexus PR fencing, sess26)
+direct (the LUN pool, tools/lun_pool.sh):
+~/disks/pool/lunNN.img        (fixed size, fallocate'd in full)
+  → SCST vdisk_fileio device "mxfspoolNN"  (o_direct=1; CAW 0x89 + PR native)
+  → iSCSI target iqn.2026-05.local.mxfs:pool-NN   (br0 192.168.120.1:3260)
+       no default LUN; LUN 0 only in ini_group "alloc" = the allocated nodes
+  → each allocated VM iscsiadm login → guest /dev/sda   (0 sdX on clyde)
+
+pass / mpath (fixed image named by the lab file's `paths image=`):
+<image>
+  → SCST vdisk_fileio device "mxfs"
+  → iSCSI target iqn.2026-05.local.mxfs:shared, LUN 0
+  pass: clyde logs into per-node targets iqn...:nodeK
+        → N host /dev/disk/by-path devices
+        → QEMU device='lun' one per VM → guest /dev/sda
+          (N sdX on clyde; distinct target per node = real per-nexus PR fencing)
+  mpath: the same target on two portals, multipathd in each VM
 ```
+
+The pool exports each LUN on one portal and never through clyde, so it serves
+`direct` only. The `:shared` chain needs a `paths image=` in the lab file; the
+dev host's names none, so there `pass` and `mpath` have no LUN.
 
 ## Scripts (all in `scripts/`, the source-tree rule)
 
 ### `scst_setup.sh {setup|status|teardown}` — HOST target (foundation for every attachment)
 Loads SCST (`scst`, `scst_vdisk`, `iscsi_scst`) + starts `iscsi-scstd`, creates
-the shared `vdisk_fileio` device `mxfs` over `disk.img` with `o_direct=1`, and
-publishes the `:shared` iSCSI target on `:3260`. **Auto-releases LIO** on the
+a `vdisk_fileio` device with `o_direct=1` over an image, and publishes an
+iSCSI target on `:3260` — by default the device `mxfs` and the `:shared`
+target; `tools/lun_pool.sh` calls it with `MXFS_SCST_IMG`/`MXFS_SCST_DEV`/
+`MXFS_SCST_TGT` to register each pool LUN. **Auto-releases LIO** on the
 same backing file first (CAW-on-SCST and TCP-on-LIO are mutually exclusive on
 one LUN). `o_direct` is create-time only (sess26: buffered pwrite serialises all
 nodes on the file inode i_rwsem → ~930 MB/s; o_direct → ~2.8 GB/s).
@@ -138,8 +150,8 @@ is still FS work — but the substrate is proven to support it.
 - The `pass` attachment's clyde loopback initiator is the same iSCSI-loopback
   path the project once moved *away* from onto LIO; it is inherent to simulating
   FC passthrough with iSCSI.
-- `disk.img` (50G) is shared with the LIO stack; `scst_setup.sh` tears LIO down
-  first.
+- The `:shared` chain's image (`paths image=`) is the one the LIO stack would
+  use too; `scst_setup.sh` tears LIO down first. Pool images are never LIO's.
 - End-user deployment guidance (not the test rig): `docs/iscsi_setup.md`.
 
 ## Configurations on the rig

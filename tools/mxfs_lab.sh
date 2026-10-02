@@ -8,12 +8,13 @@
 #   Format (one key per line, same as the secrets store):
 #     <key> field=value field=value ...
 #
-#   storage portal=<ip[:port]> target=<iqn> lun=/dev/disk/by-id/<id> [also=<n1,n2>]
-#       the iSCSI LUN the pairs in this file share.  also= names nodes outside
-#       the pairs that attach to it (the rig), which must be unmounted before a
-#       format.  To give each pair a LUN of its own, keep one lab file per pair
-#       (only that pair's line and its own storage line) and point $MXFS_LAB
-#       at it; scripts/scst_platform_targets.sh builds them on clyde.
+#   storage portal=<ip[:port]> [target=<iqn> lun=/dev/disk/by-id/<id>] [also=<n1,n2>]
+#       the iSCSI portal, and in a lab file for one platform set the LUN that
+#       set formats.  also= names nodes outside the set that attach to it,
+#       which must be unmounted before a format.  On clyde the site's lab file
+#       names only the portal: every LUN is borrowed from the pool
+#       (tools/lun_pool.sh), and tests/full_verify.sh writes a lab file per
+#       platform (~/.config/mxfslab/lab.<platform>) naming the one it borrowed.
 #   nodes <platform>=<node1>,<node2>[,<node3>,...] ...
 #       a platform's verification set, keyed as in data/platforms.json: every
 #       node that verifies a release there, in the order the harnesses use
@@ -24,17 +25,19 @@
 #       two-node releases.  `nodes` wins when both are present; `pair` alone
 #       is a set of two.
 #   group <name>=<node1>,<node2>[,...] ...
-#       a rig group: a disjoint slice of the rig's nodes with a LUN of its own
-#       (scripts/rig_groups.sh builds it), so several configurations can run at
-#       once (`run.sh <configuration> --group <name>`).  A group is not a
+#       a rig group: a disjoint slice of the rig's nodes, which borrows a LUN
+#       from the pool for each run, so several configurations can run at once
+#       (`run.sh <configuration> --group <name>`).  A group is not a
 #       platform: nothing that walks the platform sets sees it.
 #   addr <node>=<ipv4> ...
 #       a node no resolver knows.  peer= takes addresses, never names.
 #   qemu monitor_dir=<dir>
 #       for a guest that is not a libvirt domain: its QMP socket is
 #       <dir>/<node>/<node>.monitor.
-#   paths image=<file> delay_image=<file> vmdir=<dir> qemu_root=<dir>
-#       this host's own files: the fileio image behind the SCST/LIO LUN, the
+#   paths pool=<dir> [image=<file>] delay_image=<file> vmdir=<dir> qemu_root=<dir>
+#       this host's own files: the test LUN pool's directory
+#       (tools/lun_pool.sh), a fixed fileio image for the scripts that still
+#       export one (scripts/scst_setup.sh, scripts/lio_tcm_setup.sh), the
 #       dm-delay rig's image, the VM directory and the qemu guests' root
 #       (<qemu_root>/<vm>/<vm> is a guest's boot disk).
 #
@@ -87,7 +90,7 @@ lab_pair() {  # <platform> -> "A B": the first two of the verification set
 lab_group() {  # <group> -> "A B [C D ...]": a rig group's nodes
     local g
     g=$(lab_get group "$1" 2>/dev/null) \
-        || { echo "mxfs_lab: no 'group $1=' in $MXFS_LAB (see scripts/rig_groups.sh)" >&2; return 1; }
+        || { echo "mxfs_lab: no 'group $1=' in $MXFS_LAB (see lab/README.md)" >&2; return 1; }
     echo "$g" | tr ',' ' ' | tr -s ' '
 }
 

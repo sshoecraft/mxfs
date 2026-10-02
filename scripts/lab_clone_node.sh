@@ -47,8 +47,9 @@
 #     created again for the clone's name by pve-cluster at boot).
 #
 # AFTERWARDS (by hand): the lab file gets `addr <clone>=<ip>` and the platform's
-# `nodes` line, then scripts/scst_platform_targets.sh setup admits the new
-# initiators to the platform's LUN.
+# `nodes` line; the next pool allocation for the platform's set
+# (tools/lun_pool.sh, which tests/full_verify.sh makes) binds the new
+# initiator to that set's LUN.
 #
 # Budgets (derived): ACPI shutdown of an idle lab guest measured 5-10 s ->
 # SHUTDOWN_S=90 then destroy; a 64 GB virtual image holding ~6 GB copies in

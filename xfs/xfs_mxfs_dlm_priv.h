@@ -164,8 +164,6 @@ extern int mxfs_evict_retain_pr;	/* clean-PR retention across evict */
 
 #define MXFS_SET_DEMOTER(ip)						\
 	do {								\
-		struct task_struct *prev;				\
-									\
 		if (unlikely(mxfs_demoter_legacy_clobber)) {		\
 			/* A/B ONLY: the pre-fix behaviour, an	\
 			 * unconditional store that overwrites a live	\
@@ -188,10 +186,7 @@ extern int mxfs_evict_retain_pr;	/* clean-PR retention across evict */
 					(ip)->i_dlm_demoter_line;		\
 			}							\
 			/* the slot holds a reference on its owner */	\
-			mxfs_demoter_ref_take();			\
-			prev = xchg(&(ip)->i_dlm_demoter, current);	\
-			if (prev)					\
-				mxfs_demoter_ref_drop(prev);		\
+			mxfs_demoter_slot_force(ip);			\
 			(ip)->i_dlm_demoter_depth = 1;			\
 			(ip)->i_dlm_demoter_pid = current->pid;		\
 			(ip)->i_dlm_demoter_line = MXFS_SITE;		\
@@ -201,45 +196,21 @@ extern int mxfs_evict_retain_pr;	/* clean-PR retention across evict */
 		}							\
 		/* a dead owner's claim must not keep this one out */	\
 		mxfs_demoter_reap_dead(ip);				\
-		prev = cmpxchg(&(ip)->i_dlm_demoter, NULL, current);	\
-									\
-		if (prev == NULL || prev == current) {			\
-			if (prev == NULL) {				\
-				mxfs_demoter_ref_take();		\
-				(ip)->i_dlm_demoter_depth = 1;		\
-				atomic64_inc(&mxfs_dem_slot1);		\
-			} else {					\
-				(ip)->i_dlm_demoter_depth++;		\
-				atomic64_inc(&mxfs_dem_slot1_nest);	\
-			}						\
-			(ip)->i_dlm_demoter_pid = current->pid;		\
-			strscpy((ip)->i_dlm_demoter_comm, current->comm,\
-				sizeof((ip)->i_dlm_demoter_comm));	\
-			(ip)->i_dlm_demoter_set_ns = ktime_get_ns();	\
-			(ip)->i_dlm_demoter_line = MXFS_SITE;		\
+		/* A slot this task holds only nests; otherwise an empty	\
+		 * slot is taken under the reap lock with its reference	\
+		 * already held.  Depth and stamps are written under that	\
+		 * lock, only while the slot names this task. */		\
+		if (mxfs_demoter_slot_nest((ip), 0, MXFS_SITE)) {	\
+			atomic64_inc(&mxfs_dem_slot1_nest);		\
 			mxfs_demev_rec((ip), 0, MXFS_SITE);		\
-		} else if (cmpxchg(&(ip)->i_dlm_demoter2, NULL, current)	\
-			   == NULL) {					\
-			mxfs_demoter_ref_take();			\
-			(ip)->i_dlm_demoter2_depth = 1;			\
-			/* slot 2 had NO forensics, so a strand	\
-			 * here reported slot 1's stale stamps.  Stamp it \
-			 * identically. */				\
-			(ip)->i_dlm_demoter2_pid = current->pid;	\
-			strscpy((ip)->i_dlm_demoter2_comm, current->comm,\
-				sizeof((ip)->i_dlm_demoter2_comm));	\
-			(ip)->i_dlm_demoter2_set_ns = ktime_get_ns();	\
-			(ip)->i_dlm_demoter2_line = MXFS_SITE;		\
-			atomic64_inc(&mxfs_dem_slot2);			\
-			mxfs_demev_rec((ip), 0, MXFS_SITE);		\
-		} else if ((ip)->i_dlm_demoter2 == current) {		\
-			(ip)->i_dlm_demoter2_depth++;			\
-			(ip)->i_dlm_demoter2_pid = current->pid;	\
-			strscpy((ip)->i_dlm_demoter2_comm, current->comm,\
-				sizeof((ip)->i_dlm_demoter2_comm));	\
-			(ip)->i_dlm_demoter2_set_ns = ktime_get_ns();	\
-			(ip)->i_dlm_demoter2_line = MXFS_SITE;		\
+		} else if (mxfs_demoter_slot_nest((ip), 1, MXFS_SITE)) { \
 			atomic64_inc(&mxfs_dem_slot2_nest);		\
+			mxfs_demev_rec((ip), 0, MXFS_SITE);		\
+		} else if (mxfs_demoter_slot_take((ip), 0, MXFS_SITE)) { \
+			atomic64_inc(&mxfs_dem_slot1);			\
+			mxfs_demev_rec((ip), 0, MXFS_SITE);		\
+		} else if (mxfs_demoter_slot_take((ip), 1, MXFS_SITE)) { \
+			atomic64_inc(&mxfs_dem_slot2);			\
 			mxfs_demev_rec((ip), 0, MXFS_SITE);		\
 		} else {						\
 			static atomic_t p74n = ATOMIC_INIT(0);		\
@@ -267,44 +238,28 @@ extern int mxfs_evict_retain_pr;	/* clean-PR retention across evict */
  */
 #define MXFS_CLEAR_DEMOTER(ip)						\
 	do {								\
-		if (unlikely(mxfs_demoter_legacy_clobber)) {		\
-			struct task_struct *old;			\
+		int mxfs_dem_rel;					\
 									\
+		if (unlikely(mxfs_demoter_legacy_clobber)) {		\
 			if ((ip)->i_dlm_demoter &&			\
 			    (ip)->i_dlm_demoter != current)		\
 				atomic64_inc(&mxfs_dem_legacy_clear_live); \
 			mxfs_demev_rec((ip), 1, MXFS_SITE);		\
-			old = xchg(&(ip)->i_dlm_demoter, NULL);		\
-			if (old)					\
-				mxfs_demoter_ref_drop(old);		\
+			mxfs_demoter_slot_force_clear(ip);		\
 			break;						\
 		}							\
-		/* The owner's final clear swaps rather than stores: the	\
-		 * punt sweep and dead-claim retirement may remove the	\
-		 * slot concurrently, and only the side that wins the swap	\
-		 * drops the slot's reference. */			\
-		if ((ip)->i_dlm_demoter == current) {			\
-			if ((ip)->i_dlm_demoter_depth > 1) {		\
-				(ip)->i_dlm_demoter_depth--;		\
-				mxfs_demev_rec((ip), 4, MXFS_SITE);	\
-			} else {					\
-				(ip)->i_dlm_demoter_depth = 0;		\
-				mxfs_demev_rec((ip), 1, MXFS_SITE);	\
-				if (cmpxchg(&(ip)->i_dlm_demoter,	\
-					    current, NULL) == current)	\
-					mxfs_demoter_ref_drop(current);	\
-			}						\
-		} else if ((ip)->i_dlm_demoter2 == current) {		\
-			if ((ip)->i_dlm_demoter2_depth > 1) {		\
-				(ip)->i_dlm_demoter2_depth--;		\
-				mxfs_demev_rec((ip), 4, MXFS_SITE);	\
-			} else {					\
-				(ip)->i_dlm_demoter2_depth = 0;		\
-				mxfs_demev_rec((ip), 1, MXFS_SITE);	\
-				if (cmpxchg(&(ip)->i_dlm_demoter2,	\
-					    current, NULL) == current)	\
-					mxfs_demoter_ref_drop(current);	\
-			}						\
+		/* The owner unnests and empties its slot under the reap	\
+		 * lock, as every slot transition does, and only while the	\
+		 * slot still names it: the punt sweep and dead-claim	\
+		 * retirement may have removed the claim, and a write to	\
+		 * depth after that lands on the slot's next owner. */	\
+		mxfs_dem_rel = mxfs_demoter_slot_release((ip), 0);	\
+		if (mxfs_dem_rel < 0)					\
+			mxfs_dem_rel = mxfs_demoter_slot_release((ip), 1); \
+		if (mxfs_dem_rel == 0) {				\
+			mxfs_demev_rec((ip), 4, MXFS_SITE);		\
+		} else if (mxfs_dem_rel > 0) {				\
+			mxfs_demev_rec((ip), 1, MXFS_SITE);		\
 		} else if (!(ip)->i_dlm_demoter && !(ip)->i_dlm_demoter2) {	\
 			/* Nobody is draining this inode — a plain field reset	\
 			 * (the DLM-state initializer).  Cannot strand anyone.	\
@@ -1798,16 +1753,26 @@ void mxfs_pag_dlm_lock(struct xfs_perag *pag, int site);
 void mxfs_pag_dlm_unlock(struct xfs_perag *pag, int site);
 bool mxfs_bast_arm_queue( struct xfs_inode *ip);
 bool mxfs_bast_arm_queue_delayed( struct xfs_inode *ip, unsigned long delay_j);
+int mxfs_bast_arm_queue_delayed_gated(struct xfs_inode *ip, unsigned long delay_j);
 void mxfs_bastq_lat_probe( struct xfs_inode *ip, const char *who);
 unsigned int mxfs_relab_backoff_ms( struct xfs_inode *ip, uint32_t now_gen);
 void mxfs_demev_rec(struct xfs_inode *ip, uint8_t op, uint32_t line);
 bool mxfs_is_demoter(const struct xfs_inode *ip);
 bool mxfs_foreign_demoter(const struct xfs_inode *ip);
-void mxfs_demoter_ref_take(void);
-void mxfs_demoter_ref_drop(struct task_struct *t);
+bool mxfs_demoter_slot_take(struct xfs_inode *ip, int slot, u32 line);
+bool mxfs_demoter_slot_nest(struct xfs_inode *ip, int slot, u32 line);
+int mxfs_demoter_slot_release(struct xfs_inode *ip, int slot);
+void mxfs_demoter_slot_force(struct xfs_inode *ip);
+void mxfs_demoter_slot_force_clear(struct xfs_inode *ip);
 void mxfs_demoter_reap_dead(struct xfs_inode *ip);
 spinlock_t *mxfs_demoter_reap_lock(const struct xfs_inode *ip);
 extern atomic64_t mxfs_dem_dead_reap_n;
+extern atomic64_t mxfs_dem_claim_wait_expired;
+extern atomic64_t mxfs_dem_claim_fail_injected;
+extern atomic64_t mxfs_dem_claim_sync_n;
+extern atomic64_t mxfs_dem_punt_gen_reject;
+extern atomic64_t mxfs_dem_drain_deferred;
+void mxfs_demoter_test_window(void);
 void mxfs_demoter_punt_reclaim_check(struct xfs_inode *ip, int site);
 void mxfs_inode_authority_revoke_locked(struct xfs_inode *ip, u32 line);
 void mxfs_inode_authority_begin_release_locked(struct xfs_inode *ip, u32 line);

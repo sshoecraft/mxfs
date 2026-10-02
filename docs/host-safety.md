@@ -13,13 +13,15 @@ between the rig and a third one.
 
 ## The structural fact underneath both
 
-    /sys/kernel/scst_tgt/devices/mxfs/filename = ~/disk.img
-    guest root disks                           = ~/vms/qemu/testN/testN
-    persistent journal                         = /var/log/journal
-    all three                                  = /dev/nvme0n1p2, ext4, 1.8T
+    /sys/kernel/scst_tgt/devices/mxfspoolNN/filename = ~/disks/pool/lunNN.img
+    guest root disks                                 = ~/vms/qemu/testN/testN
+    persistent journal                               = /var/log/journal
+    all three                                        = /dev/nvme0n1p2, ext4, 1.8T
 
-The shared LUN under test, all 32 guests' root images, and clyde's own journal
-are files on **one ext4 filesystem** with **one jbd2 journal**.  Anything that
+The LUNs under test (the `tools/lun_pool.sh` pool), all 32 guests' root
+images, and clyde's own journal are files on **one ext4 filesystem** with
+**one jbd2 journal**.  The pool's images are allocated in full at creation, so
+a test cannot grow them; the guests' images and the journal still can.  Anything that
 makes that journal stall, stalls the entire rig — and the rig is what the host
 is for.  On 2026-08-20 it was 92% full.
 

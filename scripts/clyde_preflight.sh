@@ -57,7 +57,9 @@ set -u
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 MODE="${1:-gate}"
 SCST_ROOT=/sys/kernel/scst_tgt
-IMG="${MXFS_SCST_IMG:-$("$(dirname "$(readlink -f "$0")")/../tools/mxfs_lab.sh" get paths image 2>/dev/null)}"
+# The test LUNs are the pool's images (tools/lun_pool.sh): its directory is
+# what carries them.
+IMG="${MXFS_SCST_IMG:-$("$(dirname "$(readlink -f "$0")")/../tools/mxfs_lab.sh" get paths pool 2>/dev/null)}"
 VMDIR="${MXFS_VM_DIR:-$("$(dirname "$(readlink -f "$0")")/../tools/mxfs_lab.sh" get paths vmdir 2>/dev/null)}"
 
 KMSG_SECS="${MXFS_PREFLIGHT_KMSG_SECS:-3}"
@@ -302,7 +304,7 @@ check_fs() {
             ;;
     esac
 }
-check_fs "$IMG"        "shared LUN"
+check_fs "$IMG"        "test LUN pool"
 check_fs "$VMDIR"      "guest images"
 check_fs /var/log      "journal"
 check_fs "$REPO"       "source tree"

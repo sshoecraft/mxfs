@@ -6151,6 +6151,75 @@ stale:
 }
 
 /*
+ * A RELEASE DRAIN THAT HOLDS NO DEMOTER CLAIM DOES NOT RUN.
+ *
+ * The drain re-enters xfs_ilock on this inode (writeback, and the trailing
+ * irele's cascade into inactivation), and only a claim exempts that re-entry
+ * from the transition wait the drain itself is meant to end.  When both slots
+ * are held by other live drains, the drain is handed to the MHT dwork:
+ * i_dlm_bast_pending marks the release still owed, the state is left as it is
+ * so local non-demoters keep waiting exactly as they would during the drain,
+ * and the dwork retries the claim and the drain a few ms later (its episode
+ * deadline bounds the retries).  The caller's inode reference goes with the
+ * arm.  If the dwork was already queued, that dwork owns a reference of its
+ * own, so the caller's duplicate is dropped and is never the last one.
+ *
+ * Returns false only when the arm gate is closed for teardown: nothing was
+ * queued, the caller still holds its reference, and it must claim with
+ * mxfs_dlm_claim_demoter_sync and run the drain itself.
+ */
+atomic64_t mxfs_dem_drain_deferred;
+
+bool
+mxfs_dlm_drain_defer(
+	struct xfs_inode	*ip)
+{
+	int			rc;
+
+	spin_lock(&ip->i_dlm_lock);
+	ip->i_dlm_bast_pending = true;
+	ip->i_dlm_bastq_src = 26;	/* unclaimed drain deferred */
+	spin_unlock(&ip->i_dlm_lock);
+	rc = mxfs_bast_arm_queue_delayed_gated(ip, msecs_to_jiffies(4) + 1);
+	if (rc < 0)
+		return false;
+	atomic64_inc(&mxfs_dem_drain_deferred);
+	mxfs_probe_ratelimited("mxfs: P-DEMOTER-DRAIN-DEFER ino=%llu state=%u mode=%u queued=%d s1_pid=%d s2_pid=%d comm=%s — no demoter slot; release handed to the dwork\n",
+		(unsigned long long)ip->i_ino, ip->i_dlm_state,
+		ip->i_dlm_mode, rc, ip->i_dlm_demoter_pid,
+		ip->i_dlm_demoter2_pid, current->comm);
+	if (rc == 0)
+		xfs_irele(ip);
+	return true;
+}
+
+/*
+ * The same for a caller that owns no work reference (an inline release in a
+ * task that just dropped its last pin).  Returns true when the drain has been
+ * dealt with: handed to the dwork on a reference taken here, or, with the arm
+ * gate closed, run here under a claim waited for.  Returns false when the
+ * inode is being evicted and cannot be grabbed: the caller now holds a claim
+ * and runs the drain itself.
+ */
+bool
+mxfs_dlm_drain_unclaimed(
+	struct xfs_inode	*ip)
+{
+	if (!igrab(VFS_I(ip))) {
+		mxfs_dlm_claim_demoter_sync(ip);
+		return false;
+	}
+	if (mxfs_dlm_drain_defer(ip))
+		return true;
+	mxfs_dlm_claim_demoter_sync(ip);
+	mxfs_dlm_bast_process(ip);
+	/* the claim stays across the irele, as at the BAST worker */
+	xfs_irele(ip);
+	MXFS_CLEAR_DEMOTER(ip);
+	return true;
+}
+
+/*
  * Work function for deferred BAST processing.
  * The xfs_iget(INCORE) ref is transferred to us — we must xfs_irele.
  */
@@ -6195,7 +6264,11 @@ mxfs_dlm_bast_work_fn(
 				iput(VFS_I(ip));	/* already pending */
 		}
 	}
-	MXFS_SET_DEMOTER(ip);
+	if (!mxfs_dlm_claim_demoter_wait(ip)) {
+		if (mxfs_dlm_drain_defer(ip))
+			return;		/* our ref went with the arm */
+		mxfs_dlm_claim_demoter_sync(ip);
+	}
 	{
 		struct mxfs_dirdrain_task dde;	/* FENCE-V1 sanction bracket */
 
@@ -6730,7 +6803,11 @@ mxfs_dlm_bast_dwork_fn(
 	mxfs_dlmtr_rec(ip, dtr_om, dtr_os, MXFS_SITE); }
 	spin_unlock(&ip->i_dlm_lock);
 	mxfs_idbg("mxfs: P124-MHT-EXPIRE ino=%llu releasing", (unsigned long long)ip->i_ino);
-	MXFS_SET_DEMOTER(ip);
+	if (!mxfs_dlm_claim_demoter_wait(ip)) {
+		if (mxfs_dlm_drain_defer(ip))
+			return;		/* re-armed — our ref went with it */
+		mxfs_dlm_claim_demoter_sync(ip);
+	}
 	{
 		struct mxfs_dirdrain_task dde;	/* FENCE-V1 sanction bracket */
 

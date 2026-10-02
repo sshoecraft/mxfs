@@ -58,9 +58,9 @@ rig's prep has formed a cluster short of that node because of it.
    reachable from every node of the set. MXFS fences a dead node through the
    reservation, so a target without one cannot verify a release. The harness
    logs each node in to it. One LUN per platform lets the platforms verify in
-   parallel without one set's format touching another's;
-   `scripts/scst_platform_targets.sh setup` builds one SCST target per
-   platform on the dev host and writes each platform's own lab file.
+   parallel without one set's format touching another's; on the dev host
+   `tests/full_verify.sh` borrows each set's LUN from the LUN pool (below)
+   and writes that platform's own lab file from the allocation.
 5. **Name the set in your lab file** (next section).
 6. **Verify:** `tests/packaged_round.sh <platform>` installs the release's
    package on every node of the set and runs the checks the platform's
@@ -79,8 +79,12 @@ nodes ubuntu2404=<n1>,<n2>,<n3>,<n4> rhel9=<n1>,<n2>,<n3>,<n4>
 pair ubuntu2404=<nodeA>,<nodeB> rhel9=<nodeA>,<nodeB>
 addr <node>=<ipv4>
 qemu monitor_dir=<dir>
-paths image=<file> delay_image=<file> vmdir=<dir> qemu_root=<dir>
+group <g>=<n1>,<n2>,... <g2>=...
+paths pool=<dir> delay_image=<file> vmdir=<dir> qemu_root=<dir>
 ```
+On the dev host, whose LUNs come from the pool, `storage` carries only
+`portal=<ip>`: the target, the device and the WWID belong to whichever pool
+LUN a run is allocated, not to the site.
 `nodes` is a platform's verification set in the order the harnesses use it
 (the first node formats and checks); `pair` is the two-node form of the same
 line, for a lab that verifies only two-node releases, and `nodes` wins when
@@ -91,10 +95,14 @@ its own `storage` line.
 unmounted before the harness formats it. `addr` is only for a node no
 resolver knows. `qemu monitor_dir` is only for a guest started outside
 libvirt, which `tests/tcp_peer_freeze_death.sh` freezes through its QMP
-socket. `paths` names the build host's own files: the fileio image behind an
-SCST or LIO LUN, the dm-delay rig's image, the VM directory and the qemu
-guests' root; the rig-setup scripts and the host preflight read them from here
-unless an `MXFS_*` variable overrides them for one run. A platform with no
+socket. `group` names rig groups — disjoint slices of the rig's nodes, each of
+which runs one board at a time (`run.sh <configuration> --group <g>`); the
+dev host has g2/g4/g8 (test1-2, test3-6, test7-14) and g2b/g4b/g8b (test15-16,
+test17-20, test21-28), so the release matrix's suites run two at a time.
+`paths` names the build host's own files: the LUN pool's directory, the
+dm-delay rig's image, the VM directory and the qemu guests' root; the
+rig-setup scripts and the host preflight read them from here unless an
+`MXFS_*` variable overrides them for one run. A platform with no
 `nodes` (or `pair`) line, or with fewer nodes than the release claims, cannot
 be verified here, and the harness says so and stops.
 
@@ -118,7 +126,7 @@ attachment; the rig provides the attachment:
 
 | attach | shape | rig | doc |
 |---|---|---|---|
-| `direct` | each VM its own iSCSI login, one path | SCST shared target, portal .1 | `docs/test_infra_scst_caw.md` |
+| `direct` | each VM its own iSCSI login, one path | a pool LUN's own SCST target, portal .1 | `docs/test_infra_scst_caw.md` |
 | `mpath`  | **dm-multipath over two portals — the common enterprise shape** | SCST dual-portal + multipathd | `docs/multipath-attach.md`, `docs/multipath_support.md` |
 | `pass`   | hypervisor passthrough (per-nexus PR) | SCST per-node targets wired into VM XML | `docs/test_infra_scst_caw.md` |
 
@@ -126,6 +134,62 @@ SCST's `vdisk_fileio` does SCSI **COMPARE AND WRITE (0x89) + Persistent
 Reservations** natively — the two real FC-array primitives — which is why it's
 the faithful CAW/FC emulation. The LIO/`tcm_loop` stack fakes COMPARE AND WRITE
 and is no configuration's attachment (`docs/test_infra_lio_tcm.md` is its history).
+
+The pool serves `direct` only: it exports each LUN on one portal, and the
+passthrough and multipath rigs (`scripts/rig.sh pass|mpath`) build on the
+`:shared` target over a fixed `paths image=`, which the dev host no longer
+has. Neither attachment has a LUN until one is given to it.
+
+## LUN pool → `tools/lun_pool.sh`
+The dev host's test LUNs are a pool of generic, fixed-size images that a run
+borrows for as long as it holds its nodes. A run needs *a* LUN, not *its*
+LUN; a per-configuration LUN kept forever was sized for the largest geometry
+ever graded and, being sparse, grew into whatever a test wrote — on the one
+filesystem that also carries every guest image and the host journal
+(`docs/host-safety.md`). The script's header is the reference.
+- **The LUNs.** `<paths pool>/lunNN.img` (`~/disks/pool/` here), each allocated
+  in full with `fallocate`, so it cannot grow. Each is an SCST `vdisk_fileio`
+  device `mxfspoolNN` exported as its own target
+  `iqn.2026-05.local.mxfs:pool-NN` on the `storage portal`. A target has no
+  default LUN: LUN 0 lives only in the ini_group `alloc`, which holds just the
+  allocated nodes' initiators, so a node that logs in to a free LUN sees no
+  disk.
+- **Allocation.** `alloc` records an owner pid; while it lives, nobody else
+  gets the LUN or its nodes. When the owner exits the allocation is kept,
+  still bound, so the next run on exactly that node set adopts it and a
+  filtered rerun finds its cluster still mounted. A kept allocation is
+  released when a new allocation names any of its nodes, or oldest first when
+  no LUN is free. Nothing in the pool formats a LUN: the holder does.
+- **`run.sh`.** Every `direct` run and every `--group` run allocates a pool LUN
+  once it holds its node locks (owner = that `run.sh`; a nested `run.sh` finds
+  its ancestor's LUN with `lookup`) and exports `MXFS_LUN_WWID`,
+  `MXFS_HOST_IMAGE_PATH` and `MXFS_POOL_LUN`. `data/rigs.json` marks the
+  `scst-fio` rig `"pool": true` instead of naming a LUN, and `tests/lib/rig.sh`
+  resolves it from the run's environment or `lookup --nodes`.
+- **Size class and log slices go together.** mkfs puts the whole log in one AG
+  and caps the AG count at what fits beside it: a 20 GiB LUN gives 9 AGs at 32
+  slices, 19 at 16, 20 at 8 or 4; at 32 slices 64 GiB gives 31 AGs, 80 GiB 39,
+  144 GiB 71. So up to 8 nodes use 20 GiB with 2N slices, up to 16 nodes
+  80 GiB with 32, beyond that 144 GiB with 32. A larger class is added to the
+  pool when a configuration needs it.
+- **Corrupt platters.** The next holder formats the LUN, so a harness that
+  wants one kept copies it out first: `snapshot` writes a sparse copy to the
+  `snapshots/` directory beside the pool.
+- **Host headroom.** `scripts/clyde_preflight.sh` checks the free space of the
+  filesystem holding the pool.
+
+```
+tools/lun_pool.sh create <count> [<size>]    add LUNs (default 20G)
+tools/lun_pool.sh up                         re-register the pool with SCST after a host reboot
+tools/lun_pool.sh alloc [--owner <pid>] [--what <text>] [--size <min>] <node>...
+tools/lun_pool.sh lookup --owner <pid> | --nodes <a,b,..>
+tools/lun_pool.sh free <id> | --owner <pid> [--force]
+tools/lun_pool.sh status
+tools/lun_pool.sh snapshot <id> <label>      copy a platter out before the next holder formats it
+tools/lun_pool.sh destroy <id>               remove a free LUN and its image
+```
+SCST objects are runtime-only, so after a host reboot `up` must run before
+anything allocates.
 
 ## Lab-management scripts (in `scripts/`, referenced — not moved)
 - `rig.sh <configuration>` — **front door**; owns ALL attachment
@@ -139,10 +203,8 @@ and is no configuration's attachment (`docs/test_infra_lio_tcm.md` is its histor
 - `cluster_reset_n.sh` — reset N VMs.
 - `lab_clone_node.sh <source> <clone> <ip> ...` — grow a platform's set by
   cloning a verified node of it.
-- `scst_platform_targets.sh setup [<platform> ...]` — one SCST target and one
-  lab file per platform; naming platforms sets up only those.
 - `lab_power.sh up|down|state <set> ...` — power whole sets (`<platform>`,
-  `rig:<N>`, or a domain). The host cannot hold the 8-node rig and four
+  `rig:<N>`, `group:<name>`, or a domain). The host cannot hold the 8-node rig and four
   8-node sets at once, so a verification powers up only what each step needs
   (`POWER=1` in `tests/full_verify.sh`).
 

@@ -1,3 +1,294 @@
+## 2026-10-01 — 0.90.39 — mkfs.mxfs formats a 20 GB LUN in 0.24 s instead of 18–31 s; a drain that cannot claim its inode is handed to the work queue instead of run unclaimed; slot depth changes only under the slot lock; test LUNs come from a pool, and the release boards run side by side
+
+**`mkfs.mxfs` is no longer slow.**  It wrote every empty page of the lock
+authority ledger as its own synchronous 4 KiB write, about 2.3 ms each: 10,571
+writes for a 20 GB LUN and 67,650 for 128 GiB, so a format took tens of
+seconds on a small LUN and minutes on a large one.  It now writes the ledger
+in large batched writes, flushes once at the end instead of opening the device
+`O_SYNC`, and computes CRC32C in hardware: 0.13 s at 10 GB (was 12.4 s) and
+0.24 s at 20 GB (was 17.9–30.9 s), with a byte-for-byte identical result
+(details under "Defects disposed" below).
+
+0.90.38 was built but never released.  Its changes below ship in this
+version, which replaces its unclaimed-drain fallback and closes one more
+race in the claim slots that its own self-test found.
+
+**A release drain that holds no demoter claim no longer runs.**  0.90.38
+waited 50 ms for a slot and, if both stayed held, ran the drain anyway, which
+is the self-deadlock `D-PINNED-RELEASE-RUNS-BAST-PROCESS-WITH-NO-DEMOTER-CLAIM`
+describes.  Now:
+
+- The BAST worker, the MHT dwork and `mxfs_clayer/pinned_resource.c` hand
+  the release to the MHT dwork (`mxfs_dlm_drain_defer`).  The inode's release
+  stays owed (`i_dlm_bast_pending`), its state is left as it is so local
+  non-demoters keep waiting as they would during the drain, and the dwork
+  retries the claim a few ms later.  The caller's inode reference goes with
+  the arm.  When a dwork is already queued it holds its own reference, so the
+  caller's duplicate is dropped and is never the last one.
+- Where no work can be queued (an inode being evicted, or the arm gate closed
+  for teardown) the drain waits for a slot (`mxfs_dlm_claim_demoter_sync`).
+  That covers the freeing-inode inline drain in `mxfs_dlm_ilock_begin`.
+  Both slot holders are then live drains of the inode, so the wait ends.
+- `mxfs_bast_arm_queue_delayed_gated` tells "queued", "already queued" and
+  "gate closed" apart under one lock.
+- `P75-DEMOTER-DRAIN` reports the deferred and synchronous paths.
+
+**An owner changes its slot's depth only under the slot lock, and only while
+the slot still names it** (`D-DEMOTER-OWNER-WRITES-DEPTH-AFTER-ITS-CLAIM-WAS-SWEPT`).
+`MXFS_CLEAR_DEMOTER` read "this slot is mine" outside the reap lock and then
+wrote the depth; the nest path of `MXFS_SET_DEMOTER` did the same.  The punt
+sweep can empty a retained claim between that read and the write, and another
+task can claim the slot, so the stale owner's write landed on the new owner's
+depth and its nested claim was released by its first unnest.
+`mxfs_demoter_slot_take` now sets depth and stamps under the lock when it
+wins, `mxfs_demoter_slot_nest` raises depth only while the slot names the
+caller, and `mxfs_demoter_slot_release` lowers or empties it the same way.
+A task that holds slot 2 now nests there instead of also taking slot 1.
+
+**Test-only knobs, all off by default:** `demoter_claim_fail_inject=N` makes
+every Nth claim wait report no slot, to drive the deferred path;
+`demoter_test_window_us` stalls inside the slot race windows;
+`demoter_slot_selftest=N` races claimants, the punt sweep, dead-claim
+retirement and threads that exit holding a claim for N seconds on detached
+inodes and prints a verdict.  `tests/demoter_selftest_node.sh` runs that on
+one idle node; `tests/demoter_claim_fix_verify.sh` runs it and the
+injected-claim board rows on a group.
+
+**Every fixed test LUN is gone.**  The rig's `:shared` image (128 GiB, sparse,
+72 GB written), the per-group and per-platform LUNs, seven snapshots of
+corrupt group LUNs and a stale `/etc/scst.conf` were deleted, with
+`scripts/rig_groups.sh` and `scripts/scst_platform_targets.sh`.  A sparse
+image grows into whatever a test writes, on the filesystem that also holds
+every guest image and the host journal.
+
+**`tools/lun_pool.sh`** keeps a pool of fixed-size test LUNs (12 × 20 GiB on
+clyde: six board groups, four platform sets and the yardstick capture can
+each hold one; with 8, debian13's platform round found none free), each allocated in full at create so it cannot grow, each its own SCST
+target with no default LUN, visible only to the nodes it is allocated to.
+`alloc` binds a LUN to a node set for the life of an owner process; when the
+owner exits the allocation stays bound, and the next run on the same nodes
+adopts it without rebinding.  It is released when another allocation names any
+of its nodes, or when no LUN is free.  `snapshot` copies a LUN's platter out
+of the pool before the next holder formats it.  `up` re-registers the pool
+after a host reboot.
+
+- `run.sh` borrows a pool LUN for every direct-attachment and `--group` run
+  once it holds its locks, and exports the LUN's WWID and host image.  The
+  log slice count goes with the size class.  mkfs caps the AG count at what
+  fits one AG's log, so a 20 GiB LUN formatted with 32 slices had 9 AGs; with
+  16 it has 19.  Runs of up to 8 nodes use 2N slices on 20 GiB, up to 16 use
+  32 on 80 GiB, beyond that 32 on 144 GiB.
+- Throughput rows (`fio_perf`, `scaling_curve`, `dlm_scaling`,
+  `rsync_paired`) take a host-wide lock, so two side-by-side runs never grade
+  each other's load.  The first parallel 8-node pair ran `fio_perf` in the
+  same 25 s, and one board read randW at 27% of the native-XFS yardstick
+  while the other read 358%.
+- `tests/full_verify.sh` runs the release matrix's suites side by side on rig
+  groups `g<N>` and `g<N>b`, and gives every platform set a pool LUN and a lab
+  file written from it.  `tests/board_4node_chain.sh` takes
+  `<configuration>@<group>` and runs such boards side by side.
+  `tests/release_verify_chain.sh` runs the claimed node count's boards and
+  every smaller count's in one side-by-side step, between the clean build
+  and the packages, and powers down rig guests a stage does not use.
+  `SIDE_BY_SIDE=0` keeps the old order: the claimed count's boards inside
+  `full_verify`, then the smaller counts'.
+- Every rig guest (test1–test32) has 2 vCPUs instead of 4.  All six boards of
+  the release matrix side by side are 28 guests: 56 vCPUs on clyde's 56
+  cores and about 70 GiB of its 94.  At 4 vCPUs the same set was 112 vCPUs.
+- `scripts/lab_power.sh` takes `group:<name>`.  `scripts/clyde_preflight.sh`
+  checks the pool's filesystem.  `data/rigs.json` declares the SCST rig as a
+  pool with no fixed LUN.  `tests/lib/rig.sh` resolves a harness's LUN from
+  its run, or from the pool allocation bound to its nodes.
+- `tests/tcp_peer_freeze_death.sh` ends its window once the death and the
+  survivor's first write have both been seen, or at the 180 s write budget.
+  It used to run 300 s whatever happened, though the verdict was known at
+  about +73 s; that was 4 idle minutes in each of a release's eight hung-node
+  tests.  The other survivors are probed when the window ends, so they now
+  have to be serving inside the write budget, as the check always said.
+- `tests/full_verify.sh` takes `PLATFORMS` to re-run only some platform sets
+  on a version whose others already ran.  The verdict still reads every
+  platform's log, so a set left out is graded on its own last run of that
+  version, and one with no run of it refuses to be left out.
+- `tests/packaged_round.sh` logs each mount's own duration (`mount_ms`), and
+  repeats its reboot section `POSTBOOT_LAPS` times (default 1): marker
+  written, every node unmounted and rebooted, every node mounted again with
+  no mkfs, the marker read back everywhere.
+- `tests/packaged_round.sh` saves the kernel log of any node whose mount
+  fails or does not return within its budget, before the round stops.  The
+  next round reboots the set and a platform's journal is not persistent, so
+  without it the log of `D-POSTBOOT-JOINER-MOUNT-OVERRAN-60S-NO-KERNEL-LOG`
+  was lost.
+- `tools/lun_pool.sh` tries a node's iSCSI initiator name three times, 5 s
+  apart, before failing an allocation.  A set is allocated right after it is
+  powered up, and one missed ssh to debian13-1 cost that platform its whole
+  round.
+- `tests/release_verify_chain.sh` records the host's CPU, memory and I/O
+  every 5 s for the whole chain (`release_verify_hostcpu_<version>.log`), so
+  how far its stages can overlap is decided from what the host actually
+  spends rather than from the vCPUs the guests were given.
+- `tests/full_verify.sh` builds the packages unless `dist/<version>` holds a
+  `SHA256SUMS` its packages match.  It used to skip the build whenever the
+  directory existed, and a `release.sh` stopped part way leaves it behind
+  empty: this version's first full chain built nothing and failed all twelve
+  packaged rounds on a missing `.deb`.  Its exit status is now the platform
+  steps' verdict; it used to be that of the summary `grep`, so that chain
+  still returned 0.
+- **`fio_perf` reports the best of 4 measured passes per workload**, after
+  the warm-up pass it already discarded, and prints every pass.  The clyde
+  LUN's write throughput is bimodal from run to run: ten native-XFS runs on
+  test1, same LUN and workload, read seqW from 783 to 2188 MiB/s, and three
+  of them sat under 70% of their own median.  A single pass graded against
+  any native figure therefore failed whenever it landed in the slow regime:
+  4/net/mesh/direct read 68% that way.  The native capture runs the same
+  script, so both sides of `fio_perf_vs_xfs` are measured alike.
+- The native-XFS fio yardsticks were measured again on a pool LUN, on test1
+  at 2 vCPUs with every other rig guest powered off and clyde otherwise
+  idle. Each is the median of 5 runs, and each run is the best of 4 passes:
+  - net/mesh/direct: 1324 MiB/s seqW, 1331 MiB/s seqR, 39,196 randW and
+    47,216 randR iops. The five seqW runs read 983–1452.
+  - disk/caw/direct: 1133, 1291, 44,043 and 43,116. seqW read 1083–1460.
+
+  `tools/xfs_baseline_refresh.sh` repeats that measurement (`RUNS`, default
+  5), and refuses to run on a guest whose CPU count is not the one asked for.
+- **The throughput rows are graded under the same host conditions as the
+  yardstick.** Before, the yardstick ran on one node on an idle host, while
+  the release boards ran their fio rows side by side. The host-wide lock
+  kept the fio windows apart, but the other five clusters stayed mounted on
+  the NVMe behind every pool LUN, and other workloads on clyde were busy.
+  - Under those conditions, 4/net/mesh/direct read seqW 1018 MiB/s, 72% of the
+    yardstick.
+  - Re-run alone, with only its own group powered up, it read 1861 MiB/s,
+    which is 140%.
+  - Each configuration's rows then ran alone in turn. clyde's NVMe ran
+    110–126 MiB/s read and 144–161 MiB/s write in every board's window, against
+    94 and 113 during the yardstick, and I/O pressure stayed at or under 1%.
+    The record is `tests/evidence/hostio_perf_quiet_0.90.39.log`.
+- test1–test16 are back at the kernel's and open-iscsi's own iSCSI TCP
+  values: socket caps 212992 and window 524288. `scripts/tune_iscsi_tcp.sh
+  --default` sets them. Those nodes had carried a 16 MB tuning since an
+  older fabric, and test17–28 never had it, so the rig's groups were not
+  alike. Whether that tuning changes throughput was not measured cleanly:
+  the samples taken for it ran under the contention described above.
+- The mpath and pass attachments have no LUN on clyde now, because the pool
+  exports each LUN on one portal.
+
+`tools/mkfs_mxfs.backup` is removed.
+
+**Defects disposed**
+
+The five claim-slot defects below were each verified on build
+`B2656732AC8108B46CD998E`.  The self-test ran on test1, 6 arms of 20 s
+(`tests/evidence/demoter_selftest_test1_0.90.39_fix.log`): 25.6M rounds at
+no stall and 118K at a 200 µs stall in every race window.  Every arm read
+`lost_claim=0 depth_lost=0 ref_drift=0 slot_left=0`.  test17 ran two more
+arms with the same result.  The board rows ran with every 2nd claim wait
+forced to report no slot, on 4/net/mesh/direct and 4/disk/caw/direct
+(`tests/evidence/demoter_claim_fix_verify_0.90.39_{net,caw}_v2.log`).
+
+- **`D-DEMOTER-OWNER-WRITES-DEPTH-AFTER-ITS-CLAIM-WAS-SWEPT`** (found by this version's self-test) — fixed and verified.
+  - Seen: `depth_lost=1` in 7.7M rounds on the first 0.90.39 build.
+  - Cause, from an instrumented build: 871,464 of 871,481 sweep removals landed between an owner's unlocked ownership read and its locked drop, which is the window in which the stale owner wrote depth.
+  - Verified: the fixed build still takes that path 5K–340K times per arm, and `depth_lost` stays 0.
+- **`D-DEMOTER-SLOT-PUBLISHED-BEFORE-ITS-TASK-REFERENCE`** — fixed and verified. The sweep met a later claim of the slot it was aimed at and left it alone 40K–567K times per arm (`gen_reject`).
+- **`D-DEMOTER-SLOT-REMOVER-ZEROES-DEPTH-AFTER-THE-SLOT-IS-ALREADY-REUSABLE`** — fixed and verified. 6.2K–8.4K dead-claim retirements ran per arm while live claimants nested, and no nested claim lost depth.
+- **`D-LEGACY-CLOBBER-REMOVALS-RACE-DEAD-CLAIM-RETIREMENT`** — fixed and verified. Six self-test arms with `demoter_legacy_clobber=1` ran forced clobbers against 10.4K retirements. They logged no refcount, WARN, BUG or Oops line, and `ref_drift` stayed 0.
+- **`D-PINNED-RELEASE-RUNS-BAST-PROCESS-WITH-NO-DEMOTER-CLAIM`** — fixed and verified.
+  - Seven board rows ran on each configuration: dir_reuse_coherency, dirent_durability, sustained_load, posix_multi, cache_coherency, alloc_witness and chk_clean. All passed, and chk read CLEAN.
+  - The deferred path ran 792–2,808 times per node, and no claim wait expired.
+  - No node logged a hung task, WARN, BUG, refcount error, inode wedge or synchronous-claim wait.
+- **`D-MKFS-WRITES-THE-AUTHORITY-LEDGER-ONE-PAGE-PER-SYNC-WRITE`: mkfs wrote every empty ledger page with its own synchronous 4 KiB write, 10,571 of them for a 20 GiB format and 67,650 for 128 GiB** — fixed and verified.
+  - Cause, from strace: about 2.3 ms per write.
+  - The fix shipped in 0.90.38: the empty pages go out in batched large writes, there is one flush at the end instead of `O_SYNC`, and the CRC32C is computed in hardware.
+  - Verified: the formatted device's sha256 is identical to the old binary's at 10 GB and 20 GB. A format now takes 0.13 s at 10 GB and 0.24 s at 20 GB, against 12.4 s and 17.9–30.9 s before. Every pool-LUN prep of the 0.90.39 boards formatted with it, and the 8-node boards' cold audit read CLEAN on all 8 nodes.
+- **The RPM package did not build**: the source tarball `packaging/mkrpm.sh` assembles left out `tools/crc32c.h`, which the 0.90.38 mkfs needs. The header is now in the tarball.
+
+**Still open, and what it blocks**
+
+`D-TAUTH-RECOVERY-SCANS-SCALE-WITH-LUN-SIZE-NOT-LEDGER-USE` stays in the
+queue; its bar is now "does not block a release", from what this version's
+boards measured.  On 20 GiB pool LUNs the net/mesh/direct death-replay rows at
+2, 4 and 8 nodes ran mount orphan sweeps of 75–149 s (about 9.3 ms a page)
+and node-death takeovers of 8–37 s.  3,188 requests were served by taking
+their one page over on demand; the rest waited on the takeover's progress,
+not on their retry budget.  The survivors logged no filesystem shutdown, hung
+task, oops or exhausted request, and every correctness row passed.  That is a
+recovery pass whose length grows with the ledger, which is performance work,
+not a hang or a crash.
+
+`D-POSTBOOT-JOINER-MOUNT-OVERRAN-60S-NO-KERNEL-LOG` is new and open; its bar
+is also "does not block a release".  Once, on RHEL 9.8 at
+8/net/mesh/direct, the first node to join after the whole set rebooted took
+over its 60 s mount budget while clyde was 19.9 GB into swap.  The mount
+ended within about 100 s: the next round unloaded the module on that node
+cleanly, which a mount in progress prevents, and then passed on the same
+nodes.  Its kernel log was lost to the next reboot.  Ten reboot-and-remount
+laps of the same set on a quiet host mounted all 80 times, every joiner in
+4.8–5.2 s (one 9.0 s).  The harness now keeps the kernel log of any mount
+that overruns.
+
+**Board amendments**
+
+- **Board: fio_perf_vs_xfs at 8/net/mesh/direct, 2/net/mesh/direct and
+  4/net/mesh/direct, the FAILs of 2026-10-01T17:02:50Z, 17:25:45Z and
+  17:26:40Z were the detector's.**  Those runs measured another board's load,
+  not their own cluster: the first side-by-side release boards ran their
+  fio_perf rows at the same time on one host, and one 8-node board read randW
+  27% while its neighbour read 358% in the same 25 s.  The fix is the
+  host-wide lock around the throughput rows described above.  The same build,
+  re-run under the lock at 17:55:02Z, read seqW 103%, 82% and 100%.
+- **Board: fio_perf_vs_xfs at 4/net/mesh/direct read 68%, 66% and 58% in
+  three later side-by-side runs.**  These were not amended. They were graded
+  against a yardstick taken on an idle host, while the board shared clyde's
+  NVMe with five other mounted clusters and other workloads (see "graded
+  under the same host conditions" above).  They aged out of the row's window
+  through five runs made alone on a quiet host, the same way the yardstick is
+  taken. Those runs read seqW 1861, 1901, 2239, 2121 and 2098 MiB/s, 140–169%
+  of the yardstick (`tests/evidence/board_4-net-mesh-direct_*_quiet*_0.90.39.log`).
+
+## 2026-10-01 — 0.90.38 — demoter claim slots change only under one lock, take their reference before they are visible, and wait for a slot instead of draining unclaimed
+
+A design review of 0.90.37's claim references (a consult that could not be
+run before it shipped) found three races and one long-standing gap in the
+claim slots.  None was observed on the rig; each is a way a node could crash
+or wedge, so 0.90.37 is replaced.
+
+**Every claim and removal of a slot happens under the inode's reap lock.**
+`mxfs_demoter_slot_take` takes the task reference first and then claims the
+empty slot under the lock.  The owner's final clear, the punt sweep,
+dead-claim retirement and the legacy clobber mode all empty a slot under the
+same lock and drop the reference after it.  This closes the following:
+
+- `D-DEMOTER-SLOT-PUBLISHED-BEFORE-ITS-TASK-REFERENCE`: 0.90.37 published the
+  slot before taking its reference, so a punt sweep in that window could drop
+  a reference the claimant had not taken, which is a use-after-free.  The
+  sweep also could not tell a later claim by the same task from the one it
+  recorded.  A slot now carries a claim generation (`i_dlm_demoter_gen`), a
+  punt records the one it retained, and the sweep removes the slot only while
+  the two match.
+- `D-DEMOTER-SLOT-REMOVER-ZEROES-DEPTH-AFTER-THE-SLOT-IS-ALREADY-REUSABLE`:
+  retirement and the punt sweep reset the slot's nesting depth after the slot
+  was claimable again, so a new owner's nested claim could clear early and
+  its drain wait on itself.  A remover now writes nothing to a slot after
+  emptying it; the next claimant sets depth.
+- `D-LEGACY-CLOBBER-REMOVALS-RACE-DEAD-CLAIM-RETIREMENT`: the test-only clobber
+  mode emptied slots outside the lock that retirement reads under.
+
+A claim also checks both slots for the task before taking an empty one.
+
+**A drain run inline waits up to 50 ms for a slot when both are held**
+(`mxfs_dlm_claim_demoter_wait`), at the BAST worker, the MHT dwork, the
+freeing-inode inline drain in `mxfs_dlm_ilock_begin`, and
+`mxfs_clayer/pinned_resource.c`.  Each of them used to run the drain without
+a claim when both slots were held, and so without the exemption its own
+re-entry into `xfs_ilock` needs.  0.90.37 had also moved `pinned_resource.c`
+from overwriting a live claim to this behaviour
+(`D-PINNED-RELEASE-RUNS-BAST-PROCESS-WITH-NO-DEMOTER-CLAIM`).  A slot is now
+held only by a live drain, because a dead owner's claim is retired, and a
+drain measures 22–23 ms.  If the wait expires, the drain runs as before and
+logs `P-DEMOTER-CLAIM-WAIT-EXPIRED`.  On today's 13 stress laps, every
+contest for both slots came from a dead owner's claim: none with retirement
+on, 22 with it off.
+
 ## 2026-10-01 — 0.90.37 — directory data-loss fixes; {2,4,8}/net/mesh/direct and {2,4,8}/disk/caw/direct released on Proxmox VE 9, RHEL 9.8, Ubuntu 24.04 and Debian 13
 
 **Upgrade from 0.90.36.**  0.90.36 can lose directory entries and link counts

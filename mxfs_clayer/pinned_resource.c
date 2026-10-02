@@ -140,8 +140,15 @@ mxfs_inode_unpin(
 		 * must skip the DEMOTING wait, which i_dlm_demoter == current
 		 * achieves.  Through the claim helpers: a slot holds a
 		 * reference on its owner, which a bare store would unbalance.
+		 * When both slots stay held the drain is not run here without
+		 * the exemption: it goes to the MHT dwork on a reference of its
+		 * own.  An inode that cannot be grabbed is being evicted, and a
+		 * closed arm gate is teardown; neither can queue work, so those
+		 * wait for a slot.
 		 */
-		mxfs_dlm_claim_demoter(ip);
+		if (!mxfs_dlm_claim_demoter_wait(ip) &&
+		    mxfs_dlm_drain_unclaimed(ip))
+			return;
 		mxfs_dlm_bast_process(ip);
 		mxfs_dlm_release_demoter(ip);
 	}

@@ -1657,8 +1657,24 @@ capturing the same state.
 - `tools/mxfs_lab.sh` — resolves this site's lab (`~/.config/mxfslab/lab`,
   override `$MXFS_LAB`): `nodes <platform>` (the verification set), `pair`,
   `addr <node>`, `get <key> <field>`, `lun-nodes`; sourced, it defines the
-  functions only. One lab file per platform gives each set its own LUN, and
-  `scripts/scst_platform_targets.sh setup` builds those targets on clyde.
+  functions only. One lab file per platform gives each set its own LUN;
+  `tests/full_verify.sh` writes each `lab.<platform>` from a `tools/lun_pool.sh`
+  allocation. Keys the pool reads: `storage portal=` (clyde's lab has only
+  the portal) and `paths pool=`; `group <g>=<nodes>` lines name rig groups.
+- `tools/lun_pool.sh` — the pool of fixed-size test LUNs on clyde's SCST
+  target (header is the reference). `<paths pool>/lunNN.img`, fallocate'd in
+  full; SCST device `mxfspoolNN`, target `iqn.2026-05.local.mxfs:pool-NN`, LUN 0
+  only in ini_group `alloc` (the allocated nodes). `create <count> [<size>]`
+  (default 20G), `up` (re-register after a host reboot), `alloc [--owner pid]
+  [--what text] [--size min] <node>...` (prints a `POOL_LUN id= size= target=
+  dev= wwid= img= nodes= owner=` line), `lookup --owner <pid> | --nodes
+  <a,b>`, `free <id> | --owner <pid> [--force]`, `status`, `snapshot <id>
+  <label>` (sparse copy to `~/disks/snapshots/`, since the next holder
+  formats the LUN), `destroy <id>`. An allocation lasts while its owner pid
+  lives, then is kept bound for the next run on the same node set until a new
+  allocation names one of its nodes or no LUN is free (oldest first). Its
+  callers: `run.sh` (direct and `--group` runs), `tests/full_verify.sh`,
+  `tests/lib/rig.sh`.
 - `scripts/release.sh` — builds `dist/<version>/` (the .deb and the
   pve-storage .deb in the oldest Debian container they target, the .rpm in
   its container) after `scripts/pve_kbuild_check.sh` on the PVE kernels;

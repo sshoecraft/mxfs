@@ -1,6 +1,6 @@
 #!/bin/bash
 # runlock.sh — who may touch which rig nodes right now.  Sourced by run.sh,
-# scripts/rig.sh and scripts/rig_groups.sh; defines functions only.
+# scripts/rig.sh; defines functions only.
 #
 # Three kinds of lock, all flock(2) on files in /tmp, held on an open fd until
 # the holding process exits (a crash releases them; nothing to clean up):

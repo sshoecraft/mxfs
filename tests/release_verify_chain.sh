@@ -21,11 +21,13 @@
 #           packages unless dist/VERSION holds them, every platform's packaged
 #           round and hung-node test on each configuration, sVirt on RHEL
 #   LOWER   (default: the released node counts below CLAIM, largest first —
-#           "4 2" under CLAIM=8, "2" under CLAIM=4)  for each, that count's
-#           laps and then tests/board_4node_chain.sh b<count>_V
-#           with every configuration of the release matrix at that count
-#           (tools/configuration.py release-matrix --nodes <count>), the
-#           boards last so their read-back sees every lap
+#           "4 2" under CLAIM=8, "2" under CLAIM=4)  every count's laps, and
+#           then ONE tests/board_4node_chain.sh bL_V call running every
+#           configuration of the release matrix at every one of those counts
+#           side by side (tools/configuration.py release-matrix --nodes
+#           <count>): the i-th configuration at <count> on rig group g<count>,
+#           the next on g<count>b, each on a pool LUN of its own.  The boards
+#           come last so their read-back sees every lap
 #   POWER, PLATFORM_GROUPS  passed on to tests/full_verify.sh, which documents
 #           them.  With POWER=1 the chain also starts with every platform set
 #           off and the rig's CLAIM nodes up, so the laps and the boards run
@@ -108,23 +110,70 @@ laps_at() {  # laps_at <nodes>: every LAPS entry for that node count, in order
 }
 
 echo "=== release_verify_chain $V $(date -u +%FT%TZ) CLAIM=$CLAIM LAPS=[$LAPS] FULL=$FULL LOWER=[$LOWER ] POWER=$POWER ===" | tee -a "$L"
+# What the host actually spends, every 5 s for the whole chain, next to the
+# step lines in $L that say which stage was running: how far the stages can
+# overlap is decided from this, not from the vCPUs the guests were given.
+# Anything else running on clyde shows up here too.
+vmstat -w -t 5 > "$EV/release_verify_hostcpu_$V.log" 2>&1 &
+HOSTCPU=$!
+trap 'kill $HOSTCPU 2>/dev/null' EXIT
+# group_of <count> <i>: the rig group the i-th configuration at <count> runs on
+group_of() { local g=g$1; [ "$2" -gt 0 ] && g=g$1$(printf "\\$(printf %o $((97 + $2)))"); echo "$g"; }
+# With POWER=1 every stage starts from a host holding only what it uses: a
+# guest left up from the stage before (a platform set is 8 of them) is memory
+# and CPU the boards do not get.  RIG_MAX is the highest rig node any group
+# names.
+RIG_MAX=$(tools/mxfs_lab.sh groups | while read -r g; do tools/mxfs_lab.sh group "$g"; done | tr ' ' '\n' | sed -n 's/^test//p' | sort -n | tail -1)
 if [ "$POWER" = 1 ]; then
     step "platform sets off" scripts/lab_power.sh down ubuntu2404 pve9 rhel9 debian13
-    step "rig up" scripts/lab_power.sh up "rig:$CLAIM"
+    step "rig off" scripts/lab_power.sh down "rig:${RIG_MAX:-$CLAIM}"
+    [ -n "$LAPS" ] && step "rig up" scripts/lab_power.sh up "rig:$CLAIM"
 fi
 laps_at "$CLAIM"
-if [ "$FULL" = 1 ]; then
+# SIDE_BY_SIDE=1 (default): the claimed count's boards join the smaller
+# counts' boards in ONE side-by-side step, and full_verify runs only its build
+# before it and its packages and platforms after it.  At 2 vCPUs and 2.5 GiB
+# per rig guest, 8+8+4+4+2+2 = 28 guests are 56 vCPUs on this 56-core host
+# and ~70 GiB of its 94.  SIDE_BY_SIDE=0 keeps the stages apart: the claimed
+# count's suites inside full_verify, then the smaller counts' boards.
+SIDE_BY_SIDE="${SIDE_BY_SIDE:-1}"
+together=0
+[ "$FULL" = 1 ] && [ "$SIDE_BY_SIDE" = 1 ] && together=1
+if [ "$together" = 1 ]; then
+    NODES=$CLAIM STEPS=build step "full_verify nodes=$CLAIM build" tests/full_verify.sh "$V"
+elif [ "$FULL" = 1 ]; then
     NODES=$CLAIM step "full_verify nodes=$CLAIM" tests/full_verify.sh "$V"
 fi
-for n in $LOWER; do
-    laps_at "$n"
-    matrix=$(python3 tools/configuration.py release-matrix --nodes "$n")
-    # shellcheck disable=SC2086  # one argument per configuration
-    step "boards nodes=$n" tests/board_4node_chain.sh "b${n}_$V" $matrix
-    for cfg in $matrix; do
+counts="$LOWER"
+[ "$together" = 1 ] && counts="$CLAIM $LOWER"
+boards=(); sets=(); cfgs=()
+for n in $counts; do
+    [ "$n" = "$CLAIM" ] || laps_at "$n"
+    i=0
+    for cfg in $(python3 tools/configuration.py release-matrix --nodes "$n"); do
+        g=$(group_of "$n" "$i")
+        [ "$(scripts/../tools/mxfs_lab.sh group "$g" 2>/dev/null | wc -w)" = "$n" ] \
+            || { echo "$(date -u +%FT%TZ) chain defect: $cfg needs rig group $g of $n nodes in the lab file" | tee -a "$L"; exit 2; }
+        boards+=("$cfg@$g"); sets+=("group:$g"); cfgs+=("$cfg")
+        i=$((i + 1))
+    done
+done
+if [ "${#boards[@]}" -gt 0 ]; then
+    if [ "$POWER" = 1 ]; then
+        step "rig off" scripts/lab_power.sh down "rig:${RIG_MAX:-$CLAIM}"
+        step "board groups up" scripts/lab_power.sh up "${sets[@]}"
+    fi
+    step "boards nodes=[$counts ] side by side" tests/board_4node_chain.sh "bL_$V" "${boards[@]}"
+    for cfg in "${cfgs[@]}"; do
         echo "=== board $cfg ===" >> "$L"
         python3 tools/criteria.py "$cfg" | grep -vE '\| PASS ' | cut -c1-160 >> "$L"
     done
-done
+fi
+if [ "$together" = 1 ]; then
+    # full_verify powers down only the claimed count's groups before a
+    # platform group; the smaller counts' groups are up from the boards too
+    [ "$POWER" = 1 ] && step "rig off" scripts/lab_power.sh down "rig:${RIG_MAX:-$CLAIM}"
+    NODES=$CLAIM STEPS=packages,platforms step "full_verify nodes=$CLAIM packages,platforms" tests/full_verify.sh "$V"
+fi
 grep -E '^=== rc=|^Total:|^VERDICT:' "$L" | tail -n 40
 echo "RELEASE_CHAIN_DONE $(date -u +%FT%TZ)" | tee -a "$L"

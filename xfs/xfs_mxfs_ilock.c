@@ -1859,7 +1859,11 @@ static int mxfs_ilock_acquire_from_dlm(struct xfs_inode *ip,
 				    "mxfs: P60-EDEADLK-FREEING ino=%llu i_state=0x%lx (inode evicting; draining inline)\n",
 					(unsigned long long)ip->i_ino,
 					mxfs_istate(VFS_I(ip)));
-				MXFS_SET_DEMOTER(ip);
+				/* an evicting inode cannot carry a work item's
+				 * reference, so the drain waits for a slot
+				 * rather than running without the exemption */
+				if (!mxfs_dlm_claim_demoter_wait(ip))
+					mxfs_dlm_claim_demoter_sync(ip);
 				{
 					struct mxfs_dirdrain_task dde;
 

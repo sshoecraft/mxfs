@@ -16,6 +16,7 @@
  */
 #define MXFS_TU_ID 1	/* igrab/iput call-site file id */
 #include "xfs_mxfs_dlm_priv.h"
+#include <linux/kthread.h>
 
 /*
  * (D-474 AIL-freeze anatomy): pag_dlm_lock hold/wait forensics.
@@ -248,21 +249,40 @@ mxfs_bast_arm_queue_delayed(
 	struct xfs_inode	*ip,
 	unsigned long		delay_j)
 {
+	return mxfs_bast_arm_queue_delayed_gated(ip, delay_j) > 0;
+}
+
+/*
+ * The same arm, telling apart the two ways it can fail to queue: 1 = queued
+ * (the caller's reference now belongs to the dwork), 0 = already queued (that
+ * dwork owns a reference of its own, so the caller's is a duplicate and never
+ * the last one), -1 = the gate is closed for teardown (nothing queued, and the
+ * caller's reference may be the last).  The gate is read and the work queued
+ * under one lock, so a caller that sees 0 or 1 cannot be overtaken by the
+ * gate closing.
+ */
+int
+mxfs_bast_arm_queue_delayed_gated(
+	struct xfs_inode	*ip,
+	unsigned long		delay_j)
+{
 	struct xfs_mount	*mp = ip->i_mount;
-	bool			queued = false;
+	int			rc;
 
 	spin_lock(&mp->m_mxfs_arm_lock);
-	if (unlikely(mp->m_mxfs_arms_off))
+	if (unlikely(mp->m_mxfs_arms_off)) {
 		pr_warn_ratelimited("mxfs: P6S-ARM-REFUSED ino=%llu src=%u — bast-dwork gate closed (teardown)\n",
 			(unsigned long long)ip->i_ino, ip->i_dlm_bastq_src);
-	else
-		queued = queue_delayed_work(mp->m_mxfs_inode_bast_wq,
-					    &ip->i_dlm_bast_dwork, delay_j);
-	if (queued)
+		rc = -1;
+	} else {
+		rc = queue_delayed_work(mp->m_mxfs_inode_bast_wq,
+					&ip->i_dlm_bast_dwork, delay_j) ? 1 : 0;
+	}
+	if (rc > 0)
 		ip->i_dlm_bastq_qns = ktime_get_ns() +
 				      jiffies_to_nsecs(delay_j);
 	spin_unlock(&mp->m_mxfs_arm_lock);
-	return queued;
+	return rc;
 }
 
 /*
@@ -451,6 +471,31 @@ module_param_named(demoter_dead_claim_reap, mxfs_demoter_dead_claim_reap,
 MODULE_PARM_DESC(demoter_dead_claim_reap,
 	"retire a demoter claim whose owner has exited (1, default); 0 = leave it set, for a control arm");
 atomic64_t mxfs_dem_dead_reap_n;
+atomic64_t mxfs_dem_claim_wait_expired;
+atomic64_t mxfs_dem_punt_gen_reject;	/* sweep met a later claim of the slot */
+
+/*
+ * TEST ONLY: stall for this many microseconds at the points where 0.90.37's
+ * claim-slot races lived: after a claimant wins a slot and before it sets
+ * the slot's depth and stamps, and in the punt sweep between reading a slot
+ * and taking the reap lock to remove it.  A remover that met a claim inside
+ * those windows used to drop a reference not yet taken, or zero a new
+ * owner's depth.  0 = off.
+ */
+int mxfs_demoter_test_window_us;
+module_param_named(demoter_test_window_us, mxfs_demoter_test_window_us, int,
+		   0644);
+MODULE_PARM_DESC(demoter_test_window_us,
+	"TEST ONLY: microseconds to stall inside each demoter slot race window (0 = off)");
+
+void
+mxfs_demoter_test_window(void)
+{
+	int us = READ_ONCE(mxfs_demoter_test_window_us);
+
+	if (unlikely(us > 0))
+		udelay(min(us, 1000));
+}
 
 #define MXFS_DEMOTER_REAP_LOCKS	64
 static spinlock_t mxfs_demoter_reap_locks[MXFS_DEMOTER_REAP_LOCKS] = {
@@ -465,21 +510,172 @@ mxfs_demoter_reap_lock(const struct xfs_inode *ip)
 					 ilog2(MXFS_DEMOTER_REAP_LOCKS))];
 }
 
-void
-mxfs_demoter_ref_take(void)
+/*
+ * Every transition of a slot between empty and a task happens under the
+ * inode's reap lock, and the task reference moves with it: the claimant takes
+ * its reference BEFORE the slot can name it, and whoever empties a slot drops
+ * the slot's reference AFTER the lock is released.  So nothing can ever put a
+ * reference the slot does not yet hold, retirement never reads a task another
+ * remover has just put, and a remover never writes slot metadata (depth,
+ * stamps) once the slot is claimable again: the next claimant owns those.
+ *
+ * The owner's own writes to depth and stamps are made under the same lock and
+ * only while the slot still names it.  The punt sweep can empty a retained
+ * claim while its owner is still running, so "the slot is mine" read outside
+ * the lock can be stale by the time the owner writes; a write made on that
+ * read lands on whichever task claimed the slot next.  Measured by the slot
+ * self-test on 0.90.39's first build: one nested claim in 7.7M rounds released
+ * by its first unnest, after a swept owner's clear had zeroed its depth.
+ */
+/* a clear by a task that held neither slot when it took the lock */
+atomic64_t mxfs_dem_drop_lost;
+
+static void
+mxfs_demoter_slot_stamp(struct xfs_inode *ip, int slot, u32 line)
 {
+	if (slot) {
+		ip->i_dlm_demoter2_pid = current->pid;
+		strscpy(ip->i_dlm_demoter2_comm, current->comm,
+			sizeof(ip->i_dlm_demoter2_comm));
+		ip->i_dlm_demoter2_set_ns = ktime_get_ns();
+		ip->i_dlm_demoter2_line = line;
+	} else {
+		ip->i_dlm_demoter_pid = current->pid;
+		strscpy(ip->i_dlm_demoter_comm, current->comm,
+			sizeof(ip->i_dlm_demoter_comm));
+		ip->i_dlm_demoter_set_ns = ktime_get_ns();
+		ip->i_dlm_demoter_line = line;
+	}
+}
+
+bool
+mxfs_demoter_slot_take(struct xfs_inode *ip, int slot, u32 line)
+{
+	struct task_struct	**cell = slot ? &ip->i_dlm_demoter2 :
+						&ip->i_dlm_demoter;
+	spinlock_t		*lock = mxfs_demoter_reap_lock(ip);
+	unsigned long		flags;
+	bool			won;
+
 	get_task_struct(current);
+	spin_lock_irqsave(lock, flags);
+	won = cmpxchg(cell, NULL, current) == NULL;
+	if (won) {
+		ip->i_dlm_demoter_gen[slot]++;
+		if (slot)
+			ip->i_dlm_demoter2_depth = 1;
+		else
+			ip->i_dlm_demoter_depth = 1;
+		mxfs_demoter_slot_stamp(ip, slot, line);
+	}
+	spin_unlock_irqrestore(lock, flags);
+	if (!won)
+		put_task_struct(current);
+	else
+		mxfs_demoter_test_window();
+	return won;
+}
+
+/* Nest a claim this task already holds in @slot; false if it holds none. */
+bool
+mxfs_demoter_slot_nest(struct xfs_inode *ip, int slot, u32 line)
+{
+	struct task_struct	**cell = slot ? &ip->i_dlm_demoter2 :
+						&ip->i_dlm_demoter;
+	spinlock_t		*lock = mxfs_demoter_reap_lock(ip);
+	unsigned long		flags;
+	bool			mine;
+
+	if (READ_ONCE(*cell) != current)
+		return false;	/* only this task can make it so */
+	mxfs_demoter_test_window();
+	spin_lock_irqsave(lock, flags);
+	mine = READ_ONCE(*cell) == current;
+	if (mine) {
+		if (slot)
+			ip->i_dlm_demoter2_depth++;
+		else
+			ip->i_dlm_demoter_depth++;
+		mxfs_demoter_slot_stamp(ip, slot, line);
+	}
+	spin_unlock_irqrestore(lock, flags);
+	return mine;
+}
+
+/*
+ * Unnest this task's claim in @slot, emptying the slot at the outermost level.
+ * Returns 0 when a nesting level was dropped, 1 when the slot was emptied, and
+ * -1 when the slot does not name this task (never claimed, or a remover took
+ * it first).
+ */
+int
+mxfs_demoter_slot_release(struct xfs_inode *ip, int slot)
+{
+	struct task_struct	**cell = slot ? &ip->i_dlm_demoter2 :
+						&ip->i_dlm_demoter;
+	int			*depth = slot ? &ip->i_dlm_demoter2_depth :
+						&ip->i_dlm_demoter_depth;
+	spinlock_t		*lock = mxfs_demoter_reap_lock(ip);
+	unsigned long		flags;
+	int			ret = -1;
+
+	if (READ_ONCE(*cell) != current)
+		return -1;
+	mxfs_demoter_test_window();
+	spin_lock_irqsave(lock, flags);
+	if (READ_ONCE(*cell) == current) {
+		if (*depth > 1) {
+			(*depth)--;
+			ret = 0;
+		} else {
+			*depth = 0;
+			WRITE_ONCE(*cell, NULL);
+			ret = 1;
+		}
+	}
+	spin_unlock_irqrestore(lock, flags);
+	if (ret == 1)
+		put_task_struct(current);
+	else if (ret < 0)
+		atomic64_inc(&mxfs_dem_drop_lost);
+	return ret;
+}
+
+/* A/B-only legacy clobber mode: an unconditional store, still locked. */
+void
+mxfs_demoter_slot_force(struct xfs_inode *ip)
+{
+	spinlock_t		*lock = mxfs_demoter_reap_lock(ip);
+	struct task_struct	*old;
+	unsigned long		flags;
+
+	get_task_struct(current);
+	spin_lock_irqsave(lock, flags);
+	old = xchg(&ip->i_dlm_demoter, current);
+	ip->i_dlm_demoter_gen[0]++;
+	spin_unlock_irqrestore(lock, flags);
+	if (old)
+		put_task_struct(old);
 }
 
 void
-mxfs_demoter_ref_drop(struct task_struct *t)
+mxfs_demoter_slot_force_clear(struct xfs_inode *ip)
 {
-	put_task_struct(t);
+	spinlock_t		*lock = mxfs_demoter_reap_lock(ip);
+	struct task_struct	*old;
+	unsigned long		flags;
+
+	spin_lock_irqsave(lock, flags);
+	old = xchg(&ip->i_dlm_demoter, NULL);
+	spin_unlock_irqrestore(lock, flags);
+	if (old)
+		put_task_struct(old);
 }
 
 void
 mxfs_demoter_reap_dead(struct xfs_inode *ip)
 {
+	struct task_struct	*dead[2] = { NULL, NULL };
 	spinlock_t		*lock;
 	unsigned long		flags;
 	int			slot;
@@ -499,16 +695,15 @@ mxfs_demoter_reap_dead(struct xfs_inode *ip)
 		static atomic_t		p_reap_n = ATOMIC_INIT(0);
 		u64			set_ns;
 
+		/* d stays valid here: only a holder of this lock can empty
+		 * the slot, so its reference is still the slot's */
 		if (!d || d == current || !READ_ONCE(d->exit_state))
 			continue;
 		if (cmpxchg(cell, d, NULL) != d)
 			continue;
+		dead[slot] = d;
 		set_ns = slot ? ip->i_dlm_demoter2_set_ns :
 				ip->i_dlm_demoter_set_ns;
-		if (slot)
-			ip->i_dlm_demoter2_depth = 0;
-		else
-			ip->i_dlm_demoter_depth = 0;
 		atomic64_inc(&mxfs_dem_dead_reap_n);
 		mxfs_demev_rec(ip, 7, MXFS_SITE);
 		if (atomic_inc_return(&p_reap_n) <= 2000)
@@ -524,9 +719,11 @@ mxfs_demoter_reap_dead(struct xfs_inode *ip)
 					set_ns) / NSEC_PER_MSEC) : 0ULL,
 			       ip->i_dlm_state, ip->i_dlm_mode,
 			       current->pid, current->comm);
-		put_task_struct(d);
 	}
 	spin_unlock_irqrestore(lock, flags);
+	for (slot = 0; slot < 2; slot++)
+		if (dead[slot])
+			put_task_struct(dead[slot]);
 }
 
 bool
@@ -593,6 +790,95 @@ void
 mxfs_dlm_release_demoter(struct xfs_inode *ip)
 {
 	MXFS_CLEAR_DEMOTER(ip);
+}
+
+/*
+ * Claim the inode for a drain this task is about to run inline, waiting for a
+ * slot when both are held.  Without a claim the drain's own re-entry into
+ * xfs_ilock is not exempt from the DEMOTING wait and can wait on itself.  A
+ * slot is now held only by a live drain (a dead owner's claim is retired),
+ * and a drain measures 22-23 ms, so 50 ms covers one finishing.  Returns
+ * whether it holds one.  A caller that gets false must NOT run the drain: an
+ * unclaimed drain's re-entry waits on the transition it is itself driving.
+ * Workers hand the drain to the MHT dwork (mxfs_dlm_drain_defer); a context
+ * that cannot queue work claims with mxfs_dlm_claim_demoter_sync.
+ */
+int mxfs_demoter_claim_fail_inject;
+module_param_named(demoter_claim_fail_inject, mxfs_demoter_claim_fail_inject,
+		   int, 0644);
+MODULE_PARM_DESC(demoter_claim_fail_inject,
+	"TEST ONLY: every Nth demoter claim wait reports no slot without claiming, to drive the deferred-drain path (0 = off)");
+atomic64_t mxfs_dem_claim_fail_injected;
+atomic64_t mxfs_dem_claim_sync_n;	/* synchronous claims that had to wait */
+
+bool
+mxfs_dlm_claim_demoter_wait(struct xfs_inode *ip)
+{
+	unsigned long	deadline = jiffies + msecs_to_jiffies(50);
+	static atomic_t	p_cw_n = ATOMIC_INIT(0);
+	int		inject = READ_ONCE(mxfs_demoter_claim_fail_inject);
+
+	if (unlikely(inject > 0) && !mxfs_is_demoter(ip)) {
+		static atomic_t	inj_n = ATOMIC_INIT(0);
+
+		if (atomic_inc_return(&inj_n) % inject == 0) {
+			atomic64_inc(&mxfs_dem_claim_fail_injected);
+			return false;
+		}
+	}
+	for (;;) {
+		MXFS_SET_DEMOTER(ip);
+		if (mxfs_is_demoter(ip))
+			return true;
+		if (time_after(jiffies, deadline))
+			break;
+		msleep(1);
+	}
+	atomic64_inc(&mxfs_dem_claim_wait_expired);
+	if (atomic_inc_return(&p_cw_n) <= 2000)
+		pr_err("mxfs: P-DEMOTER-CLAIM-WAIT-EXPIRED ino=%llu s1_pid=%d s1_comm=%s s2_pid=%d me=%d comm=%s — both demoter slots held past 50 ms; the drain is not run unclaimed\n",
+		       (unsigned long long)ip->i_ino, ip->i_dlm_demoter_pid,
+		       ip->i_dlm_demoter_comm, ip->i_dlm_demoter2_pid,
+		       current->pid, current->comm);
+	return false;
+}
+
+/*
+ * Claim the inode for a drain that has nowhere else to go: an evicting inode,
+ * which no work item can hold a reference on, or a teardown that has closed
+ * the work arms.  Waits until a slot frees.  Both holders are live drains of
+ * this inode (a dead owner's claim is retired, and a punt-retained one is
+ * swept once its window closes), and a drain runs no longer than its own
+ * pipeline, so the wait ends.  Called holding no lock a drain could need.
+ */
+void
+mxfs_dlm_claim_demoter_sync(struct xfs_inode *ip)
+{
+	u64		t0 = ktime_get_ns();
+	unsigned int	n = 0;
+
+	for (;;) {
+		MXFS_SET_DEMOTER(ip);
+		if (mxfs_is_demoter(ip))
+			break;
+		if (++n % 10000 == 0)
+			pr_err("mxfs: P-DEMOTER-CLAIM-SYNC-WAIT ino=%llu waited_ms=%llu s1_pid=%d s1_comm=%s s2_pid=%d s2_comm=%s me=%d comm=%s — still waiting for a demoter slot\n",
+			       (unsigned long long)ip->i_ino,
+			       (unsigned long long)((ktime_get_ns() - t0) /
+						    NSEC_PER_MSEC),
+			       ip->i_dlm_demoter_pid, ip->i_dlm_demoter_comm,
+			       ip->i_dlm_demoter2_pid, ip->i_dlm_demoter2_comm,
+			       current->pid, current->comm);
+		msleep(1);
+	}
+	if (n) {
+		atomic64_inc(&mxfs_dem_claim_sync_n);
+		mxfs_probe_ratelimited("mxfs: P-DEMOTER-CLAIM-SYNC ino=%llu waited_ms=%llu comm=%s — claimed after both slots were held\n",
+			(unsigned long long)ip->i_ino,
+			(unsigned long long)((ktime_get_ns() - t0) /
+					     NSEC_PER_MSEC),
+			current->comm);
+	}
 }
 
 /*
@@ -769,20 +1055,29 @@ mxfs_demoter_punt_reclaim_check(struct xfs_inode *ip, int site)
 		if (!d || d == owner || d == current)
 			continue;	/* window still open, or it is us */
 
-		/* the slot's reference is ours to drop once the swap is won;
-		 * under the reap lock, so retirement never reads a put task */
+		/*
+		 * Remove only the claim the punt retained: the generation must
+		 * still be the one recorded, or the slot holds a later claim by
+		 * the same task.  Under the reap lock, where every claim and
+		 * removal of a slot happens; the slot's reference is ours once
+		 * the swap is won and is dropped after the lock.  Depth is not
+		 * touched: the slot is claimable the moment it is empty, and
+		 * its next claimant sets it.
+		 */
+		mxfs_demoter_test_window();
 		spin_lock_irqsave(reap_lock, flags);
+		if (ip->i_dlm_demoter_gen[slot] != ip->i_dlm_punt_gen[slot]) {
+			spin_unlock_irqrestore(reap_lock, flags);
+			atomic64_inc(&mxfs_dem_punt_gen_reject);
+			continue;	/* a later claim of the slot */
+		}
 		if (cmpxchg(cell, d, NULL) != d) {
 			spin_unlock_irqrestore(reap_lock, flags);
-			continue;	/* the owner beat us to it — nothing to do */
+			continue;	/* not the retained claim any more */
 		}
-		put_task_struct(d);
 		spin_unlock_irqrestore(reap_lock, flags);
+		put_task_struct(d);
 
-		if (slot)
-			ip->i_dlm_demoter2_depth = 0;
-		else
-			ip->i_dlm_demoter_depth = 0;
 		punt &= ~(1u << slot);
 		ip->i_dlm_punt_n[slot] = 0;
 		WRITE_ONCE(ip->i_dlm_demoter_punt, punt);
@@ -795,6 +1090,239 @@ mxfs_demoter_punt_reclaim_check(struct xfs_inode *ip, int site)
 			MXFS_SITE_ARGS(ip->i_dlm_demoter_line), age_ms, site);
 	}
 }
+
+/*
+ * IN-KERNEL RACE TEST OF THE CLAIM SLOTS.  Writing N to the module parameter
+ * demoter_slot_selftest runs it for N seconds (the write blocks) on two
+ * detached inode objects that no filesystem can see, and prints one
+ * P-DEMOTER-SLOT-SELFTEST line with the verdict.
+ *
+ * Per inode: two claimants, one remover running the punt sweep and dead-claim
+ * retirement as fast as it can, and one spawner of short-lived threads that
+ * claim the inode and exit holding the claim.  Each claimant, per round, takes
+ * a claim and records it as a punt retention (what the trans-free punt does),
+ * clears it, takes a LATER claim of the slot, nests it, and unnests.  The
+ * later claim must survive the sweep that is aimed at the retained one, and
+ * its depth must survive retirement: a claim lost while held, or a nested
+ * claim released by its first unnest, is the failure.  Each claimant's task
+ * reference count must come back to where it started, and both slots must be
+ * empty once the dead claims are retired.  With demoter_test_window_us set,
+ * every round stalls inside the windows the 0.90.37 races lived in.
+ */
+struct mxfs_dst_ino {
+	struct xfs_inode	*ip;
+	atomic_t		stop;
+	atomic64_t		rounds;
+	atomic64_t		lost_claim;
+	atomic64_t		depth_lost;
+	atomic64_t		ref_drift;
+	atomic64_t		children;
+	atomic64_t		no_slot;
+	struct completion	done[4];
+};
+
+struct mxfs_dst_arg {
+	struct mxfs_dst_ino	*t;
+	int			which;
+};
+
+static int
+mxfs_dst_child(void *arg)
+{
+	struct xfs_inode	*ip = arg;
+
+	MXFS_SET_DEMOTER(ip);
+	return 0;		/* exits holding the claim */
+}
+
+static void
+mxfs_dst_claimant_round(struct mxfs_dst_ino *t)
+{
+	struct xfs_inode	*ip = t->ip;
+
+	MXFS_SET_DEMOTER(ip);
+	if (READ_ONCE(ip->i_dlm_demoter) == current) {
+		ip->i_dlm_punt_gen[0] = READ_ONCE(ip->i_dlm_demoter_gen[0]);
+		ip->i_dlm_demoter_punt_ns = 1;	/* as old as a retention gets */
+		WRITE_ONCE(ip->i_dlm_demoter_punt,
+			   READ_ONCE(ip->i_dlm_demoter_punt) | 1);
+	}
+	MXFS_CLEAR_DEMOTER(ip);
+
+	MXFS_SET_DEMOTER(ip);
+	if (!mxfs_is_demoter(ip)) {
+		atomic64_inc(&t->no_slot);
+		return;
+	}
+	MXFS_SET_DEMOTER(ip);
+	mxfs_demoter_test_window();
+	if (!mxfs_is_demoter(ip)) {
+		atomic64_inc(&t->lost_claim);
+		return;
+	}
+	MXFS_CLEAR_DEMOTER(ip);
+	if (!mxfs_is_demoter(ip)) {
+		atomic64_inc(&t->depth_lost);
+		return;
+	}
+	MXFS_CLEAR_DEMOTER(ip);
+	atomic64_inc(&t->rounds);
+}
+
+static int
+mxfs_dst_claimant(void *arg)
+{
+	struct mxfs_dst_arg	*a = arg;
+	struct mxfs_dst_ino	*t = a->t;
+	int			which = a->which;
+	unsigned int		base = refcount_read(&current->usage);
+
+	while (!atomic_read(&t->stop)) {
+		mxfs_dst_claimant_round(t);
+		cond_resched();
+	}
+	if (mxfs_is_demoter(t->ip))
+		atomic64_inc(&t->lost_claim);	/* a round left a claim */
+	if (refcount_read(&current->usage) != base)
+		atomic64_inc(&t->ref_drift);
+	complete(&t->done[which]);
+	return 0;
+}
+
+static int
+mxfs_dst_remover(void *arg)
+{
+	struct mxfs_dst_ino	*t = ((struct mxfs_dst_arg *)arg)->t;
+
+	while (!atomic_read(&t->stop)) {
+		mxfs_demoter_punt_reclaim_check(t->ip, 99);
+		mxfs_demoter_reap_dead(t->ip);
+		cond_resched();
+	}
+	complete(&t->done[2]);
+	return 0;
+}
+
+static int
+mxfs_dst_spawner(void *arg)
+{
+	struct mxfs_dst_ino	*t = ((struct mxfs_dst_arg *)arg)->t;
+
+	while (!atomic_read(&t->stop)) {
+		if (!IS_ERR(kthread_run(mxfs_dst_child, t->ip, "mxfs_dst_child")))
+			atomic64_inc(&t->children);
+		msleep(1);
+	}
+	complete(&t->done[3]);
+	return 0;
+}
+
+static int
+mxfs_demoter_slot_selftest_set(const char *val, const struct kernel_param *kp)
+{
+	struct mxfs_dst_ino	*t;
+	struct mxfs_dst_arg	args[2][4];
+	struct task_struct	*k;
+	int			(*fn[4])(void *) = { mxfs_dst_claimant,
+						     mxfs_dst_claimant,
+						     mxfs_dst_remover,
+						     mxfs_dst_spawner };
+	s64			gen0 = atomic64_read(&mxfs_dem_punt_gen_reject);
+	s64			rec0 = atomic64_read(&mxfs_dem_punt_reclaim_n);
+	s64			reap0 = atomic64_read(&mxfs_dem_dead_reap_n);
+	s64			dlost0 = atomic64_read(&mxfs_dem_drop_lost);
+	s64			rounds = 0, lost = 0, depth = 0, drift = 0;
+	s64			kids = 0, noslot = 0, left = 0;
+	unsigned int		secs;
+	int			i, j, rc;
+
+	rc = kstrtouint(val, 0, &secs);
+	if (rc)
+		return rc;
+	if (secs == 0 || secs > 600)
+		return -EINVAL;
+	t = kcalloc(2, sizeof(*t), GFP_KERNEL);
+	if (!t)
+		return -ENOMEM;
+	rc = -ENOMEM;
+	for (i = 0; i < 2; i++) {
+		t[i].ip = kzalloc(sizeof(struct xfs_inode), GFP_KERNEL);
+		if (!t[i].ip)
+			goto out_free;
+		init_rwsem(&t[i].ip->i_lock);
+		spin_lock_init(&t[i].ip->i_dlm_lock);
+		t[i].ip->i_ino = i + 1;
+		for (j = 0; j < 4; j++)
+			init_completion(&t[i].done[j]);
+	}
+	for (i = 0; i < 2; i++) {
+		for (j = 0; j < 4; j++) {
+			args[i][j].t = &t[i];
+			args[i][j].which = j;
+			k = kthread_run(fn[j], &args[i][j], "mxfs_dst_%d_%d",
+					i, j);
+			if (IS_ERR(k))
+				complete(&t[i].done[j]);
+		}
+	}
+	msleep(secs * 1000);
+	for (i = 0; i < 2; i++)
+		atomic_set(&t[i].stop, 1);
+	for (i = 0; i < 2; i++)
+		for (j = 0; j < 4; j++)
+			wait_for_completion(&t[i].done[j]);
+	msleep(50);		/* the last children exit */
+	for (i = 0; i < 2; i++) {
+		struct xfs_inode *ip = t[i].ip;
+		struct task_struct *d1, *d2;
+		int spin;
+
+		for (spin = 0; spin < 200 &&
+		     (READ_ONCE(ip->i_dlm_demoter) ||
+		      READ_ONCE(ip->i_dlm_demoter2)); spin++) {
+			mxfs_demoter_reap_dead(ip);
+			msleep(5);
+		}
+		d1 = xchg(&ip->i_dlm_demoter, NULL);
+		d2 = xchg(&ip->i_dlm_demoter2, NULL);
+		if (d1) {
+			left++;
+			put_task_struct(d1);
+		}
+		if (d2) {
+			left++;
+			put_task_struct(d2);
+		}
+		rounds += atomic64_read(&t[i].rounds);
+		lost += atomic64_read(&t[i].lost_claim);
+		depth += atomic64_read(&t[i].depth_lost);
+		drift += atomic64_read(&t[i].ref_drift);
+		kids += atomic64_read(&t[i].children);
+		noslot += atomic64_read(&t[i].no_slot);
+	}
+	pr_err("mxfs: P-DEMOTER-SLOT-SELFTEST secs=%u window_us=%d rounds=%lld lost_claim=%lld depth_lost=%lld ref_drift=%lld slot_left=%lld no_slot=%lld children=%lld gen_reject=%lld punt_reclaim=%lld dead_reap=%lld drop_lost=%lld verdict=%s\n",
+	       secs, READ_ONCE(mxfs_demoter_test_window_us), rounds, lost,
+	       depth, drift, left, noslot, kids,
+	       atomic64_read(&mxfs_dem_punt_gen_reject) - gen0,
+	       atomic64_read(&mxfs_dem_punt_reclaim_n) - rec0,
+	       atomic64_read(&mxfs_dem_dead_reap_n) - reap0,
+	       atomic64_read(&mxfs_dem_drop_lost) - dlost0,
+	       (lost || depth || drift || left || !rounds) ? "FAIL" : "PASS");
+	rc = 0;
+out_free:
+	for (i = 0; i < 2; i++)
+		kfree(t[i].ip);
+	kfree(t);
+	return rc;
+}
+
+static const struct kernel_param_ops mxfs_demoter_slot_selftest_ops = {
+	.set = mxfs_demoter_slot_selftest_set,
+};
+module_param_cb(demoter_slot_selftest, &mxfs_demoter_slot_selftest_ops,
+		NULL, 0200);
+MODULE_PARM_DESC(demoter_slot_selftest,
+	"TEST ONLY: write N to race the demoter claim slots for N seconds on detached inodes and print the verdict");
 static struct mxfs_dlmtr_ent mxfs_dlmtr[MXFS_DLMTR_N];
 static atomic_t mxfs_dlmtr_idx = ATOMIC_INIT(0);
 atomic64_t mxfs_auth_backstop_n = ATOMIC64_INIT(0);

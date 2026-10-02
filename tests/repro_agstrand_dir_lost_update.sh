@@ -32,7 +32,7 @@ GROUP=${2:?group}
 LAPS=${3:?laps}
 OUT="$REPO/tests/evidence/repro_agstrand_$(date -u +%Y%m%dT%H%M%SZ)-$GROUP"
 mkdir -p "$OUT"
-IMG=$("$REPO/scripts/rig_groups.sh" image "$GROUP") || exit 2
+NODES=$("$REPO/tools/mxfs_lab.sh" group "$GROUP") || exit 2
 echo "repro: $CONFIG on $GROUP, $LAPS laps, evidence $OUT"
 
 verdict_of() {  # <since iso> -> the audit's own verdict from chk_clean's cell, if written since
@@ -65,8 +65,13 @@ for lap in $(seq 1 "$LAPS"); do
     case "$v" in
         CLEAN) ;;
         CORRUPT)
-            snap="${IMG%.img}.repro-corrupt-lap$lap-$(date -u +%Y%m%dT%H%M%SZ).img"
-            cp --sparse=always "$IMG" "$snap" && echo "image kept: $snap (sha256 $(sha256sum "$snap" | cut -c1-16))"
+            # the group's pool LUN: the next run on it formats it
+            lun=$("$REPO/tools/lun_pool.sh" lookup --nodes "$(tr ' ' ',' <<<"$NODES")" | sed -n 's/.* id=\([0-9]*\) .*/\1/p')
+            if snap=$([ -n "$lun" ] && "$REPO/tools/lun_pool.sh" snapshot "$lun" "$GROUP-repro-corrupt-lap$lap"); then
+                echo "image kept: $snap (sha256 $(sha256sum "$snap" | cut -c1-16))"
+            else
+                echo "image NOT kept: no pool LUN bound to [$NODES]"
+            fi
             exit 1 ;;
         *) echo "lap $lap produced no audit verdict — see $OUT/lap$lap.log"; exit 2 ;;
     esac

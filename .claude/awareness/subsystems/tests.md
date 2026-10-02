@@ -1986,8 +1986,9 @@ start and length are on the console.
 **Verification sets replace pairs.** A release for N nodes is verified on N
 nodes of every platform, never fewer. Each platform has its own lab file
 (`~/.config/mxfslab/lab.<platform>`, so each set has a LUN of its own;
-`scripts/scst_platform_targets.sh setup` builds the SCST targets on clyde and
-removes initiators that left a set) carrying `nodes <platform>=<n1>,<n2>,...`;
+`tests/full_verify.sh` allocates each set a LUN from the pool,
+`tools/lun_pool.sh`, and writes the platform's lab file from that allocation)
+carrying `nodes <platform>=<n1>,<n2>,...`;
 `tools/mxfs_lab.sh nodes <platform>` prints the set, `pair` its first two,
 `addr <node>` an address. The sets: ubuntu2404 = test5..test8, pve9 =
 pve9-1..4, rhel9 = alma9-1..4, debian13 = debian13-1..4 (the -3/-4 nodes are
@@ -2261,23 +2262,66 @@ follows, `-dl` for its source line).
 
 `run.sh <configuration> --group <name>` runs one board on a rig group, which
 is a disjoint slice of test1..32 named by a `group` line in the lab file.
-Each group has an SCST LUN of its own, built by `scripts/rig_groups.sh setup`
-the same way as the platform targets: its LUN is visible only to the group's
-initiators, and there is no default LUN.  Several group runs share the rig;
-see `tests/lib/runlock.sh` for which locks each kind of run takes.
+The groups are g2/g4/g8 (test1-2, test3-6, test7-14) and g2b/g4b/g8b
+(test15-16, test17-20, test21-28); `tests/full_verify.sh` runs the release
+matrix's suites in parallel on g<N> and g<N>b, and `scripts/lab_power.sh`
+powers a group as `group:<name>`.  A group run borrows its LUN from the pool
+(next section) once it holds its node locks; the LUN is visible only to the
+group's initiators.  Several group runs share the rig; see
+`tests/lib/runlock.sh` for which locks each kind of run takes.
 
 - **Per-group state.** Each group has its own `.cluster_marker.<g>.json` and
   `.last_run.<g>.json`, and `MXFS_MARKER` names the marker to every tool and
-  node script.  The run id is `<stamp>-<g>`.  `MXFS_LUN_WWID` and
-  `MXFS_HOST_IMAGE_PATH` are exported, because `data/rigs.json` declares only
-  the `:shared` LUN for the `scst-fio` tag.
+  node script.  The run id is `<stamp>-<g>`.
 - **Only whole-rig runs clear other runs' state.** A group run finalizes only
   its own configuration's column, and sweeps the broker only for runs whose
   configuration lock is free.
 - **Capacity.** The host fits 14 rig VMs under load (4 GiB each on 94 GiB), so
-  g2/g4/g8 run one DLM class's release boards per wave.
-- **Only the `direct` attachment runs on a group.** A multipath group needs a
-  dual-portal group target and a guest multipath map, and neither is built.
+  the groups run one DLM class's release boards per wave.
+- **Only the `direct` attachment runs on a group.** The pool exports each LUN
+  on one portal, and a multipath group would also need a guest multipath map.
+
+## The test LUN pool — `tools/lun_pool.sh`
+
+Every test LUN on clyde is a pool LUN; the script's header is the reference.
+A run needs A LUN, not ITS LUN: per-configuration LUNs kept forever were sparse,
+sized for the largest geometry ever graded, and grew into whatever a test wrote
+on the filesystem that also holds every guest image and the host journal.
+
+- **The LUNs.** `<paths pool>/lunNN.img` (`~/disks/pool/`), fixed size,
+  allocated in full by `fallocate` so they cannot grow.  Each is SCST
+  `vdisk_fileio` device `mxfspoolNN`, target `iqn.2026-05.local.mxfs:pool-NN`
+  on portal 192.168.120.1.  No default LUN: LUN 0 lives only in ini_group
+  `alloc`, which holds just the allocated nodes' initiators.
+- **Allocation.** `alloc [--owner pid] [--what text] [--size min] <node>...`
+  binds the LUN to the nodes (each logged out of every other target, logged in
+  to this one alone, WWID checked on every node).  It lasts while the owner pid
+  lives.  Afterwards it is KEPT bound, so the next run on exactly that node set
+  adopts it and a filtered rerun finds its cluster mounted; a kept allocation
+  is released when a new allocation names any of its nodes, or oldest first
+  when no LUN is free.  `lookup --owner <pid> | --nodes <a,b>`, `free`,
+  `status`.  Nothing in the pool formats: the holder does.
+- **run.sh.** Every `direct` run and every `--group` run allocates once it
+  holds its node locks, with owner = that run.sh's pid; a nested run.sh finds
+  the ancestor's LUN by `lookup`.  It exports `MXFS_LUN_WWID`,
+  `MXFS_HOST_IMAGE_PATH`, `MXFS_POOL_LUN`.  `data/rigs.json` `scst-fio` carries
+  `"pool": true` and no `lun_wwid`/`host_image`; `tests/lib/rig.sh` resolves
+  them from the run's env or `tools/lun_pool.sh lookup --nodes $MXFS_NODE_LIST`.
+- **Size class and log slices go together.** mkfs puts the whole log in one AG
+  and caps AG count at what fits.  Measured: 20 GiB gives 9 AGs at 32 slices,
+  19 at 16, 20 at 8/4; at 32 slices 64 GiB → 31, 80 GiB → 39, 144 GiB → 71.
+  So up to 8 nodes: 20 GiB, 2N slices; up to 16: 80 GiB, 32 slices; beyond:
+  144 GiB, 32 slices.  A larger class is added with
+  `tools/lun_pool.sh create 1 80G` when a configuration needs it.
+- **Snapshots.** The next holder formats the LUN, so `snapshot <id> <label>`
+  (sparse copy to `~/disks/snapshots/`) must run before a corrupt platter is
+  released.  `destroy <id>` removes a free LUN.
+- **After a clyde reboot** run `tools/lun_pool.sh up`: SCST objects are
+  runtime-only.
+- **mpath and pass have no LUN.** `scripts/rig.sh mpath|pass` use the `:shared`
+  target over a fixed `paths image=`, which the lab file no longer names.
+- `scripts/clyde_preflight.sh` checks headroom on the pool directory's
+  filesystem.
 
 ### PITFALL — anything run.sh starts that outlives it must close inherited fds
 

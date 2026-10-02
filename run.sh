@@ -32,9 +32,9 @@ cd "$REPO"
 
 CONFIG_ARG="${1:?usage: run.sh <configuration> [--group <name>] [test ...]   e.g. run.sh 8/net/mesh/direct}"
 shift || true
-# --group <name>: run on a rig group (a `group` line in the lab file, wired by
-# scripts/rig_groups.sh) instead of test1..testN: the group's nodes, the
-# group's own LUN, and locks that let other groups run at the same time
+# --group <name>: run on a rig group (a `group` line in the lab file) instead
+# of test1..testN: the group's nodes, a LUN borrowed from the pool for them
+# (tools/lun_pool.sh), and locks that let other groups run at the same time
 # (tests/lib/runlock.sh).  Without it the run owns the whole rig, as before.
 # MXFS_GROUP carries the group into the harnesses a group run starts, and into
 # the run.sh they re-enter to re-prep: a child that saw only the node list
@@ -70,9 +70,10 @@ N="$CFG_NODES"
 BASE_TRANSPORT="$CFG_TRANSPORT"
 if [ -n "$GROUP" ]; then
     [ "$CFG_BASELINE" = 0 ] || { echo "ERROR: 1/xfs is not run on a rig group"; exit 2; }
-    # Only direct is built per group: a multipath group needs the second portal
-    # on its own target, which scripts/rig_groups.sh does not wire.
-    [ "$CFG_ATTACH" = direct ] || { echo "ERROR: --group runs the direct attachment only; $CONFIG is $CFG_ATTACH"; exit 2; }
+    # A group borrows a LUN from the pool (tools/lun_pool.sh), which logs
+    # nodes in through one portal (direct) or both (mpath); the passthrough
+    # attachment wires LUNs into the VM definitions and is not a pool's.
+    case "$CFG_ATTACH" in direct|mpath) ;; *) echo "ERROR: --group runs the direct and mpath attachments only; $CONFIG is $CFG_ATTACH"; exit 2 ;; esac
     GROUP_NODES=$("$REPO/tools/mxfs_lab.sh" group "$GROUP") || exit 2
     [ "$(wc -w <<<"$GROUP_NODES")" -eq "$N" ] || {
         echo "ERROR: group $GROUP is [$GROUP_NODES], $(wc -w <<<"$GROUP_NODES") node(s); $CONFIG needs exactly $N"
@@ -81,8 +82,6 @@ if [ -n "$GROUP" ]; then
     # Exported: host-coordinated harnesses (tests/death/crash_audit.sh) name
     # their nodes from MXFS_NODE_LIST, and default to test1..testN without it.
     export MXFS_NODE_LIST="$(tr ' ' ',' <<<"$GROUP_NODES")" MXFS_GROUP="$GROUP"
-    GROUP_DEV=$("$REPO/scripts/rig_groups.sh" dev "$GROUP") || exit 2
-    GROUP_TGT="iqn.2026-05.local.mxfs:grp-$GROUP"
 fi
 # Does a criterion's applies_to pattern cover this configuration?  Asked once
 # per pattern: `rows` repeats the same few patterns for every row.
@@ -147,12 +146,19 @@ MNT="${MXFS_MOUNT:-/mnt/shared}"
 #   mpath  -> the multipathd-assembled map (2 paths).
 #   pass   -> the XML-wired guest disk (virsh target dev=sda).
 #   1/xfs  -> whatever LUN the live rig presents at sda (baseline only).
-#   --group -> the group's own LUN (scripts/rig_groups.sh dev <group>).
+# The direct attachment, and every --group run, has no fixed LUN: the run
+# borrows one from the pool (tools/lun_pool.sh) once it holds its nodes, and
+# DEV is that LUN's path.  MXFS_DEV still overrides, for a device the
+# operator chose (a bench target, say), and then nothing is borrowed.
 DEV_DEFAULT="$CFG_DEV_DEFAULT"
-[ -n "$GROUP" ] && DEV_DEFAULT="$GROUP_DEV"
 DEV="${MXFS_DEV:-$DEV_DEFAULT}"
+USE_POOL=0
+if [ -z "${MXFS_DEV:-}" ] && [ "$CFG_BASELINE" = 0 ] && { [ -n "$GROUP" ] || [ "$CFG_ATTACH" = direct ] || [ "$CFG_ATTACH" = mpath ]; }; then
+    USE_POOL=1
+    DEV=""
+fi
 # The rig's own iSCSI target, so prep can tell a platform pair on a LUN of its
-# own from a leftover node on this one.
+# own from a leftover node on this one.  A pool run's is its LUN's target.
 RIG_TGT="${MXFS_RIG_TGT:-iqn.2026-05.local.mxfs:shared}"
 # Cells are keyed by configuration with no rig dimension, so running the same
 # configuration against a DIFFERENT rig overwrites the board in place.  Point
@@ -358,6 +364,48 @@ if ! flock -n 9; then
 fi
 echo "$$ $(date -u +%FT%TZ) run.sh $CONFIG ${ONLY[*]:-}" >&9
 export MXFS_RUNLOCK_OWNER=$$
+fi
+
+# Borrow this run's LUN, now that the run holds its nodes.  The allocation
+# lasts while this run.sh lives and stays bound after it (tools/lun_pool.sh),
+# so the next run on the same nodes finds its cluster where it left it.  A
+# run.sh started inside this one is handed the LUN its ancestor holds.
+#
+# The LUN size and the log slice count go together: mkfs puts the whole log in
+# one AG and caps the AG count at what fits, so a 32-slice log on 20 GiB gives
+# 9 AGs while 16 slices give 19 (measured 2026-10-01, with 80 GiB -> 39 and
+# 144 GiB -> 71 AGs at 32 slices).  Each node wants a home AG of its own, and
+# twice that for headroom, so: 2N slices on 20 GiB up to 8 nodes, 32 slices on
+# 80 GiB up to 16, on 144 GiB beyond.  2N slices also leave a spare slot per
+# node, which a test that re-admits a node after a quarantine needs.
+if [ "$USE_POOL" = 1 ]; then
+    if [ "$N" -le 8 ]; then POOL_SIZE=20G; POOL_SLICES=$(( 2 * N ))
+    elif [ "$N" -le 16 ]; then POOL_SIZE=80G; POOL_SLICES=32
+    else POOL_SIZE=144G; POOL_SLICES=32; fi
+    [ "$POOL_SLICES" -ge 2 ] || POOL_SLICES=2
+    : "${MXFS_LOG_SLICES:=$POOL_SLICES}"
+    export MXFS_LOG_SLICES
+    if [ "$MXFS_RUNLOCK_OWNER" != "$$" ]; then
+        POOL_LINE=$("$REPO/tools/lun_pool.sh" lookup --owner "$MXFS_RUNLOCK_OWNER") \
+            || { echo "ERROR: run.sh $MXFS_RUNLOCK_OWNER holds no pool LUN for this nested run to use"; exit 1; }
+    else
+        POOL_PATHS=1; [ "$CFG_ATTACH" = mpath ] && POOL_PATHS=2
+        POOL_LINE=$("$REPO/tools/lun_pool.sh" alloc --owner $$ --size "$POOL_SIZE" --paths "$POOL_PATHS" \
+                    --what "run.sh $CONFIG${GROUP:+ --group $GROUP} run_id=$RUN_ID" "${NODES[@]}") \
+            || { echo "ERROR: no pool LUN for [${NODES[*]}] (tools/lun_pool.sh status)"; exit 1; }
+    fi
+    pool_field() { sed -n "s/.* $1=\([^ ]*\).*/\1/p" <<<"$POOL_LINE"; }
+    DEV=$(pool_field dev)
+    RIG_TGT=$(pool_field target)
+    # Every harness that checks a device's identity (tests/lib/rig.sh) checks
+    # it against these: the WWID the nodes read through the LUN at bind time,
+    # and the host image behind it, accepted only once its fsid matches.
+    MXFS_LUN_WWID=$(pool_field wwid)
+    MXFS_HOST_IMAGE_PATH=$(pool_field img)
+    MXFS_POOL_LUN=$(pool_field id)
+    [ -n "$DEV" ] && [ -n "$MXFS_LUN_WWID" ] || { echo "ERROR: unusable pool allocation: $POOL_LINE"; exit 1; }
+    export MXFS_LUN_WWID MXFS_HOST_IMAGE_PATH MXFS_POOL_LUN
+    echo "--- pool: lun$MXFS_POOL_LUN ($POOL_SIZE class, $MXFS_LOG_SLICES log slices) for [${NODES[*]}] dev=$DEV wwid=$MXFS_LUN_WWID ---"
 fi
 
 # The REMOTE command's exit status must survive.  As a bare pipeline this
@@ -710,13 +758,19 @@ power_cycle_node() {  # <node>  -> 0 once node is reachable and DEV present
             # Keyed on the attachment, not the DLM: both DLMs reach the direct
             # LUN the same way.
             local restore_iscsi=''
-            # A group node logs back into its own group's target and nothing
-            # else: a discovery and bare login would add :shared beside it.
-            [ -n "$GROUP" ] && restore_iscsi="
-                    iscsiadm -m node -T $GROUP_TGT -p 192.168.120.1:3260 >/dev/null 2>&1 || iscsiadm -m node -o new -T $GROUP_TGT -p 192.168.120.1:3260 >/dev/null 2>&1
-                    iscsiadm -m node -T $GROUP_TGT -p 192.168.120.1:3260 --login >/dev/null 2>&1
-                    iscsiadm -m session --rescan >/dev/null 2>&1"
-            [ -z "$GROUP" ] && case "$CFG_ATTACH" in
+            # A pool run's node logs back into its LUN's target and nothing
+            # else: a discovery and bare login would record every pool target.
+            local rp rportals=192.168.120.1
+            [ "$CFG_ATTACH" = mpath ] && rportals="192.168.120.1 192.168.120.2"
+            if [ "$USE_POOL" = 1 ]; then
+                for rp in $rportals; do restore_iscsi="$restore_iscsi
+                    iscsiadm -m node -T $RIG_TGT -p $rp:3260 >/dev/null 2>&1 || iscsiadm -m node -o new -T $RIG_TGT -p $rp:3260 >/dev/null 2>&1
+                    iscsiadm -m node -T $RIG_TGT -p $rp:3260 --login >/dev/null 2>&1"; done
+                restore_iscsi="$restore_iscsi
+                    iscsiadm -m session --rescan >/dev/null 2>&1
+                    multipath >/dev/null 2>&1"
+            fi
+            [ "$USE_POOL" = 0 ] && case "$CFG_ATTACH" in
                 mpath)  restore_iscsi='
                     iscsiadm -m discovery -t st -p 192.168.120.1:3260 >/dev/null 2>&1
                     iscsiadm -m discovery -t st -p 192.168.120.2:3260 >/dev/null 2>&1
@@ -769,7 +823,7 @@ prep_cluster() {
     local v extras=() epids=() dirty=""
     # A platform verification pair (tools/mxfs_lab.sh) can be test VMs too —
     # Ubuntu's is test3/test4 — and it verifies on a LUN of its own
-    # (scripts/scst_platform_targets.sh).  Tearing it down here does not
+    # (borrowed from tools/lun_pool.sh).  Tearing it down here does not
     # protect this LUN, it kills that pair's round: a 2/disk/caw/direct prep unmounted
     # test4 in the middle of a platform mount and power-cycled test3
     # (tests/evidence/unmount_agrelease/20260926T112315_uaw_caw_s6c/prep.log).
@@ -908,6 +962,9 @@ prep_cluster() {
     # can defeat NFS stale-page module images (mixed old/new ko pages after an
     # in-place relink under clock skew — proven frankenstein module on test25).
     local KO_MD5; KO_MD5=$(md5sum "$REPO/mxfs.ko" 2>/dev/null | awk '{print $1}')
+    # the nodes see this host's ~/src as /src, so a checkout beside the main
+    # tree loads its own module: prep_node.sh takes the module from MXFS_REPO
+    local NODE_REPO="/src/$(basename "$REPO")"
 
     # 0.89.16: THE DEPLOYMENT'S TARGET-RETIREMENT CONTRACT IS WITHDRAWN.  A
     # fence kind that certifies from a registration's absence proves only that
@@ -957,14 +1014,14 @@ d=json.load(open(sys.argv[1])); print((d.get(sys.argv[2]) or {}).get("task_retir
     echo "PREP LUN identity: wwid=${LUN_WWID:-none} fsid=$LUN_FSID (every node binds its device to it)"
 
     # 3. Form the cluster on node1 (load module w/ transport + mount).
-    out=$(ssh_node "$NODE1" "MXFS_DEV='$DEV' MXFS_FSID='$LUN_FSID' MXFS_LUN_WWID='$LUN_WWID' MXFS_KO_MD5='$KO_MD5' MXFS_EXTRA_MODARGS='${MXFS_EXTRA_MODARGS:-}' MXFS_RETIRE_CONTRACT='$RETIRE_CONTRACT' bash /src/mxfs/tests/setup/prep_node.sh $BASE_TRANSPORT")
+    out=$(ssh_node "$NODE1" "MXFS_DEV='$DEV' MXFS_FSID='$LUN_FSID' MXFS_LUN_WWID='$LUN_WWID' MXFS_KO_MD5='$KO_MD5' MXFS_REPO='$NODE_REPO' MXFS_EXTRA_MODARGS='${MXFS_EXTRA_MODARGS:-}' MXFS_RETIRE_CONTRACT='$RETIRE_CONTRACT' bash /src/mxfs/tests/setup/prep_node.sh $BASE_TRANSPORT")
     echo "$out" | grep -q NODE_PREP_OK || { echo "PREP FAIL (form $NODE1): $out"; return 1; }
 
     # 4. Join the remaining nodes in parallel.
     pids=()
     local tmpd; tmpd=$(mktemp -d)
     for n in "${NODES[@]:1}"; do
-        ( ssh_node "$n" "MXFS_DEV='$DEV' MXFS_FSID='$LUN_FSID' MXFS_LUN_WWID='$LUN_WWID' MXFS_KO_MD5='$KO_MD5' MXFS_EXTRA_MODARGS='${MXFS_EXTRA_MODARGS:-}' MXFS_RETIRE_CONTRACT='$RETIRE_CONTRACT' bash /src/mxfs/tests/setup/prep_node.sh $BASE_TRANSPORT" > "$tmpd/$n" 2>&1 ) &
+        ( ssh_node "$n" "MXFS_DEV='$DEV' MXFS_FSID='$LUN_FSID' MXFS_LUN_WWID='$LUN_WWID' MXFS_KO_MD5='$KO_MD5' MXFS_REPO='$NODE_REPO' MXFS_EXTRA_MODARGS='${MXFS_EXTRA_MODARGS:-}' MXFS_RETIRE_CONTRACT='$RETIRE_CONTRACT' bash /src/mxfs/tests/setup/prep_node.sh $BASE_TRANSPORT" > "$tmpd/$n" 2>&1 ) &
         pids+=($!)
     done
     for pid in "${pids[@]}"; do wait "$pid"; done
@@ -987,8 +1044,8 @@ d=json.load(open(sys.argv[1])); print((d.get(sys.argv[2]) or {}).get("task_retir
     #    the one currently INSTALLED on the node (which is what catches the
     #    stale-leftover-mount-on-an-old-module case this check exists for).
     local want_srcv ko_vermagic node_krel
-    want_srcv=$(modinfo /src/mxfs/mxfs.ko 2>/dev/null | awk '/^srcversion:/{print $2}')
-    ko_vermagic=$(modinfo /src/mxfs/mxfs.ko 2>/dev/null | awk '/^vermagic:/{print $2}')
+    want_srcv=$(modinfo "$REPO/mxfs.ko" 2>/dev/null | awk '/^srcversion:/{print $2}')
+    ko_vermagic=$(modinfo "$REPO/mxfs.ko" 2>/dev/null | awk '/^vermagic:/{print $2}')
     node_krel=$(ssh_node "$NODE1" "uname -r" 2>/dev/null | tr -d '\r\n ')
     krel_valid "$node_krel" || node_krel=""
     if [ -n "$node_krel" ] && [ "$ko_vermagic" != "$node_krel" ]; then
@@ -1970,6 +2027,67 @@ fi
 # ---------------------------------------------------------------------------
 marker_read
 pc_budget=$(printf '%s\n' "${ROWS[@]}" | awk -F'\t' '$3=="prep_cluster"{print $7; exit}')
+
+# The host lock: rows that grade THROUGHPUT against a yardstick measured on an
+# idle host get the host to themselves.  Side-by-side runs share one NVMe and
+# one CPU pool, and measured 2026-10-01 they distort each other: two 8-node
+# boards' fio_perf in the same 25 s read randW 12,608 and 158,139 IOPS against
+# one 45,322 IOPS yardstick, and with only the fio rows serialized, 2/net and
+# 4/net still read seqW 61% and 45% at hostload 22-24 while the other boards
+# prepped and ran correctness rows.  So every row and every prep holds
+# PERF_LOCK shared, and a throughput row holds it exclusive.  Writer priority
+# comes from a turnstile: a throughput row closes it before waiting, so no new
+# shared holder starts while it waits for the rows in flight to finish.
+# A run.sh started inside a run takes nothing: its ancestor already holds the
+# lock, and a shared request under the ancestor's exclusive hold would wait on
+# itself.
+# Bounds, derived: a throughput row waits for the rows in flight, the longest
+# of which is prep (manifest 300 s) or dir_reuse_coherency (140 s per node on
+# CAW, its own formula below) at the largest rig group; a shared request waits
+# behind every other group's throughput row: their drain plus their budget.
+PERF_ROWS=" fio_perf scaling_curve dlm_scaling rsync_paired "
+PERF_LOCK=/tmp/mxfs_perf.lock
+PERF_TURNSTILE=/tmp/mxfs_perf.turnstile
+perf_budget_max=$(awk -v rows="$PERF_ROWS" '$1 !~ /^#/ && index(rows, " " $2 " ") && $5 > m { m = $5 } END { print m + 0 }' "$REPO/tests/suite/manifest")
+row_budget_max=$(awk '$1 !~ /^#/ && NF >= 5 && $5 > m { m = $5 } END { print m + 0 }' "$REPO/tests/suite/manifest")
+perf_groups=0; perf_gmax=$N
+for g in $("$REPO/tools/mxfs_lab.sh" groups 2>/dev/null); do
+    perf_groups=$((perf_groups + 1))
+    gn=$("$REPO/tools/mxfs_lab.sh" group "$g" 2>/dev/null | wc -w)
+    [ "$gn" -gt "$perf_gmax" ] && perf_gmax=$gn
+done
+[ "$perf_groups" -ge 2 ] || perf_groups=2
+PERF_DRAIN_S=$(( 140 * perf_gmax > row_budget_max ? 140 * perf_gmax : row_budget_max ))
+PERF_WAIT_S=$(( (perf_groups - 1) * (PERF_DRAIN_S + perf_budget_max) ))
+HOST_FD=""; HOST_TFD=""
+host_lock_skip() { [ "${MXFS_RUNLOCK_OWNER:-$$}" != "$$" ]; }
+host_share() {  # hold the host lock shared; 1 if it was not obtained in its bound
+    local tfd
+    host_lock_skip && return 0
+    exec {tfd}>>"$PERF_TURNSTILE"
+    if ! flock -w "$PERF_WAIT_S" "$tfd"; then exec {tfd}>&-; return 1; fi
+    exec {HOST_FD}>>"$PERF_LOCK"
+    # no exclusive holder can be inside: it holds the turnstile until it is done
+    if ! flock -w "$PERF_WAIT_S" -s "$HOST_FD"; then exec {HOST_FD}>&- {tfd}>&-; HOST_FD=""; return 1; fi
+    exec {tfd}>&-
+    return 0
+}
+host_exclusive() {  # hold the turnstile and the host lock exclusive
+    host_lock_skip && return 0
+    exec {HOST_TFD}>>"$PERF_TURNSTILE"
+    if ! flock -w "$PERF_WAIT_S" "$HOST_TFD"; then exec {HOST_TFD}>&-; HOST_TFD=""; return 1; fi
+    exec {HOST_FD}>>"$PERF_LOCK"
+    if ! flock -w "$PERF_DRAIN_S" -x "$HOST_FD"; then
+        echo "    host lock holders still in flight after ${PERF_DRAIN_S}s: $(fuser "$PERF_LOCK" 2>/dev/null)"
+        exec {HOST_FD}>&- {HOST_TFD}>&-; HOST_FD=""; HOST_TFD=""; return 1
+    fi
+    return 0
+}
+host_release() {
+    [ -n "$HOST_FD" ] && exec {HOST_FD}>&-
+    [ -n "$HOST_TFD" ] && exec {HOST_TFD}>&-
+    HOST_FD=""; HOST_TFD=""
+}
 [ -n "$pc_budget" ] || pc_budget=300
 
 # `./run.sh N dlm prep_cluster` — explicit forced prep: always (re)forms
@@ -1977,7 +2095,9 @@ pc_budget=$(printf '%s\n' "${ROWS[@]}" | awk -F'\t' '$3=="prep_cluster"{print $7
 # running any other tests.
 if [ "${#ONLY[@]}" -eq 1 ] && [ "${ONLY[0]}" = "prep_cluster" ]; then
     t0=$(date +%s)
+    host_share || { echo "ERROR: the host lock ($PERF_LOCK) was not obtained in ${PERF_WAIT_S}s"; exit 1; }
     if [ "$CFG_BASELINE" = 1 ]; then prep_cluster_xfs; else prep_cluster; fi; rc=$?
+    host_release
     t1=$(date +%s); elapsed=$(( t1 - t0 ))
     if [ "$rc" -eq 0 ]; then
         marker_write "$N" "$CONFIG" "$WANT_SRCVER"
@@ -2009,7 +2129,11 @@ else
     # Unfiltered (no test names given): always fully (re)validate this
     # condition -- the deliberate "make it so" invocation.
     t0=$(date +%s)
+    host_share || { echo "ERROR: the host lock ($PERF_LOCK) was not obtained in ${PERF_WAIT_S}s"; exit 1; }
     if [ "$CFG_BASELINE" = 1 ]; then prep_cluster_xfs; else prep_cluster; fi
+    pc_rc=$?
+    host_release
+    (exit $pc_rc)
     rc=$?
     t1=$(date +%s); elapsed=$(( t1 - t0 ))
     if [ "$rc" -ne 0 ]; then
@@ -2135,26 +2259,13 @@ coord_broker_hygiene() {
 }
 coord_broker_hygiene
 
-# A group's LUN is not the rig LUN data/rigs.json declares for its tag, so
-# every harness that checks a device's identity (tests/lib/rig.sh) would
-# refuse it.  Declare the group's own: the WWID its first node reads through
-# the group target's path, and the host image behind that target, which the
-# library still accepts only after its fsid matches the LUN's.
-if [ -n "$GROUP" ]; then
-    MXFS_LUN_WWID=$(ssh_node "$NODE1" "d=\$(readlink -f '$DEV') && cat /sys/block/\$(basename \$d)/device/wwid" 2>/dev/null \
-                    | grep -a -E '^(eui|naa|t10)\.' | tail -1 | tr -d ' ')
-    [ -n "$MXFS_LUN_WWID" ] || { echo "ERROR: group $GROUP: $NODE1 reads no WWID through $DEV — run scripts/rig_groups.sh setup $GROUP"; exit 1; }
-    MXFS_HOST_IMAGE_PATH=$("$REPO/scripts/rig_groups.sh" image "$GROUP")
-    export MXFS_LUN_WWID MXFS_HOST_IMAGE_PATH
-    echo "--- group $GROUP: LUN wwid=$MXFS_LUN_WWID host image=$MXFS_HOST_IMAGE_PATH ---"
-fi
-
 fail_stale_pending
 reset_pending
 trap finalize_pending EXIT
 trap 'exit 143' TERM INT
 
 echo "=== run @ ${CONFIG} (run_id=$RUN_ID) ==="
+
 
 for row in "${ROWS[@]}"; do
     IFS=$'\t' read -r cat tr name coord minn maxn budget scale <<<"$row"
@@ -2196,6 +2307,18 @@ for row in "${ROWS[@]}"; do
         printf "  BLOCK %s (cluster unhealthy — see the destructive test above)\n" "$name"
         continue
     fi
+    case "$PERF_ROWS" in
+        *" $name "*) hl=host_exclusive; hlw="the host to itself" ;;
+        *)           hl=host_share;     hlw="the shared host lock" ;;
+    esac
+    pw0=$SECONDS
+    if ! $hl; then
+        record "$name" FAIL "host_lock_wait" \
+               "not run: $hlw ($PERF_LOCK) was not obtained within its bound; a throughput row graded beside other work measures the host, not the filesystem"
+        printf "  FAIL  %s (%s not obtained)\n" "$name" "$hlw"
+        continue
+    fi
+    [ $(( SECONDS - pw0 )) -gt 0 ] && echo "    (waited $(( SECONDS - pw0 ))s for $hlw)"
     mark_executing "$name"
     case "$coord" in
         none) run_none "$name" "$cat" "$budget" ;;
@@ -2218,6 +2341,7 @@ for row in "${ROWS[@]}"; do
                 BLOCK_REST=1
             fi ;;
     esac
+    host_release
     ran=$((ran+1))
     # sess2(ccloop 26c41354): optional inter-test SETTLE — instrumented diagnostic for
     # the 16-node cumulative-degradation cascade (individual tests PASS, but the

@@ -3,9 +3,13 @@
 # board_4node_chain.sh — the 4-node release boards, each preceded by the
 # native-XFS fio yardstick this rig needs for its fio_perf_vs_xfs row.
 #
-# Usage: tests/board_4node_chain.sh <label> <configuration>[:<test>[,<test>...]] [configuration[:test] ...]
+# Usage: tests/board_4node_chain.sh <label> <configuration>[:<test>[,<test>...]][@<group>] [...]
 #   configuration is <nodes>/<class>/<method>/<attach>, e.g. 4/net/mesh/direct
-#   (docs/attachment-methods.md).  An optional :<test> runs
+#   (docs/attachment-methods.md).  An optional @<group> runs that board on a
+#   rig group (./run.sh <configuration> --group <group>, the lab file's `group`
+#   line) instead of test1..testN; when every argument names a group the boards
+#   run SIDE BY SIDE, each on its own nodes and its own pool LUN
+#   (tools/lun_pool.sh), and the chain waits for all of them.  An optional :<test> runs
 #   that one row (./run.sh <configuration> <test>) instead of the whole board, for a
 #   row an earlier board left unmeasured, or a comma-separated list of rows
 #   for one lap that re-forms the cluster once and runs them together — the
@@ -15,11 +19,14 @@
 #   boards are the same chain given 2/... configurations.
 #   For each argument, in order:
 #   1. if /src/mxfs/.xfs_fio_baseline.<class-method-attach>.<rigtag>.json is missing, capture
-#      it: a single-node native-XFS prep on the rig LUN (./run.sh 1/xfs
-#      prep_cluster) and ./run.sh 1/xfs fio_perf writing that file.  Without
-#      it the board's fio_perf_vs_xfs row SKIPs ("no-baseline-for-<rigtag>"),
-#      and a SKIP is not a pass.  The rig tag is asked of the LUN itself
-#      (tools/mxfs_rig_tag.sh), never read from a device name.
+#      it: a single-node native-XFS prep on a pool LUN borrowed for test1
+#      (./run.sh 1/xfs prep_cluster) and ./run.sh 1/xfs fio_perf writing that
+#      file.  Without it the board's fio_perf_vs_xfs row SKIPs
+#      ("no-baseline-for-<rigtag>"), and a SKIP is not a pass.  The rig tag is
+#      asked of the LUN itself (tools/mxfs_rig_tag.sh), never read from a
+#      device name.  The capture holds the whole rig, so side-by-side boards
+#      capture every missing yardstick first, one after another, and only
+#      then start.
 #   2. the whole board: ./run.sh <configuration> (or the rows named).
 #   Every run.sh enforces its own per-row budget from tests/suite/manifest, so
 #   nothing here wraps one in a timeout.  For the reader: the yardstick is
@@ -36,76 +43,116 @@
 # it, and a board killed mid-row finalizes that row ABORTED.
 #
 set -u
-LABEL="${1:?usage: board_4node_chain.sh <label> <configuration>[:<test>[,<test>...]] [configuration[:test] ...]}"
+USAGE="usage: board_4node_chain.sh <label> <configuration>[:<test>[,<test>...]][@<group>] [...]"
+LABEL="${1:?$USAGE}"
 shift
-[ $# -ge 1 ] || { echo "usage: board_4node_chain.sh <label> <configuration>[:<test>[,<test>...]] [configuration[:test] ...]" >&2; exit 2; }
+[ $# -ge 1 ] || { echo "$USAGE" >&2; exit 2; }
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$HERE" || exit 1
 EV="$HERE/tests/evidence"
 mkdir -p "$EV"
-# the rig LUN as every node names it (run.sh's direct-attach default); the
-# 1/xfs baseline defaults to /dev/sda, which is not guaranteed to be it
-BP=/dev/disk/by-path/ip-192.168.120.1:3260-iscsi-iqn.2026-05.local.mxfs:shared-lun-0
 # the tree as the nodes see it over NFS: the yardstick file is written by the
 # node running fio_perf and read by the node running fio_perf_vs_xfs
 NODETREE=/src/mxfs
-rc_all=0
-for arg in "$@"; do
-    cfg=${arg%%:*}
-    row=""
-    [ "$arg" = "$cfg" ] || row=${arg#*:}
-    cfg=$(python3 tools/configuration.py parse "$cfg") || exit 2
-    dlm=$(python3 tools/configuration.py get "$cfg" shape)   # file-name form: net-mesh-direct
-    tag=$(MXFS_RIG_TAG_FRESH=1 MXFS_DEV=$BP timeout 60 tools/mxfs_rig_tag.sh "$BP" 2>/dev/null || true)
-    if [ -z "$tag" ]; then
-        echo "$(date -u +%FT%TZ) $dlm: the rig tag could not be resolved from $BP; no yardstick, no board"
-        rc_all=1
-        continue
+
+# The rig the boards run on is the pool's (data/rigs.json "pool": true): every
+# LUN a board borrows is one of its LUNs, so they share one rig tag.
+TAG=$(python3 -c 'import json,sys
+d=json.load(open(sys.argv[1])); print(" ".join(k for k,v in d.items() if isinstance(v,dict) and v.get("pool")))' data/rigs.json)
+[ "$(wc -w <<<"$TAG")" = 1 ] || { echo "data/rigs.json must name exactly one pool rig (got '$TAG')" >&2; exit 2; }
+
+# yardstick <shape>: the native-XFS yardstick for that shape, captured on a
+# pool LUN borrowed for test1 when missing.  0 iff it is present afterwards.
+yardstick() {
+    local dlm=$1 base L line dev
+    base="$NODETREE/.xfs_fio_baseline.$dlm.$TAG.json"
+    if [ -s "$base" ]; then
+        echo "$(date -u +%FT%TZ) $dlm: yardstick present: $base"
+        return 0
     fi
-    base="$NODETREE/.xfs_fio_baseline.$dlm.$tag.json"
-    if [ ! -s "$base" ]; then
-        L="$EV/xfs_baseline_${dlm}_$LABEL.log"
-        echo "$(date -u +%FT%TZ) $dlm: capturing the native-XFS yardstick for rig $tag -> $base (log $L)"
-        {
-            echo "=== $(date -u +%FT%TZ) ./run.sh 1/xfs prep_cluster (MXFS_DEV=$BP) ==="
-            MXFS_DEV=$BP ./run.sh 1/xfs prep_cluster
+    L="$EV/xfs_baseline_${dlm}_$LABEL.log"
+    echo "$(date -u +%FT%TZ) $dlm: capturing the native-XFS yardstick for rig $TAG -> $base (log $L)"
+    {
+        line=$(tools/lun_pool.sh alloc --owner $$ --what "board_4node_chain $LABEL yardstick" --size 20G test1) \
+            || { echo "no pool LUN for test1"; }
+        dev=$(sed -n 's/.* dev=\([^ ]*\).*/\1/p' <<<"$line")
+        if [ -n "$dev" ]; then
+            echo "=== $(date -u +%FT%TZ) ./run.sh 1/xfs prep_cluster (MXFS_DEV=$dev) ==="
+            MXFS_DEV=$dev ./run.sh 1/xfs prep_cluster
             echo "=== rc=$? prep_cluster 1 xfs ($(date -u +%FT%TZ)) ==="
             echo "=== ./run.sh 1/xfs fio_perf (XFS_BASELINE=$base) ==="
-            MXFS_DEV=$BP MXFS_TEST_ENV="XFS_BASELINE=$base" ./run.sh 1/xfs fio_perf
+            MXFS_DEV=$dev MXFS_TEST_ENV="XFS_BASELINE=$base" ./run.sh 1/xfs fio_perf
             echo "=== rc=$? fio_perf 1 xfs ($(date -u +%FT%TZ)) ==="
             ls -la "$base" 2>&1
             cat "$base" 2>/dev/null; echo
-        } > "$L" 2>&1
-        if [ -s "$base" ]; then
-            # the node writes it as root over NFS, so this user may not read it
-            echo "$(date -u +%FT%TZ) $dlm: yardstick captured: $( { sudo -n cat "$base" 2>/dev/null || cat "$base" 2>/dev/null || echo "(present, not readable as $(id -un))"; } | tr -d '\n')"
-        else
-            echo "$(date -u +%FT%TZ) $dlm: yardstick NOT captured (see $L); the board's fio_perf_vs_xfs row will SKIP"
-            rc_all=1
         fi
-    else
-        echo "$(date -u +%FT%TZ) $dlm: yardstick present: $base"
+    } > "$L" 2>&1
+    if [ -s "$base" ]; then
+        # the node writes it as root over NFS, so this user may not read it
+        echo "$(date -u +%FT%TZ) $dlm: yardstick captured: $( { sudo -n cat "$base" 2>/dev/null || cat "$base" 2>/dev/null || echo "(present, not readable as $(id -un))"; } | tr -d '\n')"
+        return 0
     fi
+    echo "$(date -u +%FT%TZ) $dlm: yardstick NOT captured (see $L); the board's fio_perf_vs_xfs row will SKIP"
+    return 1
+}
+
+# board <cfg> <rows> <group>: one board (or the rows named), its log, its
+# read-back.  0 iff the read-back says the bar is met.
+board() {
+    local cfg=$1 row=$2 group=$3 rows L g
     rows="${row//,/ }"
-    L="$EV/board_${cfg//\//-}${row:+_${row//,/_}}_$LABEL.log"
-    echo "$(date -u +%FT%TZ) $cfg: ./run.sh $cfg $rows (log $L)"
+    g=${group:+--group $group}
+    L="$EV/board_${cfg//\//-}${row:+_${row//,/_}}${group:+_$group}_$LABEL.log"
+    echo "$(date -u +%FT%TZ) $cfg: ./run.sh $cfg $g $rows (log $L)"
     {
         if [ -n "$row" ]; then
             # a filtered run refuses a stale marker instead of re-prepping
             # (measured 2026-09-28: 'cluster is prepped for 4/net/mesh/direct ... Run
             # ./run.sh 4/net/mesh/direct prep_cluster first'), so the row is preceded by
             # the prep row, which always re-forms the cluster
-            echo "=== $(date -u +%FT%TZ) ./run.sh $cfg prep_cluster ==="
-            MXFS_FORCE_PREP=1 ./run.sh "$cfg" prep_cluster
-            echo "=== rc=$? run.sh $cfg prep_cluster ($(date -u +%FT%TZ)) ==="
+            echo "=== $(date -u +%FT%TZ) ./run.sh $cfg $g prep_cluster ==="
+            # shellcheck disable=SC2086  # an empty $g must vanish
+            MXFS_FORCE_PREP=1 ./run.sh "$cfg" $g prep_cluster
+            echo "=== rc=$? run.sh $cfg $g prep_cluster ($(date -u +%FT%TZ)) ==="
         fi
-        echo "=== $(date -u +%FT%TZ) ./run.sh $cfg $rows ==="
-        # shellcheck disable=SC2086  # an empty $rows must vanish, not be an argument
-        ./run.sh "$cfg" $rows
-        echo "=== rc=$? run.sh $cfg $rows ($(date -u +%FT%TZ)) ==="
+        echo "=== $(date -u +%FT%TZ) ./run.sh $cfg $g $rows ==="
+        # shellcheck disable=SC2086  # an empty $g or $rows must vanish, not be an argument
+        ./run.sh "$cfg" $g $rows
+        echo "=== rc=$? run.sh $cfg $g $rows ($(date -u +%FT%TZ)) ==="
         python3 tools/criteria.py "$cfg"
     } > "$L" 2>&1
     grep -E '^(Total:|VERDICT:)' "$L" | tail -2 | sed "s|^|$(date -u +%FT%TZ) $cfg: |"
-    grep -q 'VERDICT: every criterion green' "$L" || rc_all=1
+    grep -q 'VERDICT: every criterion green' "$L"
+}
+
+CFGS=(); ROWS=(); BGROUPS=(); grouped=0
+for arg in "$@"; do
+    g=""
+    case "$arg" in *@*) g=${arg##*@}; arg=${arg%@*}; grouped=$((grouped + 1)) ;; esac
+    cfg=${arg%%:*}
+    row=""
+    [ "$arg" = "$cfg" ] || row=${arg#*:}
+    cfg=$(python3 tools/configuration.py parse "$cfg") || exit 2
+    CFGS+=("$cfg"); ROWS+=("$row"); BGROUPS+=("$g")
 done
+[ "$grouped" = 0 ] || [ "$grouped" = "${#CFGS[@]}" ] \
+    || { echo "either every argument names a group (side by side) or none does (one after another)" >&2; exit 2; }
+
+rc_all=0
+if [ "$grouped" = 0 ]; then
+    for i in "${!CFGS[@]}"; do
+        yardstick "$(python3 tools/configuration.py get "${CFGS[$i]}" shape)" || rc_all=1
+        board "${CFGS[$i]}" "${ROWS[$i]}" "" || rc_all=1
+    done
+    exit $rc_all
+fi
+for dlm in $(for c in "${CFGS[@]}"; do python3 tools/configuration.py get "$c" shape; done | sort -u); do
+    yardstick "$dlm" || rc_all=1
+done
+pids=()
+for i in "${!CFGS[@]}"; do
+    board "${CFGS[$i]}" "${ROWS[$i]}" "${BGROUPS[$i]}" &
+    pids+=($!)
+done
+for p in "${pids[@]}"; do wait "$p" || rc_all=1; done
 exit $rc_all

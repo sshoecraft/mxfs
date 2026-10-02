@@ -167,41 +167,9 @@ static inline uint32_t sbtree_ptr_off(uint32_t blocksize, uint32_t keylen)
 /* Max reasonable btree depth */
 #define MAX_BTREE_DEPTH  16
 
-/* ─── Software CRC32C (Castagnoli polynomial 0x82F63B78) ─── */
+/* ─── CRC32C (Castagnoli polynomial 0x82F63B78), hardware when present ─── */
 
-static uint32_t crc32c_table[256];
-static bool crc32c_initialized;
-
-static void crc32c_init(void)
-{
-    uint32_t i, j, crc;
-
-    for (i = 0; i < 256; i++) {
-        crc = i;
-        for (j = 0; j < 8; j++) {
-            if (crc & 1)
-                crc = (crc >> 1) ^ 0x82F63B78;
-            else
-                crc >>= 1;
-        }
-        crc32c_table[i] = crc;
-    }
-    crc32c_initialized = true;
-}
-
-static uint32_t crc32c(uint32_t crc, const void *data, size_t len)
-{
-    const uint8_t *p = data;
-    size_t i;
-
-    if (!crc32c_initialized)
-        crc32c_init();
-
-    for (i = 0; i < len; i++)
-        crc = (crc >> 8) ^ crc32c_table[(crc ^ p[i]) & 0xFF];
-
-    return crc;
-}
+#include "crc32c.h"
 
 /* ─── Big-endian read helpers (XFS on-disk is big-endian) ─── */
 

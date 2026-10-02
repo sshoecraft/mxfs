@@ -1405,6 +1405,57 @@
       "impact": "noblock",
       "impact_why": "Measured once on 8/net/mesh/direct (wave 1, 0.90.37 build 380DA50320094248C0E34A4): peers' acquires of one directory waited 10.2 s (P34-ACQ-SLOW dur_ms=10230) and their BASTs were swallowed while a stale claim held the inode in DEMOTING; the stale-requeue path then released it. No data was lost through this alone once the demoter bypass stopped admitting a claim with no drain behind it (demoter_bypass_grant_gate, 0.90.37); without that gate it was the precondition of D-8TCP-RM-OF-A-CHILD. A bounded stall, not a hang or a crash.",
       "updated": "2026-09-30"
+    },
+    {
+      "id": "D-TAUTH-RECOVERY-SCANS-SCALE-WITH-LUN-SIZE-NOT-LEDGER-USE",
+      "severity": "high",
+      "nodes": 2,
+      "config": "net/mesh/direct",
+      "opened": "2026-10-01",
+      "summary": "Every full-ledger scan of the TCP authority ledger (node-death takeover, the mount's orphan sweep, collecting a dead node's EX holdings) reads both shadow copies of every page, and mkfs sizes the ledger at one record per 64 KiB of device, so recovery time scales with LUN size rather than with what the ledger holds.",
+      "evidence": "2026-10-01, 1 TB LUN, 2/net/mesh/direct: P-TAUTH-TAKEOVER 14.5 s, P-TAUTH-ORPHAN-SWEEP 14.6 s then 14.7 s, ~300 MB/s, sweep reported live_pages=1 of 541,201. 20 GB LUN (10,571 pages): 0.28-0.29 s each. Sizing: tools/mkfs_mxfs.c tauth_npages_for_device; cap MXFS_TAUTH_NPAGES_MAX=2^20 (include/mxfs/mxfs_tauth.h:112). Design consult 2026-10-01 (ccmemory ruling-tauth-ledger-recovery-scan-cost-sparse-summary-first): ship a crash-ordered sharded occupancy summary first; population sizing only after an enforced per-node record bound and a bounded page-full answer exist. ===== 0.90.39 boards, 20 GiB pool LUNs: orphan sweeps 75,063 ms (8017 pages, 8/net/mesh/direct g8), 83,801 ms (6494), 149,390 ms (16000 pages, 67,651-page ledger); takeovers 8-37 s. Per-phase store timers (P-TAUTH-STORE-STATS) average 0 ms per phase because they are kept in whole ms; a page takeover is ~3 conditional commits (prepare, activate, purge) of ~8 sub-ms I/Os each, which accounts for ~9 ms/page. The timers need microsecond resolution before step 1 of the batching ruling can decompose it.",
+      "next": "Consult 2 (2026-10-01, ccmemory ruling-tauth-recovery-cost-is-flush-amplified-takeover-batch-it-first): the cost is per-page authority-transition flushes, not the scan. Step 1: instrument dlm_takeover_page to decompose its ~9 ms (PREPARE write, flush, ACTIVATE write, flush, read/validate, lock wait). Step 2: batch takeover/sweep transitions with two barriers per chunk (PREPARED images -> flush -> ACTIVE images -> flush -> serve), PREPARED carrying transition identity; crash-inject every point; measure batch sizes. Step 3 (structural): range authority (view table, docs/tcp-authority-ledger.md item 7). Population-sized npages only after a page-full design; empty-page release only if cold-empty is measured large.",
+      "impact": "noblock",
+      "impact_why": "0.90.39 boards on 20 GiB pool LUNs, 2026-10-01: orphan sweeps of 75-149 s (8017-16000 pages, ~9.3 ms/page) and node-death takeovers of 8-37 s ran under net/mesh/direct death-replay rows at 2, 4 and 8 nodes; 3188 requests were served by on-demand page takeover and the rest waited on the takeover's progress (P960-AUTH-TRANSITION-WAIT), not their retry budget. The survivors' logs (tests/evidence/20261001T{171417Z,191900Z,142521Z,174440Z,174341Z}_tcpdr_ca_*) hold no filesystem shutdown, hung task, oops or exhausted request, and every correctness row passed. A bounded recovery wait that grows with ledger size: pace, not a hang, crash, shutdown or data loss.",
+      "updated": "2026-10-01"
+    },
+    {
+      "id": "D-MOUNT-RUNS-THE-ORPHAN-SWEEP-TWICE-BACK-TO-BACK",
+      "severity": "medium",
+      "nodes": 2,
+      "config": "net/mesh/direct",
+      "opened": "2026-10-01",
+      "summary": "Each TCP mount runs the ledger orphan sweep twice back to back; the second pass found nothing new on every measured mount.",
+      "evidence": "2026-10-01 1 TB LUN: P-TAUTH-ORPHAN-SWEEP 14.6 s then 14.7 s. Code: the mount queues a sweep (dlm/v5_mount.c:17620) right after v5_settled_flush queues departures (:17619), and every departure ends by queueing another sweep (:3217, D-0953). Hypothesis, not yet instrumented: the second sweep is queued by a settled departure that completed while the mount's sweep was still pending. Consult 2026-10-01: a fixed second pass is not a correctness boundary; drop it only after proving no mutation lands between passes, or replace it with a barrier/dirty-page protocol.",
+      "next": "Instrument the queue: log at each v5_orphan_sweep_queue call whether a sweep is already pending and which departure queued it, plus pages whose seq changed between passes; then decide coalescing vs barrier.",
+      "impact": "noblock",
+      "impact_why": "costs a second full ledger scan per mount (14.7 s at 1 TB); no data or crash consequence measured"
+    },
+    {
+      "id": "D-MOUNT-HAS-A-FIXED-FIVE-SECOND-FLOOR-ON-ANY-LUN",
+      "severity": "medium",
+      "nodes": 2,
+      "config": "*/*/*",
+      "opened": "2026-10-01",
+      "summary": "Every MXFS mount takes about 5 s whatever the LUN size, mostly a fixed 2.5 s boot-scan observation window (MXFS_BOOTSTRAP_SCAN_EARLY_MS, dlm/bootstrap.h:623) plus peer discovery; native XFS mounts in milliseconds.",
+      "evidence": "2026-10-01 measurements across LUN sizes (20 GB .. 1 TB): mount call returns in ~5 s on any size, 7.6 s at 1 TB.",
+      "next": "Trace one mount phase by phase (boot scan, discovery, slot claim, log mount) and find which waits are fixed sleeps that a heartbeat-sequence read or an event could replace. ===== Mount-path wait map (2026-10-01, code read): candidates on a normal mount are the bootstrap survivor scan's 2500 ms poll whenever any heartbeat record is occupied (dlm/bootstrap.c:1138, MXFS_BOOTSTRAP_SCAN_EARLY_MS; a live peer costs one poll ~2.5 s, the heartbeat interval is 2 s), the membership-settle gates' 250 ms polls up to 15 s (v5_mount.c:17699 TCP, :18384 CAW), and the DLM acquire settle gate's 100 ms polls until every peer's view hash matches (dlm.c:7621, window mxfs_memb_settle_ms=20000). Next: phase-timed trace of a 2-node and an 8-node mount to see which dominates; then replace fixed polls with heartbeat-sequence reads / event wakeups.",
+      "impact": "noblock",
+      "impact_why": "mount latency only; nothing corrupts or crashes",
+      "updated": "2026-10-01"
+    },
+    {
+      "id": "D-POSTBOOT-JOINER-MOUNT-OVERRAN-60S-NO-KERNEL-LOG",
+      "severity": "high",
+      "nodes": 8,
+      "config": "*/*/*",
+      "opened": "2026-10-01",
+      "summary": "After every node of an 8-node set rebooted, the first node to join the cluster again (alma9-2, RHEL 9.8, 8/net/mesh/direct, packaged 0.90.39) did not finish mount within 60 s; the other seven mounted. Whether the mount was slow or hung is not known: its kernel log was lost.",
+      "evidence": "2026-10-01, full_verify 0.90.39 packaged round rhel9 8/net/mesh/direct (tests/evidence/packaged_round/rhel9_0.90.39_net-mesh-direct_20261001T180755): all 8 alma9 nodes rebooted and answered in 22-29 s; postboot mount_all ran node by node with MOUNT_S=60 from 18:21:53 CDT; alma9-1 formed the cluster (mount_rc=0), alma9-2's postboot_mount log is EMPTY (the ssh was killed by the 60 s timeout before mount returned), alma9-3..8 then mounted (mount_rc=0); round stopped 18:23:28 'FAIL: postboot mount'. The harness saved no kernel log and alma9-2 rebooted again at 23:37 UTC with a non-persistent journal, so its kernel log is gone. Host conditions then: a training job on clyde, 19.9 GB in swap, 1.2 GB free, host load 28-31. ===== Not reproduced: the rhel9 set re-run passed that step, and tests/packaged_round.sh POSTBOOT_LAPS=10 on the quiet host (tests/evidence/postboot_laps_rhel9_0.90.39.out) mounted all 8 after a whole-set reboot 10 times: the bootstrap 0.2-1.3 s, every joiner 4.8-5.2 s, one 9.0 s (alma9-8 lap 4); 80 of 80 under 10 s. Debian13 postboot: joiners 4.8-5.3 s.",
+      "next": "Open: cause unknown. Hypothesis to test: host memory pressure starved the joiner (clyde 19.9 GB swapped, training job) \u2014 run POSTBOOT_LAPS on rhel9 8/net/mesh/direct under a measured host memory load and see whether joins stretch; the harness now keeps the kernel log of any mount over MOUNT_S, so a recurrence names where the join waited.",
+      "impact": "noblock",
+      "impact_why": "The mount ended, bounded at about 100 s: about 100 s after it began (18:21:53 CDT), at ~18:23:35, the next round's install on alma9-2 unloaded the module cleanly (install_alma9-2.log 'UNLOADED'; the harness prints UNLOAD_FAILED with refcnt while anything holds the module, and a mount in progress holds it), the unmount step before it read left=0 on all 8, and that round passed every check on the same 8 nodes. No crash, hang or shutdown; a join that took 60-100 s once.",
+      "updated": "2026-10-01"
     }
   ]
 }

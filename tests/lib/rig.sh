@@ -398,11 +398,28 @@ MXFS_DEV_RESOLVED=; MXFS_DEV_WWID=; MXFS_DEV_FSID=; MXFS_DEV_SOURCE=
 MXFS_RIG_LIB_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 mxfs_dev_abort() { echo "ABORT: $1"; echo "RESULT: ABORT label=${LABEL:-?} stage=device evidence=${OUT:-?}"; exit 2; }
 mxfs_wwid_norm() { printf '%s' "$1" | tr 'A-Z' 'a-z' | sed 's/^naa\.//; s/^0x//; s/^mpath-//' | tr -cd '0-9a-f'; }
-# the declared LUN: MXFS_LUN_WWID, else data/rigs.json[<rig tag>].lun_wwid
+# A pool rig (data/rigs.json "pool": true) has no LUN of its own: the LUN is
+# whichever one tools/lun_pool.sh has bound to this harness's nodes, named by
+# MXFS_NODE_LIST exactly as the allocation recorded them.
+# mxfs_pool_field <tag> <field>: that allocation's field, or nothing when the
+# tag is not a pool rig; ABORT when it is one and no allocation is bound.
+mxfs_pool_field() {
+    local tag=$1 field=$2 line
+    python3 -c 'import json,sys
+d=json.load(open(sys.argv[1])); sys.exit(0 if (d.get(sys.argv[2]) or {}).get("pool") else 1)' "$MXFS_RIG_LIB_DIR/../../data/rigs.json" "$tag" 2>/dev/null || return 0
+    [ -n "${MXFS_NODE_LIST:-}" ] || mxfs_dev_abort "rig '$tag' lends its LUNs from a pool and this harness names no nodes: set MXFS_NODE_LIST to the allocation's node set, or MXFS_LUN_WWID and MXFS_HOST_IMAGE_PATH"
+    line=$("$MXFS_RIG_LIB_DIR/../../tools/lun_pool.sh" lookup --nodes "$(echo "$MXFS_NODE_LIST" | tr ' ' ',' | tr -s ',')" 2>/dev/null) \
+        || mxfs_dev_abort "no pool LUN is bound to [$MXFS_NODE_LIST] (tools/lun_pool.sh status)"
+    sed -n "s/.* $field=\([^ ]*\).*/\1/p" <<<"$line"
+}
+# the declared LUN: MXFS_LUN_WWID, else the pool allocation bound to these
+# nodes, else data/rigs.json[<rig tag>].lun_wwid
 mxfs_dev_declared() {
     local tag w
     if [ -n "${MXFS_LUN_WWID:-}" ]; then mxfs_wwid_norm "$MXFS_LUN_WWID"; return 0; fi
     tag=$("$MXFS_RIG_LIB_DIR/../../tools/mxfs_rig_tag.sh" 2>/dev/null) || mxfs_dev_abort "the rig cannot be established (tools/mxfs_rig_tag.sh: no MXFS_RIG_TAG, no marker rig, no vendor), so no LUN identity is declared; set MXFS_RIG_TAG or MXFS_LUN_WWID"
+    w=$(mxfs_pool_field "$tag" wwid) || { echo "$w"; exit 2; }
+    if [ -n "$w" ]; then mxfs_wwid_norm "$w"; return 0; fi
     w=$(python3 -c 'import json,sys
 d=json.load(open(sys.argv[1])); print((d.get(sys.argv[2]) or {}).get("lun_wwid",""))' "$MXFS_RIG_LIB_DIR/../../data/rigs.json" "$tag" 2>/dev/null)
     [ -n "$w" ] || mxfs_dev_abort "rig '$tag' declares no LUN in data/rigs.json; add its lun_wwid there (or MXFS_LUN_WWID for one run) before anything measures a device on it"
@@ -483,7 +500,7 @@ mxfs_dev_same() {
 # ---- the platter from the HOST: a declared, identity-checked backing image
 #
 # 34 harnesses read the LUN's platter from a file on this host, defaulting
-# to ~/disk.img (the SCST fileio image of an earlier rig).  On the
+# to the SCST fileio image of an earlier rig.  On the
 # qnap rig the LUN lives on the QNAP and no file on this host backs it, so
 # every one of those reads was a well-formed measurement of some OTHER
 # filesystem, printed as a verdict about the one under test (ledger
@@ -508,6 +525,8 @@ mxfs_host_image_declared() {
     local tag p
     if [ -n "${MXFS_HOST_IMAGE_PATH:-}" ]; then printf '%s\n' "$MXFS_HOST_IMAGE_PATH"; return 0; fi
     tag=$("$MXFS_RIG_LIB_DIR/../../tools/mxfs_rig_tag.sh" 2>/dev/null) || mxfs_dev_abort "the rig cannot be established (tools/mxfs_rig_tag.sh), so no host-side image of its LUN is declared; set MXFS_RIG_TAG or MXFS_HOST_IMAGE_PATH"
+    p=$(mxfs_pool_field "$tag" img) || { echo "$p"; exit 2; }
+    if [ -n "$p" ]; then printf '%s\n' "$p"; return 0; fi
     p=$(python3 -c 'import json,os,sys
 d=json.load(open(sys.argv[1])); print(os.path.expanduser((d.get(sys.argv[2]) or {}).get("host_image") or ""))' "$MXFS_RIG_LIB_DIR/../../data/rigs.json" "$tag" 2>/dev/null)
     [ -n "$p" ] || mxfs_dev_abort "rig '$tag' declares no host-side image of its LUN in data/rigs.json (host_image): the platter is not readable from this host — read it from a node (mxfs_chk_on_node, or tools/chk_mxfs --query-only on a mounted node)"

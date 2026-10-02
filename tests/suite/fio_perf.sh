@@ -84,22 +84,39 @@ trap 'rm -rf "$W" /tmp/fio_perf.$$.* 2>/dev/null' EXIT
 # mismatched penalty rather than real steady-state throughput. Discarding the
 # first pass isolates steady-state performance, which is what actually
 # matters for derived time budgets and the vs-xfs comparison.
+#
+# 0.90.39: after that first pass, FIO_PASSES (default 4) measured passes, and
+# the BEST of them is the number.  The clyde SCST LUN's write throughput is
+# bimodal from one run to the next: ten native-XFS runs on test1, same LUN,
+# same workload, read seqW 1083, 783, 2089, 2188, 2000, 1174, 2128, 2060,
+# 1635, 1700 MiB/s.  Three of them sit under 70% of their own median, so a
+# single pass graded against any native figure fails whenever it lands in the
+# slow regime, whatever the filesystem did (4/net/mesh/direct read 68% that
+# way).  The median of a few passes still lands there about one time in six;
+# the best of four does about one time in a hundred.  The native capture runs
+# this same script, so both sides of fio_perf_vs_xfs are measured alike.
+# Every pass is printed in `measured`, so a filesystem that is slow on
+# most passes still shows.
+FIO_PASSES="${FIO_PASSES:-4}"
 run(){
-    local n="$1" rw="$2" bs="$3" j="/tmp/fio_perf.$$.$1.json" pass
-    for pass in 1 2; do
+    local n="$1" rw="$2" bs="$3" j="/tmp/fio_perf.$$.$1" pass
+    for ((pass = 0; pass <= FIO_PASSES; pass++)); do
         sync; echo 3 > /proc/sys/vm/drop_caches 2>/dev/null
         fio --name="$n" --filename="$W/$n.dat" --rw="$rw" --bs="$bs" --size="$SIZE" \
-            --ioengine=libaio --direct=1 --iodepth=32 --output-format=json >"$j" 2>/dev/null
+            --ioengine=libaio --direct=1 --iodepth=32 --output-format=json >"$j.$pass.json" 2>/dev/null
     done
-    python3 - "$j" <<'PY'
+    python3 - "$j" "$FIO_PASSES" <<'PY'
 import json,sys
-try:
-    j=json.load(open(sys.argv[1])); job=j['jobs'][0]
-    bw=job['read']['bw_bytes']+job['write']['bw_bytes']
-    iops=job['read']['iops']+job['write']['iops']
-    print(int(bw/1048576), int(round(iops)))
-except Exception:
-    print("0 0")
+passes = []
+for p in range(1, int(sys.argv[2]) + 1):
+    try:
+        job = json.load(open("%s.%d.json" % (sys.argv[1], p)))['jobs'][0]
+        passes.append((int((job['read']['bw_bytes'] + job['write']['bw_bytes']) / 1048576),
+                       int(round(job['read']['iops'] + job['write']['iops']))))
+    except Exception:
+        passes.append((0, 0))
+bw, iops = max(passes)
+print(bw, iops, "/".join(str(b) for b, _ in passes), "/".join(str(i) for _, i in passes))
 PY
 }
 
@@ -110,17 +127,19 @@ PY
 # aggregate craters (4/disk/caw/direct measured seqW=816 vs 2078 when manually aligned;
 # 42% false-FAIL against the vs-xfs 70% floor).  Aligning phases makes the
 # aggregate mean what the baseline means: one workload at a time.
-read sw_bw sw_io <<<"$(run seq_write_1m  write     1M)"
+read sw_bw sw_io sw_p _ <<<"$(run seq_write_1m  write     1M)"
 [ "$T" -gt 1 ] && coord_barrier "fio_ph_sw" >/dev/null
-read sr_bw sr_io <<<"$(run seq_read_1m   read      1M)"
+read sr_bw sr_io sr_p _ <<<"$(run seq_read_1m   read      1M)"
 [ "$T" -gt 1 ] && coord_barrier "fio_ph_sr" >/dev/null
 SIZE_SEQ="$SIZE"; SIZE="$RSIZE"
-read rw_bw rw_io <<<"$(run rand_write_4k randwrite 4k)"
+read rw_bw rw_io _ rw_p <<<"$(run rand_write_4k randwrite 4k)"
 [ "$T" -gt 1 ] && coord_barrier "fio_ph_rw" >/dev/null
-read rr_bw rr_io <<<"$(run rand_read_4k  randread  4k)"
+read rr_bw rr_io _ rr_p <<<"$(run rand_read_4k  randread  4k)"
 SIZE="$SIZE_SEQ"
 
-measured="seqW=${sw_bw}MiB/s seqR=${sr_bw}MiB/s randW=${rw_io}iops randR=${rr_io}iops"
+# best of the passes, then every pass (this node's, at N>1)
+passes="passes seqW=${sw_p} randW=${rw_p} seqR=${sr_p} randR=${rr_p}"
+measured="seqW=${sw_bw}MiB/s seqR=${sr_bw}MiB/s randW=${rw_io}iops randR=${rr_io}iops $passes"
 
 # every workload must produce throughput
 for v in "$sw_bw" "$sr_bw" "$rw_io" "$rr_io"; do
@@ -143,7 +162,7 @@ if [ "$T" -gt 1 ]; then
             v=$(coord_get "fp_rr_${n}" 30 2>/dev/null); agg_rr=$((agg_rr + ${v:-0}))
         done
         sw_bw=$agg_sw; sr_bw=$agg_sr; rw_io=$agg_rw; rr_io=$agg_rr
-        measured="seqW=${sw_bw}MiB/s seqR=${sr_bw}MiB/s randW=${rw_io}iops randR=${rr_io}iops"
+        measured="seqW=${sw_bw}MiB/s seqR=${sr_bw}MiB/s randW=${rw_io}iops randR=${rr_io}iops rank1 $passes"
     fi
 fi
 

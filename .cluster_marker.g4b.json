@@ -1,0 +1,12 @@
+{
+  "nodes": 4,
+  "configuration": "4/disk/caw/direct",
+  "srcversion": "B2656732AC8108B46CD998E",
+  "node_list": "test17,test18,test19,test20",
+  "dev": "/dev/disk/by-path/ip-192.168.120.1:3260-iscsi-iqn.2026-05.local.mxfs:pool-06-lun-0",
+  "rig": "scst-fio",
+  "wwid": "eui.6233653366636664",
+  "fsid": "b2a4d707-eb34-4b81-8627-9151d7494f25",
+  "gen": 10,
+  "iso": "2026-10-02T03:26:21Z"
+}

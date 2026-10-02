@@ -26,8 +26,12 @@
 #
 # Pass: "did not reconnect … declaring dead" within DEATH_BUDGET_S of the
 # freeze, and a survivor write succeeding within WRITE_BUDGET_S.  The window
-# runs WATCH_S either way, so a death that never comes is measured, not
-# waited out.
+# ends when both have been seen, or at WATCH_S (default WRITE_BUDGET_S), so a
+# death that never comes is measured to the end of its budget, not waited out.
+# It used to run 300 s whatever happened: the verdict was known at about +73 s
+# and the other 4 minutes graded nothing, eight times per release.  The other
+# survivors are probed when the window ends, so they too now have to be serving
+# inside the write budget, as the check below always said.
 #
 # Budgets: disconnect detection measured 10.8 s on vSphere + the 40 s grace
 # = ~51 s, doubled -> DEATH_BUDGET_S=120; fence + replay of an idle 2-node
@@ -68,9 +72,9 @@ set -u
 
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 . "$HERE/tools/mxfs_lab.sh"
-WATCH_S="${3:-300}"
 DEATH_BUDGET_S=120
 WRITE_BUDGET_S=180
+WATCH_S="${3:-$WRITE_BUDGET_S}"
 PREP="${PREP:-rig}"
 CONFIG=$(python3 "$HERE/tools/configuration.py" parse "${CONFIG:-2/net/mesh/direct}") || exit 2
 eval "$(python3 "$HERE/tools/configuration.py" shell "$CONFIG")"
@@ -249,6 +253,7 @@ while [ $(( $(date +%s) - T0 )) -lt "$WATCH_S" ]; do
     if [ -z "$death_at" ] && grep -q -E "$DEATH_RE" "$EV/dmesg_$S.log"; then
         death_at=$e; say "death declared by +${e}s"
     fi
+    [ -n "$death_at" ] && [ -n "$write_at" ] && break
     sleep 5
 done
 say "--- window over: death_at=${death_at:-never} first_write_after_death=${write_at:-never}"

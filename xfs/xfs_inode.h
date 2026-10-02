@@ -659,6 +659,17 @@ typedef struct xfs_inode {
 	uint8_t			i_dlm_punt_n[2];
 	u64			i_dlm_demoter_punt_ns;
 	/*
+	 * Claim generations: i_dlm_demoter_gen[slot] moves at every claim of
+	 * the slot (empty -> task), and a punt records the generation it
+	 * retained in i_dlm_punt_gen[slot].  The punt sweep removes a slot only
+	 * while the two still match, so it can never take a NEW claim by the
+	 * same task for the one it recorded: the task pointer alone cannot tell
+	 * them apart.  Both are read and written under the inode's demoter
+	 * reap lock (mxfs_demoter_reap_lock).
+	 */
+	u32			i_dlm_demoter_gen[2];
+	u32			i_dlm_punt_gen[2];
+	/*
 	 * TEST ONLY (dbg_demoter_keep_inject): the task that planted slot 1's
 	 * claim through the injector, not a drain (compared, never
 	 * dereferenced).  That task's next lock of this inode consumes the

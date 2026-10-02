@@ -676,6 +676,13 @@ mxfs_demoter_dump_set(const char *val, const struct kernel_param *kp)
 		(long long)atomic64_read(&mxfs_dem_contest),
 		(long long)atomic64_read(&mxfs_dem_foreign_clear),
 		(long long)atomic64_read(&mxfs_dem_clear_noclaim));
+	pr_err("mxfs: P75-DEMOTER-DRAIN claim_wait_expired=%lld claim_fail_injected=%lld drain_deferred=%lld claim_sync=%lld punt_gen_reject=%lld dead_reap=%lld\n",
+		(long long)atomic64_read(&mxfs_dem_claim_wait_expired),
+		(long long)atomic64_read(&mxfs_dem_claim_fail_injected),
+		(long long)atomic64_read(&mxfs_dem_drain_deferred),
+		(long long)atomic64_read(&mxfs_dem_claim_sync_n),
+		(long long)atomic64_read(&mxfs_dem_punt_gen_reject),
+		(long long)atomic64_read(&mxfs_dem_dead_reap_n));
 	/*
 	 * D-MOUNT-DEGRADES-WITH-USE exposure/effect pair.  `retain` is
 	 * the exposure (how many times the trans-free punt left a claim

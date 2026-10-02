@@ -62,7 +62,6 @@ case "$ARM" in
 esac
 SSH="$REPO/tools/mxfs_sshpass.sh"
 NODES=$("$REPO/tools/mxfs_lab.sh" group "$GROUP") || exit 2
-IMG=$("$REPO/scripts/rig_groups.sh" image "$GROUP") || exit 2
 OUT="$REPO/tests/evidence/stress_rmrace_$(date -u +%Y%m%dT%H%M%SZ)-$GROUP-$ARM"
 mkdir -p "$OUT"
 # A fresh format and a formed cluster: a board does not leave its group mounted.
@@ -203,8 +202,10 @@ echo "probe lines (dead parent, create into dead dir): $(wc -l < "$OUT/deadparen
 case "$v" in
     CLEAN*) exit 0 ;;
     CORRUPT*)
-        snap="${IMG%.img}.rmrace-corrupt-$(date -u +%Y%m%dT%H%M%SZ).img"
-        cp --sparse=always "$IMG" "$snap" && echo "image kept: $snap"
+        # the group's pool LUN: the next run on it formats it
+        lun=$("$REPO/tools/lun_pool.sh" lookup --nodes "$(tr ' ' ',' <<<"$NODES")" | sed -n 's/.* id=\([0-9]*\) .*/\1/p')
+        snap=$([ -n "$lun" ] && "$REPO/tools/lun_pool.sh" snapshot "$lun" "$GROUP-rmrace-corrupt") \
+            && echo "image kept: $snap" || echo "image NOT kept: no pool LUN bound to [$NODES]"
         exit 1 ;;
     *) exit 2 ;;
 esac

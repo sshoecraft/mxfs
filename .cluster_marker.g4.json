@@ -1,12 +1,12 @@
 {
   "nodes": 4,
   "configuration": "4/net/mesh/direct",
-  "srcversion": "6CDF86D7D9A430B83D4F949",
+  "srcversion": "B2656732AC8108B46CD998E",
   "node_list": "test3,test4,test5,test6",
-  "dev": "/dev/disk/by-path/ip-192.168.120.1:3260-iscsi-iqn.2026-05.local.mxfs:grp-g4-lun-0",
+  "dev": "/dev/disk/by-path/ip-192.168.120.1:3260-iscsi-iqn.2026-05.local.mxfs:pool-05-lun-0",
   "rig": "scst-fio",
-  "wwid": "eui.6162613136656165",
-  "fsid": "ead860d7-00bd-4475-9277-a4119a0bd95f",
-  "gen": 5,
-  "iso": "2026-09-30T19:27:21Z"
+  "wwid": "eui.3837303435343634",
+  "fsid": "2fae0541-d405-4d8f-aebc-fe59e78d3792",
+  "gen": 21,
+  "iso": "2026-10-02T03:38:32Z"
 }

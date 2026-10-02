@@ -80,8 +80,10 @@ Knobs (module params, 0644): `fr_stab_interval_ms`, `fr_stab_passes`,
 
 `tools/mxfs_logslice.py IMAGE --slice N [--records|--all|--ino I|--lsn HEX]`
 — envelope-aware, O_DIRECT, upstream-faithful decoder of one slice; use
-it on the SCST backing image (`~/disk.img`) to compare what a
-kernel replay saw against what the platter holds.  `--cluster DADDR`
+it on the SCST backing image of the run's pool LUN (`$MXFS_HOST_IMAGE_PATH`,
+`~/disks/pool/lunNN.img`; `tools/lun_pool.sh snapshot` copies it out before
+the next holder formats it) to compare what a kernel replay saw against what
+the platter holds.  `--cluster DADDR`
 dumps dinode magics of an inode cluster.
 
 ## sess412 postmortem: the 0.27.0 verification storm (D-528)

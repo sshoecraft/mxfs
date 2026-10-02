@@ -1347,13 +1347,20 @@ mxfs_trans_drain_inode_unlocks(
 				 * mxfs_demoter_punt_reclaim_check() can free it
 				 * once the ILOCK-EXCL window provably closes.
 				 */
+				/* the generation names this claim: the sweep
+				 * may remove only the one retained here, never
+				 * a later claim of the slot by the same task */
 				if (ip->i_dlm_demoter == current) {
 					ip->i_dlm_demoter_punt |= 1;
+					ip->i_dlm_punt_gen[0] =
+						READ_ONCE(ip->i_dlm_demoter_gen[0]);
 					if (ip->i_dlm_punt_n[0] < U8_MAX)
 						ip->i_dlm_punt_n[0]++;
 				}
 				if (ip->i_dlm_demoter2 == current) {
 					ip->i_dlm_demoter_punt |= 2;
+					ip->i_dlm_punt_gen[1] =
+						READ_ONCE(ip->i_dlm_demoter_gen[1]);
 					if (ip->i_dlm_punt_n[1] < U8_MAX)
 						ip->i_dlm_punt_n[1]++;
 				}
