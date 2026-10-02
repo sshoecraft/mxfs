@@ -1640,6 +1640,10 @@ uint32_t mxfs_pal_dbg_depart_late_token_take(void);	/* pal/pal.h not included he
  * pal/pal.h is not included in this upstream-fork glue file. */
 int mxfs_pal_lu_reset_init(void);
 void mxfs_pal_lu_reset_exit(void);
+int mxfs_pal_drbd_init(void);
+void mxfs_pal_sdev_probe_init(void);
+void mxfs_pal_sdev_probe_exit(void);
+void mxfs_pal_drbd_exit(void);
 struct mxfs_depart_late_token {
 	struct delayed_work	work;
 	struct list_head	node;
@@ -6779,6 +6783,11 @@ init_xfs_fs(void)
 	 * absent-registration recovery route and nothing else.
 	 */
 	(void)mxfs_pal_lu_reset_init();
+	/* The DRBD witness's report channel, likewise: without it a DRBD device
+	 * is refused at mount, and nothing else is affected. */
+	(void)mxfs_pal_drbd_init();
+	/* The stacked-device resolver probe: optional, nothing depends on it. */
+	mxfs_pal_sdev_probe_init();
 
 	error = xfs_sysctl_register();
 	if (error)
@@ -6845,6 +6854,8 @@ init_xfs_fs(void)
 	debugfs_remove(xfs_debugfs);
 	xfs_sysctl_unregister();
  out_cleanup_procfs:
+	mxfs_pal_sdev_probe_exit();
+	mxfs_pal_drbd_exit();
 	mxfs_pal_lu_reset_exit();
 	xfs_cleanup_procfs();
  out_mru_cache_uninit:
@@ -6886,6 +6897,8 @@ exit_xfs_fs(void)
 	kset_unregister(xfs_kset);
 	debugfs_remove(xfs_debugfs);
 	xfs_sysctl_unregister();
+	mxfs_pal_sdev_probe_exit();
+	mxfs_pal_drbd_exit();
 	mxfs_pal_lu_reset_exit();
 	xfs_cleanup_procfs();
 	xfs_mru_cache_uninit();

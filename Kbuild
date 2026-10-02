@@ -215,6 +215,7 @@ mxfs-y += $(addprefix dlm/, \
 		tauth_ledger.o \
 		tauth_view.o \
 		scsipr.o \
+		drbdfence.o \
 		journal.o \
 		v5_mount.o \
 		net2.o \
@@ -225,6 +226,7 @@ mxfs-y += $(addprefix dlm/, \
 		)
 mxfs-y += pal/linux/kern.o
 mxfs-y += pal/linux/lureset.o
+mxfs-y += pal/linux/drbd.o
 
 # The LU-reset fence admits a kernel by the shape of its libiscsi TMF
 # declarations (dlm/scsipr.c, the audited-kernel pin).  The fingerprint is

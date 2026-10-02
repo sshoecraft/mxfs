@@ -509,6 +509,34 @@ enum mxfs_fence_kind {
 	 * is what kind 16 never had.
 	 */
 	MXFS_FENCE_KIND_LU_RESET_WITNESSED_V1 = 24,
+	/*
+	 * 0.90.40: THE DRBD ATTACHMENT'S PROOF PROFILE
+	 * (docs/rulings/drbd-dual-primary-attachment.md).  On a DRBD
+	 * dual-primary device there is no target to preempt; the survivor's own
+	 * replication layer is the only way a peer's writes reach its disk.
+	 * Minted only from a judged witness report (dlm/drbdfence.c,
+	 * mxfs_drbd_judge_excluded) taken in this attempt, which establishes:
+	 *
+	 *   ADMISSION — the peer node is powered off and held off by the fence
+	 *   authority under the episode its STONITHED receipt names, and the
+	 *   replication link is disconnected, so no new write of the victim can
+	 *   reach this replica;
+	 *   RETIREMENT — a disconnected state is reached only after DRBD's
+	 *   conn_disconnect() freed the socket and drbd_disconnected() waited for
+	 *   every peer write already submitted to this disk to complete
+	 *   (drivers/block/drbd/drbd_receiver.c), so every write the survivor
+	 *   accepted from the victim has finished: a completed operation of the
+	 *   survivor's own target, MXFS_RETIRE_BASIS_TARGET_OP.
+	 *
+	 * The victim key it binds is the per-mount identity a DRBD mount
+	 * publishes in its heartbeat in place of a PR key, so the certificate
+	 * names the incarnation it excludes exactly as the SCSI kinds do.  Its
+	 * exclusion rests on no reservation: its resv_type is 0, and any other
+	 * value refuses.  Only the recovery-descriptor family may carry it.  Like
+	 * every profile, its meaning is never widened; a changed rule is a new
+	 * value.
+	 */
+	MXFS_FENCE_KIND_DRBD_STONITH_WITNESSED_V1 = 25,
 };
 
 /*
@@ -541,6 +569,7 @@ static inline bool mxfs_fence_kind_proves_exclusion(enum mxfs_fence_kind k)
 {
 	return k == MXFS_FENCE_KIND_PREEMPT_ABORT_PROVEN_V1 ||
 	       k == MXFS_FENCE_KIND_LU_RESET_WITNESSED_V1 ||   /* 0.89.33 */
+	       k == MXFS_FENCE_KIND_DRBD_STONITH_WITNESSED_V1 || /* 0.90.40 */
 	       k == MXFS_FENCE_KIND_SELF_SUCCESSION_DONE ||    /* */
 	       k == MXFS_FENCE_KIND_EXCLUSIVE_WRITE_GATE ||    /* D-0904 */
 	       k == MXFS_FENCE_KIND_BOOT_SUCCESSION_ABSENT;    /* 0.75.71 */
@@ -606,6 +635,10 @@ static inline bool mxfs_fence_kind_resv_type_ok(enum mxfs_fence_kind k,
 		return mxfs_pr_type_excludes_nonregistrants(resv_type);
 	case MXFS_FENCE_KIND_EXCLUSIVE_WRITE_GATE:
 		return resv_type == MXFS_PAL_PR_TYPE_WR_EX;
+	case MXFS_FENCE_KIND_DRBD_STONITH_WITNESSED_V1:
+		/* a DRBD device has no reservation; a certificate claiming
+		 * one was not produced by this profile's only producer */
+		return resv_type == 0;
 	default:
 		return true;
 	}
@@ -758,6 +791,11 @@ enum mxfs_retire_observation {
 	 * initiator's registered work is there to be destroyed by it.  It still
 	 * makes no retirement claim by itself — the reset does that. */
 	MXFS_RETIRE_OBS_SOLE_REGISTRANT_VICTIM_ABSENT = 5,
+	/* 0.90.40, the DRBD attachment: the survivor's replication link is
+	 * disconnected with the peer's disk Outdated and no I/O suspended, as
+	 * judged from a witness report taken in this attempt.  Disconnected is
+	 * reached only after DRBD drained every peer write it had accepted. */
+	MXFS_RETIRE_OBS_DRBD_DISCONNECTED_PEER_OUTDATED = 6,
 };
 
 static inline const char *mxfs_retire_observation_name(uint8_t o)
@@ -773,6 +811,8 @@ static inline const char *mxfs_retire_observation_name(uint8_t o)
 		return "mxfs-replacement-different-boot";
 	case MXFS_RETIRE_OBS_SOLE_REGISTRANT_VICTIM_ABSENT:
 		return "sole-registrant-victim-absent";
+	case MXFS_RETIRE_OBS_DRBD_DISCONNECTED_PEER_OUTDATED:
+		return "drbd-disconnected-peer-outdated";
 	default:
 		return "unknown";
 	}
@@ -804,6 +844,12 @@ enum mxfs_retire_claim {
 	 * sole-registrant half is the premise that makes the LU scope
 	 * defensible, and never with a weaker observation. */
 	MXFS_RETIRE_CLAIM_LU_RESET_WITNESSED_ALL_TASKS = 3,
+	/* 0.90.40.  The survivor's DRBD completed the disconnect from the victim:
+	 * conn_disconnect() freed the socket and drbd_disconnected() waited for
+	 * every peer write already submitted to this disk, so no write accepted
+	 * from the victim is outstanding and none can arrive while disconnected.
+	 * Paired with MXFS_RETIRE_OBS_DRBD_DISCONNECTED_PEER_OUTDATED. */
+	MXFS_RETIRE_CLAIM_DRBD_DISCONNECT_DRAINED_PEER_WRITES = 4,
 };
 
 static inline const char *mxfs_retire_claim_name(uint8_t c)
@@ -815,6 +861,8 @@ static inline const char *mxfs_retire_claim_name(uint8_t c)
 		return "contract-unreplaced-registration-absence";
 	case MXFS_RETIRE_CLAIM_LU_RESET_WITNESSED_ALL_TASKS:
 		return "witnessed-lu-reset-terminated-all-tasks-on-the-unit";
+	case MXFS_RETIRE_CLAIM_DRBD_DISCONNECT_DRAINED_PEER_WRITES:
+		return "drbd-disconnect-drained-every-accepted-peer-write";
 	default:
 		return "none";
 	}

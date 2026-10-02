@@ -7,6 +7,16 @@
 #include "scsipr.h"
 #include "disklock.h"       /* the survivor scan reads the HB table */
 
+/*
+ * Debug classes of mxfs.dbg_cas_nocaw_ops above disklock's twelve: the swap
+ * reports -EOPNOTSUPP without issuing it, as on a device with no COMPARE AND
+ * WRITE, so the caller's handling of that answer can be exercised on a
+ * healthy device.  None may write in its place.
+ */
+#define BS_NOCAW_RECORD		(1u << 12)
+#define BS_NOCAW_TOMB		(1u << 13)
+#define BS_NOCAW_TAKEOVER	(1u << 14)
+
 const char *mxfs_bootstrap_state_name(uint16_t state)
 {
 	switch (state) {
@@ -167,9 +177,13 @@ static int bs_cas_locked(struct mxfs_bootstrap *b,
 	want->seq = cur->seq + 1;
 	want->stamp_ms = mxfs_pal_time_ms();
 	want->crc32c = mxfs_bootstrap_rec_crc(want);
-	rc = mxfs_pal_bdev_compare_and_write(b->dev, b->offset, cur, want);
-	if (rc == -EOPNOTSUPP)
-		rc = mxfs_pal_bdev_write_fua(b->dev, b->offset, want, sizeof(*want));
+	/*
+	 * A device without COMPARE AND WRITE returns -EOPNOTSUPP, and that is
+	 * returned: a plain write in its place would let two contenders both
+	 * "win" the record this swap exists to give exactly one of them.
+	 */
+	rc = mxfs_pal_dbg_cas_nocaw(BS_NOCAW_RECORD, "bootstrap-record") ? -EOPNOTSUPP :
+	     mxfs_pal_bdev_compare_and_write(b->dev, b->offset, cur, want);
 	/*
 	 * 0.89.41: every record write this node makes goes through here, so this
 	 * is the one place that can honestly say "a write of ours landed".  The
@@ -1404,9 +1418,8 @@ int mxfs_bootstrap_tomb_write_term(struct mxfs_bootstrap *b, uint64_t term,
 			break;
 		*want = *cur;
 		want->t[idx] = *t;
-		rc = mxfs_pal_bdev_compare_and_write(b->dev, off, cur, want);
-		if (rc == -EOPNOTSUPP)
-			rc = mxfs_pal_bdev_write_fua(b->dev, off, want, sizeof(*want));
+		rc = mxfs_pal_dbg_cas_nocaw(BS_NOCAW_TOMB, "bootstrap-tomb") ? -EOPNOTSUPP :
+		     mxfs_pal_bdev_compare_and_write(b->dev, off, cur, want);
 		if (rc != -EAGAIN)
 			break;
 	}
@@ -1567,9 +1580,8 @@ int mxfs_bootstrap_takeover_cas(struct mxfs_bootstrap *b,
 	want->seq = cur->magic == MXFS_BOOT_TK_MAGIC ? cur->seq + 1 : 1;
 	want->stamp_ms = mxfs_pal_time_ms();
 	want->crc32c = mxfs_bootstrap_takeover_crc(want);
-	rc = mxfs_pal_bdev_compare_and_write(b->dev, bs_tk_off(b), cur, want);
-	if (rc == -EOPNOTSUPP)
-		rc = mxfs_pal_bdev_write_fua(b->dev, bs_tk_off(b), want, sizeof(*want));
+	rc = mxfs_pal_dbg_cas_nocaw(BS_NOCAW_TAKEOVER, "bootstrap-takeover") ? -EOPNOTSUPP :
+	     mxfs_pal_bdev_compare_and_write(b->dev, bs_tk_off(b), cur, want);
 	/*
 	 * 0.90.1: a takeover contender owns no record yet, and its journal is
 	 * the write rival contenders watch to decide abandonment — so a journal
@@ -1594,9 +1606,8 @@ int mxfs_bootstrap_takeover_clear(struct mxfs_bootstrap *b,
 	if (!z)
 		return -ENOMEM;
 	memset(z, 0, sizeof(*z));
-	rc = mxfs_pal_bdev_compare_and_write(b->dev, bs_tk_off(b), cur, z);
-	if (rc == -EOPNOTSUPP)
-		rc = mxfs_pal_bdev_write_fua(b->dev, bs_tk_off(b), z, sizeof(*z));
+	rc = mxfs_pal_dbg_cas_nocaw(BS_NOCAW_TAKEOVER, "bootstrap-takeover-clear") ? -EOPNOTSUPP :
+	     mxfs_pal_bdev_compare_and_write(b->dev, bs_tk_off(b), cur, z);
 	mxfs_pal_free(z);
 	return rc;
 }

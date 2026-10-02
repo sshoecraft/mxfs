@@ -1,8 +1,8 @@
 {
-  "run_id": "20261002T032042Z-g2",
+  "run_id": "20261002T184617Z-g2",
   "nodes": 2,
-  "configuration": "2/net/mesh/direct",
-  "ran": 2,
+  "configuration": "2/net/mesh/drbd",
+  "ran": 1,
   "pending": 0,
-  "iso": "2026-10-02T03:21:39Z"
+  "iso": "2026-10-02T18:48:58Z"
 }

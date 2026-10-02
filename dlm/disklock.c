@@ -469,7 +469,9 @@ static void hb_feature_fill(const struct mxfs_disklock_ctx *ctx,
 			      (ctx->claim_fresh ? MXFS_HB_FEAT_ADOPTED : 0) |
 			      (ctx->bootstrap_pending ?
 				   MXFS_HB_FEAT_BOOTSTRAP_PENDING : 0) |  /* */
-						  (ctx->transport_tcp ? MXFS_HB_FEAT_TCP : 0); /* 0.75.0 */
+						  (ctx->transport_tcp ? MXFS_HB_FEAT_TCP : 0) | /* 0.75.0 */
+			      (ctx->attach_drbd ? MXFS_HB_FEAT_DRBD : 0) |
+			      (ctx->boot_adopted ? MXFS_HB_FEAT_BOOT_ADOPTED : 0);
 	hb->feat.crc32c     = hb_feature_crc(hb->fs_gen, hb->node_id,
 					     hb->epoch, &hb->feat);
 }
@@ -965,6 +967,14 @@ static bool hb_victim_adopted(const struct mxfs_disklock_heartbeat *hb)
 	       (hb->feat.feat_flags & MXFS_HB_FEAT_ADOPTED);
 }
 
+/* Did this record's incarnation run on a DRBD attachment?  Only a VALID
+ * feature block may say so, as for snlocal. */
+static bool hb_victim_drbd(const struct mxfs_disklock_heartbeat *hb)
+{
+	return hb_feature_state(hb) == MXFS_HBFEAT_OK &&
+	       (hb->feat.feat_flags & MXFS_HB_FEAT_DRBD);
+}
+
 /*
  * 0.75.0: does this record's VALID feature block name the other DLM
  * transport?  A record that cannot vote (LEGACY / CORRUPT / other proto_gen)
@@ -1292,6 +1302,25 @@ static int hb_retire_settle(struct mxfs_disklock_ctx *ctx, uint32_t slot,
 		return rc;
 	if (!hb_retire_pending(ctx, rhb))
 		return HB_RETIRE_CHANGED;
+
+	/*
+	 * A DRBD attachment's clean release is its retirement (MXFS_HB_FEAT_DRBD):
+	 * there is no key to prove absent.  Both sides must be DRBD — this mount
+	 * and the record's incarnation — and the record is published EMPTY from
+	 * its exact image, so a record that moved in between is re-read, never
+	 * overwritten.
+	 */
+	if (ctx->attach_drbd && hb_victim_drbd(rhb)) {
+		rc = mxfs_disklock_retire_cas_empty(ctx, slot, rhb, NULL, NULL);
+		mxfs_pal_log(rc == HB_RETIRE_EMPTY ? MXFS_LOG_INFO : MXFS_LOG_WARN,
+			     "mxfs: P304-RETIRE-DRBD-CLEAN slot=%u node=%u inc=%llu "
+			     "rc=%d — a DRBD incarnation's clean release (written "
+			     "after its durable unmount record)%s",
+			     slot, rhb->node_id, (unsigned long long)rhb->epoch, rc,
+			     rc == HB_RETIRE_EMPTY ? "; slot published EMPTY" :
+			     "; not settled this pass");
+		return rc;
+	}
 
 	{
 		const struct mxfs_disklock_ident_obs *o = &ctx->ident_obs[slot];
@@ -4385,6 +4414,21 @@ void mxfs_disklock_set_transport_tcp(struct mxfs_disklock_ctx *ctx, bool tcp)
 	ctx->transport_tcp = tcp;
 }
 
+void mxfs_disklock_set_attach_drbd(struct mxfs_disklock_ctx *ctx, bool drbd)
+{
+	if (!ctx)
+		return;
+	if (ctx->local_slot >= 0) {
+		mxfs_pal_log(MXFS_LOG_ERR,
+			     "disklock: set_attach_drbd(%d) REFUSED — slot %d "
+			     "already claimed; the attachment marker is write-time "
+			     "provenance and cannot change mid-tenure",
+			     drbd ? 1 : 0, ctx->local_slot);
+		return;
+	}
+	ctx->attach_drbd = drbd;
+}
+
 void mxfs_disklock_set_slot_limit(struct mxfs_disklock_ctx *ctx, uint32_t limit)
 {
 	if (!ctx)
@@ -5712,11 +5756,15 @@ int mxfs_disklock_retire_cas_empty(struct mxfs_disklock_ctx *ctx, uint32_t slot,
 	} else if (rc == 0) {
 		mxfs_pal_log(MXFS_LOG_WARN,
 			     "mxfs: P304-RETIRE-COMPLETED-BY-PEER slot=%u node=%u "
-			     "inc=%llu key=0x%llx — the key is proven retired inside "
-			     "one coherent bracket under the departure mutex; released "
-			     "slot published EMPTY (consumable)",
+			     "inc=%llu key=0x%llx — %s; released slot published EMPTY "
+			     "(consumable)",
 			     slot, cur->node_id, (unsigned long long)cur->epoch,
-			     (unsigned long long)cur->ident.pr_key);
+			     (unsigned long long)cur->ident.pr_key,
+			     hb_victim_drbd(cur) ?
+			     "a DRBD incarnation's clean release, which is its "
+			     "retirement" :
+			     "the key is proven retired inside one coherent bracket "
+			     "under the departure mutex");
 		*expect = *want;
 		rc = HB_RETIRE_EMPTY;
 	} else if (rc == -EAGAIN) {
@@ -11252,6 +11300,14 @@ int mxfs_disklock_incarnations_settled(struct mxfs_disklock_ctx *ctx,
 			   !(r->feat.feat_flags & MXFS_HB_FEAT_BOOTSTRAP_PENDING)) {
 			q[i].settled = true;
 			q[i].why = "successor-fresh-claim";
+		} else if (ours && r->flags == MXFS_DISKLOCK_FLAG_ACTIVE &&
+			   q[i].node != 0 && hb_feature_state(r) == MXFS_HBFEAT_OK &&
+			   (r->feat.feat_flags & MXFS_HB_FEAT_BOOT_ADOPTED) &&
+			   !(r->feat.feat_flags & MXFS_HB_FEAT_BOOTSTRAP_PENDING)) {
+			/* the slot was adopted by a bootstrap that has completed:
+			 * every earlier incarnation of it is recovered */
+			q[i].settled = true;
+			q[i].why = "successor-bootstrap-adopted";
 		} else {
 			q[i].why = (r->magic != MXFS_DISKLOCK_MAGIC) ? "badmagic" :
 				   hb_gen_foreign(ctx, r) ? "foreign" :
@@ -13460,6 +13516,7 @@ int mxfs_disklock_reclaim_own_slot(struct mxfs_disklock_ctx *ctx, int slot)
 	ctx->epoch_predrawn = 0;            /* consumed, as the claim would */
 	ctx->claim_fresh = false;           /* FULL replay of our own log */
 	ctx->bootstrap_pending = true;
+	ctx->boot_adopted = true;           /* the same adoption continues */
 	ctx->own_prov = hb->prov;           /* the same tenancy continues */
 	ctx->local_slot = slot;
 	ctx->slice_adopted = false;
@@ -13558,6 +13615,7 @@ int mxfs_disklock_claim_victim_slot(struct mxfs_disklock_ctx *ctx, int slot,
 	ctx->epoch_predrawn = 0;
 	ctx->claim_fresh = false;           /* FULL replay of the slice */
 	ctx->bootstrap_pending = true;
+	ctx->boot_adopted = true;
 	hb_prov_derive(ctx, expected, false);
 	memset(hb, 0, sizeof(*hb));
 	hb->magic = MXFS_DISKLOCK_MAGIC;
@@ -13585,6 +13643,7 @@ int mxfs_disklock_claim_victim_slot(struct mxfs_disklock_ctx *ctx, int slot,
 		rc = slot;
 	} else {
 		ctx->bootstrap_pending = false;
+		ctx->boot_adopted = false;
 		ctx->epoch_predrawn = ctx->epoch;   /* not consumed */
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "disklock: P-BOOT-ADOPT-CAS slot=%d rc=%d — the claim "

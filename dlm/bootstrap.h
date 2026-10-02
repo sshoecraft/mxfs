@@ -68,6 +68,10 @@
 #define MXFS_BOOT_SEC_TAKEOVER      31
 #define MXFS_BOOT_SEC_TOMB          32      /* 8 sectors */
 #define MXFS_BOOT_SEC_LINEAGE       40      /* 8 sectors */
+/* 48..50: the DRBD attachment's compare-and-swap — the pair's enrollment
+ * and one lock register per participant (pal/linux/drbd.c).  Written only
+ * on a DRBD device; mkfs zeroes them like the rest of the reserved tail. */
+#define MXFS_BOOT_SEC_DRBD_CAS      48      /* 3 sectors */
 #define MXFS_BOOT_SECTORS           64
 #define MXFS_BOOT_REGION_BYTES      (MXFS_BOOT_SECTORS * MXFS_BOOTSTRAP_REC_BYTES)
 #define MXFS_BOOT_MF_BANK(term)     (((term) & 1) ? MXFS_BOOT_SEC_MF_B : \

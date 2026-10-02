@@ -1216,6 +1216,32 @@ struct mxfs_rman_hdr {
  * for a TCP node.
  */
 #define MXFS_HB_FEAT_TCP        0x0008
+/*
+ * This incarnation is a DRBD_CLUSTERED attachment (2/net/mesh/drbd): it holds
+ * no PR key, and its retirement rests on its own clean release.  Its
+ * RETIRE_PENDING record is written only after its unmount record is durable,
+ * and on this attachment nothing at the device level ever withdraws a
+ * Primary's writes outside a fence, so there is no key whose absence anyone
+ * could prove: the clean release IS the retirement.  VM snapshot revert and
+ * clone of a node, the one way an old incarnation returns, are refused by the
+ * fence authority's host.  Stamped before the claim like TCP and never
+ * flipped mid-tenure.  Only a DRBD mount settles a record carrying it, and a
+ * record without it is never settled by the DRBD rule: key 0 alone stays
+ * UNKNOWN.
+ */
+#define MXFS_HB_FEAT_DRBD       0x0010
+/*
+ * This tenancy began by ADOPTING a certified victim slot as a whole-cluster
+ * bootstrap owner (mxfs_disklock_claim_victim_slot, or its same-boot resume).
+ * Set from the adoption's first record and uniform across the tenure.  While
+ * BOOTSTRAP_PENDING is also set the victim's slice is still being replayed;
+ * once BOOTSTRAP_PENDING is cleared (only after RECOVERY_COMPLETE) every
+ * earlier incarnation of the slot is fenced, certified and recovered, which is
+ * what lets a node that joins later settle that incarnation's leftover ledger
+ * records instead of keeping them as blockers (they named an ACTIVE successor
+ * without ADOPTED, "successor-unproven", forever).
+ */
+#define MXFS_HB_FEAT_BOOT_ADOPTED 0x0020
 
 struct mxfs_hb_feature {
 	uint32_t                magic;      /* MXFS_HB_FEAT_MAGIC */
@@ -1776,6 +1802,10 @@ struct mxfs_disklock_ctx {
 	 * (mxfs_disklock_set_transport_tcp refuses once local_slot >= 0) and
 	 * compared against every live record by the join gate and monitor. */
 	bool                    transport_tcp;
+	/* own records carry MXFS_HB_FEAT_DRBD; set before the claim only */
+	bool                    attach_drbd;
+	/* own records carry MXFS_HB_FEAT_BOOT_ADOPTED (a bootstrap adoption) */
+	bool                    boot_adopted;
 	mxfs_thread_t           *hb_thread;
 	/*
 	 * part D: heartbeat-stall watchdog.  hb_stage/hb_stage_ms are
@@ -2130,6 +2160,8 @@ struct mxfs_authority *mxfs_disklock_authority(struct mxfs_disklock_ctx *ctx);
 void mxfs_disklock_set_snlocal(struct mxfs_disklock_ctx *ctx, bool snlocal);
 /* 0.75.0: write-time transport marker (MXFS_HB_FEAT_TCP); before the claim only. */
 void mxfs_disklock_set_transport_tcp(struct mxfs_disklock_ctx *ctx, bool tcp);
+/* write-time attachment marker (MXFS_HB_FEAT_DRBD); before the claim only */
+void mxfs_disklock_set_attach_drbd(struct mxfs_disklock_ctx *ctx, bool drbd);
 
 /*
  * 0.75.0: the platter's transport census, taken BEFORE a mount selects its

@@ -37,6 +37,7 @@ HERE="$(cd "$(dirname "$0")/.." && pwd)"
 . "$HERE/tools/mxfs_lab.sh"
 SSH="$HERE/tools/mxfs_sshpass.sh"
 VIRSH="virsh -c qemu:///system"
+FENCE_STATE="${MXFS_FENCE_STATE:-$HOME/.local/state/mxfs-rig-fence}"
 BOOT_S=240
 SHUTDOWN_S=90
 
@@ -81,6 +82,13 @@ wait_ssh() {  # <domain>: 0 once it answers ssh with its boot finished
 up_one() {
     local d=$1 t0=$SECONDS
     [ -n "$(state "$d")" ] || { say "$d: no such domain"; return 1; }
+    # A fenced node stays down until its survivor releases it
+    # (tools/rig_fence_virsh.sh): starting it here would let it rejoin in the
+    # middle of the recovery its fence authorised.
+    if [ "$(state "$d")" != running ] && [ -e "$FENCE_STATE/$d.inhibit" ]; then
+        say "$d: fenced and inhibited ($(head -1 "$FENCE_STATE/$d.inhibit")) — not starting it; its survivor releases it"
+        return 1
+    fi
     if [ "$(state "$d")" != running ]; then
         timeout 60 $VIRSH start "$d" >/dev/null 2>&1 || { say "$d: did not start"; return 1; }
     fi

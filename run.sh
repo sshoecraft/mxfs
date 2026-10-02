@@ -73,7 +73,14 @@ if [ -n "$GROUP" ]; then
     # A group borrows a LUN from the pool (tools/lun_pool.sh), which logs
     # nodes in through one portal (direct) or both (mpath); the passthrough
     # attachment wires LUNs into the VM definitions and is not a pool's.
-    case "$CFG_ATTACH" in direct|mpath) ;; *) echo "ERROR: --group runs the direct and mpath attachments only; $CONFIG is $CFG_ATTACH"; exit 2 ;; esac
+    # drbd is the group's two nodes with a pool LUN each, replicated by DRBD,
+    # and is built by scripts/drbd_rig.sh before this run: the run is handed
+    # /dev/drbd0 in MXFS_DEV and borrows nothing.
+    case "$CFG_ATTACH" in
+        direct|mpath) ;;
+        drbd) [ "${MXFS_DEV:-}" = "$CFG_DEV_DEFAULT" ] || { echo "ERROR: $CONFIG runs on the DRBD device scripts/drbd_rig.sh builds; start it from there (MXFS_DEV=$CFG_DEV_DEFAULT)"; exit 2; } ;;
+        *) echo "ERROR: --group runs the direct, mpath and drbd attachments only; $CONFIG is $CFG_ATTACH"; exit 2 ;;
+    esac
     GROUP_NODES=$("$REPO/tools/mxfs_lab.sh" group "$GROUP") || exit 2
     [ "$(wc -w <<<"$GROUP_NODES")" -eq "$N" ] || {
         echo "ERROR: group $GROUP is [$GROUP_NODES], $(wc -w <<<"$GROUP_NODES") node(s); $CONFIG needs exactly $N"

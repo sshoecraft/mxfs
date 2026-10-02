@@ -1187,6 +1187,111 @@ const char *mxfs_pal_lu_reset_verdict_name(int v);
 int mxfs_pal_lu_reset_init(void);
 void mxfs_pal_lu_reset_exit(void);
 
+/* ─── DRBD dual-primary attachment ───
+ *
+ * docs/rulings/drbd-dual-primary-attachment.md.  A DRBD device carries no
+ * SCSI reservations and no COMPARE AND WRITE, so the attachment supplies its
+ * own admission and fence evidence (a witness helper that reads DRBD's state
+ * and the fence authority's answer) and its own compare-and-swap (a two-party
+ * lock built on the device from single-writer sectors).
+ */
+
+/* The DRBD minor of the device, or -ENODEV when it is not a DRBD device. */
+int mxfs_pal_bdev_drbd_minor(mxfs_bdev_t *dev);
+
+/* What a witness invocation is asked; echoed in the report, judged by dlm/drbdfence.c. */
+enum mxfs_pal_drbd_mode {
+    MXFS_PAL_DRBD_ARM     = 0,  /* admission at mount */
+    MXFS_PAL_DRBD_FENCE   = 1,  /* evidence that a dead peer is excluded */
+    MXFS_PAL_DRBD_RECHECK = 2,  /* the exclusion still holds, before an irreversible step */
+    MXFS_PAL_DRBD_MONITOR = 3,  /* runtime state */
+    MXFS_PAL_DRBD_STARTFENCE = 4, /* ask the fence authority to fence the peer, then report */
+};
+
+#define MXFS_PAL_DRBD_REPORT_MAX 2048
+
+/*
+ * One witness report, parsed.  `delivered` is true only for a complete report
+ * (end marker present) carrying this invocation's nonce; every other field is
+ * a string exactly as the helper reported it, "" when absent.  The helper owns
+ * no decision: dlm/drbdfence.c judges these fields.
+ */
+struct mxfs_pal_drbd_report {
+    bool     delivered;
+    uint64_t nonce;
+    uint32_t upcall_wall_ms;
+    char     reason[96];        /* why not delivered */
+    char     mode[12];
+    char     minor[8];
+    char     host[64];
+    char     cstate[24];
+    char     role_local[16];
+    char     role_peer[16];
+    char     disk_local[16];
+    char     disk_peer[16];
+    char     protocol[4];       /* from /proc/drbd */
+    char     suspended[4];
+    char     resource[64];
+    char     gi[24];            /* current data generation UUID */
+    char     protocol_cfg[4];   /* from the configuration */
+    char     two_primaries[8];
+    char     fencing[32];
+    char     fence_handler[96];
+    char     after_sb[64];
+    char     endpoints[4];
+    char     local_addr[48];
+    char     peer_host[64];
+    char     peer_addr[48];
+    char     handler_installed[4];
+    char     fence_self[64];
+    char     receipt_time[32];
+    char     receipt_peer[64];
+    char     receipt_episode[48];
+    char     auth_state[32];
+    char     auth_inhibit[48];
+    size_t   report_len;
+    char     report[MXFS_PAL_DRBD_REPORT_MAX];
+};
+
+/*
+ * Run the node-local witness helper for this DRBD device and wait, bounded,
+ * for its report.  Returns 0 when the helper ran (out->delivered says whether
+ * a complete report arrived), a negative errno when it could not be run.
+ * Nothing it returns is a verdict.
+ */
+int mxfs_pal_drbd_witness(mxfs_bdev_t *dev, int mode,
+                          struct mxfs_pal_drbd_report *out);
+int mxfs_pal_drbd_init(void);
+void mxfs_pal_drbd_exit(void);
+
+/*
+ * Give a DRBD device a compare-and-swap.  `region_off` is the byte offset
+ * (relative to this handle, like every other offset) of three reserved,
+ * mkfs-zeroed sectors: the pair's enrollment and one lock register per
+ * participant.  `index` is this node's participant number (0 or 1),
+ * `endpoint` its DRBD address, `peer_endpoint` the other one's; both are
+ * bound into the registers so a misconfigured pair that both claim one index
+ * fails closed instead of sharing a register.  Once attached,
+ * mxfs_pal_bdev_compare_and_write on any handle of this block device runs
+ * the emulation.  Returns 0, or a negative errno with nothing attached.
+ */
+int mxfs_pal_drbd_cas_attach(mxfs_bdev_t *dev, uint64_t region_off,
+                             unsigned int index, const uint8_t fs_uuid[16],
+                             const char *endpoint, const char *peer_endpoint);
+void mxfs_pal_drbd_cas_detach(mxfs_bdev_t *dev);
+/* The peer is fenced (a kind-25 certificate): clear a ticket it died holding. */
+void mxfs_pal_drbd_cas_peer_fenced(mxfs_bdev_t *dev);
+/* the exclusion judgment a waiting swap may consult (dlm/drbdfence.c) */
+void mxfs_pal_drbd_cas_set_judge(mxfs_bdev_t *dev,
+				 int (*judge)(const struct mxfs_pal_drbd_report *r,
+					      char *why, size_t whylen));
+/* Mark a handle as having attached the emulator, so its close detaches it. */
+void mxfs_pal_bdev_set_drbd_cas(mxfs_bdev_t *dev, bool on);
+/* The emulated swap itself, for mxfs_pal_bdev_compare_and_write on a device
+ * with no SCSI underneath: -EOPNOTSUPP when nothing is attached to it. */
+int mxfs_pal_drbd_cas_emulate(mxfs_bdev_t *dev, uint64_t offset,
+                              const void *compare_buf, const void *write_buf);
+
 /* ─── SCSI COMPARE AND WRITE ───
  *
  * Atomic compare-and-swap at sector granularity.
@@ -1213,6 +1318,8 @@ int mxfs_pal_bdev_compare_and_write(mxfs_bdev_t *dev, uint64_t offset,
  * devices (dm-multipath) — call once at module exit.  No-op in user mode.
  */
 void mxfs_pal_sdev_cache_release(void);
+void mxfs_pal_sdev_probe_init(void);
+void mxfs_pal_sdev_probe_exit(void);
 
 /* ─── Page cache support (kernel only) ─── */
 

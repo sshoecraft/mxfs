@@ -1661,6 +1661,68 @@ void mxfs_pal_lu_reset_exit(void)
 {
 }
 
+/* The DRBD attachment is a kernel attachment: user mode has no DRBD device to
+ * admit, fence or emulate a swap on. */
+int mxfs_pal_bdev_drbd_minor(mxfs_bdev_t *dev)
+{
+	(void)dev;
+	return -ENODEV;
+}
+
+int mxfs_pal_drbd_witness(mxfs_bdev_t *dev, int mode,
+			  struct mxfs_pal_drbd_report *out)
+{
+	(void)dev;
+	(void)mode;
+	if (!out)
+		return -EINVAL;
+	memset(out, 0, sizeof(*out));
+	snprintf(out->reason, sizeof(out->reason), "no-user-mode-drbd-witness");
+	return -EOPNOTSUPP;
+}
+
+int mxfs_pal_drbd_init(void)
+{
+	return 0;
+}
+
+void mxfs_pal_drbd_exit(void)
+{
+}
+
+int mxfs_pal_drbd_cas_attach(mxfs_bdev_t *dev, uint64_t region_off,
+			     unsigned int index, const uint8_t fs_uuid[16],
+			     const char *endpoint, const char *peer_endpoint)
+{
+	(void)dev; (void)region_off; (void)index; (void)fs_uuid;
+	(void)endpoint; (void)peer_endpoint;
+	return -EOPNOTSUPP;
+}
+
+void mxfs_pal_drbd_cas_detach(mxfs_bdev_t *dev)
+{
+	(void)dev;
+}
+
+void mxfs_pal_drbd_cas_peer_fenced(mxfs_bdev_t *dev)
+{
+	(void)dev;
+}
+
+void mxfs_pal_drbd_cas_set_judge(mxfs_bdev_t *dev,
+				 int (*judge)(const struct mxfs_pal_drbd_report *r,
+					      char *why, size_t whylen))
+{
+	(void)dev;
+	(void)judge;
+}
+
+void mxfs_pal_bdev_set_drbd_cas(mxfs_bdev_t *dev, bool on)
+{
+	(void)dev;
+	(void)on;
+}
+
 int mxfs_pal_scsi_target_id(mxfs_bdev_t *dev, struct mxfs_pal_target_id *out)
 {
 	uint8_t std[96];

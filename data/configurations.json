@@ -30,8 +30,9 @@
     "pass": {"implemented": true, "rig_mode": "pass",
              "device": "/dev/sda",
              "doc": "the hypervisor's initiator; the disk is passed into the VM as a SCSI LUN"},
-    "drbd": {"implemented": false,
-             "doc": "DRBD dual-primary replica of two local disks; needs a fencing method other than SCSI reservations"}
+    "drbd": {"implemented": false, "rig_mode": "drbd", "trial": true,
+             "device": "/dev/drbd0",
+             "doc": "DRBD dual-primary replica of two local disks, admitted by its witness and fenced by its own proof profile instead of SCSI reservations (docs/attachment-methods.md). trial: the rig builds it (scripts/drbd_rig.sh) and a caller that sets MXFS_TRIAL=1 may name it; it is never a board column or in a release matrix"}
   },
   "baseline": {"key": "1/xfs", "device": "/dev/sda",
                "doc": "native XFS on one node, no mxfs.ko: what the 2x performance ceiling is measured against"},

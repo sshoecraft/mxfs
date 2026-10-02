@@ -441,6 +441,23 @@ mxfs_dev_ident() {
 mxfs_dev_field() { printf '%s\n' "$1" | sed -n "s/.*[ ]$2=\([^ ]*\).*/\1/p"; }
 mxfs_dev_resolve() {
     local n=$1 d q src decl id w f mm live
+    # A DRBD attachment has no shared LUN: each node's /dev/drbdN sits on a
+    # LUN of its own (two WWIDs), and what both nodes share is the replicated
+    # filesystem.  Its identity is that filesystem's envelope fsid on a DRBD
+    # device, the same on both nodes; there is no WWID to declare or compare.
+    case "${MXFS_CONFIG:-}" in */drbd)
+        d=${MXFS_DEV:-$(python3 "$MXFS_RIG_LIB_DIR/../../tools/configuration.py" get "$MXFS_CONFIG" device)} \
+            || mxfs_dev_abort "MXFS_CONFIG=$MXFS_CONFIG is not a configuration"
+        id=$(mxfs_dev_ident "$n" "$d") || { echo "$id"; exit 2; }
+        case $id in *' absent') mxfs_dev_abort "$d is not a block device on $n (drbd attachment)" ;; esac
+        w=$(mxfs_dev_field "$id" wwid); f=$(mxfs_dev_field "$id" fsid); mm=$(mxfs_dev_field "$id" mm); live=$(mxfs_dev_field "$id" livemm)
+        case $mm in 147:*) ;; *) mxfs_dev_abort "$d on $n is $mm, not a DRBD device (major 147)" ;; esac
+        [ "$live" = - ] || [ "$live" = "$mm" ] || mxfs_dev_abort "$d on $n ($mm) is not the filesystem under test: $n's live mxfs mount is on $live"
+        case $f in unreadable|none|'') mxfs_dev_abort "the envelope superblock of $d on $n could not be read (fsid=$f)" ;; esac
+        MXFS_DEV_RESOLVED=$d; MXFS_DEV_WWID=$w; MXFS_DEV_FSID=$f; MXFS_DEV_SOURCE=drbd
+        echo "DEVICE node=$n path=$d source=drbd wwid=$w fsid=$f mounted=$(mxfs_dev_field "$id" mounted)"
+        return 0 ;;
+    esac
     # the helpers ABORT inside $(...): their text is what they returned
     decl=$(mxfs_dev_declared) || { echo "$decl"; exit 2; }
     if [ -n "${MXFS_DEV:-}" ]; then
@@ -727,3 +744,35 @@ mxfs_chk_on_node() {
     fi
 }
 mxfs_chk_rc() { grep -ao '^CHK_RC=[0-9]*' "$1" | head -1 | cut -d= -f2; }
+
+# ---- restarting a victim the survivor has recovered ----
+# On a DRBD attachment the survivor's fence left the victim inhibited at the
+# fence authority, and the libvirt hook refuses to start it until the survivor
+# releases it; once started, its DRBD resource must come up, resync from the
+# survivor and be promoted before it is a node again.  Every other attachment
+# is a plain start.  Call only once the survivor's recovery is complete: the
+# release is what lets the victim back.  rc 0 = started (and, on DRBD, Primary
+# and UpToDate on both sides).
+rig_start_victim() {  # <victim> <survivor>
+    local v=$1 s=$2 st ep tool="$MXFS_RIG_LIB_DIR/../../tools/rig_fence_virsh.sh"
+    case "${MXFS_CONFIG:-}" in */drbd)
+        st=$(timeout 30 "$tool" status "$v")
+        ep=${st##*inhibit=}
+        if [ -n "$ep" ] && [ "$ep" != none ]; then
+            st=$("$tool" release "$v" "$ep" "$s")
+            echo "  INFO $st"
+            [ "$st" = "RELEASED $v episode=$ep" ] || return 1
+        fi ;;
+    esac
+    timeout 60 sudo virsh -c qemu:///system start "$v" >/dev/null 2>&1
+}
+rig_drbd_rejoin() {  # <node>: after boot, the node's DRBD back to Primary, UpToDate on both sides
+    local n=$1 q
+    case "${MXFS_CONFIG:-}" in */drbd) ;; *) return 0 ;; esac
+    q=$(rsx 160 "$n" "modprobe drbd && drbdadm up all >/dev/null 2>&1
+        for i in \$(seq 1 120); do [ \"\$(drbdadm dstate all 2>/dev/null)\" = UpToDate/UpToDate ] && break; sleep 1; done
+        drbdadm primary all 2>&1 | tail -1
+        echo \"DRBD \$(drbdadm role all) \$(drbdadm dstate all) \$(drbdadm cstate all)\"")
+    echo "  INFO $n $(echo "$q" | grep -a '^DRBD' | tail -1)"
+    echo "$q" | grep -aq '^DRBD Primary/Primary UpToDate/UpToDate Connected'
+}

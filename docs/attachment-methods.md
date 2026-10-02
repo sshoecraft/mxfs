@@ -113,7 +113,7 @@ configuration that uses one is refused until it exists.
 | `direct` | yes | Its own initiator, one path: bare metal, or an in-guest iSCSI login. | `scripts/rig.sh N/<class>/<method>/direct` |
 | `mpath` | yes | Its own initiator over two or more paths, assembled by dm-multipath. | `scripts/rig.sh N/<class>/<method>/mpath` |
 | `pass` | yes | The hypervisor's initiator. The disk is passed into the VM as a SCSI LUN (QEMU SCSI passthrough, VMware RDM). | `scripts/rig.sh N/<class>/<method>/pass` |
-| `drbd` | no | DRBD dual-primary: each node's local disk, replicated synchronously to the other. | none |
+| `drbd` | no | DRBD dual-primary: each node's local disk, replicated synchronously to the other. | `scripts/drbd_rig.sh` (a trial: see below) |
 
 Each attachment has its own way of breaking the requirements above:
 
@@ -139,20 +139,131 @@ filesystem with no shared storage array and no third server. Mainline DRBD
   journal's durability ordering holds across the pair;
 - it implements no reservation ops, so it cannot be fenced by the storage.
 
-So `drbd` needs, before any configuration can use it:
+What replaces the storage's facilities (the design and its consult ruling are
+in `docs/rulings/drbd-dual-primary-attachment.md`):
 
-1. **A fencing method other than SCSI reservations** (`docs/fencing.md`): DRBD's
-   own resource fencing to keep the victim's writes off the survivor's replica,
-   plus a node fence, plus a split-brain tiebreaker. With two nodes and one
-   replication link, a lost link looks like a dead peer to both sides.
-2. **A coherency read path that does not use SCSI commands.** Under protocol C, a
-   plain read of the local replica after a completed write is coherent. That has
-   to be proved on the device and allowed only on DRBD protocol C.
-3. **`net` only.** COMPARE AND WRITE cannot be atomic across two replicas: two
-   nodes comparing against their own copies can both win. DRBD allows exactly two
-   primaries, so the configurations are `2/net/mesh/drbd` and nothing larger.
+1. **Admission by a witness, not a reservation.** DRBD exports no in-kernel
+   interface, so a node-local helper (`tools/mxfs_drbd_witness.py`) reads
+   `/proc/drbd`, drbdadm's parse of the resource, the fence-peer handler's
+   receipts and the fence authority's live answer, and reports them through
+   `/proc/fs/mxfs/drbd_report` under a kernel nonce (`pal/linux/drbd.c`).
+   `dlm/drbdfence.c` judges the report: protocol C, two primaries,
+   `fencing resource-and-stonith` with this attachment's handler, every
+   `after-sb` policy `disconnect`, no suspended I/O, this node Primary and
+   UpToDate, and either both disks UpToDate with the fence authority reachable
+   or the peer already fenced in the current episode. A DRBD mount holds no PR
+   context.
+2. **A compare-and-swap built on the device.** Every record the network lock
+   manager updates with COMPARE AND WRITE (heartbeat, slot claim, recovery
+   milestones, bootstrap owner, ledger tickets) is updated on DRBD by a
+   read-compare-write held under a two-party Lamport bakery lock in reserved
+   sectors 48-50 of the bootstrap region. Each register is written only by its
+   owner, protocol C completes a write only once both disks hold it, and the
+   registers bind the filesystem, the participant index and both endpoints so
+   a pair that disagree about who is participant 0 refuses instead of sharing a
+   register. The swap is atomic only against other swaps, so no plain write may
+   touch a protected sector. Swaps are group-committed: every swap on one node
+   queues, and whichever caller holds the node's lock serves all queued swaps
+   (up to 32) inside one bakery acquisition, each read-compare-write in queue
+   order, releasing once after every target write has completed. A swap costs
+   a doorway (two replicated writes and a read) and a release (one write) on
+   top of its own read-compare-write; served one at a time under a lock
+   workload, swaps queued for 130 ms on average behind each other and pushed
+   lock handoffs past the 1 s acquire wait.
+3. **A fence proof profile of its own, kind 25 (`DRBD_STONITH_WITNESSED_V1`).**
+   DRBD's `fencing resource-and-stonith` freezes a Primary's I/O when it loses
+   its peer and runs the fence-peer handler (`tools/mxfs_drbd_fence_peer.sh`),
+   which asks the fence authority to power the peer off and hold it off. The
+   authority serialises requests, so in a split exactly one side is granted,
+   and it names each grant with an episode. Before replay the survivor takes
+   the witness again: the link disconnected, the peer's disk Outdated, a
+   STONITHED receipt naming the peer, and the authority reporting the peer off
+   and inhibited under that receipt's episode. That is the admission half. The
+   retirement half comes from the same state: DRBD reaches a disconnected state
+   only after it freed the replication socket and waited for every peer write
+   already submitted to the local disk (`drbd_receiver.c`,
+   `conn_disconnect`/`drbd_disconnected`), a completed operation of the
+   survivor's own target. The certificate binds a victim key derived from the
+   incarnation it excludes, because a DRBD mount registers none.
+4. **Continuing exclusion.** The same witness is taken before every
+   irreversible recovery step, and a peer that was started again or reconnected
+   fails it. "Connected and Secondary" is not exclusion. A fenced node rejoins
+   only after the survivor's recovery completes and the survivor releases its
+   inhibit: then it boots, DRBD resyncs it, it is promoted once UpToDate, and it
+   mounts through admission like any node.
+5. **Retirement of a clean departure is the departure itself.** On SCSI a
+   cleanly released heartbeat slot becomes reusable only once some node proves
+   the departed incarnation's PR key absent, because a registered key is a
+   device-enforced write capability. A DRBD Primary holds no such capability:
+   nothing at the device level ever withdraws its writes outside a fence. What
+   retirement protects against is the old incarnation writing again after its
+   slot is reused, and on this attachment that can only be the incarnation
+   itself, which unmounted, or an old incarnation brought back from saved
+   memory. So: the release record is written only after the unmount record is
+   durable; every record of a DRBD incarnation carries `MXFS_HB_FEAT_DRBD`; the
+   departing node publishes its own slot EMPTY after its release, and a record
+   a crash left between the two is published EMPTY by the next DRBD node that
+   reads it, from its exact image. Only a DRBD mount applies the rule, only to
+   a record carrying the marker; key 0 alone stays unknown. Bringing an old
+   incarnation back is excluded by prohibition: a node of this attachment is
+   never restored from saved memory or reverted to a snapshot. A design consult
+   held that a stricter rule needs external revocation of the departed
+   incarnation (in practice a power-off per unmount, or an externally enforced
+   promotion permit); the rule above is the decision taken instead, with the
+   prohibition carrying what revocation would.
+6. **The fence authority is the site's.** The handler and the witness reach an
+   authority outside both nodes, by `ssh` to a forced command or by `exec` of a
+   local program (`/etc/mxfs/drbd-fence.conf`), that answers three verbs:
+   `fence <target> <requester>` (power the target off, inhibit its restart under
+   a fresh episode, and refuse a requester that is itself inhibited, so a split
+   has one winner), `status <target>`, and `release <target> <episode>
+   <requester>`. What it must guarantee: the inhibit survives the authority's
+   own restart and holds against every way the target can be started; only the
+   survivor's `release` clears it; it never restores a node from saved memory.
+   The packages ship the witness and the handler (`/usr/sbin`); the authority is
+   the site's own (IPMI, a PDU, its hypervisor). The rig's is
+   `tools/rig_fence_virsh.sh`, with a libvirt hook (`tools/libvirt_qemu_hook.sh`)
+   that refuses to start an inhibited VM by any path and to restore one from
+   saved memory.
+7. **A pair outage is recovered by startup fencing.** When both nodes die at
+   once nobody survives to fence, and on restart the bootstrap finds two dead
+   incarnations that registered nothing a reservation could preempt. The pair
+   has exactly two endpoints, so the first node to mount fences its peer
+   through the authority before it claims the bootstrap record: once the other
+   endpoint is off and inhibited and this node runs a new incarnation, no
+   recorded incarnation of either can write. Every victim is certified by kind
+   25 against that fence (its key derived from the incarnation, as the
+   certificate binds it), both slices are replayed, and completion re-checks
+   that the peer is still held off, which on SCSI the registrant reconcile
+   proves. The peer rejoins through the survivor's release. If both nodes
+   bootstrap at once, the authority grants one and powers the other off. The
+   cost is one power cycle of the peer after a pair outage, the same trade
+   Pacemaker's startup fencing makes.
+8. **`net` only.** COMPARE AND WRITE cannot be atomic across two replicas without
+   the lock above, and the disk lock manager would ride the emulated swap for
+   every lock. DRBD allows exactly two primaries, so the configuration is
+   `2/net/mesh/drbd` and nothing larger.
 
-Until then, today's mount refusal of a DRBD device is correct.
+Coherency reads need nothing special: a device with no SCSI device underneath
+takes the plain bio read, and under protocol C a read of the local replica after
+a completed peer write is coherent. What must hold instead is that MXFS never
+reaches a DRBD device's backing disk directly: SCSI passthrough resolves a
+stacked device by content only when it is device-mapper (multipath), and only
+to a disk that is a direct slave of that device, because DRBD's LBA 0 equals
+its backing disk's and a passthrough sent there would write one replica only.
+The slave test is what keeps a device-mapper volume stacked on DRBD (or on any
+other layer) from resolving to the disk underneath, and it is applied to the
+resolver's cache too: a cache entry is keyed on a device number, and a number
+freed by a removed device is handed to the next one created.
+
+The rig builds and exercises the whole attachment with `scripts/drbd_rig.sh`:
+each node of a rig group gets a pool LUN of its own as its local disk, DRBD
+comes up dual-primary with the rig's fence authority (`tools/rig_fence_virsh.sh`,
+the hypervisor fence for test VMs), and MXFS, the suite, fio and the death,
+fence and split tests run on `/dev/drbd0`. The configuration parses only for a
+caller that sets `MXFS_TRIAL=1` (`trial` in `data/configurations.json`), is never
+a board column or part of a release matrix, and its results go to a board of
+their own.
 
 ## Fabric is a separate question
 
@@ -174,8 +285,8 @@ through, or it is refused at mount:
   md-cluster (it coordinates through the Linux DLM, but the device still carries
   no reservations or COMPARE AND WRITE); LVM or device-mapper volumes spanning
   more than one device (dm passes reservations through only when a volume maps to
-  exactly one device, which is why dm-multipath works); DRBD until it has a
-  fencing method.
+  exactly one device, which is why dm-multipath works).  DRBD dual-primary is
+  not refused: it is its own attachment, with its own fencing (above).
 - **fine behind a single target**: RAID inside the storage array; md or DRBD
   active/passive as the backend of one SCSI target. MXFS then sees an ordinary
   LUN and the attachment is `direct` or `mpath`. What has to hold is that the

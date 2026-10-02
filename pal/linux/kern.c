@@ -67,6 +67,8 @@
 #include <linux/pr.h>
 #include <linux/string.h>
 #include <linux/crc32c.h>
+#include <linux/kernfs.h>
+#include <linux/proc_fs.h>
 #include <scsi/scsi_device.h>
 #include <scsi/scsi_host.h>
 #include <scsi/scsi_common.h>
@@ -92,6 +94,7 @@ struct mxfs_bdev {
 #endif
 	uint64_t base_offset;
 	bool is_clone;
+	bool drbd_cas;		/* attached the DRBD swap emulator (drbd.c); detached at close */
 	char path[4096];
 
 	/* I/O stats for performance analysis */
@@ -149,6 +152,8 @@ void mxfs_pal_bdev_close(mxfs_bdev_t *dev)
 {
 	if (!dev)
 		return;
+	if (dev->drbd_cas)
+		mxfs_pal_drbd_cas_detach(dev);
 
 	if (dev->stat_writes || dev->stat_writes_fua)
 		mxfs_probe("mxfs: bdev_io: writes=%llu (%llu KB, %llu us, avg %llu us) "
@@ -203,10 +208,21 @@ mxfs_bdev_t *mxfs_pal_bdev_clone_with_offset(mxfs_bdev_t *dev,
 	return clone;
 }
 
+void mxfs_pal_bdev_set_drbd_cas(mxfs_bdev_t *dev, bool on)
+{
+	if (dev)
+		dev->drbd_cas = on;
+}
+
 void mxfs_pal_bdev_close_clone(mxfs_bdev_t *dev)
 {
 	if (!dev)
 		return;
+	/* The emulator lives exactly as long as the handle that attached it:
+	 * a departure's last slot writes run on this handle after the cluster
+	 * context is gone, and they are swaps too. */
+	if (dev->drbd_cas)
+		mxfs_pal_drbd_cas_detach(dev);
 
 	if (dev->stat_writes || dev->stat_writes_fua)
 		mxfs_probe("mxfs: bdev_io (xfs): writes=%llu (%llu KB, %llu us, avg %llu us) "
@@ -432,6 +448,19 @@ int mxfs_pal_bio_write_fua_bdev(struct block_device *bdev, uint64_t lba_512,
 				      REQ_OP_WRITE | REQ_SYNC | REQ_FUA);
 }
 EXPORT_SYMBOL_GPL(mxfs_pal_bio_write_fua_bdev);
+
+/* A synchronous write that is complete when the device says so, without
+ * forcing it to stable media: the DRBD compare-and-swap's lock registers
+ * (pal/linux/drbd.c). */
+int mxfs_pal_bio_write_sync_bdev(struct block_device *bdev, uint64_t lba_512,
+				 const void *buf, uint32_t len);
+int mxfs_pal_bio_write_sync_bdev(struct block_device *bdev, uint64_t lba_512,
+				 const void *buf, uint32_t len)
+{
+	return mxfs_pal_bio_sync_bdev(bdev, lba_512, (void *)buf, len,
+				      REQ_OP_WRITE | REQ_SYNC);
+}
+EXPORT_SYMBOL_GPL(mxfs_pal_bio_write_sync_bdev);
 
 int mxfs_pal_bio_read_bdev(struct block_device *bdev, uint64_t lba_512,
 			   void *buf, uint32_t len)
@@ -697,13 +726,48 @@ static int mxfs_sdev_read_lba(struct scsi_device *sdev, u64 lba, void *buf)
 	return (ret < 0) ? ret : -EIO;
 }
 
+static int mxfs_sdev_disk_child(struct device *dev, void *data)
+{
+	char *name = data;
+
+	if (!dev->class || strcmp(dev->class->name, "block"))
+		return 0;
+	strscpy(name, dev_name(dev), 32);
+	return 1;
+}
+
+/*
+ * Is the disk on `sdev` a direct slave of `holder`?  `name` (32 bytes) gets
+ * that disk's name, or "" when the sdev has none.  dm-multipath's paths are
+ * its slaves.  A dm device stacked on some other layer — dm-linear at offset 0
+ * over /dev/drbd0 — has that layer as its slave, and its LBA 0 still equals
+ * the SCSI disk UNDER the layer; that disk is not its slave, and a passthrough
+ * sent to it would skip the layer.
+ */
+static bool mxfs_sdev_is_slave_of(struct gendisk *holder,
+				  struct scsi_device *sdev, char *name)
+{
+	struct kernfs_node *kn;
+
+	name[0] = '\0';
+	device_for_each_child(&sdev->sdev_gendev, name, mxfs_sdev_disk_child);
+	if (!name[0] || !holder->slave_dir)
+		return false;
+	kn = kernfs_find_and_get(holder->slave_dir->sd, name);
+	if (!kn)
+		return false;
+	kernfs_put(kn);
+	return true;
+}
+
 /* Scan every SCSI disk in the system for one whose LBA 0 matches the
- * identity sector read through `bdev`.  Returns a referenced scsi_device
- * (caller puts), or NULL. */
+ * identity sector read through `bdev` and that is a direct slave of it.
+ * Returns a referenced scsi_device (caller puts), or NULL. */
 static struct scsi_device *mxfs_sdev_resolve_by_content(struct block_device *bdev)
 {
 	struct scsi_device *found = NULL;
 	unsigned char *ident, *probe;
+	char name[32];
 	unsigned int hostno;
 	bool zero = true;
 	int i;
@@ -745,6 +809,14 @@ static struct scsi_device *mxfs_sdev_resolve_by_content(struct block_device *bde
 				continue;
 			if (memcmp(ident, probe, 512))
 				continue;
+			if (!mxfs_sdev_is_slave_of(bdev->bd_disk, sdev, name)) {
+				mxfs_probe("mxfs: P-MPATH-RESOLVE-REJECT %s: LBA 0 matches %d:%d:%d:%llu (%s), which is not one of its slaves\n",
+					bdev->bd_disk->disk_name,
+					sdev->host->host_no, sdev->channel,
+					sdev->id, (unsigned long long)sdev->lun,
+					name[0] ? name : "no disk");
+				continue;
+			}
 			if (scsi_device_get(sdev) == 0)
 				found = sdev;
 		}
@@ -764,6 +836,7 @@ static struct scsi_device *mxfs_bdev_to_sdev(struct block_device *bdev)
 {
 	struct scsi_device *sdev = NULL, *stale = NULL, *spare = NULL;
 	struct device *parent;
+	char name[32];
 	int i, slot;
 
 	if (!bdev)
@@ -790,6 +863,20 @@ static struct scsi_device *mxfs_bdev_to_sdev(struct block_device *bdev)
 		return sdev;
 	}
 
+	/*
+	 * ONLY DEVICE-MAPPER IS RESOLVED BY CONTENT.  The scan below exists for
+	 * dm-multipath, where every path IS the same logical unit and a command
+	 * sent down one of them reaches it.  Any other stacked device whose LBA 0
+	 * equals a SCSI disk's is a layer ON TOP of that disk — DRBD with internal
+	 * metadata, md RAID1 with metadata at the end — and a passthrough sent to
+	 * the disk underneath skips the layer: a write lands on one replica and
+	 * is never replicated.  Measured on /dev/drbd0 (P-MPATH-RESOLVE 147:0 ->
+	 * the local backing LUN).  Such a device gets NULL, and every caller
+	 * takes its bio path through the layer.
+	 */
+	if (strncmp(bdev->bd_disk->disk_name, "dm-", 3))
+		return NULL;
+
 	/* Stacked device: consult the cache. */
 	spin_lock(&mxfs_sdev_cache_lock);
 	for (i = 0; i < MXFS_SDEV_CACHE_SIZE; i++) {
@@ -800,9 +887,8 @@ static struct scsi_device *mxfs_bdev_to_sdev(struct block_device *bdev)
 		if (e->sdev) {
 			if (scsi_device_online(e->sdev) &&
 			    scsi_device_get(e->sdev) == 0) {
-				sdev = e->sdev;
-				spin_unlock(&mxfs_sdev_cache_lock);
-				return sdev;
+				sdev = e->sdev;	/* checked below, outside the lock */
+				break;
 			}
 			/* Path died — drop the cache's ref, re-resolve. */
 			stale = e->sdev;
@@ -819,6 +905,39 @@ static struct scsi_device *mxfs_bdev_to_sdev(struct block_device *bdev)
 		break;
 	}
 	spin_unlock(&mxfs_sdev_cache_lock);
+	/*
+	 * The cache is keyed on dev_t, and a dev_t outlives nothing: a removed
+	 * dm device's minor goes to the next one created, which may sit on
+	 * another disk entirely.  Measured: dm over a scsi_debug disk took
+	 * 252:1, was removed, dm over /dev/drbd0 then got 252:1 and was handed
+	 * the scsi_debug disk.  A hit stands only while its disk is still a
+	 * slave of the device asking.
+	 */
+	if (sdev) {
+		if (mxfs_sdev_is_slave_of(bdev->bd_disk, sdev, name))
+			return sdev;
+		spin_lock(&mxfs_sdev_cache_lock);
+		for (i = 0; i < MXFS_SDEV_CACHE_SIZE; i++) {
+			struct mxfs_sdev_cache_ent *e = &mxfs_sdev_cache[i];
+
+			if (e->devt == bdev->bd_dev && e->sdev == sdev) {
+				stale = e->sdev;	/* the cache's reference */
+				e->sdev = NULL;
+				e->retry_at = 0;
+				break;
+			}
+		}
+		spin_unlock(&mxfs_sdev_cache_lock);
+		mxfs_probe("mxfs: P-MPATH-RESOLVE cached disk %s for %u:%u (%s) is not one of its slaves — re-resolving\n",
+			name[0] ? name : "?", MAJOR(bdev->bd_dev),
+			MINOR(bdev->bd_dev), bdev->bd_disk->disk_name);
+		scsi_device_put(sdev);			/* the reference taken above */
+		sdev = NULL;
+		if (stale) {
+			scsi_device_put(stale);
+			stale = NULL;
+		}
+	}
 	if (stale) {
 		mxfs_probe("mxfs: P-MPATH-RESOLVE cached backing path for %u:%u went offline — re-resolving\n",
 			MAJOR(bdev->bd_dev), MINOR(bdev->bd_dev));
@@ -890,6 +1009,101 @@ void mxfs_pal_sdev_cache_release(void)
 		scsi_device_put(drop[n]);
 }
 EXPORT_SYMBOL_GPL(mxfs_pal_sdev_cache_release);
+
+/*
+ * Writing a device path to /proc/fs/mxfs/sdev_resolve_probe runs that
+ * device through mxfs_bdev_to_sdev, exactly as every passthrough caller
+ * does, and prints the SCSI device it would send commands to, or none.
+ * The device is opened shared and read-only, so a mounted MXFS device can
+ * be asked.  This is how a stacked device is shown to take the bio path.
+ */
+static struct proc_dir_entry *mxfs_sdev_probe_pde;
+
+static ssize_t mxfs_sdev_probe_write(struct file *file,
+				     const char __user *ubuf,
+				     size_t count, loff_t *ppos)
+{
+	struct block_device *bdev;
+	struct scsi_device *sdev;
+#if MXFS_EFFECTIVE_VERSION >= KERNEL_VERSION(6, 9, 0)
+	struct file *bfile;
+#elif MXFS_EFFECTIVE_VERSION >= KERNEL_VERSION(6, 8, 0)
+	struct bdev_handle *handle;
+#endif
+	char path[128];
+	size_t take = min(count, sizeof(path) - 1);
+	char *nl;
+
+	if (take == 0)
+		return 0;
+	if (copy_from_user(path, ubuf, take))
+		return -EFAULT;
+	path[take] = '\0';
+	nl = strchr(path, '\n');
+	if (nl)
+		*nl = '\0';
+	if (!path[0])
+		return -EINVAL;
+
+#if MXFS_EFFECTIVE_VERSION >= KERNEL_VERSION(6, 9, 0)
+	bfile = bdev_file_open_by_path(path, BLK_OPEN_READ, NULL, NULL);
+	if (IS_ERR(bfile))
+		return PTR_ERR(bfile);
+	bdev = file_bdev(bfile);
+#elif MXFS_EFFECTIVE_VERSION >= KERNEL_VERSION(6, 8, 0)
+	handle = bdev_open_by_path(path, BLK_OPEN_READ, NULL, NULL);
+	if (IS_ERR(handle))
+		return PTR_ERR(handle);
+	bdev = handle->bdev;
+#else
+	bdev = blkdev_get_by_path(path, FMODE_READ, NULL);
+	if (IS_ERR(bdev))
+		return PTR_ERR(bdev);
+#endif
+
+	sdev = mxfs_bdev_to_sdev(bdev);
+	if (sdev) {
+		mxfs_probe("mxfs: P-SDEV-RESOLVE-PROBE %s dev=%u:%u disk=%s -> sdev %d:%d:%d:%llu\n",
+			path, MAJOR(bdev->bd_dev), MINOR(bdev->bd_dev),
+			bdev->bd_disk->disk_name, sdev->host->host_no,
+			sdev->channel, sdev->id,
+			(unsigned long long)sdev->lun);
+		scsi_device_put(sdev);
+	} else {
+		mxfs_probe("mxfs: P-SDEV-RESOLVE-PROBE %s dev=%u:%u disk=%s -> none (bio path)\n",
+			path, MAJOR(bdev->bd_dev), MINOR(bdev->bd_dev),
+			bdev->bd_disk->disk_name);
+	}
+
+#if MXFS_EFFECTIVE_VERSION >= KERNEL_VERSION(6, 9, 0)
+	bdev_fput(bfile);
+#elif MXFS_EFFECTIVE_VERSION >= KERNEL_VERSION(6, 8, 0)
+	bdev_release(handle);
+#else
+	blkdev_put(bdev, FMODE_READ);
+#endif
+	*ppos += count;
+	return count;
+}
+
+static const struct proc_ops mxfs_sdev_probe_ops = {
+	.proc_write	= mxfs_sdev_probe_write,
+	.proc_lseek	= noop_llseek,
+};
+
+void mxfs_pal_sdev_probe_init(void)
+{
+	mxfs_sdev_probe_pde = proc_create("fs/mxfs/sdev_resolve_probe", 0200,
+					  NULL, &mxfs_sdev_probe_ops);
+}
+
+void mxfs_pal_sdev_probe_exit(void)
+{
+	if (mxfs_sdev_probe_pde) {
+		proc_remove(mxfs_sdev_probe_pde);
+		mxfs_sdev_probe_pde = NULL;
+	}
+}
 
 /*
  * ─── PER-TASK ABSOLUTE I/O BUDGET (design-consult ruling item 5) ───
@@ -3644,7 +3858,8 @@ EXPORT_SYMBOL_GPL(mxfs_pal_dbg_depart_inject_take);
  *   dbg_cas_nocaw_ops=BITMASK (sticky): the named exact-image record CAS
  *   classes in dlm/disklock.c (hb_caw: 1 heartbeat 2 release 4 withdraw
  *   8 withdrawn 16 restamp 32 complete-self 64 empty 128 settle-own
- *   256 recovery-milestone 512 guard 1024 guard-refresh 2048 guard-zero)
+ *   256 recovery-milestone 512 guard 1024 guard-refresh 2048 guard-zero;
+ *   dlm/bootstrap.c: 4096 owner record 8192 tombstone 16384 takeover journal)
  *   report -EOPNOTSUPP without issuing the COMPARE AND WRITE — runtime CAW
  *   loss per writer class (condition 4; tests/cas_nocaw_arms.sh).
  * Never enable any of them in production.
@@ -3698,7 +3913,7 @@ EXPORT_SYMBOL_GPL(mxfs_pal_dbg_retire_hang_take);
 static int mxfs_dbg_cas_nocaw_ops;
 module_param_named(dbg_cas_nocaw_ops, mxfs_dbg_cas_nocaw_ops, int, 0644);
 MODULE_PARM_DESC(dbg_cas_nocaw_ops,
-	"DEBUG bitmask: the named disklock record-CAS classes report -EOPNOTSUPP instead of issuing COMPARE AND WRITE (1 heartbeat 2 release 4 withdraw 8 withdrawn 16 restamp 32 complete-self 64 empty 128 settle-own 256 recovery-milestone 512 guard 1024 guard-refresh 2048 guard-zero). Never enable in production.");
+	"DEBUG bitmask: the named disklock record-CAS classes report -EOPNOTSUPP instead of issuing COMPARE AND WRITE (1 heartbeat 2 release 4 withdraw 8 withdrawn 16 restamp 32 complete-self 64 empty 128 settle-own 256 recovery-milestone 512 guard 1024 guard-refresh 2048 guard-zero; bootstrap: 4096 owner record 8192 tombstone 16384 takeover journal). Never enable in production.");
 
 bool mxfs_pal_dbg_cas_nocaw(unsigned int opbit, const char *what)
 {
@@ -5352,10 +5567,12 @@ int mxfs_pal_bdev_compare_and_write(mxfs_bdev_t *dev, uint64_t offset,
 		return -EINVAL;
 
 	/* Plain SCSI disk: gendisk's parent.  Stacked (dm-multipath):
-	 * resolved underlying path — see mxfs_bdev_to_sdev(). */
+	 * resolved underlying path — see mxfs_bdev_to_sdev().  No SCSI device
+	 * underneath: the DRBD attachment's emulated swap when one is attached
+	 * (pal/linux/drbd.c), otherwise -EOPNOTSUPP. */
 	sdev = mxfs_bdev_to_sdev(dev->bdev);
 	if (!sdev)
-		return -EOPNOTSUPP;
+		return mxfs_pal_drbd_cas_emulate(dev, offset, compare_buf, write_buf);
 
 	lba = (offset + dev->base_offset) / 512;
 

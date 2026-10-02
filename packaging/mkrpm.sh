@@ -62,6 +62,8 @@ cp "$SRCDIR/tools/mxfs_admin.c" "$TARDIR/tools/"
 cp "$SRCDIR/tools/mxfs_offline.h" "$TARDIR/tools/"
 cp "$SRCDIR/tools/crc32c.h" "$TARDIR/tools/"
 cp "$SRCDIR/tools/mxfs_lu_reset_witness.py" "$TARDIR/tools/"
+cp "$SRCDIR/tools/mxfs_drbd_witness.py" "$TARDIR/tools/"
+cp "$SRCDIR/tools/mxfs_drbd_fence_peer.sh" "$TARDIR/tools/"
 cp -r "$SRCDIR/include" "$TARDIR/tools/"
 
 # udev rule
@@ -134,6 +136,9 @@ install -m 755 tools/mxfs_admin %{buildroot}/usr/sbin/mxfs_admin
 ln -sf chk_mxfs %{buildroot}/usr/sbin/fsck.mxfs
 # the witnessed LOGICAL UNIT RESET helper the module upcalls (see mkdeb.sh)
 install -m 755 tools/mxfs_lu_reset_witness.py %{buildroot}/usr/sbin/mxfs_lu_reset_witness.py
+# the DRBD attachment's witness and fence-peer handler (see mkdeb.sh)
+install -m 755 tools/mxfs_drbd_witness.py %{buildroot}/usr/sbin/mxfs_drbd_witness.py
+install -m 755 tools/mxfs_drbd_fence_peer.sh %{buildroot}/usr/sbin/mxfs-drbd-fence-peer
 
 # Man pages
 mkdir -p %{buildroot}/usr/share/man/man5
@@ -248,6 +253,8 @@ fi
 /usr/sbin/mxfs_admin
 /usr/sbin/fsck.mxfs
 /usr/sbin/mxfs_lu_reset_witness.py
+/usr/sbin/mxfs_drbd_witness.py
+/usr/sbin/mxfs-drbd-fence-peer
 /usr/share/man/man5/*.5.gz
 /usr/share/man/man8/*.8.gz
 /etc/modules-load.d/mxfs.conf

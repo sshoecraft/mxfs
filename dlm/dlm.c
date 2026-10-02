@@ -4712,11 +4712,51 @@ int mxfs_dlm_takeover_orphans(struct mxfs_dlm_ctx *ctx)
 	return skipped ? -EAGAIN : done;
 }
 
+/*
+ * A departure hands every page it owns to a live peer, one durable commit per
+ * page (two compare-and-swaps, the body, a flush, a readback).  Pages are
+ * independent — each has its own ledger lock and its own on-disk copies — so
+ * they are handed by DLM_DEPART_WORKERS threads at once, the caller among
+ * them.  Measured on 2/net/mesh/drbd, where each compare-and-swap is a
+ * replicated read-compare-write under a two-party lock: ~1,000-2,000 pages
+ * handed one at a time held an unmount for 57-98 s; concurrent commits share
+ * the swap lock's acquisitions and overlap their body writes.
+ */
+#define DLM_DEPART_WORKERS	8
+
+struct dlm_depart_job {
+	struct mxfs_dlm_ctx	*ctx;
+	const mxfs_node_id_t	*others;
+	int			n;
+	mxfs_atomic32_t		next;	/* the next page to take */
+	mxfs_atomic32_t		left;	/* pages not handed */
+};
+
+static void dlm_depart_worker(void *arg)
+{
+	struct dlm_depart_job *j = arg;
+	struct mxfs_dlm_ctx *ctx = j->ctx;
+	int32_t p;
+
+	while ((p = mxfs_atomic32_inc(&j->next) - 1) < (int32_t)ctx->page_count) {
+		mxfs_node_id_t target = j->others[(uint32_t)p % (uint32_t)j->n];
+
+		if (!mxfs_tauth_ledger_page_mine(ctx->ledger, (uint32_t)p))
+			continue;
+		if (dlm_page_hand_to(ctx, (uint32_t)p, target,
+				     ctx->node_inc_cb ? ctx->node_inc_cb(ctx->cb_data, target) : 0,
+				     "depart", true))
+			mxfs_atomic32_inc(&j->left);
+	}
+}
+
 int mxfs_dlm_handoff_depart(struct mxfs_dlm_ctx *ctx)
 {
 	mxfs_node_id_t others[MXFS_MAX_NODES];
-	int n = 0, i, left = 0;
-	uint32_t p;
+	mxfs_thread_t *workers[DLM_DEPART_WORKERS - 1];
+	struct dlm_depart_job job;
+	int n = 0, i, nw = 0, left = 0;
+	uint64_t t0;
 
 	if (!ctx || !dlm_ledger_active(ctx) || !ctx->page_state)
 		return 0;
@@ -4730,20 +4770,25 @@ int mxfs_dlm_handoff_depart(struct mxfs_dlm_ctx *ctx)
 							 * mount's bootstrap/takeover claims them */
 	ctx->departing = true;  /* 0.75.20: every FROZEN from here carries the
 							 * departing flag (see dlm_send_handoff) */
-	for (p = 0; p < ctx->page_count; p++) {
-		mxfs_node_id_t target = others[p % (uint32_t)n];
-		int rc;
-
-		if (!mxfs_tauth_ledger_page_mine(ctx->ledger, p))
-			continue;
-		rc = dlm_page_hand_to(ctx, p, target,
-				      ctx->node_inc_cb ? ctx->node_inc_cb(ctx->cb_data, target) : 0,
-				      "depart", true);
-		if (rc)
-			left++;
+	t0 = mxfs_pal_time_ms();
+	job.ctx = ctx;
+	job.others = others;
+	job.n = n;
+	mxfs_atomic32_set(&job.next, 0);
+	mxfs_atomic32_set(&job.left, 0);
+	/* a thread that cannot be created leaves its share to the others */
+	for (i = 0; i < DLM_DEPART_WORKERS - 1; i++) {
+		workers[nw] = mxfs_pal_thread_create(dlm_depart_worker, &job);
+		if (workers[nw])
+			nw++;
 	}
-	mxfs_pal_log(MXFS_LOG_DEBUG, "mxfs: P-TAUTH-DEPART node=%u pages_left=%d",
-		     ctx->local_node, left);
+	dlm_depart_worker(&job);
+	for (i = 0; i < nw; i++)
+		mxfs_pal_thread_join(workers[i]);
+	left = mxfs_atomic32_get(&job.left);
+	mxfs_pal_log(MXFS_LOG_DEBUG, "mxfs: P-TAUTH-DEPART node=%u pages_left=%d workers=%d ms=%llu",
+		     ctx->local_node, left, nw + 1,
+		     (unsigned long long)(mxfs_pal_time_ms() - t0));
 	return left;
 }
 

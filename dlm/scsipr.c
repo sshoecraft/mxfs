@@ -1573,6 +1573,8 @@ const char *mxfs_fence_kind_name(enum mxfs_fence_kind k)
 		return "PREEMPT_ABORT_PROVEN_V1";
 	case MXFS_FENCE_KIND_LU_RESET_WITNESSED_V1:
 		return "LU_RESET_WITNESSED_V1";
+	case MXFS_FENCE_KIND_DRBD_STONITH_WITNESSED_V1:
+		return "DRBD_STONITH_WITNESSED_V1";
 	case MXFS_FENCE_KIND_PREEMPT_ABORT_DONE:
 		return "PREEMPT_ABORT_DONE_RETIRED16";
 	case MXFS_FENCE_KIND_SINGLE_NODE_EXCLUSIVE: return "SINGLE_NODE_EXCLUSIVE";
@@ -2588,6 +2590,20 @@ bool mxfs_fence_durable_kind_supported(enum mxfs_fence_record_family family,
 		 * so a durable 24 can be classified without knowing which path wrote
 		 * it, in either record family. */
 		return true;
+	case MXFS_FENCE_KIND_DRBD_STONITH_WITNESSED_V1:
+		/* 0.90.40.  The DRBD attachment's profile: a witness report taken in
+		 * the attempt, judged by mxfs_drbd_judge_excluded — the peer powered
+		 * off and held off by the fence authority under the episode its
+		 * receipt names, the replication link disconnected (so DRBD has
+		 * drained every write it accepted from the peer), the peer's disk
+		 * Outdated.  One producer, the drbd leg of v5_pr_fence_prove_locked,
+		 * and it writes only recovery descriptors: a bootstrap-owner record
+		 * carrying 25 was not produced by it. */
+		if (family == MXFS_FENCE_RECORD_RECOVERY_DESC)
+			return true;
+		reason = "kind 25 is minted into recovery descriptors only; a "
+			 "bootstrap-owner record carrying it has no producer";
+		break;
 	case MXFS_FENCE_KIND_SINGLE_NODE_EXCLUSIVE:
 		reason = "REVOKED kind 17: the operator's single-node assertion is "
 			 "about ADMISSION — no second INITIATOR can hold writes — and "

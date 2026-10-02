@@ -10,6 +10,57 @@
 > Everything that turns XFS into a filesystem many machines can mount at once
 > is AI-authored.
 
+> ## 0.90.40: MXFS on DRBD dual-primary — a clustered filesystem with no shared storage
+>
+> **Two nodes, a local disk each, no SAN, no iSCSI target, no third server.**
+> DRBD replicates the two disks synchronously (protocol C) with both nodes
+> Primary at once, and MXFS mounts `/dev/drbd0` read/write on both.  The
+> configuration is **`2/net/mesh/drbd`**.  This is the smallest possible MXFS
+> cluster: two Proxmox hosts with local NVMe can share one filesystem for VM
+> images and live migration without buying storage.
+>
+> DRBD has no SCSI underneath, so it has neither persistent reservations (how
+> MXFS fences a dead node) nor COMPARE AND WRITE (how it claims heartbeat and
+> recovery records).  0.90.40 supplies both from the attachment itself:
+>
+> - **Fencing through an authority outside both nodes.**  DRBD's
+>   `fencing resource-and-stonith` freezes I/O when a node loses its peer and
+>   runs MXFS's handler, which has the site's fence authority (IPMI, a PDU, the
+>   hypervisor) power the peer off and hold it off.  The authority grants one
+>   winner per split.  The survivor proves the peer is off, disconnected and
+>   Outdated (fence proof kind 25) before every irreversible recovery step.
+> - **Admission by a witness.**  A mount is refused unless DRBD is on protocol
+>   C with two primaries, MXFS's fence handler, every split-brain policy set to
+>   `disconnect`, no suspended I/O, and this node a working, UpToDate Primary.
+> - **A compare-and-swap on the replicated device**: a two-party bakery lock
+>   in reserved sectors, with swaps group-committed under one acquisition.
+> - **Recovery after both nodes lose power**: the first node back has the
+>   authority hold its peer off, replays both journals, then lets the peer
+>   rejoin.
+>
+> **Measured on the rig** (two nodes, DRBD 8.4.11, Ubuntu 24.04, module built
+> from this tree): the cluster suite passed 30 of 30 rows, the fault rows
+> included; `crash_audit` passed 4 times with 228–325 acknowledged files and
+> none bad; a node crash recovered in 83 s with every fsynced file intact; a
+> power cut of both nodes recovered with every file of both nodes intact; a
+> link cut settled in 10 s, and a split had exactly one winner.
+>
+> **Status: trial.**  The 0.90.40 packages ship everything a DRBD node needs
+> (`/usr/sbin/mxfs_drbd_witness.py`, `/usr/sbin/mxfs-drbd-fence-peer`), but
+> `2/net/mesh/drbd` is not in the release matrix: it has not been verified from
+> the installed packages, nor on Proxmox VE 9, RHEL 9.8 or Debian 13.  Setup
+> is in "DRBD dual-primary" under Quick start, the design in
+> [`docs/attachment-methods.md`](docs/attachment-methods.md) ("DRBD
+> dual-primary"), and the design rulings in
+> [`docs/rulings/drbd-dual-primary-attachment.md`](docs/rulings/drbd-dual-primary-attachment.md).
+>
+> Also in 0.90.40, for every configuration: a stacked device is never resolved
+> to the disk underneath it for SCSI passthrough, a compare-and-swap never
+> falls back to a plain write, a node joining after a whole-cluster bootstrap
+> settles the adopted victim's lock records (reads of the inodes they covered
+> used to hang), and a departing node hands its lock pages off in parallel.
+> See `CHANGELOG.md`.
+
 > ## 0.90.39: `mkfs.mxfs` is no longer slow
 >
 > **If you tried MXFS before and the format alone put you off, try it again.**
@@ -115,13 +166,16 @@
 > | `direct` | yes | yes | its own initiator, one path: bare metal, or an in-guest iSCSI login |
 > | `mpath` | yes | no | its own initiator over two or more paths, assembled by dm-multipath |
 > | `pass` | yes | no | the hypervisor's initiator: the LUN is passed into the VM (QEMU SCSI passthrough, VMware RDM) |
-> | `drbd` | no | no | a DRBD dual-primary replica of two local disks |
+> | `drbd` | trial | no | a DRBD dual-primary replica of two local disks |
 >
 > A configuration that names a method or an attach that is not implemented does
 > not exist yet. `drbd` can never be more than two nodes, because DRBD allows
 > exactly two primaries, and `docs/attachment-methods.md` limits it to `net`,
-> because COMPARE AND WRITE cannot be atomic across two replicas. It also needs a
-> fencing method other than SCSI reservations, which DRBD does not have.
+> because COMPARE AND WRITE cannot be atomic across two replicas. It fences
+> through a fence authority outside both nodes (power off and hold off, proof
+> kind 25) instead of SCSI reservations, which DRBD does not have; the
+> authority is the site's own (IPMI, a PDU, a hypervisor), and what it must
+> guarantee is in `docs/attachment-methods.md`.
 >
 > Both implemented methods fence a dead node with SCSI persistent reservations
 > on the LUN, so both need storage that implements them
@@ -160,7 +214,9 @@
 > are not verified with either method: they carry the fencing reservations and,
 > for `disk/caw`, the COMPARE AND WRITE lock commands through a layer no release
 > has tested. Fibre Channel and SAS are not verified. A device without SCSI
-> persistent reservations (virtio-blk, NVMe, DRBD, md RAID) is refused at mount.
+> persistent reservations (virtio-blk, NVMe, md RAID) is refused at mount. DRBD
+> dual-primary is admitted through its own fencing method as a trial attachment
+> (`2/net/mesh/drbd`, `docs/attachment-methods.md`); it is not in any release.
 >
 > What a build has to pass before it is called a release, and what that does
 > not cover, is in "How a release is validated" below.
@@ -526,6 +582,93 @@ mount -t mxfs -o peer=10.0.0.11 /dev/sdX /mnt/shared      # on 10.0.0.12
 `peer=` adds unicast to multicast discovery and may be repeated;
 `peers=A/B/...` replaces multicast with exactly that list and drops every
 other sender. See `mxfs(5)` and [`docs/discovery.md`](docs/discovery.md).
+
+### DRBD dual-primary (`2/net/mesh/drbd`, trial)
+
+Two nodes, each with a local disk of the same size, and no shared storage.
+Install the MXFS package and `drbd-utils` on both, and keep the package's
+`force_transport=1` (`net/mesh`): `disk/caw` is refused on DRBD, because
+COMPARE AND WRITE cannot be atomic across two replicas.
+
+**1. The DRBD resource**, identical on both nodes
+(`/etc/drbd.d/mxfs.res`).  MXFS's admission refuses a mount if any of the
+`protocol`, `allow-two-primaries`, `after-sb-*`, `fencing` or `fence-peer`
+lines differ from this:
+
+```
+resource mxfs {
+    net {
+        protocol C;
+        allow-two-primaries yes;
+        after-sb-0pri disconnect;    # a split stays split until a side is chosen;
+        after-sb-1pri disconnect;    # an automatic discard policy can discard
+        after-sb-2pri disconnect;    # writes the filesystem already acknowledged
+    }
+    disk {
+        fencing resource-and-stonith;   # freeze I/O until the peer is proven off
+    }
+    handlers {
+        fence-peer "/usr/sbin/mxfs-drbd-fence-peer";
+    }
+    on node1 {
+        device /dev/drbd0 minor 0;
+        disk /dev/nvme0n1p3;
+        address 10.0.0.11:7789;
+        meta-disk internal;
+    }
+    on node2 {
+        device /dev/drbd0 minor 0;
+        disk /dev/nvme0n1p3;
+        address 10.0.0.12:7789;
+        meta-disk internal;
+    }
+}
+```
+
+**2. The fence authority.**  Something outside both nodes that can power
+either node off and keep it off: IPMI, a PDU, or the hypervisor the nodes run
+on.  It answers three one-line verbs, `fence <target> <requester>`,
+`status <target>` and `release <target> <episode> <requester>`, grants one
+winner per split, and keeps an inhibited node from starting by any path until
+the survivor releases it.  The full contract is in
+[`docs/attachment-methods.md`](docs/attachment-methods.md) ("The fence
+authority is the site's"); `tools/rig_fence_virsh.sh` is the test rig's
+(libvirt), and `tools/libvirt_qemu_hook.sh` is its start/restore guard.
+Point each node at it in `/etc/mxfs/drbd-fence.conf`:
+
+```
+agent=ssh                     # or agent=exec with cmd=/usr/local/sbin/<your authority>
+host=10.0.0.1
+user=fence
+key=/etc/mxfs/fence_key
+delay=0                       # 0 on one node, a few seconds on the other
+self node1                    # this node's name at the authority
+peer 10.0.0.12 node2          # DRBD peer address, peer's name at the authority
+```
+
+**3. Bring DRBD up dual-primary**, once:
+
+```
+drbdadm create-md mxfs && drbdadm up mxfs          # both nodes
+drbdadm primary --force mxfs                       # node1: the first sync
+drbdadm primary mxfs                               # node2, once UpToDate/UpToDate
+```
+
+**4. Format once and mount on both:**
+
+```
+mkfs.mxfs /dev/drbd0                               # node1 only
+mount -t mxfs /dev/drbd0 /mnt/shared               # both nodes
+dmesg | grep P-DRBD-ARM                            # ADMITTED, or REFUSED with the reason
+```
+
+**What you must never do on this attachment:** restore a node from saved
+memory or revert it to a VM snapshot.  A node's DRBD state, lock tickets and
+incarnation would all come back old together, and nothing at the device level
+can exclude them; MXFS relies on this being prohibited (the rig's libvirt hook
+refuses it).  A node that loses its peer stops writing until the authority
+confirms the peer is off, so a fence authority that cannot be reached means
+frozen I/O, never two writers.
 
 ### Choosing the transport
 

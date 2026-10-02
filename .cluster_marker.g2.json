@@ -1,12 +1,12 @@
 {
   "nodes": 2,
-  "configuration": "2/net/mesh/direct",
-  "srcversion": "B2656732AC8108B46CD998E",
+  "configuration": "2/net/mesh/drbd",
+  "srcversion": "C68F8AF0D0A78C228EB0020",
   "node_list": "test1,test2",
-  "dev": "/dev/disk/by-path/ip-192.168.120.1:3260-iscsi-iqn.2026-05.local.mxfs:pool-03-lun-0",
-  "rig": "scst-fio",
-  "wwid": "eui.6565636230353536",
-  "fsid": "cfa0f3b1-b97e-4cd1-84d2-a208194a801b",
-  "gen": 15,
-  "iso": "2026-10-02T03:20:42Z"
+  "dev": "/dev/drbd0",
+  "rig": "",
+  "wwid": "none",
+  "fsid": "43431822-c882-4367-9c29-f4ff3e213ce7",
+  "gen": 29,
+  "iso": "2026-10-02T18:46:15Z"
 }

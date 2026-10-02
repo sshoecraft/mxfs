@@ -1456,6 +1456,67 @@
       "impact": "noblock",
       "impact_why": "The mount ended, bounded at about 100 s: about 100 s after it began (18:21:53 CDT), at ~18:23:35, the next round's install on alma9-2 unloaded the module cleanly (install_alma9-2.log 'UNLOADED'; the harness prints UNLOAD_FAILED with refcnt while anything holds the module, and a mount in progress holds it), the unmount step before it read left=0 on all 8, and that round passed every check on the same 8 nodes. No crash, hang or shutdown; a join that took 60-100 s once.",
       "updated": "2026-10-01"
+    },
+    {
+      "id": "D-CAS-FALLS-BACK-TO-A-PLAIN-WRITE-ON-A-DEVICE-WITHOUT-COMPARE-AND-WRITE",
+      "severity": "high",
+      "nodes": 1,
+      "config": "*/*/*",
+      "opened": "2026-10-02",
+      "summary": "bootstrap and PR-ledger compare-and-swaps fall back to a plain FUA write of the same sector when COMPARE AND WRITE returns -EOPNOTSUPP, so on a device without it the swap is not atomic",
+      "evidence": "Found by reading, not observed: dlm/bootstrap.c:172,1409,1572,1599 (owner record, tombstones, takeover journal and its clear) and dlm/prledger.c:78 (prl_cas) call mxfs_pal_bdev_write_fua at the same offset after mxfs_pal_bdev_compare_and_write returns -EOPNOTSUPP, which pal/linux/kern.c:5356-5358 returns for any device with no scsi_device (DRBD, virtio-blk, NVMe). The heartbeat, guard and recovery-milestone sites fail closed on the same code. On the TCP mount path mxfs_prledger_publish (v5_mount.c:17210) runs before v5_fence_capability_admit (:17262), so a mount that is about to be refused has already written a ledger entry non-atomically; the bootstrap sites run after admission and are reached on a non-CAW device only through fence_capability_override=1 with single_node_exclusive=1.",
+      "next": "FIX LANDED in 0.90.40; THREE OF FOUR SITE CLASSES VERIFIED: PR ledger (loop device, TCP mount: prl_cas rc=-95, mount aborted, whole device byte-identical, build 4643EECD00CB19D4B1F76E9); bootstrap owner record (outage-test A with dbg_cas_nocaw_ops 4096|8192|16384: claim refused, sectors 0/31/32-39 unchanged, x4 builds); tombstones (outage-test A2, mask 8192: injected=1, sectors 32-39 unchanged, build C42D1ECF5537C558BA9390B). STILL UNEXERCISED: the takeover journal (bootstrap.c takeover_cas/takeover_clear, BS_NOCAW_TAKEOVER) \u2014 reached only by a bootstrap takeover, which on DRBD is itself refused (D-DRBD-BOOTSTRAP-TAKEOVER-REFUSED-...); exercise it on a SCSI rig takeover lap with mask 16384, or with the DRBD takeover once it exists.",
+      "impact": "integrity",
+      "impact_why": "A compare-and-swap that silently becomes a blind write lets two nodes both win ownership of the bootstrap record or a ledger entry, which is the single-owner invariant those records exist to hold.",
+      "updated": "2026-10-02"
+    },
+    {
+      "id": "D-DRBD-SIMULTANEOUS-UNMOUNT-SERVES-PEER-RELEASES-ONE-COMMIT-AT-A-TIME",
+      "severity": "major",
+      "nodes": 2,
+      "config": "net/mesh/drbd",
+      "opened": "2026-10-02",
+      "summary": "on 2/net/mesh/drbd a loaded two-node unmount takes ~31 s (2/net/mesh/direct: 2.2-8.5 s): while both nodes tear down, each serves the other's lock releases as one ledger commit each, serially, on emulated compare-and-swap",
+      "evidence": "MEASURED 2026-10-02, build E67542B9CF67998B8CD452B, chk_clean after dir_reuse_coherency (tests/evidence/drbd_rig/20261002T152331Z-suite): umount_ms=31079. test1 second unmount: P-RELALL-LEFT at 8685.6, departure handoff 8711.6-8716.3 (P-TAUTH-DEPART workers=8 ms=4700), so ~26 s before the handoff; in that window ~2,000 swaps, batches\u2248swaps (serial), bakery wait 6.6-9.2 ms/swap (test2 tearing down at once), teardown_releases_served=533, P-TEARDOWN-MSG-DROP x416. Before this build the serial departure handoff alone took 57-98 s (chk_clean FAIL umount=stuck in tests/evidence/chk_clean_stall_2node_rank1_20261002T151013Z.txt); the handoff is now parallel. data/criteria.json chk_clean umount_ms on 2/net/mesh/direct: 2223 and 8555.",
+      "next": "Name what the 533 teardown releases are (whose, why during a departure that leaves its own grants to purge), then either coalesce release commits per page on the owner (the ledger already applies several ops per page commit) or make the owner skip commits a departing pair will purge; measure umount_ms against 2/net/mesh/direct. ===== Final board (build C68F8AF0D0A78C228EB0020, tests/evidence/drbd_rig/20261002T182312Z-suite): chk_clean PASS with umount_ms=45692 (ledger_holders=166); earlier boards 50653 and 53004 \u2014 within the row's 60 s stall bound but 5-20x 2/net/mesh/direct.",
+      "updated": "2026-10-02"
+    },
+    {
+      "id": "D-TCP-MOUNT-CONTINUES-PAST-A-BOOTSTRAP-IN-PROGRESS-AND-RECOVERS-A-SEALED-VICTIM",
+      "severity": "critical",
+      "nodes": 1,
+      "config": "*/*/*",
+      "opened": "2026-10-02",
+      "summary": "a TCP mount whose bootstrap setup refuses (a bootstrap RECOVERING, or a record that does not validate) logged P-BOOT-TCP-NOT-GATED and mounted on, running an ordinary recovery of a sealed victim's slice in the middle of that bootstrap; the bootstrap then could not prove the slot's obligation and went terminally REFUSED",
+      "evidence": "MEASURED 2026-10-02 on 2/net/mesh/drbd, build C42D1ECF5537C558BA9390B, outage-test arm B after arm A2 (a bootstrap left RECOVERING by test1's own boot): 'P-BOOT-ADMISSION-REFUSED state=RECOVERING term=1', 'P-BOOT-TCP-NOT-GATED ... continuing ... without whole-cluster recovery', 'P-BOOT-SKIPPED', then 'P163-RECOVERY-COMPLETE slot=1 node=1405404969' (a sealed victim) by the ordinary path and 'P163-WITHDRAW-STAMP slot=0'; the next resume: 'P-BOOT-FENCE-UNPROVEN slot=1 ... rc=-2', 'P-BOOT-REFUSING slot=1 reason=FENCE_UNPROVEN', record REFUSED. dlm/v5_mount.c TCP mount path treated every v5_bootstrap_setup failure as reportable, though the setup's own comment says a bootstrap in progress means 'Wait or abort \u2014 never mount'.",
+      "next": "FIX LANDED in 0.90.40 (build 51FF6B607C90B14AD77691F), NOT YET VERIFIED: the TCP mount mounts on only when v5_bootstrap_setup returns -ENOENT and refuses every other failure (P-BOOT-SETUP-REFUSED). The measured trigger (a DRBD same-boot resume refused at setup) no longer reaches the branch, because the setup now accepts that resume. Next: an exerciser where the setup refuses with neither a resume nor a takeover armed (e.g. a RECOVERING record from a foreign boot whose takeover is not armed) and the mount must refuse without any P163-RECOVERY-COMPLETE.",
+      "impact": "integrity",
+      "impact_why": "A node replays a sealed victim's slice outside the bootstrap that owns it: two recoveries of one slice, and a volume left terminally refused.",
+      "updated": "2026-10-02"
+    },
+    {
+      "id": "D-DRBD-BOOTSTRAP-TAKEOVER-REFUSED-SO-A-DEAD-OWNERS-TERM-CANNOT-BE-FINISHED",
+      "severity": "major",
+      "nodes": 2,
+      "config": "net/mesh/drbd",
+      "opened": "2026-10-02",
+      "summary": "on 2/net/mesh/drbd a node that finds a bootstrap term owned by another boot registers as a takeover contender and is refused at once (rc=-22): the takeover builds a key-0 identity, so a pair outage whose bootstrap owner dies mid-recovery and returns under a new boot can never be finished",
+      "evidence": "MEASURED 2026-10-02, build 51FF6B607C90B14AD77691F: with test1's boot owning a RECOVERING term (left by outage-test A2/B), a mount on test2: 'P-BOOT-TAKEOVER-CANDIDATE state=RECOVERING term=1 owner=310266943/... \u2014 a bootstrap term owned by another boot; registering as a takeover contender', 'P-DRBD-ARM-ADMITTED ... shape=connected', 'P-BOOT-MOUNT-REFUSED rc=-22'. v5_bootstrap_takeover_run (dlm/v5_mount.c) authorises a takeover by fencing the dead owner's PR key; a DRBD owner registered none. Fails closed (no recovery ran).",
+      "next": "Give the takeover the DRBD proof the claim uses: startup-fence the peer (the old owner is either the peer, or this host's previous boot, which this live incarnation excludes), derive the contender's key like the claim, then take the term over; exercise the takeover-journal swap sites (BS_NOCAW_TAKEOVER) with it.",
+      "impact": "stability",
+      "impact_why": "A second failure during pair-outage recovery leaves the volume unmountable until an operator repairs it."
+    },
+    {
+      "id": "D-BOOTSTRAP-RESUME-AFTER-PARTIAL-COMPLETION-ABORTS",
+      "severity": "major",
+      "nodes": 2,
+      "config": "*/*/*",
+      "opened": "2026-10-02",
+      "summary": "a bootstrap whose completion purged a victim's ledger records and then failed its tombstone write cannot be resumed: the resumed full replay of the adopted slice finds the purged records missing from the live ledger and aborts as a post-seal mutation; the pair stays unmountable until an operator acts",
+      "evidence": "MEASURED 2026-10-02 on 2/net/mesh/drbd, build 51FF6B607C90B14AD77691F, outage-test A2 (only bootstrap-tomb swaps refused: injected=1, sectors 32-39 unchanged, mount refused) then B: 'P-BOOT-RESUMED term=1 ... k_resumed=1', 'P-BOOT-PHASE3-COMPLETE certs=1', 'P-BOOT-ADOPT ... resumed', then 'P-RMAN-POSTSEAL-MUTATION site=prereplay victim_slot=0 ... live{rc=-2 ...}' x36, 'P-RMAN-PREREPLAY-VERIFY victim_slot=0 entries=67 checked=31 mutated=36', 'P-BOOT-ADOPTED-PREFLIGHT slot=0 rc=-5', 'P-BOOT-UNWIND state=RECOVERING'. Generic bootstrap completion ordering (the purge precedes the durable tombstone), not DRBD-specific; fails closed (no corruption).",
+      "next": "Decide the order (tombstone durable before the purge) or let the resumed pre-replay verification accept records this term's own completion retired; a consult first (recovery semantics). Verify with outage-test OUTAGE_TOMB_ARM=1.",
+      "impact": "stability",
+      "impact_why": "After a pair outage, a second failure during completion leaves the volume unmountable until an operator repairs it."
     }
   ]
 }

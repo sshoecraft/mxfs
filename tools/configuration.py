@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import shlex
 import sys
@@ -154,10 +155,20 @@ def parse(text: str) -> Configuration:
         raise ConfigurationError("%r: %s is named in the design but not implemented" % (raw, pair))
     if attach not in ATTACHES:
         raise ConfigurationError("%r: attach %r; expected one of %s" % (raw, attach, list(ATTACHES)))
-    if not ATTACHES[attach].get("implemented"):
+    if not ATTACHES[attach].get("implemented") and not trial_allowed(attach):
         raise ConfigurationError("%r: attach %r is named in the design but not implemented"
                                  % (raw, attach))
     return Configuration(nodes, cls, method, attach)
+
+
+def trial_allowed(attach: str) -> bool:
+    """An unimplemented attachment the rig can still build, named by a caller that asked for it.
+
+    MXFS_TRIAL=1 is how a rig tool (scripts/drbd_rig.sh) runs the harness on an attachment the
+    module does not support yet, to see exactly where it stops. It never makes the attachment
+    implemented: implemented() -- the board's columns and the release matrix -- ignores it.
+    """
+    return bool(ATTACHES[attach].get("trial")) and os.environ.get("MXFS_TRIAL") == "1"
 
 
 def check_pattern(text: str) -> str:
@@ -348,7 +359,15 @@ def selftest() -> int:
             failures.append("retired %s: error does not name %s: %r" % (old, new, text))
     refuses("xfs at 2", parse, "2/xfs")
     refuses("unimplemented method", parse, "8/net/server/direct")
+    trial = os.environ.pop("MXFS_TRIAL", None)
     refuses("unimplemented attach", parse, "2/net/mesh/drbd")
+    os.environ["MXFS_TRIAL"] = "1"
+    expect("trial attach", parse("2/net/mesh/drbd").device, "/dev/drbd0")
+    expect("trial not a column", "2/net/mesh/drbd" in board_configurations(), False)
+    refuses("trial still needs an implemented method", parse, "2/net/server/drbd")
+    os.environ.pop("MXFS_TRIAL")
+    if trial is not None:
+        os.environ["MXFS_TRIAL"] = trial
     refuses("three fields", parse, "8/net/mesh")
     refuses("zero nodes", parse, "0/net/mesh/direct")
     refuses("bad pattern", check_pattern, "disk/cas")

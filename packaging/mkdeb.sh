@@ -49,6 +49,14 @@ ln -sf chk_mxfs "$STAGING/usr/sbin/fsck.mxfs"
 # frozen, so it ships with the module, not with the test rig.
 install -m 755 "$SRCDIR/tools/mxfs_lu_reset_witness.py" "$STAGING/usr/sbin/mxfs_lu_reset_witness.py"
 
+# The DRBD dual-primary attachment's two node-side pieces: the witness the
+# module upcalls at mount, at a peer's death and before each recovery step
+# (pal/linux/drbd.c), and DRBD's fence-peer handler, which the module requires
+# the resource to name at exactly /usr/sbin/mxfs-drbd-fence-peer.  Without
+# them every DRBD mount is refused.
+install -m 755 "$SRCDIR/tools/mxfs_drbd_witness.py" "$STAGING/usr/sbin/mxfs_drbd_witness.py"
+install -m 755 "$SRCDIR/tools/mxfs_drbd_fence_peer.sh" "$STAGING/usr/sbin/mxfs-drbd-fence-peer"
+
 # --- 3. Man pages ---
 echo "--- Installing man pages ---"
 mxfs_stage_manpages "$STAGING"

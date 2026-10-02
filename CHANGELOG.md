@@ -1,3 +1,131 @@
+## 2026-10-02 — 0.90.40 — 2/net/mesh/drbd works end to end: MXFS on DRBD dual-primary mounts, remounts, survives a node crash, a link cut, a split and a power cut of both nodes, with every fsynced file intact; a stacked device is never resolved to the disk under it; a compare-and-swap never falls back to a plain write
+
+**MXFS runs on DRBD dual-primary.**  The configuration is `2/net/mesh/drbd`:
+two nodes, a local disk each, DRBD 8.4 replicating them on protocol C, and
+MXFS on `/dev/drbd0` mounted on both.  The design is
+`docs/attachment-methods.md` ("DRBD dual-primary"); the consult rulings and the
+decisions taken on them are `docs/rulings/drbd-dual-primary-attachment.md`.
+A DRBD device has no SCSI underneath, so the attachment supplies what the
+network lock manager otherwise takes from the storage:
+
+- **Admission by a witness.**  `tools/mxfs_drbd_witness.py` reports DRBD's
+  state, its configuration, the fence-peer handler's receipts and the fence
+  authority's live answer under a kernel nonce (`pal/linux/drbd.c`), and
+  `dlm/drbdfence.c` judges it: protocol C, two primaries,
+  `fencing resource-and-stonith` with `/usr/sbin/mxfs-drbd-fence-peer`, every
+  `after-sb` policy `disconnect`, no suspended I/O, this node a working
+  Primary, and either both disks UpToDate or the peer fenced in the current
+  episode.  A DRBD mount holds no PR context.
+- **A compare-and-swap built on the device**: a read-compare-write under a
+  two-party Lamport bakery lock in sectors 48-50 of the bootstrap region.
+  Swaps are **group-committed** (every queued swap, up to 32, inside one
+  acquisition, released once after all target writes complete): served one
+  at a time they queued ~130 ms behind each other and pushed lock handoffs
+  past the 1 s acquire wait.  The target image is bounced through the
+  emulator's own buffer (a caller's stack image cannot carry a bio).  A swap
+  blocked by a dead peer's ticket clears it once the witness proves the peer
+  excluded (kind-25 evidence), never on age: the ticket used to outlive the
+  peer and the survivor withdrew itself.
+- **Fence proof kind 25 `DRBD_STONITH_WITNESSED_V1`**: the peer powered off
+  and held off by the fence authority under the episode its STONITHED receipt
+  names, the link disconnected, the peer's disk Outdated; re-taken before
+  every irreversible recovery step.  Every fence leg now prints its
+  `P236-FENCEKIND` summary.
+- **Clean departure is retirement.**  A DRBD incarnation has no key whose
+  absence anyone could prove, so its release record (written after its
+  durable unmount record) retires it: every DRBD record carries
+  `MXFS_HB_FEAT_DRBD`, the departing node publishes its own slot EMPTY, and a
+  record a crash left between the two is settled by the next DRBD node.  A
+  node that unmounted cleanly could never mount again before this, and a
+  whole-cluster restart was refused.  Old incarnations returning from saved
+  memory are excluded by prohibition (below).
+- **A pair outage is recovered by startup fencing.**  After both nodes die at
+  once, the first to mount has the authority hold its peer off, names every
+  victim by its derived kind-25 key, certifies them, replays both slices,
+  re-checks the exclusion at completion and lets the peer rejoin through the
+  release.  Before, no mount succeeded again.  A same-boot resume of an
+  interrupted bootstrap matches the owner's derived key.
+- **Fence authority and hook.**  `tools/rig_fence_virsh.sh` (the rig's
+  authority) is joined by `tools/libvirt_qemu_hook.sh`, installed on clyde as
+  `/etc/libvirt/hooks/qemu` by `scripts/drbd_rig.sh hook-setup`: an inhibited
+  rig VM is never started by any path, and no rig VM is restored from saved
+  memory; the rig refuses to run beside a node with a snapshot.  The handler
+  and witness take `agent=ssh` (`rig-virsh` is its older name) or
+  `agent=exec`, so a site plugs in its own authority (IPMI, a PDU, its
+  hypervisor); the contract is in `docs/attachment-methods.md`.
+- **Packages ship the node side**: `mkdeb.sh` and `mkrpm.sh` install
+  `/usr/sbin/mxfs_drbd_witness.py` and `/usr/sbin/mxfs-drbd-fence-peer`;
+  without them every DRBD mount was refused on an installed system.
+
+**Not DRBD-specific, found on the way:**
+
+- **Passthrough never reaches a disk under a layer.**  `mxfs_bdev_to_sdev`
+  resolved `/dev/drbd0` to its backing iSCSI LUN by matching LBA 0, so
+  passthrough writes would have reached one replica.  Content resolution is
+  now device-mapper only, and only to a disk that is a direct slave of that
+  device; the resolver's cache applies the same test, because a dev_t freed
+  by a removed device is handed to the next one created (measured: dm over
+  DRBD inherited a removed scsi_debug map's disk).
+  `/proc/fs/mxfs/sdev_resolve_probe` runs the resolver for a named device.
+- **A compare-and-swap never becomes a plain write.**  The bootstrap and
+  PR-ledger swaps wrote the sector plainly on `-EOPNOTSUPP`; they return it.
+  `mxfs.dbg_cas_nocaw_ops` gains bootstrap classes (4096 owner record, 8192
+  tombstone, 16384 takeover journal).
+- **A bootstrap adoption is visible to later joiners.**  The owner's adopted
+  slot carries `MXFS_HB_FEAT_BOOT_ADOPTED`, so a node that joins after a
+  completed bootstrap settles the adopted victim's leftover ledger records;
+  they were kept as blockers for ever and every read of the inodes they
+  covered hung.
+- **A TCP mount refuses when the bootstrap record forbids it** (a bootstrap in
+  progress, a record that does not validate); only a volume without the
+  region mounts on.  Mounting on ran an ordinary recovery of a sealed
+  victim's slice inside a bootstrap.
+- **A departure hands its pages off from 8 threads** (pages are independent):
+  one at a time, ~2,000 handoffs held a DRBD unmount for 57-98 s.
+- DRBD lock registers are written without FUA (protocol C completion is what
+  the bakery needs); target writes keep FUA.
+
+**`scripts/drbd_rig.sh`** gains `remount-test`, `outage-test`
+(`OUTAGE_TOMB_ARM=1` adds the tombstone arm), `resolve-test`, `reconfig` and
+`hook-setup`; `death-test` takes `DEATH_HOLD_TICKET=1` (the victim dies
+holding the swap lock, `mxfs.dbg_drbd_cas_hold_ms`).  `tests/lib/rig.sh`
+resolves a DRBD device by its filesystem identity and restarts a recovered
+victim through the attachment's release and rejoin (`rig_start_victim`,
+`rig_drbd_rejoin`), which `crash_audit`'s oracle now uses.
+
+**Measured on test1/test2** (DRBD 8.4.11 over two pool LUNs), final build
+C68F8AF0D0A78C228EB0020:
+
+- *Board*: 30/30 rows PASS, the fault rows included
+  (`tests/evidence/drbd_rig/20261002T182312Z-suite`); `crash_audit` PASS 4x
+  (228-325 acknowledged files, 0 bad, replay 79-93 s).
+- *Node crash*: recovered in 83 s (94 s with the victim holding the swap
+  lock), every fsynced file intact, the victim rejoined in 43-48 s, cold
+  `chk_mxfs` clean.
+- *Pair outage*: startup fence, both slices replayed, every file of both
+  nodes intact on both after the peer rejoined; with every bootstrap swap
+  refused the record, takeover journal and tombstones were byte-identical.
+- *Remount*: 5.5-6.0 s per cycle; whole-cluster restart 8-9 s.
+- *Link cut*: survivor settled in 9-10 s; *split*: exactly one winner.
+- *fio_perf* on the mount: seqW 388-1288 MiB/s, seqR 2.5-2.9 GiB/s, randW
+  23-25K IOPS, randR 42-46K IOPS (host load 1-3, single runs each).
+
+**`2/net/mesh/drbd` stays a trial configuration** (`MXFS_TRIAL=1`, its own
+board), as before.
+
+**Open, in the defect queue:**
+
+- `D-DRBD-SIMULTANEOUS-UNMOUNT-SERVES-PEER-RELEASES-ONE-COMMIT-AT-A-TIME`: a
+  loaded two-node unmount takes 45-53 s (2/net/mesh/direct: 2-9 s).
+- `D-BOOTSTRAP-RESUME-AFTER-PARTIAL-COMPLETION-ABORTS` and
+  `D-DRBD-BOOTSTRAP-TAKEOVER-REFUSED-SO-A-DEAD-OWNERS-TERM-CANNOT-BE-FINISHED`:
+  a second failure during pair-outage recovery fails closed but needs an
+  operator.
+- `D-CAS-FALLS-BACK-TO-A-PLAIN-WRITE-ON-A-DEVICE-WITHOUT-COMPARE-AND-WRITE`:
+  the takeover-journal site is not yet exercised.
+- `D-TCP-MOUNT-CONTINUES-PAST-A-BOOTSTRAP-IN-PROGRESS-AND-RECOVERS-A-SEALED-VICTIM`:
+  the fix is not yet exercised.
+
 ## 2026-10-01 — 0.90.39 — mkfs.mxfs formats a 20 GB LUN in 0.24 s instead of 18–31 s; a drain that cannot claim its inode is handed to the work queue instead of run unclaimed; slot depth changes only under the slot lock; test LUNs come from a pool, and the release boards run side by side
 
 **`mkfs.mxfs` is no longer slow.**  It wrote every empty page of the lock

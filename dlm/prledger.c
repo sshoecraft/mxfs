@@ -73,10 +73,9 @@ static int prl_cas(struct mxfs_prledger *l, uint32_t idx,
 	want->seq = cur->seq + 1;
 	want->stamp_ms = mxfs_pal_time_ms();
 	want->crc32c = mxfs_prledger_entry_crc(want, idx);
+	/* -EOPNOTSUPP is returned, never replaced by a plain write: see
+	 * bs_cas_locked in bootstrap.c. */
 	rc = mxfs_pal_bdev_compare_and_write(l->dev, prl_off(l, idx), cur, want);
-	if (rc == -EOPNOTSUPP)
-		rc = mxfs_pal_bdev_write_fua(l->dev, prl_off(l, idx), want,
-					     sizeof(*want));
 	return rc;
 }
 

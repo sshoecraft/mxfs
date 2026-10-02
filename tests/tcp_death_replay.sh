@@ -1745,8 +1745,8 @@ if [ "$FALSE_APPLY" != 0 ] && [ "$REFUSED" = 0 ] && [ "$acked" -ge 1 ]; then
     echo "$cold" | grep -a '^MISSING\|^MISMATCH\|^ERR' | head -5 | sed 's/^/  INFO cold /'
 fi
 
-# -- the victim comes back --
-$VIRSH start "$V" > "$OUT/virsh_start.txt" 2>&1; echo "  INFO virsh start $V rc=$?"
+# -- the victim comes back (on DRBD: released by the survivor first) --
+rig_start_victim "$V" "$W" > "$OUT/virsh_start.txt" 2>&1; echo "  INFO virsh start $V rc=$? $(grep -a RELEASED "$OUT/virsh_start.txt" | tail -1)"
 i=0; up=0
 while [ $i -lt 120 ]; do
     if timeout 8 $SSH "$V" "true" >/dev/null 2>&1; then up=1; break; fi
@@ -1775,6 +1775,7 @@ if [ "$up" = 1 ]; then
     done
     echo "  INFO $V boot transaction complete=$booted after ${j}s (/run/nologin cleared)"
 fi
+[ "$up" = 1 ] && { rig_drbd_rejoin "$V" || echo "  INFO $V did not rejoin DRBD (the next prep_cluster will refuse; see the line above)"; }
 
 # -- TDR_REJOIN=1: the victim rejoins the SAME generation (no re-mkfs) --
 # D-ELECTED-REPLAYER-KEEPS-DEAD-SLOT-TRACKING-NEXT-CLAIMANT-READ-AS-RESTART-0911
