@@ -488,9 +488,20 @@ completed slot may already have erased.
 For each class-2 slot: mark pending from the record's tuple, then the
 existing `mxfs_v5_dlm_recovery_acquire` up to the certificate (intent CAS,
 P&A of the victim key; an absent key with a class-4 successor ⇒
-`SELF_SUCCESSION_DONE`; an absent key with nothing explaining it ⇒
-`KEY_ABSENT_UNPROVEN` ⇒ bootstrap refused, `P-BOOT-FENCE-UNPROVEN`).  Our own
-current key is never a target (`P238-FENCE-OWN-KEY`).  For each class-3 key:
+`SELF_SUCCESSION_DONE`; an absent key with nothing explaining it ⇒ the
+witnessed LU reset, admitted only while this node is the sole registrant).
+An attempt that submitted no command (PRECOMMAND, e.g. the LU reset refused
+because another initiator is registered) consumed nothing and is not a
+verdict: pass 1 defers it while the other victims are fenced — a victim's
+PREEMPT AND ABORT may be what removes the other registrant, as when the peer
+host has not registered yet and still carries its previous boot's key — and
+pass 2 waits for the certificate, driving the fence retry itself (the PR
+worker re-drives only on a live mount; `P-BOOT-FENCE-WAIT`).  A retry series
+that stays BLOCKED fails the mount but leaves the term RECOVERING for a
+resume (`P-BOOT-FENCE-BLOCKED`); only an attempt that may have submitted a
+command, or another unprovable shape, refuses the term
+(`P-BOOT-FENCE-UNPROVEN`).  Our own current key is never a target
+(`P238-FENCE-OWN-KEY`).  For each class-3 key:
 P&A + ledger FENCED (a ledger-only intent; no descriptor).  Ambiguous
 command completions are resolved ONLY by READ FULL STATUS (ruling Q6 case
 4): O present ⇒ retry; O absent + N present + durable successor ⇒
@@ -629,7 +640,9 @@ and an empty barrier cut.
       P&A, certified ONLY as `PREEMPT_ABORT_DONE`, ledger FENCED,
       `registrant_done`; key absent ⇒ explained only by a class-4 successor
       present on the target, else `P-BOOT-FENCE-UNPROVEN`.  Class 4 ⇒ never a
-      target.  Any unproven entry ⇒ `mxfs_bootstrap_refuse(slot,
+      target.  A class-2 PRECOMMAND miss is deferred on pass 1 and waited
+      for on pass 2 (§6.4); its BLOCKED series leaves the record RECOVERING.
+      Any other unproven entry ⇒ `mxfs_bootstrap_refuse(slot,
       FENCE_UNPROVEN)` ⇒ REFUSED.
     - `P-BOOT-PHASE3-COMPLETE certs=N` then, in this build,
       `P-BOOT-REPLAY-UNBUILT` ⇒ mount refused `-ENOSYS`, record left
@@ -679,6 +692,15 @@ and an empty barrier cut.
     REFUSED); READ FULL STATUS reconcile (only the owner key and class-4
     successors remain) persisted; `RECOVERY_COMPLETE`; normalise K's record
     (clear the PENDING flag); stop the record heartbeat.  K is never zeroed.
+    Two consequences for a term that is resumed or taken over.  K's ledger
+    records are under recovery judgement for the whole term (K has no
+    descriptor and its slot carries the owner's record, so only the open
+    term can say so): a resume replays K again and re-verifies it against
+    them, and RECOVERY_COMPLETE re-queues the orphan sweep that retires
+    them.  And a victim is complete when the record carries its bit, not
+    when its descriptor reaches `GRANTS_RELEASED`: a refused bit leaves
+    exactly that descriptor, which the owner keeps in its recovery cut so
+    the ladder tail runs again.
     Crash windows: escrow-but-unclaimed ⇒ successor resumes the CAW or
     abandons the term with nothing lost; K claimed ⇒ K's record carries the
     term so a scanner correlates it with the escrow; owner dies after

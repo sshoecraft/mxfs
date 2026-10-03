@@ -239,6 +239,20 @@ in `docs/rulings/drbd-dual-primary-attachment.md`):
    bootstrap at once, the authority grants one and powers the other off. The
    cost is one power cycle of the peer after a pair outage, the same trade
    Pacemaker's startup fencing makes.
+
+   **A bootstrap owner that fails mid-term is taken over by the same proof.**
+   The owner and any earlier contender are the peer or an earlier boot of this
+   host, so a contender that has watched the record and the takeover journal
+   stand still for the abandon window asks for the startup fence before it
+   writes anything, and then excludes each of them by kind 25 — through the
+   same function that certifies a victim, never by a separate judgment — and
+   reseals the term as its own with kind 25 as the previous owner's proof. Its
+   own key is derived as a claimant's is. This boot's own identity is never
+   excluded this way (the peer's fence says nothing about it): that is the
+   resume's case. Because the owner's startup fence left the peer's disk
+   Outdated, the term can be continued only where the data is current: by the
+   owner host's next boot, or by the peer once it has been released and
+   resynced from an owner whose mount failed while its host stayed up.
 8. **`net` only.** COMPARE AND WRITE cannot be atomic across two replicas without
    the lock above, and the disk lock manager would ride the emulated swap for
    every lock. DRBD allows exactly two primaries, so the configuration is

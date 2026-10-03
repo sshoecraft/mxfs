@@ -10,7 +10,16 @@
 > Everything that turns XFS into a filesystem many machines can mount at once
 > is AI-authored.
 
-> ## 0.90.40: MXFS on DRBD dual-primary — a clustered filesystem with no shared storage
+> ## 0.90.41: MXFS on DRBD dual-primary — a clustered filesystem with no shared storage
+>
+> The DRBD attachment was built in 0.90.40, which was never published: its
+> release validation found failures that leave a volume unmountable after a
+> second fault during pair-outage recovery — a bootstrap whose completion
+> failed partway could not be resumed, on DRBD a recovery whose owner died
+> could never be taken over, and a failed takeover attempt blocked every
+> later one until its host rebooted.  0.90.41 is the DRBD release with all of
+> them fixed, and with a pair outage on `2/net/mesh/direct` no longer left
+> REFUSED when the other host is still booting.
 >
 > **Two nodes, a local disk each, no SAN, no iSCSI target, no third server.**
 > DRBD replicates the two disks synchronously (protocol C) with both nodes
@@ -21,7 +30,7 @@
 >
 > DRBD has no SCSI underneath, so it has neither persistent reservations (how
 > MXFS fences a dead node) nor COMPARE AND WRITE (how it claims heartbeat and
-> recovery records).  0.90.40 supplies both from the attachment itself:
+> recovery records).  MXFS supplies both from the attachment itself:
 >
 > - **Fencing through an authority outside both nodes.**  DRBD's
 >   `fencing resource-and-stonith` freezes I/O when a node loses its peer and
@@ -38,14 +47,20 @@
 >   authority hold its peer off, replays both journals, then lets the peer
 >   rejoin.
 >
-> **Measured on the rig** (two nodes, DRBD 8.4.11, Ubuntu 24.04, module built
-> from this tree): the cluster suite passed 30 of 30 rows, the fault rows
-> included; `crash_audit` passed 4 times with 228–325 acknowledged files and
-> none bad; a node crash recovered in 83 s with every fsynced file intact; a
-> power cut of both nodes recovered with every file of both nodes intact; a
-> link cut settled in 10 s, and a split had exactly one winner.
+> **Measured on the rig** (two nodes, DRBD 8.4.11, Ubuntu 24.04, the 0.90.41
+> module built from the tree): the cluster suite's rows all passed, the
+> fault rows and `crash_audit` included; a power cut of both nodes recovered
+> with every file of both nodes intact, also when the recovery's completion
+> was refused partway and finished by a resume; a recovery whose owner died
+> was taken over and finished, by the owner's next boot and by the other
+> node, every file intact; a node crash with a writer running was fenced,
+> certified and recovered in 84 s with every fsynced file of both nodes
+> intact; a link cut settled in 11 s and a split had exactly one winner in
+> 11 s; unmount/remount cycles, a crash-cut retirement and a whole-cluster
+> restart left nothing stalled; a device stacked on DRBD, and a loop device,
+> were refused and left byte-identical.  Cold `chk_mxfs` clean after each.
 >
-> **Status: trial.**  The 0.90.40 packages ship everything a DRBD node needs
+> **Status: trial.**  The packages ship everything a DRBD node needs
 > (`/usr/sbin/mxfs_drbd_witness.py`, `/usr/sbin/mxfs-drbd-fence-peer`), but
 > `2/net/mesh/drbd` is not in the release matrix: it has not been verified from
 > the installed packages, nor on Proxmox VE 9, RHEL 9.8 or Debian 13.  Setup
@@ -54,7 +69,7 @@
 > dual-primary"), and the design rulings in
 > [`docs/rulings/drbd-dual-primary-attachment.md`](docs/rulings/drbd-dual-primary-attachment.md).
 >
-> Also in 0.90.40, for every configuration: a stacked device is never resolved
+> Also since 0.90.39, for every configuration: a stacked device is never resolved
 > to the disk underneath it for SCSI passthrough, a compare-and-swap never
 > falls back to a plain write, a node joining after a whole-cluster bootstrap
 > settles the adopted victim's lock records (reads of the inodes they covered

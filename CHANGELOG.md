@@ -1,3 +1,168 @@
+## 2026-10-02 — 0.90.41 — the DRBD release: a pair outage with a second failure during its recovery is finished by a resume or a takeover, never left for an operator; a pair outage on 2/net/mesh/direct no longer ends REFUSED while the other host boots
+
+0.90.40 was committed but never published: its release validation found that
+a second failure during pair-outage recovery left the volume unmountable
+until an operator repaired it.  0.90.41 is the `2/net/mesh/drbd` release with
+those fixed.
+
+**A bootstrap whose completion failed partway is resumed and finished.**  Two
+causes, each proven by instrument on 2/net/mesh/drbd (completion's tombstone
+swap refused, then a same-boot remount):
+
+- The orphan sweep queued at mount init retired 42 of the adopted victim K's
+  ledger records half a second after K's pre-replay verification passed: K
+  has no recovery descriptor (its claim consumed it) and its slot carries the
+  owner's own record, so `v5_recovery_judging_cb` answered "not judging".  The
+  resume replays K again and its verification found 36 of 67 manifest records
+  gone (`P-RMAN-PREREPLAY-VERIFY mutated=36`).  The sweep was queued 36 ms
+  before the first verification ran, so only its scan time kept it from
+  refusing the first pass as well.  K is now under judgement while this mount
+  holds the open term (`P-TAUTH-RETENTION-BOOT-K`), and RECOVERY_COMPLETE
+  queues the sweep again, which then takes K's pages.
+- The resume then refused at finish (`P-BOOT-FINISH-INCOMPLETE
+  complete=0x1`): the other victim's descriptor was at GRANTS_RELEASED with no
+  completion bit, and the barrier's pending sweep reads GRANTS_RELEASED as
+  complete because on the live path only the sector zero is left.  Under a
+  term the bit comes before that zero, so a sealed victim without its bit now
+  stays in the recovery cut (`P-BOOT-COMPLETION-OWED`) until the ladder writes
+  it.
+
+**A DRBD bootstrap whose owner died is taken over.**  The takeover authorised
+itself by fencing the dead owner's PR key, which a DRBD owner never registers,
+so it was refused at once (`rc=-22`).  It now startup-fences the peer and
+proves the old owner excluded by kind 25, with the contender's key derived as
+the claim derives it; the bootstrap-owner record accepts kind 25.
+
+**A stale takeover attempt of the same boot is superseded.**  A contender that
+failed after its election and could not clear its takeover-journal entry
+blocked every later takeover on that host until it rebooted: the entry was
+fenced like a foreign contender, and its key is this boot's own.  An entry of
+this host's this boot that stood still for the whole abandon window is an
+attempt that has returned (one `fill_super` per device; its journal heartbeat
+was joined in its unwind), so it is superseded without a fence
+(`P-BOOT-CONTENDER-OWN-BOOT`).
+
+**Not DRBD-specific: a pair outage on a PR-fenced configuration no longer
+ends REFUSED because the other host is booting.**  After both nodes of
+2/net/mesh/direct lose power, the first node back proves its own previous
+boot's victim key absent only by the witnessed LU reset, which is refused
+while any other initiator is registered: the peer's previous boot's key (the
+peer not back yet, or never coming back), or the peer's new key while its own
+mount is in flight.  Phase 3 tried that slot first, and one refused attempt,
+which submitted no command, made the term terminally REFUSED until an
+operator ran `chk_mxfs --clear-bootstrap`.  Measured on test15/test16; the
+original reading (the peer's REGISTER replacing the victim key) was wrong.
+Now a miss that submitted no command is deferred while the other victims are
+fenced (the peer's old key is removed by its own victim's PREEMPT AND ABORT);
+the second pass waits for the certificate and drives the fence retry itself,
+because the PR worker re-drives only on a live mount; a series that stays
+BLOCKED (nothing consumed) leaves the term RECOVERING for a resume instead of
+REFUSED; and a certificate for a sealed victim of the open term is not handed
+to the late-death dispatch.
+
+**A TCP mount refuses at setup when another node's term is in progress, now
+exercised.**  The fix shipped in 0.90.40 but its branch had never run: a
+mount whose peek read the record IDLE and whose setup found another node's
+term RECOVERING.  `mxfs.bootstrap_inject=17` (held after the peek) and `=18`
+(held registered, before setup) put a mount exactly there: it logs
+`P-BOOT-SETUP-REFUSED`, runs no recovery, claims no slot and unregisters, and
+the term it met completes.
+
+**Measured on test15/test16** (2/net/mesh/direct), build
+547CEA42C1BF30E540E7F3B, `tests/boot_setup_refusal_2n.sh`: `race` PASS (the
+peer held before its REGISTER: slot 1 certified by PREEMPT AND ABORT, then
+slot 0 by the driven LU-reset retry, RECOVERY_COMPLETE; the peer refused at
+setup and joined afterwards), `regwindow` PASS (the peer held registered under
+its new key: the owner waited, the peer refused and unregistered, both slots
+certified, RECOVERY_COMPLETE); every fsynced file read back on both nodes and
+cold `chk_mxfs` clean in each.  The undelayed concurrent and staggered (45 s)
+pair-outage laps also PASS.
+
+**Measured on test1/test2** (DRBD 8.4.11), build 0A68DE356318542DB7A34C3:
+
+- `outage-test OUTAGE_TOMB_ARM=1` PASS: with every bootstrap swap refused the
+  mount was refused and sectors 0/31/32-39 were unchanged; with the tombstone
+  swaps refused the completion failed with sectors 32-39 unchanged; the
+  same-boot resume verified K (`mutated=0`), wrote the tombstone and reached
+  RECOVERY_COMPLETE; the peer rejoined; every fsynced file of both nodes
+  intact on both; cold `chk_mxfs` clean.
+- `takeover-test self` and `takeover-test foreign` PASS, each with
+  `TAKEOVER_NOCAW_ARM=1` (takeover-journal swaps refused: mount refused,
+  sector 31 unchanged) and `TAKEOVER_CLEAR_ARM=1` (the contender's stage swap
+  and journal clear refused, its entry superseded by the next attempt in the
+  same boot): term 1→2 by `DRBD_STONITH_WITNESSED_V1`, the other node rejoined,
+  every file intact on both, cold `chk_mxfs` clean.
+
+**Measured on test1/test2** (DRBD 8.4.11), the released build
+547CEA42C1BF30E540E7F3B:
+
+- The 2/net/mesh/drbd suite passed every row (31 PASS, none failed),
+  `crash_audit` included. `outage-test` passed, and `takeover-test self`
+  and `foreign` passed.
+- `death-test`: a node crash with a writer running was fenced
+  (`P238-DRBD-FENCE-WITNESSED`, `P236-FENCE-CERTIFIED`) and its slice
+  recovered in 84 s. Every fsynced file of both nodes was intact and cold
+  `chk_mxfs` clean.
+- `fence-test`: a link cut settled in 11 s and the survivor kept writing.
+- `split-test`: exactly one winner, in 11 s.
+- `remount-test`: three unmount/remount cycles, a crash-cut retirement and a
+  whole-cluster restart, with nothing stalled and cold `chk_mxfs` clean.
+- `resolve-test`: dm over `/dev/drbd0` was refused, a loop device was
+  refused, and both devices were left byte-identical.
+
+**Released on** the same build, at 2, 4 and 8 nodes:
+
+- **Release boards:** 2/net/mesh/direct and 2/disk/caw/direct,
+  4/net/mesh/direct and 4/disk/caw/direct, and 8/net/mesh/direct and
+  8/disk/caw/direct each passed 31 of 31.
+- **Platforms:** packaged rounds and the hung-node test passed at 8 nodes on
+  both 8-node configurations, on:
+  - Proxmox VE 9, kernels 6.17 and 7.0
+  - RHEL 9.8, SELinux enforcing with sVirt
+  - Ubuntu 24.04
+  - Debian 13
+- **DRBD:** `2/net/mesh/drbd` stays a trial attachment, outside the release
+  matrix.
+
+**Removed from the defect queue as fixed and verified:**
+`D-BOOTSTRAP-RESUME-AFTER-PARTIAL-COMPLETION-ABORTS`,
+`D-DRBD-BOOTSTRAP-TAKEOVER-REFUSED-SO-A-DEAD-OWNERS-TERM-CANNOT-BE-FINISHED`,
+`D-BOOTSTRAP-TAKEOVER-STALE-CONTENDER-OF-THIS-BOOT-IS-NEVER-EXCLUDED`,
+`D-CAS-FALLS-BACK-TO-A-PLAIN-WRITE-ON-A-DEVICE-WITHOUT-COMPARE-AND-WRITE`
+(its last site class, the takeover journal and its clear, now exercised with
+its swaps refused), `D-PAIR-OUTAGE-BOOTSTRAP-REFUSED-WHEN-A-VICTIM-HOST-REMOUNTS`
+and `D-TCP-MOUNT-CONTINUES-PAST-A-BOOTSTRAP-IN-PROGRESS-AND-RECOVERS-A-SEALED-VICTIM`.
+
+**Release verification:**
+
+- **A board that never ran no longer reads as passed.**
+  `tests/board_4node_chain.sh` read back the board on file after each
+  `run.sh`. When the host preflight refused all six release boards
+  (`run.sh` rc=3), it read 0.90.40's 31/31 boards and logged the step as
+  rc=0 in 14 s instead of ~27 min. The chain now fails a board whose
+  `run.sh` did not succeed.
+- **The host's free-space gate is one limit: 10 G free.** The preflight
+  refused runs at 87.08% used with 225 G free, because `df` rounds that to
+  88% against an 88% ceiling. A percentage of a fixed-size disk restates
+  the free-space limit, so only the free-space floor remains
+  (`scripts/clyde_preflight.sh`, `docs/host-safety.md`).
+- **Platform rounds run on two nodes of each platform.** Each round uses a
+  node and a peer to fence. Every fault a platform VM has caught showed at
+  two nodes: a kernel API, the fence on that kernel, packaging. Scale is
+  verified on the development rig by the release boards.
+  `tests/full_verify.sh` runs the 2-node configurations of the release
+  matrix on each platform's first two nodes and powers up only those.
+  The -3..-8 nodes of the four platform sets (24 VMs, 134 G) are deleted;
+  the lab files and `data/platforms.json` describe two-node sets. 0.90.41
+  itself was verified on eight nodes of each platform, before this change.
+
+**Tests:** `scripts/drbd_rig.sh takeover-test [self|foreign]` with
+`TAKEOVER_NOCAW_ARM` and `TAKEOVER_CLEAR_ARM`; `outage-test` keeps every
+kernel log and grades a tombstone-arm B as a same-boot resume;
+`tests/boot_setup_refusal_2n.sh` (modes race, concurrent, staggered,
+regwindow).  `mxfs.bootstrap_inject=17` and `=18` (TEST ONLY) hold a TCP
+mount after its bootstrap peek and after its PR registration.
+
 ## 2026-10-02 — 0.90.40 — 2/net/mesh/drbd works end to end: MXFS on DRBD dual-primary mounts, remounts, survives a node crash, a link cut, a split and a power cut of both nodes, with every fsynced file intact; a stacked device is never resolved to the disk under it; a compare-and-swap never falls back to a plain write
 
 **MXFS runs on DRBD dual-primary.**  The configuration is `2/net/mesh/drbd`:

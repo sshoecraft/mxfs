@@ -99,7 +99,7 @@ yardstick() {
 # board <cfg> <rows> <group>: one board (or the rows named), its log, its
 # read-back.  0 iff the read-back says the bar is met.
 board() {
-    local cfg=$1 row=$2 group=$3 rows L g
+    local cfg=$1 row=$2 group=$3 rows L g rrc
     rows="${row//,/ }"
     g=${group:+--group $group}
     L="$EV/board_${cfg//\//-}${row:+_${row//,/_}}${group:+_$group}_$LABEL.log"
@@ -118,10 +118,18 @@ board() {
         echo "=== $(date -u +%FT%TZ) ./run.sh $cfg $g $rows ==="
         # shellcheck disable=SC2086  # an empty $g or $rows must vanish, not be an argument
         ./run.sh "$cfg" $g $rows
-        echo "=== rc=$? run.sh $cfg $g $rows ($(date -u +%FT%TZ)) ==="
+        rrc=$?
+        echo "=== rc=$rrc run.sh $cfg $g $rows ($(date -u +%FT%TZ)) ==="
         python3 tools/criteria.py "$cfg"
     } > "$L" 2>&1
     grep -E '^(Total:|VERDICT:)' "$L" | tail -2 | sed "s|^|$(date -u +%FT%TZ) $cfg: |"
+    # The read-back is the STANDING board, so a run.sh that refused to start
+    # (measured: every board of a release chain stopped by the host preflight,
+    # rc=3) still reads green from the previous release's rows.
+    if [ "$rrc" != 0 ]; then
+        echo "$(date -u +%FT%TZ) $cfg: run.sh rc=$rrc — this board did not run to completion; the verdict above is not this run's"
+        return 1
+    fi
     grep -q 'VERDICT: every criterion green' "$L"
 }
 

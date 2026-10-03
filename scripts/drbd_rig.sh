@@ -28,6 +28,10 @@
 #                                              node 2 then rejoins and reads the same; cold chk clean
 #   scripts/drbd_rig.sh outage-test         both nodes die at once; a bootstrap with its swaps refused writes
 #                                              nothing, then the pair recovers with every fsynced file
+#   scripts/drbd_rig.sh takeover-test [self|foreign]
+#                                           a pair outage whose bootstrap owner fails after adopting
+#                                           K: the term is taken over and finished (TAKEOVER_NOCAW_ARM=1
+#                                           first refuses the contender's takeover-journal swaps)
 #   scripts/drbd_rig.sh remount-test        clean unmount/remount cycles, a crash-cut retirement and a
 #                                              whole-cluster restart, all on one filesystem
 #   scripts/drbd_rig.sh resolve-test        passthrough never resolves /dev/drbd0 (or dm on it) to its
@@ -1014,9 +1018,9 @@ step_outage_test() {
     say "  A: mount refused with bootstrap swaps refused; $(grep '^injected' <<<"$out"); sectors 0/31/32-39 unchanged ($h0)"
     # ── A2 (OUTAGE_TOMB_ARM=1): only the tombstone swaps refused: the claim
     #     and seal land, the completion's tombstone write must not.  It leaves
-    #     a term whose completion purged and then failed, which a resume cannot
-    #     finish yet (D-BOOTSTRAP-RESUME-AFTER-PARTIAL-COMPLETION-ABORTS),
-    #     so B is expected to fail after it until that is fixed. ──
+    #     a term whose completion purged and then failed; B is then a
+    #     same-boot RESUME of that term (its startup fence is A2's, still
+    #     standing), which must finish it. ──
     if [ "${OUTAGE_TOMB_ARM:-0}" = 1 ]; then
     local TOMBHASH="dd if=$DRBD_DEV iflag=direct bs=512 skip=$((sec + 32)) count=8 status=none | md5sum | cut -c1-32"
     ssh_n "$N1" "umount $MNT 2>/dev/null; rmmod mxfs 2>/dev/null" 30 >/dev/null
@@ -1027,6 +1031,7 @@ step_outage_test() {
         echo \"injected=\$(dmesg | grep -ac 'P-DBG-CAS-NOCAW op=bootstrap-tomb')\"
         dmesg | grep -aoE 'P-BOOT-[A-Z-]+|P163-[A-Z-]+' | sort | uniq -c | sort -rn | head -8 | tr '\n' ' '" $((OUTAGE_MOUNT_BUDGET + 30)))
     echo "$out" > "$EVID/outage_arm_a2"
+    ssh_n "$N1" "dmesg" 30 > "$EVID/kernlog_a2.$N1"
     h1=$(ssh_n "$N1" "$TOMBHASH" 30)
     [ "$(sed -n 's/^injected=//p' <<<"$out")" -ge 1 ] 2>/dev/null || die "outage test A2: no tombstone swap was attempted, so nothing was exercised: $out"
     [ "$h0" = "$h1" ] || die "outage test A2: the tombstone sectors changed while their swaps were refused: $h0 -> $h1"
@@ -1036,9 +1041,18 @@ step_outage_test() {
     ssh_n "$N1" "umount $MNT 2>/dev/null; rmmod mxfs 2>/dev/null; dmesg -C" 30 >/dev/null
     out=$(ssh_n "$N1" "$PREP" $((OUTAGE_MOUNT_BUDGET + 30)))
     echo "$out" > "$EVID/outage_mount.$N1"
+    ssh_n "$N1" "dmesg" 30 > "$EVID/kernlog_b.$N1"
     grep -aq '^NODE_PREP_OK' <<<"$out" || die "outage test B: $N1 did not mount after the pair outage: $(grep -a 'FAIL' <<<"$out" | tail -1)"
     ssh_n "$N1" "dmesg | grep -aE 'P-DRBD-STARTUP-FENCE|P-BOOT-(CLAIMED|SEALED|PHASE3-COMPLETE|RECOVERY-COMPLETE)' | sed 's/^.*mxfs: //' | cut -c1-200" 20 > "$EVID/outage_boot_kernlog"
-    grep -q 'P-DRBD-STARTUP-FENCED' "$EVID/outage_boot_kernlog" || die "outage test B: $N1 mounted without a startup fence: $(cat "$EVID/outage_boot_kernlog")"
+    if [ "${OUTAGE_TOMB_ARM:-0}" = 1 ]; then
+        # B resumed A2's term in the same boot: the fence is A2's
+        grep -aq 'P-DRBD-STARTUP-FENCED' "$EVID/kernlog_a2.$N1" || die "outage test A2: $N1 claimed without a startup fence"
+        grep -aq 'P-BOOT-RESUMED' "$EVID/kernlog_b.$N1" || die "outage test B: $N1 did not resume A2's term"
+        grep -aq 'P-BOOT-RECOVERY-COMPLETE' "$EVID/kernlog_b.$N1" || die "outage test B: $N1 mounted without completing the resumed term"
+        grep -ao 'P-DRBD-STARTUP-FENCED.*episode=[^ ]*' "$EVID/kernlog_a2.$N1" | tail -1 >> "$EVID/outage_boot_kernlog"
+    else
+        grep -q 'P-DRBD-STARTUP-FENCED' "$EVID/outage_boot_kernlog" || die "outage test B: $N1 mounted without a startup fence: $(cat "$EVID/outage_boot_kernlog")"
+    fi
     out=$(timeout 30 "$REPO/tools/rig_fence_virsh.sh" status "$N2")
     case "$out" in "STATE $N2 shut off inhibit="*) [ "${out##*inhibit=}" != none ] ;; *) false ;; esac \
         || die "outage test B: startup fencing should have left $N2 off and inhibited: $out"
@@ -1054,6 +1068,166 @@ step_outage_test() {
     echo "$out" > "$EVID/outage_chk"
     grep -q 'CHK_RC=0' <<<"$out" || die "outage test: chk_mxfs: $(tail -3 <<<"$out" | tr '\n' ' ')"
     say "outage test: passed (cold chk_mxfs clean; MXFS left unmounted)"
+}
+
+# A pair outage whose bootstrap owner fails mid-term, after it adopted a victim
+# slot (K): the term must be taken over and finished, never left for an
+# operator.  On DRBD the owner's startup fence left the peer's disk Outdated, so
+# the term can be continued only where the data is current:
+#   self     $N1's bootstrap is HELD right after K (bootstrap_inject=13, TEST
+#            ONLY) and destroyed there; $N1 boots again, alone (its peer still
+#            held off), and its new boot takes over its previous boot's term.
+#   foreign  $N1's bootstrap FAILS right after K (bootstrap_inject=3): the mount
+#            unwinds, the record stays RECOVERING, $N1 stays up.  $N2 is released
+#            and resynced from $N1, and $N2 takes the term over, fencing $N1.
+# TAKEOVER_NOCAW_ARM=1 first runs the contender once with the takeover-journal
+# swaps refused (dbg_cas_nocaw_ops=16384, as on a device without COMPARE AND
+# WRITE): the mount must not succeed, a swap must have been attempted, and the
+# journal (bootstrap sector 31) must be byte-identical.  TAKEOVER_CLEAR_ARM=1
+# then holds the contender right after its election (bootstrap_inject=15),
+# refuses its journal swaps and releases it: the next stage swap and the clear
+# of its own entry must both be refused with sector 31 unchanged, and the
+# takeover that follows in the same boot must supersede that entry.  Then the contender
+# mounts with the mask cleared: P-BOOT-TAKEOVER, P-BOOT-RECOVERY-COMPLETE; the
+# other node rejoins; every fsynced file of both nodes intact on both; cold chk.
+# Every kernel log is kept in the evidence directory.
+TAKEOVER_MOUNT_BUDGET=240  # abandon window 6 s + startup fence (link loss, handler, authority ~10-20 s) + K fence + two-slice recovery (~90 s), twice over
+step_takeover_test() {
+    local arm=${1:-self} out n1sum n2sum bs_off sec h0 h1 n owner contender ep
+    case "$arm" in self) owner=$N1; contender=$N1 ;; foreign) owner=$N1; contender=$N2 ;; *) die "takeover test: arm is self or foreign" ;; esac
+    step_mxfs
+    bs_off=$(sed -n 's/^ *Bootstrap: *\([0-9]*\) - .*/\1/p' "$EVID/mkfs" | head -1)
+    [ -n "$bs_off" ] || die "takeover test: no Bootstrap: line in the mkfs output"
+    sec=$((bs_off / 512))
+    local TKHASH="dd if=$DRBD_DEV iflag=direct bs=512 skip=$((sec + 31)) count=1 status=none | md5sum | cut -c1-32"
+    out=$(ssh_n "$N1" "mkdir -p $MNT/out/n1 && for i in \$(seq 1 64); do head -c 65536 /dev/urandom > $MNT/out/n1/f\$i; done && sync -f $MNT && cd $MNT/out/n1 && md5sum f* | sort -k2 | md5sum | cut -c1-32" 60)
+    n1sum=$(tail -1 <<<"$out")
+    out=$(ssh_n "$N2" "mkdir -p $MNT/out/n2 && for i in \$(seq 1 64); do head -c 65536 /dev/urandom > $MNT/out/n2/f\$i; done && sync -f $MNT && cd $MNT/out/n2 && md5sum f* | sort -k2 | md5sum | cut -c1-32" 60)
+    n2sum=$(tail -1 <<<"$out")
+    [ ${#n1sum} = 32 ] && [ ${#n2sum} = 32 ] || die "takeover test: could not record checksums ($n1sum / $n2sum)"
+    say "takeover test ($arm): files fsynced on both ($n1sum / $n2sum); destroying both nodes at once"
+    local dpids=()
+    for n in "${NODES[@]}"; do timeout 60 virsh -c qemu:///system destroy "$n" >/dev/null 2>&1 & dpids+=($!); done
+    wait "${dpids[@]}"
+    for n in "${NODES[@]}"; do
+        [ "$(timeout 20 virsh -c qemu:///system domstate "$n")" = "shut off" ] || die "takeover test: $n is not off"
+    done
+    "$REPO/scripts/lab_power.sh" up "${NODES[@]}" > "$EVID/outage_power" 2>&1 || die "takeover test: boot: $(tail -1 "$EVID/outage_power")"
+    both drbdup "modprobe drbd && drbdadm up $RES 2>&1 | tail -1
+        for i in \$(seq 1 $REJOIN_BUDGET); do [ \"\$(drbdadm cstate $RES) \$(drbdadm dstate $RES)\" = 'Connected UpToDate/UpToDate' ] && break; sleep 1; done
+        drbdadm primary $RES 2>&1 | tail -1
+        mountpoint -q /src || { mkdir -p /src; timeout 20 mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp; }" $((REJOIN_BUDGET + 40))
+    need_dual_primary
+    local KO_MD5; KO_MD5=$(md5sum "$REPO/mxfs.ko" | awk '{print $1}')
+    local PREP="MXFS_DEV=$DRBD_DEV MXFS_KO_MD5=$KO_MD5 MXFS_REPO=/src/mxfs bash /src/mxfs/tests/setup/prep_node.sh tcp"
+    # ── the owner: claims (its startup fence holds $N2 off), seals, adopts K
+    if [ "$arm" = self ]; then
+        out=$(ssh_n "$owner" "dmesg -C; nohup env MXFS_EXTRA_MODARGS=bootstrap_inject=13 $PREP > /run/tk_owner.log 2>&1 < /dev/null &
+            for i in \$(seq 1 $OUTAGE_MOUNT_BUDGET); do dmesg | grep -q 'P-BOOT-INJECT-HOLD point=13' && break; sleep 1; done
+            dmesg | grep -q 'P-BOOT-INJECT-HOLD point=13' && echo HELD || echo NOT_HELD" $((OUTAGE_MOUNT_BUDGET + 30)))
+        ssh_n "$owner" "dmesg" 30 > "$EVID/kernlog_owner.$owner"
+        grep -q '^HELD' <<<"$out" || die "takeover test: $owner's bootstrap never reached the hold after K: $(grep -aoE 'P-BOOT-[A-Z-]+' "$EVID/kernlog_owner.$owner" | sort | uniq -c | tr '\n' ' ')"
+        grep -q 'P-BOOT-ADOPT slot=' "$EVID/kernlog_owner.$owner" || die "takeover test: $owner is held but adopted no K"
+        say "  $owner claimed, sealed and adopted K ($(grep -ao 'P-BOOT-ADOPT slot=[0-9]*' "$EVID/kernlog_owner.$owner" | head -1)); held there, destroying it"
+        timeout 60 virsh -c qemu:///system destroy "$owner" >/dev/null 2>&1 || die "takeover test: virsh destroy $owner failed"
+        out=$(timeout 30 "$REPO/tools/rig_fence_virsh.sh" status "$N2")
+        case "$out" in "STATE $N2 shut off inhibit="*) [ "${out##*inhibit=}" != none ] ;; *) false ;; esac \
+            || die "takeover test: $owner's startup fence should have left $N2 off and inhibited: $out"
+        "$REPO/scripts/lab_power.sh" up "$owner" > "$EVID/owner_power" 2>&1 || die "takeover test: $owner did not boot"
+        out=$(ssh_n "$owner" "modprobe drbd && drbdadm up $RES 2>&1 | tail -1
+            for i in \$(seq 1 $REJOIN_BUDGET); do case \"\$(drbdadm dstate $RES)\" in UpToDate/*) break ;; esac; sleep 1; done
+            drbdadm primary $RES 2>&1 | tail -1
+            mountpoint -q /src || { mkdir -p /src; timeout 20 mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp; }
+            echo \"ALONE \$(drbdadm role $RES) \$(drbdadm dstate $RES) \$(drbdadm cstate $RES)\"" $((REJOIN_BUDGET + 40)))
+        grep -q '^ALONE Primary/' <<<"$out" || die "takeover test: $owner is not Primary alone after its reboot: $(tail -1 <<<"$out")"
+        say "  $owner rebooted alone: $(grep '^ALONE' <<<"$out")"
+    else
+        out=$(ssh_n "$owner" "dmesg -C; MXFS_EXTRA_MODARGS=bootstrap_inject=3 $PREP 2>&1 | grep -a NODE_PREP | tail -1
+            mountpoint -q $MNT && echo STILL_MOUNTED
+            echo 0 > /sys/module/mxfs/parameters/bootstrap_inject 2>/dev/null" $((OUTAGE_MOUNT_BUDGET + 30)))
+        ssh_n "$owner" "dmesg" 30 > "$EVID/kernlog_owner.$owner"
+        grep -q STILL_MOUNTED <<<"$out" && die "takeover test: $owner mounted through the fail point"
+        grep -q 'P-BOOT-INJECT point=3' "$EVID/kernlog_owner.$owner" || die "takeover test: $owner's fail point after K never fired: $(grep -aoE 'P-BOOT-[A-Z-]+' "$EVID/kernlog_owner.$owner" | sort | uniq -c | tr '\n' ' ')"
+        say "  $owner claimed, sealed, adopted K and failed there (record left RECOVERING); $N2 is released and resynced"
+        ep=$(timeout 30 "$REPO/tools/rig_fence_virsh.sh" status "$N2"); ep=${ep##*inhibit=}
+        [ "$ep" != none ] && [ -n "$ep" ] || die "takeover test: $N2 is not inhibited after $owner's startup fence"
+        out=$("$REPO/tools/rig_fence_virsh.sh" release "$N2" "$ep" "$owner")
+        [ "$out" = "RELEASED $N2 episode=$ep" ] || die "takeover test: release: $out"
+        "$REPO/scripts/lab_power.sh" up "$N2" > "$EVID/contender_power" 2>&1 || die "takeover test: $N2 did not boot"
+        out=$(ssh_n "$N2" "modprobe drbd && drbdadm up $RES 2>&1 | tail -1
+            for i in \$(seq 1 $REJOIN_BUDGET); do [ \"\$(drbdadm dstate $RES 2>/dev/null)\" = UpToDate/UpToDate ] && { drbdadm primary $RES 2>&1 | tail -1; break; }; sleep 1; done
+            mountpoint -q /src || { mkdir -p /src; timeout 20 mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp; }
+            echo \"RESYNCED \$(drbdadm role $RES) \$(drbdadm dstate $RES)\"" $((REJOIN_BUDGET + 40)))
+        grep -q '^RESYNCED Primary/Primary UpToDate/UpToDate' <<<"$out" || die "takeover test: $N2 did not resync to Primary/Primary: $(tail -1 <<<"$out")"
+        say "  $N2 resynced from $owner, Primary/Primary"
+    fi
+    # ── TAKEOVER_NOCAW_ARM: the contender with its takeover-journal swaps refused
+    if [ "${TAKEOVER_NOCAW_ARM:-0}" = 1 ]; then
+        h0=$(ssh_n "$contender" "$TKHASH" 30)
+        out=$(ssh_n "$contender" "dmesg -C; MXFS_EXTRA_MODARGS=dbg_cas_nocaw_ops=16384 $PREP 2>&1 | grep -a NODE_PREP | tail -1
+            echo 0 > /sys/module/mxfs/parameters/dbg_cas_nocaw_ops 2>/dev/null
+            mountpoint -q $MNT && echo STILL_MOUNTED
+            echo \"injected=\$(dmesg | grep -ac 'P-DBG-CAS-NOCAW op=bootstrap-takeover')\"
+            umount $MNT 2>/dev/null; rmmod mxfs 2>/dev/null" $((TAKEOVER_MOUNT_BUDGET + 30)))
+        ssh_n "$contender" "dmesg" 30 > "$EVID/kernlog_nocaw.$contender"
+        echo "$out" > "$EVID/takeover_nocaw"
+        h1=$(ssh_n "$contender" "$TKHASH" 30)
+        grep -q STILL_MOUNTED <<<"$out" && die "takeover test NOCAW: $contender mounted with every takeover-journal swap refused"
+        [ "$(sed -n 's/^injected=//p' <<<"$out")" -ge 1 ] 2>/dev/null || die "takeover test NOCAW: no takeover-journal swap was attempted: $(grep -aoE 'P-BOOT-[A-Z-]+' "$EVID/kernlog_nocaw.$contender" | sort | uniq -c | tr '\n' ' ')"
+        [ "$h0" = "$h1" ] && [ ${#h0} = 32 ] || die "takeover test NOCAW: the takeover journal changed while its swaps were refused: $h0 -> $h1"
+        say "  NOCAW: $contender's takeover refused with its journal swaps refused ($(grep '^injected' <<<"$out")), sector 31 unchanged ($h0)"
+    fi
+    # ── TAKEOVER_CLEAR_ARM: the contender elected, then its journal swaps
+    #    refused: its next stage swap fails, and the clear of its own entry on
+    #    the way out must be refused too and leave sector 31 as it was.  The
+    #    entry it leaves names this boot, so the takeover below must supersede
+    #    it (P-BOOT-CONTENDER-OWN-BOOT) instead of refusing to fence itself.
+    if [ "${TAKEOVER_CLEAR_ARM:-0}" = 1 ]; then
+        local P=/sys/module/mxfs/parameters
+        out=$(ssh_n "$contender" "dmesg -C; nohup env MXFS_EXTRA_MODARGS=bootstrap_inject=15 $PREP > /run/tk_clear.log 2>&1 < /dev/null &
+            for i in \$(seq 1 $TAKEOVER_MOUNT_BUDGET); do dmesg | grep -q 'P-BOOT-INJECT-HOLD point=15' && break; sleep 1; done
+            dmesg | grep -q 'P-BOOT-INJECT-HOLD point=15' || { echo NOT_ELECTED; exit 0; }
+            echo 16384 > $P/dbg_cas_nocaw_ops; sleep 3
+            echo \"H0=\$($TKHASH)\"
+            echo 0 > $P/bootstrap_inject
+            for i in \$(seq 1 $TAKEOVER_MOUNT_BUDGET); do grep -q NODE_PREP /run/tk_clear.log && break; sleep 1; done
+            echo 0 > $P/dbg_cas_nocaw_ops
+            echo \"H1=\$($TKHASH)\"
+            mountpoint -q $MNT && echo STILL_MOUNTED
+            echo \"clear_injected=\$(dmesg | grep -ac 'P-DBG-CAS-NOCAW op=bootstrap-takeover-clear')\"
+            umount $MNT 2>/dev/null; rmmod mxfs 2>/dev/null" $((2 * TAKEOVER_MOUNT_BUDGET + 60)))
+        ssh_n "$contender" "dmesg" 30 > "$EVID/kernlog_clear.$contender"
+        echo "$out" > "$EVID/takeover_clear"
+        grep -q NOT_ELECTED <<<"$out" && die "takeover test CLEAR: $contender was never elected: $(grep -aoE 'P-BOOT-[A-Z-]+' "$EVID/kernlog_clear.$contender" | sort | uniq -c | tr '\n' ' ')"
+        grep -q STILL_MOUNTED <<<"$out" && die "takeover test CLEAR: $contender mounted with its journal swaps refused"
+        [ "$(sed -n 's/^clear_injected=//p' <<<"$out")" -ge 1 ] 2>/dev/null || die "takeover test CLEAR: no journal clear was attempted: $(grep -aoE 'P-BOOT-TK-[A-Z-]+|P-DBG-CAS-NOCAW op=[a-z-]+' "$EVID/kernlog_clear.$contender" | sort | uniq -c | tr '\n' ' ')"
+        h0=$(sed -n 's/^H0=//p' <<<"$out"); h1=$(sed -n 's/^H1=//p' <<<"$out")
+        [ "$h0" = "$h1" ] && [ ${#h0} = 32 ] || die "takeover test CLEAR: the takeover journal changed while its swaps were refused: $h0 -> $h1"
+        say "  CLEAR: $contender elected, then its stage swap and its journal clear refused ($(grep '^clear_injected' <<<"$out")), sector 31 unchanged ($h0); its entry is left naming this boot"
+    fi
+    # ── the takeover
+    out=$(ssh_n "$contender" "dmesg -C; $PREP 2>&1" $((TAKEOVER_MOUNT_BUDGET + 30)))
+    echo "$out" > "$EVID/takeover_mount.$contender"
+    ssh_n "$contender" "dmesg" 30 > "$EVID/kernlog_takeover.$contender"
+    grep -aq '^NODE_PREP_OK' <<<"$out" || die "takeover test: $contender did not mount: $(grep -aoE 'P-BOOT-[A-Z-]+ [^ ]*' "$EVID/kernlog_takeover.$contender" | tail -4 | tr '\n' ' ')"
+    grep -q 'P-BOOT-TAKEOVER term=' "$EVID/kernlog_takeover.$contender" || die "takeover test: $contender mounted without a takeover"
+    grep -q 'P-BOOT-RECOVERY-COMPLETE' "$EVID/kernlog_takeover.$contender" || die "takeover test: $contender mounted without completing the bootstrap"
+    if [ "${TAKEOVER_CLEAR_ARM:-0}" = 1 ]; then
+        grep -q 'P-BOOT-CONTENDER-OWN-BOOT' "$EVID/kernlog_takeover.$contender" || die "takeover test: the entry the CLEAR arm left was not superseded as this boot's own"
+    fi
+    say "  $contender took the term over and completed it: $(grep -ao 'P-BOOT-TAKEOVER term=[0-9]*->[0-9]* [^ ]* [^ ]* kind=[^ ]*' "$EVID/kernlog_takeover.$contender" | head -1)"
+    # ── the other node rejoins; read-back on both
+    if [ "$arm" = self ]; then rejoin_node "$N2" "$N1"; else rejoin_node "$N1" "$N2"; fi
+    for n in "${NODES[@]}"; do
+        out=$(ssh_n "$n" "cd $MNT/out/n1 && md5sum f* | sort -k2 | md5sum | cut -c1-32; cd $MNT/out/n2 && md5sum f* | sort -k2 | md5sum | cut -c1-32" 60)
+        [ "$(sed -n 1p <<<"$out")" = "$n1sum" ] && [ "$(sed -n 2p <<<"$out")" = "$n2sum" ] || die "takeover test: $n reads different data after the takeover: $out"
+    done
+    say "  both mounted; every fsynced file of both nodes intact on both"
+    both stop "$NODE_UNMOUNT; echo STOP_OK" 120
+    out=$(ssh_n "$N1" "/src/mxfs/tools/chk_mxfs $DRBD_DEV 2>&1 | tail -3; echo CHK_RC=\${PIPESTATUS[0]}" 120)
+    echo "$out" > "$EVID/takeover_chk"
+    grep -q 'CHK_RC=0' <<<"$out" || die "takeover test: chk_mxfs: $(tail -3 <<<"$out" | tr '\n' ' ')"
+    say "takeover test ($arm): passed (cold chk_mxfs clean; MXFS left unmounted)"
 }
 
 step_status() {
@@ -1088,6 +1262,7 @@ case "$CMD" in
     resolve-test) evid; take_locks; hold_luns adopt; step_resolve_test ;;
     remount-test) evid; take_locks; hold_luns adopt; step_remount_test ;;
     outage-test) evid; take_locks; hold_luns adopt; step_outage_test ;;
+    takeover-test) evid; take_locks; hold_luns adopt; step_takeover_test "$@" ;;
     rejoin)      evid; take_locks; hold_luns adopt; rejoin_node "$N2" "$N1"; say "rejoin: $N2 is back, DRBD Primary/Primary, MXFS mounted" ;;
     down)   evid; take_locks; step_down ;;
     all)

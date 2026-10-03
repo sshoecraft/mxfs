@@ -5,9 +5,16 @@
 # Usage: [NODES=N] tests/full_verify.sh VERSION [STALL_LAPS]
 #
 # NODES (default 2) is the cluster size the release claims: the rig suites run
-# at that node count, and every platform's verification set (the lab file's
-# `nodes` line) must hold that many nodes, since a claim for N nodes is
-# verified on N nodes of each platform and nothing smaller.
+# at that node count.  The platform rounds do not: they run on the first
+# PLATFORM_NODES (2) nodes of each platform's set, on the release matrix's
+# 2-node configurations, whatever the claim.  What a platform round has ever
+# caught is the platform itself — its kernel, its build, its packages, its
+# fence path (a module that would not build for Debian 13, a fence refused on
+# every Proxmox kernel, a helper the packages never shipped, SELinux labels) —
+# and every one of those shows on two nodes; node-count behaviour is the rig's
+# job, at the claimed count.  Two, not one, because the hung-node test needs a
+# peer to fence.  At 32 nodes on thirteen platforms the old rule was 416
+# guests; this one is 26.
 #
 # In order, each step logged into tests/evidence/full_verify_<VERSION>.log with
 # its own "=== rc=N: <step> ===" line:
@@ -90,13 +97,17 @@ L="$HERE/tests/evidence/full_verify_$V.log"
 # a run that resumes after the build keeps the log of the run it continues
 case ",${STEPS:-build}," in *,build,*) : > "$L" ;; esac
 SSH="$HERE/tools/mxfs_sshpass.sh"
-echo "=== full_verify $V nodes=$NODES power=$POWER groups=[$PLATFORM_GROUPS] $(date -u +%FT%TZ) ===" | tee -a "$L"
-# every platform's set must be the claimed size before anything runs: a
-# smaller set would verify a smaller claim
+PLATFORM_NODES=2
+echo "=== full_verify $V nodes=$NODES platform_nodes=$PLATFORM_NODES power=$POWER groups=[$PLATFORM_GROUPS] $(date -u +%FT%TZ) ===" | tee -a "$L"
 . "$HERE/tools/mxfs_lab.sh"
+# plat_set <platform>: the nodes its rounds run on, the first PLATFORM_NODES
+# of its set
+plat_set() {
+    lab_nodes "$1" | tr ' ' '\n' | awk 'NF' | head -n "$PLATFORM_NODES" | tr '\n' ' '
+}
 for k in ubuntu2404 pve9 rhel9 debian13; do
     n=$(lab_nodes "$k" 2>/dev/null | wc -w)
-    [ "$n" -ge "$NODES" ] || { echo "$k: its verification set has $n node(s), the claim needs $NODES" | tee -a "$L"; exit 2; }
+    [ "$n" -ge "$PLATFORM_NODES" ] || { echo "$k: its verification set has $n node(s), the rounds need $PLATFORM_NODES" | tee -a "$L"; exit 2; }
 done
 
 run() {
@@ -108,10 +119,10 @@ run() {
     return $rc
 }
 
-all_platform_nodes() {  # every node named by a platform lab file
+all_platform_nodes() {  # every node the platform rounds run on
     local k
     for k in ubuntu2404 pve9 rhel9 debian13; do
-        lab_nodes "$k" 2>/dev/null
+        plat_set "$k" 2>/dev/null
     done | tr ' ' '\n' | awk 'NF && !seen[$0]++' | tr '\n' ' '
 }
 unmount_pairs() {  # [node...] — default: every platform node
@@ -130,7 +141,8 @@ unmount_pairs() {  # [node...] — default: every platform node
 # the borrowed LUN as its storage.
 pool_lab() {
     local key=$1 lab=$2 set line portal
-    set=$(lab_nodes "$key") || return 1
+    set=$(plat_set "$key")
+    [ -n "$set" ] || return 1
     portal=$(lab_need storage portal) || return 1
     line=$(tools/lun_pool.sh alloc --owner "$BASHPID" --what "full_verify $V $key" $set) || return 1
     { grep -E '^#|^addr|^qemu|^paths' "$MXFS_LAB"
@@ -146,7 +158,7 @@ platform() {
     shift
     : > "$pl"
     pool_lab "$key" "$lab" >> "$pl" 2>&1 || { echo "=== rc=2: $key: no pool LUN for its verification set ===" >> "$pl"; return; }
-    pair=$(lab_nodes "$key")
+    pair=$(plat_set "$key")
     for step in "$@"; do
         MXFS_LAB=$lab unmount_pairs $pair >> "$pl"
         echo "=== $key: $step ===" >> "$pl"
@@ -236,13 +248,15 @@ want platforms || { echo "=== full_verify $V done (steps:${STEPS//,/ }) ===" | t
 # platforms in parallel, the groups one after another
 PR=tests/packaged_round.sh
 FZ=tests/tcp_peer_freeze_death.sh
+PMATRIX=$(python3 tools/configuration.py release-matrix --nodes "$PLATFORM_NODES")
+[ -n "$PMATRIX" ] || { echo "the release matrix has no configuration at $PLATFORM_NODES nodes" | tee -a "$L"; exit 2; }
 steps_of() {  # <platform>: that platform's steps, in order
     local s=() cfg kernels=("") k
     [ "$1" = pve9 ] && kernels=("KERNEL=6.17.2-1-pve " "KERNEL=7.0.14-19-pve ")
     for k in "${kernels[@]}"; do
-        for cfg in $MATRIX; do s+=("${k}CONFIG=$cfg $PR $1 $V"); done
+        for cfg in $PMATRIX; do s+=("${k}CONFIG=$cfg $PR $1 $V"); done
     done
-    for cfg in $MATRIX; do s+=("CONFIG=$cfg PREP=$1 $FZ"); done
+    for cfg in $PMATRIX; do s+=("CONFIG=$cfg PREP=$1 $FZ"); done
     case "$1" in
         rhel9)
             s+=("PREP=rhel9 tests/selinux_svirt_mxfs.sh")
@@ -260,8 +274,8 @@ for g in $PLATFORM_GROUPS; do
         for k in $ALL_PLATFORMS; do case " $gs " in *" $k "*) ;; *) off="$off $k" ;; esac; done
         # shellcheck disable=SC2086  # one argument per set
         run scripts/lab_power.sh down $off
-        # shellcheck disable=SC2086
-        run scripts/lab_power.sh up $gs
+        # shellcheck disable=SC2086  # only the nodes the rounds run on
+        run scripts/lab_power.sh up $(for k in $gs; do plat_set "$k"; done)
     fi
     pids=()
     for k in $gs; do steps_of "$k" & pids+=($!); done

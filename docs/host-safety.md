@@ -500,10 +500,10 @@ Clearing a halt is deliberate:
 1. **The LUN and guest images stay on the root filesystem.**  The operator is
    not local to clyde and cannot add a device, so the coupling is an accepted
    constraint, not an action item.  Headroom is therefore the only remaining
-   lever and is set tight: the preflight fails a **local** filesystem above
-   **88% used** or below **120 G free** (the 2026-08-20 wedge was at 92% with
-   ~145 G free — a 60 G floor would not have caught it, the 88% ceiling
-   would).  Network filesystems get a plain "not actually full" check instead;
+   lever: the preflight fails a **local** filesystem below **10 G free**, one
+   limit in free space (user decision 2026-10-02; a percentage on a disk of
+   fixed size is the same limit stated twice, and 88% of 1.8 T refused runs
+   with 225 G free).  Network filesystems get a plain "not actually full" check instead;
    a 12 TB NFS server at 89% is not a jbd2 hazard, and blocking runs over it
    is the kind of noise that gets a gate switched off.
    The preflight prints the coupling as a `NOTE`, not a warning, for the same

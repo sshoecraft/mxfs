@@ -18,11 +18,11 @@ spec that builds its nodes and what to do to them after the build. Everything
 below is the part that is the same for every platform.
 
 ### Building a platform's verification set
-A release for N nodes is verified on N nodes of every platform it claims, and
-on nothing smaller: two nodes for the 2-node release, four for the 4-node
-release, eight for the 8-node one (`NODES=8 tests/full_verify.sh` refuses a
-set with fewer). The steps are per node; a set is as many of them as the
-release claims. A node of the development rig is never also in a platform
+A platform's verification set is two nodes, whatever node count the release
+claims: a node and a peer to fence, which is what every fault a platform node
+has caught (a kernel API, the fence on that kernel, packaging) needed. The
+release's node count is verified on the development rig by the release
+boards. The steps are per node. A node of the development rig is never also in a platform
 set: a node logged in to two targets orders its disks by session, and the
 rig's prep has formed a cluster short of that node because of it.
 1. **Install osimager** — `pip install osimager` (it drives HashiCorp Packer,

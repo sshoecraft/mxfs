@@ -49,8 +49,7 @@
 #                                (deliberate, time-boxed debug runs only)
 #   MXFS_PREFLIGHT_KMSG_SECS=N   kernel-log sample window (default 3)
 #   MXFS_PREFLIGHT_KMSG_MAX=N    max kernel lines/sec (default 40)
-#   MXFS_PREFLIGHT_MIN_FREE_GB=N free-space floor (default 60)
-#   MXFS_PREFLIGHT_MAX_USE_PCT=N used-space ceiling (default 90)
+#   MXFS_PREFLIGHT_MIN_FREE_GB=N free-space floor (default 10)
 #   MXFS_PREFLIGHT_MAX_DSTATE=N  max pre-existing D-state tasks (default 20)
 set -u
 
@@ -64,13 +63,11 @@ VMDIR="${MXFS_VM_DIR:-$("$(dirname "$(readlink -f "$0")")/../tools/mxfs_lab.sh" 
 
 KMSG_SECS="${MXFS_PREFLIGHT_KMSG_SECS:-3}"
 KMSG_MAX="${MXFS_PREFLIGHT_KMSG_MAX:-40}"
-# The LUN, the 32 guest images and the journal cannot be separated on this
-# host (no local access, no spare device), so headroom is the ONLY lever left
-# against the 2026-08-20 jbd2 wedge, and it is set tight on purpose.
-# That wedge happened at 92% used with ~145G free — a 60G floor would not have
-# caught it, but an 88% ceiling would.  Today: 81% used, 346G free.
-MIN_FREE_GB="${MXFS_PREFLIGHT_MIN_FREE_GB:-120}"
-MAX_USE_PCT="${MXFS_PREFLIGHT_MAX_USE_PCT:-88}"
+# The LUN, the 32 guest images and the journal share one filesystem on this
+# host.  One limit, in free space: on a disk of fixed size a percentage is the
+# same limit stated again, and at 88% of 1.8T it refused runs with 225G free.
+# (User decision 2026-10-02: 10G free.)
+MIN_FREE_GB="${MXFS_PREFLIGHT_MIN_FREE_GB:-10}"
 MAX_DSTATE="${MXFS_PREFLIGHT_MAX_DSTATE:-20}"
 
 fails=0
@@ -295,8 +292,8 @@ check_fs() {
             fi
             ;;
         *)
-            if [ "${pct:-100}" -ge "$MAX_USE_PCT" ] || [ "${free_gb:-0}" -lt "$MIN_FREE_GB" ]; then
-                bad "$label ($src): ${pct}% used, ${free_gb}G free (limits: <${MAX_USE_PCT}%, >=${MIN_FREE_GB}G)"
+            if [ "${free_gb:-0}" -lt "$MIN_FREE_GB" ]; then
+                bad "$label ($src): ${pct}% used, ${free_gb}G free (limit: >=${MIN_FREE_GB}G free)"
                 bad "  this filesystem carries the LUN/images/journal — see docs/host-safety.md"
             else
                 ok "$label ($src): ${pct}% used, ${free_gb}G free"

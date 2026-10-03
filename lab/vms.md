@@ -14,17 +14,18 @@ The kernel a set must run is the one `data/platforms.json` lists under
 other kernel verifies nothing. It is not repeated here, so the two cannot
 disagree.
 
-The `nodes` column is the size of the verification set: a release for N
-nodes is verified on N nodes of the platform, so the released platforms hold
-eight (built from the spec, or cloned from a built and verified one with
-`scripts/lab_clone_node.sh`, all on one LUN of their own).
+The `nodes` column is the size of the verification set: two, a node and a
+peer to fence (the second built from the spec, or cloned from the first with
+`scripts/lab_clone_node.sh`, both on one LUN of their own). Every fault a
+platform node has caught — a kernel API, the fence on that kernel, packaging —
+shows at two; a release's node count is verified on the development rig.
 
 | platform | osimager spec | nodes | after the build | role |
 |---|---|---|---|---|
-| `ubuntu2404` | `ubuntu-24.04.3-x86_64` | 8 | boot the GA kernel `platforms.json` claims, not an HWE one | runtime |
-| `pve9` | `proxmox-ve-9.1-x86_64` | 8 | install `proxmox-default-kernel` so both claimed kernels are present; `proxmox-headers-<krel>` for each | runtime, one round per claimed kernel |
-| `rhel9` | `alma-9.7-x86_64`, then updated to 9.8 | 8 | `dnf -y update` to 9.8 and boot the claimed kernel; enable EPEL (DKMS comes from there); firewalld running, SELinux enforcing; a clone is relabeled (`touch /.autorelabel`) before its first use | runtime |
-| `debian13` | `debian-13.3-x86_64` (the local DVD), then upgraded | 8 | replace the DVD-only `sources.list` with deb.debian.org `trixie`, `trixie-updates` and `trixie-security`; `apt full-upgrade` and boot the claimed kernel; install `linux-headers-amd64 dkms open-iscsi sg3-utils` | runtime |
+| `ubuntu2404` | `ubuntu-24.04.3-x86_64` | 2 | boot the GA kernel `platforms.json` claims, not an HWE one | runtime |
+| `pve9` | `proxmox-ve-9.1-x86_64` | 2 | install `proxmox-default-kernel` so both claimed kernels are present; `proxmox-headers-<krel>` for each | runtime, one round per claimed kernel |
+| `rhel9` | `alma-9.7-x86_64`, then updated to 9.8 | 2 | `dnf -y update` to 9.8 and boot the claimed kernel; enable EPEL (DKMS comes from there); firewalld running, SELinux enforcing; a clone is relabeled (`touch /.autorelabel`) before its first use | runtime |
+| `debian13` | `debian-13.3-x86_64` (the local DVD), then upgraded | 2 | replace the DVD-only `sources.list` with deb.debian.org `trixie`, `trixie-updates` and `trixie-security`; `apt full-upgrade` and boot the claimed kernel; install `linux-headers-amd64 dkms open-iscsi sg3-utils` | runtime |
 | `ubuntu2604` | `ubuntu-26.04-x86_64` | 2 | | runtime |
 | `rhel10` | `alma-10.1-x86_64` | 2 | enable EPEL; firewalld running, SELinux enforcing | runtime |
 | `debian12` | `debian-12.13-x86_64` | 2 | | runtime |

@@ -2596,14 +2596,13 @@ bool mxfs_fence_durable_kind_supported(enum mxfs_fence_record_family family,
 		 * off and held off by the fence authority under the episode its
 		 * receipt names, the replication link disconnected (so DRBD has
 		 * drained every write it accepted from the peer), the peer's disk
-		 * Outdated.  One producer, the drbd leg of v5_pr_fence_prove_locked,
-		 * and it writes only recovery descriptors: a bootstrap-owner record
-		 * carrying 25 was not produced by it. */
-		if (family == MXFS_FENCE_RECORD_RECOVERY_DESC)
-			return true;
-		reason = "kind 25 is minted into recovery descriptors only; a "
-			 "bootstrap-owner record carrying it has no producer";
-		break;
+		 * Outdated.  One producer, v5_drbd_fence: the drbd leg of
+		 * v5_pr_fence_prove_locked writes it into recovery descriptors, and
+		 * 0.90.41's DRBD bootstrap takeover carries it into the
+		 * bootstrap-owner record it reseals — the old owner's exclusion asked
+		 * of the same function (v5_drbd_tk_fence), or K's descriptor that
+		 * function certified.  Either family, the same judgment. */
+		return true;
 	case MXFS_FENCE_KIND_SINGLE_NODE_EXCLUSIVE:
 		reason = "REVOKED kind 17: the operator's single-node assertion is "
 			 "about ADMISSION — no second INITIATOR can hold writes — and "
