@@ -98,7 +98,9 @@ libvirt, which `tests/tcp_peer_freeze_death.sh` freezes through its QMP
 socket. `group` names rig groups — disjoint slices of the rig's nodes, each of
 which runs one board at a time (`run.sh <configuration> --group <g>`); the
 dev host has g2/g4/g8 (test1-2, test3-6, test7-14) and g2b/g4b/g8b (test15-16,
-test17-20, test21-28), so the release matrix's suites run two at a time.
+test17-20, test21-28), so the release matrix's suites run two at a time, and
+g16/g16b (test1-16, test17-32) for the 16-node pair, which overlap the smaller
+groups and so run at a different time than they do.
 `paths` names the build host's own files: the LUN pool's directory, the
 dm-delay rig's image, the VM directory and the qemu guests' root; the
 rig-setup scripts and the host preflight read them from here unless an

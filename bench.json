@@ -21630,5 +21630,225 @@
         "iops": 93581
       }
     }
+  },
+  "fio_perf_16-disk-caw-direct_1791083383": {
+    "ts": "2026-10-04T03:09:43Z",
+    "test": "fio_perf",
+    "nodes": 16,
+    "configuration": "16/disk/caw/direct",
+    "fs": "16-disk-caw-direct",
+    "size": "128m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 3675
+      },
+      "seq_read_1m": {
+        "bw_mib": 2340
+      },
+      "rand_write_4k": {
+        "iops": 250390
+      },
+      "rand_read_4k": {
+        "iops": 329732
+      }
+    }
+  },
+  "fio_perf_16-net-mesh-direct_1791083465": {
+    "ts": "2026-10-04T03:11:05Z",
+    "test": "fio_perf",
+    "nodes": 16,
+    "configuration": "16/net/mesh/direct",
+    "fs": "16-net-mesh-direct",
+    "size": "128m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 3763
+      },
+      "seq_read_1m": {
+        "bw_mib": 8040
+      },
+      "rand_write_4k": {
+        "iops": 278205
+      },
+      "rand_read_4k": {
+        "iops": 301929
+      }
+    }
+  },
+  "fio_perf_16-net-mesh-direct_1791086812": {
+    "ts": "2026-10-04T04:06:52Z",
+    "test": "fio_perf",
+    "nodes": 16,
+    "configuration": "16/net/mesh/direct",
+    "fs": "16-net-mesh-direct",
+    "size": "128m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 4693
+      },
+      "seq_read_1m": {
+        "bw_mib": 4115
+      },
+      "rand_write_4k": {
+        "iops": 270732
+      },
+      "rand_read_4k": {
+        "iops": 329652
+      }
+    }
+  },
+  "fio_perf_16-disk-caw-direct_1791086888": {
+    "ts": "2026-10-04T04:08:08Z",
+    "test": "fio_perf",
+    "nodes": 16,
+    "configuration": "16/disk/caw/direct",
+    "fs": "16-disk-caw-direct",
+    "size": "128m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 2006
+      },
+      "seq_read_1m": {
+        "bw_mib": 3510
+      },
+      "rand_write_4k": {
+        "iops": 209028
+      },
+      "rand_read_4k": {
+        "iops": 199879
+      }
+    }
+  },
+  "fio_perf_2-net-mesh-direct_1791090443": {
+    "ts": "2026-10-04T05:07:23Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "configuration": "2/net/mesh/direct",
+    "fs": "2-net-mesh-direct",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 1480
+      },
+      "seq_read_1m": {
+        "bw_mib": 2275
+      },
+      "rand_write_4k": {
+        "iops": 44821
+      },
+      "rand_read_4k": {
+        "iops": 45173
+      }
+    }
+  },
+  "fio_perf_2-disk-caw-direct_1791090517": {
+    "ts": "2026-10-04T05:08:37Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "configuration": "2/disk/caw/direct",
+    "fs": "2-disk-caw-direct",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 1514
+      },
+      "seq_read_1m": {
+        "bw_mib": 1960
+      },
+      "rand_write_4k": {
+        "iops": 38193
+      },
+      "rand_read_4k": {
+        "iops": 37665
+      }
+    }
+  },
+  "fio_perf_8-net-mesh-direct_1791090564": {
+    "ts": "2026-10-04T05:09:24Z",
+    "test": "fio_perf",
+    "nodes": 8,
+    "configuration": "8/net/mesh/direct",
+    "fs": "8-net-mesh-direct",
+    "size": "256m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 2102
+      },
+      "seq_read_1m": {
+        "bw_mib": 4595
+      },
+      "rand_write_4k": {
+        "iops": 112807
+      },
+      "rand_read_4k": {
+        "iops": 137253
+      }
+    }
+  },
+  "fio_perf_4-net-mesh-direct_1791090616": {
+    "ts": "2026-10-04T05:10:16Z",
+    "test": "fio_perf",
+    "nodes": 4,
+    "configuration": "4/net/mesh/direct",
+    "fs": "4-net-mesh-direct",
+    "size": "512m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 2170
+      },
+      "seq_read_1m": {
+        "bw_mib": 3316
+      },
+      "rand_write_4k": {
+        "iops": 73930
+      },
+      "rand_read_4k": {
+        "iops": 71318
+      }
+    }
+  },
+  "fio_perf_8-disk-caw-direct_1791090676": {
+    "ts": "2026-10-04T05:11:16Z",
+    "test": "fio_perf",
+    "nodes": 8,
+    "configuration": "8/disk/caw/direct",
+    "fs": "8-disk-caw-direct",
+    "size": "256m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 885
+      },
+      "seq_read_1m": {
+        "bw_mib": 6151
+      },
+      "rand_write_4k": {
+        "iops": 125251
+      },
+      "rand_read_4k": {
+        "iops": 169802
+      }
+    }
+  },
+  "fio_perf_4-disk-caw-direct_1791090736": {
+    "ts": "2026-10-04T05:12:16Z",
+    "test": "fio_perf",
+    "nodes": 4,
+    "configuration": "4/disk/caw/direct",
+    "fs": "4-disk-caw-direct",
+    "size": "512m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 879
+      },
+      "seq_read_1m": {
+        "bw_mib": 3049
+      },
+      "rand_write_4k": {
+        "iops": 74659
+      },
+      "rand_read_4k": {
+        "iops": 91348
+      }
+    }
   }
 }

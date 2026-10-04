@@ -791,6 +791,18 @@ module_param_named(caw_inject_owed_pause_ms, mxfs_caw_inject_owed_pause_ms,
 MODULE_PARM_DESC(caw_inject_owed_pause_ms,
                  "TEST ONLY: pause the next owed-worker dispatch for N ms before "
                  "it derives its plan (one-shot; 0=off)");
+/* A give-up reconcile is handed a slot index its acquire remembered, and that
+ * index can have stopped naming the resource by the time the reconcile reads
+ * it.  This stands in for that: the next give-up reconcile reads slot N-1
+ * instead of the index it was handed, so the exerciser can point it at a slot
+ * that holds a DIFFERENT resource on which this node has a live grant.
+ * One-shot; never applied to the owed worker's own passes, whose index comes
+ * from a lookup made in the same pass. */
+static int mxfs_caw_inject_dow_slot;
+module_param_named(caw_inject_dow_slot, mxfs_caw_inject_dow_slot, int, 0644);
+MODULE_PARM_DESC(caw_inject_dow_slot,
+                 "TEST ONLY: the next give-up reconcile reads slot N-1 instead "
+                 "of the slot index it remembered (one-shot; 0=off)");
 /* D-TRACK-PUBLISH-ORDERING: run the own-slot settle purge from inside the
  * direct-handoff adopt, after the adopter has validated its image and before
  * track_held records it — the one gap in which the settle used to see the bit
@@ -4902,6 +4914,7 @@ static int caw_drop_own_waiter(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_idx,
 	bool committed = false;
 	bool proven = false;
 	bool terminal = false;
+	bool stale = false;
 	uint64_t gen0 = 0;
 	int attempt;
 	int rc = 0;
@@ -4930,6 +4943,18 @@ static int caw_drop_own_waiter(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_idx,
 	 * pass down the intent it was collecting, which kept the record from
 	 * re-inflating to maximal but still bumped owed_gen once per mode.)
 	 */
+	if (!collector && unlikely(READ_ONCE(mxfs_caw_inject_dow_slot) > 0)) {
+		int inj = READ_ONCE(mxfs_caw_inject_dow_slot);
+
+		WRITE_ONCE(mxfs_caw_inject_dow_slot, 0);
+		if (inj > 0) {
+			pr_warn("mxfs: P277-INJECT-DOW-SLOT type=%u ino=%llu mode=%u remembered=%u reads=%u\n",
+				resource->type, (unsigned long long)resource->ino,
+				giveup_mode, slot_idx, (uint32_t)inj - 1);
+			slot_idx = (uint32_t)inj - 1;
+		}
+	}
+
 	if (!collector) {
 		intent.holder_mask = (giveup_mode != MXFS_LOCK_NL &&
 				      giveup_mode < MXFS_LOCK_MODE_COUNT) ?
@@ -5067,9 +5092,15 @@ static int caw_drop_own_waiter(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_idx,
 		if (cur_slot->magic != MXFS_CAW_MAGIC) {
 			/* a tombstone took the whole slot record with
 			 * it, bitmaps included, so every bit of ours that lived
-			 * here is provably gone.  TERMINAL — discharge all. */
+			 * here is provably gone — IF this index held the
+			 * resource.  The owed worker's index did: its own
+			 * lookup produced it in this pass.  TERMINAL there,
+			 * discharge all.  A give-up's index is one its
+			 * acquire remembered, and is proof of nothing (see
+			 * the identity check below): the obligation stands. */
 			rc = 0;
-			terminal = true;
+			terminal = collector;
+			stale = !collector;
 			break;
 		}
 		/*
@@ -5086,18 +5117,37 @@ static int caw_drop_own_waiter(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_idx,
 		if (memcmp(&cur_slot->resource, resource,
 			   sizeof(*resource)) != 0) {
 			/*
-			 * Slot recycled — these bits are not ours.  TERMINAL
-			 * too, and the ABA argument is the one that makes it
-			 * sound (design-consult ruling item B): a recycle passed
-			 * through a tombstone, which erased our bits; a fresh
-			 * slot for this resource can only carry our bit if a
-			 * NEW local attempt set it, and that attempt is exactly
-			 * what makes lreq_plan refuse.  The gen guard in
+			 * These bits are not ours to clear.  Whether the
+			 * obligation is thereby DISCHARGED depends on where
+			 * the index came from.
+			 *
+			 * The owed worker's index came from its own lookup of
+			 * the resource in this pass, so a different resource
+			 * here means the slot was recycled since, and the ABA
+			 * argument (design-consult ruling item B) makes that
+			 * terminal: a recycle passed through a tombstone,
+			 * which erased our bits; a fresh slot for this
+			 * resource can only carry our bit if a NEW local
+			 * attempt set it, and that attempt is exactly what
+			 * makes lreq_plan refuse.  The gen guard in
 			 * lreq_owed_retract catches the obligation such an
 			 * attempt would publish on its own way out.
+			 *
+			 * A give-up's index is one its acquire remembered, and
+			 * nothing says the resource ever lived there with our
+			 * bit — the claim-exhaustion caller passes whatever
+			 * its last probe left.  Finding another resource at
+			 * it says nothing about the resource's own slot, which
+			 * can still carry our waiter bit.  Measured with the
+			 * stale-index exerciser arm: discharging here left
+			 * waiters and waiters_ex set for the whole 8 s the arm
+			 * watched, a waiter nobody is behind, which every peer
+			 * defers to.  The obligation stands and the worker,
+			 * which resolves the resource to its slot, collects it.
 			 */
 			rc = 0;
-			terminal = true;
+			terminal = collector;
+			stale = !collector;
 			break;
 		}
 		/*
@@ -5264,6 +5314,16 @@ static int caw_drop_own_waiter(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_idx,
 				resource->ino : (uint64_t)resource->ag_number),
 			slot_idx, giveup_mode, attempt, rc,
 			plan.waiters, plan.waiters_ex, plan.holder);
+	}
+	if (stale) {
+		ctx->lreq_slot_stale++;
+		pr_warn_ratelimited("mxfs: P277-DOW-STALE-INDEX type=%u ino=%llu ag=%u slot=%u mode=%u found_magic=%x found_type=%u found_ino=%llu discharged=%d — the slot a give-up remembered does not hold its resource\n",
+				    resource->type,
+				    (unsigned long long)resource->ino,
+				    resource->ag_number, slot_idx, giveup_mode,
+				    cur_slot->magic, cur_slot->resource.type,
+				    (unsigned long long)cur_slot->resource.ino,
+				    terminal ? 1 : 0);
 	}
 
 	/*
@@ -11739,6 +11799,7 @@ static int *caw_test_knob(enum mxfs_caw_test_knob which)
 	case MXFS_CAW_TK_DOW_CASFAIL:	return &mxfs_caw_inject_dow_casfail;
 	case MXFS_CAW_TK_DOW_PAUSE_MS:	return &mxfs_caw_inject_dow_pause_ms;
 	case MXFS_CAW_TK_OWED_PAUSE_MS:	return &mxfs_caw_inject_owed_pause_ms;
+	case MXFS_CAW_TK_DOW_SLOT:	return &mxfs_caw_inject_dow_slot;
 	}
 	return NULL;
 }

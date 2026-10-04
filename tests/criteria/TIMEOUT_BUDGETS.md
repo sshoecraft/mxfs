@@ -507,9 +507,9 @@ Per stage: arm ~2 s + 15 s churn + 5 s settle + dmesg dump ~5 s ≈ 30 s;
 Record the measured wall after the first PASS.
 
 ## caw_samenode_selftest.sh (sess449 chain 66, 0.56.0)
-Per arm: 2 s peer stagger + 8 s kernel hold (MXFS_SAMENODE_HOLD_MS) + owed
-discharge ≤ 8 s + ssh ≈ 20 s; two arms + harvest ≈ 45 s → **90 s** bound.
-Record the measured wall after the first PASS.
+Per arm: 2 s peer stagger + 14 s kernel hold (MXFS_SAMENODE_HOLD_MS) + owed
+discharge ≤ 8 s + ssh ≈ 26 s; five arms (collide, negative, collide_late,
+collide_owed, recycled) + harvest ≈ 136 s → **180 s** bound.
 
 ## d513_write_eio_containment.sh (sess449 chain 67, 0.57.0)
 Arm 1 = 20 s inode load + kill + HB confirm ~62 s + fence + replay (injected

@@ -6,7 +6,7 @@
   "dev": "/dev/disk/by-path/ip-192.168.120.1:3260-iscsi-iqn.2026-05.local.mxfs:pool-13-lun-0",
   "rig": "scst-fio",
   "wwid": "eui.3462386139373238",
-  "fsid": "bc534018-6f5d-44e5-a7e6-1c1d0d182316",
-  "gen": 853,
-  "iso": "2026-10-04T04:00:22Z"
+  "fsid": "820fc07c-bb71-4651-83b4-6ad059510bb8",
+  "gen": 3,
+  "iso": "2026-10-04T04:06:11Z"
 }

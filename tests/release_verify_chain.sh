@@ -20,8 +20,8 @@
 #           build, the release matrix's boards at the claimed node count, the
 #           packages unless dist/VERSION holds them, every platform's packaged
 #           round and hung-node test on each configuration, sVirt on RHEL
-#   LOWER   (default: the released node counts below CLAIM, largest first —
-#           "4 2" under CLAIM=8, "2" under CLAIM=4)  every count's laps, and
+#   LOWER   (default: the release matrix's node counts below CLAIM, largest
+#           first — "8 4 2" under CLAIM=16, "2" under CLAIM=4)  every count's laps, and
 #           then ONE tests/board_4node_chain.sh bL_V call running every
 #           configuration of the release matrix at every one of those counts
 #           side by side (tools/configuration.py release-matrix --nodes
@@ -74,8 +74,11 @@ POWER="${POWER:-0}"
 export POWER
 [[ "$CLAIM" =~ ^[0-9]+$ ]] && [ "$CLAIM" -ge 2 ] || { echo "CLAIM must be an integer >= 2 (got '$CLAIM')" | tee -a "$L"; exit 2; }
 if [ -z "${LOWER+set}" ]; then
+    # every node count the release matrix names below the claim, largest first
     LOWER=""
-    for n in 4 2; do [ "$n" -lt "$CLAIM" ] && LOWER="$LOWER $n"; done
+    for n in $(python3 tools/configuration.py release-matrix | cut -d/ -f1 | sort -rnu); do
+        [ "$n" -lt "$CLAIM" ] && LOWER="$LOWER $n"
+    done
 fi
 for s in tests/board_4node_chain.sh tests/full_verify.sh scripts/lab_power.sh run.sh; do
     [ -x "$s" ] || { echo "$(date -u +%FT%TZ) chain defect: $s is not executable; nothing run" | tee -a "$L"; exit 2; }

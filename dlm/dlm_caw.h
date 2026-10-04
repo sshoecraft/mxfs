@@ -1093,6 +1093,7 @@ struct mxfs_dlm_caw_ctx {
 	uint64_t                  lreq_frozen_defer; /* P269: frozen world had live attempt */
 	uint64_t                  lreq_owed_runs;   /* deferred cleanups performed */
 	uint64_t                  lreq_exhausted;   /* cleanup CAS loop gave up */
+	uint64_t                  lreq_slot_stale;  /* give-up's remembered slot no longer names its resource */
 	uint64_t                  lreq_nomem;       /* acquisitions refused (OOM) */
 	/* clear-window linearization (see the block comment above
 	 * lreq_clr_begin in dlm_caw.c). */
@@ -1580,6 +1581,7 @@ enum mxfs_caw_test_knob {
 	MXFS_CAW_TK_DOW_CASFAIL,	/* K5: next give-up CAS -> -EIO */
 	MXFS_CAW_TK_DOW_PAUSE_MS,	/* hook B: plan->CAS gap pause */
 	MXFS_CAW_TK_OWED_PAUSE_MS,	/* hook C: worker pre-pass pause */
+	MXFS_CAW_TK_DOW_SLOT,		/* next give-up reads slot N-1 */
 };
 void mxfs_dlm_caw_test_arm(enum mxfs_caw_test_knob which, int value);
 int  mxfs_dlm_caw_test_knob_left(enum mxfs_caw_test_knob which);

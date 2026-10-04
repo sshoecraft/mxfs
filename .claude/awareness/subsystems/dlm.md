@@ -1872,8 +1872,17 @@ harness `tests/d0287_remaster_measure.sh`.
   acquire EX behind a peer; `caw_inject_wait_expire=1` forces one give-up;
   mid-hold proof = obligation pending + waiter bit still set; survivor's
   holders_ex bit must survive the owed pass with a guard/defer hit), 3
-  NEGATIVE (one attempt; bits must clear; fresh acquire must succeed).
+  NEGATIVE (one attempt; bits must clear; fresh acquire must succeed),
+  4 COLLIDE_LATE / 5 COLLIDE_OWED (join inside the plan→CAS gap / before the
+  worker's pass), 6 RECYCLED (0.90.42: EX held on a second key `ino+2`, the
+  give-up pointed at that key's slot by `caw_inject_dow_slot`; the other
+  grant must survive AND the abandoned waiter bit must still be cleared).
   Verdict `P275-SAMENODE`.  Shared key `(agcount+1+64)<<(agblklog+inopblog)|1`.
+- `caw_drop_own_waiter` rule since 0.90.42: a tombstone or another resource
+  at the slot index is TERMINAL proof only for the owed worker (`collector`),
+  whose index came from `caw_owed_resolve` in the same pass.  For a give-up's
+  remembered index it proves nothing — the obligation stands
+  (`P277-DOW-STALE-INDEX`, `lreq_slot_stale`) and the worker collects it.
 - Read-only helpers in dlm_caw.c: `mxfs_dlm_caw_test_slot_bits`
   (find_slot image → `struct mxfs_caw_test_bits`), `_test_lreq_state`
   (attempts / tenure[EX] / owed pending under lreq_lock; -ENOENT no entry),

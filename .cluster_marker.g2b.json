@@ -1,12 +1,12 @@
 {
   "nodes": 2,
   "configuration": "2/disk/caw/direct",
-  "srcversion": "547CEA42C1BF30E540E7F3B",
+  "srcversion": "434A389EF37331F7ABF9680",
   "node_list": "test15,test16",
-  "dev": "/dev/disk/by-path/ip-192.168.120.1:3260-iscsi-iqn.2026-05.local.mxfs:pool-02-lun-0",
+  "dev": "/dev/disk/by-path/ip-192.168.120.1:3260-iscsi-iqn.2026-05.local.mxfs:pool-05-lun-0",
   "rig": "scst-fio",
-  "wwid": "eui.6664363939643231",
-  "fsid": "328aa227-bb5a-4a64-ab82-5be40443a481",
-  "gen": 8,
-  "iso": "2026-10-03T01:56:05Z"
+  "wwid": "eui.3837303435343634",
+  "fsid": "ffc7c78e-46cb-4f97-af1c-d36e6647caf8",
+  "gen": 10,
+  "iso": "2026-10-04T05:05:50Z"
 }

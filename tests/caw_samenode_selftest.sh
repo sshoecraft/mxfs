@@ -3,7 +3,8 @@
 #
 #   local   node running the local arms            (default: test1)
 #   peer    node holding EX on the shared key       (default: test2)
-#   arm     collide | negative | all                (default: all)
+#   arm     collide | negative | collide_late | collide_owed | recycled | all
+#                                                   (default: all)
 #
 # Driver for the in-kernel CAW same-node reconcile exerciser (0.56.0,
 # dlm/v5_mount.c:mxfs_v5_dlm_caw_samenode_selftest, debugfs trigger
@@ -23,7 +24,11 @@
 # give-up's plan->CAS gap and the second attempt joins inside it) or "5"
 # (collide_owed, scenario C: K5 fails the give-up's own CAS so the obligation
 # reaches the owed worker, hook C caw_inject_owed_pause_ms holds the worker
-# while the second attempt joins after the give-up's finish).  The
+# while the second attempt joins after the give-up's finish) or "6"
+# (recycled: the local node holds EX on a second key, and the give-up of its
+# wait on the shared key is pointed at that second key's slot by
+# caw_inject_dow_slot — the second key's EX bit must survive, and the waiter
+# bit the give-up abandoned on the shared key must still be cleared).  The
 # kernel side is the test; this script triggers it and checks the externally
 # observable contract:
 #   write(2) rc       count on PASS, -EREMOTEIO assertion, -ENOLCK no peer
@@ -42,7 +47,7 @@
 #   no faults         zero kernel BUG/Oops/Call Trace on either node
 #
 # budget: per arm = 2 s stagger + 14 s hold + <=8 s owed discharge + ssh
-# ≈ 26 s; four arms + harvest ≈ 110 s.  Bound 150 s.
+# ≈ 26 s; five arms + harvest ≈ 136 s.  Bound 180 s.
 #
 # Exit 0 PASS, 1 FAIL, 2 INFRA-FAIL (no debugfs file / no cluster / -ENOLCK).
 set -u
@@ -128,7 +133,14 @@ run_arm() { # <tag> <mode>
     [ "$p272" -ge 1 ] || { say "FAIL $tag: no P272-INJECT-WAIT-EXPIRE — the give-up never took the timeout path (vacuous)"; FAILS=$((FAILS+1)); }
     [ "$knob" = 0 ] || { say "FAIL $tag: caw_inject_wait_expire=$knob after the arm (not consumed)"; FAILS=$((FAILS+1)); }
     [ "$faults" -eq 0 ] || { say "FAIL $tag: kernel fault lines=$faults"; FAILS=$((FAILS+1)); }
-    if [ "$tag" != negative ]; then
+    if [ "$tag" = recycled ]; then
+        # the give-up read another resource's slot (P277 lines, stale>=1 on
+        # the verdict), that resource's EX bit survived (b_hex=1) and the
+        # abandoned waiter registration was still cleared (a_w=0 a_wex=0)
+        [ "$(grep -c 'P277-INJECT-DOW-SLOT' "$log_l")" -ge 1 ] || { say "FAIL recycled: the give-up was never pointed at the other slot (vacuous)"; FAILS=$((FAILS+1)); }
+        [ "$(grep -c 'P277-DOW-STALE-INDEX' "$log_l")" -ge 1 ] || { say "FAIL recycled: the reconcile never reported a slot that does not hold its resource (vacuous)"; FAILS=$((FAILS+1)); }
+        grep -q "P275-SAMENODE PASS run=[0-9]* mode=recycled .*rc1=-110 .*b_hex=1 a_w=0 a_wex=0 stale=[1-9][0-9]* knob=0 " "$log_l" || { say "FAIL recycled: PASS line does not show the other grant intact and the abandoned waiter cleared"; FAILS=$((FAILS+1)); }
+    elif [ "$tag" != negative ]; then
         grep -q "P275-SAMENODE PASS run=[0-9]* mode=$tag .*rc1=\(-110 rc2=0\|0 rc2=-110\) hex=1 " "$log_l" || { say "FAIL $tag: PASS line lacks one -110 + one 0 with hex=1"; FAILS=$((FAILS+1)); }
         grep "P275-SAMENODE PASS run=[0-9]* mode=$tag " "$log_l" | grep -Eq 'guard=[1-9][0-9]*|defer=[1-9][0-9]*' || { say "FAIL $tag: neither guard nor defer hit — the registry did not save the bit"; FAILS=$((FAILS+1)); }
         if [ "$tag" = collide_late ]; then
@@ -151,8 +163,10 @@ case "$ARM" in
     negative)     run_arm negative 3 ;;
     collide_late) run_arm collide_late 4 ;;
     collide_owed) run_arm collide_owed 5 ;;
+    recycled)     run_arm recycled 6 ;;
     all)          run_arm collide 2; run_arm negative 3
-                  run_arm collide_late 4; run_arm collide_owed 5 ;;
+                  run_arm collide_late 4; run_arm collide_owed 5
+                  run_arm recycled 6 ;;
     *) say "unknown arm $ARM"; exit 2 ;;
 esac
 

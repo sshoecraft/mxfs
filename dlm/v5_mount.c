@@ -20925,13 +20925,227 @@ static bool v5_samenode_wait_discharged(struct mxfs_v5_dlm *ctx,
 	return false;
 }
 
+/*
+ * The stale-index arm.  A give-up reconcile is handed the slot index its
+ * acquire remembered; this arm makes that index name a slot that holds a
+ * DIFFERENT resource on which this node has a live EX grant, and asserts both
+ * halves of what must then be true:
+ *
+ *   the other resource's grant is untouched — the reconcile clears the
+ *   node's waiter and holder bits, and the node's bit in that slot is a live
+ *   registration for something else;
+ *
+ *   the registration the give-up abandoned is still cleared — finding the
+ *   wrong resource at the index says nothing about the right one, whose slot
+ *   still carries this node's waiter bit, and a waiter bit nobody is behind
+ *   makes every peer defer to a request that no longer exists.
+ *
+ * A = the shared key the peer holds EX on (mode 1); B = a second key of the
+ * same unallocatable inode range that only this node touches.
+ */
+static int v5_samenode_recycled(struct mxfs_v5_dlm *ctx, uint64_t ino,
+				unsigned int run)
+{
+	struct mxfs_resource_id res_a, res_b;
+	struct mxfs_caw_test_bits bits;
+	struct v5_samenode_attempt a1;
+	struct mxfs_grant_result gres;
+	mxfs_thread_t *t1 = NULL;
+	const char *step = "init";
+	uint64_t bit = ctx->dlm_caw->node_bit, stale0, stale1 = 0, end;
+	uint32_t slot_a = UINT32_MAX, slot_b = UINT32_MAX, attempts = 0;
+	uint8_t granted = 0, gm = MXFS_LOCK_NL;
+	bool held_b = false, pending = true;
+	int rc, rc1 = 0, b_hex = -1, a_w = -1, a_wex = -1, knob = -1;
+
+	make_inode_resource(&res_a, ctx->volume_id, ino);
+	make_inode_resource(&res_b, ctx->volume_id, ino + 2);
+	stale0 = ctx->dlm_caw->lreq_slot_stale;
+	memset(&bits, 0, sizeof(bits));
+	memset(&a1, 0, sizeof(a1));
+	a1.ctx = ctx;
+	a1.res = res_a;
+
+	step = "peer-hold-check";
+	rc = mxfs_dlm_caw_test_slot_bits(ctx->dlm_caw, &res_a, &bits);
+	if (rc)
+		goto fail;
+	if (!bits.found || !(bits.holders_ex & ~bit)) {
+		rc = -ENOLCK;	/* infra: no foreign EX holder to wait behind */
+		goto fail;
+	}
+
+	step = "b-lock";
+	mxfs_grant_result_init(&gres);
+	rc = mxfs_dlm_caw_lock(ctx->dlm_caw, &res_b, MXFS_LOCK_EX, 0, &granted,
+			       &gres);
+	if (rc)
+		goto fail;
+	held_b = true;
+	step = "b-bits";
+	rc = mxfs_dlm_caw_test_slot_bits(ctx->dlm_caw, &res_b, &bits);
+	if (rc)
+		goto fail;
+	if (!bits.found || !(bits.holders_ex & bit)) {
+		rc = -EREMOTEIO;
+		goto fail;
+	}
+	slot_b = bits.slot_idx;
+
+	step = "spawn";
+	t1 = mxfs_pal_thread_create(v5_samenode_attempt_fn, &a1);
+	if (!t1) {
+		rc = -ENOMEM;
+		goto fail;
+	}
+	step = "registered";
+	if (!v5_samenode_wait_attempts(ctx, &res_a, 1,
+				       MXFS_SAMENODE_REGISTER_MS)) {
+		rc = -ETIME;
+		goto join;
+	}
+	step = "waiter-bit-set";
+	if (!v5_samenode_wait_waiter_bit(ctx, &res_a, true,
+					 MXFS_SAMENODE_REGISTER_MS, &bits)) {
+		rc = -ETIME;
+		goto join;
+	}
+	slot_a = bits.slot_idx;
+	step = "distinct-slots";
+	if (slot_a == slot_b) {
+		rc = -EREMOTEIO;
+		goto join;
+	}
+
+	/* the give-up is pointed at B's slot, then forced */
+	step = "arm-knobs";
+	mxfs_dlm_caw_test_arm(MXFS_CAW_TK_DOW_SLOT, (int)slot_b + 1);
+	mxfs_dlm_caw_test_arm(MXFS_CAW_TK_WAIT_EXPIRE, 1);
+	if (!v5_samenode_wait_knob_zero(MXFS_CAW_TK_WAIT_EXPIRE,
+					MXFS_SAMENODE_INJECT_MS) ||
+	    !v5_samenode_wait_knob_zero(MXFS_CAW_TK_DOW_SLOT,
+					MXFS_SAMENODE_INJECT_MS)) {
+		knob = mxfs_dlm_caw_test_knob_left(MXFS_CAW_TK_DOW_SLOT);
+		rc = -EREMOTEIO;	/* the give-up never read the other slot */
+		goto join;
+	}
+	knob = 0;
+
+join:
+	step = (rc == 0) ? "join" : step;
+	if (t1 && mxfs_pal_thread_join_timeout(t1, MXFS_SAMENODE_JOIN_MS) != 0) {
+		/* the attempt never returned: its struct must not go out of
+		 * scope and nothing below is safe to assert */
+		mxfs_dlm_caw_test_arm(MXFS_CAW_TK_DOW_SLOT, 0);
+		mxfs_pal_log(MXFS_LOG_ERR,
+			     "mxfs: P275-SAMENODE FAIL run=%u mode=recycled ino=%llu step=join-stuck rc=%d — the attempt thread did not return within %u ms; leaking",
+			     run, (unsigned long long)ino, rc,
+			     MXFS_SAMENODE_JOIN_MS);
+		return -ETIMEDOUT;
+	}
+	rc1 = a1.rc;
+	if (rc)
+		goto fail;
+	step = "rc1";
+	if (rc1 != -ETIMEDOUT) {
+		rc = -EREMOTEIO;
+		goto fail;
+	}
+	stale1 = ctx->dlm_caw->lreq_slot_stale - stale0;
+	step = "stale-index-seen";
+	if (stale1 == 0) {
+		rc = -EREMOTEIO;	/* vacuous: the reconcile met its own slot */
+		goto fail;
+	}
+
+	/* half one: B's grant is exactly as it was */
+	step = "b-holder-survives";
+	rc = mxfs_dlm_caw_test_slot_bits(ctx->dlm_caw, &res_b, &bits);
+	if (rc)
+		goto fail;
+	b_hex = (bits.found && (bits.holders_ex & bit)) ? 1 : 0;
+	gm = mxfs_dlm_caw_granted_mode(ctx->dlm_caw, &res_b);
+	if (!b_hex || bits.slot_idx != slot_b || gm != MXFS_LOCK_EX) {
+		rc = -EREMOTEIO;
+		goto fail;
+	}
+
+	/* half two: A's abandoned waiter registration is cleared (a slot that
+	 * has gone altogether carries no bit either) */
+	step = "a-waiter-cleared";
+	end = mxfs_pal_time_ms() + MXFS_SAMENODE_DISCHARGE_MS;
+	for (;;) {
+		rc = mxfs_dlm_caw_test_slot_bits(ctx->dlm_caw, &res_a, &bits);
+		if (rc)
+			goto fail;
+		a_w = (bits.found && (bits.waiters & bit)) ? 1 : 0;
+		a_wex = (bits.found && (bits.waiters_ex & bit)) ? 1 : 0;
+		if (!a_w && !a_wex)
+			break;
+		if (mxfs_pal_time_ms() >= end) {
+			rc = -EREMOTEIO;
+			goto fail;
+		}
+		mxfs_pal_sleep_ms(50);
+	}
+	step = "a-discharged";
+	if (!v5_samenode_wait_discharged(ctx, &res_a,
+					 MXFS_SAMENODE_DISCHARGE_MS)) {
+		rc = -EREMOTEIO;
+		goto fail;
+	}
+	(void)mxfs_dlm_caw_test_lreq_state(ctx->dlm_caw, &res_a, &attempts,
+					   NULL, &pending);
+	step = "a-post-bits";
+	rc = mxfs_dlm_caw_test_slot_bits(ctx->dlm_caw, &res_a, &bits);
+	if (rc)
+		goto fail;
+	if (bits.found &&
+	    ((bits.holders_ex | bits.waiters | bits.waiters_ex) & bit)) {
+		rc = -EREMOTEIO;
+		goto fail;
+	}
+
+	step = "b-unlock";
+	rc = mxfs_dlm_caw_unlock(ctx->dlm_caw, &res_b);
+	if (rc)
+		goto fail;
+	held_b = false;
+	step = "b-post-unlock-bits";
+	rc = mxfs_dlm_caw_test_slot_bits(ctx->dlm_caw, &res_b, &bits);
+	if (rc)
+		goto fail;
+	if (bits.found && (bits.holders_ex & bit)) {
+		rc = -EREMOTEIO;
+		goto fail;
+	}
+
+	mxfs_pal_log(MXFS_LOG_DEBUG,
+		     "mxfs: P275-SAMENODE PASS run=%u mode=recycled ino=%llu rc1=%d slot_a=%u slot_b=%u b_hex=%d a_w=%d a_wex=%d stale=%llu knob=%d step=done rc=0",
+		     run, (unsigned long long)ino, rc1, slot_a, slot_b, b_hex,
+		     a_w, a_wex, (unsigned long long)stale1, knob);
+	return 0;
+
+fail:
+	mxfs_dlm_caw_test_arm(MXFS_CAW_TK_DOW_SLOT, 0);
+	if (held_b)
+		mxfs_dlm_caw_unlock(ctx->dlm_caw, &res_b);	/* best effort */
+	if (rc >= 0)
+		rc = -EREMOTEIO;
+	mxfs_pal_log(MXFS_LOG_ERR,
+		     "mxfs: P275-SAMENODE FAIL run=%u mode=recycled ino=%llu rc1=%d slot_a=%u slot_b=%u b_hex=%d b_gm=%u a_w=%d a_wex=%d stale=%llu knob=%d step=%s rc=%d",
+		     run, (unsigned long long)ino, rc1, slot_a, slot_b, b_hex, gm,
+		     a_w, a_wex, (unsigned long long)stale1, knob, step, rc);
+	return rc;
+}
+
 int mxfs_v5_dlm_caw_samenode_selftest(struct mxfs_v5_dlm *ctx, uint64_t ino,
 				      unsigned int mode)
 {
 	static unsigned int samenode_run;
 	static const char *const mode_name[] = { "?", "hold", "collide",
 						 "negative", "collide_late",
-						 "collide_owed" };
+						 "collide_owed", "recycled" };
 	struct mxfs_resource_id res;
 	struct mxfs_caw_test_bits bits;
 	struct v5_samenode_attempt a1, a2;
@@ -20955,10 +21169,22 @@ int mxfs_v5_dlm_caw_samenode_selftest(struct mxfs_v5_dlm *ctx, uint64_t ino,
 		return -EOPNOTSUPP;
 	if (ctx->withdrawn)
 		return -ESHUTDOWN;
-	if (mode < 1 || mode > 5)
+	if (mode < 1 || mode > 6)
 		return -EINVAL;
 
 	run = ++samenode_run;
+	if (mode == 6) {
+		/* BASTs for the shared key are held for the run, as below */
+		WRITE_ONCE(ctx->samenode_bast_ino, ino);
+		WRITE_ONCE(ctx->samenode_bast_guard, true);
+		mxfs_pal_log(MXFS_LOG_DEBUG,
+			     "mxfs: P275-SAMENODE START run=%u mode=%s ino=%llu bit=%llx",
+			     run, mode_name[mode], (unsigned long long)ino,
+			     (unsigned long long)ctx->dlm_caw->node_bit);
+		rc = v5_samenode_recycled(ctx, ino, run);
+		WRITE_ONCE(ctx->samenode_bast_guard, false);
+		return rc;
+	}
 	make_inode_resource(&res, ctx->volume_id, ino);
 	/* BASTs for this pseudo-inode are held for the whole run
 	 * (see samenode_bast_guard); cleared on every exit below. */

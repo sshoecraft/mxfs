@@ -1,8 +1,8 @@
 {
-  "run_id": "20261002T031633Z",
-  "nodes": 1,
-  "configuration": "1/xfs",
+  "run_id": "20261004T040022Z",
+  "nodes": 16,
+  "configuration": "16/net/mesh/direct",
   "ran": 1,
   "pending": 0,
-  "iso": "2026-10-02T03:17:20Z"
+  "iso": "2026-10-04T04:02:07Z"
 }

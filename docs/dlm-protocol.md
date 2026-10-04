@@ -1662,6 +1662,28 @@ as `collide`.  Peer hold is 14 s (`MXFS_SAMENODE_HOLD_MS`).  The knob API
 for the exerciser is `mxfs_dlm_caw_test_arm` / `_test_knob_left`
 (`enum mxfs_caw_test_knob`).
 
+Mode 6 `recycled` covers the slot index itself.  A give-up reconcile is
+handed the index its acquire remembered, and that index is not an identity:
+slots are recycled through tombstones, and the claim-exhaustion caller passes
+whatever its last probe left.  The arm takes EX on a second reserved key
+(`ino + 2`), waits on the shared key behind the peer, and points the forced
+give-up at the second key's slot (`caw_inject_dow_slot`, one-shot, reads slot
+N-1; `P277-INJECT-DOW-SLOT`).  Two things must hold, and they are separate
+rules in `caw_drop_own_waiter`:
+
+* **A bit is cleared only in a slot whose resource matches by content.**  The
+  second key's EX holder bit is untouched (`b_hex=1`).  With the comparison
+  removed the give-up's cleanup CAS releases that grant.
+* **A remembered index never discharges the obligation.**  Finding another
+  resource, or a tombstone, at it says nothing about the resource's own slot,
+  which still carries the node's waiter bit (`P277-DOW-STALE-INDEX`).  The
+  obligation stands and the owed worker collects it, because the worker
+  resolves the resource to its slot in the same pass — which is also why the
+  same two findings ARE terminal proof when the worker meets them: its index
+  held the resource a moment ago, so a different occupant means the slot went
+  through a tombstone that erased the bits.  The arm asserts the abandoned
+  waiter bits are gone (`a_w=0 a_wex=0`) and the registry owes nothing.
+
 ## Foreign-replay write-failure containment: injection arm (0.57.0, sess449)
 
 D-FOREIGN-SHADOW-UNWIND-HOST-SHUTDOWN-513B (fix 0.12.5/0.12.6, sess338-340):

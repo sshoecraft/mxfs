@@ -111,7 +111,11 @@ fi
 NN=$(echo $SET | wc -w)
 [ "$NN" = "$CFG_NODES" ] || { echo "$CONFIG names $CFG_NODES nodes; the set is $NN ($SET)" >&2; exit 2; }
 SURV=$(for h in $SET; do [ "$h" = "$V" ] || printf '%s ' "$h"; done)
-case " $SET " in *" $S "*" $V "*|*" $V "*" $S "*) ;; *) echo "survivor $S and victim $V must both be in the set [$SET]" >&2; exit 2 ;; esac
+# each name on its own: in a set of two the pair share the one space between
+# them, and a single pattern wanting " S " and " V " in turn never matches
+case " $SET " in *" $S "*) ;; *) echo "survivor $S must be in the set [$SET]" >&2; exit 2 ;; esac
+case " $SET " in *" $V "*) ;; *) echo "victim $V must be in the set [$SET]" >&2; exit 2 ;; esac
+[ "$S" != "$V" ] || { echo "survivor and victim are both $S" >&2; exit 2; }
 
 SSH="$HERE/tools/mxfs_sshpass.sh"
 VIRSH="virsh -c qemu:///system"

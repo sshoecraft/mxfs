@@ -17,9 +17,9 @@
       "verify_tests": "install both .debs from the built packages on every node of the set; DKMS builds on every installed PVE kernel; for EACH claimed kernel (pinned with proxmox-boot-tool, rebooted into) and EACH configuration of the release matrix: mount with no options on every node, transport announced by every mount; cross-node checksums (each node's data read on every other); create/remote-delete counts; chk_mxfs clean; peer= between two nodes and peers= across the set with multicast blocked; pvesm add/status/remove holds one mount; O_DIRECT read on a stable-writes device; every node rebooted on that kernel, module auto-loaded with the configured transport, remount, earlier data intact (CONFIG=<configuration> KERNEL=<krel> tests/packaged_round.sh pve9, once per claimed kernel per configuration); hung-node freeze on each configuration (CONFIG=<configuration> PREP=pve9 tests/tcp_peer_freeze_death.sh: the set's second node frozen, the first measured): death declared, fence certified, replay, survivor writing",
       "verified": {
         "amd64": {
-          "version": "0.90.41",
-          "date": "2026-10-02",
-          "evidence": "tests/evidence/packaged_round/pve9_0.90.41_net-mesh-direct_20261002T180118 tests/evidence/packaged_round/pve9_0.90.41_disk-caw-direct_20261002T181404 tests/evidence/packaged_round/pve9_0.90.41_net-mesh-direct_20261002T182711 tests/evidence/packaged_round/pve9_0.90.41_disk-caw-direct_20261002T184001 tests/evidence/tcp_peer_freeze_death/20261002T185302_pve9_net-mesh-direct tests/evidence/tcp_peer_freeze_death/20261002T185546_pve9_disk-caw-direct tests/evidence/full_verify_0.90.41.log tests/evidence/full_verify_0.90.41_pve9.log"
+          "version": "0.90.42",
+          "date": "2026-10-04",
+          "evidence": "tests/evidence/full_verify_0.90.42_pve9.log"
         }
       },
       "priority": 1,
@@ -42,9 +42,9 @@
       "notes": "The development rig's platform.",
       "verified": {
         "amd64": {
-          "version": "0.90.41",
-          "date": "2026-10-02",
-          "evidence": "tests/evidence/packaged_round/ubuntu2404_0.90.41_net-mesh-direct_20261002T195547 tests/evidence/packaged_round/ubuntu2404_0.90.41_disk-caw-direct_20261002T200630 tests/evidence/tcp_peer_freeze_death/20261002T201814_ubuntu2404_net-mesh-direct tests/evidence/tcp_peer_freeze_death/20261002T202057_ubuntu2404_disk-caw-direct tests/evidence/full_verify_0.90.41.log tests/evidence/full_verify_0.90.41_ubuntu2404.log"
+          "version": "0.90.42",
+          "date": "2026-10-04",
+          "evidence": "tests/evidence/full_verify_0.90.42_ubuntu2404.log"
         }
       },
       "priority": 3,
@@ -68,9 +68,9 @@
       "priority": 2,
       "verified": {
         "amd64": {
-          "version": "0.90.41",
-          "date": "2026-10-02",
-          "evidence": "tests/evidence/packaged_round/rhel9_0.90.41_net-mesh-direct_20261002T192515 tests/evidence/packaged_round/rhel9_0.90.41_disk-caw-direct_20261002T193711 tests/evidence/tcp_peer_freeze_death/20261002T194944_rhel9_net-mesh-direct tests/evidence/tcp_peer_freeze_death/20261002T195218_rhel9_disk-caw-direct tests/evidence/selinux_svirt/20261002T195504_rhel9 tests/evidence/full_verify_0.90.41.log tests/evidence/full_verify_0.90.41_rhel9.log"
+          "version": "0.90.42",
+          "date": "2026-10-04",
+          "evidence": "tests/evidence/full_verify_0.90.42_rhel9.log"
         }
       },
       "arch": [
@@ -156,9 +156,9 @@
       "verify_tests": "on each configuration of the release matrix: install the .deb from the built packages on every node of the set with a DKMS build and a module loaded from updates/dkms; mount with no options on every node, transport announced by every mount; cross-node checksums (each node's data read on every other); create/remote-delete counts; chk_mxfs clean; peer= between two nodes and peers= across the set with multicast blocked; O_DIRECT read on a stable-writes device; every node rebooted, module auto-loaded with the configured transport, remount, earlier data intact (CONFIG=<configuration> tests/packaged_round.sh debian13); hung-node freeze on each configuration (CONFIG=<configuration> PREP=debian13 tests/tcp_peer_freeze_death.sh: the set's second node frozen, the first measured)",
       "verified": {
         "amd64": {
-          "version": "0.90.41",
-          "date": "2026-10-02",
-          "evidence": "tests/evidence/packaged_round/debian13_0.90.41_net-mesh-direct_20261002T185929 tests/evidence/packaged_round/debian13_0.90.41_disk-caw-direct_20261002T190851 tests/evidence/tcp_peer_freeze_death/20261002T191854_debian13_net-mesh-direct tests/evidence/tcp_peer_freeze_death/20261002T192206_debian13_disk-caw-direct tests/evidence/full_verify_0.90.41.log tests/evidence/full_verify_0.90.41_debian13.log"
+          "version": "0.90.42",
+          "date": "2026-10-04",
+          "evidence": "tests/evidence/full_verify_0.90.42_debian13.log"
         }
       }
     },

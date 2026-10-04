@@ -103,7 +103,11 @@ fi
 # gets BAST'd off anything.  Scale rounds with node count so every node
 # statistically sees at least one hand-off; wall at 32 stays ~90-110s
 # against the 240s budget.
-ROUNDS_W="${AGSTRAND_ROUNDS:-$(( T > 16 ? T : 16 ))}"
+# 0.90.42: the same tail at 16 nodes on 16/net/mesh/direct — 16 rounds, 5 of
+# 16 nodes with strands=0 repaired=0 declined=0 write_ok=1 faults=0 (the first
+# 16-node board), while 16/disk/caw/direct covered 16 of 16 beside it.  Sixteen
+# contenders get the 32 rounds that cover thirty-two.
+ROUNDS_W="${AGSTRAND_ROUNDS:-$(( T > 32 ? T : (T >= 16 ? 32 : 16) ))}"
 SLOT_W="${AGSTRAND_SLOT:-2}"
 ck "agstrand start" coord_barrier "as_start"
 START=$(( $(date +%s) + 3 ))

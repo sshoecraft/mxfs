@@ -10,6 +10,25 @@
 > Everything that turns XFS into a filesystem many machines can mount at once
 > is AI-authored.
 
+> ## 0.90.42: sixteen nodes
+>
+> **`16/net/mesh/direct` and `16/disk/caw/direct` are released.**  Sixteen
+> nodes mounting one LUN, with either lock manager, passed the same 31-row
+> suite the smaller clusters pass — data integrity, coherency, crash and fence
+> recovery, pace against native XFS — on the build this release ships, and
+> the 2-, 4- and 8-node configurations and all four platforms were verified
+> again on it.
+>
+> Two defect records stood between 8 nodes and 16.  One was disproved by
+> measurement.  The other was a real fault in the `disk/caw` lock manager's
+> clean-up after an abandoned lock wait, found by reading the code and never
+> seen on the rig: the clean-up could act on a lock slot that had since been
+> reused for a different lock.  The check that stops it from releasing that
+> other lock was already in the tree; this release adds a deterministic test
+> for it and fixes what the test then showed — when the slot had been reused,
+> the abandoned wait's own registration was left behind, which stalls every
+> other node's readers of that lock.  See `CHANGELOG.md`.
+
 > ## 0.90.41: MXFS on DRBD dual-primary — a clustered filesystem with no shared storage
 >
 > The DRBD attachment was built in 0.90.40, which was never published: its
@@ -112,7 +131,7 @@
 > - All six released configurations were verified on this version, and the
 >   release boards now run side by side, each on its own fixed-size test LUN.
 
-> ## ⚠️ Released: six configurations, all on `direct` attachment — nothing else
+> ## ⚠️ Released: eight configurations, all on `direct` attachment — nothing else
 >
 > A configuration is four fields, `<nodes>/<class>/<method>/<attach>`, for
 > example `8/net/mesh/direct`. Each field is explained in the tables below and in
@@ -128,9 +147,13 @@
 > | `4/disk/caw/direct` | 0.90.24 | Proxmox VE 9, RHEL 9.8, Ubuntu 24.04, Debian 13 |
 > | `8/net/mesh/direct` | 0.90.36 | Proxmox VE 9, RHEL 9.8, Ubuntu 24.04, Debian 13 |
 > | `8/disk/caw/direct` | 0.90.36 | Proxmox VE 9, RHEL 9.8, Ubuntu 24.04, Debian 13 |
+> | `16/net/mesh/direct` | 0.90.42 | Proxmox VE 9, RHEL 9.8, Ubuntu 24.04, Debian 13 |
+> | `16/disk/caw/direct` | 0.90.42 | Proxmox VE 9, RHEL 9.8, Ubuntu 24.04, Debian 13 |
 >
-> All six were verified again on the current release, 0.90.39, on all four
-> platforms. A release claims exactly the configurations it lists.
+> All eight were verified on the current release, 0.90.42: each
+> configuration's suite on the test rig at its node count, and the installed
+> packages on two nodes of each of the four platforms. A release claims
+> exactly the configurations it lists.
 >
 > ### Implemented, not released: do not use
 >
@@ -139,21 +162,21 @@
 >
 > | method and attach | configurations |
 > |---|---|
-> | `net/mesh/direct` | `16/net/mesh/direct`, `32/net/mesh/direct` |
+> | `net/mesh/direct` | `32/net/mesh/direct` |
 > | `net/mesh/mpath` | `2/net/mesh/mpath`, `4/net/mesh/mpath`, `8/net/mesh/mpath`, `16/net/mesh/mpath`, `32/net/mesh/mpath` |
 > | `net/mesh/pass` | `2/net/mesh/pass`, `4/net/mesh/pass`, `8/net/mesh/pass`, `16/net/mesh/pass`, `32/net/mesh/pass` |
-> | `disk/caw/direct` | `16/disk/caw/direct`, `32/disk/caw/direct` |
+> | `disk/caw/direct` | `32/disk/caw/direct` |
 > | `disk/caw/mpath` | `2/disk/caw/mpath`, `4/disk/caw/mpath`, `8/disk/caw/mpath`, `16/disk/caw/mpath`, `32/disk/caw/mpath` |
 > | `disk/caw/pass` | `2/disk/caw/pass`, `4/disk/caw/pass`, `8/disk/caw/pass`, `16/disk/caw/pass`, `32/disk/caw/pass` |
 >
-> Every other node count from 3 to 64 (3, 5 to 7, and 9 and up) is in the same
-> state on `net/mesh` and `disk/caw` with `direct`, `mpath` or `pass`. From 9
-> nodes up, open defects in the queue include ones that can lose data or hang a
-> node.
+> Every other node count from 3 to 64 (3, 5 to 7, 9 to 15, and 17 and up) is in
+> the same state on `net/mesh` and `disk/caw` with `direct`, `mpath` or `pass`.
+> From 17 nodes up, open defects in the queue include ones that can lose data
+> or hang a node.
 >
 > ### The four fields
 >
-> **`nodes`**: how many nodes mount the filesystem, 2 to 64. Released: 2, 4 and 8.
+> **`nodes`**: how many nodes mount the filesystem, 2 to 64. Released: 2, 4, 8 and 16.
 >
 > **`class`**: where the lock manager keeps lock state.
 >
@@ -213,10 +236,11 @@
 >   be inherited by an unrelated process, and could shut a node down.
 >
 > The public defect queue (`data/defects.json`, read with `tools/defects.py`)
-> holds **95 open defects**: 27 reach `2/net/mesh/direct`, 8 reach
+> holds **92 open defects**: 27 reach `2/net/mesh/direct`, 8 reach
 > `2/disk/caw/direct`, 33 reach `4/net/mesh/direct`, 11 reach
-> `4/disk/caw/direct`, 36 reach `8/net/mesh/direct` and 12 reach
-> `8/disk/caw/direct`. None of them blocks a released configuration: each is
+> `4/disk/caw/direct`, 36 reach `8/net/mesh/direct`, 12 reach
+> `8/disk/caw/direct`, 36 reach `16/net/mesh/direct` and 12 reach
+> `16/disk/caw/direct`. None of them blocks a released configuration: each is
 > classified as not crossing the data-loss or crash bar, most of them as
 > slowness. Each record
 > carries its own evidence. Read them before relying on MXFS:

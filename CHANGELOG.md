@@ -1,3 +1,84 @@
+## 2026-10-03 — 0.90.42 — sixteen nodes: 16/net/mesh/direct and 16/disk/caw/direct released; a give-up that reads a reused lock slot no longer leaves its waiter registration behind
+
+**The release matrix gains `16/net/mesh/direct` and `16/disk/caw/direct`.**
+Both pass the 31-row suite on this build, side by side on two 16-node rig
+groups (`g16` test1-16, `g16b` test17-32), each on an 80 GB pool LUN.  The 2-,
+4- and 8-node boards and the four platforms' packaged rounds were run again on
+the same build.  `tests/release_verify_chain.sh` takes its smaller node
+counts from the release matrix instead of a fixed "4 2".
+
+Three records stood between 8 nodes and 16.
+
+**A give-up reconcile handed a stale slot index (`disk/caw`).**  When a lock
+wait is abandoned (grant-wait timeout, claim or convert exhaustion),
+`caw_drop_own_waiter` clears the node's waiter and holder bits at the slot
+index the acquire remembered.  Slots are recycled through tombstones, so the
+index is not an identity.
+
+- The record (D-RECONCILE-SLOT-IDENTITY-UNCHECKED) was a code proof that the
+  clean-up validated only the slot magic, so it could clear this node's bit in
+  a slot now holding a different lock.  The comparison of the slot's resource
+  by content has been in the tree since 0.11.441 and had never been exercised.
+- New exerciser arm, `caw_samenode_selftest` mode 6 (`recycled`): the node
+  takes EX on a second reserved key, waits on the shared key behind a peer,
+  and its forced give-up is pointed at the second key's slot by a one-shot
+  knob (`caw_inject_dow_slot`).
+- Control, comparison disabled: the give-up's clean-up CAS released the
+  second key's EX grant (`P6H-ABORT-RECONCILE` at that slot).
+- With the comparison, before this version: the second key's grant survived,
+  but the reconcile treated "another resource here" as proof that nothing of
+  ours was left anywhere, discharged the obligation, and the abandoned
+  waiter bits stayed on the shared key's slot for the 8 s the arm watched
+  (`a_w=1 a_wex=1`).  A waiter nobody is behind makes every peer defer.
+- Fix: a tombstone or another resource at a give-up's remembered index proves
+  nothing and the obligation stands (`P277-DOW-STALE-INDEX`); the owed
+  worker, which resolves the resource to its slot in the same pass, collects
+  it.  The same two findings stay terminal for the worker itself.
+- Verified: all five arms PASS, 3 laps on test1/test2 and 2 laps on
+  test16/test15, `b_hex=1 a_w=0 a_wex=0` on every recycled run
+  (`tests/evidence/20261004T02*_samenode`, `20261004T03*_samenode`).
+
+The same five laps are the clean exerciser run two sibling records were
+waiting for, and both are removed fixed and verified:
+D-SAMENODE-WAITER-CANCEL-COLLISION (one local attempt's give-up clearing a
+bit another live local attempt depends on: collide, collide_late and
+collide_owed keep the survivor's EX bit through the owed pass) and
+D-RECONCILE-EXHAUSTION-SILENT (a clean-up that ends unconfirmed leaves its
+obligation standing and the worker discharges it).
+
+**D-TAUTH-FORMATION-RAMP-LEDGER-DENY-EXHAUSTS-RETRIES-EAGAIN-0352 is
+disproved.**  It read `last_rc=-35` in the usermode ramp test as a retry
+budget exhausted with -EAGAIN.  -35 is EDEADLK, the master's blocked-upgrade
+refusal, returned at once without spending the budget; 0.87.22 instrumented
+it (every failure an EX denied at local mode NL, zero budget give-ups) and
+taught the test the kernel's own handling, and removed its newer record of
+the same finding.  Re-measured here: 30 of 30 runs pass with no failed
+request and no budget give-up, with 0 to 5 ledger denies per run
+(`tests/evidence/formation_ramp_30runs_0.90.42.txt`).
+
+**The strand-repair row covers sixteen nodes.**  The first
+`16/net/mesh/direct` board failed `ag_strand_repair` 11 of 16: five nodes
+never released an AG during the 16-round load, so their injected strand never
+fired (`strands=0`, writes fine, no faults) — the under-coverage the row
+already documents at 32 nodes.  Sixteen nodes now get 32 rounds; 16 of 16
+nodes create and repair a strand in 76 s of the 240 s budget.
+
+**The hung-node test runs on a set of two.**  `tests/tcp_peer_freeze_death.sh`
+checked that survivor and victim were both in the set with one pattern
+wanting `" S "` then `" V "`; in a set of two the names share the single
+space between them, so it refused every two-node platform set ("must both be
+in the set", rc=2, before anything ran).  The platform sets have been two
+nodes since 0.90.41 and this is the first release verified on them.  Each
+name is now checked on its own.
+
+**D-MATRIX-UNMEASURED is narrowed to what its evidence still supports.**  It
+recorded that every column but 32 nodes held cached cells from older builds
+and that the network column could not be prepped.  Every `direct` column it
+named is now a measurement on this build (2, 4, 8 and 16 nodes, both
+methods, each 31/31), and a release requires that.  The `disk/caw/pass`
+column it also named has no board on a current build; the record stays for
+that.
+
 ## 2026-10-02 — 0.90.41 — the DRBD release: a pair outage with a second failure during its recovery is finished by a resume or a takeover, never left for an operator; a pair outage on 2/net/mesh/direct no longer ends REFUSED while the other host boots
 
 0.90.40 was committed but never published: its release validation found that

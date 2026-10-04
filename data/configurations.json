@@ -38,8 +38,8 @@
                "doc": "native XFS on one node, no mxfs.ko: what the 2x performance ceiling is measured against"},
   "ladder_nodes": [1, 2, 4, 8, 16, 32],
   "release_matrix": [
-    "2/net/mesh/direct", "4/net/mesh/direct", "8/net/mesh/direct",
-    "2/disk/caw/direct", "4/disk/caw/direct", "8/disk/caw/direct"
+    "2/net/mesh/direct", "4/net/mesh/direct", "8/net/mesh/direct", "16/net/mesh/direct",
+    "2/disk/caw/direct", "4/disk/caw/direct", "8/disk/caw/direct", "16/disk/caw/direct"
   ],
   "retired_keys": {
     "_": "The condition codes the rig used before 0.90.37. A tool given one refuses it and names the replacement; only the migrations translate them.",
