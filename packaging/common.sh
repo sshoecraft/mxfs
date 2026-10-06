@@ -191,6 +191,9 @@ mxfs_stage_node_files() {
     mkdir -p "$root/lib/systemd/system"
     install -m 644 "$pkgdir/mxfs-drbd-guard.service" "$root/lib/systemd/system/mxfs-drbd-guard.service"
     install -m 644 "$pkgdir/mxfs-drbd@.service" "$root/lib/systemd/system/mxfs-drbd@.service"
+    # Where the operator writes per-resource mount settings and, optionally,
+    # a node fence (drbd-setup.md writes here before anything else does).
+    mkdir -p "$root/etc/mxfs"
     mkdir -p "$root/usr/share/doc/mxfs"
     install -m 644 "$SRCDIR/docs/drbd-setup.md" "$root/usr/share/doc/mxfs/drbd-setup.md"
 

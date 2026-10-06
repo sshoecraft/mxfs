@@ -57,6 +57,9 @@ resource mxfs {
     }
     disk {
         fencing resource-and-stonith;
+        c-fill-target 4M;       # DRBD 8.4's default keeps ~50 KB in flight
+        c-max-rate    110M;     # and resyncs at ~9 MB/s on gigabit; this
+        c-min-rate    20M;      # runs near link speed (set to your link)
     }
     handlers {
         fence-peer "/usr/sbin/mxfs-drbd-fence-peer";
@@ -97,7 +100,7 @@ drbdadm primary mxfs                             # node B
 ## 5. Format, once
 
 ```
-mkfs.mxfs /dev/drbd0                             # node A only
+mkfs.mxfs /dev/drbd0                             # node A only; answer y
 ```
 
 ## 6. Mount at boot
