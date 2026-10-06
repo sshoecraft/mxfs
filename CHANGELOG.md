@@ -1,3 +1,58 @@
+## 2026-10-06 — 0.90.77 — a DRBD swap no longer runs the witness while its peer is Primary on a Connected link
+
+**Both hosts' heartbeats failed under the eight VM installs.** On 0.90.76,
+`scripts/pve_pair_builds.sh 4` ran on the physical pair. pve1 has 11.7 GiB of
+memory and three 4 GiB build VMs, so it was swapping and could barely start a
+process. At 15:34:11 its heartbeat swap waited on pve2's ticket for over a
+second. A swap that waits that long asks the DRBD witness whether the peer is
+excluded or Secondary, every 2 s, holding its own published ticket while it
+waits:
+- The witness is a Python program that runs `drbdadm` four times and the fence
+  authority. On pve1 one run took at least 21 s. Its answer, at 15:34:41, was
+  the only one possible while the link is Connected and the peer Primary:
+  neither.
+- pve1's swap had overrun its 10 s bound by then, its heartbeat had not landed
+  for 29.7 s, and its authority lease expired. It withdrew, and its rejoin
+  stopped its three guests.
+- pve2's own heartbeat swaps waited on pve1's held ticket and timed out too.
+  It then held RECOVERY_BLOCKED for 296 s until pve1 stepped down, and failed
+  one of its own guests' I/O with EIO.
+
+**The fix** (`pal/linux/drbd.c`, `mxfs_drbd_witness_could_pass`). A waiting
+swap now reads its minor's line of `/proc/drbd` itself and runs the witness
+only in a state where an answer is possible:
+- the link WFConnection or StandAlone (excluded);
+- the link Connected with the peer Secondary (quiescent);
+- `/proc/drbd` unreadable, or no line for the minor (the witness decides, as
+  before).
+
+In any other state the swap keeps waiting on the bakery without the upcall.
+The waits answered that way are counted (`witness_skipped`) on the
+`P-DRBD-CAS-STATS` probe and the `P-DRBD-CAS-DETACH` line.
+
+**Reproduced on the nested pair (0.90.76, the control).** New test
+`tests/pve_cas_witness_stall.sh`: participant 1's witness helper is pointed at
+a wrapper that sleeps 35 s first, and participant 0's next swap holds its ticket
+5 s. pve9-1 ran the slow witness once and held ticket 2 throughout. pve9-2's
+swaps timed out waiting on it (`ticket=3 peer_ticket=2`, twice), and both hosts'
+heartbeats stalled. Both authority leases expired, and both guards rejoined
+their mounts within 2 min. The test's first run measured nothing: Proxmox mounts
+`/run` noexec, so a wrapper there failed to execute (`P-DRBDW-NOEXEC rc=-13`).
+The wrapper now lives in `/dev/shm`, and an exec failure marks the run invalid.
+
+**Also:**
+- `tests/pve_pair_failover.sh` and `tests/pve_pair_concurrency.sh` name their
+  evidence directory for the pair as well as the second. The nested and the
+  physical withdraw-held runs started in the same second and shared one
+  directory, so their logs were interleaved.
+- `withdraw-held` on 0.90.76: the physical survivor's worst write latency was
+  12.7 s. Only about 9 of 90,959 writes took over 11 s: one stall around pve2's
+  death, against 4.3 s in `withdraw-p1`, where the peer never died.
+- Defect queue: the swap running the witness while the peer is Connected and
+  Primary, and the rejoin stopping a withdrawn node's guests one `qm stop` at a
+  time. Each `qm stop` is bounded at 90 s, so a starved host took about 4.5 min
+  to step down while its peer failed guest I/O.
+
 ## 2026-10-06 — 0.90.76 — a host the rejoin restarts keeps the reason in its journal
 
 **The restart happened, but nothing said why.** On 0.90.75 the new

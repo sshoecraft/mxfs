@@ -47,7 +47,8 @@ ARM_S=${ARM_S:-30}
 # with the write cap, ~60 s; four times that.
 LAYOUT_BUDGET=240
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
-EVID="$REPO/tests/evidence/pve_pair_concurrency/$STAMP"
+# Named for the pair too, so two pairs' runs never share a directory.
+EVID="$REPO/tests/evidence/pve_pair_concurrency/$STAMP-${PAIR[0]}"
 mkdir -p "$EVID" || exit 1
 
 say() { echo "[$(date +%H:%M:%S)] $*" | tee -a "$EVID/log"; }

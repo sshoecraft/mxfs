@@ -132,7 +132,9 @@ WITHDRAW_BUDGET=$(( WITHDRAW_PAUSE_MS / 1000 + OUTAGE_BUDGET ))
 # then the host's boot.
 HELD_BUDGET=$(( 120 + BOOT_BUDGET ))
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
-EVID="$REPO/tests/evidence/pve_pair_failover/$STAMP"
+# Named for the pair too: two pairs' runs started in the same second shared
+# one directory, and their logs interleaved.
+EVID="$REPO/tests/evidence/pve_pair_failover/$STAMP-${PAIR[0]}"
 mkdir -p "$EVID" || exit 1
 
 say() { echo "[$(date +%H:%M:%S)] $*" | tee -a "$EVID/log"; }

@@ -41,6 +41,7 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/kmod.h>
+#include <linux/fs.h>
 #include <linux/proc_fs.h>
 #include <linux/random.h>
 #include <linux/completion.h>
@@ -502,6 +503,13 @@ struct mxfs_drbd_cas {
 						   char *why, size_t whylen);
 	bool			void_set;
 	u8			void_img[512];
+	/*
+	 * /proc/drbd as last read by a swap waiting on the peer's ticket
+	 * (mxfs_drbd_witness_could_pass), under `lock`; witness_skipped counts
+	 * the waits that state answered without the witness.
+	 */
+	char			proc_buf[4096];
+	u64			witness_skipped;
 };
 #define MXFS_DRBD_STATS_EVERY	512
 
@@ -711,6 +719,81 @@ static int mxfs_drbd_peer_excluded_locked(struct mxfs_drbd_cas *e,
 	return rc == 0;
 }
 
+/*
+ * This minor's connection state and the peer's role, from /proc/drbd as DRBD
+ * 8.4 prints a minor (" 0: cs:Connected ro:Primary/Primary ds:UpToDate/..."),
+ * read in this process.  1 = the minor's line was found; `peer` is empty when
+ * the line has no roles (Unconfigured).  0 = unreadable, or no such line.
+ */
+static int mxfs_drbd_proc_state(struct mxfs_drbd_cas *e, char *cs, size_t cslen,
+				char *peer, size_t peerlen)
+{
+	unsigned int minor = MINOR(e->devt);
+	struct file *f;
+	loff_t pos = 0;
+	ssize_t n;
+	char *line, *next;
+
+	f = filp_open("/proc/drbd", O_RDONLY, 0);
+	if (IS_ERR(f))
+		return 0;
+	n = kernel_read(f, e->proc_buf, sizeof(e->proc_buf) - 1, &pos);
+	filp_close(f, NULL);
+	if (n <= 0)
+		return 0;
+	e->proc_buf[n] = '\0';
+	for (line = e->proc_buf; line; line = next) {
+		unsigned int m;
+		int used = 0;
+		size_t k;
+		char *ro;
+
+		next = strchr(line, '\n');
+		if (next)
+			*next++ = '\0';
+		if (sscanf(line, " %u: cs:%n", &m, &used) != 1 || !used || m != minor)
+			continue;
+		for (k = 0; k + 1 < cslen && line[used + k] && line[used + k] != ' '; k++)
+			cs[k] = line[used + k];
+		cs[k] = '\0';
+		peer[0] = '\0';
+		ro = strstr(line + used, " ro:");
+		if (ro) {
+			ro = strchr(ro, '/');
+			for (k = 0; ro && k + 1 < peerlen && ro[k + 1] && ro[k + 1] != ' '; k++)
+				peer[k] = ro[k + 1];
+			peer[k] = '\0';
+		}
+		return 1;
+	}
+	return 0;
+}
+
+/*
+ * Whether the witness could find the peer excluded or quiescent now.  The
+ * judgments it feeds (dlm/drbdfence.c) need the link WFConnection or
+ * StandAlone (excluded), or Connected with the peer Secondary (quiescent).
+ * In any other state, the peer Primary on a Connected or syncing link above
+ * all, both refuse whatever else the report says, so the witness is not run.
+ * It is a userspace program that runs drbdadm and the fence authority, and
+ * this swap waits for it holding its published ticket, which the peer's own
+ * swaps wait on in turn.  Measured on the physical pair under VM installs
+ * (0.90.76): on a host short of memory one such run took at least 21 s,
+ * though the peer was Primary on a Connected link throughout.  Both hosts'
+ * heartbeat swaps failed, and that host's authority lease expired.
+ * /proc/drbd unreadable, or no line for this minor: the witness decides.
+ */
+static bool mxfs_drbd_witness_could_pass(struct mxfs_drbd_cas *e)
+{
+	char cs[24], peer[24];
+
+	if (!mxfs_drbd_proc_state(e, cs, sizeof(cs), peer, sizeof(peer)))
+		return true;
+	if (!strcmp(cs, "WFConnection") || !strcmp(cs, "StandAlone"))
+		return true;
+	return !strcmp(cs, "Connected") && !strcmp(peer, "Secondary");
+}
+
 /* Register the mount's judgments on the attachment of `dev`. */
 void mxfs_pal_drbd_cas_set_judge(mxfs_bdev_t *dev,
 				 int (*excluded)(const struct mxfs_pal_drbd_report *r,
@@ -848,13 +931,16 @@ static void mxfs_drbd_cas_serve(struct mxfs_drbd_cas *e)
 		 * certificate path does.  If the peer is instead Secondary on a
 		 * Connected link (both nodes restarted after a pair outage), the
 		 * register its dead attachment left is set aside unwritten
-		 * (void_img).  Never on age alone.
+		 * (void_img).  Never on age alone.  Only in a DRBD state where
+		 * either can be true: mxfs_drbd_witness_could_pass says why.
 		 */
 		if ((e->judge_excluded || e->judge_quiescent) &&
 		    time_after(jiffies, deadline - msecs_to_jiffies(mxfs_drbd_cas_wait_ms) + HZ) &&
 		    time_after_eq(jiffies, e->excl_next)) {
 			e->excl_next = jiffies + 2 * HZ;
-			if (mxfs_drbd_peer_excluded_locked(e, reg, mine)) {
+			if (!mxfs_drbd_witness_could_pass(e)) {
+				e->witness_skipped++;
+			} else if (mxfs_drbd_peer_excluded_locked(e, reg, mine)) {
 				sleep_us = 100;
 				continue;
 			}
@@ -926,14 +1012,14 @@ release:
 		e->st_max = t5 - batch[0]->tq;
 	if (e->st_n >= MXFS_DRBD_STATS_EVERY) {
 		/* per swap: lock (its own wait); per batch: the rest */
-		mxfs_probe("mxfs: P-DRBD-CAS-STATS minor=%u swaps=%llu batches=%llu avg_us lock/swap=%llu door/batch=%llu bakery/batch=%llu crit/batch=%llu rel/batch=%llu max_us=%llu ops=%llu contended=%llu miscompares=%llu\n",
+		mxfs_probe("mxfs: P-DRBD-CAS-STATS minor=%u swaps=%llu batches=%llu avg_us lock/swap=%llu door/batch=%llu bakery/batch=%llu crit/batch=%llu rel/batch=%llu max_us=%llu ops=%llu contended=%llu miscompares=%llu witness_skipped=%llu\n",
 			   MINOR(e->devt), e->st_n, e->st_batches,
 			   e->st_lock / e->st_n / 1000,
 			   e->st_door / e->st_batches / 1000,
 			   e->st_bakery / e->st_batches / 1000,
 			   e->st_crit / e->st_batches / 1000,
 			   e->st_rel / e->st_batches / 1000, e->st_max / 1000,
-			   e->ops, e->contended, e->miscompares);
+			   e->ops, e->contended, e->miscompares, e->witness_skipped);
 		e->st_n = e->st_batches = e->st_lock = e->st_door = 0;
 		e->st_bakery = e->st_crit = e->st_rel = e->st_max = 0;
 	}
@@ -1147,8 +1233,9 @@ void mxfs_pal_drbd_cas_detach(mxfs_bdev_t *dev)
 	mutex_unlock(&mxfs_drbd_cas_list_lock);
 	if (!e)
 		return;
-	pr_info("mxfs: P-DRBD-CAS-DETACH minor=%u index=%u ops=%llu contended=%llu miscompares=%llu\n",
-		MINOR(e->devt), e->index, e->ops, e->contended, e->miscompares);
+	pr_info("mxfs: P-DRBD-CAS-DETACH minor=%u index=%u ops=%llu contended=%llu miscompares=%llu witness_skipped=%llu\n",
+		MINOR(e->devt), e->index, e->ops, e->contended, e->miscompares,
+		e->witness_skipped);
 	kfree(e);
 }
 EXPORT_SYMBOL_GPL(mxfs_pal_drbd_cas_detach);
