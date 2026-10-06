@@ -32,6 +32,15 @@ struct xfs_writepage_ctx {
 	struct iomap_writepage_ctx ctx;
 	unsigned int		data_seq;
 	unsigned int		cow_seq;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 17, 0)
+	/*
+	 * The ioend this pass last ended with an error, and how many times
+	 * iomap handed that same ioend back to ->writeback_submit afterwards.
+	 * Instrument only; see xfs_writeback_submit.
+	 */
+	struct iomap_ioend	*ended;
+	unsigned int		ended_again;
+#endif
 };
 
 static inline struct xfs_writepage_ctx *
@@ -1120,20 +1129,59 @@ static void xfs_discard_folio(struct folio *folio, loff_t pos);
  * classes (log, dio, dio-zoned, meta) were each refused.  Whichever hook the
  * kernel offers, the same question has to be asked in it.
  */
+/*
+ * TEST ONLY — refuse the next N buffered data writeback submissions at the
+ * authority gate exactly as a closed authority refuses them (-EIO, the ioend
+ * ended, no bio issued), while this node's lease stays live.
+ *
+ * A withdrawal closes the gate a few hundred ms before the mount shuts down.
+ * Writeback already inside iomap's loop in that window is refused mid-pass:
+ * the refused ioend is ended where it stands and the loop goes on to the next
+ * folio.  No workload can aim at that window, so this drives the same refusal
+ * on demand.  Each refusal spends one; 0 is off.
+ */
+int mxfs_dbg_refuse_data_n;
+module_param_named(dbg_refuse_data_n, mxfs_dbg_refuse_data_n, int, 0644);
+MODULE_PARM_DESC(dbg_refuse_data_n,
+	"DEBUG: refuse this many buffered data writeback submissions at the authority gate as a closed authority refuses them (-EIO, no bio issued) while the lease is still live; each refusal spends one (0=off)");
+
+static bool
+mxfs_dbg_refuse_data_take(void)
+{
+	int			n = READ_ONCE(mxfs_dbg_refuse_data_n);
+
+	while (n > 0) {
+		int		seen = cmpxchg(&mxfs_dbg_refuse_data_n, n, n - 1);
+
+		if (seen == n)
+			return true;
+		n = seen;
+	}
+	return false;
+}
+
 static bool
 mxfs_ioend_write_admitted(
 	struct iomap_ioend	*ioend)
 {
 	struct xfs_inode	*ip = XFS_I(ioend->io_inode);
 
-	if (mxfs_mount_write_admitted(ip->i_mount, "data"))
-		return true;
+	if (mxfs_mount_write_admitted(ip->i_mount, "data")) {
+		if (likely(!mxfs_dbg_refuse_data_take()))
+			return true;
+		pr_err_ratelimited(
+		    "mxfs: P293-TEST-REFUSED-DATA ino=%llu off=%lld size=%zu ioend=%p comm=%s — TEST: this data writeback is refused as a closed authority refuses it (-EIO, no bio issued) while the lease is still live\n",
+		    (unsigned long long)ip->i_ino,
+		    (long long)ioend->io_offset,
+		    (size_t)ioend->io_size, ioend, current->comm);
+		return false;
+	}
 
 	pr_err_ratelimited(
-	    "mxfs: P290-AUTH-REFUSED-DATA ino=%llu off=%lld size=%zu comm=%s — this node's authority over the shared LUN has expired; the data writeback is REFUSED (-EIO) and no bio is issued\n",
+	    "mxfs: P290-AUTH-REFUSED-DATA ino=%llu off=%lld size=%zu ioend=%p comm=%s — this node's authority over the shared LUN has expired; the data writeback is REFUSED (-EIO) and no bio is issued\n",
 	    (unsigned long long)ip->i_ino,
 	    (long long)ioend->io_offset,
-	    (size_t)ioend->io_size, current->comm);
+	    (size_t)ioend->io_size, ioend, current->comm);
 	return false;
 }
 
@@ -1236,6 +1284,14 @@ xfs_writeback_range(
 {
 	ssize_t				ret;
 
+	/*
+	 * Instrument: with no ioend cached, iomap starts a new one for this
+	 * range, so an ioend this pass ended earlier is no longer the one it
+	 * holds, and a later ioend at the same address is not that one.
+	 */
+	if (!wpc->wb_ctx)
+		XFS_WPC(wpc)->ended = NULL;
+
 	ret = xfs_map_blocks(wpc, folio->mapping->host, pos);
 	if (!ret)
 		ret = iomap_add_to_ioend(wpc, folio, pos, end_pos, len);
@@ -1250,10 +1306,23 @@ xfs_writeback_submit(
 	int				error)
 {
 	struct iomap_ioend		*ioend = wpc->wb_ctx;
+	struct xfs_writepage_ctx	*xwpc = XFS_WPC(wpc);
 	unsigned int			nofs_flag;
 
 	if (!ioend)
 		return iomap_ioend_writeback_submit(wpc, error);
+
+	/*
+	 * INSTRUMENT — it changes no decision.  An ioend this pass already
+	 * ended is finished: its completion has run or is queued, and may have
+	 * freed it.  If iomap hands that ioend back, count it and say so once
+	 * per pass.  The pointer is only compared, never followed.
+	 */
+	if (unlikely(ioend == xwpc->ended) && !xwpc->ended_again++)
+		pr_err_ratelimited(
+		    "mxfs: P294-WB-ENDED-IOEND-AGAIN ino=%llu ioend=%p error=%d comm=%s — iomap handed back an ioend this writeback pass already ended with an error, and it is about to be ended again\n",
+		    (unsigned long long)XFS_I(wpc->inode)->i_ino, ioend, error,
+		    current->comm);
 
 	/*
 	 * THE AUTHORITY GATE, buffered-data arm — the same question the
@@ -1266,8 +1335,10 @@ xfs_writeback_submit(
 	 * nothing leaks and fsync sees the error through the mapping's errseq.
 	 * It runs before memalloc_nofs_save below, so nothing is left unbalanced.
 	 */
-	if (!error && !mxfs_ioend_write_admitted(ioend))
+	if (!error && !mxfs_ioend_write_admitted(ioend)) {
+		xwpc->ended = ioend;
 		return iomap_ioend_writeback_submit(wpc, -EIO);
+	}
 
 	nofs_flag = memalloc_nofs_save();
 
@@ -1294,6 +1365,8 @@ xfs_writeback_submit(
 
 	if (!error)
 		error = mxfs_ioend_bound_admit(ioend);
+	if (error)
+		xwpc->ended = ioend;
 	return iomap_ioend_writeback_submit(wpc, error);
 }
 #endif
@@ -1406,6 +1479,12 @@ xfs_vm_writepages(
 	wpc.ctx.wbc = wbc;
 	wpc.ctx.ops = &xfs_writeback_ops;
 	ret = iomap_writepages(&wpc.ctx);
+	if (unlikely(wpc.ended_again))
+		pr_err_ratelimited(
+		    "mxfs: P294-WB-ENDED-IOEND-AGAIN-PASS ino=%llu again=%u ret=%d sync=%d comm=%s — this writeback pass handed an ioend it had already ended back for submission this many times\n",
+		    (unsigned long long)XFS_I(mapping->host)->i_ino,
+		    wpc.ended_again, ret, wbc->sync_mode == WB_SYNC_ALL,
+		    current->comm);
 #endif
 	xfs_wptask_exit(&wpt);
 	return ret;

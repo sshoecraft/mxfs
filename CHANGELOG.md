@@ -1,3 +1,36 @@
+## 2026-10-06 — 0.90.73 — an instrument and a test knob for an ioend refused in the middle of a writeback pass
+
+**What the physical pair logged.** At 13:38:51 pve2's write cap refused one
+ioend (ino 8388783, off 366112768, 647168 bytes) as its authority closed. In
+the next 2 s the authority gate refused that same ioend 10 more times. fio then
+sat in D in fsync, waiting on a folio lock no task held, and the withdrawn
+mount could not be unmounted.
+
+**Why the same ioend comes back (read from the source, not yet measured).**
+From 6.17, iomap keeps the ioend it is building in `wpc->wb_ctx`. When
+`->writeback_submit` fails inside `iomap_add_to_ioend`, iomap returns the
+error without replacing `wb_ctx`. An fsync's pass (WB_SYNC_ALL) goes on to the
+next folio, finds the same ioend there and submits it again, and once more at
+the end of the pass. MXFS ends a refused ioend through its bio, so each return
+ends it again, after its completion may already have freed it. Before 6.17,
+iomap cleared its own pointer after every submission.
+
+**0.90.73 measures it and changes no decision:**
+- `P294-WB-ENDED-IOEND-AGAIN`: the submit hook was handed an ioend this pass
+  had already ended with an error. The pointer is compared, never followed.
+  `P294-WB-ENDED-IOEND-AGAIN-PASS` gives the pass's count.
+- `dbg_refuse_data_n` (module parameter, test only) refuses that many buffered
+  data writebacks at the authority gate as a closed authority does, with the
+  lease still live, and logs `P293-TEST-REFUSED-DATA`. A withdrawal's window is
+  a few hundred ms that no workload can aim at.
+- `P290-AUTH-REFUSED-DATA` names the ioend too, so a repeat shows as one ioend.
+- `tests/pve_wb_refusal.sh <host>` writes 8 separate 1 MiB extents of one
+  file, arms the knob and fsyncs. It fails on an ended ioend handed back, a
+  refusal repeated on one extent, a hang, a task left in D, or a kernel
+  BUG/WARNING.
+
+Compiled against PVE's 6.17.2-1-pve and 7.0.14-20-pve headers.
+
 ## 2026-10-06 — 0.90.72 — a withdrawn DRBD mount rejoins by itself, without a host restart
 
 **A withdrawn mount stayed dead.** After both physical hosts self-fenced at
