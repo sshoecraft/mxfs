@@ -1,3 +1,45 @@
+## 2026-10-06 — 0.90.71 — the DRBD write cap splits large writes, so one writeback bio can no longer fill it alone
+
+**One writeback bio filled the cap by itself.** On the nested Proxmox pair
+(6.17), both hosts ran 4 direct writers at QD16 × 1 MiB plus one buffered
+writer. The cap's unmount line read `peak_kib=401408`: writeback on large
+folios had built a 392 MiB bio. The cap admits a write larger than itself
+when nothing else is in flight, so that bio went alone. A coordination swap
+behind it took up to 0.97 s on NVMe. The direct writes waited behind such
+bios: 1.4–1.8 MiB/s each, median completion 8–10 s, worst 21 s. The buffered
+writer ran at 80–115 MiB/s.
+
+**A write larger than one piece is now split before it is admitted** (a
+quarter of `drbd_inflight_kb`, a multiple of 64 KiB, at most 1 MiB, which is
+also DRBD 8.4's largest bio).
+- Each piece is chained to the rest and admitted on its own, so the caller's
+  completion still runs once, after all of them. The cap submits each piece
+  itself as soon as it is admitted, and the submitter sends the last one.
+- Pieces come from `fs_bio_set` and share the original's pages, so iomap
+  still ends every folio's writeback, and releases a direct write's pages,
+  from the original bio.
+- A `REQ_NOWAIT` or atomic bio is never split. A refusal after a piece had
+  gone out could not be retried whole, and an atomic write must not be torn.
+- `P-DRBD-IOQ-DONE` now counts the splits.
+- On kernels whose iomap still chains a writeback ioend's bios, the bytes it
+  submitted ahead of the last bio are charged to that bio's first piece.
+
+**Also:**
+- `tests/pve_pair_write_bound.sh`: both hosts write through MXFS at once while
+  ftrace times every DRBD swap (`mxfs_pal_drbd_cas_emulate`) and register
+  write (`mxfs_drbd_reg_put`). Then every block is checked from both hosts.
+  Each writer writes its whole file: a time-limited writer leaves the tail of
+  its laid-out file unwritten, and the first version of the test read those
+  zeros as bad blocks (the first bad offset was exactly where each writer
+  stopped, 222.0 and 175.0 MiB). `FIO=0` only watches, for a real workload.
+- `scripts/pve_pair_update.sh`: a pair's update the way a user does it (`git
+  pull`, `make install OVERWRITE=1` on both), then the module swap, with an
+  optional `chk_mxfs -n` while both are unmounted (`CHECK=1`, `SKIP_INSTALL=1`).
+- `scripts/pve_pair_builds.sh`: concurrent mkosimage builds on the physical
+  pair, leftover build VMs destroyed first, each build timed.
+- Defect queue: a withdrawn DRBD mount that nothing remounts, observed on the
+  physical pair after both hosts self-fenced.
+
 ## 2026-10-06 — 0.90.70 — on DRBD, a mount holds back its own writes so its heartbeat never queues behind them
 
 **Both hosts shut `/mnt/shared` down under eight VM installs.** On DRBD,

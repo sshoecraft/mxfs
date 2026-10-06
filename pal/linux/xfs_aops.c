@@ -1142,22 +1142,31 @@ mxfs_ioend_write_admitted(
  * keeps the bio's completion and calls it when the bio is done, so this runs
  * last, once that completion is final, and iomap submits the bio next.
  *
+ * A writeback bio on large folios can be hundreds of MiB; the bound splits it
+ * into pieces it submits itself, chained to this one, and iomap submits what
+ * is left.
+ *
  * Where iomap still chains an ioend's bios (the bio is not embedded in the
  * ioend), the bios ahead of the last are submitted by iomap as each one fills,
  * before any filesystem hook runs, and the last completes only after all of
- * them.  So the whole ioend's size is admitted on the last bio and held until
- * the ioend is done: a writer cannot start another ioend until this one is
- * admitted, though the one it builds meanwhile is in flight unbounded.
+ * them.  So their bytes are charged to this bio's first piece and held until
+ * it ends: a writer cannot start another ioend until this one is admitted,
+ * though the one it builds meanwhile is in flight unbounded.
  */
 static int
 mxfs_ioend_bound_admit(
 	struct iomap_ioend	*ioend)
 {
 	struct xfs_mount	*mp = XFS_I(ioend->io_inode)->i_mount;
+	struct bio		*bio = mxfs_ioend_bio(ioend);
+	unsigned int		ahead = 0;
 
-	return mxfs_pal_ioq_admit(mp->m_mxfs_ioq, mxfs_ioend_bio(ioend),
-				  MXFS_IOQ_DATA,
-				  min_t(size_t, ioend->io_size, UINT_MAX));
+#ifndef MXFS_HAVE_IOMAP_IOEND_BIO_EMBEDDED
+	if (ioend->io_size > bio->bi_iter.bi_size)
+		ahead = min_t(size_t, ioend->io_size - bio->bi_iter.bi_size,
+			      UINT_MAX);
+#endif
+	return mxfs_pal_ioq_admit(mp->m_mxfs_ioq, bio, MXFS_IOQ_DATA, ahead);
 }
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)

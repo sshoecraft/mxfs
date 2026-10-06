@@ -56,25 +56,29 @@ struct mxfs_ioq *mxfs_pal_ioq_create(struct block_device *bdev,
 void mxfs_pal_ioq_destroy(struct mxfs_ioq *q);
 
 /*
- * Admit `bio` before its submitter submits it: wait (uninterruptibly, in
- * class order, first come first served) until `bytes` more fit under the
- * bound, then hook its completion so finishing it frees that share.  `bytes`
- * is the bio's own size, except for the last bio of a span whose earlier bios
- * were already submitted chained to it (a writeback ioend on a kernel whose
- * iomap still chains them): there it is the span's, held until the span ends.
+ * Admit `bio` before its submitter submits it.  A bio larger than one piece
+ * (a quarter of the byte bound, at most 1 MiB) is split from the front first,
+ * each piece chained to what is left and submitted here as soon as it is
+ * admitted; what is left is admitted last and handed back for the caller to
+ * submit.  Each admission waits (uninterruptibly, in class order, first come
+ * first served) until its bytes fit under the bound, then hooks the piece's
+ * completion so finishing it frees that share.  `ahead` is 0, except for the
+ * last bio of a span whose earlier bios were already submitted chained to it
+ * (a writeback ioend on a kernel whose iomap still chains them): their bytes,
+ * charged to the first piece admitted and held until it ends.
  *
  * The hook keeps the bio's completion and calls it, so admission comes last,
  * once that completion is final, and the caller submits next: a bio admitted
  * and not yet submitted holds a share nothing else can free.  Returns 0 when
  * the caller should submit it; -EAGAIN for a REQ_NOWAIT bio that does not fit
- * now (nothing taken, nothing hooked); -EIO when the mount's authority closed
- * while it waited — the bio is hooked, so the caller must complete it with an
- * error, never submit it.  A read, a bio of a mount with no bound or for
- * another device, or any operation other than a plain write is admitted at
- * once, unhooked.
+ * now (nothing taken, nothing hooked, never split); -EIO when the mount's
+ * authority closed while a piece waited — the caller must complete the bio
+ * with an error, never submit it.  A read, a bio of a mount with no bound or
+ * for another device, or any operation other than a plain write is admitted
+ * at once, unhooked.
  */
 int mxfs_pal_ioq_admit(struct mxfs_ioq *q, struct bio *bio,
-		       enum mxfs_ioq_class cls, unsigned int bytes);
+		       enum mxfs_ioq_class cls, unsigned int ahead);
 /* Admit the bio's own size, then submit_bio — or end the bio with the
  * refusal's status.  For every submission site that calls submit_bio itself. */
 void mxfs_pal_ioq_submit(struct mxfs_ioq *q, struct bio *bio,

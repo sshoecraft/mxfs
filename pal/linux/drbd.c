@@ -1183,7 +1183,7 @@ struct mxfs_ioq {
 	bool			(*admitted)(void *ctx);
 	void			*ctx;
 	/* since the mount */
-	u64			n_admit, n_wait, n_refused, wait_ns, wait_ns_max;
+	u64			n_admit, n_wait, n_refused, n_split, wait_ns, wait_ns_max;
 	unsigned long		bytes_peak;
 	unsigned int		reqs_peak;
 };
@@ -1258,8 +1258,8 @@ static void mxfs_ioq_grant(struct mxfs_ioq *q)
 
 static void mxfs_ioq_free(struct mxfs_ioq *q)
 {
-	pr_info("mxfs: P-DRBD-IOQ-DONE minor=%u admitted=%llu waited=%llu refused=%llu wait_avg_ms=%llu wait_max_ms=%llu peak_kib=%lu peak_reqs=%u\n",
-		MINOR(q->devt), q->n_admit, q->n_wait, q->n_refused,
+	pr_info("mxfs: P-DRBD-IOQ-DONE minor=%u admitted=%llu split=%llu waited=%llu refused=%llu wait_avg_ms=%llu wait_max_ms=%llu peak_kib=%lu peak_reqs=%u\n",
+		MINOR(q->devt), q->n_admit, q->n_split, q->n_wait, q->n_refused,
 		q->n_wait ? q->wait_ns / q->n_wait / NSEC_PER_MSEC : 0,
 		q->wait_ns_max / NSEC_PER_MSEC, q->bytes_peak >> 10, q->reqs_peak);
 	mempool_destroy(q->pool);
@@ -1297,27 +1297,14 @@ static void mxfs_ioq_end_io(struct bio *bio)
 	bio->bi_end_io(bio);
 }
 
-int mxfs_pal_ioq_admit(struct mxfs_ioq *q, struct bio *bio,
-		       enum mxfs_ioq_class cls, unsigned int bytes)
+/* Admit one bio of at most a chunk (or a bio that cannot be split). */
+static int mxfs_ioq_admit_one(struct mxfs_ioq *q, struct bio *bio,
+			      enum mxfs_ioq_class cls, unsigned int bytes)
 {
 	struct mxfs_ioq_waiter w;
 	struct mxfs_ioq_hook *h;
 	bool waited = false;
 	u64 t0, ns = 0, n_wait = 0;
-
-	if (!q || bio_op(bio) != REQ_OP_WRITE || !bio->bi_bdev ||
-	    bio->bi_bdev->bd_dev != q->devt ||
-	    (!READ_ONCE(mxfs_drbd_inflight_kb) && !READ_ONCE(mxfs_drbd_inflight_reqs)))
-		return 0;
-	/*
-	 * A bio with no completion yet would have its submitter's default
-	 * installed later, over the hook, and the share would never come back.
-	 * Every caller admits after the completion is set; one that does not
-	 * is a bug in the caller, and the write goes unbounded rather than
-	 * leaking.
-	 */
-	if (WARN_ON_ONCE(!bio->bi_end_io))
-		return 0;
 
 	spin_lock_irq(&q->lock);
 	if (list_empty(&q->wait[MXFS_IOQ_META]) &&
@@ -1395,12 +1382,89 @@ int mxfs_pal_ioq_admit(struct mxfs_ioq *q, struct bio *bio,
 	}
 	return 0;
 }
+
+#ifdef REQ_ATOMIC
+#define MXFS_IOQ_NOSPLIT	(REQ_NOWAIT | REQ_ATOMIC)
+#else
+#define MXFS_IOQ_NOSPLIT	REQ_NOWAIT
+#endif
+
+/*
+ * The largest piece admitted as one write.  A bio is not bounded by its
+ * count: writeback on large folios builds them by the hundred MiB (measured
+ * on 6.17: one of 392 MiB, admitted alone because nothing else was in flight,
+ * held the swaps behind it for a second on NVMe), and DRBD splits one only
+ * after it has queued all of it.  So anything larger is split here, each piece
+ * admitted on its own: a quarter of the byte bound, a multiple of 64 KiB (any
+ * logical block size divides it), at most 1 MiB, DRBD 8.4's own largest bio.
+ */
+static unsigned int mxfs_ioq_chunk_sectors(void)
+{
+	unsigned int kb = READ_ONCE(mxfs_drbd_inflight_kb);
+	unsigned int chunk_kb = kb ? max(64U, (kb / 4) & ~63U) : 1024U;
+
+	return min(chunk_kb, 1024U) << 1;
+}
+
+int mxfs_pal_ioq_admit(struct mxfs_ioq *q, struct bio *bio,
+		       enum mxfs_ioq_class cls, unsigned int ahead)
+{
+	unsigned int chunk;
+	struct bio *split;
+	int rc;
+
+	if (!q || bio_op(bio) != REQ_OP_WRITE || !bio->bi_bdev ||
+	    bio->bi_bdev->bd_dev != q->devt ||
+	    (!READ_ONCE(mxfs_drbd_inflight_kb) && !READ_ONCE(mxfs_drbd_inflight_reqs)))
+		return 0;
+	/*
+	 * A bio with no completion yet would have its submitter's default
+	 * installed later, over the hook, and the share would never come back.
+	 * Every caller admits after the completion is set; one that does not
+	 * is a bug in the caller, and the write goes unbounded rather than
+	 * leaking.
+	 */
+	if (WARN_ON_ONCE(!bio->bi_end_io))
+		return 0;
+
+	/*
+	 * Split from the front, each piece chained to what is left so the
+	 * caller's completion still runs once, after all of them; each piece is
+	 * submitted as soon as it is admitted, so nothing admitted waits on this
+	 * task.  A REQ_NOWAIT bio is not split (a refusal after a piece went
+	 * out could not be retried whole) and neither is an atomic one; a
+	 * direct write's bio is at most BIO_MAX_VECS pages anyway.
+	 */
+	chunk = mxfs_ioq_chunk_sectors();
+	while (bio_sectors(bio) > chunk && !(bio->bi_opf & MXFS_IOQ_NOSPLIT)) {
+		split = bio_split(bio, chunk, GFP_NOIO, &fs_bio_set);
+		if (IS_ERR_OR_NULL(split))
+			break;
+		bio_chain(split, bio);
+		spin_lock_irq(&q->lock);
+		q->n_split++;
+		spin_unlock_irq(&q->lock);
+		rc = mxfs_ioq_admit_one(q, split, cls, split->bi_iter.bi_size + ahead);
+		ahead = 0;
+		if (rc) {
+			/* refused: the authority closed (this bio may not wait, so
+			 * never -EAGAIN); the error reaches the caller's completion
+			 * through the chain, and the rest is refused with it */
+			split->bi_status = BLK_STS_IOERR;
+			bio_endio(split);
+			return rc;
+		}
+		submit_bio(split);
+	}
+	return mxfs_ioq_admit_one(q, bio, cls,
+				  min_t(u64, (u64)bio->bi_iter.bi_size + ahead, UINT_MAX));
+}
 EXPORT_SYMBOL_GPL(mxfs_pal_ioq_admit);
 
 void mxfs_pal_ioq_submit(struct mxfs_ioq *q, struct bio *bio,
 			 enum mxfs_ioq_class cls)
 {
-	int rc = mxfs_pal_ioq_admit(q, bio, cls, bio->bi_iter.bi_size);
+	int rc = mxfs_pal_ioq_admit(q, bio, cls, 0);
 
 	if (!rc) {
 		submit_bio(bio);
