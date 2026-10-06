@@ -397,10 +397,17 @@ def peer_evidence(res, peer, peer_addr):
     whether the peer rebooted or only unmounted.  Read over ssh, which a
     Proxmox cluster authenticates with its root key trust; anything short of a
     clean answer is (False, why)."""
+    # Authenticate the peer the way Proxmox's own migrations do: its key from
+    # the cluster's per-node file under its node name (PVE 9 keeps no cluster
+    # host keys in the shared known_hosts).  Elsewhere, the system's known
+    # hosts under the same name.
+    opts = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=5",
+            "-o", "StrictHostKeyChecking=yes", "-o", "HostKeyAlias=" + peer]
+    pve_keys = "/etc/pve/nodes/%s/ssh_known_hosts" % peer
+    if os.path.exists(pve_keys):
+        opts += ["-o", "UserKnownHostsFile=" + pve_keys]
     try:
-        rc, out = run(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5",
-                       "-o", "StrictHostKeyChecking=yes", "-o", "HostKeyAlias=" + peer,
-                       "root@" + peer_addr,
+        rc, out = run(["ssh"] + opts + ["root@" + peer_addr,
                        "echo ROLE=$(drbdadm role %s 2>/dev/null || echo Unconfigured); "
                        "echo MOUNTS=$(grep -c ' mxfs ' /proc/mounts); "
                        "echo REFCNT=$(cat /sys/module/mxfs/refcnt 2>/dev/null || echo unloaded); "
