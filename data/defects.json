@@ -1725,7 +1725,7 @@
       "opened": "2026-10-06",
       "summary": "after both DRBD hosts self-fenced (P131/P290 AUTHORITY_LEASE_EXPIRED, then P163-WITHDRAW-STAMP), each host's mxfs-drbd@mxfs unit stayed 'active (exited)' with Status '/mnt/shared mounted' over a withdrawn mount that answers every access with EIO; neither the boot program, the unit nor mxfs-drbd-guard noticed, and nothing unmounted and rejoined",
       "evidence": "MEASURED 2026-10-06 on the physical pair, 0.90.68 (A63A278AB7D61F145D6A320): self-fence 10:46:30 (pve2) / 10:46:39 (pve1); at 12:20 both 'ls /mnt/shared' -> Input/output error while /proc/mounts listed it rw and systemctl showed mxfs-drbd@mxfs active since 09:57 (pve1) / 10:31 (pve2). Kernel logs: pve1 P378-TRANS-READ-FAIL err=-5, P-SHUTDOWN-FENCE 10:48:16; both 'node ... has left the cluster (no heartbeat for 600 seconds)' at 10:56 and P238-FENCE-NOINC (neither detector a fencing authority for the other). No further mxfs activity to 12:20.",
-      "next": "0.90.72 (057A5503B79E4DCE921DB33B on 6.17) passed on the nested pair, tests/evidence/pve_pair_failover/20261006T182319Z: withdraw-p1 (participant 1's heartbeat paused 45 s under load: P131-SELF-FENCE + P290-AUTH-WITHDRAW, its guard rejoined it, mounted again 115 s after the pause, same boot id; participant 0's load err=0, lat_max 496 ms, P163-RECOVERY-COMPLETE) and withdraw-both (both withdrew; rejoined 175 s and 182 s after the pause, neither restarted); every fsynced file intact on both. Remaining before removal: the same two steps on the physical pair (launched 13:30 detached, log tests/evidence/pve_phys_drbd_20261006/phys-0.90.72.log), then the full eight-step suite on 0.90.72 there.",
+      "next": "0.90.72 (57A5503B79E4DCE921DB33B) rejoins a withdrawn mount: passed withdraw-p1 and withdraw-both on the nested pair (20261006T182319Z: rejoined 115 s / 175-182 s after the pause, no restart, every fsynced file intact) but FAILED withdraw-p1 on the physical pair (20261006T183753Z): the rejoin could not unmount because fio hung in D on a leaked folio lock (D-DRBD-WITHDRAWAL-UNDER-WRITEBACK-LEAVES-A-FOLIO-LOCKED-FSYNC-HANGS), and its host-restart fallback died with its unit (D-DRBD-REJOIN-HOST-RESTART-FALLBACK-DIES-WITH-ITS-UNIT); pve2 was reset by hand at 13:45:58 and remounted 60 s after boot. Fix those two, then withdraw-p1/withdraw-both on both pairs and the full suite on the physical pair.",
       "impact": "stability",
       "impact_why": "both physical hosts kept a withdrawn /mnt/shared (every access EIO) for 1h34m+ after the 10:46 self-fence with nothing restarting it; every guest disk on it was dead until a manual stop/start",
       "platform": "pve9",
@@ -1754,6 +1754,32 @@
       "next": "Find what participant 1 waits on while participant 0 writes: sample, while blocked, the kernel stacks of participant 1's fio/mkdir and of its ssh login's processes, and time a 'stat /mnt/shared' and a plain 'true' over ssh separately, so a cluster lock that participant 0 does not yield during its writes is told apart from participant 1's root filesystem queuing behind DRBD's replicated writes on the same SATA disk. Then fix at the proven cause and rerun tests/pve_pair_write_bound.sh on the physical pair within its budget.",
       "impact": "noblock",
       "impact_why": "performance only: every block verified on both hosts and no heartbeat swap reached 1 s, but the two hosts' writes serialize",
+      "platform": "pve9"
+    },
+    {
+      "id": "D-DRBD-WITHDRAWAL-UNDER-WRITEBACK-LEAVES-A-FOLIO-LOCKED-FSYNC-HANGS",
+      "severity": "critical",
+      "nodes": 2,
+      "config": "net/mesh/drbd",
+      "opened": "2026-10-06",
+      "summary": "a DRBD mount withdrawn under load left a page-cache folio locked forever: fio hung in D in fsync -> writeback_iter -> __folio_lock with no other task blocked, so the withdrawn mount could never be unmounted and the guard's rejoin failed three times",
+      "evidence": "MEASURED 2026-10-06 on the physical pair, 0.90.72 (57A5503B79E4DCE921DB33B), tests/pve_pair_failover.sh withdraw-p1 (tests/evidence/pve_pair_failover/20261006T183753Z): pve2's heartbeat paused 45 s under the suite's fio load; P290-AUTH-CLOSED, P290-AUTH-WITHDRAW, P131-SELF-FENCE; the write cap refused one writeback write issued from fio's own fsync: 'P-DRBD-IOQ-REFUSED minor=0 class=data bytes=647168 waited_ms=119 comm=fio' (and 10 P290-AUTH-REFUSED-DATA). fio pid 54828 then sat in D: folio_wait_bit_common __folio_lock writeback_iter iomap_writepages xfs_vm_writepages do_writepages ... xfs_file_fsync; it was the only D task on pve2. Each rejoin round killed it with SIGKILL and umount answered 32. The nested pair passed the same step (20261006T182319Z). Kernel lines: tests/evidence/pve_phys_drbd_20261006/pve2-withdraw-p1-0.90.72-klog.txt",
+      "next": "Read iomap's writeback unlock contract when ->writeback_submit returns an error mid-writeback (/src/linux/fs/iomap/buffered-io.c, iomap_writepages / iomap_writepage_map; PVE runs 6.17) against MXFS's 6.17 submit path (pal/linux/xfs_aops.c 1295-1297: mxfs_ioend_bound_admit refusal -> iomap_ioend_writeback_submit(wpc, -EIO)), and the split-refusal path in pal/linux/drbd.c mxfs_pal_ioq_admit. Reproduce on the nested pair with a withdrawal while a buffered writer fsyncs (the suite's load is O_DIRECT only), confirm the leaked lock by the same stack, fix at the proven cause, then withdraw-p1/withdraw-both on both pairs.",
+      "impact": "stability",
+      "impact_why": "a withdrawn mount on the physical pair could not be released: an unkillable task held it and only a host restart recovered the node",
+      "platform": "pve9"
+    },
+    {
+      "id": "D-DRBD-REJOIN-HOST-RESTART-FALLBACK-DIES-WITH-ITS-UNIT",
+      "severity": "critical",
+      "nodes": 2,
+      "config": "net/mesh/drbd",
+      "opened": "2026-10-06",
+      "summary": "the rejoin's last resort never restarts the host: restart_host() starts 'sleep 10; echo b > /proc/sysrq-trigger' from inside the transient unit mxfs-drbd-rejoin-<res>, and when cmd_rejoin returns systemd stops that unit and kills its whole cgroup, the sleeping shell with it",
+      "evidence": "MEASURED 2026-10-06 on pve2 (0.90.72): the journal logged 'restarting this host in 10 s: the shut-down /mnt/shared could not be unmounted in 3 rounds' at three rejoins (13:4x), and the host stayed up with the mount shut down until it was reset by hand at 13:45:58. tools/mxfs_drbd_fence_self.py restart_host() uses subprocess.Popen(start_new_session=True), which leaves the process in the unit's cgroup.",
+      "next": "Restart from within the rejoin before it returns (sleep RESTART_DELAY_S in-process, then write b to /proc/sysrq-trigger), or launch it as its own transient unit; prove on the nested pair with a holder the rejoin cannot stop.",
+      "impact": "stability",
+      "impact_why": "a node whose withdrawn mount cannot be released stays out of the pair until someone restarts it",
       "platform": "pve9"
     }
   ]
