@@ -746,6 +746,15 @@ def restart_host(why):
     the rejoin returns, systemd stops the unit and kills every process left in
     its cgroup (KillMode=control-group), a new session or not."""
     log("restarting this host in %d s: %s" % (RESTART_DELAY_S, why), crit=True)
+    # sysrq b resets with nothing synced, journald's files included.  The
+    # restart's reason must survive it: on both pairs (0.90.75, withdraw-held)
+    # the previous boot's journal ended at the first refused unmount, and the
+    # two rounds after it and this line were gone.  journalctl --sync returns
+    # once journald has written its files out; it touches no other filesystem.
+    try:
+        run(["journalctl", "--sync"], timeout=RESTART_DELAY_S)
+    except subprocess.SubprocessError:
+        pass
     time.sleep(RESTART_DELAY_S)
     try:
         with open("/proc/sysrq-trigger", "w") as fh:

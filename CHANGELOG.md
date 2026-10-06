@@ -1,3 +1,30 @@
+## 2026-10-06 — 0.90.76 — a host the rejoin restarts keeps the reason in its journal
+
+**The restart happened, but nothing said why.** On 0.90.75 the new
+`withdraw-held` step restarted participant 1 through the rejoin's last resort
+on both pairs: pve9-1 answered 84 s after the pause, pve2 134 s after. Each
+previous boot's journal ended at "umount of the shut-down /mnt/shared refused
+(rc=32, round 1 of 3)". The last two rounds and "restarting this host in 10 s"
+were missing, though each was logged at crit. pve9-2 saw pve9-1's link die at
+20:01:05. That is three refused rounds 5 s apart plus the 10 s delay after
+round 1, so the rejoin did restart the host. sysrq b resets with nothing
+synced, journald's files included. `restart_host()` now runs `journalctl
+--sync` before the delay, which writes out journald's own files and touches no
+other filesystem.
+
+**Measured on 0.90.75 (both pairs):**
+- **withdraw-p1:** passed on both pairs. Each time the rejoining node stayed
+  Secondary until the peer had recovered its previous incarnation (6 s
+  nested, 24 s physical), then promoted and mounted on its first attempt.
+  pve9-1 was back 61 s after the pause, pve2 87 s after. The other host's
+  load saw no I/O error; its worst latency was 226 ms nested and 4.3 s
+  physical.
+- **withdraw-both:** passed on both pairs, with no host restarted (175/182 s
+  nested, 180/192 s physical). It is the first pass on the physical pair.
+- **withdraw-held:** the restart and the remount happened on both pairs. The
+  step failed only on the journal check above.
+- `tests/pve_wb_refusal.sh` passed on pve1, pve2 and both nested hosts.
+
 ## 2026-10-06 — 0.90.75 — a DRBD node stays Secondary until its peer has recovered its previous incarnation
 
 **A rejoining node promoted too early.** On 0.90.74 the withdraw-p1 rejoin
