@@ -62,6 +62,13 @@
 #              kill, and the unmount answers busy).  The rejoin must give up on
 #              the unmount after its rounds and restart the host itself, which
 #              must come back and mount by itself; participant 0 carries on.
+#   withdraw-guests
+#              as withdraw-p1, while GUESTS Proxmox VMs whose disks are on the
+#              mount run on participant 1, frozen (SIGSTOP) as a host short of
+#              memory leaves its guests.  The rejoin must be rid of them and
+#              unmounted within STEPDOWN_BUDGET of starting, and participant 0,
+#              writing into a sparse file (every write allocates), must recover
+#              participant 1, refuse nothing and see no I/O error.
 #   (default: p1-crash reboot power-cut p0-crash)
 #
 # Before each step both hosts must be mounted, DRBD Connected Primary/Primary
@@ -131,6 +138,13 @@ WITHDRAW_BUDGET=$(( WITHDRAW_PAUSE_MS / 1000 + OUTAGE_BUDGET ))
 # unmount rounds 5 s apart, the restart's 10 s delay -- 60 s, twice that --
 # then the host's boot.
 HELD_BUDGET=$(( 120 + BOOT_BUDGET ))
+# withdraw-guests: frozen VMs on the withdrawn host, and from its rejoin's start
+# to its unmount of the shut-down mount: killing every holder at once and their
+# exit (a second or two), the unmount -- 15 s.  One `qm stop` per VM in turn
+# took 74-90 s each on the swapping pve1, and participant 0 turns its wait for
+# the step-down into I/O errors 120 s after the death (fence_blocked_after_ms).
+GUESTS=${GUESTS:-3}
+STEPDOWN_BUDGET=15
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
 # Named for the pair too: two pairs' runs started in the same second shared
 # one directory, and their logs interleaved.
@@ -681,11 +695,86 @@ step_withdraw_held() {
     verify_sets withdraw-held
 }
 
+# withdraw-guests: participant 1 withdraws while GUESTS VMs whose disks are on
+# its mount run there, frozen (SIGSTOP), as a swapping host leaves them.  On
+# pve1 (0.90.76, three 4 GiB build VMs on 11.7 GiB) the rejoin's `qm stop` of
+# each in turn took 90, 90 and 74 s; participant 0, which can finish
+# recovering participant 1's old incarnation only once that has stepped down,
+# held the recovery blocked for 296 s and failed its own guests' writes.  The
+# VMs boot nothing (an empty disk): only their QEMU holding the image open
+# matters.  Participant 0 runs a second load that writes 64 KiB blocks at
+# random into a sparse file, so its writes keep allocating -- the allocation
+# group locks participant 1 mastered among them.
+step_withdraw_guests() {
+    local t0 s sd rc out i id ids="" b1 tr tu
+    write_sets withdraw-guests; start_loads withdraw-guests
+    for i in $(seq 1 "$GUESTS"); do
+        out=$(on "$P1" "id=\$(pvesh get /cluster/nextid) && qm create \$id --name pvefail-g$i --memory 256 --cores 1 --scsihw virtio-scsi-single --scsi0 shared:1 --boot order=scsi0 >/dev/null && qm start \$id >/dev/null && kill -STOP \$(cat /var/run/qemu-server/\$id.pid) && echo \"GUEST \$id \$(cat /var/run/qemu-server/\$id.pid)\"" 120)
+        id=$(sed -n 's/^GUEST \([0-9]*\) .*/\1/p' <<<"$out")
+        [ -n "$id" ] || die "could not start and freeze test VM $i on $P1: $(tail -2 <<<"$out" | tr '\n' ' ')"
+        ids="$ids $id"
+        LEFT="test VMs$ids on $P1 (frozen or killed): there, for each, kill -9 its QEMU if running, then qm destroy <id> --purge 1"
+    done
+    say "  $P1 runs $GUESTS VMs on $MNT, frozen:$ids"
+    out=$(on "$P0" "e=io_uring; fio --enghelp 2>/dev/null | grep -q io_uring || e=libaio
+        rm -f $MNT/pvefail/thin.\$(hostname) /root/pvefail_thin.json
+        nohup setsid fio --name=thin --filename=$MNT/pvefail/thin.\$(hostname) --size=8g --rw=randwrite --bs=64k --fallocate=none \
+            --iodepth=4 --ioengine=\$e --direct=1 --time_based --runtime=$LOAD_S \
+            --output-format=json --output=/root/pvefail_thin.json >/dev/null 2>/root/pvefail_thin.err < /dev/null &
+        for i in \$(seq 1 30); do fuser $MNT/pvefail/thin.\$(hostname) >/dev/null 2>&1 && { echo THIN_UP; exit 0; }; sleep 1; done
+        echo \"NO_THIN \$(tail -2 /root/pvefail_thin.err | tr '\n' ' ')\"" 60)
+    grep -q THIN_UP <<<"$out" || die "no sparse-write load on $P0: $out"
+    sleep 10
+    on "$P1" "rm -f /var/lib/mxfs/drbd-rejoin.$RES" 15 >/dev/null
+    b1=$(boot_id "$P1")
+    say "withdraw-guests: pausing $P1's MXFS heartbeat for $(( WITHDRAW_PAUSE_MS / 1000 )) s under load on both"
+    t0=$(date +%s)
+    on "$P1" "echo $WITHDRAW_PAUSE_MS > /sys/module/mxfs/parameters/dl_inject_hb_pause_ms && echo ARMED" 15 | grep -q ARMED \
+        || die "could not pause $P1's heartbeat"
+    s=$(wait_journal "$P1" "$t0" "rejoined: " "$WITHDRAW_BUDGET")
+    rc=$?
+    out=$(on "$P1" "journalctl --no-pager -o short-unix -t mxfs-drbd-fence --since @$t0 | grep -a -E 'Rejoining|stopped VM|killed|processes that held|still hold|umount of the shut-down|unmounted the shut-down|restarting this host|rejoined: ' | cut -c1-240" 30)
+    echo "$out" > "$EVID/withdraw-guests.rejoin.$P1"
+    sed 's/^/    /' <<<"$out" | tee -a "$EVID/log"
+    [ "$rc" = 0 ] || { collect withdraw-guests "$t0"; die "$P1's guard did not rejoin its withdrawn mount within ${WITHDRAW_BUDGET}s of the pause"; }
+    say "  $P1 mounted again $s s after the pause"
+    tr=$(awk '/Rejoining/ {print $1; exit}' <<<"$out"); tu=$(awk '/unmounted the shut-down/ {print $1; exit}' <<<"$out")
+    [ -n "$tr" ] && [ -n "$tu" ] || die "$P1's journal does not show its rejoin starting and unmounting"
+    sd=$(python3 -I -c 'import sys; print("%.1f" % (float(sys.argv[2]) - float(sys.argv[1])))' "$tr" "$tu")
+    say "  $P1's rejoin: unmounted $sd s after it started"
+    [ "$(boot_id "$P1")" = "$b1" ] || die "$P1 restarted: a withdrawn mount must rejoin without a host restart"
+    out=$(on "$P0" "journalctl -k --no-pager -o short-unix --since @$t0 | grep -a -E 'P236-FENCE-CERTIFIED|P163-RECOVERY-COMPLETE|P238-FENCE-BLOCKED|P-RBLK-' | head -4 | cut -c1-200; journalctl -k --no-pager -o cat --since @$t0 | grep -aoE 'P163-RECOVERY-COMPLETE|P238-FENCE-BLOCKED[A-Z-]*|P-RBLK-[A-Z-]+' | sort | uniq -c | tr '\n' ' '" 30)
+    sed 's/^/    /' <<<"$out" | tee -a "$EVID/log"
+    for h in "$P0" "$P1"; do
+        s=$(wait_mounted "$h" "$OUTAGE_BUDGET") || die "$h is not a full half of the pair again within ${OUTAGE_BUDGET}s"
+    done
+    out=$(load_result "$P0")
+    [ "$(sed -n 's/.*err=\([0-9]*\).*/\1/p' <<<"$out")" = 0 ] || die "$P0, which did not withdraw, saw an I/O error: ${out:-no result}"
+    say "  $P0 carried on: $out"
+    out=$(on "$P0" "for i in \$(seq 1 $((LOAD_S + 30))); do [ -s /root/pvefail_thin.json ] && break; sleep 1; done
+        python3 -c 'import json; j=json.load(open(\"/root/pvefail_thin.json\"))[\"jobs\"][0]
+print(\"THIN err=%d write_ios=%d lat_max_ms=%.0f\" % (j[\"error\"], j[\"write\"][\"total_ios\"], j[\"write\"][\"lat_ns\"][\"max\"] / 1e6))'; rm -f $MNT/pvefail/thin.\$(hostname)" $((LOAD_S + 60)) | grep '^THIN ')
+    say "  $P0's sparse-file writer: ${out:-no result}"
+    [ "$(sed -n 's/.*err=\([0-9]*\).*/\1/p' <<<"$out")" = 0 ] || die "$P0's sparse-file writer saw an I/O error: ${out:-no result}"
+    out=$(on "$P0" "journalctl -k --no-pager -o cat --since @$t0 | grep -aoE 'P163-RECOVERY-COMPLETE|P-RBLK-[A-Z-]+' | sort | uniq -c | tr '\n' ' '" 30)
+    grep -q P163-RECOVERY-COMPLETE <<<"$out" || die "$P0 did not complete the recovery of $P1: ${out:-no recovery lines}"
+    grep -q P-RBLK <<<"$out" && die "$P0 refused operations as RECOVERY_BLOCKED: $out"
+    for id in $ids; do
+        out=$(on "$P1" "qm status $id; qm destroy $id --purge 1 --destroy-unreferenced-disks 1 >/dev/null 2>&1; echo DESTROY_RC=\$?" 120)
+        grep -q 'DESTROY_RC=0' <<<"$out" || die "could not destroy test VM $id on $P1: $(tr '\n' ' ' <<<"$out")"
+    done
+    LEFT=""
+    collect withdraw-guests "$t0"
+    verify_sets withdraw-guests
+    awk -v s="$sd" -v b="$STEPDOWN_BUDGET" 'BEGIN { exit !(s <= b) }' \
+        || die "$P1's rejoin took $sd s from its start to its unmount of the shut-down mount (budget ${STEPDOWN_BUDGET}s)"
+}
+
 STEPS=("$@")
 [ "${#STEPS[@]}" -gt 0 ] || STEPS=(p1-crash reboot power-cut p0-crash)
 for s in "${STEPS[@]}"; do
     case "$s" in
-        p1-crash|p0-crash|power-cut|reboot|promotion-race|withdraw-both|withdraw-p1|withdraw-held) ;;
+        p1-crash|p0-crash|power-cut|reboot|promotion-race|withdraw-both|withdraw-p1|withdraw-held|withdraw-guests) ;;
         survivor-restart|released-restart|stale-promotion)
             [ -n "${PVE_POWER_ON:-}" ] || { echo "$s keeps a host powered off: set PVE_POWER_ON to the command that powers one on"; exit 2; } ;;
         *) echo "unknown step: $s"; exit 2 ;;

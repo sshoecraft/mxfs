@@ -1,3 +1,43 @@
+## 2026-10-06 — 0.90.78 — a withdrawn DRBD host kills its guests at once instead of stopping them one at a time
+
+**pve1 took 4 min 23 s to step down after it withdrew.** On 0.90.76, under
+the eight VM installs, pve1's lease expired at 15:34:41. Its rejoin then
+stopped each guest on the dead mount with `qm stop`, one after another. Each
+stop is bounded at 90 s, and on the swapping pve1 they took 90, 90 and 74 s.
+pve1 unmounted only at 15:39:10. pve2 can prove pve1's old incarnation ended
+only once pve1 is Secondary. So it held the recovery 296 s, turned it into
+RECOVERY_BLOCKED at 120 s (`fence_blocked_after_ms`), and failed its own
+guests' writes.
+
+**The rejoin now kills every holder of the dead mount at once** (`stop_holders`
+in `tools/mxfs_drbd_fence_self.py`). It sends SIGKILL to every process holding
+the mount, a VM's QEMU like any other, then waits up to 30 s for them to be gone
+before it unmounts.
+- A holder still there makes the unmount refuse. The next round kills it again,
+  and the third refusal restarts the host, as before.
+- Every holder has had only EIO from the mount since it shut down. A VM loses
+  what a `qm stop` would take from it anyway: `qm stop` pulls the power too.
+- Proxmox's qmeventd cleans up a QEMU that exits without a guest shutdown
+  (`qm cleanup`), as after a guest crash.
+- Each kill is logged with the VM's id, then one line with how long the holders
+  took to go.
+
+**Reproduced on the physical pair (0.90.77, the control).** New step
+`withdraw-guests` in `tests/pve_pair_failover.sh`: pve2 runs three VMs whose
+disks are on `/mnt/shared`, frozen with SIGSTOP, the way a swapping host leaves
+its guests, and then pve2 withdraws. Each `qm stop` of a frozen VM took 17 s
+(17.3, 16.8, 16.8 s), and pve2 unmounted 51.8 s after its rejoin began. pve1
+certified pve2's old incarnation 4.5 s after that. Meanwhile pve1 writes 64 KiB
+blocks at random into a sparse file, so every write allocates. The step passes
+when the rejoin unmounts within 15 s of starting, and pve1 refuses nothing and
+sees no I/O error.
+
+**Also:**
+- `scripts/pve_pair_builds.sh` starts each build once the previous one has
+  created its VM. packer asks the cluster for the next free VM id, and two
+  builds asking at once got the same one: one failed with "unable to create VM
+  103 - can't lock file" and never ran.
+
 ## 2026-10-06 — 0.90.77 — a DRBD swap no longer runs the witness while its peer is Primary on a Connected link
 
 **Both hosts' heartbeats failed under the eight VM installs.** On 0.90.76,

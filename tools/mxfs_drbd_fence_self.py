@@ -133,7 +133,11 @@ REJOIN_MAX = 3
 REJOIN_WINDOW_S = 3600
 REJOIN_UMOUNT_S = 170
 REJOIN_UMOUNT_TRIES = 3
-REJOIN_GUEST_STOP_S = 90
+# A holder killed by the rejoin exits once its operation in flight returns,
+# and on a shut-down mount every one fails at once.  Each round waits this
+# long for the holders to be gone before it unmounts; one still there makes
+# the unmount refuse, and the next round kills it again.
+REJOIN_HOLDER_EXIT_S = 30
 QEMU_PID_DIR = "/var/run/qemu-server"
 # Tells the MXFS mount on a resource that its peer is excluded: the module
 # then asks its own witness at once instead of declaring the death after its
@@ -781,26 +785,44 @@ def bounded_umount(mnt, limit):
 
 
 def stop_holders(res, mnt):
-    """Stop what holds the shut-down mount: each Proxmox VM through `qm stop`
-    (which keeps Proxmox's own state right), then any other process by
-    SIGKILL.  Every one of them has had only EIO from the mount since it shut
-    down.  Returns how many processes were found."""
+    """Stop what holds the shut-down mount, all at once: every holder is
+    killed (SIGKILL), then this waits up to REJOIN_HOLDER_EXIT_S for them to
+    be gone.  Every one of them has had only EIO from the mount since it shut
+    down, and the peer cannot finish recovering this node's old incarnation
+    until this node has unmounted and stepped down, so no holder is waited on
+    in turn.  A Proxmox VM is killed like any other process: `qm stop` ends
+    the same way for the guest (power pulled), and Proxmox's qmeventd cleans
+    up a QEMU that exited without a guest shutdown (`qm cleanup`), as after
+    a guest crash.  Stopping each VM with `qm stop` in turn, on pve1 with the
+    host swapping (0.90.76), took 90, 90 and 74 s for three VMs, and the peer
+    failed its own guests' I/O meanwhile.  Returns how many processes were
+    found."""
     holders = mount_holders(mnt)
     vms = qemu_vmids(holders)
-    for pid, vmid in sorted(vms.items(), key=lambda x: int(x[1])):
-        try:
-            rc, _ = run(["qm", "stop", vmid, "--skiplock", "1"], timeout=REJOIN_GUEST_STOP_S)
-        except subprocess.TimeoutExpired:
-            rc = 124
-        log("%s: stopped VM %s, whose disk is on the shut-down %s (qm stop rc=%d)"
-            % (res, vmid, mnt, rc), crit=rc != 0)
-    rest = mount_holders(mnt) if vms else holders
-    for pid, comm in sorted(rest.items()):
+    t0 = time.time()
+    for pid, comm in sorted(holders.items()):
         try:
             os.kill(pid, 9)
         except OSError:
             continue
-        log("%s: killed %s (pid %d), which held the shut-down %s open" % (res, comm, pid, mnt))
+        if pid in vms:
+            log("%s: killed VM %s (QEMU pid %d), whose disk is on the shut-down %s"
+                % (res, vms[pid], pid, mnt))
+        else:
+            log("%s: killed %s (pid %d), which held the shut-down %s open" % (res, comm, pid, mnt))
+    if not holders:
+        return 0
+    left = holders
+    while left and time.time() - t0 < REJOIN_HOLDER_EXIT_S:
+        time.sleep(0.5)
+        left = mount_holders(mnt)
+    if left:
+        log("%s: %d of the %d processes killed still hold the shut-down %s after %.1f s: %s"
+            % (res, len(left), len(holders), mnt, time.time() - t0,
+               " ".join("%s(%d)" % (c, p) for p, c in sorted(left.items()))), crit=True)
+    else:
+        log("%s: the %d processes that held the shut-down %s are gone (%.1f s)"
+            % (res, len(holders), mnt, time.time() - t0))
     return len(holders)
 
 
