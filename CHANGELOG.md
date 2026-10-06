@@ -25,6 +25,27 @@ other filesystem.
   step failed only on the journal check above.
 - `tests/pve_wb_refusal.sh` passed on pve1, pve2 and both nested hosts.
 
+**Verified on 0.90.76 (both pairs):** `withdraw-held` passed on the nested and
+the physical pair. Each held host's previous-boot journal now holds all three
+refused rounds and "restarting this host in 10 s". pve9-1 answered 84 s after
+the pause and pve2 126 s, and they mounted again 87 s and 71 s after
+answering. The other host completed the recovery, and its load saw no I/O
+error; its worst latency was 3.7 s nested and 12.7 s physical. In the six
+withdraw runs on 0.90.75 and 0.90.76, no rejoining node had a mount attempt
+refused.
+
+**Defect queue:**
+- **The rejoin's last resort never restarted the host** (systemd killed the
+  delayed `sysrq b` with the rejoin's unit) — FIXED AND VERIFIED, 0.90.74 and
+  0.90.76: `withdraw-held` above, on both pairs.
+- **A rejoining node promoted before its peer could prove the old incarnation
+  ended**, so its mount was refused for minutes — FIXED AND VERIFIED, 0.90.75:
+  `withdraw-p1`, `withdraw-both` and `withdraw-held` on both pairs, no refused
+  mount attempt in any rejoining node's journal.
+- **A withdrawal under writeback left a folio locked and fsync hung** — FIXED
+  AND VERIFIED, 0.90.74: `tests/pve_wb_refusal.sh` on all four hosts, then
+  every withdraw step on both pairs with no hang and no `P294` line.
+
 ## 2026-10-06 — 0.90.75 — a DRBD node stays Secondary until its peer has recovered its previous incarnation
 
 **A rejoining node promoted too early.** On 0.90.74 the withdraw-p1 rejoin
