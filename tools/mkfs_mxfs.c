@@ -2049,6 +2049,19 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+    /* ─── Refuse to overwrite something, before printing anything else ─── */
+
+    if (!force) {
+        char sigbuf[160];
+        const char *found = existing_signature(device, sigbuf, sizeof(sigbuf));
+
+        if (found) {
+            fprintf(stderr, "mkfs.mxfs: %s appears to contain %s.\n"
+                    "Use the -f option to force overwrite.\n", device, found);
+            return 1;
+        }
+    }
+
     /* ─── Calculate offsets ─── */
 
     /* Journal: super sector + max_nodes slots */
@@ -2157,19 +2170,6 @@ int main(int argc, char *argv[])
             (unsigned long long)(device_size - 1),
             human_size(xfs_data_size, hbuf, sizeof(hbuf)));
     pr_info("\n");
-
-    /* ─── Confirm ─── */
-
-    if (!force) {
-        char sigbuf[160];
-        const char *found = existing_signature(device, sigbuf, sizeof(sigbuf));
-
-        if (found) {
-            fprintf(stderr, "mkfs.mxfs: %s appears to contain %s.\n"
-                    "Use the -f option to force overwrite.\n", device, found);
-            return 1;
-        }
-    }
 
     /* ─── Step 1: Open device for formatting ─── */
 
