@@ -537,6 +537,27 @@ enum mxfs_fence_kind {
 	 * value.
 	 */
 	MXFS_FENCE_KIND_DRBD_STONITH_WITNESSED_V1 = 25,
+	/*
+	 * 0.90.55.  THE DRBD PAIR'S BUILT-IN EXCLUSION: the default for two
+	 * nodes with no node fence and no third vote
+	 * (docs/rulings/drbd-two-node-self-exclusion.md).  Exactly one endpoint
+	 * can produce it in a split: participant 0 of the pair's fixed
+	 * tie-break.  Before DRBD resumed I/O, that endpoint's handler isolated
+	 * the peer from this host's network (DRBD and the lock manager's ports),
+	 * left the resource StandAlone and wrote a durable inhibit that the boot
+	 * path re-applies; the inhibit is released only on positive evidence of
+	 * a new peer boot.  The witness re-reads all of it each time: StandAlone,
+	 * peer Outdated, an EXCLUDED receipt naming the peer, the authority
+	 * reporting it excluded under the receipt's episode.
+	 *
+	 * It proves the old incarnation can no longer reach THIS replica or
+	 * THIS lock manager.  It does NOT prove the peer powered off, which is
+	 * why it is not kind 25 and is never accepted as 25.  The retirement
+	 * half is the same as 25's: StandAlone is reached only after DRBD
+	 * drained every write it accepted from the peer.  resv_type 0; the
+	 * recovery-descriptor family only.
+	 */
+	MXFS_FENCE_KIND_DRBD_REPLICA_EXCLUDED_V1 = 26,
 };
 
 /*
@@ -570,6 +591,7 @@ static inline bool mxfs_fence_kind_proves_exclusion(enum mxfs_fence_kind k)
 	return k == MXFS_FENCE_KIND_PREEMPT_ABORT_PROVEN_V1 ||
 	       k == MXFS_FENCE_KIND_LU_RESET_WITNESSED_V1 ||   /* 0.89.33 */
 	       k == MXFS_FENCE_KIND_DRBD_STONITH_WITNESSED_V1 || /* 0.90.40 */
+	       k == MXFS_FENCE_KIND_DRBD_REPLICA_EXCLUDED_V1 || /* 0.90.55 */
 	       k == MXFS_FENCE_KIND_SELF_SUCCESSION_DONE ||    /* */
 	       k == MXFS_FENCE_KIND_EXCLUSIVE_WRITE_GATE ||    /* D-0904 */
 	       k == MXFS_FENCE_KIND_BOOT_SUCCESSION_ABSENT;    /* 0.75.71 */
@@ -636,6 +658,7 @@ static inline bool mxfs_fence_kind_resv_type_ok(enum mxfs_fence_kind k,
 	case MXFS_FENCE_KIND_EXCLUSIVE_WRITE_GATE:
 		return resv_type == MXFS_PAL_PR_TYPE_WR_EX;
 	case MXFS_FENCE_KIND_DRBD_STONITH_WITNESSED_V1:
+	case MXFS_FENCE_KIND_DRBD_REPLICA_EXCLUDED_V1:
 		/* a DRBD device has no reservation; a certificate claiming
 		 * one was not produced by this profile's only producer */
 		return resv_type == 0;

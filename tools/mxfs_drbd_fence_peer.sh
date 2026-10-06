@@ -34,7 +34,9 @@
 # site writes its own for its power control (IPMI, a PDU, its hypervisor's
 # API); what it must guarantee is in docs/attachment-methods.md.
 #
-# Config /etc/mxfs/drbd-fence.conf:
+# Config /etc/mxfs/drbd-fence.conf (absent = agent=self, the built-in default):
+#   agent=self                  the pair's built-in authority, no node fence
+#                               (/usr/sbin/mxfs-drbd-fence-self)
 #   agent=ssh                   ssh to an authority's forced command (rig-virsh: older name)
 #   host=192.168.120.1          ... on this host
 #   user=steve
@@ -63,7 +65,12 @@ record() {  # <result> <peer domain> <detail...>
 }
 
 conf() { sed -n "s/^$1=//p" "$CONF" 2>/dev/null | tail -1; }
-[ -r "$CONF" ] || { record FAIL - "no $CONF"; exit 1; }
+# No node fence configured (no config, or agent=self): the pair's built-in
+# authority decides, by its fixed tie-break, and records its own receipt
+# (tools/mxfs_drbd_fence_self.py; docs/rulings/drbd-two-node-self-exclusion.md).
+if [ ! -r "$CONF" ] || [ "$(conf agent)" = self ]; then
+    exec /usr/sbin/mxfs-drbd-fence-self fence-peer
+fi
 agent=$(conf agent); host=$(conf host); user=$(conf user); key=$(conf key); delay=$(conf delay); cmd=$(conf cmd)
 self=$(awk '$1 == "self" {print $2}' "$CONF" | tail -1)
 [ -n "$self" ] || { record FAIL - "no 'self' in $CONF"; exit 1; }

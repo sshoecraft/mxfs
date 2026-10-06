@@ -260,6 +260,7 @@ static void mxfs_drbdw_parse(struct mxfs_pal_drbd_report *r)
 	F("RECEIPT_TIME", receipt_time);
 	F("RECEIPT_PEER", receipt_peer);
 	F("RECEIPT_EPISODE", receipt_episode);
+	F("RECEIPT_KIND", receipt_kind);
 	F("AUTH_STATE", auth_state);
 	F("AUTH_INHIBIT", auth_inhibit);
 #undef F

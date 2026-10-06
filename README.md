@@ -729,90 +729,25 @@ other sender. See `mxfs(5)` and [`docs/discovery.md`](docs/discovery.md).
 
 ### DRBD dual-primary (`2/net/mesh/drbd`)
 
-Two nodes, each with a local disk of the same size, and no shared storage.
-Install the MXFS package and `drbd-utils` on both, and keep the package's
-`force_transport=1` (`net/mesh`): `disk/caw` is refused on DRBD, because
-COMPARE AND WRITE cannot be atomic across two replicas.
+Two hosts, each with a local disk, and no shared storage, no third machine and
+no fence hardware. The complete, tested setup is in
+[`docs/drbd-setup.md`](docs/drbd-setup.md): `make install` on both, an LVM
+volume per host, the DRBD resource (protocol C, two primaries, every
+`after-sb-*` `disconnect`, `fencing resource-and-stonith` with
+`/usr/sbin/mxfs-drbd-fence-peer`), `mkfs.mxfs` once, and
+`systemctl enable --now mxfs-drbd@<resource>` to mount at boot.
 
-**1. The DRBD resource**, identical on both nodes
-(`/etc/drbd.d/mxfs.res`).  MXFS's admission refuses a mount if any of the
-`protocol`, `allow-two-primaries`, `after-sb-*`, `fencing` or `fence-peer`
-lines differ from this:
+Fencing is on by default with no configuration. On losing the peer, the host
+with the lower DRBD address isolates the other from itself and carries on; the
+other freezes and restarts, and rejoins once it is provably out. When that
+lower-address host is the one that died, the other cannot tell it from a cut
+link and waits for it, which no two-node system without a third vote or fence
+hardware can avoid. A node fence (IPMI, a PDU, a hypervisor) replaces the
+default through `/etc/mxfs/drbd-fence.conf`. Design:
+[`docs/rulings/drbd-two-node-self-exclusion.md`](docs/rulings/drbd-two-node-self-exclusion.md).
 
-```
-resource mxfs {
-    net {
-        protocol C;
-        allow-two-primaries yes;
-        after-sb-0pri disconnect;    # a split stays split until a side is chosen;
-        after-sb-1pri disconnect;    # an automatic discard policy can discard
-        after-sb-2pri disconnect;    # writes the filesystem already acknowledged
-    }
-    disk {
-        fencing resource-and-stonith;   # freeze I/O until the peer is proven off
-    }
-    handlers {
-        fence-peer "/usr/sbin/mxfs-drbd-fence-peer";
-    }
-    on node1 {
-        device /dev/drbd0 minor 0;
-        disk /dev/nvme0n1p3;
-        address 10.0.0.11:7789;
-        meta-disk internal;
-    }
-    on node2 {
-        device /dev/drbd0 minor 0;
-        disk /dev/nvme0n1p3;
-        address 10.0.0.12:7789;
-        meta-disk internal;
-    }
-}
-```
-
-**2. The fence authority.**  Something outside both nodes that can power
-either node off and keep it off: IPMI, a PDU, or the hypervisor the nodes run
-on.  It answers three one-line verbs, `fence <target> <requester>`,
-`status <target>` and `release <target> <episode> <requester>`, grants one
-winner per split, and keeps an inhibited node from starting by any path until
-the survivor releases it.  The full contract is in
-[`docs/attachment-methods.md`](docs/attachment-methods.md) ("The fence
-authority is the site's"); `tools/rig_fence_virsh.sh` is the test rig's
-(libvirt), and `tools/libvirt_qemu_hook.sh` is its start/restore guard.
-Point each node at it in `/etc/mxfs/drbd-fence.conf`:
-
-```
-agent=ssh                     # or agent=exec with cmd=/usr/local/sbin/<your authority>
-host=10.0.0.1
-user=fence
-key=/etc/mxfs/fence_key
-delay=0                       # 0 on one node, a few seconds on the other
-self node1                    # this node's name at the authority
-peer 10.0.0.12 node2          # DRBD peer address, peer's name at the authority
-```
-
-**3. Bring DRBD up dual-primary**, once:
-
-```
-drbdadm create-md mxfs && drbdadm up mxfs          # both nodes
-drbdadm primary --force mxfs                       # node1: the first sync
-drbdadm primary mxfs                               # node2, once UpToDate/UpToDate
-```
-
-**4. Format once and mount on both:**
-
-```
-mkfs.mxfs /dev/drbd0                               # node1 only
-mount -t mxfs /dev/drbd0 /mnt/shared               # both nodes
-dmesg | grep P-DRBD-ARM                            # ADMITTED, or REFUSED with the reason
-```
-
-**What you must never do on this attachment:** restore a node from saved
-memory or revert it to a VM snapshot.  A node's DRBD state, lock tickets and
-incarnation would all come back old together, and nothing at the device level
-can exclude them; MXFS relies on this being prohibited (the rig's libvirt hook
-refuses it).  A node that loses its peer stops writing until the authority
-confirms the peer is off, so a fence authority that cannot be reached means
-frozen I/O, never two writers.
+Never restore a node of this pair from saved memory or a VM snapshot, and never
+force-promote or mount `/dev/drbd0` by hand.
 
 ### Choosing the transport
 

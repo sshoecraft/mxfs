@@ -1,0 +1,16 @@
+[Unit]
+Description=MXFS DRBD pair: hold an excluded peer out until it is provably gone
+Documentation=file:///usr/share/doc/mxfs/drbd-setup.md
+# The isolation of an excluded peer is an nftables table, which a reboot
+# clears: re-apply it before DRBD can reconnect to the old peer.
+After=network.target
+Before=drbd.service
+
+[Service]
+Type=simple
+ExecStart=/usr/sbin/mxfs-drbd-fence-self guard
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

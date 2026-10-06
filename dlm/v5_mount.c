@@ -5541,6 +5541,20 @@ static int v5_drbd_tk_fence(struct mxfs_v5_dlm *ctx,
 			*kind_out = MXFS_FENCE_KIND_DRBD_STONITH_WITNESSED_V1;
 			return 0;
 		}
+		if (fres.kind == MXFS_FENCE_KIND_DRBD_REPLICA_EXCLUDED_V1) {
+			/* The built-in exclusion keeps the old owner off THIS
+			 * replica; a bootstrap-owner record is read by whoever
+			 * mounts next, on either replica, so it needs the peer
+			 * off (kind 25).  Refused, with nothing written. */
+			mxfs_pal_log(MXFS_LOG_ERR,
+				     "mxfs: P-BOOT-TAKEOVER-DRBD-EXCLUDED-ONLY what=%s "
+				     "node=%u inc=%llu — the peer is excluded from this "
+				     "replica but not proven off; a bootstrap takeover "
+				     "needs a node fence (IPMI/PDU) in "
+				     "/etc/mxfs/drbd-fence.conf, so it is refused",
+				     what, who->node_id, (unsigned long long)who->epoch);
+			return -EPERM;
+		}
 		if (mxfs_pal_time_ms() - t0 > V5_DRBD_TK_FENCE_MS) {
 			rc = -ETIMEDOUT;
 			break;
@@ -10599,6 +10613,7 @@ static int v5_drbd_fence(struct mxfs_v5_dlm *ctx, int dead_slot,
 			 uint64_t victim_key, struct mxfs_fence_result *fres)
 {
 	struct mxfs_pal_drbd_report *r;
+	enum mxfs_drbd_exclusion how = MXFS_DRBD_EXCLUSION_NONE;
 	char why[224];
 	int rc;
 
@@ -10617,7 +10632,7 @@ static int v5_drbd_fence(struct mxfs_v5_dlm *ctx, int dead_slot,
 		snprintf(why, sizeof(why), "the witness did not run (rc=%d %s)",
 			 rc, r->reason);
 	else
-		rc = mxfs_drbd_judge_excluded(r, why, sizeof(why));
+		rc = mxfs_drbd_judge_excluded_how(r, &how, why, sizeof(why));
 	if (rc) {
 		mxfs_pal_log(MXFS_LOG_WARN,
 			     "mxfs: P238-DRBD-FENCE-NOT-YET slot=%d node=%u "
@@ -10628,7 +10643,9 @@ static int v5_drbd_fence(struct mxfs_v5_dlm *ctx, int dead_slot,
 		mxfs_pal_free(r);
 		return 0;
 	}
-	fres->kind = MXFS_FENCE_KIND_DRBD_STONITH_WITNESSED_V1;
+	fres->kind = how == MXFS_DRBD_EXCLUSION_EXCLUDED ?
+		     MXFS_FENCE_KIND_DRBD_REPLICA_EXCLUDED_V1 :
+		     MXFS_FENCE_KIND_DRBD_STONITH_WITNESSED_V1;
 	fres->resv_type = 0;
 	fres->phase = MXFS_FENCE_PHASE_VERIFIED;
 	fres->retire_basis = MXFS_RETIRE_BASIS_TARGET_OP;
@@ -10636,12 +10653,15 @@ static int v5_drbd_fence(struct mxfs_v5_dlm *ctx, int dead_slot,
 	fres->retire_obs = MXFS_RETIRE_OBS_DRBD_DISCONNECTED_PEER_OUTDATED;
 	mxfs_pal_log(MXFS_LOG_WARN,
 		     "mxfs: P238-DRBD-FENCE-WITNESSED slot=%d node=%u epoch=%llu "
-		     "peer=%s cstate=%s peer_disk=%s episode=%s authority=%s — "
-		     "the peer is off and held off, and DRBD has drained every "
-		     "write it accepted from it",
+		     "peer=%s cstate=%s peer_disk=%s episode=%s authority=%s "
+		     "kind=%d — %s, and DRBD has drained every write it "
+		     "accepted from it",
 		     dead_slot, dead_node, (unsigned long long)dead_epoch,
 		     r->peer_host, r->cstate, r->disk_peer, r->receipt_episode,
-		     r->auth_state);
+		     r->auth_state, fres->kind,
+		     how == MXFS_DRBD_EXCLUSION_EXCLUDED ?
+		     "the peer is isolated from this host and this replica is "
+		     "held StandAlone" : "the peer is off and held off");
 	mxfs_pal_free(r);
 	return 0;
 }
@@ -11601,7 +11621,10 @@ gate_done:
 			/* DRBD: the certificate proves the peer can no longer write, so a
 			 * ticket it died holding in the emulated swap may now be set
 			 * aside; until here the survivor's swaps wait on it and fail. */
-			if (fres.kind == MXFS_FENCE_KIND_DRBD_STONITH_WITNESSED_V1)
+			/* kind 26 too: the excluded peer's writes can no longer
+			 * reach this replica, so its ticket can no longer move */
+			if (fres.kind == MXFS_FENCE_KIND_DRBD_STONITH_WITNESSED_V1 ||
+			    fres.kind == MXFS_FENCE_KIND_DRBD_REPLICA_EXCLUDED_V1)
 				mxfs_pal_drbd_cas_peer_fenced(ctx->dev);
 			/* the certified P&A removed the victim's key — its
 			 * ledger entry is FENCED (reusable).  Best effort: the
@@ -17627,7 +17650,8 @@ struct mxfs_v5_dlm *mxfs_v5_dlm_init(const struct mxfs_v5_dlm_opts *opts)
 #ifdef __KERNEL__
 	if (mxfs_force_transport == 1) {
 		ctx->transport = MXFS_V5_TRANSPORT_TCP;
-		mxfs_pal_log(MXFS_LOG_WARN,
+		/* the packaged configuration, reported once per mount */
+		mxfs_pal_log(MXFS_LOG_INFO,
 			     "mxfs: force_transport=1 → TCP transport");
 	}
 #endif

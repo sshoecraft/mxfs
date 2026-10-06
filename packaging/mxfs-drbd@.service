@@ -1,0 +1,22 @@
+[Unit]
+Description=MXFS on DRBD resource %i: bring up, promote and mount when safe
+Documentation=file:///usr/share/doc/mxfs/drbd-setup.md
+After=network-online.target mxfs-drbd-guard.service drbd.service
+Wants=network-online.target mxfs-drbd-guard.service
+# Guests on the shared filesystem stop before it is unmounted.
+Before=pve-guests.service
+
+[Service]
+# /etc/mxfs/drbd-%i.conf holds MOUNTPOINT=/mnt/shared
+EnvironmentFile=/etc/mxfs/drbd-%i.conf
+# simple: waiting for the peer to connect and resync must not hold up the
+# rest of the boot (local guests start without it).
+Type=simple
+RemainAfterExit=yes
+ExecStart=/usr/sbin/mxfs-drbd-fence-self boot %i ${MOUNTPOINT}
+# A clean departure: unmount, then step down, so the peer carries on.
+ExecStop=/bin/sh -c 'mountpoint -q "${MOUNTPOINT}" && umount "${MOUNTPOINT}"; drbdadm secondary %i; drbdadm down %i; true'
+TimeoutStopSec=180
+
+[Install]
+WantedBy=multi-user.target

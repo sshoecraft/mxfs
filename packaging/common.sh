@@ -184,6 +184,15 @@ mxfs_stage_node_files() {
     # them every DRBD mount is refused.
     install -m 755 "$SRCDIR/tools/mxfs_drbd_witness.py" "$root/usr/sbin/mxfs_drbd_witness.py"
     install -m 755 "$SRCDIR/tools/mxfs_drbd_fence_peer.sh" "$root/usr/sbin/mxfs-drbd-fence-peer"
+    # The pair's built-in fence authority (the default when no node fence is
+    # configured), the guard that holds an excluded peer out across reboots,
+    # and the per-resource unit that mounts MXFS on DRBD only when it is safe.
+    install -m 755 "$SRCDIR/tools/mxfs_drbd_fence_self.py" "$root/usr/sbin/mxfs-drbd-fence-self"
+    mkdir -p "$root/lib/systemd/system"
+    install -m 644 "$pkgdir/mxfs-drbd-guard.service" "$root/lib/systemd/system/mxfs-drbd-guard.service"
+    install -m 644 "$pkgdir/mxfs-drbd@.service" "$root/lib/systemd/system/mxfs-drbd@.service"
+    mkdir -p "$root/usr/share/doc/mxfs"
+    install -m 644 "$SRCDIR/docs/drbd-setup.md" "$root/usr/share/doc/mxfs/drbd-setup.md"
 
     echo "--- Installing man pages ---"
     mxfs_stage_manpages "$root"

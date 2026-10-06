@@ -48,6 +48,7 @@ REPORT_PATH = None
 FENCE_CONF = "/etc/mxfs/drbd-fence.conf"
 FENCE_RECORD_DIR = "/var/lib/mxfs"
 HANDLER = "/usr/sbin/mxfs-drbd-fence-peer"
+SELF_AUTHORITY = "/usr/sbin/mxfs-drbd-fence-self"
 
 
 def secure_fds():
@@ -169,7 +170,10 @@ def parse_dump(text, host):
     return out
 
 
-def fence_conf():
+def fence_conf(host):
+    """The fence configuration.  No file means the built-in two-node authority
+    (agent=self), which needs no names: this node is `host` and the peer is
+    the resource's other endpoint."""
     conf = {}
     try:
         with open(FENCE_CONF) as fh:
@@ -180,23 +184,30 @@ def fence_conf():
                     conf[k] = v
                 elif line.startswith("self "):
                     conf["self"] = line.split()[1]
+    except FileNotFoundError:
+        conf = {"agent": "self"}
     except OSError:
         return None
+    if conf.get("agent") == "self":
+        conf.setdefault("self", host)
     return conf
 
 
 def newest_receipt(res):
-    """The newest STONITHED line of the fence record: (time, peer, episode)."""
+    """The newest exclusion line of the fence record, STONITHED (a node fence)
+    or EXCLUDED (the built-in authority): (time, peer, episode, kind)."""
     try:
         with open(os.path.join(FENCE_RECORD_DIR, "drbd-fence.%s" % res)) as fh:
             lines = fh.read().splitlines()
     except OSError:
         return None
     for line in reversed(lines):
-        if " result=STONITHED " not in line:
+        kind = ("STONITHED" if " result=STONITHED " in line else
+                "EXCLUDED" if " result=EXCLUDED " in line else None)
+        if not kind:
             continue
         f = dict(kv.split("=", 1) for kv in line.split()[1:] if "=" in kv)
-        return line.split()[0], f.get("peer"), f.get("episode")
+        return line.split()[0], f.get("peer"), f.get("episode"), kind
     return None
 
 
@@ -212,6 +223,8 @@ def authority_argv(conf, verb_args):
                 "%s@%s" % (conf.get("user", ""), conf.get("host", "")), " ".join(verb_args)]
     if agent == "exec" and conf.get("cmd"):
         return [conf["cmd"]] + verb_args
+    if agent == "self":
+        return [SELF_AUTHORITY] + verb_args
     return None
 
 
@@ -298,12 +311,13 @@ def main():
     emit("PEER_ADDR", cfg.get("peer_addr"))
     emit("HANDLER_INSTALLED", 1 if os.access(HANDLER, os.X_OK) else 0)
 
-    conf = fence_conf()
+    conf = fence_conf(host)
     emit("FENCE_SELF", conf.get("self") if conf else None)
     rc = newest_receipt(res) if res else None
     emit("RECEIPT_TIME", rc[0] if rc else None)
     emit("RECEIPT_PEER", rc[1] if rc else None)
     emit("RECEIPT_EPISODE", rc[2] if rc else None)
+    emit("RECEIPT_KIND", rc[3] if rc else None)
     peer = cfg.get("peer_host")
     auth = authority_status(conf, peer) if peer else None
     emit("AUTH_STATE", auth[0] if auth else None)

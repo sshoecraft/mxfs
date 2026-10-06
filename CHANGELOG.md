@@ -1,5 +1,44 @@
 ## 2026-10-05 — 0.90.55 — `make install` installs a working node, not just the module
 
+**DRBD pairs are fenced by default with no fence hardware and no third host.**
+Until now a DRBD pair needed a fence authority outside both nodes that could
+power the loser off; two hosts with neither had no fencing at all.  The new
+built-in authority (`/usr/sbin/mxfs-drbd-fence-self`, used when
+`/etc/mxfs/drbd-fence.conf` is absent or says `agent=self`) follows what
+Proxmox, corosync's tie-breaker and OCFS2 do, after primary-source research and
+a design consult (`docs/rulings/drbd-two-node-self-exclusion.md`):
+- **One fixed tie-break.** The endpoint with the lower DRBD address wins every
+  uncoordinated split.
+- **The winner excludes the peer before DRBD resumes I/O:**
+  - nftables drops the DRBD and MXFS ports to and from the peer;
+  - a durable inhibit and an EXCLUDED receipt are written;
+  - the resource goes StandAlone.
+
+  `mxfs-drbd-guard` re-applies the isolation after a reboot, and releases the
+  peer only when the peer answers over ssh that it holds no live MXFS
+  superblock and is not DRBD Primary.
+- **The loser stays frozen,** logs why, and restarts.
+- **A planned restart of the winner is not a loss:** the same ssh evidence lets
+  the other node carry on.
+- **Where it cannot help it says so:** when the lower-address host itself
+  dies, and after a simultaneous crash of both.
+
+The module certifies a peer excluded this way as a new fence kind, 26
+(`DRBD_REPLICA_EXCLUDED_V1`), never as 25 (powered off). A bootstrap takeover
+still requires 25.
+
+`mxfs-drbd@<resource>.service` mounts MXFS on DRBD at boot only when it is
+safe: Connected with both disks UpToDate, or as the survivor of an exclusion.
+At shutdown it unmounts and steps down.
+
+The setup guide is `docs/drbd-setup.md`, and `make install` puts it in
+`/usr/share/doc/mxfs`.
+
+**Kernel log.** `DLM reload BAIL` is a handled outcome, so it is now a debug
+probe instead of a ratelimited warning (about 4,000 lines in under an hour on
+one PVE host, on the older build).  The per-mount `force_transport=1` line is
+INFO, not WARN.
+
 **A source install now gets everything a package installs.**  `make install`
 ran `modules_install` and `depmod` and nothing else.  On two physical
 Proxmox VE 9 hosts installed from a clone with `make && make install`

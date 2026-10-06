@@ -1590,6 +1590,18 @@
       "summary": "a mount MXFS refuses for a stated reason (no fencing, no PR support) returns ENOTCONN, so mount(8) prints 'Transport endpoint is not connected' and the reason exists only in dmesg",
       "evidence": "MEASURED 2026-10-05 pve1, 0.90.55: both refusals (P-DRBD-ARM-REFUSED, PR register failed) gave mount rc=32 with 'fsconfig() failed: Transport endpoint is not connected.'",
       "next": "Return EPERM/EACCES for an admission refusal and log the one-line reason through the fs_context log (errorfc) so mount(8) prints it."
+    },
+    {
+      "id": "D-DRBD-SELF-AUTHORITY-REFUSES-STARTUP-AFTER-PAIR-CRASH",
+      "severity": "major",
+      "nodes": 2,
+      "config": "net/mesh/drbd",
+      "opened": "2026-10-05",
+      "summary": "with the built-in two-node authority (no node fence), a pair whose two nodes crashed at once cannot remount: the startup fence is refused because nothing proves the connected peer's earlier incarnation gone",
+      "evidence": "BY DESIGN 0.90.55 (docs/rulings/drbd-two-node-self-exclusion.md item 7): mxfs-drbd-fence-self 'fence' verb returns FENCE_REFUSED; v5_drbd_startup_fence then refuses the bootstrap. A clean shutdown of both needs no startup fence.",
+      "next": "Design a mutual startup protocol for two connected, freshly booted nodes (the consult's 'mutual startup/admission protocol': both current incarnations attest, over an authenticated channel, that no MXFS superblock of theirs is live, then commit a startup epoch before either mounts), consult it, and implement it in the self authority.",
+      "impact": "stability",
+      "impact_why": "refusal is fail-closed: no write happens, the mount is refused with its reason; availability after a simultaneous crash of both nodes, not integrity"
     }
   ]
 }

@@ -64,6 +64,10 @@ cp "$SRCDIR/tools/crc32c.h" "$TARDIR/tools/"
 cp "$SRCDIR/tools/mxfs_lu_reset_witness.py" "$TARDIR/tools/"
 cp "$SRCDIR/tools/mxfs_drbd_witness.py" "$TARDIR/tools/"
 cp "$SRCDIR/tools/mxfs_drbd_fence_peer.sh" "$TARDIR/tools/"
+cp "$SRCDIR/tools/mxfs_drbd_fence_self.py" "$TARDIR/tools/"
+mkdir -p "$TARDIR/systemd" "$TARDIR/doc"
+cp "$SCRIPTDIR/mxfs-drbd-guard.service" "$SCRIPTDIR/mxfs-drbd@.service" "$TARDIR/systemd/"
+cp "$SRCDIR/docs/drbd-setup.md" "$TARDIR/doc/"
 cp -r "$SRCDIR/include" "$TARDIR/tools/"
 
 # udev rule
@@ -139,6 +143,11 @@ install -m 755 tools/mxfs_lu_reset_witness.py %{buildroot}/usr/sbin/mxfs_lu_rese
 # the DRBD attachment's witness and fence-peer handler (see mkdeb.sh)
 install -m 755 tools/mxfs_drbd_witness.py %{buildroot}/usr/sbin/mxfs_drbd_witness.py
 install -m 755 tools/mxfs_drbd_fence_peer.sh %{buildroot}/usr/sbin/mxfs-drbd-fence-peer
+install -m 755 tools/mxfs_drbd_fence_self.py %{buildroot}/usr/sbin/mxfs-drbd-fence-self
+mkdir -p %{buildroot}/usr/lib/systemd/system %{buildroot}/usr/share/doc/mxfs
+install -m 644 systemd/mxfs-drbd-guard.service %{buildroot}/usr/lib/systemd/system/mxfs-drbd-guard.service
+install -m 644 systemd/mxfs-drbd@.service %{buildroot}/usr/lib/systemd/system/mxfs-drbd@.service
+install -m 644 doc/drbd-setup.md %{buildroot}/usr/share/doc/mxfs/drbd-setup.md
 
 # Man pages
 mkdir -p %{buildroot}/usr/share/man/man5
@@ -176,6 +185,8 @@ install -m 644 selinux/mxfs.cil %{buildroot}/usr/share/selinux/packages/mxfs.cil
 %post
 udevadm control --reload-rules 2>/dev/null || true
 udevadm trigger --subsystem-match=block 2>/dev/null || true
+systemctl daemon-reload 2>/dev/null || true
+systemctl enable --now mxfs-drbd-guard.service 2>/dev/null || true
 # installed into the policy store even while SELinux is disabled, so a host
 # that enables it later labels MXFS from its first boot enforcing
 if command -v semodule >/dev/null 2>&1; then
@@ -255,6 +266,10 @@ fi
 /usr/sbin/mxfs_lu_reset_witness.py
 /usr/sbin/mxfs_drbd_witness.py
 /usr/sbin/mxfs-drbd-fence-peer
+/usr/sbin/mxfs-drbd-fence-self
+/usr/lib/systemd/system/mxfs-drbd-guard.service
+/usr/lib/systemd/system/mxfs-drbd@.service
+/usr/share/doc/mxfs/drbd-setup.md
 /usr/share/man/man5/*.5.gz
 /usr/share/man/man8/*.8.gz
 /etc/modules-load.d/mxfs.conf

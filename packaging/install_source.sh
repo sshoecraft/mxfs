@@ -67,6 +67,10 @@ install_files() {
     if [ -z "$ROOT" ]; then
         udevadm control --reload-rules 2>/dev/null || true
         udevadm trigger --subsystem-match=block 2>/dev/null || true
+        # The DRBD guard is idle unless this node holds a peer excluded;
+        # enabled always, so an exclusion survives a reboot on any node.
+        systemctl daemon-reload 2>/dev/null || true
+        systemctl enable --now mxfs-drbd-guard.service 2>/dev/null || true
     fi
 
     # `modprobe mxfs` does nothing while a module is loaded, so after an

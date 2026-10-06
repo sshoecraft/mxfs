@@ -1270,6 +1270,7 @@ struct mxfs_pal_drbd_report {
     char     receipt_time[32];
     char     receipt_peer[64];
     char     receipt_episode[48];
+    char     receipt_kind[16];  /* STONITHED (power fence) or EXCLUDED (self) */
     char     auth_state[32];
     char     auth_inhibit[48];
     size_t   report_len;

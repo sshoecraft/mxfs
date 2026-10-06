@@ -1596,6 +1596,8 @@ const char *mxfs_fence_kind_name(enum mxfs_fence_kind k)
 		return "LU_RESET_WITNESSED_V1";
 	case MXFS_FENCE_KIND_DRBD_STONITH_WITNESSED_V1:
 		return "DRBD_STONITH_WITNESSED_V1";
+	case MXFS_FENCE_KIND_DRBD_REPLICA_EXCLUDED_V1:
+		return "DRBD_REPLICA_EXCLUDED_V1";
 	case MXFS_FENCE_KIND_PREEMPT_ABORT_DONE:
 		return "PREEMPT_ABORT_DONE_RETIRED16";
 	case MXFS_FENCE_KIND_SINGLE_NODE_EXCLUSIVE: return "SINGLE_NODE_EXCLUSIVE";
@@ -2623,6 +2625,18 @@ bool mxfs_fence_durable_kind_supported(enum mxfs_fence_record_family family,
 		 * bootstrap-owner record it reseals — the old owner's exclusion asked
 		 * of the same function (v5_drbd_tk_fence), or K's descriptor that
 		 * function certified.  Either family, the same judgment. */
+		return true;
+	case MXFS_FENCE_KIND_DRBD_REPLICA_EXCLUDED_V1:
+		/* 0.90.55.  The pair's built-in exclusion: the tie-break winner
+		 * isolated the peer from this host and holds DRBD StandAlone under
+		 * a durable inhibit (docs/rulings/drbd-two-node-self-exclusion.md).
+		 * One producer, v5_drbd_fence, from the same witness judgment as
+		 * 25 taking its EXCLUDED shape.  It never stands for 25. */
+		if (family != MXFS_FENCE_RECORD_RECOVERY_DESC) {
+			if (why)
+				*why = "kind 26 is minted only into recovery descriptors";
+			return false;
+		}
 		return true;
 	case MXFS_FENCE_KIND_SINGLE_NODE_EXCLUSIVE:
 		reason = "REVOKED kind 17: the operator's single-node assertion is "

@@ -49,19 +49,41 @@ static int common(const struct mxfs_pal_drbd_report *r, char *why, size_t whylen
     return 0;
 }
 
-/* The peer is off and held in the episode its receipt names. */
-static int peer_fenced(const struct mxfs_pal_drbd_report *r, char *why, size_t whylen)
+/*
+ * The peer is excluded in the episode its receipt names, by a node fence
+ * (off and held off) or by the built-in two-node authority (isolated from
+ * this host and held StandAlone).  The receipt's kind and the authority's
+ * state must agree; a mixed pair proves neither.
+ */
+static int peer_fenced(const struct mxfs_pal_drbd_report *r, enum mxfs_drbd_exclusion *how,
+                       char *why, size_t whylen)
 {
     NEED(eq(r->cstate, "WFConnection") || eq(r->cstate, "StandAlone"),
          "the replication link is '%s', not disconnected%s", r->cstate, "");
     NEED(eq(r->disk_peer, "Outdated"), "the peer's disk is '%s', not Outdated%s", r->disk_peer, "");
     NEED(eq(r->receipt_peer, r->peer_host) && r->receipt_episode[0],
-         "no STONITHED receipt naming the peer %s (newest names '%s')", r->peer_host, r->receipt_peer);
-    NEED(eq(r->auth_state, "shut off"),
-         "the fence authority reports the peer '%s', not shut off%s", r->auth_state, "");
+         "no fence receipt naming the peer %s (newest names '%s')", r->peer_host, r->receipt_peer);
     NEED(eq(r->auth_inhibit, r->receipt_episode),
          "the peer is inhibited under episode '%s', the receipt names '%s'",
          r->auth_inhibit, r->receipt_episode);
+    if (eq(r->receipt_kind, "EXCLUDED")) {
+        /* WFConnection would take the old incarnation back the moment the
+         * link healed; only StandAlone keeps it out. */
+        NEED(eq(r->cstate, "StandAlone"),
+             "the peer was excluded but the replication link is '%s', not StandAlone%s",
+             r->cstate, "");
+        NEED(eq(r->auth_state, "excluded"),
+             "the fence authority reports the peer '%s', not excluded%s", r->auth_state, "");
+        if (how)
+            *how = MXFS_DRBD_EXCLUSION_EXCLUDED;
+        return 0;
+    }
+    NEED(eq(r->receipt_kind, "STONITHED"),
+         "the newest fence receipt is '%s', neither STONITHED nor EXCLUDED%s", r->receipt_kind, "");
+    NEED(eq(r->auth_state, "shut off"),
+         "the fence authority reports the peer '%s', not shut off%s", r->auth_state, "");
+    if (how)
+        *how = MXFS_DRBD_EXCLUSION_STONITH;
     return 0;
 }
 
@@ -86,19 +108,27 @@ int mxfs_drbd_judge_arm(const struct mxfs_pal_drbd_report *r, char *why, size_t 
              r->auth_inhibit, "");
         return 0;
     }
-    return peer_fenced(r, why, whylen);
+    return peer_fenced(r, NULL, why, whylen);
 }
 
-int mxfs_drbd_judge_excluded(const struct mxfs_pal_drbd_report *r, char *why, size_t whylen)
+int mxfs_drbd_judge_excluded_how(const struct mxfs_pal_drbd_report *r,
+                                 enum mxfs_drbd_exclusion *how, char *why, size_t whylen)
 {
     int rc;
 
+    if (how)
+        *how = MXFS_DRBD_EXCLUSION_NONE;
     if (!r)
         return -EINVAL;
     rc = common(r, why, whylen);
     if (rc)
         return rc;
-    return peer_fenced(r, why, whylen);
+    return peer_fenced(r, how, why, whylen);
+}
+
+int mxfs_drbd_judge_excluded(const struct mxfs_pal_drbd_report *r, char *why, size_t whylen)
+{
+    return mxfs_drbd_judge_excluded_how(r, NULL, why, whylen);
 }
 
 /* Dotted IPv4 to a number; -1 when it is not exactly four octets. */

@@ -36,12 +36,34 @@ int mxfs_drbd_judge_arm(const struct mxfs_pal_drbd_report *r,
                         char *why, size_t whylen);
 
 /*
- * Is the peer excluded RIGHT NOW?  0 when it is: disconnected, its disk
- * Outdated, a STONITHED receipt naming it, and the fence authority reporting
- * it off and inhibited under that receipt's episode.  This is both the fence
- * evidence and the re-check before every irreversible recovery step: a peer
- * that was started again, or reconnected, fails it.
+ * Which exclusion held.  The two are different proofs and are certified as
+ * different fence kinds; neither is ever accepted as the other.
+ *   STONITH  — a node fence powered the peer off and holds it off
+ *              (STONITHED receipt, authority "shut off"): kind 25.
+ *   EXCLUDED — the built-in two-node authority: this node won the pair's
+ *              fixed tie-break, isolated the peer from this host's network
+ *              and left DRBD StandAlone under a durable inhibit (EXCLUDED
+ *              receipt, authority "excluded").  It proves the peer can no
+ *              longer reach this replica or this lock manager, not that the
+ *              peer is off: kind 26.
  */
+enum mxfs_drbd_exclusion {
+    MXFS_DRBD_EXCLUSION_NONE    = 0,
+    MXFS_DRBD_EXCLUSION_STONITH = 1,
+    MXFS_DRBD_EXCLUSION_EXCLUDED = 2,
+};
+
+/*
+ * Is the peer excluded RIGHT NOW?  0 when it is: disconnected, its disk
+ * Outdated, a receipt naming it, and the fence authority reporting it
+ * excluded under that receipt's episode, by one of the two shapes above
+ * (*how, when non-NULL, says which).  This is both the fence evidence and the
+ * re-check before every irreversible recovery step: a peer that was started
+ * again, or reconnected, fails it.
+ */
+int mxfs_drbd_judge_excluded_how(const struct mxfs_pal_drbd_report *r,
+                                 enum mxfs_drbd_exclusion *how,
+                                 char *why, size_t whylen);
 int mxfs_drbd_judge_excluded(const struct mxfs_pal_drbd_report *r,
                              char *why, size_t whylen);
 

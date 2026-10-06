@@ -2664,10 +2664,12 @@ static int mxfs_reload_lock_for_fork_rebuild(struct xfs_inode *ip,
 			cond_resched();
 		}
 		if (!got_w) {
-			/* was pr_warn (uncapped) — 100k+ lines per chain
-			 * lap cluster-wide, itself a measurable drag and a dmesg-
-			 * ring flusher that buried other probes.  Ratelimited. */
-			pr_warn_ratelimited("mxfs: DLM reload BAIL ino=%llu (i_lock contended; buffer staled, will retry) cnt=%ld rd_held=%d spin=%d wr_last=%pS pid=%d comm=%s rd_last=%pS pid=%d comm=%s\n",
+			/* A bail is the handled outcome (i_dlm_stale stays set
+			 * and the next access reloads), so it is a probe, not a
+			 * warning: two concurrent image builds on two PVE hosts
+			 * (an older build) put ~4,000 of these in one node's
+			 * kernel log in under an hour. */
+			mxfs_probe_ratelimited("mxfs: DLM reload BAIL ino=%llu (i_lock contended; buffer staled, will retry) cnt=%ld rd_held=%d spin=%d wr_last=%pS pid=%d comm=%s rd_last=%pS pid=%d comm=%s\n",
 				(unsigned long long)ip->i_ino,
 				atomic_long_read(&ip->i_lock.count),
 				atomic_read(&ip->i_mxfs_ilk_rd_held),
