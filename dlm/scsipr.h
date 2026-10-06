@@ -558,6 +558,41 @@ enum mxfs_fence_kind {
 	 * recovery-descriptor family only.
 	 */
 	MXFS_FENCE_KIND_DRBD_REPLICA_EXCLUDED_V1 = 26,
+	/*
+	 * 0.90.62.  THE DRBD PAIR'S DEATH CERTIFICATE: the victim incarnation is
+	 * gone, read off DRBD's own role rules on a CONNECTED link
+	 * (docs/rulings/drbd-two-node-self-exclusion.md, decision 9).  The
+	 * witness report taken in the attempt shows the link Connected, both
+	 * disks UpToDate, this node a working Primary and the peer Secondary
+	 * (mxfs_drbd_judge_peer_secondary), and the victim is not an incarnation
+	 * of this host's current boot.  DRBD 8.4 then gives, in its own code:
+	 *
+	 *   no peer incarnation — a Secondary refuses every open (drbd_open), a
+	 *   Primary cannot demote while anything holds it open (is_valid_state:
+	 *   SS_DEVICE_IN_USE), and a mount holds its device open from fill_super
+	 *   to kill_sb; a connected peer's promotion is applied to THIS node's
+	 *   view before the peer may complete it (receive_req_state replies only
+	 *   after drbd_change_state), so "Secondary" here means the peer was not
+	 *   Primary at the read;
+	 *   RETIREMENT — a demotion waits until every request the demoting node
+	 *   sent is acknowledged before it reports its new role
+	 *   (drbd_set_role: ap_pending_cnt == 0, then the state is sent), and a
+	 *   protocol-C write is acknowledged only after this node's disk
+	 *   completed it; an incarnation whose host crashed instead left only
+	 *   writes DRBD's reconnect resync carried before both disks read
+	 *   UpToDate.  Every write the victim ever made is on this disk.
+	 *
+	 * A victim of the peer host is therefore gone, and one of an earlier boot
+	 * of this host went with that boot; identities are never reused, so
+	 * neither can write again.  It is a fact about an incarnation that has
+	 * ended, NOT a continuing fence: nothing re-checks the peer against it,
+	 * and nothing may clear the peer's swap register under it, because a
+	 * later incarnation of the peer may be live by the time it is read.
+	 * resv_type 0; accepted in both record families, because a bootstrap
+	 * takeover needs exactly the old owner's death.  One producer,
+	 * v5_drbd_fence.
+	 */
+	MXFS_FENCE_KIND_DRBD_PEER_SECONDARY_V1 = 27,
 };
 
 /*
@@ -592,6 +627,7 @@ static inline bool mxfs_fence_kind_proves_exclusion(enum mxfs_fence_kind k)
 	       k == MXFS_FENCE_KIND_LU_RESET_WITNESSED_V1 ||   /* 0.89.33 */
 	       k == MXFS_FENCE_KIND_DRBD_STONITH_WITNESSED_V1 || /* 0.90.40 */
 	       k == MXFS_FENCE_KIND_DRBD_REPLICA_EXCLUDED_V1 || /* 0.90.55 */
+	       k == MXFS_FENCE_KIND_DRBD_PEER_SECONDARY_V1 ||  /* 0.90.62 */
 	       k == MXFS_FENCE_KIND_SELF_SUCCESSION_DONE ||    /* */
 	       k == MXFS_FENCE_KIND_EXCLUSIVE_WRITE_GATE ||    /* D-0904 */
 	       k == MXFS_FENCE_KIND_BOOT_SUCCESSION_ABSENT;    /* 0.75.71 */
@@ -659,6 +695,7 @@ static inline bool mxfs_fence_kind_resv_type_ok(enum mxfs_fence_kind k,
 		return resv_type == MXFS_PAL_PR_TYPE_WR_EX;
 	case MXFS_FENCE_KIND_DRBD_STONITH_WITNESSED_V1:
 	case MXFS_FENCE_KIND_DRBD_REPLICA_EXCLUDED_V1:
+	case MXFS_FENCE_KIND_DRBD_PEER_SECONDARY_V1:
 		/* a DRBD device has no reservation; a certificate claiming
 		 * one was not produced by this profile's only producer */
 		return resv_type == 0;
@@ -819,6 +856,10 @@ enum mxfs_retire_observation {
 	 * judged from a witness report taken in this attempt.  Disconnected is
 	 * reached only after DRBD drained every peer write it had accepted. */
 	MXFS_RETIRE_OBS_DRBD_DISCONNECTED_PEER_OUTDATED = 6,
+	/* 0.90.62, the DRBD attachment: the replication link Connected, both
+	 * disks UpToDate, no I/O suspended, this node Primary and the peer
+	 * Secondary, as judged from a witness report taken in this attempt. */
+	MXFS_RETIRE_OBS_DRBD_CONNECTED_PEER_SECONDARY = 7,
 };
 
 static inline const char *mxfs_retire_observation_name(uint8_t o)
@@ -836,6 +877,8 @@ static inline const char *mxfs_retire_observation_name(uint8_t o)
 		return "sole-registrant-victim-absent";
 	case MXFS_RETIRE_OBS_DRBD_DISCONNECTED_PEER_OUTDATED:
 		return "drbd-disconnected-peer-outdated";
+	case MXFS_RETIRE_OBS_DRBD_CONNECTED_PEER_SECONDARY:
+		return "drbd-connected-peer-secondary";
 	default:
 		return "unknown";
 	}
@@ -873,6 +916,14 @@ enum mxfs_retire_claim {
 	 * from the victim is outstanding and none can arrive while disconnected.
 	 * Paired with MXFS_RETIRE_OBS_DRBD_DISCONNECTED_PEER_OUTDATED. */
 	MXFS_RETIRE_CLAIM_DRBD_DISCONNECT_DRAINED_PEER_WRITES = 4,
+	/* 0.90.62.  The peer is Secondary on a connected link: it demoted only
+	 * after every request it had sent was acknowledged, each one after this
+	 * node's disk completed it (drbd_set_role), or its host crashed and the
+	 * reconnect resync carried what it left before both disks read UpToDate.
+	 * No write of a victim of that host, or of an earlier boot of this one,
+	 * is outstanding or can still arrive.  Paired with
+	 * MXFS_RETIRE_OBS_DRBD_CONNECTED_PEER_SECONDARY. */
+	MXFS_RETIRE_CLAIM_DRBD_DEMOTION_DRAINED_PEER_WRITES = 5,
 };
 
 static inline const char *mxfs_retire_claim_name(uint8_t c)
@@ -886,6 +937,8 @@ static inline const char *mxfs_retire_claim_name(uint8_t c)
 		return "witnessed-lu-reset-terminated-all-tasks-on-the-unit";
 	case MXFS_RETIRE_CLAIM_DRBD_DISCONNECT_DRAINED_PEER_WRITES:
 		return "drbd-disconnect-drained-every-accepted-peer-write";
+	case MXFS_RETIRE_CLAIM_DRBD_DEMOTION_DRAINED_PEER_WRITES:
+		return "drbd-demotion-drained-every-peer-write";
 	default:
 		return "none";
 	}

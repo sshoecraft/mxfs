@@ -1240,17 +1240,98 @@ MODULE_PARM_DESC(dbg_replay_cut_hold_ms,
 	"DEBUG: how long the replay parks at a dbg_replay_cut_prefix cut (default 20000 ms; keep it under the 62 s dead window)");
 
 /*
+ * The barrier before and after a dead peer's slice replay on a mounted
+ * survivor.
+ *
+ * It used to be the join's destage (mxfs_dlm_peer_joined_flush): force the
+ * log, push the AIL until it is EMPTY, and fail unless the cached-view walk
+ * retained nothing.  A survivor whose own writers never stop meets neither.
+ * Measured on the DRBD rig (0.90.57) with four VM-like O_DIRECT loads on the
+ * survivor: each round took ~35 s waiting on an AIL the loads kept refilling
+ * (every write relogs its image's timestamps) and still ended with two inode
+ * clusters retained, so the replay started only when the loads ended, 105.7 s
+ * after the election.  A host whose VMs never stop writing would never have
+ * replayed the dead node's slice.
+ *
+ * What the replay needs, and what it does not (design consult, recorded in
+ * ccmemory as ruling-foreign-replay-barrier-judges-retained-buffers-by-authority):
+ *
+ *  - no stale CLEAN view of anything the dead node held at death: the walk
+ *    drops every clean cached block exactly as before;
+ *  - not this node's own logged content on disk.  Every image the replay
+ *    applies is one whose grant the dead node held at death (token
+ *    enforcement); those grants stay frozen until recovery completes, and
+ *    nothing this node logged is under one of them, so an empty AIL proves
+ *    nothing the replay relies on;
+ *  - a buffer the walk RETAINS is judged by whose authority keeps it:
+ *      inode clusters: authority is per slot.  The replay patches the dead
+ *        node's slots in the canonical cached buffer under its lock, after a
+ *        platter refresh of each slot, and records them for the partial
+ *        writer (b_mxfs_recov_slots); this node's slots stay its own;
+ *      AG metadata carrying this node's un-landed content: this node's only
+ *        while it holds the AG's grant.  In an AG it does not hold that is an
+ *        invariant violation, and the barrier fails closed;
+ *      other blocks carrying this node's un-landed content: under grants this
+ *        node holds, which the dead node cannot have held at death;
+ *      blocks locked when the walk met them: unclassified, so the barrier
+ *        fails closed.  They are transient, and the rounds retry them.
+ *
+ * The replay pass writes every image it applied and waits for those writes,
+ * and a durable flush precedes the IMAGES_REPLAYED milestone, so the call
+ * after the replay needs nothing more of the AIL either.  The join and the
+ * intent engine's home write keep the full destage: there, this node's own
+ * content really must be on the platter.
+ */
+int
+mxfs_dlm_foreign_replay_barrier(
+	struct xfs_mount	*mp,
+	unsigned int		slot,
+	const char		*when)
+{
+	struct mxfs_inval_census c;
+	ktime_t			t0 = ktime_get();
+	unsigned int		round;
+	int			error = -EBUSY;
+
+	memset(&c, 0, sizeof(c));
+	for (round = 1; round <= MXFS_INVAL_FLUSH_ROUNDS; round++) {
+		if (xfs_is_shutdown(mp))
+			return -EIO;
+		xfs_log_force(mp, XFS_LOG_SYNC);
+		mxfs_blkdev_flush_epoch(mp);
+		error = mxfs_dlm_invalidate_cached_views_census(mp, &c);
+		if (error && error != -EBUSY)
+			break;
+		if (!c.ag_unheld && !c.blk_locked) {
+			error = 0;
+			break;
+		}
+		error = -EBUSY;
+		msleep(50);
+	}
+	mxfs_pal_log(error ? MXFS_LOG_WARN : MXFS_LOG_INFO,
+		"mxfs: P232-FREPLAY-BARRIER slot=%u when=%s rc=%d rounds=%u ms=%lld "
+		"retained{inode-cluster=%u ag-held=%u ag-unheld=%u own-block=%u "
+		"locked-block=%u} dropped=%u%s",
+		slot, when, error, min_t(unsigned int, round, MXFS_INVAL_FLUSH_ROUNDS),
+		ktime_ms_delta(ktime_get(), t0), c.ino, c.ag_held, c.ag_unheld,
+		c.blk_own, c.blk_locked, c.dropped,
+		error ? " — a retained buffer is not provably this node's; the "
+			"slice is not replayed or published yet and the reap retries" : "");
+	return error;
+}
+
+/*
  * v0.5.0 live foreign-slice replay of a dead peer's log slice.
  *
  * The dead node's fsync-acknowledged metadata may exist only in its
  * per-node log slice — without this, survivors serve stale data until a
  * future mount claims the slice (crash_consistency: 113 acked records,
- * survivors saw 1).  The flush before the replay is load-bearing twice
- * over: it (a) pushes OUR logged-but-unwritten versions of shared blocks
- * to disk so pass2's LSN gating compares against current disk state, and
- * (b) invalidates our cached AG/inode views.  The flush after drops any
- * cached view of ranges the replay rewrote, so subsequent FUA reads see
- * the recovered metadata.
+ * survivors saw 1).  The barrier before the replay drops every clean cached
+ * view the dead node's images could make stale; the one after drops any
+ * cached view of ranges the replay rewrote, so subsequent FUA reads see the
+ * recovered metadata.  Neither waits for this node's own logged content to
+ * land (mxfs_dlm_foreign_replay_barrier says why).
  */
 void
 mxfs_dlm_foreign_replay_work_fn(
@@ -1445,7 +1526,7 @@ mxfs_dlm_foreign_replay_work_fn(
 		 * both are re-armable — the dead slot's bit stays set and the
 		 * pending marker survives, so refuse the slice instead.
 		 */
-		if (mxfs_dlm_peer_joined_flush(mp)) {
+		if (mxfs_dlm_foreign_replay_barrier(mp, slot, "pre")) {
 			xfs_alert(mp,
 				"MXFS foreign replay slot=%u: cached views "
 				"could not be dropped before replay — slice "
@@ -1536,7 +1617,7 @@ mxfs_dlm_foreign_replay_work_fn(
 			mxfs_v5_dlm_recovery_set_census_zero(mp->m_mxfs_dlm,
 							     (int)slot);
 		}
-		if (mxfs_dlm_peer_joined_flush(mp)) {
+		if (mxfs_dlm_foreign_replay_barrier(mp, slot, "post")) {
 			xfs_alert(mp,
 				"MXFS foreign replay slot=%u: slice replayed "
 				"but our cached views could not be dropped "

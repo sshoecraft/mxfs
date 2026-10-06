@@ -3,19 +3,28 @@ Description=MXFS on DRBD resource %i: bring up, promote and mount when safe
 Documentation=file:///usr/share/doc/mxfs/drbd-setup.md
 After=network-online.target mxfs-drbd-guard.service drbd.service
 Wants=network-online.target mxfs-drbd-guard.service
-# Guests on the shared filesystem stop before it is unmounted.
-Before=pve-guests.service
+# Proxmox starts its on-boot guests (pve-guests) and its HA services
+# (pve-ha-lrm) once this unit reports ready: when the filesystem is mounted,
+# or after GUEST_WAIT seconds when it cannot be yet (the peer down or still
+# booting); the on-boot guests that need it are then started when it is.  On
+# the way down the guests stop before it is unmounted.
+Before=pve-guests.service pve-ha-lrm.service
 
 [Service]
-# /etc/mxfs/drbd-%i.conf holds MOUNTPOINT=/mnt/shared
+# /etc/mxfs/drbd-%i.conf holds MOUNTPOINT=/mnt/shared, and optionally
+# GUEST_WAIT=<seconds> (default 300)
 EnvironmentFile=/etc/mxfs/drbd-%i.conf
-# simple: waiting for the peer to connect and resync must not hold up the
-# rest of the boot (local guests start without it).
-Type=simple
+Type=notify
+NotifyAccess=main
 RemainAfterExit=yes
+# The wait for the peer is bounded by GUEST_WAIT inside the program, which
+# keeps waiting for the mount after it reports ready.
+TimeoutStartSec=infinity
 ExecStart=/usr/sbin/mxfs-drbd-fence-self boot %i ${MOUNTPOINT}
-# A clean departure: unmount, then step down, so the peer carries on.
-ExecStop=/bin/sh -c 'mountpoint -q "${MOUNTPOINT}" && umount "${MOUNTPOINT}"; drbdadm secondary %i; drbdadm down %i; true'
+# A clean departure: unmount, then step down, so the peer carries on.  The
+# mount is found in /proc/mounts: `mountpoint -q` stats the path, and a
+# withdrawn MXFS mount answers that with ESTALE, which reads as unmounted.
+ExecStop=/usr/sbin/mxfs-drbd-fence-self stop %i ${MOUNTPOINT}
 TimeoutStopSec=180
 
 [Install]

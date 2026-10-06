@@ -733,6 +733,40 @@ filesystem can let go of it.
      local mutator: an absent record cannot say whether a foreign write
      landed after the seal, so preventing the mutation is the only sound
      fix.  Harness: `tests/d0981_pending_victim_sweep.sh`.
+     *Our own slot's predecessor is kept for an open bootstrap term* (0.90.64).
+     A page import releases records on this node's own slot under another
+     node id as residue: a live node never shares a slot, so such a record is
+     a predecessor's leftover whose departure purge never reached the page
+     (an EX record is purged by that node id, a shared bit that no grant or
+     request of ours accounts for is released through the local-master
+     unlock).  One predecessor is not residue: the victim K whose slot a
+     whole-cluster bootstrap owner adopted as its own log, while the term is
+     open.  K's records are what K's pre-replay verification judges against
+     the sealed manifest, and that verification runs again on a same-boot
+     resume or a takeover, where K is replayed once more as the owner's own
+     log.  The sweep and the takeover choke point keep them through
+     `recovery_judging_cb`'s K arm; the import must too, and asks its own
+     question because K's records sit on the slot the owner now writes as its
+     own and a shared bit names a slot, not an incarnation.
+     `slot_retained_cb` answers K's {node, inc} for the escrow states
+     PREPARED, K_CLAIMED and K_REPLAY_OK; it is asked once per page before
+     the table lock, since it takes the mount's bootstrap lock.  An EX record
+     of exactly that incarnation is installed as its holder, and an
+     unaccounted shared bit of our slot is attributed to it.  The completion
+     releases them (`mxfs_dlm_ledger_release_retained_slot`), in an order
+     that leaves nothing behind: K is marked purged first, so an import that
+     read the retention before the completion has either installed its
+     holders already or now retires the records; then each shared holder
+     becomes our residue and is released through the unlock (or dropped
+     where a grant of ours covers the same bit), and only then are the EX
+     records purged by node id, because that purge drops the table entries
+     of the node without clearing a slot's bits on the platter.  Until the
+     completion a request that conflicts with a kept record waits behind it,
+     as a request on a page K mastered already waits behind the takeover
+     guard.  The import without this rule purged K by node id while taking
+     over the other victim's pages, and every same-boot resume then found
+     four to six of K's sealed records gone and refused the volume as a
+     post-seal mutation.
      *The per-page record purge names the incarnation,* not just the node id.
      A page is published as this node's the moment the takeover activates it,
      which is BEFORE the purge on that page, so the ordinary grant path can

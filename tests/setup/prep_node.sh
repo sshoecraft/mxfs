@@ -13,6 +13,8 @@
 # Env (defaults):
 #   MXFS_REPO /src/mxfs   MXFS_DEV /dev/sda   MXFS_MOUNT /mnt/shared
 #   NFS_SERVER 192.168.120.1:/src   NFS_MOUNT /src   SCSI_TIMEOUT 180
+#   MXFS_NO_MOUNT=1   load and prepare, but leave the mount to someone else
+#                     (the DRBD boot program, as on a Proxmox host at boot)
 #
 # Prints NODE_PREP_OK on success, NODE_PREP_FAIL: <reason> + exit 1 otherwise.
 
@@ -43,8 +45,12 @@ case "$TRANSPORT" in
     # the clustered RW mount outright (P-DOMAIN-REFUSED, EACCES), which is
     # what a 2/net/mesh/direct prep on the QNAP LUN hit on 2026-09-04.  Every rig this
     # harness targets (SCST fileio, LIO fileio, the QNAP) is write-through.
-    tcp) MODARGS="force_transport=1 target_cache_protected=1 dyndbg=+p" ;;
-    caw) MODARGS="force_transport=0 target_cache_protected=1 dyndbg=+p" ;;   # CAW must be asked for: the module defaults to TCP
+    #
+    # log_repeat_limit=0: harnesses count retry-loop lines (P236-FENCEKIND,
+    # P238-FENCE-PENDING, ...) that a production module holds back once they
+    # repeat; the rig prints every one.
+    tcp) MODARGS="force_transport=1 target_cache_protected=1 log_repeat_limit=0 dyndbg=+p" ;;
+    caw) MODARGS="force_transport=0 target_cache_protected=1 log_repeat_limit=0 dyndbg=+p" ;;   # CAW must be asked for: the module defaults to TCP
     *)   fail "unknown transport '$TRANSPORT' (expect tcp|caw)" ;;
 esac
 
@@ -226,6 +232,14 @@ rm -f /root/dmesg.stream
 setsid bash -c 'exec dmesg --follow > /root/dmesg.stream 2>&1 < /dev/null' &
 sleep 0.2
 pgrep -f 'dmesg --follow' >/dev/null || echo "WARN: dmesg stream capture not running"
+
+# The device steps below open it, and a DRBD device that is still Secondary
+# refuses every open (drbd_open: EMEDIUMTYPE for a read): a node whose mount
+# belongs to the DRBD boot program, which promotes first, stops here.
+if [ "${MXFS_NO_MOUNT:-0}" = 1 ]; then
+    echo "NODE_PREP_OK transport=$TRANSPORT dev=$MXFS_DEV mount=none module=$MODULE_SOURCE srcversion=$(cat /sys/module/mxfs/srcversion 2>/dev/null)"
+    exit 0
+fi
 
 # 4b. Bind the device by IDENTITY.  MXFS_DEV is a path, and a path names
 #     whichever LUN came up under that letter on THIS node: a node logged into

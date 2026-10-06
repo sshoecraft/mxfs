@@ -1951,6 +1951,15 @@ struct mxfs_disklock_ctx {
 	 * stale window stays as the backstop. */
 	mxfs_node_id_t                   fenced_seen_node[MXFS_DISKLOCK_HB_SLOTS];
 	mxfs_epoch_t                     fenced_seen_epoch[MXFS_DISKLOCK_HB_SLOTS];
+	/* A peer the attachment's fence authority excluded from this replica,
+	 * posted by the mount once its own witness confirmed it
+	 * (mxfs_disklock_post_excluded): the node, and a sequence number that
+	 * tells one posting from the next.  The monitor snapshots both when a
+	 * pass begins, declares the incarnation it tracks for that node dead in
+	 * that pass, and clears the posting when the pass ends only if no newer
+	 * one arrived meanwhile.  Under ctx->lock. */
+	mxfs_node_id_t                   excl_post_node;
+	uint64_t                         excl_post_seq;
 	/* (0.60.0, review-#3 condition 8): a settlement write whose
 	 * COMPARE AND WRITE came back unsupported is REFUSED, never emulated
 	 * with a plain FUA write; logged once per slot. */
@@ -3421,6 +3430,14 @@ int  mxfs_disklock_live_slot_rank(struct mxfs_disklock_ctx *ctx);
  * 0 restores the compile-time default. */
 void mxfs_disklock_set_dead_timeout_ms(struct mxfs_disklock_ctx *ctx,
 				       uint32_t timeout_ms);
+/* The attachment's fence authority has excluded @node from this replica, and
+ * the mount's own witness confirmed it (DRBD: the link StandAlone, the peer's
+ * disk Outdated, the authority's receipt naming the peer).  The monitor's next
+ * pass declares the incarnation it tracks for @node dead instead of waiting out
+ * the stale window, which can learn nothing from a replica the peer can no
+ * longer write.  Only a DRBD mount posts this. */
+void mxfs_disklock_post_excluded(struct mxfs_disklock_ctx *ctx,
+				 mxfs_node_id_t node);
 
 /* ─── the local authority lease ───────────────────────────────────────────
  *

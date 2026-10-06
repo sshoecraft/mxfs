@@ -24,15 +24,23 @@
 
 set -u
 REPO=$(cd "$(dirname "$0")/.." && pwd)
-PAIR="${PVE_PAIR:-192.168.1.80 192.168.1.81}"
+# The port is the host's place in the whole pair (PVE_PAIR_ALL), so running
+# this for one host (PVE_PAIR=<host>) keeps that host on its own port and log.
+PAIR_ALL="${PVE_PAIR_ALL:-192.168.1.80 192.168.1.81}"
+PAIR="${PVE_PAIR:-$PAIR_ALL}"
 CLYDE_IP="${PVE_NETCONSOLE_TO:-192.168.1.166}"
 CLYDE_IF="${PVE_NETCONSOLE_IF:-enp6s0}"
 EVID="${2:-$REPO/tests/evidence/pve_phys_drbd_netconsole}"
 PAIRSH="$REPO/tools/pve_pair.sh"
 LISTEN="$REPO/tools/netconsole_listen.sh"
 
-port_of() {  # <index from 0>
-    echo $((6667 + $1))
+port_of() {  # <host>: 6667 + its index in the whole pair
+    local a i=0
+    for a in $PAIR_ALL; do
+        [ "$a" = "$1" ] && break
+        i=$((i + 1))
+    done
+    echo $((6667 + i))
 }
 
 host_cmd() {  # <port> <clyde-mac>
@@ -60,32 +68,26 @@ case "${1:-status}" in
     start)
         mkdir -p "$EVID"
         MAC=$(cat "/sys/class/net/$CLYDE_IF/address")
-        i=0
         for h in $PAIR; do
-            p=$(port_of $i)
+            p=$(port_of "$h")
             name=$("$PAIRSH" on "$h" hostname 2>/dev/null | tail -1)
             MXFS_NETCONSOLE_PORT=$p "$LISTEN" start "$EVID/netconsole_${name:-$h}.log"
             "$PAIRSH" on "$h" "$(host_cmd "$p" "$MAC")"
             echo "$h rc=$?"
-            i=$((i + 1))
         done
         ;;
     status)
-        i=0
         for h in $PAIR; do
-            p=$(port_of $i)
-            MXFS_NETCONSOLE_PORT=$p "$LISTEN" status
+            p=$(port_of "$h")
+            MXFS_NETCONSOLE_PORT=$p "$LISTEN" status | head -1
             "$PAIRSH" on "$h" 'T=/sys/kernel/config/netconsole/clyde; echo "$(hostname) enabled=$(cat $T/enabled 2>/dev/null || echo none) port=$(cat $T/remote_port 2>/dev/null) console_loglevel=$(cut -f1 /proc/sys/kernel/printk)"'
-            i=$((i + 1))
         done
         ;;
     stop)
-        i=0
         for h in $PAIR; do
-            p=$(port_of $i)
+            p=$(port_of "$h")
             "$PAIRSH" on "$h" 'T=/sys/kernel/config/netconsole/clyde; [ -d $T ] && echo 0 > $T/enabled; dmesg -n 4; echo "$(hostname) netconsole disabled"'
             MXFS_NETCONSOLE_PORT=$p "$LISTEN" stop
-            i=$((i + 1))
         done
         ;;
     *)

@@ -11,6 +11,8 @@
 #   tools/pve_pair.sh on <host> '<cmd>'     run <cmd> on one host
 #   tools/pve_pair.sh klog <host> [since]   counts of the kernel log since <since>
 #                                           (journalctl syntax, default: this boot)
+#   tools/pve_pair.sh wait-up <host> <secs> wait until <host> answers ssh, at most
+#                                           <secs>; prints the wait and the boot id
 #
 # Hosts: PVE_PAIR (default "192.168.1.80 192.168.1.81").  Credentials come from
 # the lab secrets store through tools/mxfs_sshpass.sh; nothing here holds one.
@@ -70,6 +72,22 @@ case "${1:-status}" in
         on_all "${2:?command}" ;;
     on)
         on_host "${2:?host}" "${3:?command}"; exit $? ;;
+    wait-up)
+        H="${2:?host}"
+        LIMIT="${3:?seconds}"
+        T0=$(date +%s)
+        while :; do
+            OUT=$(PVE_PAIR_TIMEOUT=15 on_host "$H" 'echo UP $(cut -d. -f1 /proc/uptime) $(cat /proc/sys/kernel/random/boot_id)' 2>/dev/null | grep '^UP ')
+            if [ -n "$OUT" ]; then
+                echo "$H answered after $(( $(date +%s) - T0 ))s: uptime=$(echo "$OUT" | cut -d' ' -f2)s boot_id=$(echo "$OUT" | cut -d' ' -f3)"
+                exit 0
+            fi
+            if [ $(( $(date +%s) - T0 )) -ge "$LIMIT" ]; then
+                echo "$H did not answer ssh within ${LIMIT}s"
+                exit 1
+            fi
+            timeout 3 ping -c 1 -W 2 "$H" >/dev/null 2>&1
+        done ;;
     klog)
         H="${2:?host}"
         S="${3:+--since \"$3\"}"

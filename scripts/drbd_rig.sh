@@ -26,8 +26,18 @@
 #   scripts/drbd_rig.sh death-test          destroy node 2 with MXFS mounted: node 1 must fence it,
 #                                              certify, replay its slice and keep every fsynced file;
 #                                              node 2 then rejoins and reads the same; cold chk clean
+#   scripts/drbd_rig.sh self-death-test     the physical PVE pair's setup: no node fence (agent=self).
+#                                              The node with the higher DRBD address dies under VM-like
+#                                              loads on the survivor, which must exclude it, certify,
+#                                              replay and keep every load free of I/O errors; the guard
+#                                              then releases the dead node, which rejoins; cold chk clean
 #   scripts/drbd_rig.sh outage-test         both nodes die at once; a bootstrap with its swaps refused writes
 #                                              nothing, then the pair recovers with every fsynced file
+#   scripts/drbd_rig.sh self-outage-test    both nodes die at once under the built-in authority (agent=self) and
+#                                              come back through the boot program alone: the pair must recover
+#                                              by itself (SELF_OUTAGE_HOLD_TICKET=1: one dies holding its swap lock;
+#                                              SELF_OUTAGE_RESUME=1: the first mount fails after K's replay and resumes;
+#                                              SELF_OUTAGE_PEER_PRIMARY=1: the first mount is refused, stepped down, retried)
 #   scripts/drbd_rig.sh takeover-test [self|foreign]
 #                                           a pair outage whose bootstrap owner fails after adopting
 #                                           K: the term is taken over and finished (TAKEOVER_NOCAW_ARM=1
@@ -175,6 +185,9 @@ hold_luns() {  # <fresh|adopt>: one live allocation per node, each owned by its 
 # Unmount mxfs (bounded: an unbounded umount that hangs in the kernel is a task
 # nothing can kill), unload the module, take the resource down.
 NODE_UNMOUNT='
+    # A boot program an interrupted outage test left running would mount this
+    # node on its own as soon as its peer mounts, in the middle of a later step.
+    systemctl stop mxfs-rig-boot 2>/dev/null; systemctl reset-failed mxfs-rig-boot 2>/dev/null
     if mountpoint -q '"$MNT"'; then
         fuser -km '"$MNT"' 2>/dev/null; sleep 1
         timeout 30 umount '"$MNT"' 2>/dev/null || timeout 30 umount -f '"$MNT"' 2>/dev/null
@@ -187,6 +200,22 @@ NODE_STOP=$NODE_UNMOUNT'
         timeout 30 drbdadm down '"$RES"' >/dev/null 2>&1
     fi
     echo STOP_OK'
+# DRBD's resource up on a node that has just booted.  The pool LUN logs back in
+# at boot (node.startup=automatic), but open-iscsi.service can lose a race with
+# iscsid for the node-database lock ("Could not open /run/lock/iscsi: File
+# exists") and exit without logging in, which leaves DRBD no backing disk.  So
+# wait for the disk the resource names, logging in again while it is absent.
+LOGIN_BUDGET=30     # one login over the lab bridge takes well under a second
+NODE_DRBD_UP='modprobe drbd || echo "DRBD_UP_FAIL modprobe drbd"
+    ll=$(drbdadm sh-ll-dev '"$RES"' 2>/dev/null)
+    for i in $(seq 1 '"$LOGIN_BUDGET"'); do
+        [ -b "$ll" ] && break
+        iscsiadm -m node --loginall=automatic >/dev/null 2>&1
+        udevadm settle -t 5 >/dev/null 2>&1
+        [ -b "$ll" ] || sleep 1
+    done
+    [ -b "$ll" ] || echo "DRBD_UP_FAIL backing disk ${ll:-unnamed} absent after '"$LOGIN_BUDGET"' login attempts"
+    drbdadm up '"$RES"' 2>&1 | tail -1'
 
 stop_nodes() {
     both stop "$NODE_STOP" 120
@@ -213,6 +242,12 @@ resource $RES {
         after-sb-2pri disconnect;
         max-buffers 8000;
         max-epoch-size 8000;
+        # A dead peer is noticed by a keep-alive it no longer answers.  With
+        # writes in flight the first ping-int ends with peer data still
+        # arriving, so the ping goes out only after a second one: detection
+        # is up to 2 x ping-int + ping-timeout, and every write waits for it.
+        # The default 10 s froze the survivor's I/O 21 s (self-death-test).
+        ping-int 3;
     }
     disk {
         c-plan-ahead 0;
@@ -611,7 +646,7 @@ step_fence_test() {
     say "  rejoin: starting $N2, DRBD resyncs it from $N1"
     t0=$(date +%s)
     "$REPO/scripts/lab_power.sh" up "$N2" > "$EVID/rejoin_power" 2>&1 || die "$N2 did not boot: $(tail -1 "$EVID/rejoin_power")"
-    out=$(ssh_n "$N2" "modprobe drbd && drbdadm up $RES 2>&1 | tail -1
+    out=$(ssh_n "$N2" "$NODE_DRBD_UP
         for i in \$(seq 1 $REJOIN_BUDGET); do
             [ \"\$(drbdadm dstate $RES 2>/dev/null)\" = UpToDate/UpToDate ] && { drbdadm primary $RES 2>&1 | tail -1; echo \"REJOIN_OK \$(drbdadm role $RES)\"; exit 0; }
             sleep 1
@@ -636,7 +671,7 @@ rejoin_node() {
         say "  released $node (episode $ep)"
     fi
     "$REPO/scripts/lab_power.sh" up "$node" > "$EVID/rejoin_power.$node" 2>&1 || die "$node did not boot"
-    out=$(ssh_n "$node" "modprobe drbd && drbdadm up $RES 2>&1 | tail -1
+    out=$(ssh_n "$node" "$NODE_DRBD_UP
         for i in \$(seq 1 $REJOIN_BUDGET); do
             [ \"\$(drbdadm dstate $RES 2>/dev/null)\" = UpToDate/UpToDate ] && { drbdadm primary $RES 2>&1 | tail -1; echo \"REJOIN_OK \$(drbdadm role $RES)\"; exit 0; }
             sleep 1
@@ -720,6 +755,475 @@ step_death_test() {
     say "  cold chk_mxfs clean"
 }
 
+# ── the pair's built-in authority (no node fence) ──────────────────────────
+# The physical PVE pair runs with no node fence: /etc/mxfs/drbd-fence.conf
+# absent or agent=self, and tools/mxfs_drbd_fence_self.py deciding every split
+# by one fixed tie-break (the lower DRBD address wins).  The rig's node fence
+# above never runs that code, so a defect on the survivor's side of it went
+# unseen until the physical pair met it: the survivor never certified the
+# exclusion, answered RECOVERY_BLOCKED for everything the dead node had
+# mastered, and a VM whose image was among them got I/O errors.
+#
+# install_self_authority puts the authority on both nodes as `make install`
+# does on a PVE host (this tree's program, handler and witness; agent=self),
+# plus the root ssh trust between the nodes, under their names, that a Proxmox
+# cluster already has and that the authority reads its release evidence over.
+# The rig's node-fence configuration is kept as drbd-fence.conf.backup;
+# install_fencing writes it again afterwards.
+install_self_authority() {
+    local n peer prog handler witness pub hostkey out
+    prog=$(base64 -w0 < "$REPO/tools/mxfs_drbd_fence_self.py")
+    handler=$(base64 -w0 < "$REPO/tools/mxfs_drbd_fence_peer.sh")
+    witness=$(base64 -w0 < "$REPO/tools/mxfs_drbd_witness.py")
+    both selfauth "
+        echo $prog | base64 -d > /usr/sbin/mxfs-drbd-fence-self && chmod 755 /usr/sbin/mxfs-drbd-fence-self || { echo SELFAUTH_FAIL program; exit 1; }
+        echo $handler | base64 -d > /usr/sbin/mxfs-drbd-fence-peer && chmod 755 /usr/sbin/mxfs-drbd-fence-peer || { echo SELFAUTH_FAIL handler; exit 1; }
+        echo $witness | base64 -d > /usr/sbin/mxfs_drbd_witness.py && chmod 755 /usr/sbin/mxfs_drbd_witness.py || { echo SELFAUTH_FAIL witness; exit 1; }
+        mkdir -p /etc/mxfs /var/lib/mxfs /root/.ssh && chmod 700 /root/.ssh
+        if [ -e /etc/mxfs/drbd-fence.conf ] && ! grep -qx 'agent=self' /etc/mxfs/drbd-fence.conf; then
+            cp -p /etc/mxfs/drbd-fence.conf /etc/mxfs/drbd-fence.conf.backup
+        fi
+        echo agent=self > /etc/mxfs/drbd-fence.conf
+        [ -s /root/.ssh/id_ed25519 ] || ssh-keygen -q -t ed25519 -N '' -C mxfs-rig-selfauth -f /root/.ssh/id_ed25519 || { echo SELFAUTH_FAIL keygen; exit 1; }
+        command -v nft >/dev/null || { echo SELFAUTH_FAIL no nft; exit 1; }
+        echo \"SELFAUTH_OK \$(cat /root/.ssh/id_ed25519.pub) HOSTKEY \$(cut -d' ' -f1,2 /etc/ssh/ssh_host_ed25519_key.pub)\"" 30
+    for n in "${NODES[@]}"; do
+        grep -aq '^SELFAUTH_OK' "$EVID/selfauth.$n" || die "self authority on $n: $(tail -1 "$EVID/selfauth.$n")"
+    done
+    for n in "${NODES[@]}"; do
+        if [ "$n" = "$N1" ]; then peer=$N2; else peer=$N1; fi
+        pub=$(sed -n 's/^SELFAUTH_OK \(.*\) HOSTKEY .*/\1/p' "$EVID/selfauth.$peer")
+        hostkey=$(sed -n 's/^SELFAUTH_OK .* HOSTKEY \(.*\)$/\1/p' "$EVID/selfauth.$peer")
+        [ -n "$pub" ] && [ -n "$hostkey" ] || die "self authority: no keys from $peer"
+        out=$(ssh_n "$n" "
+            touch /root/.ssh/authorized_keys && chmod 600 /root/.ssh/authorized_keys
+            grep -qF '$pub' /root/.ssh/authorized_keys || echo '$pub' >> /root/.ssh/authorized_keys
+            touch /etc/ssh/ssh_known_hosts
+            { grep -v '^$peer ' /etc/ssh/ssh_known_hosts; echo '$peer $hostkey'; } > /etc/ssh/ssh_known_hosts.new
+            mv /etc/ssh/ssh_known_hosts.new /etc/ssh/ssh_known_hosts && echo TRUST_OK" 20)
+        grep -q TRUST_OK <<<"$out" || die "ssh trust on $n: $out"
+    done
+    # each node reaches the other exactly as the authority's evidence read does
+    for n in "${NODES[@]}"; do
+        if [ "$n" = "$N1" ]; then peer=$N2; else peer=$N1; fi
+        out=$(ssh_n "$n" "timeout 20 ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=yes -o HostKeyAlias=$peer root@$(lab_addr "$peer") hostname 2>&1 | tail -1" 30)
+        [ "$out" = "$peer" ] || die "$n cannot reach $peer over ssh as the authority does: $out"
+    done
+    say "  built-in authority (agent=self) on both nodes; root ssh trust between $N1 and $N2"
+}
+
+# The rig's debug sites are all on (prep_node loads mxfs with dyndbg=+p): a
+# loaded node fills its kernel ring in seconds, and a recovery line printed
+# at minute two is gone by minute three.  For the self death test only the
+# lines the verdict reads are left on, which is also closer to what a
+# production log carries; so is the repeat limit a production module runs
+# with (the verdict reads those lines for presence, never for a count).
+SELF_TAGS='P163- P238- P236- P-DRBD- P239- P240- P-RBLK- P912-ACQ P-LKWAIT P958- P-ACQ-LADDER P960- P-TAUTH-IMPORT-RETAINED'
+self_dyndbg() {  # <node> <narrow|all>
+    local f cmd='c=/proc/dynamic_debug/control; l=/sys/module/mxfs/parameters/log_repeat_limit; '
+    if [ "$2" = narrow ]; then
+        cmd+='echo "module mxfs -p" > $c; '
+        for f in $SELF_TAGS; do cmd+="echo 'module mxfs format \"$f\" +p' > \$c; "; done
+        cmd+='[ -e $l ] && echo 1 > $l; '
+    else
+        cmd+='echo "module mxfs +p" > $c; [ -e $l ] && echo 0 > $l; '
+    fi
+    ssh_n "$1" "$cmd echo DYNDBG_OK" 20 | grep -q DYNDBG_OK
+}
+
+# One VM-like load on an image: O_DIRECT, io_uring as Proxmox 9 runs QEMU
+# disks, 4 KiB random 60/40, QD16, time_based; an IOPS log at one-second
+# resolution so the stall and the I/O after it can be read back.
+self_load_cmd() {  # <image> <seconds> <tag>
+    echo "date +%s%3N > /root/sdeath-$3.launch; fio --name=vm --filename=$1 --direct=1 --ioengine=io_uring --rw=randrw --rwmixread=60 --bs=4k --iodepth=16 --size=256M --time_based --runtime=$2 --log_avg_msec=1000 --write_iops_log=/root/sdeath-$3 --output-format=json --output=/root/sdeath-$3.json >/dev/null 2>/root/sdeath-$3.err; echo FIO_RC=\$?"
+}
+# Per load: fio's own error, its I/O count and longest latency, and from the
+# IOPS log the longest stretch with no I/O completing and the I/O after it.
+# wait_s is the launch to the first second with I/O: fio's own clock starts
+# only once its file setup returns, and a stat or open blocked on a dead
+# node's grants is spent there (0.90.58: 89.5 s, with first_s=1.0).
+SELF_LOAD_SUMMARY='python3 -I - "$@" <<'"'"'PY'"'"'
+import glob, json, sys
+for tag in sys.argv[1:]:
+    try:
+        j = json.load(open("/root/sdeath-%s.json" % tag))["jobs"][0]
+    except Exception as e:
+        print("LOAD %s NO_RESULT %s %s" % (tag, e, open("/root/sdeath-%s.err" % tag).read().strip()[-160:].replace("\n", " | ")))
+        continue
+    r, w = j["read"], j["write"]
+    t = []
+    for f in glob.glob("/root/sdeath-%s_iops.*.log" % tag):
+        for line in open(f):
+            p = [x.strip() for x in line.split(",")]
+            if len(p) >= 2 and p[1].isdigit() and int(p[1]) > 0:
+                t.append(int(p[0]))
+    t = sorted(set(t))
+    # a stall is a second or more with no I/O completing; the one-second
+    # cadence of the log itself jitters by a few ms and is not one
+    gap, gap_end = 0, 0
+    for a, b in zip(t, t[1:]):
+        if b - a >= 2000 and b - a > gap:
+            gap, gap_end = b - a, b
+    after = sum(1 for x in t if x > gap_end) if gap_end else len(t)
+    try:
+        setup = (j["job_start"] - int(open("/root/sdeath-%s.launch" % tag).read())) / 1000.0
+    except Exception:
+        setup = -1
+    print("LOAD %s error=%d read_ios=%d write_ios=%d lat_max_ms=%.0f wait_s=%.1f first_s=%.1f stall_s=%.1f stall_end_s=%.1f busy_s_after=%d last_s=%.1f" % (
+        tag, j.get("error", 0), r["total_ios"], w["total_ios"],
+        max(r["lat_ns"]["max"], w["lat_ns"]["max"]) / 1e6,
+        (setup + t[0] / 1000.0) if t and setup >= 0 else -1, (t[0] / 1000.0) if t else -1,
+        gap / 1000.0, gap_end / 1000.0, after, (t[-1] / 1000.0) if t else 0))
+PY'
+
+SELF_LOAD_S=200    # the kill at +20 s, the recovery budget, then a minute of I/O after it
+TAKEOVER_LOAD_S=150  # started at the kill: the recovery budget, then 30 s of I/O after it
+# The kill to P163-RECOVERY-COMPLETE, twice what it should take: DRBD notices
+# within 2 x ping-int + ping-timeout (6.5 s), the handler excludes and
+# disconnects (~1.2 s), the witness confirms and the heartbeat monitor declares
+# the death (~2.5 s), certificate and election (~1.2 s), the slice replay
+# (~4.7 s) and completion (~1.9 s): ~18 s.  Measured 17.0 s (0.90.59).
+SELF_RECOVER_BUDGET=37
+step_self_death_test() {
+    local out t0 tk surv vict a1 a2 n i ssum vsum loads=() pids=() tags ep rel
+    need_dual_primary
+    need_mounted || die "self death test: MXFS is not mounted on both nodes (scripts/drbd_rig.sh mxfs)"
+    a1=$(lab_addr "$N1"); a2=$(lab_addr "$N2")
+    # participant 0, the survivor of every split, is the lower IPv4 address
+    if python3 -I -c 'import ipaddress, sys; sys.exit(0 if ipaddress.ip_address(sys.argv[1]) < ipaddress.ip_address(sys.argv[2]) else 1)' "$a1" "$a2"; then
+        surv=$N1; vict=$N2
+    else
+        surv=$N2; vict=$N1
+    fi
+    install_self_authority
+    say "self death test: survivor $surv (participant 0, the lower DRBD address), victim $vict"
+    for n in "$surv" "$vict"; do self_dyndbg "$n" narrow || die "self death test: cannot narrow the debug sites on $n"; done
+
+    out=$(ssh_n "$surv" "mkdir -p $MNT/sdeath/s && for i in \$(seq 1 64); do head -c 65536 /dev/urandom > $MNT/sdeath/s/f\$i; done && sync -f $MNT && cd $MNT/sdeath/s && md5sum f* | sort -k2 | md5sum | cut -c1-32" 60)
+    ssum=$(tail -1 <<<"$out")
+    out=$(ssh_n "$vict" "mkdir -p $MNT/sdeath/v && for i in \$(seq 1 64); do head -c 65536 /dev/urandom > $MNT/sdeath/v/f\$i; done && sync -f $MNT && cd $MNT/sdeath/v && md5sum f* | sort -k2 | md5sum | cut -c1-32" 60)
+    vsum=$(tail -1 <<<"$out")
+    [ ${#ssum} = 32 ] && [ ${#vsum} = 32 ] || die "self death test: could not record checksums ($ssum / $vsum)"
+
+    # VM disks, written through once (an installed guest's image): two made by
+    # the survivor, three by the victim.  Which node masters each image's lock
+    # is a hash of its ledger page, so the survivor loads four of them, its own
+    # and two of the victim's, to have images mastered by both nodes; the
+    # victim's VM runs on the fifth.
+    out=$(ssh_n "$surv" "for i in 1 2; do fio --name=fill --filename=$MNT/sdeath/img-s\$i.raw --size=256M --bs=1M --rw=write --direct=1 --ioengine=psync --output=/dev/null >/dev/null 2>&1 || { echo FILL_FAIL s\$i; exit 1; }; done; echo FILL_OK" 120)
+    grep -q FILL_OK <<<"$out" || die "self death test: images on $surv: $out"
+    out=$(ssh_n "$vict" "for i in 1 2 3; do fio --name=fill --filename=$MNT/sdeath/img-v\$i.raw --size=256M --bs=1M --rw=write --direct=1 --ioengine=psync --output=/dev/null >/dev/null 2>&1 || { echo FILL_FAIL v\$i; exit 1; }; done; echo FILL_OK" 120)
+    grep -q FILL_OK <<<"$out" || die "self death test: images on $vict: $out"
+    out=$(ssh_n "$surv" "stat -c '%i %n' $MNT/sdeath/img-*.raw" 20)
+    echo "$out" > "$EVID/sdeath_inodes"
+    say "  images: $(tr '\n' ' ' <<<"$out" | sed "s#$MNT/sdeath/##g")"
+
+    say "  loads: VMs on img-s1 img-s2 img-v1 img-v2 on $surv, on img-v3 on $vict (${SELF_LOAD_S}s each); destroying $vict at +20 s"
+    for i in s1 s2 v1 v2; do
+        ( ssh_n "$surv" "$(self_load_cmd "$MNT/sdeath/img-$i.raw" "$SELF_LOAD_S" "$i")" $((SELF_LOAD_S + SELF_RECOVER_BUDGET + 60)) > "$EVID/sdeath_load.$i" ) &
+        pids+=($!)
+    done
+    ( ssh_n "$vict" "$(self_load_cmd "$MNT/sdeath/img-v3.raw" "$SELF_LOAD_S" v3)" $((SELF_LOAD_S + 30)) > "$EVID/sdeath_load.v3" ) &
+    sleep 20
+    ssh_n "$surv" "dmesg -C; echo '<5>mxfs-test: self-death kill $vict' > /dev/kmsg" 10 >/dev/null
+    t0=$(date +%s)
+    timeout 60 virsh -c qemu:///system destroy "$vict" >/dev/null 2>&1 || die "self death test: virsh destroy $vict failed"
+    say "  $vict destroyed (a crash: no unmount, no warning)"
+    # A VM started on the survivor inside the recovery window, on the image the
+    # dead node's VM was writing (an HA restart, or VM 104 on the PVE pair):
+    # the dead node still holds that inode's grants, so its first I/O waits for
+    # the recovery to release them, and none of it may fail.
+    ( ssh_n "$surv" "$(self_load_cmd "$MNT/sdeath/img-v3.raw" "$TAKEOVER_LOAD_S" t3)" $((TAKEOVER_LOAD_S + SELF_RECOVER_BUDGET + 60)) > "$EVID/sdeath_load.t3" ) &
+    pids+=($!)
+    say "  takeover load started on $surv on $vict's image img-v3 (${TAKEOVER_LOAD_S}s)"
+
+    out=$(ssh_n "$surv" "
+        for i in \$(seq 1 $SELF_RECOVER_BUDGET); do
+            dmesg | grep -q 'P163-RECOVERY-COMPLETE' && break
+            sleep 1
+        done
+        dmesg | grep -aoE 'P238-DRBD-FENCE-[A-Z-]+|P236-FENCE-CERTIFIED|P-DRBD-CAS-PEER-[A-Z-]+|P163-RECOVERY-COMPLETE|P239-DRBD-EXCL-LAPSED|P238-FENCE-[A-Z-]+|P-RBLK-[A-Z-]+|P240-[A-Z-]+' | sort | uniq -c | tr '\n' ' '; echo
+        dmesg | grep -q 'P163-RECOVERY-COMPLETE' && echo RECOVERED || echo NOT_RECOVERED" $((SELF_RECOVER_BUDGET + 20)))
+    tk=$(( $(date +%s) - t0 ))
+    echo "$out" > "$EVID/sdeath_recovery"
+    ssh_n "$surv" "dmesg | grep -aE 'P238-DRBD|P236-FENCE|P-DRBD|P163|P239|P238-FENCE|P-RBLK|P240|P912|P-LKWAIT|P958|P-ACQ-LADDER|P960|mxfs-drbd-fence|no longer responding|P232-FREPLAY|elected' | sed 's/^\\(\\[[ 0-9.]*\\]\\).*\\(mxfs[-:]\\|XFS\\)/\\1 \\2/' | cut -c1-280" 20 > "$EVID/sdeath_kernlog"
+    ssh_n "$surv" "tail -5 /var/lib/mxfs/drbd-fence.$RES 2>/dev/null; cat /var/lib/mxfs/drbd-inhibit.$RES.json 2>/dev/null | tr -d '\n'; echo; drbdadm cstate $RES; drbdadm dstate $RES" 20 > "$EVID/sdeath_authority"
+    grep -q '^RECOVERED' <<<"$(tail -1 <<<"$out")" || die "self death test: $surv did not complete recovery in ${SELF_RECOVER_BUDGET}s: $(head -1 <<<"$out")"
+    say "  $surv recovered $vict's slice in ${tk}s: $(head -1 <<<"$out" | cut -c1-220)"
+    grep -q 'result=EXCLUDED .*agent=self participant=0' "$EVID/sdeath_authority" \
+        || die "self death test: no EXCLUDED receipt from the built-in authority on $surv: $(head -3 "$EVID/sdeath_authority" | tr '\n' ' ')"
+    grep -q 'P238-DRBD-FENCE-WITNESSED' "$EVID/sdeath_kernlog" || die "self death test: recovery completed without a DRBD witness"
+    if grep -q 'P-RBLK-' "$EVID/sdeath_kernlog"; then
+        die "self death test: $surv refused operations as RECOVERY_BLOCKED: $(grep -m2 'P-RBLK-' "$EVID/sdeath_kernlog" | cut -c1-200 | tr '\n' ' ')"
+    fi
+
+    wait "${pids[@]}"
+    tags="s1 s2 v1 v2 t3"
+    ssh_n "$surv" "set -- $tags; $SELF_LOAD_SUMMARY" 60 > "$EVID/sdeath_loads"
+    i=0
+    while read -r line; do
+        say "    $surv ${line#LOAD }"
+        case "$line" in
+            "LOAD "*" error=0 "*) i=$((i + 1)) ;;
+        esac
+    done < <(grep -a '^LOAD ' "$EVID/sdeath_loads")
+    [ "$i" = 5 ] || die "self death test: $((5 - i)) of the survivor's 5 VM loads (4 running through the death, 1 started on $vict's image at the kill) saw an I/O error or gave no result (evidence $EVID)"
+    awk '/^LOAD / { for (f = 2; f <= NF; f++) if ($f ~ /^busy_s_after=/) { split($f, a, "="); if (a[2] + 0 < 20) bad = 1 } } END { exit bad }' "$EVID/sdeath_loads" \
+        || die "self death test: a survivor load did not run on after its stall (busy_s_after < 20 s)"
+    say "  every survivor VM load ran through the death with no I/O error and kept doing I/O after it; the load started on $vict's image at the kill did its first I/O at +$(sed -n 's/^LOAD t3 .* wait_s=\([0-9.-]*\) .*/\1/p' "$EVID/sdeath_loads") s"
+
+    out=$(ssh_n "$surv" "cd $MNT/sdeath/s && md5sum f* | sort -k2 | md5sum | cut -c1-32; cd $MNT/sdeath/v && md5sum f* | sort -k2 | md5sum | cut -c1-32; touch $MNT/sdeath/after && rm $MNT/sdeath/after && echo FS_OK" 60)
+    [ "$(sed -n 1p <<<"$out")" = "$ssum" ] || die "self death test: $surv's own files changed: $out"
+    [ "$(sed -n 2p <<<"$out")" = "$vsum" ] || die "self death test: $vict's fsynced files are not intact on $surv: $out"
+    grep -q FS_OK <<<"$out" || die "self death test: $surv cannot write after the recovery: $out"
+    say "  every fsynced file of both nodes intact on $surv, which writes on"
+
+    # The rejoin a PVE host goes through: the guard (the unit make install
+    # enables) releases the dead node only on its own evidence, read over ssh
+    # once the node is back: no MXFS superblock alive, DRBD not Primary.
+    ep=$(sed -n 's/.*"episode": *"\([^"]*\)".*/\1/p' "$EVID/sdeath_authority" | head -1)
+    [ -n "$ep" ] || die "self death test: no inhibit episode on $surv"
+    ssh_n "$surv" "systemctl stop mxfs-rig-guard 2>/dev/null; systemd-run --unit=mxfs-rig-guard --collect /usr/sbin/mxfs-drbd-fence-self guard >/dev/null 2>&1 && echo GUARD_OK" 20 | grep -q GUARD_OK \
+        || die "self death test: cannot start the guard on $surv"
+    t0=$(date +%s)
+    "$REPO/scripts/lab_power.sh" up "$vict" > "$EVID/sdeath_power" 2>&1 || die "self death test: $vict did not boot: $(tail -1 "$EVID/sdeath_power")"
+    rel=$(ssh_n "$surv" "for i in \$(seq 1 60); do grep -qE 'result=RELEASED .*episode=$ep' /var/lib/mxfs/drbd-fence.$RES && { grep -E 'result=RELEASED .*episode=$ep' /var/lib/mxfs/drbd-fence.$RES | tail -1; exit 0; }; sleep 1; done; echo NOT_RELEASED" 75)
+    echo "$rel" > "$EVID/sdeath_release"
+    grep -q 'result=RELEASED' <<<"$rel" || die "self death test: the guard did not release $vict within 60 s of its boot"
+    say "  guard released $vict $(( $(date +%s) - t0 ))s after it was started: ${rel##*result=RELEASED }"
+    rejoin_node "$vict" "$surv"
+    out=$(ssh_n "$vict" "cd $MNT/sdeath/s && md5sum f* | sort -k2 | md5sum | cut -c1-32; cd $MNT/sdeath/v && md5sum f* | sort -k2 | md5sum | cut -c1-32" 60)
+    [ "$(sed -n 1p <<<"$out")" = "$ssum" ] && [ "$(sed -n 2p <<<"$out")" = "$vsum" ] \
+        || die "self death test: the rejoined $vict reads different data: $out"
+    say "  $vict rejoined and remounted in $(( $(date +%s) - t0 ))s, and reads both sets identically"
+    ssh_n "$surv" "systemctl stop mxfs-rig-guard 2>/dev/null; echo" 20 >/dev/null
+
+    self_dyndbg "$surv" all
+    both stop "$NODE_UNMOUNT; echo STOP_OK" 120
+    out=$(ssh_n "$surv" "/src/mxfs/tools/chk_mxfs $DRBD_DEV 2>&1 | tail -3; echo CHK_RC=\${PIPESTATUS[0]}" 120)
+    echo "$out" > "$EVID/sdeath_chk"
+    grep -q 'CHK_RC=0' <<<"$out" || die "self death test: chk_mxfs after the recovery: $(tail -3 <<<"$out" | tr '\n' ' ')"
+    say "  cold chk_mxfs clean"
+    install_fencing
+    say "self death test: passed (the rig's node fence is configured again; MXFS left unmounted)"
+}
+
+# A power cut of the pair under the built-in authority (agent=self), the
+# physical PVE pair's setup: both nodes die at once with MXFS mounted and both
+# slices dirty, and both come back through the program the mxfs-drbd@ unit runs
+# at boot (`mxfs-drbd-fence-self boot`), as a Proxmox host does; nobody promotes
+# or mounts by hand.  There is no node fence, so nothing powers either node
+# off: the pair has to find its own way back.  The first node to mount proves
+# each dead incarnation gone by its peer being DRBD Secondary on a Connected
+# link with both disks UpToDate (fence kind 27), recovers both slices and ends
+# the bootstrap; the other joins once it has.  Every file either node fsynced
+# is intact on both, and a cold chk_mxfs is clean.
+#   SELF_OUTAGE_HOLD_TICKET=1  participant 1 dies holding its swap lock, so its
+#                              ticket is frozen on the platter when the pair
+#                              comes back; the first swap after the outage has
+#                              to set it aside, and may never write it.
+#   SELF_OUTAGE_RESUME=1       participant 0's first mount fails at the
+#                              bootstrap's completion, after the replay of the
+#                              slice it adopted is on record (bootstrap_inject=4,
+#                              TEST ONLY); the boot program's retry in the same
+#                              boot must resume the term and finish it.
+#   SELF_OUTAGE_PEER_PRIMARY=1 participant 1 comes back Primary without its boot
+#                              program, so participant 0's first mount cannot
+#                              prove it quiescent and is refused at the module's
+#                              own bound (scan window + 120 s startup fence).  The
+#                              boot program must report the module's reason, step
+#                              down and retry; participant 1 is then demoted and
+#                              its boot program started, and both must mount.
+# The boot program runs as a transient unit (mxfs-rig-boot): the rig installs
+# no units.
+#
+# From the start of the boot programs to both mounted: DRBD connects and
+# resyncs the activity-log extents of two crashed primaries (the test reports
+# when both disks are UpToDate), the first node's bootstrap reads the heartbeat
+# table twice a dead window apart and recovers two slices (outage-test
+# 2026-10-02: 137 s from its first read to P-BOOT-RECOVERY-COMPLETE), and the
+# second node's ordinary join reads the table across one window (~70 s): ~210 s
+# plus the resync, twice over.
+SELF_OUTAGE_BUDGET=480
+step_self_outage_test() {
+    local out n p0 p1 a1 a2 n1sum n2sum t0 i st done_n m startup synced_at=""
+    local -A mounted_at
+    need_dual_primary
+    a1=$(lab_addr "$N1"); a2=$(lab_addr "$N2")
+    # participant 0 is the endpoint with the lower IPv4 address
+    if python3 -I -c 'import ipaddress, sys; sys.exit(0 if ipaddress.ip_address(sys.argv[1]) < ipaddress.ip_address(sys.argv[2]) else 1)' "$a1" "$a2"; then
+        p0=$N1; p1=$N2
+    else
+        p0=$N2; p1=$N1
+    fi
+    step_mxfs
+    install_self_authority
+    say "self outage test: participant 0 $p0, participant 1 $p1; files fsynced and a writer left running on both"
+    out=$(ssh_n "$N1" "mkdir -p $MNT/sout/n1 && for i in \$(seq 1 64); do head -c 65536 /dev/urandom > $MNT/sout/n1/f\$i; done && sync -f $MNT && cd $MNT/sout/n1 && md5sum f* | sort -k2 | md5sum | cut -c1-32
+        nohup setsid bash -c 'i=0; while :; do i=\$((i+1)); echo \$i > $MNT/sout/n1/live\$((i % 200)); done' >/dev/null 2>&1 < /dev/null &
+        sleep 3; echo WRITER_UP" 60)
+    n1sum=$(sed -n 1p <<<"$out")
+    grep -q WRITER_UP <<<"$out" || die "self outage test: no writer on $N1: $out"
+    out=$(ssh_n "$N2" "mkdir -p $MNT/sout/n2 && for i in \$(seq 1 64); do head -c 65536 /dev/urandom > $MNT/sout/n2/f\$i; done && sync -f $MNT && cd $MNT/sout/n2 && md5sum f* | sort -k2 | md5sum | cut -c1-32
+        nohup setsid bash -c 'i=0; while :; do i=\$((i+1)); echo \$i > $MNT/sout/n2/live\$((i % 200)); done' >/dev/null 2>&1 < /dev/null &
+        sleep 3; echo WRITER_UP" 60)
+    n2sum=$(sed -n 1p <<<"$out")
+    grep -q WRITER_UP <<<"$out" || die "self outage test: no writer on $N2: $out"
+    [ ${#n1sum} = 32 ] && [ ${#n2sum} = 32 ] || die "self outage test: could not record checksums ($n1sum / $n2sum)"
+    if [ "${SELF_OUTAGE_HOLD_TICKET:-0}" = 1 ]; then
+        out=$(ssh_n "$p1" "echo 60000 > /sys/module/mxfs/parameters/dbg_drbd_cas_hold_ms
+            for i in \$(seq 1 40); do dmesg | grep -q P-DBG-DRBD-CAS-HOLD && { echo HOLDING; exit 0; }; sleep 0.5; done; echo NOT_HOLDING" 40)
+        grep -q HOLDING <<<"$out" || die "self outage test: $p1 never took the swap lock to hold it: $out"
+        say "  $p1 holds the swap lock (test hold): its ticket will be frozen on the platter"
+    fi
+    say "  sets $n1sum / $n2sum; destroying both nodes at once"
+    local dpids=()
+    for n in "${NODES[@]}"; do timeout 60 virsh -c qemu:///system destroy "$n" >/dev/null 2>&1 & dpids+=($!); done
+    wait "${dpids[@]}"
+    for n in "${NODES[@]}"; do
+        [ "$(timeout 20 virsh -c qemu:///system domstate "$n")" = "shut off" ] || die "self outage test: $n is not off"
+    done
+    "$REPO/scripts/lab_power.sh" up "${NODES[@]}" > "$EVID/sout_power" 2>&1 || die "self outage test: boot: $(tail -1 "$EVID/sout_power")"
+    # What a PVE host has at boot before mxfs-drbd@ starts: DRBD's resource up
+    # (still Secondary), the module loaded, no mount.  Then the boot program on
+    # both at once, as two hosts powered on together start it.
+    local KO_MD5; KO_MD5=$(md5sum "$REPO/mxfs.ko" | awk '{print $1}')
+    local resume_args=""
+    [ "${SELF_OUTAGE_RESUME:-0}" = 1 ] && resume_args=bootstrap_inject=4
+    both soutprep "$NODE_DRBD_UP
+        mountpoint -q /src || { mkdir -p /src; timeout 20 mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp; }
+        x=; [ \"\$(hostname)\" = $p0 ] && x='$resume_args'
+        MXFS_EXTRA_MODARGS=\$x MXFS_NO_MOUNT=1 MXFS_DEV=$DRBD_DEV MXFS_KO_MD5=$KO_MD5 MXFS_REPO=/src/mxfs bash /src/mxfs/tests/setup/prep_node.sh tcp 2>&1 | grep -a NODE_PREP" 150
+    for n in "${NODES[@]}"; do
+        grep -aq '^NODE_PREP_OK' "$EVID/soutprep.$n" || die "self outage test: $n: $(tail -1 "$EVID/soutprep.$n")"
+        self_dyndbg "$n" narrow || die "self outage test: cannot narrow the debug sites on $n"
+    done
+    local bootcmd="echo '<5>mxfs-test: self-outage boot' > /dev/kmsg
+        systemctl reset-failed mxfs-rig-boot 2>/dev/null
+        systemd-run --unit=mxfs-rig-boot --property=RemainAfterExit=yes --setenv=GUEST_WAIT=0 /usr/sbin/mxfs-drbd-fence-self boot $RES $MNT 2>&1 | tail -1
+        echo \"BOOT_STARTED \$(drbdadm cstate $RES) \$(drbdadm dstate $RES) \$(drbdadm role $RES)\""
+    if [ "${SELF_OUTAGE_PEER_PRIMARY:-0}" = 1 ]; then
+        # The module's own refusal comes after the scan window (~64 s) and its
+        # 120 s startup-fence bound; the step-down follows at once.
+        local refuse_budget=240
+        out=$(ssh_n "$p1" "for i in \$(seq 1 60); do [ \"\$(drbdadm cstate $RES)\" = Connected ] && [ \"\$(drbdadm dstate $RES)\" = UpToDate/UpToDate ] && break; sleep 2; done
+            drbdadm primary $RES 2>&1 | tail -1; drbdadm role $RES" 150)
+        grep -q '^Primary/' <<<"$out" || die "self outage test: could not leave $p1 Primary: $out"
+        say "  $p1 (participant 1) is Primary with no boot program; starting the boot program on $p0 alone"
+        out=$(ssh_n "$p0" "$bootcmd" 30)
+        grep -aq '^BOOT_STARTED' <<<"$out" || die "self outage test: $p0: the boot program did not start: $out"
+        t0=$(date +%s)
+        for i in $(seq 1 $((refuse_budget / 5))); do
+            out=$(ssh_n "$p0" "journalctl -b 0 --no-pager -o cat -u mxfs-rig-boot | grep -aE 'failed \\(rc=|stepped down|mounted $DRBD_DEV' | cut -c1-400" 20)
+            grep -q 'stepped down' <<<"$out" && break
+            grep -q "mounted $DRBD_DEV" <<<"$out" && die "self outage test: $p0 mounted while $p1 was Primary: $out"
+            sleep 5
+        done
+        echo "$out" > "$EVID/sout_peer_primary.$p0"
+        grep -q 'stepped down' <<<"$out" \
+            || die "self outage test: $p0's boot program did not step down within ${refuse_budget}s of its start: $(ssh_n "$p0" "systemctl is-active mxfs-rig-boot; journalctl -b 0 --no-pager -o cat -u mxfs-rig-boot | tail -3" 20 | tr '\n' ' ')"
+        grep -q 'failed (rc=124' <<<"$out" && die "self outage test: $p0's mount ran past the boot program's bound instead of the module refusing: $out"
+        say "  $p0 refused at +$(( $(date +%s) - t0 )) s and stepped down: $(grep -o 'failed (rc=.*' <<<"$out" | head -1 | cut -c1-240)"
+        out=$(ssh_n "$p1" "drbdadm secondary $RES 2>&1 | tail -1; drbdadm role $RES" 30)
+        grep -q '^Secondary/' <<<"$out" || die "self outage test: could not demote $p1: $out"
+        out=$(ssh_n "$p1" "$bootcmd" 30)
+        grep -aq '^BOOT_STARTED' <<<"$out" || die "self outage test: $p1: the boot program did not start: $out"
+        say "  $p1 demoted and its boot program started"
+    else
+        both soutboot "$bootcmd" 30
+        for n in "${NODES[@]}"; do
+            grep -aq '^BOOT_STARTED' "$EVID/soutboot.$n" || die "self outage test: $n: the boot program did not start: $(tail -1 "$EVID/soutboot.$n")"
+        done
+        say "  both booted; the boot program started on both ($(grep -a '^BOOT_STARTED' "$EVID/soutboot.$p0" | cut -d' ' -f2-) on $p0)"
+    fi
+    t0=$(date +%s)
+    for i in $(seq 1 $((SELF_OUTAGE_BUDGET / 5))); do
+        both soutstate "echo \"\$(systemctl is-active mxfs-rig-boot 2>/dev/null) \$(drbdadm cstate $RES 2>/dev/null) \$(drbdadm dstate $RES 2>/dev/null) \$(drbdadm role $RES 2>/dev/null) MNT=\$(awk '\$3 == \"mxfs\" && \$1 == \"$DRBD_DEV\" {print \$2}' /proc/mounts | head -1)\"" 15
+        done_n=0
+        for n in "${NODES[@]}"; do
+            st=$(cat "$EVID/soutstate.$n")
+            [ -z "$synced_at" ] && grep -q ' Connected UpToDate/UpToDate ' <<<"$st" && synced_at=$(( $(date +%s) - t0 ))
+            case "$st" in
+                *" MNT=$MNT")
+                    done_n=$((done_n + 1))
+                    [ -n "${mounted_at[$n]:-}" ] || mounted_at[$n]=$(( $(date +%s) - t0 )) ;;
+                failed*|inactive*) done_n=$((done_n + 1)) ;;
+            esac
+        done
+        [ "$done_n" = 2 ] && break
+        sleep 5
+    done
+    say "  DRBD Connected with both disks UpToDate at +${synced_at:-never} s"
+    for n in "${NODES[@]}"; do
+        ssh_n "$n" "grep -aE 'mxfs-test|P-BOOT-|P-DRBD-|P236-FENCE|P238-|P163-|P239-|P-RBLK-|mxfs-drbd-fence|P-DBG-DRBD|P-LOG-MOUNT-CANCEL|P-RMAN-|P-TAUTH-(IMPORT-RESIDUE|RETENTION|IMPORT-RETIRE|IMPORT-RETAINED|RETAINED-RELEASE)|Starting recovery|Ending recovery|Ending clean mount' /root/dmesg.stream | sed 's/^\\(\\[[ 0-9.]*\\]\\).*\\(mxfs[-:]\\|XFS\\)/\\1 \\2/' | cut -c1-300" 30 > "$EVID/sout_kernlog.$n"
+        # base64: ssh_n filters lines, which a gzip stream would not survive
+        ssh_n "$n" "gzip -c /root/dmesg.stream | base64 -w 76" 60 | base64 -d > "$EVID/sout_dmesg_stream.$n.gz"
+        ssh_n "$n" "journalctl -b 0 --no-pager -o short-iso -u mxfs-rig-boot -t mxfs-drbd-fence | cut -c1-300 | tail -60; tail -5 /var/lib/mxfs/drbd-fence.$RES 2>/dev/null" 30 > "$EVID/sout_bootlog.$n"
+    done
+    for n in "${NODES[@]}"; do
+        say "  $n: $(cat "$EVID/soutstate.$n")$([ -n "${mounted_at[$n]:-}" ] && echo ", mounted at +${mounted_at[$n]} s")"
+    done
+    for n in "${NODES[@]}"; do
+        grep -q " MNT=$MNT\$" "$EVID/soutstate.$n" \
+            || die "self outage test: $n did not mount within ${SELF_OUTAGE_BUDGET}s of the boot programs' start: $(grep -aoE 'P-DRBD-STARTUP-[A-Z-]+[^—]*|P-BOOT-[A-Z-]+ [^ ]*' "$EVID/sout_kernlog.$n" | tail -3 | tr '\n' ' ') (evidence $EVID)"
+    done
+    # The bootstrap's owner is whichever node passed its startup proof; every
+    # victim it recovered was certified by the peer being Secondary (kind 27).
+    startup=$(grep -l 'P-DRBD-STARTUP-PEER-SECONDARY' "$EVID"/sout_kernlog.* 2>/dev/null | head -1)
+    [ -n "$startup" ] || die "self outage test: no node proved its peer quiescent at startup: $(grep -ahoE 'P-DRBD-STARTUP-[A-Z-]+' "$EVID"/sout_kernlog.* | sort | uniq -c | tr '\n' ' ')"
+    m=${startup##*.}
+    grep -q 'P-BOOT-RECOVERY-COMPLETE' "$EVID/sout_kernlog.$m" || die "self outage test: $m mounted without completing the bootstrap"
+    out=$(grep -c 'P236-FENCE-CERTIFIED.*kind=DRBD_PEER_SECONDARY_V1' "$EVID/sout_kernlog.$m")
+    [ "$out" -ge 2 ] || die "self outage test: $m certified $out victim(s) by kind 27, not both incarnations"
+    say "  $m owned the bootstrap: $(grep -o 'P-DRBD-STARTUP-PEER-SECONDARY[^—]*' "$EVID/sout_kernlog.$m" | head -1)"
+    # The adopted victim's records were kept on the owner's slot for the term
+    # and released by its completion.
+    grep -q 'P-TAUTH-RETENTION-BOOT-K-RELEASE' "$EVID/sout_kernlog.$m" \
+        || die "self outage test: $m completed the term without releasing the adopted victim's records"
+    say "  $(grep -o 'P-TAUTH-RETENTION-BOOT-K-RELEASE [^—]*' "$EVID/sout_kernlog.$m" | tail -1)"
+    say "  $out victims certified kind DRBD_PEER_SECONDARY_V1; $([ "$m" = "$p0" ] && echo "participant 0 first, as the boot program orders it" || echo "participant 1 owned it")"
+    if [ "${SELF_OUTAGE_HOLD_TICKET:-0}" = 1 ]; then
+        grep -q 'P-DRBD-CAS-PEER-SET-ASIDE ' "$EVID/sout_kernlog.$m" \
+            || die "self outage test: the ticket $p1 froze was never set aside on $m"
+        grep -q 'P-DRBD-CAS-PEER-EXCLUDED\|P-DRBD-CAS-PEER-FENCED' "$EVID/sout_kernlog.$m" \
+            && die "self outage test: $m wrote the peer's register under a peer-Secondary proof"
+        say "  the frozen ticket of $p1 was set aside without writing it: $(grep -o 'P-DRBD-CAS-PEER-SET-ASIDE [^—]*' "$EVID/sout_kernlog.$m" | head -1)"
+    fi
+    if [ "${SELF_OUTAGE_RESUME:-0}" = 1 ]; then
+        [ "$m" = "$p0" ] || die "self outage test: the resume arm armed $p0, but $m owned the bootstrap"
+        grep -q 'P-BOOT-INJECT point=4' "$EVID/sout_kernlog.$m" \
+            || die "self outage test: the fail point after K's replay never fired on $m"
+        grep -q 'P-BOOT-ESCROW-K-REPLAY-OK' "$EVID/sout_kernlog.$m" \
+            || die "self outage test: $m never recorded K's replay"
+        grep -q 'P-BOOT-RESUME term=' "$EVID/sout_kernlog.$m" \
+            || die "self outage test: $m mounted without resuming the term the fail point left"
+        say "  $m failed after K's replay was recorded, then resumed the term in the same boot and finished it: $(grep -o 'P-LOG-MOUNT-CANCEL [^—]*' "$EVID/sout_kernlog.$m" | head -1)"
+    fi
+    if grep -q 'P-RBLK-' "$EVID"/sout_kernlog.*; then
+        die "self outage test: an operation was refused as RECOVERY_BLOCKED: $(grep -ah 'P-RBLK-' "$EVID"/sout_kernlog.* | head -2 | cut -c1-200 | tr '\n' ' ')"
+    fi
+    # A sealed record found gone before a replay is a refused volume, even
+    # when a later attempt mounted.
+    if grep -q 'P-RMAN-POSTSEAL-MUTATION' "$EVID"/sout_kernlog.*; then
+        die "self outage test: a replay found a sealed record gone: $(grep -ah 'P-RMAN-POSTSEAL-MUTATION' "$EVID"/sout_kernlog.* | head -2 | cut -c1-220 | tr '\n' ' ')"
+    fi
+    for n in "${NODES[@]}"; do
+        out=$(ssh_n "$n" "cd $MNT/sout/n1 && md5sum f* | sort -k2 | md5sum | cut -c1-32; cd $MNT/sout/n2 && md5sum f* | sort -k2 | md5sum | cut -c1-32; touch $MNT/sout/after.$n && rm $MNT/sout/after.$n && echo FS_OK" 60)
+        [ "$(sed -n 1p <<<"$out")" = "$n1sum" ] && [ "$(sed -n 2p <<<"$out")" = "$n2sum" ] \
+            || die "self outage test: $n reads different data after the outage: $out"
+        grep -q FS_OK <<<"$out" || die "self outage test: $n cannot write after the outage: $out"
+    done
+    say "  every fsynced file of both nodes intact on both, and both write"
+    both soutstop "systemctl stop mxfs-rig-boot 2>/dev/null; systemctl reset-failed mxfs-rig-boot 2>/dev/null; $NODE_UNMOUNT; echo STOP_OK" 120
+    for n in "${NODES[@]}"; do grep -aq '^STOP_OK' "$EVID/soutstop.$n" || die "self outage test: $n would not release mxfs: $(tail -1 "$EVID/soutstop.$n")"; done
+    out=$(ssh_n "$N1" "/src/mxfs/tools/chk_mxfs $DRBD_DEV 2>&1 | tail -3; echo CHK_RC=\${PIPESTATUS[0]}" 120)
+    echo "$out" > "$EVID/sout_chk"
+    grep -q 'CHK_RC=0' <<<"$out" || die "self outage test: chk_mxfs after the recovery: $(tail -3 <<<"$out" | tr '\n' ' ')"
+    say "  cold chk_mxfs clean"
+    install_fencing
+    say "self outage test: passed (the rig's node fence is configured again; MXFS left unmounted)"
+}
+
 # Both handlers race: delay 0 on both nodes, the link cut on both sides at
 # once.  The fence authority must grant exactly one: one node off and
 # inhibited, the other Primary with its peer Outdated, writing.  Then the loser
@@ -761,7 +1265,7 @@ step_split_test() {
     out=$("$REPO/tools/rig_fence_virsh.sh" release "$loser" "$ep" "$surv")
     [ "$out" = "RELEASED $loser episode=$ep" ] || die "split test: release: $out"
     "$REPO/scripts/lab_power.sh" up "$loser" > "$EVID/split_rejoin_power" 2>&1 || die "$loser did not boot"
-    out=$(ssh_n "$loser" "modprobe drbd && drbdadm up $RES 2>&1 | tail -1
+    out=$(ssh_n "$loser" "$NODE_DRBD_UP
         for i in \$(seq 1 $REJOIN_BUDGET); do
             [ \"\$(drbdadm dstate $RES 2>/dev/null)\" = UpToDate/UpToDate ] && { drbdadm primary $RES 2>&1 | tail -1; echo \"REJOIN_OK \$(drbdadm role $RES)\"; exit 0; }
             sleep 1
@@ -994,7 +1498,7 @@ step_outage_test() {
         [ "${out##*inhibit=}" = none ] || die "outage test: $n carries an inhibit after a pair outage: $out"
     done
     "$REPO/scripts/lab_power.sh" up "${NODES[@]}" > "$EVID/outage_power" 2>&1 || die "outage test: boot: $(tail -1 "$EVID/outage_power")"
-    both drbdup "modprobe drbd && drbdadm up $RES 2>&1 | tail -1
+    both drbdup "$NODE_DRBD_UP
         for i in \$(seq 1 $REJOIN_BUDGET); do [ \"\$(drbdadm cstate $RES) \$(drbdadm dstate $RES)\" = 'Connected UpToDate/UpToDate' ] && break; sleep 1; done
         drbdadm primary $RES 2>&1 | tail -1
         mountpoint -q /src || { mkdir -p /src; timeout 20 mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp; }" $((REJOIN_BUDGET + 40))
@@ -1113,7 +1617,7 @@ step_takeover_test() {
         [ "$(timeout 20 virsh -c qemu:///system domstate "$n")" = "shut off" ] || die "takeover test: $n is not off"
     done
     "$REPO/scripts/lab_power.sh" up "${NODES[@]}" > "$EVID/outage_power" 2>&1 || die "takeover test: boot: $(tail -1 "$EVID/outage_power")"
-    both drbdup "modprobe drbd && drbdadm up $RES 2>&1 | tail -1
+    both drbdup "$NODE_DRBD_UP
         for i in \$(seq 1 $REJOIN_BUDGET); do [ \"\$(drbdadm cstate $RES) \$(drbdadm dstate $RES)\" = 'Connected UpToDate/UpToDate' ] && break; sleep 1; done
         drbdadm primary $RES 2>&1 | tail -1
         mountpoint -q /src || { mkdir -p /src; timeout 20 mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp; }" $((REJOIN_BUDGET + 40))
@@ -1134,7 +1638,7 @@ step_takeover_test() {
         case "$out" in "STATE $N2 shut off inhibit="*) [ "${out##*inhibit=}" != none ] ;; *) false ;; esac \
             || die "takeover test: $owner's startup fence should have left $N2 off and inhibited: $out"
         "$REPO/scripts/lab_power.sh" up "$owner" > "$EVID/owner_power" 2>&1 || die "takeover test: $owner did not boot"
-        out=$(ssh_n "$owner" "modprobe drbd && drbdadm up $RES 2>&1 | tail -1
+        out=$(ssh_n "$owner" "$NODE_DRBD_UP
             for i in \$(seq 1 $REJOIN_BUDGET); do case \"\$(drbdadm dstate $RES)\" in UpToDate/*) break ;; esac; sleep 1; done
             drbdadm primary $RES 2>&1 | tail -1
             mountpoint -q /src || { mkdir -p /src; timeout 20 mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp; }
@@ -1154,7 +1658,7 @@ step_takeover_test() {
         out=$("$REPO/tools/rig_fence_virsh.sh" release "$N2" "$ep" "$owner")
         [ "$out" = "RELEASED $N2 episode=$ep" ] || die "takeover test: release: $out"
         "$REPO/scripts/lab_power.sh" up "$N2" > "$EVID/contender_power" 2>&1 || die "takeover test: $N2 did not boot"
-        out=$(ssh_n "$N2" "modprobe drbd && drbdadm up $RES 2>&1 | tail -1
+        out=$(ssh_n "$N2" "$NODE_DRBD_UP
             for i in \$(seq 1 $REJOIN_BUDGET); do [ \"\$(drbdadm dstate $RES 2>/dev/null)\" = UpToDate/UpToDate ] && { drbdadm primary $RES 2>&1 | tail -1; break; }; sleep 1; done
             mountpoint -q /src || { mkdir -p /src; timeout 20 mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp; }
             echo \"RESYNCED \$(drbdadm role $RES) \$(drbdadm dstate $RES)\"" $((REJOIN_BUDGET + 40)))
@@ -1259,11 +1763,16 @@ case "$CMD" in
     fence-test)  evid; take_locks; hold_luns adopt; step_fence_test ;;
     split-test)  evid; take_locks; hold_luns adopt; step_split_test ;;
     death-test)  evid; take_locks; hold_luns adopt; step_death_test ;;
+    self-death-test) evid; take_locks; hold_luns adopt; step_self_death_test ;;
     resolve-test) evid; take_locks; hold_luns adopt; step_resolve_test ;;
     remount-test) evid; take_locks; hold_luns adopt; step_remount_test ;;
     outage-test) evid; take_locks; hold_luns adopt; step_outage_test ;;
+    self-outage-test) evid; take_locks; hold_luns adopt; step_self_outage_test ;;
     takeover-test) evid; take_locks; hold_luns adopt; step_takeover_test "$@" ;;
-    rejoin)      evid; take_locks; hold_luns adopt; rejoin_node "$N2" "$N1"; say "rejoin: $N2 is back, DRBD Primary/Primary, MXFS mounted" ;;
+    rejoin)      # [node]: the node to bring back (default $N2); the other is its survivor
+        evid; take_locks; hold_luns adopt
+        rj=${1:-$N2}; [ "$rj" = "$N1" ] && rs=$N2 || rs=$N1
+        rejoin_node "$rj" "$rs"; say "rejoin: $rj is back, DRBD Primary/Primary, MXFS mounted" ;;
     down)   evid; take_locks; step_down ;;
     all)
         # Steps 5 and 6 run in subshells so that a refusal there still leaves

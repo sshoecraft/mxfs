@@ -68,6 +68,23 @@ int mxfs_drbd_judge_excluded(const struct mxfs_pal_drbd_report *r,
                              char *why, size_t whylen);
 
 /*
+ * Is the peer Secondary on a Connected link?  0 when this node is a working
+ * Primary (as for admission), the link is exactly Connected, both disks are
+ * UpToDate and the peer is Secondary, with no inhibit on it.  This is the
+ * evidence of fence kind 27 (MXFS_FENCE_KIND_DRBD_PEER_SECONDARY_V1): no
+ * incarnation is alive on the peer, and every write any earlier one made is
+ * on this disk.  It is a fact about incarnations that have ENDED, never a
+ * continuing fence: the peer may be promoted the moment after the report
+ * was taken, so nothing may be re-checked or cleared against it.
+ *
+ * The /proc/drbd line the report's connection, role and disk states come
+ * from is printed from one copy of the device's state word, so they are one
+ * instant's state, not fields read at different times.
+ */
+int mxfs_drbd_judge_peer_secondary(const struct mxfs_pal_drbd_report *r,
+                                   char *why, size_t whylen);
+
+/*
  * This node's participant index in the pair's compare-and-swap: 0 for the
  * endpoint with the lower IPv4 address.  Connected, each side's local address
  * is the other's peer address, so the two sides always compute complementary

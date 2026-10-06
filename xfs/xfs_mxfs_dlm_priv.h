@@ -1964,6 +1964,24 @@ unsigned int mxfs_dlm_invalidate_ag_meta( struct xfs_perag *pag, unsigned int *a
 bool mxfs_buf_is_ag_metadata( struct xfs_buf *bp);
 uint64_t mxfs_dir_buf_owner(struct xfs_buf *bp);
 int mxfs_dlm_invalidate_cached_views( struct xfs_mount *mp);
+/*
+ * The cached-view walk's retained buffers, by what keeps each one (a retained
+ * buffer's cached view survives the walk).  Read by the barrier around a dead
+ * peer's slice replay, which judges each class by whose authority it is.
+ */
+struct mxfs_inval_census {
+	unsigned int	ino;		/* inode clusters */
+	unsigned int	ag_held;	/* AG metadata with this node's un-landed content, AG held here */
+	unsigned int	ag_unheld;	/* the same in an AG whose grant this node does not hold */
+	unsigned int	blk_own;	/* other blocks carrying this node's un-landed content */
+	unsigned int	blk_locked;	/* other blocks locked when the walk met them */
+	unsigned int	dropped;	/* clean blocks marked for a re-read */
+	unsigned int	perags;		/* AGs walked */
+	unsigned int	ags_retained;	/* AGs with a retained buffer */
+	unsigned int	ags_live;	/* AGs with live local holders */
+};
+int mxfs_dlm_invalidate_cached_views_census( struct xfs_mount *mp, struct mxfs_inval_census *c);
+int mxfs_dlm_foreign_replay_barrier( struct xfs_mount *mp, unsigned int slot, const char *when);
 int mxfs_dlm_peer_joined_flush( void *data);
 int mxfs_dlm_join_prepare( void *data);
 void mxfs_dlm_join_commit( void *data);

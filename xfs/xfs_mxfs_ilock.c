@@ -4501,7 +4501,7 @@ restart:
 	 * Not a poison: the predicate is re-evaluated on every entry.
 	 */
 	if (unlikely(mxfs_recovery_blocked_covers_ino(ip->i_mount, ip->i_ino))) {
-		pr_warn_ratelimited(
+		mxfs_pal_log_repeating(MXFS_LOG_WARN,
 		    "mxfs: P240-RBLK-REFUSE ino=%llu mode=%u comm=%s — grant held by a dead node whose recovery is RECOVERY_BLOCKED; refusing DLM acquire (op fails EIO)\n",
 			(unsigned long long)ip->i_ino, mode, current->comm);
 		return;

@@ -73,6 +73,9 @@
 #include <linux/in.h>		/* ipv4_is_multicast et al.: peers= */
 #include <linux/fserror.h>
 
+/* the cluster init's refusal line handed to mount(8) (xfs_fs_fill_super) */
+#define MXFS_MOUNT_REFUSAL_LEN	256
+
 static const struct super_operations xfs_super_operations;
 
 static struct dentry *xfs_debugfs;	/* top-level xfs debugfs dir */
@@ -5306,7 +5309,19 @@ xfs_fs_fill_super(
 			error = -ENOMEM;
 			goto out_filestream_unmount;
 		}
+		/*
+		 * 0.90.64: the init's first error line is its reason for refusing,
+		 * and mount(8) is where an operator looks for it.  Measured on a
+		 * PVE host (0.90.55): a DRBD resource with no fence handler and a
+		 * device with no persistent reservations both gave mount rc=32
+		 * and "fsconfig() failed: Transport endpoint is not connected",
+		 * the reason only in the kernel log.
+		 */
+		char *why = kmalloc(MXFS_MOUNT_REFUSAL_LEN, GFP_KERNEL);
+
+		mxfs_pal_log_capture_begin(why, why ? MXFS_MOUNT_REFUSAL_LEN : 0);
 		mp->m_mxfs_dlm = mxfs_v5_dlm_init(&dlm_opts);
+		mxfs_pal_log_capture_end();
 		if (!mp->m_mxfs_dlm) {
 			/*
 			 * v0.11.77 fail-closed: an envelope volume is a
@@ -5320,9 +5335,16 @@ xfs_fs_fill_super(
 			 * works on the unmounted device.
 			 */
 			xfs_alert(mp, "MXFS DLM init failed — aborting mount of cluster (envelope) volume");
-			error = -ENOTCONN;
+			if (why && why[0]) {
+				errorfc(fc, "%s", strncmp(why, "mxfs: ", 6) ? why : why + 6);
+				error = -EPERM;
+			} else {
+				error = -ENOTCONN;
+			}
+			kfree(why);
 			goto out_filestream_unmount;
 		} else {
+			kfree(why);
 			mp->m_mxfs_dlm_was_active = true;
 			mp->m_mxfs_node_slot =
 				mxfs_v5_dlm_get_node_slot(mp->m_mxfs_dlm);

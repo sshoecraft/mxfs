@@ -135,6 +135,32 @@ int mxfs_drbd_judge_excluded(const struct mxfs_pal_drbd_report *r, char *why, si
     return mxfs_drbd_judge_excluded_how(r, NULL, why, whylen);
 }
 
+int mxfs_drbd_judge_peer_secondary(const struct mxfs_pal_drbd_report *r, char *why,
+                                   size_t whylen)
+{
+    int rc;
+
+    if (!r)
+        return -EINVAL;
+    rc = common(r, why, whylen);
+    if (rc)
+        return rc;
+    /* Exactly Connected: any sync state means DRBD is still writing one
+     * replica from the other, and WFConnection or StandAlone means the
+     * peer's role is not known at all. */
+    NEED(eq(r->cstate, "Connected"), "the replication link is '%s', not Connected%s",
+         r->cstate, "");
+    NEED(eq(r->disk_peer, "UpToDate"), "connected, but the peer's disk is '%s'%s",
+         r->disk_peer, "");
+    NEED(eq(r->role_peer, "Secondary"), "the peer is '%s', not Secondary%s", r->role_peer, "");
+    /* An inhibit while Connected means the authority and DRBD disagree about
+     * the peer; nothing is proved from a state that should not exist. */
+    NEED(eq(r->auth_inhibit, "none"),
+         "connected, but the fence authority holds the peer inhibited (episode %s)%s",
+         r->auth_inhibit, "");
+    return 0;
+}
+
 /* Dotted IPv4 to a number; -1 when it is not exactly four octets. */
 static long long ipv4(const char *s)
 {

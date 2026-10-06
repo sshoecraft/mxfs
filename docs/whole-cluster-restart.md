@@ -781,7 +781,15 @@ and an empty barrier cut.
     - Measurement: `tests/bootstrap_resume.sh <label> <point>` with the
       TEST-ONLY one-shot `mxfs.bootstrap_inject` = 1 (after phase 3, escrow
       NONE) / 2 (after PREPARED, before the claim CAW) / 3 (after K claimed);
-      chain 28 (sess442) runs the full restart and all three.
+      chain 28 (sess442) runs the full restart and all three.  Point 4 fails
+      the completion after K_REPLAY_OK; `scripts/drbd_rig.sh
+      self-outage-test` with `SELF_OUTAGE_RESUME=1` runs it on
+      2/net/mesh/drbd.
+    - A resume past K_REPLAY_OK re-verifies K against its sealed manifest
+      before the replay, so every record of K's incarnation must outlive the
+      failed attempt.  The sweep, the takeover and the page import all keep
+      them until the term completes (`docs/tcp-authority-ledger.md`, "our own
+      slot's predecessor"); the completion releases what the import kept.
     - Operator path: `chk_mxfs --clear-bootstrap` hands a REFUSED record back
       to IDLE (term carried forward; `prev_owner_*` = the refused owner,
       `prev_fence_kind = 0`); offline only (O_EXCL + 3 s heartbeat liveness);

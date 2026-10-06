@@ -1,3 +1,376 @@
+## 2026-10-06 — 0.90.65 — the DRBD boot program retries a mount that runs long; a refused mount says why
+
+**The DRBD boot program gave up after one long mount.** `mxfs-drbd-fence-self
+boot` (what `mxfs-drbd@` runs at boot) bounded each mount at 180 s. After both
+nodes went down, the module's own worst case is longer: the bootstrap scan
+waits out the dead-heartbeat window (~64 s), then the DRBD startup fence waits
+up to 120 s for the peer to be provably quiescent, then the old journals are
+replayed. Measured on the rig (test2, 0.90.64): the program killed the mount
+at 180 s, 3 s before the module's own refusal was due. The timeout was raised
+out of the mount step, so the program exited after attempt 1 of 6, with the
+node still Primary. The step-down-and-retry it is built around never ran, and
+the pair would have needed an operator.
+- Each mount attempt is now bounded at 300 s, past the module's own bounds.
+- A mount that still runs past it counts as a failed attempt like any other:
+  the node steps down to Secondary and retries.
+- The failure line carries mount(8)'s message, which now holds the module's
+  reason (below).
+
+**A refused mount says why.** A mount MXFS refuses for a stated reason (no
+fence handler on the DRBD resource, no persistent reservations on the device,
+a peer that cannot be proven quiescent) failed with "Transport endpoint is not
+connected". The reason was only in the kernel log. Now the first error-level
+line of the refusal goes to mount(8), and the mount fails with "Operation not
+permitted" (EPERM) instead. A failure with no stated reason still returns
+ENOTCONN.
+
+**`make install` syncs what it wrote.** pve2 crashed about 2 s after an
+install and came back with its MXFS units, the fence handler, the witness and
+`mkfs.mxfs` all zero bytes long. The units then read as masked, and the node
+could neither fence nor mount until the install was run again. The install
+now syncs before it reloads udev and restarts the guard.
+
+**Rig (`scripts/drbd_rig.sh`):**
+- After a node boots, DRBD's resource is brought up only once its backing LUN
+  is there. A rig node's `open-iscsi` login can lose a race with `iscsid`
+  ("Could not open /run/lock/iscsi: File exists") and leave the LUN out. The
+  rig now logs in again, up to 30 times, before `drbdadm up`.
+- Every stop first ends a boot program an interrupted outage test left running.
+  Otherwise it mounts its node on its own as soon as the peer mounts, in the
+  middle of a later step.
+- **New arm, `SELF_OUTAGE_PEER_PRIMARY=1`:** after the pair outage, participant
+  1 comes back Primary without its boot program. Participant 0's first mount is
+  refused at the module's own bound. The boot program must step down and
+  retry, and both nodes must mount once participant 1 is demoted.
+
+**Verified on the rig** (module `4C6C26166C92ECE9222F141`):
+- **The new arm passed** (`20261006T115844Z-self-outage-test`):
+  - Participant 0's first mount was refused by the module itself at +186 s:
+    rc=32, `P-DRBD-STARTUP-FENCE-UNPROVEN waited_ms=120095`, not killed.
+  - The boot program stepped down and retried, and both nodes mounted
+    (+154 s, +165 s).
+  - Every fsynced file was intact and the cold check was clean.
+- **The other failover tests passed:**
+  - The plain pair outage: both nodes mounted by themselves at +143 s and
+    +148 s.
+  - Takeover, self and foreign.
+  - The loop-device refusal test.
+- **The `2/net/mesh/drbd` suite passed 30 of 30.**
+- **Not yet seen:** the refusal's reason as mount(8) prints it. The rig's
+  util-linux 2.39.3 uses the new mount API but does not print the kernel's
+  messages, so mount(8) said only "permission denied". The reason went to the
+  mount's message log, not to dmesg. Proxmox VE 9 ships util-linux 2.41, which
+  prints them.
+
+## 2026-10-06 — 0.90.64 — a pair-outage recovery that fails after replaying its adopted journal finishes on the next try
+
+**After both nodes went down, a recovery that failed once could never be
+finished in the same boot.** The first node to mount after a whole-cluster
+outage adopts one dead node's journal (K) as its own log and replays it, then
+replays the other dead node's journal. If its mount failed after K's replay
+was recorded, every later mount of that boot refused the volume. Each resume
+checks K's journal against the lock records sealed when K was fenced, and
+some of those records were gone. Measured on the rig with the previous kernel
+code (0.90.63, `SELF_OUTAGE_RESUME=1 scripts/drbd_rig.sh self-outage-test`,
+which fails the owner's first completion on purpose):
+- While taking over the other dead node's lock pages, the page import found
+  K's records on the slot the owner now writes as its own. It took them for
+  leftovers of that slot and purged them by K's node id:
+  `P-TAUTH-IMPORT-RESIDUE-EX ... slot=0 node=1317496673`, K's escrowed
+  identity.
+- Every resume then logged `P-RMAN-POSTSEAL-MUTATION site=prereplay` for four
+  to six of K's records and refused, five times over seven minutes.
+
+The orphan sweep and the page takeover already kept K's records until the
+recovery completes; the page import now does too. While the recovery is
+open, a record of K's on the owner's slot is installed as K's lock, never
+released as a leftover. The completion releases what the import kept, in the
+same way the import would have. The design is in `docs/tcp-authority-ledger.md`
+("our own slot's predecessor").
+
+- **New test arm.** `SELF_OUTAGE_RESUME=1` on `scripts/drbd_rig.sh
+  self-outage-test` fails the owner's completion once, after K's replay is
+  recorded (test-only `bootstrap_inject=4`), and requires the same boot to
+  finish the recovery. The test now fails on any `P-RMAN-POSTSEAL-MUTATION`,
+  and requires the completion's `P-TAUTH-RETENTION-BOOT-K-RELEASE` line.
+- **New log line `P-LOG-MOUNT-CANCEL`:** a mount that fails after recovering
+  its own log says how many recovered intents it cancels unprocessed, and
+  whether the log is left clean.
+- 0.90.63 was never released; its fail point, log line and test arm ship
+  here.
+
+## 2026-10-06 — 0.90.62 — a DRBD pair recovers by itself after both nodes lose power at once
+
+**After a power cut of both nodes, neither could mount again.** With the
+pair's built-in two-node authority (no IPMI or PDU, the Proxmox pair's setup),
+the first mount found a frozen heartbeat table holding both dead incarnations.
+It needed a startup fence, and the authority refused it because it powers
+nothing off. Each node's mount waited out the 120 s bound and was refused,
+every time. Measured on the rig with the previous kernel code (module
+C8357D90990B020BAFC369D, tests/evidence/drbd_rig/20261006T094910Z-self-outage-test):
+on both nodes, `P-DRBD-STARTUP-FENCE-ASKED ... 'Connected', not
+disconnected`, then `P-BOOT-MOUNT-REFUSED`.
+
+A new proof, fence kind 27 (`DRBD_PEER_SECONDARY_V1`), now certifies the dead
+incarnations. Its evidence is the peer Secondary on a Connected link with both
+disks UpToDate, and four DRBD rules carry the argument:
+- DRBD refuses a Secondary every write open.
+- A Primary cannot demote while a mount holds it open.
+- A demotion is reported only after every request the demoting node sent has
+  been acknowledged.
+- A crashed host's writes are settled by the reconnect resync before both
+  disks read UpToDate.
+
+So no incarnation is alive on the peer, and every write an earlier one made is
+on this disk. On this host a block device has one superblock, so no earlier
+MXFS of the device is alive either. Kind 27 is a death certificate, not a
+fence: nothing re-checks it, and nothing clears the peer's swap register under
+it. It is accepted for the startup check, for every victim's certificate, for
+a bootstrap takeover's old owner, and for the bootstrap's completion check.
+The reasoning and its limits are decision 9 in
+`docs/rulings/drbd-two-node-self-exclusion.md`.
+
+- **The emulated compare-and-swap sets aside a dead attachment's register.**
+  A ticket frozen mid-swap by the power cut would otherwise make every swap
+  wait and fail. Once a swap has waited a second with its own ticket
+  published, and the peer is proven Secondary, the register as read before
+  the proof is recorded byte for byte. It reads as idle while the sector still
+  holds those bytes, and it is never written. A register that does not
+  validate (a torn sector) now reads as busy rather than as an I/O error.
+- **`mxfs-drbd-fence-self boot` orders the two nodes.** Two nodes promoting
+  together leave neither able to prove the other Secondary. So, connected,
+  participant 1 promotes only once participant 0 reports over ssh that it has
+  MXFS mounted, or that its boot program has not been running for 30 s.
+- **A refused mount steps down to Secondary and is retried,** with a backoff
+  doubling from 15 s to 120 s, six attempts.
+- **The boot program publishes its state** in `/run/mxfs/drbd-boot.<resource>`.
+- **New test: `scripts/drbd_rig.sh self-outage-test`.** It cuts the pair's
+  power with MXFS mounted and both slices dirty, and brings both nodes back
+  only through the boot program. `SELF_OUTAGE_HOLD_TICKET=1` kills participant
+  1 while it holds the swap lock.
+- **`tests/setup/prep_node.sh` takes `MXFS_NO_MOUNT=1`:** load the module and
+  stop before anything opens the device.
+
+- **with the built-in two-node authority (no node fence), a pair whose two
+  nodes crashed at once cannot remount: the startup fence is refused because
+  nothing proves the connected peer's earlier incarnation gone** — FIXED AND
+  VERIFIED, 0.90.62.
+  - *Cause proven:* after both nodes crash, the bootstrap's startup fence and
+    its victim certificates accepted only an excluded peer (kinds 25/26, link
+    down), and the built-in authority refuses a startup fence. A connected
+    pair could never prove its old incarnations gone.
+  - *Baseline,* on the previous kernel code (module C8357D90990B020BAFC369D):
+    `scripts/drbd_rig.sh self-outage-test` destroys both rig nodes at once
+    with MXFS mounted, and recovers them only through `mxfs-drbd-fence-self
+    boot`. In tests/evidence/drbd_rig/20261006T094910Z-self-outage-test, both
+    nodes logged `P-DRBD-STARTUP-FENCE-ASKED ... 'Connected', not
+    disconnected`, then `P-BOOT-MOUNT-REFUSED`. Neither mounted within 480 s.
+  - *Verified,* with module B1FDD6509325361C53C673D on the same test, with
+    unchanged acceptance. tests/evidence/drbd_rig/20261006T101921Z-self-outage-test
+    passed:
+    - test2 logged `P-DRBD-STARTUP-PEER-SECONDARY` at 127 ms.
+    - Both victims were certified, each `P236-FENCE-CERTIFIED
+      kind=DRBD_PEER_SECONDARY_V1`.
+    - test2 mounted at +144 s and test1 at +149 s.
+    - Every fsynced file of both nodes was intact on both, both nodes wrote,
+      and a cold `chk_mxfs` was clean.
+  - *Verified with a frozen ticket.* With `SELF_OUTAGE_HOLD_TICKET=1`, test1
+    was killed holding its swap ticket, and
+    tests/evidence/drbd_rig/20261006T102324Z-self-outage-test passed with the
+    same data and chk checks:
+    - `P-DRBD-CAS-PEER-SET-ASIDE ticket=2 peer_ticket=1`, and no peer register
+      was written.
+    - `P-BOOT-RECOVERY-COMPLETE` at 153.0 s.
+    - The setting aside ended at 154.2 s, when test1 attached.
+
+## 2026-10-06 — 0.90.61 — the DRBD setup guide installs what the build needs
+
+**The guide's first step failed on a stock Proxmox VE 9 host.**  It installed
+only `drbd-utils` and then ran `git clone`; a PVE 9 host as installed has no
+`git` (measured on two PVE 9.1 lab hosts: `git: command not found`), and no
+compiler either (their dpkg logs show `gcc-14`, `make` and `build-essential`
+first installed weeks after the PVE install, by a DKMS package), so neither the
+clone nor `make` could run.  The step now
+installs `git`, `build-essential` and `proxmox-headers-$(uname -r)` (Debian and
+Ubuntu: `linux-headers-$(uname -r)`), and says the module must be rebuilt after
+a kernel update.
+
+## 2026-10-06 — 0.90.60 — Proxmox starts the guests that need the DRBD mount after it
+
+**A guest set to start at boot whose disk is on the DRBD mount failed to
+start.**  `mxfs-drbd@` was `Type=simple` and ordered before `pve-guests`, which
+orders only the start of its program: Proxmox's boot-time start of guests ran
+while the unit was still waiting for DRBD to connect and resync, and a VM
+whose disk is on `/mnt/shared` (a `dir` storage with `is_mountpoint`) failed
+with its storage offline.  The unit is now `Type=notify` and ordered before
+`pve-guests` and `pve-ha-lrm`: `mxfs-drbd-fence-self boot` reports ready once
+the filesystem is mounted, or after `GUEST_WAIT` seconds (default 300, set in
+`/etc/mxfs/drbd-<resource>.conf`) when it cannot be, so guests on local
+storage are not held while the peer is down; a mount that comes after that
+starts the on-boot guests itself, with the same call Proxmox's boot start makes
+(`pvesh create /nodes/localhost/startall`, which skips running guests), as a
+transient unit `mxfs-drbd-onboot-<resource>`.
+
+## 2026-10-06 — 0.90.59 — a DRBD survivor recovers its dead peer a minute sooner
+
+**The survivor replayed a dead peer's slice a minute after DRBD had excluded
+it.**  The disk heartbeat monitor declared the death only when its stale
+window ran out (31 samples, 62 s, restarted when DRBD's I/O freeze ended),
+although the heartbeat is replicated by DRBD and cannot advance on this replica
+once the link is StandAlone.  Everything needing the dead node's grants waited
+through it: on the rig, a VM-like load started on the survivor at the kill, on
+the image the dead node's VM had been writing, sat 89.5 s in its open.  The
+mount now posts the exclusion its witness confirmed to the monitor
+(`mxfs_disklock_post_excluded`), which declares the incarnation it tracks for
+that node dead on its next pass, after a priority re-read
+(`P163-EXCLUDED-SEEN`).  The posting carries a sequence number and fires only
+on the incarnation the monitor tracks; the fence leg still judges the
+exclusion itself before it certifies.  The reasoning is decision 8 in
+`docs/rulings/drbd-two-node-self-exclusion.md`.
+
+**The self-death test starts a VM on the dead node's image at the kill**
+(an HA restart, or VM 104 on the PVE pair, whose disk's lock the dead node
+held).  It must run without an I/O error like the four loads that run through
+the death, and every load's wait is now reported from its launch: fio's own
+clock starts only when its open returns, so the 89.5 s wait read as 1 s.
+
+- **on the DRBD attachment the survivor replays a dead peer's slice only after
+  the disk heartbeat monitor's stale window, 61 s after the witnessed
+  exclusion** — FIXED AND VERIFIED, 0.90.59.  Rig 2/net/mesh/drbd, module
+  C8357D90990B020BAFC369D, `scripts/drbd_rig.sh self-death-test`, the test
+  that measured it on 0.90.58
+  (tests/evidence/drbd_rig/20261006T074027Z-self-death-test): fence-peer
+  EXCLUDED 24619.08, `P-DRBD-EXCL-DEATH` 24620.70, `P163-EXCLUDED-SEEN` 0.52 s
+  later (0.90.58: the window expired 60.2 s later), certificate kind 26 at
+  24621.67, `P163-RECOVERY-COMPLETE` 32 s after the kill (0.90.58: 91 s).  The
+  load started at the kill on the dead node's image did its first I/O at
+  +30.9 s (0.90.58: 89.5 s); all five survivor loads error=0, every fsynced
+  file of both nodes intact, the released victim rejoined and reads both sets
+  identically, cold `chk_mxfs` clean.
+
+**The DRBD setup guide sets `ping-int 3`.**  Most of what remained was DRBD's
+own detection: with its default 10 s keep-alive, a survivor with writes in
+flight notices a dead peer only after twice `ping-int` plus `ping-timeout`,
+and every write on it waits that long.  A keep-alive is sent only on an idle
+link, so the shorter interval adds no traffic under load.  Measured on the rig
+(`scripts/drbd_rig.sh self-death-test`, module C8357D90990B020BAFC369D):
+
+| | 0.90.58 | 0.90.59, `ping-int 10` | 0.90.59, `ping-int 3` |
+|---|---|---|---|
+| the kill to `P163-RECOVERY-COMPLETE` | 91 s | 32 s | 17-18 s |
+| a VM started on the dead node's image at the kill: first I/O | 89.5 s | 30.9 s | 16.4-16.6 s |
+| the survivor's running VMs: longest pause | 21 s | 21 s | 7 s |
+
+A `ping-int` changed with `drbdadm adjust` reaches the configuration but not
+the live connection; it takes effect when the connection is next made.
+
+**The self-death test grades against what recovery should take.**  Its
+recovery budget is now 37 s, twice the sum of DRBD's detection (6.5 s), the
+exclusion, the witness, the death declaration, the certificate and the slice
+replay (~18 s), where it was 120 s.  A stall is now a gap of two seconds or
+more in a load's one-second I/O log; the log's own cadence jitters by a few
+milliseconds and was read as a 1 s stall.  Run under both changes, 0.90.59
+(tests/evidence/drbd_rig/20261006T080125Z-self-death-test): recovery 18 s,
+the four running loads' longest pause 7.0 s, the takeover load's first I/O at
++16.4 s with no pause after it (stall 0.0 s), error=0 on all five loads, every
+fsynced file intact, the released victim rejoined and reads both sets
+identically, cold `chk_mxfs` clean.  The run before the change
+(20261006T075119Z) measured the same 18 s recovery.
+
+**A fix for the in-kernel DRBD 8.4 driver.**  At the first peer exclusion
+after boot the survivor logs "Voluntary context switch within RCU read-side
+critical section": `w_after_conn_state_ch` calls `drbd_uuid_new_current`,
+which writes the metadata and sleeps, inside `rcu_read_lock()`.  Seen on pve1
+(kernel 6.17, DRBD 8.4.11) at its 22:57 exclusion on 2026-10-05.
+`upstream/linux/drbd-do-not-sleep-under-rcu-when-a-fenced-peer-is-outdated.patch`
+takes a device reference and drops RCU around the call, as `conn_md_sync`
+does; it is not yet submitted.
+
+## 2026-10-06 — 0.90.58 — a DRBD survivor replays beside its own running VMs and declares the death when DRBD excludes the peer
+
+**The replay of a dead peer's slice waited for the survivor's own VMs to stop
+writing.**  The barrier on each side of the replay pushed the whole AIL until
+it was empty and refused while any cached buffer was still dirty; a survivor's
+running VMs relog their image inodes on every write, so both stayed true and
+the replay started only when every local writer stopped (measured on the DRBD
+rig: 105.7 s after the election, the moment the survivor's loads ended).  The
+barrier (`mxfs_dlm_foreign_replay_barrier`) no longer waits for an empty AIL;
+it judges each retained buffer by who holds authority over it and fails closed
+on anything it cannot classify (design consult, ccmemory
+`ruling-foreign-replay-barrier-judges-retained-buffers-by-authority`).
+
+**A peer DRBD had already excluded was declared dead 55 s later.**  The lock
+link's socket timed out at 25 s and a 40 s flap grace followed.  The pair's
+fence handlers (`mxfs-drbd-fence-self`, `mxfs-drbd-fence-peer`) now write the
+resource's minor to `/proc/fs/mxfs/drbd_excluded` once DRBD has their answer;
+the mount asks its own witness, judged exactly as the fence leg certifies, and
+declares the death when the exclusion holds (`P-DRBD-EXCL-DEATH`).  The notice
+is a cue, never evidence: without a confirmed exclusion within 30 s the link's
+timeout and grace decide as before.
+
+**Repeating log lines are held back.**  `log_repeat_limit=1` (the default)
+prints a repeating line's first three copies, then one per interval that
+doubles from 30 s to 10 min, each followed by how many were held back; the
+fence-retry, refusal and witness-retry lines go through it.  The rig loads the
+module with `log_repeat_limit=0`, so harnesses that count lines still see every
+one.
+
+- **the barrier before (and after) a dead peer's slice replay waits for the
+  survivor's AIL to become EMPTY and refuses while any buffer is retained; a
+  survivor's own live writers keep both true, so the replay starts only when
+  every local writer stops** — FIXED AND VERIFIED, 0.90.58.  Rig
+  2/net/mesh/drbd, module 6479B80EF693BAE017EFF0E, `scripts/drbd_rig.sh
+  self-death-test` with the survivor's four VM-like O_DIRECT loads running the
+  whole time (tests/evidence/drbd_rig/20261006T073307Z-self-death-test):
+  elected 24240.63, `P232-FREPLAY-BARRIER when=pre rc=0 rounds=1 ms=0` at
+  24241.11, replay done and `when=post rc=0 ms=2` at 24245.75,
+  `P163-RECOVERY-COMPLETE` 24247.45 while the loads ran on to +180 s; all five
+  survivor loads error=0, every fsynced file of both nodes intact, the rejoined
+  node reads them identically, cold `chk_mxfs` clean.
+- **on the DRBD attachment MXFS declares a dead peer dead ~55 s after DRBD's
+  fence authority has already excluded it** — FIXED AND VERIFIED, 0.90.58.
+  Same run: fence-peer EXCLUDED 24177.70, `P-DRBD-EXCL-NOTICE` 24178.77,
+  `P-DRBD-EXCL-DEATH notice_age_ms=186` at 24179.35, 1.6 s after the exclusion
+  (0.90.57: 54.7 s after it).
+
+## 2026-10-06 — 0.90.57 — the DRBD unit's stop step finds a broken mount; crash diagnostics for physical hosts
+
+**`mxfs-drbd@` stopped without unmounting a broken MXFS mount.**  Its stop step
+asked `mountpoint -q`, which stats the path; a withdrawn or recovery-blocked
+MXFS mount answers that with ESTALE or EIO, so the step read it as unmounted,
+skipped the umount, `drbdadm secondary` and `down` then failed under the live
+mount, and the unit still reported itself stopped (measured on pve1).  The
+step is now `mxfs-drbd-fence-self stop`, which finds the mount in
+`/proc/mounts`, unmounts it, steps DRBD down, and fails the stop, saying why,
+when any of that fails.
+
+- **make install replaces /usr/sbin/mxfs-drbd-fence-self but does not restart
+  mxfs-drbd-guard, so the guard kept the pre-fix ssh options and could never
+  release the excluded peer** — FIXED AND VERIFIED on the physical PVE pair,
+  0.90.56 (cce5b42): `install_source.sh`, the .deb and the .rpm try-restart
+  the guard after installing.  Measured 2026-10-05: on pve2 `make install
+  OVERWRITE=1` finished 23:53:30 and the guard's ActiveEnterTimestamp read
+  23:53:30; on pve1 the guard running the 0.90.56 program, which authenticates
+  the peer with the PVE per-node `ssh_known_hosts`, logged at 23:56:37
+  "released pve2 ... pve2 answers: DRBD Unconfigured, no MXFS mount, module
+  refcnt 0" and recorded `result=RELEASED`; the stale-code guard had logged
+  "no answer from pve2 over ssh (rc=255)" every 5 s instead.
+
+**Tools for the physical pair.**  pve2 reset or hung itself 20+ times on
+2026-10-05/06 with nothing in its journal.
+- `tools/pve_crashdiag.sh on|off|status [host ...]`: netconsole to clyde at
+  every boot, a softdog expiry that panics with its reason instead of
+  restarting silently, `kernel.panic=10`, lockups reported after 8 s and hung
+  tasks after 30 s, and a heat log: every 15 s one kernel-log line with each
+  hwmon temperature and fan, the thermal-throttle, SMI and machine-check
+  counts, the clock and the load, so netconsole carries a host's physical
+  state up to the moment it dies.  `soak <seconds> [host ...]` loads every
+  CPU for that long as a transient unit; `soak-stop` ends it.
+- `tools/wake_on_lan.py <mac>`: these workstations have no BMC.
+- `tools/pve_netconsole.sh`: a host's port and log follow its place in the
+  whole pair, so running it for one host no longer moves that host onto
+  another host's port.
+
 ## 2026-10-05 — 0.90.56 — a DRBD survivor certifies the peer it excluded
 
 **The survivor of a DRBD split never replayed the excluded peer's journal.**

@@ -14,10 +14,16 @@ Every command below is run as root. "Both nodes" means run it on each host;
 On both nodes, from the same version of the source:
 
 ```
-apt install drbd-utils
+apt install drbd-utils git build-essential proxmox-headers-$(uname -r)
 git clone https://github.com/sshoecraft/mxfs && cd mxfs
 make && make install
 ```
+
+A Proxmox VE host ships with none of `git`, a compiler or the kernel headers.
+On Debian or Ubuntu the headers package is `linux-headers-$(uname -r)`
+instead. The module is built for the kernel that is running, so after a
+kernel update and reboot, run `make && make install` again (with that kernel's
+headers installed).
 
 `make install` installs the module, `mkfs.mxfs` and the other tools, the DRBD
 fence handler and its built-in fence authority, and two systemd units. If it
@@ -54,6 +60,7 @@ resource mxfs {
         after-sb-0pri disconnect;
         after-sb-1pri disconnect;
         after-sb-2pri disconnect;
+        ping-int 3;             # notice a dead peer within ~7 s, not 21 s
     }
     disk {
         fencing resource-and-stonith;
@@ -83,6 +90,15 @@ MXFS refuses to mount unless `protocol`, `allow-two-primaries`, every
 `after-sb-*`, `fencing` and `fence-peer` are exactly as above. Do not add
 `become-primary-on`: the `mxfs-drbd@` unit promotes the node only once it is
 safe.
+
+`ping-int` decides how long the surviving node's writes stop when its peer
+dies. DRBD notices a dead peer by a keep-alive that goes unanswered, and while
+writes are in flight that takes up to twice `ping-int` plus `ping-timeout`
+(0.5 s); every write on the survivor waits for it. With DRBD's default of 10 s
+the survivor's VMs stopped for 21 s in our tests; with 3 s, for 7 s. A
+keep-alive is sent only when the link is otherwise idle, so the shorter
+interval adds no traffic under load. A change to `ping-int` on a running pair
+takes effect when the connection is next made.
 
 ## 4. First synchronisation
 
@@ -120,6 +136,15 @@ steps down, so the other node carries on. Check it with
 `systemctl status mxfs-drbd@mxfs`, and see why MXFS admitted or refused the
 mount with `dmesg | grep P-DRBD-ARM`.
 
+Proxmox starts the guests marked "start at boot" and its HA services only once
+the unit reports the filesystem mounted, so a VM whose disk is on
+`/mnt/shared` does not fail to start because the mount came late. If the
+mount cannot happen within `GUEST_WAIT` seconds of the unit starting (default
+300; the peer is down or still booting), guests on local storage start
+without waiting, and the unit starts the remaining "start at boot" guests
+itself once it has mounted. Set another bound with a `GUEST_WAIT=<seconds>`
+line in `/etc/mxfs/drbd-mxfs.conf`.
+
 On Proxmox, add the mount as shared directory storage once (it is cluster-wide):
 
 ```
@@ -132,11 +157,18 @@ pvesm add dir shared --path /mnt/shared --shared 1 --is_mountpoint yes \
 Fencing is on by default and needs no configuration. The node with the lower
 DRBD address (here `pve1`) is participant 0; the other is participant 1.
 
-- **pve2 dies, or loses its network.** pve1 isolates pve2 from itself (the
-  DRBD port and MXFS's ports, nothing else), takes DRBD StandAlone, and carries
-  on within seconds. MXFS replays pve2's journal. When pve2 is back and
-  reports MXFS unmounted, pve1 releases it, DRBD resyncs pve2 from pve1, and
-  `mxfs-drbd@mxfs` mounts it again.
+- **pve2 dies, or loses its network.** pve1's writes stop until DRBD notices
+  (up to ~7 s with the `ping-int` above). Then pve1 isolates pve2 from itself
+  (the DRBD port and MXFS's ports, nothing else), takes DRBD StandAlone, and
+  carries on, and MXFS replays pve2's journal; a VM on pve1 that needs a file
+  pve2 was writing waits for that replay too, ~17 s after pve2's death in our
+  tests. When pve2 is back and reports MXFS unmounted, pve1 releases it, DRBD
+  resyncs pve2 from pve1, and `mxfs-drbd@mxfs` mounts it again.
+  The in-kernel DRBD 8.4 driver logs one WARNING on pve1 at the first such
+  exclusion after boot ("Voluntary context switch within RCU read-side
+  critical section", from `drbd_uuid_new_current`). It is a bug in the
+  driver, not a fault in the data; `upstream/linux/` in this repository has
+  the fix for it.
 - **The replication link breaks with both nodes alive.** The same: pve1
   carries on, and pve2 freezes, logs why, and restarts itself, then rejoins as
   above.
@@ -146,10 +178,13 @@ DRBD address (here `pve1`) is participant 0; the other is participant 1.
   take over. It freezes, logs exactly this, restarts, and waits. Bring pve1
   back. No two-node system without a third vote or fence hardware can do
   better: Proxmox HA and corosync's tie-breaker behave the same way.
-- **Both nodes crash at once.** If they come back connected, MXFS needs proof
-  the old mounts are gone and the built-in fencing cannot give it, so the
-  mount is refused with that reason. Configure a node fence (below) for this
-  case to recover automatically.
+- **Both nodes crash or lose power at once.** When they come back, DRBD
+  reconnects and resyncs. Then pve2 waits, Secondary, while pve1 mounts: pve2
+  being Secondary on a connected link is DRBD's own proof that no old mount is
+  left on it, and pve1 replays both nodes' journals. pve2 mounts once pve1 has
+  (it asks pve1 over ssh), about two and a half minutes after the boot in our
+  tests. If one of them does not come back, the other waits for it, unmounted:
+  at boot neither can tell a dead peer from a cut cable.
 
 The release check uses ssh between the nodes as root. A Proxmox cluster
 already has that trust; on other systems set up root keys both ways, with the

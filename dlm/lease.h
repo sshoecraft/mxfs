@@ -223,6 +223,10 @@ bool mxfs_lease_is_valid(struct mxfs_lease_ctx *ctx, mxfs_node_id_t node_id);
 bool mxfs_lease_has_node(struct mxfs_lease_ctx *ctx, mxfs_node_id_t node_id);
 int  mxfs_lease_get_active_nodes(struct mxfs_lease_ctx *ctx,
 				  mxfs_node_id_t *out, int max_count);
+/* every registered node, whatever its lease state: a member that stopped
+ * renewing stays registered until its death is declared */
+int  mxfs_lease_get_registered_nodes(struct mxfs_lease_ctx *ctx,
+				      mxfs_node_id_t *out, int max_count);
 
 /* Callback registration */
 void mxfs_lease_set_expire_cb(struct mxfs_lease_ctx *ctx,

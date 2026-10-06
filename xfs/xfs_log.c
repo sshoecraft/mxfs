@@ -15,6 +15,7 @@
 #include "xfs_error.h"
 #include "xfs_trans.h"
 #include "xfs_trans_priv.h"
+#include "xfs_defer.h"
 #include "xfs_log.h"
 #include "xfs_log_priv.h"
 #include "xfs_trace.h"
@@ -1810,7 +1811,29 @@ void
 xfs_log_mount_cancel(
 	struct xfs_mount	*mp)
 {
-	xlog_recover_cancel(mp->m_log);
+	struct xlog		*log = mp->m_log;
+
+	/*
+	 * A mount that fails after its own log was recovered drops the recovered
+	 * intents its xfs_log_mount_finish never processed, and the unmount
+	 * below then marks the log clean unless the log is shut down.  Say how
+	 * many, on which slice, and whether the log is left clean, so a failed
+	 * mount's cost is on record.
+	 */
+	if (xlog_recovery_needed(log)) {
+		struct xfs_defer_pending *dfp;
+		unsigned int		nintents = 0;
+
+		list_for_each_entry(dfp, &log->r_dfops, dfp_list)
+			nintents++;
+		xfs_notice(mp,
+	"MXFS: P-LOG-MOUNT-CANCEL slot=%u adopted=%d intents=%u writable=%d shutdown=%d — the mount failed after its own log was recovered; its recovered intents are cancelled unprocessed, and a writable log that is not shut down is marked clean by the unmount record that follows",
+			   mp->m_mxfs_node_slot,
+			   xlog_is_mxfs_bootstrap_adopted(log) ? 1 : 0, nintents,
+			   xfs_log_writable(mp) ? 1 : 0,
+			   xlog_is_shutdown(log) ? 1 : 0);
+	}
+	xlog_recover_cancel(log);
 	xfs_log_unmount(mp);
 }
 

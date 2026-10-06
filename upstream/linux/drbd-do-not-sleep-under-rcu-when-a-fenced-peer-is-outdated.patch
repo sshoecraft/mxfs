@@ -1,0 +1,50 @@
+From: Steve Shoecraft <spshoecraft@gmail.com>
+Subject: [PATCH] drbd: do not sleep in an RCU read-side section when a fenced
+ peer is outdated
+
+When the fence-peer handler of a Primary running "fencing
+resource-and-stonith" succeeds (exit code 4 or 7), w_after_conn_state_ch()
+creates the new current UUID of each volume of the connection while it walks
+connection->peer_devices under rcu_read_lock().  drbd_uuid_new_current()
+writes the meta data and waits for that write, so the worker sleeps inside
+the RCU read-side critical section:
+
+  Voluntary context switch within RCU read-side critical section!
+  WARNING: CPU: 0 PID: 27578 at kernel/rcu/tree_plugin.h:332 rcu_note_context_switch+0x532/0x5a0
+  ...
+   wait_until_done_or_force_detached
+   _drbd_md_sync_page_io
+   drbd_md_write
+   drbd_md_sync
+   drbd_uuid_new_current
+   w_after_conn_state_ch
+   drbd_worker
+
+It happens on every successful fencing of a peer by a Primary; seen on
+6.8 (Ubuntu 24.04) and 6.17 (Proxmox VE 9) with the in-tree 8.4.11 driver.
+
+Take a reference on the device and leave the RCU read-side section around
+the UUID update, as conn_md_sync() already does for the same walk.
+
+---
+The Signed-off-by line is the submitter's to add.
+
+ drivers/block/drbd/drbd_state.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/drivers/block/drbd/drbd_state.c b/drivers/block/drbd/drbd_state.c
+--- a/drivers/block/drbd/drbd_state.c
++++ b/drivers/block/drbd/drbd_state.c
+@@ -2090,8 +2090,12 @@ static int w_after_conn_state_ch(struct drbd_work *w, int unused)
+ 			idr_for_each_entry(&connection->peer_devices, peer_device, vnr) {
+ 				struct drbd_device *device = peer_device->device;
+ 				if (test_bit(NEW_CUR_UUID, &device->flags)) {
++					kref_get(&device->kref);
++					rcu_read_unlock();
+ 					drbd_uuid_new_current(device);
+ 					clear_bit(NEW_CUR_UUID, &device->flags);
++					kref_put(&device->kref, drbd_destroy_device);
++					rcu_read_lock();
+ 				}
+ 			}
+ 			rcu_read_unlock();

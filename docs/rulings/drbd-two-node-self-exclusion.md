@@ -66,10 +66,87 @@ nodes, no fence hardware and no third vote. Neither does this design.
    that the peer is off. It is never accepted as kind 25, is minted only into
    recovery descriptors, and a bootstrap takeover (whose record any later
    mounter reads, on either replica) still requires a node fence.
-7. **Startup fencing after a pair outage is refused** by the built-in
-   authority: it cannot prove a live, connected peer's earlier incarnation
-   gone. A clean shutdown of both nodes needs no startup fence; a simultaneous
-   crash of both does, and then needs a node fence or an operator.
+7. **The built-in authority fences nothing at startup.** After both nodes
+   crash, the first mount does not need it to: a peer that is Secondary on a
+   Connected link proves every earlier incarnation ended (decision 9), and the
+   boot program arranges for the peer to be exactly that. Asked anyway (the
+   peer Primary), it refuses, and the mount waits for the peer to step down.
+8. **The exclusion, not the heartbeat, declares the death.** The disk
+   heartbeat is replicated by DRBD, so once the link is StandAlone the peer's
+   last beat on this replica is final and the stale window (31 samples, 62 s,
+   restarted when DRBD's freeze ends) can only run out; the authority lease it
+   outwaits governs writes that can no longer reach this replica. DRBD
+   completes every write it received from the peer before it reports the
+   connection closed, and that is before it runs the fence handler
+   (`drbd_receiver.c` `conn_disconnect` → `drbd_disconnected`). So the
+   handler's notice makes the mount ask its witness; a confirmed exclusion
+   declares the lock manager's death and is posted to the heartbeat monitor,
+   which declares the tracked incarnation dead on its next pass after a
+   priority re-read. The fence leg still judges the same evidence before it
+   certifies anything, and a posting is bound to the node, the incarnation the
+   monitor tracks, and a sequence number, so it can never fire on a later
+   incarnation. Without a confirmed exclusion the window decides as before.
+9. **Kind 27 (`DRBD_PEER_SECONDARY_V1`): the pair's death certificate.** It
+   recovers a pair whose two nodes lost power at once, which the built-in
+   authority alone could not. Its judgment (`mxfs_drbd_judge_peer_secondary`)
+   is one witness report: this node a working Primary under the attachment's
+   configuration, the link exactly Connected, both disks UpToDate, the peer
+   Secondary, no inhibit on it. DRBD 8.4's own code then gives:
+   - **No incarnation is alive on the peer.** `drbd_open` refuses a Secondary
+     every write open, and a Primary cannot demote while anything holds it open
+     (`is_valid_state`, `SS_DEVICE_IN_USE`). An MXFS mount holds its device
+     open from fill_super to kill_sb. While Connected, a peer's promotion is
+     applied to this node's view before the peer can complete it
+     (`receive_req_state`), so "Secondary" in the report means the peer was not
+     Primary at that instant. `allow_oos`, a load-time parameter, admits only
+     read-only opens of a Secondary, and a read-only open cannot write.
+   - **Every write of an earlier incarnation is on this disk.** A demotion
+     reports the new role only after every request the demoting node sent has
+     been acknowledged (`drbd_set_role` waits for `ap_pending_cnt`), and under
+     protocol C an acknowledgement means this node's disk completed the write.
+     A crashed host's writes are settled by the reconnect resync of its
+     activity-log extents before both disks read UpToDate.
+   - **The roles are one instant's.** `/proc/drbd` prints the connection, role
+     and disk states from one copy of the device's state word (`drbd_proc.c`).
+
+   The certificate covers every victim but this mount's own incarnation. On
+   the peer the report shows none alive. On this host a block device has one
+   superblock (`get_tree_bdev`), so no earlier MXFS of the device is alive
+   while this one mounts, and DRBD holds the backing device exclusively, so
+   nothing mounts that beside it. No other host reaches either replica.
+   Where a victim's host and boot are recorded (a takeover's bootstrap
+   record), one of this host's current boot is refused as everywhere else.
+   DRBD records carry no identity block, and all zeros means "not recorded".
+
+   It is a fact about incarnations that have ended, never a continuing fence.
+   Nothing re-checks the peer against it, because the peer may be promoted
+   the moment after the report and is then a new incarnation, which meets the
+   bootstrap term at its peek and admission at its join. Nothing clears the
+   peer's swap register under it either, because that could erase a live
+   ticket. The emulated compare-and-swap instead sets the dead attachment's
+   register aside: a swap that has waited a second on the peer's ticket, its
+   own ticket already published, takes a witness report. If the judgment
+   holds, the register as read before the report is recorded byte for byte
+   and read as idle while the sector still holds those bytes. A new attachment
+   of the peer first rewrites its register under a fresh random nonce, which
+   ends the setting aside, and its doorway reads the published ticket and
+   takes a larger one. A register that does not validate (a sector torn by the
+   power cut) reads as busy, never idle, and is cleared or set aside only on
+   the same evidence.
+
+   Kind 27 is accepted for the startup fence, for every victim's certificate,
+   and for a bootstrap takeover's old owner, so it is valid in both record
+   families. If the link is lost after the report, the tie-break decides as
+   for any loss. The winner's replica, which holds whatever the recovery wrote,
+   is the one the loser resyncs from before it can be promoted. The loser's
+   I/O stays frozen, so nothing it wrote reaches either disk.
+
+   The boot program provides liveness only. Two nodes that promote together
+   leave neither able to prove the other Secondary. So, Connected, participant
+   1 promotes only once participant 0 reports over ssh that it has MXFS mounted,
+   or that its boot program has not been running for 30 s. A refused mount
+   steps down to Secondary and is retried with a doubling backoff. The module
+   refuses an unsafe mount whatever order the nodes take.
 
 ## What it does not cover
 
@@ -79,7 +156,12 @@ nodes, no fence hardware and no third vote. Neither does this design.
   log line says what to do: restore the peer, or configure a node fence.
 - **Administrative bypass.** `drbdadm primary --force`, `resume-io`, clearing
   Outdated, or mounting the device outside `mxfs-drbd@` defeat the argument;
-  the guide forbids them.
+  the guide forbids them. So does writing a backing device while DRBD is
+  down, which no replica state can reveal.
+- **Storage that acknowledges a flush it has not made durable.** Kind 27, like
+  every replay, takes "UpToDate/UpToDate after the resync" to mean both
+  replicas hold DRBD's current data. A disk that loses acknowledged writes at
+  a power cut breaks that, on any attachment.
 - **Whole-host fencing.** This excludes the loser from the replica and the
   lock manager. It does not stop the loser's other services; the restart does
   that when MXFS was mounted.

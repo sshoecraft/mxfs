@@ -3631,47 +3631,256 @@ uint32_t mxfs_pal_crc32c(uint32_t crc, const void *data, size_t len)
  * crash-model arm "crash knob did not fire (vacuous)").  Append the
  * newline here, at the chokepoint, exactly as the user-mode PAL does.
  */
-void mxfs_pal_log(int level, const char *fmt, ...)
+/*
+ * Most callers' formats already begin "mxfs: ", and the chokepoint added its
+ * own: every such line read "mxfs: mxfs: P...".  One prefix.
+ */
+static const char *mxfs_log_prefix(const char *fmt)
+{
+	return strncmp(fmt, "mxfs: ", 6) ? "mxfs: " : "";
+}
+
+/*
+ * mxfs_pal_log_capture_begin/end (see pal.h): a few slots keyed by task.  The
+ * armed count keeps the common path to one atomic read.
+ */
+#define MXFS_LOG_CAPTURES	8
+
+struct mxfs_log_capture {
+	struct task_struct	*task;
+	char			*buf;
+	size_t			len;
+	bool			got;
+};
+
+static struct mxfs_log_capture mxfs_log_captures[MXFS_LOG_CAPTURES];
+static DEFINE_SPINLOCK(mxfs_log_capture_lock);
+static atomic_t mxfs_log_captures_armed = ATOMIC_INIT(0);
+
+void mxfs_pal_log_capture_begin(char *buf, size_t len)
+{
+	unsigned long flags;
+	int i;
+
+	if (!buf || !len)
+		return;
+	buf[0] = '\0';
+	spin_lock_irqsave(&mxfs_log_capture_lock, flags);
+	for (i = 0; i < MXFS_LOG_CAPTURES; i++) {
+		struct mxfs_log_capture *c = &mxfs_log_captures[i];
+
+		if (c->task)
+			continue;
+		c->task = current;
+		c->buf = buf;
+		c->len = len;
+		c->got = false;
+		atomic_inc(&mxfs_log_captures_armed);
+		break;
+	}
+	spin_unlock_irqrestore(&mxfs_log_capture_lock, flags);
+}
+
+void mxfs_pal_log_capture_end(void)
+{
+	unsigned long flags;
+	int i;
+
+	spin_lock_irqsave(&mxfs_log_capture_lock, flags);
+	for (i = 0; i < MXFS_LOG_CAPTURES; i++) {
+		struct mxfs_log_capture *c = &mxfs_log_captures[i];
+
+		if (c->task != current)
+			continue;
+		c->task = NULL;
+		c->buf = NULL;
+		c->len = 0;
+		atomic_dec(&mxfs_log_captures_armed);
+		break;
+	}
+	spin_unlock_irqrestore(&mxfs_log_capture_lock, flags);
+}
+
+/* the first error-level line of a task with a capture armed */
+static void mxfs_log_capture_line(const char *pfx, struct va_format *vaf)
+{
+	unsigned long flags;
+	size_t n;
+	int i;
+
+	if (!atomic_read(&mxfs_log_captures_armed))
+		return;
+	spin_lock_irqsave(&mxfs_log_capture_lock, flags);
+	for (i = 0; i < MXFS_LOG_CAPTURES; i++) {
+		struct mxfs_log_capture *c = &mxfs_log_captures[i];
+
+		if (c->task != current || c->got)
+			continue;
+		snprintf(c->buf, c->len, "%s%pV", pfx, vaf);
+		n = strlen(c->buf);
+		if (n && c->buf[n - 1] == '\n')
+			c->buf[n - 1] = '\0';
+		c->got = true;
+		break;
+	}
+	spin_unlock_irqrestore(&mxfs_log_capture_lock, flags);
+}
+
+static void mxfs_pal_vlog(int level, const char *fmt, va_list args)
 {
 	struct va_format vaf;
-	va_list args;
+	va_list copy;
 	size_t len = strlen(fmt);
 	bool nl = len && fmt[len - 1] == '\n';
+	const char *pfx = mxfs_log_prefix(fmt);
 
-	va_start(args, fmt);
+	va_copy(copy, args);
 	vaf.fmt = fmt;
-	vaf.va = &args;
+	vaf.va = &copy;
+
+	if (level >= MXFS_LOG_ERR)
+		mxfs_log_capture_line(pfx, &vaf);
 
 	switch (level) {
 	case MXFS_LOG_DEBUG:
 		if (nl)
-			pr_debug("mxfs: %pV", &vaf);
+			pr_debug("%s%pV", pfx, &vaf);
 		else
-			pr_debug("mxfs: %pV\n", &vaf);
+			pr_debug("%s%pV\n", pfx, &vaf);
 		break;
 	case MXFS_LOG_INFO:
 		if (nl)
-			pr_info("mxfs: %pV", &vaf);
+			pr_info("%s%pV", pfx, &vaf);
 		else
-			pr_info("mxfs: %pV\n", &vaf);
+			pr_info("%s%pV\n", pfx, &vaf);
 		break;
 	case MXFS_LOG_WARN:
 		if (nl)
-			pr_warn("mxfs: %pV", &vaf);
+			pr_warn("%s%pV", pfx, &vaf);
 		else
-			pr_warn("mxfs: %pV\n", &vaf);
+			pr_warn("%s%pV\n", pfx, &vaf);
 		break;
 	case MXFS_LOG_ERR:
 	default:
 		if (nl)
-			pr_err("mxfs: %pV", &vaf);
+			pr_err("%s%pV", pfx, &vaf);
 		else
-			pr_err("mxfs: %pV\n", &vaf);
+			pr_err("%s%pV\n", pfx, &vaf);
 		break;
 	}
 
+	va_end(copy);
+}
+
+void mxfs_pal_log(int level, const char *fmt, ...)
+{
+	va_list args;
+
+	va_start(args, fmt);
+	mxfs_pal_vlog(level, fmt, args);
 	va_end(args);
 }
+
+/*
+ * mxfs_pal_log_repeating (see pal.h): one record per call site, keyed by the
+ * site's format string, in a small open-addressed table.  A full table, or a
+ * site that cannot be placed, prints every line: holding back is the
+ * exception, never the failure mode.
+ */
+static unsigned int mxfs_log_repeat_limit = 1;
+module_param_named(log_repeat_limit, mxfs_log_repeat_limit, uint, 0644);
+MODULE_PARM_DESC(log_repeat_limit,
+		 "1 (default): a log line that repeats without news is held back after its first few, with a count; 0: print every line (test rigs)");
+
+#define MXFS_LOG_SITES		256	/* a power of two */
+#define MXFS_LOG_PROBE		8
+#define MXFS_LOG_BURST		3	/* lines a site prints before its interval applies */
+#define MXFS_LOG_FIRST_GAP	(30UL * HZ)
+#define MXFS_LOG_MAX_GAP	(600UL * HZ)
+#define MXFS_LOG_QUIET		(1800UL * HZ)	/* a site this quiet starts over */
+
+struct mxfs_log_site {
+	const char	*fmt;
+	unsigned long	last;		/* jiffies of the site's last line, printed or not */
+	unsigned long	next;		/* jiffies before which a line past the burst is held */
+	unsigned long	gap;		/* the interval the next held-back line waits */
+	unsigned long	held_since;	/* jiffies of the first line held since the last print */
+	unsigned int	printed;	/* lines printed since the site (re)started */
+	unsigned int	held;		/* lines held back since the last print */
+};
+
+static struct mxfs_log_site mxfs_log_sites[MXFS_LOG_SITES];
+static DEFINE_SPINLOCK(mxfs_log_sites_lock);
+
+/* true: print this line; *held and *held_s then say what was held back before it */
+static bool mxfs_log_site_admit(const char *fmt, unsigned int *held,
+				unsigned int *held_s)
+{
+	unsigned long now = jiffies, flags;
+	unsigned int h = hash_ptr((void *)fmt, ilog2(MXFS_LOG_SITES)), i;
+	struct mxfs_log_site *s = NULL;
+	bool print;
+
+	*held = 0;
+	*held_s = 0;
+	if (!READ_ONCE(mxfs_log_repeat_limit))
+		return true;
+	spin_lock_irqsave(&mxfs_log_sites_lock, flags);
+	for (i = 0; i < MXFS_LOG_PROBE; i++) {
+		struct mxfs_log_site *c = &mxfs_log_sites[(h + i) & (MXFS_LOG_SITES - 1)];
+
+		if (c->fmt == fmt || !c->fmt ||
+		    time_after(now, c->last + MXFS_LOG_QUIET)) {
+			s = c;
+			break;
+		}
+	}
+	if (!s) {
+		spin_unlock_irqrestore(&mxfs_log_sites_lock, flags);
+		return true;
+	}
+	if (s->fmt != fmt || time_after(now, s->last + MXFS_LOG_QUIET)) {
+		s->fmt = fmt;
+		s->printed = 0;
+		s->held = 0;
+		s->gap = MXFS_LOG_FIRST_GAP;
+		s->next = now;
+	}
+	s->last = now;
+	if (s->printed < MXFS_LOG_BURST || time_after_eq(now, s->next)) {
+		print = true;
+		*held = s->held;
+		if (s->held)
+			*held_s = jiffies_to_msecs(now - s->held_since) / 1000;
+		s->held = 0;
+		if (++s->printed >= MXFS_LOG_BURST) {
+			s->next = now + s->gap;
+			s->gap = min(s->gap * 2, MXFS_LOG_MAX_GAP);
+		}
+	} else {
+		print = false;
+		if (!s->held++)
+			s->held_since = now;
+	}
+	spin_unlock_irqrestore(&mxfs_log_sites_lock, flags);
+	return print;
+}
+
+void mxfs_pal_log_repeating(int level, const char *fmt, ...)
+{
+	va_list args;
+	unsigned int held, held_s;
+
+	if (level != MXFS_LOG_DEBUG && !mxfs_log_site_admit(fmt, &held, &held_s))
+		return;
+	va_start(args, fmt);
+	mxfs_pal_vlog(level, fmt, args);
+	va_end(args);
+	if (level != MXFS_LOG_DEBUG && held)
+		mxfs_pal_log(level, "mxfs: %u more of the line above held back over %u s (log_repeat_limit)",
+			     held, held_s);
+}
+EXPORT_SYMBOL(mxfs_pal_log_repeating);
 
 /* ═══════════════════════════════════════════════════════════════════
  * Sorting

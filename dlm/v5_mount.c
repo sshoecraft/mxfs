@@ -110,13 +110,15 @@ MODULE_PARM_DESC(recov_complete_inject,
  * bootstrap OWNER's mount at a chosen durable point so the next mount of the
  * same boot must RESUME the term.  1 = after phase 3 (escrow NONE);
  * 2 = after the escrow is PREPARED, before the claim CAW (PREPARED + guard);
- * 3 = after K is claimed (K_CLAIMED).  One-shot: self-clears when it fires.
+ * 3 = after K is claimed (K_CLAIMED); 4 = at completion, after K's replay is
+ * recorded (K_REPLAY_OK), before RECOVERY_COMPLETE.  One-shot: self-clears
+ * when it fires.
  * 7 is any TCP mount, between its bootstrap peek and its first PR step;
  * 8 is any TCP mount, registered, just before its bootstrap setup. */
 int mxfs_bootstrap_inject;
 module_param_named(bootstrap_inject, mxfs_bootstrap_inject, int, 0644);
 MODULE_PARM_DESC(bootstrap_inject,
-		 "TEST ONLY: fail the bootstrap owner's mount at 1=after phase 3 2=after escrow PREPARED 3=after K claimed 5=takeover contender elected 6=takeover old owner fenced 7=a TCP mount after its bootstrap peek 8=a TCP mount registered, before its bootstrap setup (one-shot; +10 holds instead)");
+		 "TEST ONLY: fail the bootstrap owner's mount at 1=after phase 3 2=after escrow PREPARED 3=after K claimed 4=after K_REPLAY_OK, before completion 5=takeover contender elected 6=takeover old owner fenced 7=a TCP mount after its bootstrap peek 8=a TCP mount registered, before its bootstrap setup (one-shot; +10 holds instead)");
 #else
 int mxfs_rman_inject;
 int mxfs_rman_test_mutate;
@@ -745,6 +747,13 @@ struct mxfs_v5_dlm {
 	 * A DRBD mount is admitted by its witness instead of SCSI reservations
 	 * and runs on the emulated compare-and-swap; it holds no PR context. */
 	int                         drbd_minor;
+	/* The pair handler's exclusion notice (v5_drbd_exclusion_check): when
+	 * the newest one not yet judged arrived (0 = none), when this node last
+	 * asked its witness about it, and the peer the witness then showed
+	 * excluded, whose death is declared without the TCP link's grace. */
+	uint64_t                    drbd_excl_notice_ms;
+	uint64_t                    drbd_excl_asked_ms;
+	mxfs_node_id_t              drbd_excluded_node;
 
 	/* Transport */
 	int                         transport;
@@ -2977,6 +2986,38 @@ static bool v5_recovery_judging_cb(void *data, mxfs_node_id_t node, uint64_t inc
 		return true;
 	}
 	return false;
+}
+
+/*
+ * 0.90.64: the page import's side of the K retention above
+ * (slot_retained_cb).  K's records sit on the slot this mount now writes as
+ * its own, so the import read them as residue of our own slot and released
+ * them, out of reach of the sweep's and the takeover's guard.  Asked by slot,
+ * because a shared bit names a slot and no incarnation: the answer names the
+ * incarnation, K, for the term's same escrow states.
+ * mxfs_v5_dlm_bootstrap_finish releases what the import kept.
+ */
+static bool v5_slot_retained_cb(void *data, int slot, mxfs_node_id_t *node,
+				uint64_t *inc)
+{
+	struct mxfs_v5_dlm *ctx = data;
+	const struct mxfs_bootstrap_escrow *esc;
+	bool k;
+
+	if (!ctx || !ctx->bootstrap || !ctx->bootstrap_owner || ctx->boot_finished)
+		return false;
+	esc = &ctx->bootstrap->img.escrow;
+	mxfs_pal_mutex_lock(ctx->bootstrap->lock);
+	k = (esc->state == MXFS_BOOT_ESCROW_PREPARED ||
+	     esc->state == MXFS_BOOT_ESCROW_K_CLAIMED ||
+	     esc->state == MXFS_BOOT_ESCROW_K_REPLAY_OK) &&
+	    (int)esc->slot == slot && esc->victim_node != 0 && esc->victim_epoch != 0;
+	if (k) {
+		*node = esc->victim_node;
+		*inc = esc->victim_epoch;
+	}
+	mxfs_pal_mutex_unlock(ctx->bootstrap->lock);
+	return k;
 }
 
 /*
@@ -5485,18 +5526,21 @@ static void v5_tk_id_from_identity(struct mxfs_bootstrap_takeover_id *o,
 
 static int v5_drbd_fence(struct mxfs_v5_dlm *ctx, int dead_slot,
 			 mxfs_node_id_t dead_node, mxfs_epoch_t dead_epoch,
-			 uint64_t victim_key, struct mxfs_fence_result *fres);
+			 uint64_t victim_key, const uint8_t *victim_host,
+			 const uint8_t *victim_boot, struct mxfs_fence_result *fres);
 
 /*
  * The DRBD takeover's exclusion of an old owner or a stale contender.  A DRBD
  * incarnation registers no key, so there is nothing to preempt; what proves it
- * cannot write is the attachment's own fence, kind 25, asked through the one
- * function that produces it (v5_drbd_fence).  The pair has two endpoints and
- * this node is one of them, so the identity is the peer host's (excluded by the
- * peer being off and held off), or an earlier boot of this host (it stopped
- * writing when that boot ended, and the writes it replicated reached a peer
- * whose disk the same fence leaves Outdated).  This boot's own identity is
- * neither, and is never excluded here.
+ * cannot write is the attachment's own fence, asked through the one function
+ * that produces it (v5_drbd_fence): kind 25, or kind 27 when the peer is
+ * Secondary on a Connected link.  The pair has two endpoints and this node is
+ * one of them, so the identity is the peer host's (excluded by the peer being
+ * off and held off, or ended: the peer holds no attachment), or an earlier
+ * boot of this host (it stopped writing when that boot ended, and the writes
+ * it replicated reached a peer whose disk the same fence leaves Outdated, or
+ * that DRBD has resynced to UpToDate).  This boot's own identity is neither,
+ * and is never excluded here.
  *
  * The takeover asked for the startup fence before the election, so the
  * exclusion normally holds at the first look; the bound covers DRBD settling
@@ -5527,9 +5571,26 @@ static int v5_drbd_tk_fence(struct mxfs_v5_dlm *ctx,
 	}
 	for (;;) {
 		rc = v5_drbd_fence(ctx, -1, who->node_id, who->epoch, who->pr_key,
-				   &fres);
+				   who->host_uuid, who->boot_uuid, &fres);
 		if (rc)
 			break;
+		if (fres.kind == MXFS_FENCE_KIND_DRBD_PEER_SECONDARY_V1) {
+			/* The old owner's incarnation has ended.  A record resealed
+			 * now reaches both replicas; if the link is lost first, it
+			 * reaches only this one when this node wins the pair's
+			 * tie-break (the peer resyncs from it before it can be
+			 * promoted) and neither when it loses (its I/O stays
+			 * frozen). */
+			mxfs_pal_log(MXFS_LOG_WARN,
+				     "mxfs: P-BOOT-TAKEOVER-FENCE-DRBD what=%s node=%u "
+				     "inc=%llu key=0x%llx waited_ms=%llu — ended: the "
+				     "peer is Secondary on a Connected link (kind 27)",
+				     what, who->node_id, (unsigned long long)who->epoch,
+				     (unsigned long long)who->pr_key,
+				     (unsigned long long)(mxfs_pal_time_ms() - t0));
+			*kind_out = MXFS_FENCE_KIND_DRBD_PEER_SECONDARY_V1;
+			return 0;
+		}
 		if (fres.kind == MXFS_FENCE_KIND_DRBD_STONITH_WITNESSED_V1) {
 			mxfs_pal_log(MXFS_LOG_WARN,
 				     "mxfs: P-BOOT-TAKEOVER-FENCE-DRBD what=%s node=%u "
@@ -6590,15 +6651,20 @@ static uint64_t v5_drbd_victim_key(mxfs_node_id_t node, mxfs_epoch_t epoch);
  * grants one of them and refuses the other, which it powers off.
  *
  * A peer already excluded (DRBD's own promotion over a lost link ran the
- * handler) is not fenced again.  Otherwise the witness runs the fence-peer
- * handler (mode startfence), and the exclusion is awaited, bounded: DRBD
- * notices the peer gone within its ping timeout and outdates it.
+ * handler) is not fenced again.  A peer that is Secondary on a Connected link
+ * with both disks UpToDate is not fenced at all (0.90.62, kind 27): it holds
+ * no attachment, so every recorded incarnation of it has ended, and those of
+ * this host's earlier boots ended with them; phase 3 certifies each victim
+ * from the same judgment.  A later incarnation of the peer meets this term at
+ * its own bootstrap peek.  Otherwise the witness runs the fence-peer handler
+ * (mode startfence), and the exclusion is awaited, bounded: DRBD notices the
+ * peer gone within its ping timeout and outdates it.
  */
 #define V5_DRBD_STARTUP_FENCE_MS	120000
 static int v5_drbd_startup_fence(struct mxfs_v5_dlm *ctx)
 {
 	struct mxfs_pal_drbd_report *r;
-	char why[224];
+	char why[224], whyq[160];
 	uint64_t t0 = mxfs_pal_time_ms();
 	bool asked = false;
 	int rc;
@@ -6609,6 +6675,7 @@ static int v5_drbd_startup_fence(struct mxfs_v5_dlm *ctx)
 	for (;;) {
 		memset(r, 0, sizeof(*r));
 		why[0] = '\0';
+		whyq[0] = '\0';
 		rc = mxfs_pal_drbd_witness(ctx->dev, MXFS_PAL_DRBD_RECHECK, r);
 		if (rc == 0)
 			rc = mxfs_drbd_judge_excluded(r, why, sizeof(why));
@@ -6621,6 +6688,23 @@ static int v5_drbd_startup_fence(struct mxfs_v5_dlm *ctx)
 				     (unsigned long long)(mxfs_pal_time_ms() - t0));
 			break;
 		}
+		if (r->delivered &&
+		    mxfs_drbd_judge_peer_secondary(r, whyq, sizeof(whyq)) == 0) {
+			mxfs_pal_log(MXFS_LOG_WARN,
+				     "mxfs: P-DRBD-STARTUP-PEER-SECONDARY peer=%s roles=%s/%s "
+				     "disks=%s/%s asked=%d waited_ms=%llu — the pair's other "
+				     "endpoint is Secondary on a Connected link: no "
+				     "incarnation is alive on it, so no recorded one can "
+				     "write; nothing is fenced",
+				     r->peer_host, r->role_local, r->role_peer, r->disk_local,
+				     r->disk_peer, asked ? 1 : 0,
+				     (unsigned long long)(mxfs_pal_time_ms() - t0));
+			rc = 0;
+			break;
+		}
+		if (whyq[0])
+			snprintf(why + strlen(why), sizeof(why) - strlen(why),
+				 "; peer not Secondary: %s", whyq);
 		if (!asked) {
 			asked = true;
 			memset(r, 0, sizeof(*r));
@@ -7957,7 +8041,8 @@ static int v5_pr_fence_dead_node_rc(struct mxfs_v5_dlm *ctx,
 	 * before the gates start refusing on it (D-FENCED-STAGE-WITHOUT-
 	 * PROVEN-EXCLUSION / D-VICTIM-REPLAY-WITHOUT-PROVEN-EXCLUSION).
 	 */
-	mxfs_pal_log(MXFS_LOG_WARN,
+	mxfs_pal_log_attempt(mxfs_fence_kind_proves_exclusion(fres.kind),
+		     MXFS_LOG_WARN,
 		     "mxfs: P236-FENCEKIND node=%u kind=%s(%d) proves_excl=%d "
 		     "gen=%u rc=%d",
 		     dead_node, mxfs_fence_kind_name(fres.kind), (int)fres.kind,
@@ -9149,7 +9234,7 @@ static void v5_fence_retry_one(struct mxfs_v5_dlm *ctx, int slot)
 			v5_fence_retry_disarm(ctx, slot);
 			return;
 		}
-		mxfs_pal_log(MXFS_LOG_WARN,
+		mxfs_pal_log_repeating(MXFS_LOG_WARN,
 			     "mxfs: P304-FENCE-RETRY-ARMLANDED slot=%d victim=%u "
 			     "epoch=%llu term=%u attempt=%u — the standing attempt is "
 			     "ours and its submission boundary is durable, but no "
@@ -9160,7 +9245,7 @@ static void v5_fence_retry_one(struct mxfs_v5_dlm *ctx, int slot)
 			     slot, victim, (unsigned long long)epoch, term,
 			     ctx->fence_retry[slot].attempts);
 	} else {
-		mxfs_pal_log(MXFS_LOG_WARN,
+		mxfs_pal_log_repeating(MXFS_LOG_WARN,
 			     "mxfs: P304-FENCE-RETRY slot=%d victim=%u epoch=%llu "
 			     "attempt=%u — the standing attempt is ours and re-drivable "
 			     "(FENCING with may_have_run=0, or SNAPSHOTTING), so "
@@ -10604,17 +10689,92 @@ static uint64_t v5_drbd_victim_key(mxfs_node_id_t node, mxfs_epoch_t epoch)
  * The victim of a DRBD mount can only be the pair's other endpoint: a DRBD
  * resource has exactly two, and this node is one of them.
  *
+ * KIND 27 (0.90.62, docs/rulings/drbd-two-node-self-exclusion.md decision 9).
+ * When the peer is not excluded but is Secondary on a Connected link with both
+ * disks UpToDate (mxfs_drbd_judge_peer_secondary), no incarnation is alive on
+ * it and every write any earlier one made is on this disk: DRBD refuses a
+ * Secondary every write open, a Primary cannot demote while a mount holds it
+ * open, a demotion is reported only once every request the demoting node
+ * sent was acknowledged, each after this disk completed it (drbd_set_role
+ * waits for ap_pending_cnt to drain), and a crashed host's writes are settled
+ * by the reconnect resync before both disks read UpToDate.  That certifies
+ * the victim dead when the proof reaches it (v5_drbd_victim_ended).  It is a
+ * death certificate, not a fence: nothing re-checks it, and the peer's swap
+ * register is never cleared under it.
+ *
  * Nothing is issued, so every outcome is PRECOMMAND: an attempt that cannot
  * prove exclusion yet (DRBD still frozen while its fence handler runs, the
  * authority unreachable) is retried with nothing consumed.
  */
+
+/*
+ * Does kind 27 reach this victim?  The report proves no incarnation alive on
+ * the peer, and no host but the two endpoints reaches either replica.  On
+ * THIS host the only incarnation alive is this mount's own, which the caller
+ * has already refused to certify: a host holds one superblock per block
+ * device (get_tree_bdev), so any earlier MXFS of this device here had ended
+ * before this one's fill_super could run, and DRBD holds its backing device
+ * open exclusively, so nothing mounts that beside it.
+ *
+ * Where the victim's host and boot are recorded (a takeover's record, or an
+ * identity block frozen at its death) they must also say so: an incarnation
+ * of this host's current boot is refused, as it is everywhere else.  A DRBD
+ * mount installs no identity block (it registers no PR key), so its records
+ * carry none; all zeros is "not recorded", never "another host".
+ * Returns what the victim was, or NULL with `why` set.
+ */
+static const char *v5_drbd_victim_ended(struct mxfs_v5_dlm *ctx, int dead_slot,
+					mxfs_node_id_t dead_node,
+					mxfs_epoch_t dead_epoch,
+					const uint8_t *victim_host,
+					const uint8_t *victim_boot,
+					char *why, size_t whylen)
+{
+	static const uint8_t none[16];
+	const struct mxfs_host_identity *hid = mxfs_host_identity();
+	uint8_t host[16], boot[16];
+	bool known;
+
+	if (dead_node == ctx->node_id) {
+		snprintf(why, whylen, "the victim is this mount's own incarnation");
+		return NULL;
+	}
+	if (victim_host && victim_boot) {
+		memcpy(host, victim_host, 16);
+		memcpy(boot, victim_boot, 16);
+		known = true;
+	} else {
+		known = ctx->disklock && dead_slot >= 0 &&
+			mxfs_disklock_victim_identity(ctx->disklock, dead_slot,
+						      dead_node, dead_epoch,
+						      host, boot);
+	}
+	if (known && (!memcmp(host, none, 16) || !memcmp(boot, none, 16)))
+		known = false;
+	if (!known)
+		return "an incarnation with no recorded host, not alive on this host "
+		       "(one superblock per device) nor on the peer";
+	if (!hid || !hid->host_valid || !hid->boot_valid) {
+		snprintf(why, whylen, "this host's own identity is not known");
+		return NULL;
+	}
+	if (memcmp(host, hid->host_uuid, 16))
+		return "an incarnation of another host";
+	if (memcmp(boot, hid->boot_uuid, 16))
+		return "an incarnation of an earlier boot of this host";
+	snprintf(why, whylen, "the victim is an incarnation of this host's current boot");
+	return NULL;
+}
+
 static int v5_drbd_fence(struct mxfs_v5_dlm *ctx, int dead_slot,
 			 mxfs_node_id_t dead_node, mxfs_epoch_t dead_epoch,
-			 uint64_t victim_key, struct mxfs_fence_result *fres)
+			 uint64_t victim_key, const uint8_t *victim_host,
+			 const uint8_t *victim_boot, struct mxfs_fence_result *fres)
 {
 	struct mxfs_pal_drbd_report *r;
 	enum mxfs_drbd_exclusion how = MXFS_DRBD_EXCLUSION_NONE;
-	char why[224];
+	const char *ended = NULL;
+	char why[224], whyq[160];
 	int rc;
 
 	memset(fres, 0, sizeof(*fres));
@@ -10633,8 +10793,38 @@ static int v5_drbd_fence(struct mxfs_v5_dlm *ctx, int dead_slot,
 			 rc, r->reason);
 	else
 		rc = mxfs_drbd_judge_excluded_how(r, &how, why, sizeof(why));
+	if (rc && r->delivered) {
+		whyq[0] = '\0';
+		if (mxfs_drbd_judge_peer_secondary(r, whyq, sizeof(whyq)) == 0)
+			ended = v5_drbd_victim_ended(ctx, dead_slot, dead_node,
+						     dead_epoch, victim_host,
+						     victim_boot, whyq, sizeof(whyq));
+		if (ended) {
+			fres->kind = MXFS_FENCE_KIND_DRBD_PEER_SECONDARY_V1;
+			fres->resv_type = 0;
+			fres->phase = MXFS_FENCE_PHASE_VERIFIED;
+			fres->retire_basis = MXFS_RETIRE_BASIS_TARGET_OP;
+			fres->retire_claim =
+				MXFS_RETIRE_CLAIM_DRBD_DEMOTION_DRAINED_PEER_WRITES;
+			fres->retire_obs = MXFS_RETIRE_OBS_DRBD_CONNECTED_PEER_SECONDARY;
+			mxfs_pal_log(MXFS_LOG_WARN,
+				     "mxfs: P238-DRBD-FENCE-PEER-SECONDARY slot=%d node=%u "
+				     "epoch=%llu peer=%s cstate=%s roles=%s/%s disks=%s/%s "
+				     "kind=%d — the victim was %s: no attachment is alive "
+				     "on the peer and every write of an earlier one is on "
+				     "this disk, so it has ended (a death certificate, not "
+				     "a fence)",
+				     dead_slot, dead_node, (unsigned long long)dead_epoch,
+				     r->peer_host, r->cstate, r->role_local, r->role_peer,
+				     r->disk_local, r->disk_peer, fres->kind, ended);
+			mxfs_pal_free(r);
+			return 0;
+		}
+		snprintf(why + strlen(why), sizeof(why) - strlen(why),
+			 "; and not ended: %s", whyq);
+	}
 	if (rc) {
-		mxfs_pal_log(MXFS_LOG_WARN,
+		mxfs_pal_log_repeating(MXFS_LOG_WARN,
 			     "mxfs: P238-DRBD-FENCE-NOT-YET slot=%d node=%u "
 			     "epoch=%llu — %s.  Nothing was issued; the attempt is "
 			     "retried",
@@ -10882,9 +11072,10 @@ static int v5_pr_fence_prove_locked(struct mxfs_v5_dlm *ctx,
 		 * PREEMPT AND ABORT.  It issues no command, so an attempt that
 		 * proves nothing stays PRECOMMAND and is retried. */
 		fret = v5_drbd_fence(ctx, dead_slot, dead_node, dead_epoch,
-				     intent_key, &fres);
+				     intent_key, NULL, NULL, &fres);
 		/* the summary every fence leg reports, whatever proved it */
-		mxfs_pal_log(MXFS_LOG_WARN,
+		mxfs_pal_log_attempt(mxfs_fence_kind_proves_exclusion(fres.kind),
+			     MXFS_LOG_WARN,
 			     "mxfs: P236-FENCEKIND node=%u kind=%s(%d) proves_excl=%d "
 			     "gen=%u rc=%d [prover slot=%d term=%u]",
 			     dead_node, mxfs_fence_kind_name(fres.kind),
@@ -11464,7 +11655,8 @@ gate_done:
 					     (unsigned long long)vkey);
 			}
 		}
-		mxfs_pal_log(MXFS_LOG_WARN,
+		mxfs_pal_log_attempt(mxfs_fence_kind_proves_exclusion(fres.kind),
+			     MXFS_LOG_WARN,
 			     "mxfs: P236-FENCEKIND node=%u kind=%s(%d) proves_excl=%d "
 			     "gen=%u rc=%d [prover slot=%d term=%u]",
 			     dead_node, mxfs_fence_kind_name(fres.kind),
@@ -11622,7 +11814,10 @@ gate_done:
 			 * ticket it died holding in the emulated swap may now be set
 			 * aside; until here the survivor's swaps wait on it and fail. */
 			/* kind 26 too: the excluded peer's writes can no longer
-			 * reach this replica, so its ticket can no longer move */
+			 * reach this replica, so its ticket can no longer move.
+			 * Never kind 27: the peer may be promoted and attached
+			 * by now, and clearing could erase its live ticket; the
+			 * swap sets a dead attachment's register aside instead. */
 			if (fres.kind == MXFS_FENCE_KIND_DRBD_STONITH_WITNESSED_V1 ||
 			    fres.kind == MXFS_FENCE_KIND_DRBD_REPLICA_EXCLUDED_V1)
 				mxfs_pal_drbd_cas_peer_fenced(ctx->dev);
@@ -11764,7 +11959,7 @@ unproven:
 		 * retryable, and arming an ambiguous attempt is the one thing that must
 		 * never happen.
 		 */
-		mxfs_pal_log(MXFS_LOG_WARN,
+		mxfs_pal_log_repeating(MXFS_LOG_WARN,
 			     "mxfs: P238-FENCE-RESUME-NOPROOF slot=%d node=%u "
 			     "epoch=%llu kind=%s(%d) — no proof independent of the "
 			     "unanswered command is available yet; nothing was issued, "
@@ -11782,8 +11977,8 @@ unproven:
 				       (uint16_t)fres.kind))
 			mxfs_disklock_recovery_fence_mark_blocked(ctx->disklock,
 								  dead_slot, &fauth);
-		mxfs_pal_log(ctx->fence_retry[dead_slot].blocked ? MXFS_LOG_WARN
-								  : MXFS_LOG_ERR,
+		mxfs_pal_log_repeating(ctx->fence_retry[dead_slot].blocked ? MXFS_LOG_WARN
+									    : MXFS_LOG_ERR,
 					 "mxfs: P238-FENCE-PENDING slot=%d node=%u epoch=%llu "
 					 "kind=%s(%d) phase=%s command_may_have_run=no rc=%d "
 					 "retry=automatic next_retry_ms=%llu attempt=%u — the "
@@ -12411,6 +12606,14 @@ static void v5_peer_disconnect_cb_tcp(void *data, mxfs_node_id_t node_id)
 			     node_id);
 		return;
 	}
+	/* The isolation timed out the socket of a peer whose death the DRBD
+	 * exclusion already armed (v5_drbd_exclusion_check): no second grace. */
+	if (node_id == READ_ONCE(ctx->drbd_excluded_node)) {
+		mxfs_pal_log(MXFS_LOG_INFO,
+			     "mxfs: TCP peer %u closed after DRBD's authority excluded it — its death is already declared",
+			     node_id);
+		return;
+	}
 
 	/*
 	 * ROOT FIX: a TCP disconnect under heavy load is usually a
@@ -12452,6 +12655,120 @@ static void v5_peer_disconnect_cb_tcp(void *data, mxfs_node_id_t node_id)
 	mxfs_pal_log(MXFS_LOG_WARN,
 		     "mxfs: TCP peer %u disconnected", node_id);
 	v5_tcp_declare_dead(ctx, node_id);
+}
+
+/* The pair handler's exclusion notice (pal/linux/drbd.c).  Atomic context. */
+static void v5_drbd_exclusion_notice(void *data)
+{
+	struct mxfs_v5_dlm *ctx = data;
+
+	WRITE_ONCE(ctx->drbd_excl_notice_ms, mxfs_pal_time_ms());
+}
+
+/*
+ * The pair's fence-peer handler reported that it excluded our peer.  Ask this
+ * node's own witness, judged exactly as the fence leg certifies (dlm/
+ * drbdfence.c), and if the exclusion holds declare the peer dead now: its
+ * suspect entry is armed already expired, so this pass of the grace checker
+ * declares it.  The TCP link's 25 s timeout and 40 s flap grace exist to tell
+ * a stalled peer from a dead one; a peer DRBD's authority has isolated from
+ * this host and holds StandAlone is neither stalled nor coming back under
+ * this incarnation, and the waits only hold everything that needs its grants.
+ * Measured on the rig (0.90.57): exclusion at +10.9 s, death at +65.6 s.
+ *
+ * The heartbeat monitor is told the same (mxfs_disklock_post_excluded): its
+ * death is the one that fences, certifies and replays the peer's slice, and
+ * its stale window can learn nothing from a replica the peer can no longer
+ * write.  Measured on the rig (0.90.58): this death at +22.8 s, the monitor's
+ * at +83.1 s, the slice recovered at +90.6 s.
+ *
+ * The handler takes the link StandAlone a second after its answer, so a first
+ * witness can see the exclusion incomplete; it is asked again once a second,
+ * for at most 30 s after the notice, and after that the TCP link decides as it
+ * always has.  Only a two-node pair has a single peer to name; with any other
+ * membership the notice is dropped.
+ */
+static void v5_drbd_exclusion_check(struct mxfs_v5_dlm *ctx)
+{
+	uint64_t now = mxfs_pal_time_ms();
+	uint64_t since = READ_ONCE(ctx->drbd_excl_notice_ms);
+	mxfs_node_id_t nodes[MXFS_MAX_NODES], peer = 0;
+	enum mxfs_drbd_exclusion how = MXFS_DRBD_EXCLUSION_NONE;
+	struct mxfs_pal_drbd_report *r;
+	char why[224];
+	int n, i, others = 0, slot, rc;
+
+	if (ctx->drbd_minor < 0 || !ctx->lease || !ctx->tcp_suspect_lock) {
+		WRITE_ONCE(ctx->drbd_excl_notice_ms, 0);
+		return;
+	}
+	if (now - since > 30000) {
+		mxfs_pal_log(MXFS_LOG_WARN,
+			     "mxfs: P-DRBD-EXCL-UNCONFIRMED minor=%d — the witness did "
+			     "not show the peer excluded within 30 s of the handler's "
+			     "notice; the TCP link's timeout and grace decide the death",
+			     ctx->drbd_minor);
+		WRITE_ONCE(ctx->drbd_excl_notice_ms, 0);
+		return;
+	}
+	if (now - ctx->drbd_excl_asked_ms < 1000)
+		return;
+	ctx->drbd_excl_asked_ms = now;
+
+	n = mxfs_lease_get_registered_nodes(ctx->lease, nodes, MXFS_MAX_NODES);
+	for (i = 0; i < n; i++) {
+		if (nodes[i] == ctx->node_id)
+			continue;
+		others++;
+		peer = nodes[i];
+	}
+	if (others != 1) {
+		mxfs_pal_log(MXFS_LOG_WARN,
+			     "mxfs: P-DRBD-EXCL-NOPEER minor=%d members=%d — a DRBD pair "
+			     "names one peer and this mount has %d; the notice is dropped "
+			     "and the TCP link decides",
+			     ctx->drbd_minor, n, others);
+		WRITE_ONCE(ctx->drbd_excl_notice_ms, 0);
+		return;
+	}
+
+	r = mxfs_pal_alloc(sizeof(*r));
+	if (!r)
+		return;
+	why[0] = '\0';
+	rc = mxfs_pal_drbd_witness(ctx->dev, MXFS_PAL_DRBD_RECHECK, r);
+	if (rc)
+		snprintf(why, sizeof(why), "the witness did not run (rc=%d %s)",
+			 rc, r->reason);
+	else
+		rc = mxfs_drbd_judge_excluded_how(r, &how, why, sizeof(why));
+	mxfs_pal_free(r);
+	if (rc) {
+		mxfs_pal_log_repeating(MXFS_LOG_INFO,
+				       "mxfs: P-DRBD-EXCL-NOT-YET node=%u — %s; asked "
+				       "again in a second", peer, why);
+		return;
+	}
+
+	slot = (int)(peer % MXFS_MAX_NODES);
+	mxfs_pal_mutex_lock(ctx->tcp_suspect_lock);
+	ctx->tcp_suspect_node[slot] = peer;
+	ctx->tcp_suspect_since[slot] =
+		now > (uint64_t)mxfs_tcp_death_grace_ms ?
+		now - (uint64_t)mxfs_tcp_death_grace_ms : 1;
+	mxfs_pal_mutex_unlock(ctx->tcp_suspect_lock);
+	WRITE_ONCE(ctx->drbd_excluded_node, peer);
+	WRITE_ONCE(ctx->drbd_excl_notice_ms, 0);
+	if (ctx->disklock)
+		mxfs_disklock_post_excluded(ctx->disklock, peer);
+	mxfs_pal_log(MXFS_LOG_WARN,
+		     "mxfs: P-DRBD-EXCL-DEATH node=%u minor=%d notice_age_ms=%llu "
+		     "how=%s — DRBD's fence authority excluded the peer and this "
+		     "node's witness shows it; the death is declared now instead "
+		     "of after the TCP link's timeout and grace, and the heartbeat "
+		     "monitor's stale window",
+		     peer, ctx->drbd_minor, (unsigned long long)(now - since),
+		     how == MXFS_DRBD_EXCLUSION_EXCLUDED ? "excluded" : "stonith");
 }
 
 /*
@@ -12530,6 +12847,8 @@ static void v5_tcp_death_worker_fn(void *arg)
 
 		if (!ctx->tcp_suspect_lock)
 			continue;
+		if (READ_ONCE(ctx->drbd_excl_notice_ms))
+			v5_drbd_exclusion_check(ctx);
 
 		now = mxfs_pal_time_ms();
 		for (i = 0; i < MXFS_MAX_NODES; i++) {
@@ -12544,7 +12863,10 @@ static void v5_tcp_death_worker_fn(void *arg)
 			}
 			mxfs_pal_mutex_unlock(ctx->tcp_suspect_lock);
 
+			/* a peer DRBD's authority excluded is not a stalled one:
+			 * its socket lives on only until the isolation times it out */
 			if (dead != 0 && ctx->peer &&
+			    dead != READ_ONCE(ctx->drbd_excluded_node) &&
 			    mxfs_peer_is_connected(ctx->peer, dead)) {
 				/*  never declare dead a peer the
 				 * peer layer holds an ACTIVE socket to.  The proven
@@ -15049,6 +15371,18 @@ static int v5_exclusion_recheck(struct mxfs_v5_dlm *ctx, mxfs_node_id_t victim,
 	}
 
 	/*
+	 * KIND 27 IS A DEATH CERTIFICATE, NOT A FENCE.  What it certified — the
+	 * victim incarnation ended, every write it made on this disk — cannot
+	 * lapse, so there is no state to re-take.  The peer may be promoted and
+	 * mounted by now, as a new incarnation: that one reaches this slice only
+	 * through admission, refused while this recovery is pending, and the
+	 * execution lease re-validated above is what keeps the recovery ours.
+	 */
+	if (ctx->drbd_minor >= 0 &&
+	    cert_kind == MXFS_FENCE_KIND_DRBD_PEER_SECONDARY_V1)
+		return 0;
+
+	/*
 	 * THE DRBD ATTACHMENT RE-TAKES ITS WITNESS.  A kind-25 certificate's
 	 * exclusion is a CONTINUING state, not a past event: the peer still off
 	 * and still inhibited under the same episode, the link still
@@ -15658,7 +15992,7 @@ int mxfs_v5_dlm_recovery_acquire_bounded(struct mxfs_v5_dlm *ctx,
 				hst = v5_holder_slot_state(ctx, dead_slot, &desc, hnode,
 							   hepoch, &inc_why);
 			if (hnode && hst != V5_INC_REVOKED)
-				pr_warn_ratelimited(
+				mxfs_pal_log_repeating(MXFS_LOG_WARN,
 				    "mxfs: P238-FENCE-HOLDER-STATE slot=%u node=%u stage=%u "
 				    "holder=%u/%llu holder_slot=%u fence_term=%u state=%s "
 				    "why='%s' — the attempt is held by an incarnation not "
@@ -16984,6 +17318,8 @@ int mxfs_v5_dlm_bootstrap_finish(struct mxfs_v5_dlm *ctx)
 	uint32_t gen = 0;
 	unsigned int i, unexplained = 0;
 	bool own_seen = false;
+	mxfs_node_id_t knode = 0;
+	uint64_t kinc = 0;
 
 	if (!ctx || !ctx->bootstrap_owner)
 		return 0;
@@ -17006,6 +17342,10 @@ int mxfs_v5_dlm_bootstrap_finish(struct mxfs_v5_dlm *ctx)
 		if (rc)
 			return rc;
 	}
+	/* TEST ONLY: a completion that fails once K's replay is on record, so the
+	 * next mount of this boot resumes a term whose K is already replayed */
+	if (v5_bootstrap_inject_fire(4))
+		return -EIO;
 	/* every sealed victim: K by our own replay, the rest by the ladder */
 	{
 		uint64_t complete = ctx->bootstrap->img.complete_bitmap;
@@ -17032,17 +17372,35 @@ int mxfs_v5_dlm_bootstrap_finish(struct mxfs_v5_dlm *ctx)
 		/*
 		 * No registrant list to reconcile on DRBD.  What the reconcile
 		 * proves on SCSI — nothing the manifest does not explain can write —
-		 * is here the startup fence still standing at completion: the peer
-		 * off and inhibited under the same episode.
+		 * is here the peer still provably holding no writer at completion:
+		 * off and inhibited under the same episode, or (0.90.62) Secondary
+		 * on a Connected link, so no incarnation is alive on it.  One that
+		 * started after the startup proof met this term at its peek, or was
+		 * refused its own startup proof while this node was Primary; it
+		 * wrote nothing the manifest must explain either way.
 		 */
 		struct mxfs_pal_drbd_report *r = mxfs_pal_alloc(sizeof(*r));
-		char why[224] = "";
+		char why[224] = "", whyq[160] = "";
 
 		if (!r)
 			return -ENOMEM;
 		rc = mxfs_pal_drbd_witness(ctx->dev, MXFS_PAL_DRBD_RECHECK, r);
 		if (rc == 0)
 			rc = mxfs_drbd_judge_excluded(r, why, sizeof(why));
+		if (rc && r->delivered) {
+			if (mxfs_drbd_judge_peer_secondary(r, whyq, sizeof(whyq)) == 0) {
+				mxfs_pal_log(MXFS_LOG_WARN,
+					     "mxfs: P-BOOT-RECONCILE-DRBD-PEER-SECONDARY peer=%s "
+					     "roles=%s/%s disks=%s/%s — the peer holds no "
+					     "incarnation at completion",
+					     r->peer_host, r->role_local, r->role_peer,
+					     r->disk_local, r->disk_peer);
+				rc = 0;
+			} else {
+				snprintf(why + strlen(why), sizeof(why) - strlen(why),
+					 "; peer not Secondary: %s", whyq);
+			}
+		}
 		mxfs_pal_free(r);
 		if (rc) {
 			mxfs_pal_log(MXFS_LOG_ERR,
@@ -17105,6 +17463,13 @@ int mxfs_v5_dlm_bootstrap_finish(struct mxfs_v5_dlm *ctx)
 		return rc ? rc : -EPERM;
 	}
 complete:
+	mxfs_pal_mutex_lock(ctx->bootstrap->lock);
+	if (ctx->boot_adopt_slot >= 0 &&
+	    ctx->bootstrap->img.escrow.state == MXFS_BOOT_ESCROW_K_REPLAY_OK) {
+		knode = ctx->bootstrap->img.escrow.victim_node;
+		kinc = ctx->bootstrap->img.escrow.victim_epoch;
+	}
+	mxfs_pal_mutex_unlock(ctx->bootstrap->lock);
 	rc = mxfs_bootstrap_complete(ctx->bootstrap);
 	if (rc)
 		return rc;
@@ -17119,6 +17484,11 @@ complete:
 		     "ordinary ACTIVE member and admission is open",
 		     (unsigned long long)ctx->bootstrap->img.term,
 		     ctx->boot_adopt_slot, nkeys, gen);
+	/* the records the page import kept on our slot for K
+	 * (v5_slot_retained_cb), released now as our slot's residue: the
+	 * callback answers no from here on, so nothing re-installs them */
+	if (knode && ctx->dlm && ctx->tauth_open)
+		mxfs_dlm_ledger_release_retained_slot(ctx->dlm, knode, kinc);
 	/* K's pages were kept under judgement until now
 	 * (v5_recovery_judging_cb); the mount-init sweep passed them over */
 	v5_orphan_sweep_queue(ctx);
@@ -17543,7 +17913,16 @@ static int v5_drbd_arm(struct mxfs_v5_dlm *ctx)
 	}
 	/* a swap blocked by a dead peer's ticket may clear it once this
 	 * judgment finds the peer excluded (pal/linux/drbd.c) */
-	mxfs_pal_drbd_cas_set_judge(ctx->dev, mxfs_drbd_judge_excluded);
+	mxfs_pal_drbd_cas_set_judge(ctx->dev, mxfs_drbd_judge_excluded,
+				    mxfs_drbd_judge_peer_secondary);
+	/* the pair handler's notice that it excluded the peer: the death check
+	 * asks the witness then, not after the TCP link's grace */
+	if (mxfs_pal_drbd_exclusion_watch(ctx->dev, v5_drbd_exclusion_notice, ctx))
+		mxfs_pal_log(MXFS_LOG_WARN,
+			     "mxfs: P-DRBD-EXCL-NOWATCH minor=%d — the handler's "
+			     "exclusion notice cannot reach this mount; a peer's death "
+			     "waits out the TCP link's timeout and grace",
+			     ctx->drbd_minor);
 	mxfs_pal_log(MXFS_LOG_INFO,
 		     "mxfs: P-DRBD-ARM-ADMITTED minor=%d resource=%s shape=%s "
 		     "index=%d local=%s peer=%s(%s) disks=%s/%s",
@@ -18347,6 +18726,7 @@ tcp_bootstrap_again:
 						ctx->dlm->occupant_cb = v5_occupant_cb;     /* 0.75.69 */
 						ctx->dlm->owners_settled_cb = v5_owners_settled_cb; /* 0.90.21 */
 						ctx->dlm->recovery_judging_cb = v5_recovery_judging_cb; /* 0.89.3 */
+						ctx->dlm->slot_retained_cb = v5_slot_retained_cb;   /* 0.90.64 */
 						ctx->dlm->recovery_blocked_cb = v5_recovery_blocked_cb;
 						ctx->dlm->refused_owner_cb = v5_refused_owner_cb;  /* 0.75.30 */
 						mxfs_dlm_attach_ledger(ctx->dlm, &ctx->tauth,
@@ -19318,6 +19698,7 @@ err_scsipr:
 		ctx->bootstrap = NULL;
 	}
 err_dev:    /* 0.75.0: transport-census refusals — only the device is wrapped */
+	mxfs_pal_drbd_exclusion_watch(ctx->dev, NULL, ctx);
 	mxfs_pal_bdev_close_clone(ctx->dev);
 err_free:
 	if (ctx->member_lock)
@@ -19575,6 +19956,9 @@ void mxfs_v5_dlm_shutdown_defer_release(struct mxfs_v5_dlm *ctx,
 		WRITE_ONCE(mxfs_auth_withdraw_threads,
 			   READ_ONCE(mxfs_auth_withdraw_threads) - 1);
 	}
+	/* no exclusion notice may reach a context being torn down */
+	if (ctx->drbd_minor >= 0)
+		mxfs_pal_drbd_exclusion_watch(ctx->dev, NULL, ctx);
 	/* stop the deferred-TCP-death grace-checker before tearing down
 	 * the lease/dlm it touches. */
 	if (ctx->tcp_death_thread) {

@@ -1113,6 +1113,29 @@ void mxfs_pal_log(int level, const char *fmt, ...)
 	fflush(out);
 }
 
+/* A tool's run is short and its output is read whole: every line prints. */
+void mxfs_pal_log_repeating(int level, const char *fmt, ...)
+{
+	va_list ap;
+	char line[1024];
+
+	va_start(ap, fmt);
+	vsnprintf(line, sizeof(line), fmt, ap);
+	va_end(ap);
+	mxfs_pal_log(level, "%s", line);
+}
+
+/* A tool prints its refusal on its own terminal: nothing to hand on. */
+void mxfs_pal_log_capture_begin(char *buf, size_t len)
+{
+	if (buf && len)
+		buf[0] = '\0';
+}
+
+void mxfs_pal_log_capture_end(void)
+{
+}
+
 /* ─── Fail-stop ─── */
 
 /*
@@ -1738,11 +1761,24 @@ void mxfs_pal_drbd_cas_peer_fenced(mxfs_bdev_t *dev)
 }
 
 void mxfs_pal_drbd_cas_set_judge(mxfs_bdev_t *dev,
-				 int (*judge)(const struct mxfs_pal_drbd_report *r,
-					      char *why, size_t whylen))
+				 int (*excluded)(const struct mxfs_pal_drbd_report *r,
+						 char *why, size_t whylen),
+				 int (*quiescent)(const struct mxfs_pal_drbd_report *r,
+						  char *why, size_t whylen))
 {
 	(void)dev;
-	(void)judge;
+	(void)excluded;
+	(void)quiescent;
+}
+
+/* No DRBD device is ever attached in user mode, so no notice can name one. */
+int mxfs_pal_drbd_exclusion_watch(mxfs_bdev_t *dev, void (*fn)(void *data),
+				  void *data)
+{
+	(void)dev;
+	(void)fn;
+	(void)data;
+	return 0;
 }
 
 void mxfs_pal_bdev_set_drbd_cas(mxfs_bdev_t *dev, bool on)

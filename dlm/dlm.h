@@ -613,6 +613,16 @@ struct mxfs_dlm_ctx {
 	 * classification at the takeover choke point (dlm_takeover_page). */
 	bool                    (*recovery_judging_cb)(void *data, mxfs_node_id_t node,
 						       uint64_t inc);
+	/* 0.90.64: does `slot` -- this mount's own -- still carry the records
+	 * of the incarnation that held it before, kept for a recovery
+	 * judgement?  True for the victim slot a whole-cluster bootstrap owner
+	 * adopted as its own log, while its term is open: a resume or a
+	 * takeover verifies that slot's replay against those records again, so
+	 * a page import must install them as that incarnation's holders, never
+	 * release them as residue of our own slot.  *node / *inc name the
+	 * incarnation a shared bit of the slot is attributed to.  NULL = never. */
+	bool                    (*slot_retained_cb)(void *data, int slot,
+						    mxfs_node_id_t *node, uint64_t *inc);
 	/*
 	 * 0.90.21: have these holders LEFT FOR GOOD, with nothing of their
 	 * journal slices left to replay?  A ledger record outlives the mount it
@@ -1200,6 +1210,21 @@ void mxfs_dlm_attach_ledger(struct mxfs_dlm_ctx *ctx,
  * or after a clean departure.  Returns records cleared or -errno. */
 int mxfs_dlm_ledger_purge_owner(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t node,
 				int slot);
+
+/*
+ * 0.90.64: release the records of our own slot's predecessor {node, inc}
+ * that the page import kept while slot_retained_cb named it, once it no
+ * longer does (the bootstrap term that kept them is complete).  It is the
+ * release a page import makes of our slot's residue, deferred: `node` is
+ * remembered as purged first, so no import from then on keeps a record of
+ * it; every imported shared holder on our slot under `node` becomes our
+ * residue and is released through the local-master unlock (or is dropped
+ * when a grant of our own covers the same bit), and the exclusive records
+ * are purged by that node id.  Caller holds NO locks.  Returns the number
+ * of shared holders released, or -errno.
+ */
+int mxfs_dlm_ledger_release_retained_slot(struct mxfs_dlm_ctx *ctx,
+					  mxfs_node_id_t node, uint64_t inc);
 
 /*
  * 0.75.30: the SELECTIVE recovery purge for a terminally refused victim

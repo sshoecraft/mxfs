@@ -2838,6 +2838,10 @@ static int dlm_ledger_import_page(struct mxfs_dlm_ctx *ctx, uint32_t page_id,
 	struct mxfs_resource_id *residue;
 	struct dlm_slot_tenant *tenants;
 	int npurge = 0, nresidue = 0, i, n, rc, absent_kept = 0;
+	int nretained_ex = 0, nretained_sh = 0;
+	mxfs_node_id_t rnode = 0;
+	uint64_t rinc = 0;
+	bool retained;
 
 	rc = mxfs_tauth_ledger_ensure(ctx->ledger, page_id, gen);
 	if (rc)
@@ -2887,6 +2891,30 @@ static int dlm_ledger_import_page(struct mxfs_dlm_ctx *ctx, uint32_t page_id,
 			return n;
 		}
 	}
+	/*
+	 * 0.90.64: does our slot still carry its predecessor's records, kept for
+	 * a judgement?  The slot a whole-cluster bootstrap owner adopted from
+	 * the victim K does, until the term completes: a resume or a takeover
+	 * verifies K's replay against those records again.  Read as residue of
+	 * our own slot, they were released here.  Measured on 2/net/mesh/drbd
+	 * (0.90.63, the pair-outage test with the owner's completion failed
+	 * once): the completion ladder of the other victim took a page over and
+	 * purged K's incarnation by node id here
+	 * ('P-TAUTH-IMPORT-RESIDUE-EX ... slot=0 node=1317496673
+	 * inc=1697675882839155361', the escrowed K), and every resume of that
+	 * boot then found four to six of K's sealed records gone
+	 * ('P-RMAN-POSTSEAL-MUTATION site=prereplay victim_slot=0 ...
+	 * live{rc=-2 holds=0}') and refused the volume.  Those records are
+	 * installed as K's holders instead, the same retention the sweep and
+	 * the page takeover give K (v5_recovery_judging_cb), and
+	 * mxfs_dlm_ledger_release_retained_slot releases them at completion.
+	 * Asked once per page, before the table lock: the answer takes the
+	 * mount's bootstrap lock.
+	 */
+	retained = ctx->slot_retained_cb &&
+		   ctx->slot_retained_cb(ctx->cb_data, (int)ctx->local_slot, &rnode, &rinc) &&
+		   rnode != 0 && rnode != MXFS_DLM_NODE_UNKNOWN && rnode != ctx->local_node &&
+		   rinc != 0;
 	mxfs_pal_rwlock_wrlock(ctx->table_rwlock);
 	if (absent_kept)
 		ctx->settled_scan_owed = true;  /* judged again from the tick */
@@ -2909,6 +2937,13 @@ static int dlm_ledger_import_page(struct mxfs_dlm_ctx *ctx, uint32_t page_id,
 					purge[npurge].slot = e->ex_slot;
 					npurge++;
 				}
+			} else if (retained && e->ex_slot == ctx->local_slot &&
+				   e->ex_node == rnode && e->ex_inc == rinc) {
+				/* the adopted victim's record: its holder until the term
+				 * completes, never our slot's residue */
+				dlm_import_holder(ctx, &res, e->ex_node, e->ex_inc, e->ex_slot,
+						  e->ex_mode, e, true);
+				nretained_ex++;
 			} else if (e->ex_slot == ctx->local_slot &&
 				   e->ex_node != ctx->local_node && e->ex_node != 0 &&
 				   e->ex_node != MXFS_DLM_NODE_UNKNOWN) {
@@ -3059,6 +3094,20 @@ static int dlm_ledger_import_page(struct mxfs_dlm_ctx *ctx, uint32_t page_id,
 				}
 				continue;
 			}
+			/* a bit of our slot that no grant of ours accounts for, while
+			 * the slot is retained: the adopted victim's, kept as its
+			 * holder (a bit names a slot, so the retention names the
+			 * incarnation); once its release has marked it purged, the
+			 * residue rule below applies again */
+			if (retained && s == (int)ctx->local_slot && node == ctx->local_node &&
+			    !dlm_owner_purged(ctx, rnode, s) &&
+			    !dlm_local_entry_any(ctx, &res) && !dlm_pending_exists(ctx, &res)) {
+				dlm_import_holder(ctx, &res, rnode, rinc, (uint16_t)s,
+						  e->shared_mode ? e->shared_mode : MXFS_LOCK_PR,
+						  e, false);
+				nretained_sh++;
+				continue;
+			}
 			if (node == ctx->local_node && node != 0 &&
 			    !dlm_local_entry_any(ctx, &res) && !dlm_pending_exists(ctx, &res)) {
 				mxfs_pal_log(MXFS_LOG_WARN,
@@ -3096,6 +3145,13 @@ static int dlm_ledger_import_page(struct mxfs_dlm_ctx *ctx, uint32_t page_id,
 	mxfs_pal_rwlock_unlock(ctx->table_rwlock);
 	mxfs_pal_free(acc);
 	mxfs_pal_free(tenants);
+	if (nretained_ex + nretained_sh)
+		mxfs_probe("mxfs: P-TAUTH-IMPORT-RETAINED page=%u node=%u inc=%llu ex=%d "
+			   "shared=%d — records of the incarnation this mount's slot was "
+			   "adopted from, installed as its holders until the bootstrap "
+			   "term completes\n",
+			   page_id, rnode, (unsigned long long)rinc, nretained_ex,
+			   nretained_sh);
 	/* lazy retirement of already-purged owners found on this page */
 	for (i = 0; i < npurge; i++)
 		mxfs_dlm_ledger_purge_owner(ctx, purge[i].node, purge[i].slot);
@@ -6665,6 +6721,104 @@ int mxfs_dlm_ledger_purge_owner(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t node,
 }
 
 /*
+ * 0.90.64: the release dlm_ledger_import_page deferred for the records it
+ * kept on our own slot (contract in dlm.h).  Order is the safety argument:
+ * `node` is remembered as purged BEFORE the table is walked, so an import
+ * that read the retention before the term completed has either installed its
+ * holders already (the walk finds them under the same table lock) or meets
+ * the purged mark and retires the records instead of keeping them.  The
+ * shared holders are released before the purge by node id, which would drop
+ * them from the table while their bits stayed on the platter.
+ */
+int mxfs_dlm_ledger_release_retained_slot(struct mxfs_dlm_ctx *ctx,
+					  mxfs_node_id_t node, uint64_t inc)
+{
+	struct mxfs_resource_id *residue;
+	int nres, released = 0, covered = 0, failed = 0, ex_kept = 0, i, rc;
+	uint32_t b;
+	bool more;
+
+	if (!ctx || node == 0 || node == MXFS_DLM_NODE_UNKNOWN || node == ctx->local_node)
+		return -EINVAL;
+	residue = mxfs_pal_alloc(sizeof(*residue) * MXFS_TAUTH_ENTRIES_PER_PAGE);
+	if (!residue)
+		return -ENOMEM;
+	dlm_owner_mark_purged(ctx, node, -1);
+	do {
+		nres = 0;
+		more = false;
+		mxfs_pal_rwlock_wrlock(ctx->table_rwlock);
+		for (b = 0; b < ctx->bucket_count && !more; b++) {
+			struct mxfs_lock **pp = &ctx->buckets[b];
+
+			while (*pp) {
+				struct mxfs_lock *lk = *pp;
+
+				if (!lk->imported || lk->owner != node ||
+				    lk->owner_slot != ctx->local_slot ||
+				    dlm_mode_exclusive(lk->mode) || !lk_is_holder(lk)) {
+					pp = &lk->next;
+					continue;
+				}
+				if (dlm_local_entry_any(ctx, &lk->resource) ||
+				    dlm_pending_exists(ctx, &lk->resource)) {
+					/* a grant of ours accounts for the same bit */
+					*pp = lk->next;
+					ctx->lock_count--;
+					lock_free(lk);
+					covered++;
+					continue;
+				}
+				if (nres == (int)MXFS_TAUTH_ENTRIES_PER_PAGE) {
+					more = true;
+					break;
+				}
+				/* our slot's residue now: the unlock finds it as ours */
+				lk->owner = ctx->local_node;
+				lk->owner_inc = ctx->local_inc;
+				residue[nres++] = lk->resource;
+				pp = &lk->next;
+			}
+		}
+		mxfs_pal_rwlock_unlock(ctx->table_rwlock);
+		for (i = 0; i < nres; i++) {
+			rc = mxfs_dlm_unlock(ctx, &residue[i]);
+			if (rc == 0) {
+				released++;
+				continue;
+			}
+			failed++;
+			mxfs_pal_log(MXFS_LOG_ERR,
+				     "mxfs: P-TAUTH-RETAINED-RELEASE-FAIL type=%u ino=%llu ag=%u "
+				     "rc=%d — the retained bit stays a blocker",
+				     residue[i].type, (unsigned long long)residue[i].ino,
+				     residue[i].ag_number, rc);
+		}
+	} while (more);
+	mxfs_pal_free(residue);
+	/* what is left under `node` on our slot is the exclusive records kept */
+	mxfs_pal_rwlock_rdlock(ctx->table_rwlock);
+	for (b = 0; b < ctx->bucket_count; b++) {
+		struct mxfs_lock *lk;
+
+		for (lk = ctx->buckets[b]; lk; lk = lk->next)
+			if (lk->imported && lk->owner == node &&
+			    lk->owner_slot == ctx->local_slot && lk_is_holder(lk))
+				ex_kept++;
+	}
+	mxfs_pal_rwlock_unlock(ctx->table_rwlock);
+	rc = mxfs_dlm_ledger_purge_owner(ctx, node, (int)ctx->local_slot);
+	mxfs_pal_log(MXFS_LOG_WARN,
+		     "mxfs: P-TAUTH-RETENTION-BOOT-K-RELEASE node=%u inc=%llu slot=%u "
+		     "ex_kept=%d shared_released=%d shared_covered=%d release_failed=%d "
+		     "purge_rc=%d — the bootstrap term is complete: the adopted victim's "
+		     "records kept on this mount's slot are released as its residue",
+		     node, (unsigned long long)inc, ctx->local_slot, ex_kept, released,
+		     covered, failed, rc);
+	return rc < 0 ? rc : released;
+}
+
+/*
  * 0.75.30 (D-TCP-REFUSED-VICTIM-KEEPS-MASTERSHIP-OUT-OF-MASK-RESOURCES-
  * UNAVAILABLE-0910): the selective counterpart of mxfs_dlm_ledger_purge_owner
  * for a terminally refused victim.  Measured s518i (2 nodes / TCP, AG-scoped
@@ -9065,7 +9219,7 @@ int mxfs_dlm_resource_held_by_blocked(struct mxfs_dlm_ctx *ctx,
 		 * fails now.
 		 */
 		if (ctx->recovery_blocked_cb(ctx->cb_data, master)) {
-			pr_warn_ratelimited(
+			mxfs_pal_log_repeating(MXFS_LOG_WARN,
 			    "mxfs: P-RBLK-COVERS-DEAD-MASTER type=%u ino=%llu ag=%u master=%u — "
 			    "the resource's master is a dead node whose recovery is "
 			    "RECOVERY_BLOCKED; the operation fails at the entry gate\n",
@@ -10166,7 +10320,7 @@ int mxfs_dlm_unlock_open(struct mxfs_dlm_ctx *ctx,
 		 * each, 19 never acknowledged, P-RELALL-WIRED ack_rc=19, umount
 		 * parked 5-10 s in mxfs_dlm_wait_release_acks).
 		 */
-		pr_warn_ratelimited(
+		mxfs_pal_log_repeating(MXFS_LOG_WARN,
 		    "mxfs: P-RBLK-RELEASE-SKIP-DEAD-MASTER type=%u ino=%llu ag=%u master=%u gen=%u "
 		    "blocked=%d sealed=%d — the master is a dead node (recovery blocked or "
 		    "its records sealed); release not sent\n",

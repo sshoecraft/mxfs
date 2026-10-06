@@ -1298,7 +1298,9 @@ int mxfs_bootstrap_survivor_scan(mxfs_bdev_t *dev, uint64_t disklock_offset,
 				     "flags=0x%x ident{magic=0x%x ver=%u key=0x%llx "
 				     "gen=%u} — this victim's identity block does not "
 				     "validate for its own record, so it carries no key a "
-				     "fence could name and the bootstrap cannot proceed",
+				     "fence could name: a SCSI bootstrap cannot proceed "
+				     "(a DRBD mount writes no identity block and fences "
+				     "by the attachment instead)",
 				     slot, r->node_id, (unsigned long long)r->epoch,
 				     r->flags, r->ident.magic, r->ident.ver,
 				     (unsigned long long)r->ident.pr_key,

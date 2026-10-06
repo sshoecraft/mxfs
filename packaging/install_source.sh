@@ -65,6 +65,12 @@ install_files() {
     mxfs_stage_node_files "$ROOT"
 
     if [ -z "$ROOT" ]; then
+        # The module and every file above are on disk before anything starts
+        # using them.  Measured on a PVE host that crashed ~2 s after an
+        # install: its units, fence handler, witness and mkfs.mxfs came back
+        # zero bytes long, the units then read as masked, and the node could
+        # neither fence nor mount until the install was run again.
+        sync
         udevadm control --reload-rules 2>/dev/null || true
         udevadm trigger --subsystem-match=block 2>/dev/null || true
         # The DRBD guard is idle unless this node holds a peer excluded;

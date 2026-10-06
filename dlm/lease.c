@@ -866,6 +866,22 @@ int mxfs_lease_get_active_nodes(struct mxfs_lease_ctx *ctx,
 	return count;
 }
 
+int mxfs_lease_get_registered_nodes(struct mxfs_lease_ctx *ctx,
+				    mxfs_node_id_t *out, int max_count)
+{
+	int i, count = 0;
+
+	if (!ctx || !out || max_count <= 0)
+		return 0;
+
+	mxfs_pal_mutex_lock(ctx->lock);
+	for (i = 0; i < ctx->node_count && count < max_count; i++)
+		out[count++] = ctx->nodes[i].node_id;
+	mxfs_pal_mutex_unlock(ctx->lock);
+
+	return count;
+}
+
 void mxfs_lease_set_expire_cb(struct mxfs_lease_ctx *ctx,
 			       mxfs_lease_expire_cb cb, void *data)
 {

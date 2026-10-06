@@ -661,6 +661,50 @@ __attribute__((format(printf, 2, 3)))
 #endif
 void mxfs_pal_log(int level, const char *fmt, ...);
 
+/*
+ * Log a line from a site that repeats without news: a retry loop's
+ * per-attempt line, or a refusal printed for every operation that meets it.
+ * Measured on a PVE host (0.90.55): a survivor whose recovery was blocked
+ * printed 453 copies of one refusal and ~90 of each of five fence-retry
+ * lines in one boot, and a user's first look at MXFS was a kernel log it
+ * had filled.  Each site (its format string) prints its first lines freely;
+ * after that a line prints only once the site's interval has passed, the
+ * interval doubling up to ten minutes, and the line that does print is
+ * followed by how many were held back.  A site quiet for half an hour
+ * starts over.  The module parameter log_repeat_limit=0 prints every line,
+ * for test rigs that count them.  Never use it for a line that marks an
+ * event a reader must see each time (a death, a fence verdict, a recovery).
+ */
+#ifdef __KERNEL__
+__printf(2, 3)
+#else
+__attribute__((format(printf, 2, 3)))
+#endif
+void mxfs_pal_log_repeating(int level, const char *fmt, ...);
+
+/*
+ * Keep the first error-level line the calling task logs between begin and
+ * end, in @buf (NUL-terminated, empty when there was none).  The mount uses
+ * it to give mount(8) the reason a cluster init refused: the init logs its
+ * reason (no DRBD fence handler, no SCSI persistent reservations, a
+ * bootstrap it may not finish) and returns no error code, so the reason
+ * used to exist only in the kernel log while mount(8) printed "Transport
+ * endpoint is not connected".  Several tasks may capture at once; a task
+ * with no free capture slot captures nothing.  User mode: no-ops.
+ */
+void mxfs_pal_log_capture_begin(char *buf, size_t len);
+void mxfs_pal_log_capture_end(void);
+
+/*
+ * A retry loop's per-attempt result line, news only when @verdict: a fence
+ * leg's outcome that proves the exclusion prints every time, and any other
+ * outcome is the loop's "not yet", which repeats every attempt for as long
+ * as a fence cannot complete and so goes through the repeat limit.
+ */
+#define mxfs_pal_log_attempt(verdict, level, fmt, ...)			\
+	((verdict) ? mxfs_pal_log((level), fmt, ##__VA_ARGS__)		\
+		   : mxfs_pal_log_repeating((level), fmt, ##__VA_ARGS__))
+
 #include "mxfs_probe.h"	/* mxfs_probe*: diagnostic lines, dynamic debug */
 
 /*
@@ -1305,10 +1349,26 @@ int mxfs_pal_drbd_cas_attach(mxfs_bdev_t *dev, uint64_t region_off,
 void mxfs_pal_drbd_cas_detach(mxfs_bdev_t *dev);
 /* The peer is fenced (a kind-25 certificate): clear a ticket it died holding. */
 void mxfs_pal_drbd_cas_peer_fenced(mxfs_bdev_t *dev);
-/* the exclusion judgment a waiting swap may consult (dlm/drbdfence.c) */
+/*
+ * The judgments a swap waiting on the peer's ticket may consult
+ * (dlm/drbdfence.c): `excluded` lets it clear the ticket of a fenced peer;
+ * `quiescent` (the peer Secondary on a Connected link) lets it set aside,
+ * unwritten, the exact register a dead attachment left.  Either may be NULL.
+ */
 void mxfs_pal_drbd_cas_set_judge(mxfs_bdev_t *dev,
-				 int (*judge)(const struct mxfs_pal_drbd_report *r,
-					      char *why, size_t whylen));
+				 int (*excluded)(const struct mxfs_pal_drbd_report *r,
+						 char *why, size_t whylen),
+				 int (*quiescent)(const struct mxfs_pal_drbd_report *r,
+						  char *why, size_t whylen));
+/*
+ * Call fn(data) when the pair's fence-peer handler reports that it excluded
+ * the peer of this DRBD device (a write of the minor to
+ * /proc/fs/mxfs/drbd_excluded).  A cue to ask the witness now, never evidence
+ * by itself.  fn runs in atomic context: it may set a flag and nothing more.
+ * fn NULL removes every watch registered with data.
+ */
+int mxfs_pal_drbd_exclusion_watch(mxfs_bdev_t *dev, void (*fn)(void *data),
+				  void *data);
 /* Mark a handle as having attached the emulator, so its close detaches it. */
 void mxfs_pal_bdev_set_drbd_cas(mxfs_bdev_t *dev, bool on);
 /* The emulated swap itself, for mxfs_pal_bdev_compare_and_write on a device

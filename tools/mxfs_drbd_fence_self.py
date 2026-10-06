@@ -39,6 +39,7 @@ Subcommands:
   release <target> <ep> <req>     release now if the evidence holds
   guard                           daemon: keep isolation in place, release on evidence
   boot <resource> <mountpoint>    bring the resource up and mount it when safe
+  stop <resource> <mountpoint>    unmount, step down and take the resource down
 """
 
 import json
@@ -53,6 +54,27 @@ import time
 STATE_DIR = "/var/lib/mxfs"
 RECORD_FMT = os.path.join(STATE_DIR, "drbd-fence.%s")      # shared with the handler
 INHIBIT_FMT = os.path.join(STATE_DIR, "drbd-inhibit.%s.json")
+# What `boot` is doing, one line "<state> pid=<pid> boot=<boot id>", read by
+# the peer's `boot` over ssh.  /run is emptied at every boot, so the file never
+# describes an earlier one.
+BOOT_STATE_FMT = "/run/mxfs/drbd-boot.%s"
+# A refused mount is retried after stepping down, so the peer can recover
+# first; the backoff doubles from the first value up to the second, and the
+# attempts stop after the third.
+MOUNT_RETRY_FIRST_S = 15
+MOUNT_RETRY_MAX_S = 120
+MOUNT_ATTEMPTS = 6
+# One mount attempt.  The module bounds each of its own waits and says why it
+# refused: after both nodes crashed, the bootstrap scan waits out the dead
+# heartbeat window (62 s), the DRBD startup fence waits at most 120 s more, and
+# then the old incarnations' journals are replayed (13 s on the rig).  A bound
+# below that sum kills a mount just before the module would have refused it:
+# measured on the rig at 180 s, killed 3 s short of the module's own refusal.
+MOUNT_TIMEOUT_S = 300
+# Participant 1 starts without participant 0 only once participant 0's boot
+# program has been seen not running for this long: systemd starts it within
+# seconds of the boot, and DRBD may be Connected before it starts.
+NOT_STARTING_GRACE_S = 30
 NFT_TABLE_FMT = "mxfs_fence_%s"
 # MXFS's ports: 7600/tcp carries the network lock manager, 7601-7603/udp
 # discovery, lock hints and heartbeat (README "firewall-cmd" line).
@@ -60,6 +82,13 @@ MXFS_TCP_PORTS = "7600"
 MXFS_UDP_PORTS = "7601-7603"
 RESTART_DELAY_S = 10
 GUARD_INTERVAL_S = 5
+# Tells the MXFS mount on a resource that its peer is excluded: the module
+# then asks its own witness at once instead of declaring the death after its
+# lock link's timeout and grace.  A cue, never evidence -- the module judges
+# the exclusion itself.  Without the module (or an older one) it does nothing.
+EXCLUSION_NOTICE = ("m=$(drbdadm sh-minor %s 2>/dev/null) && "
+                    "[ -w /proc/fs/mxfs/drbd_excluded ] && "
+                    "echo \"$m\" > /proc/fs/mxfs/drbd_excluded")
 
 
 def log(msg, crit=False):
@@ -357,8 +386,11 @@ def cmd_fence_peer():
     # StandAlone after DRBD has the answer: disconnecting from inside the
     # handler would wait on the state machine the handler is holding.  The
     # isolation already keeps the old peer from reconnecting meanwhile, and
-    # the module's fence leg waits until the witness sees StandAlone.
-    subprocess.Popen(["/bin/sh", "-c", "sleep 1; drbdadm disconnect %s" % res],
+    # the module's fence leg waits until the witness sees StandAlone.  Then
+    # the MXFS mount on the resource is told (EXCLUSION_NOTICE), so it asks
+    # its witness now instead of after its lock link's timeout and grace.
+    subprocess.Popen(["/bin/sh", "-c", "sleep 1; drbdadm disconnect %s; %s"
+                      % (res, EXCLUSION_NOTICE % res)],
                      start_new_session=True, stdin=subprocess.DEVNULL,
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return 7
@@ -377,15 +409,53 @@ def cmd_status(target):
 
 
 def cmd_fence(target, requester):
-    # Asked outside the handler: startup fencing after a pair outage.  This
-    # authority cannot prove a peer's earlier incarnation gone while it is
-    # alive and connected; that needs a node fence.
-    log("startup fence of %s refused: the built-in two-node authority cannot exclude a "
-        "live peer's earlier incarnation after both nodes crashed; configure a node "
-        "fence (IPMI/PDU) in /etc/mxfs/drbd-fence.conf for automatic recovery from a "
-        "pair outage" % target, crit=True)
+    # Asked outside the handler: startup fencing after a pair outage, which
+    # the module asks for only when the peer is neither excluded nor
+    # Secondary on a Connected link.  This authority powers nothing off, so
+    # it cannot make a live Primary's earlier incarnation provably gone; the
+    # mount waits for the peer to step down (its boot program does when its
+    # own mount is refused) or for the link to be lost and the tie-break.
+    log("startup fence of %s refused: the built-in two-node authority powers nothing "
+        "off; recovery after both nodes crashed proceeds once %s is Secondary on a "
+        "Connected link (its boot program waits for, or steps down to, that)"
+        % (target, target), crit=True)
     print("FENCE_REFUSED %s self authority performs no startup fence" % target)
     return 1
+
+
+def peer_facts(res, peer, peer_addr):
+    """The peer's own answer over ssh, as a dict, or (None, why).  ROLE is
+    `drbdadm role`, MOUNTS the number of MXFS mounts, REFCNT the module's
+    reference count, BOOT its boot id, BOOTSTATE what its boot program
+    published (BOOT_STATE_FMT; 'none' when there is no such file) and
+    BOOTLIVE whether that program is still running."""
+    # Authenticate the peer the way Proxmox's own migrations do: its key from
+    # the cluster's per-node file under its node name (PVE 9 keeps no cluster
+    # host keys in the shared known_hosts).  Elsewhere, the system's known
+    # hosts under the same name.
+    opts = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=5",
+            "-o", "StrictHostKeyChecking=yes", "-o", "HostKeyAlias=" + peer]
+    pve_keys = "/etc/pve/nodes/%s/ssh_known_hosts" % peer
+    if os.path.exists(pve_keys):
+        opts += ["-o", "UserKnownHostsFile=" + pve_keys]
+    state = BOOT_STATE_FMT % res
+    try:
+        rc, out = run(["ssh"] + opts + ["root@" + peer_addr,
+                       "echo ROLE=$(drbdadm role %s 2>/dev/null || echo Unconfigured); "
+                       "echo MOUNTS=$(grep -c ' mxfs ' /proc/mounts); "
+                       "echo REFCNT=$(cat /sys/module/mxfs/refcnt 2>/dev/null || echo unloaded); "
+                       "echo BOOT=$(cat /proc/sys/kernel/random/boot_id); "
+                       "s=$(cat %s 2>/dev/null); echo BOOTSTATE=${s:-none}; "
+                       "p=${s##* pid=}; p=${p%%%% *}; "
+                       "[ -n \"$s\" ] && kill -0 \"$p\" 2>/dev/null && echo BOOTLIVE=1 || echo BOOTLIVE=0"
+                       % (res, state)],
+                      timeout=20)
+    except subprocess.SubprocessError:
+        return None, "ssh to %s timed out" % peer
+    f = dict(l.split("=", 1) for l in out.splitlines() if "=" in l)
+    if rc != 0 or not {"ROLE", "MOUNTS", "REFCNT", "BOOT", "BOOTSTATE", "BOOTLIVE"} <= f.keys():
+        return None, "no answer from %s over ssh (rc=%d)" % (peer, rc)
+    return f, ""
 
 
 def peer_evidence(res, peer, peer_addr):
@@ -397,27 +467,9 @@ def peer_evidence(res, peer, peer_addr):
     whether the peer rebooted or only unmounted.  Read over ssh, which a
     Proxmox cluster authenticates with its root key trust; anything short of a
     clean answer is (False, why)."""
-    # Authenticate the peer the way Proxmox's own migrations do: its key from
-    # the cluster's per-node file under its node name (PVE 9 keeps no cluster
-    # host keys in the shared known_hosts).  Elsewhere, the system's known
-    # hosts under the same name.
-    opts = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=5",
-            "-o", "StrictHostKeyChecking=yes", "-o", "HostKeyAlias=" + peer]
-    pve_keys = "/etc/pve/nodes/%s/ssh_known_hosts" % peer
-    if os.path.exists(pve_keys):
-        opts += ["-o", "UserKnownHostsFile=" + pve_keys]
-    try:
-        rc, out = run(["ssh"] + opts + ["root@" + peer_addr,
-                       "echo ROLE=$(drbdadm role %s 2>/dev/null || echo Unconfigured); "
-                       "echo MOUNTS=$(grep -c ' mxfs ' /proc/mounts); "
-                       "echo REFCNT=$(cat /sys/module/mxfs/refcnt 2>/dev/null || echo unloaded); "
-                       "echo BOOT=$(cat /proc/sys/kernel/random/boot_id)" % res],
-                      timeout=20)
-    except subprocess.SubprocessError:
-        return False, "ssh to %s timed out" % peer
-    f = dict(l.split("=", 1) for l in out.splitlines() if "=" in l)
-    if rc != 0 or not {"ROLE", "MOUNTS", "REFCNT", "BOOT"} <= f.keys():
-        return False, "no answer from %s over ssh (rc=%d)" % (peer, rc)
+    f, why = peer_facts(res, peer, peer_addr)
+    if f is None:
+        return False, why
     if f["ROLE"].startswith("Primary"):
         return False, "%s is DRBD %s" % (peer, f["ROLE"])
     if f["MOUNTS"] != "0":
@@ -485,14 +537,151 @@ def cmd_guard():
 
 # ---------------------------------------------------------------------- boot
 
+def sd_notify(state):
+    """Report to systemd (the unit is Type=notify); nothing when not run by it."""
+    addr = os.environ.get("NOTIFY_SOCKET", "")
+    if not addr:
+        return
+    if addr.startswith("@"):
+        addr = "\0" + addr[1:]
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as s:
+            s.connect(addr)
+            s.sendall(state.encode())
+    except OSError:
+        pass
+
+
+def guest_wait_s():
+    """How long the guests' start waits for this mount at boot.  The unit
+    reports ready when the mount is done, and Proxmox starts its on-boot
+    guests (pve-guests) and HA services (pve-ha-lrm) only after that; past
+    this bound it reports ready anyway, so guests on local storage are not
+    held while the peer is down, and the on-boot guests that need this mount
+    are started once it is done (start_onboot_guests)."""
+    try:
+        return max(0, int(os.environ.get("GUEST_WAIT", "300")))
+    except ValueError:
+        return 300
+
+
+def start_onboot_guests(res, mountpoint):
+    """The mount came after Proxmox's boot-time start of guests: start the
+    on-boot guests now, with the same call that start makes (it skips guests
+    already running).  It runs as its own transient unit, so its progress is
+    in the journal and the task log, and this step does not wait on it."""
+    rc, _ = run(["systemctl", "is-active", "--quiet", "pve-guests.service"], timeout=10)
+    if rc != 0 or not os.path.exists("/usr/bin/pvesh"):
+        return
+    rc, _ = run(["systemd-run", "--no-block", "--collect",
+                 "--unit=mxfs-drbd-onboot-%s" % res,
+                 "/usr/bin/pvesh", "--nooutput", "create", "/nodes/localhost/startall"],
+                timeout=15)
+    log("%s: %s was mounted after the boot-time start of guests; %s" % (
+        res, mountpoint,
+        "starting the on-boot guests that could not start without it "
+        "(unit mxfs-drbd-onboot-%s)" % res if rc == 0 else
+        "the start of the on-boot guests could not be launched (systemd-run rc=%d)" % rc),
+        crit=rc != 0)
+
+
+def write_boot_state(res, state):
+    path = BOOT_STATE_FMT % res
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path + ".tmp", "w") as fh:
+            fh.write("%s pid=%d boot=%s\n" % (state, os.getpid(), boot_id()))
+        os.replace(path + ".tmp", path)
+    except OSError:
+        pass
+
+
+class Boot:
+    """One run of `boot`: when it started, and whether systemd has been told
+    the guests may start without the mount (GUEST_WAIT)."""
+
+    def __init__(self, res, mountpoint):
+        self.res = res
+        self.mountpoint = mountpoint
+        self.t0 = time.time()
+        self.ready = False
+
+    def ready_if_due(self, status):
+        if not self.ready and time.time() - self.t0 >= guest_wait_s():
+            self.ready = True
+            log("%s: the start of guests no longer waits for %s (%d s); on-boot "
+                "guests that need it start once it is mounted"
+                % (self.res, self.mountpoint, guest_wait_s()))
+            sd_notify("READY=1\nSTATUS=%s" % status)
+
+    def wait_connected(self):
+        said = 0
+        while True:
+            cs = cstate(self.res)
+            rc, ds = run(["drbdadm", "dstate", self.res], timeout=10)
+            ds = ds.strip()
+            if cs == "Connected" and ds == "UpToDate/UpToDate":
+                return
+            if time.time() - said > 60:
+                log("%s: waiting to mount %s until DRBD is Connected and both disks are "
+                    "UpToDate (now %s, %s)" % (self.res, self.mountpoint, cs, ds))
+                said = time.time()
+            self.ready_if_due("waiting for DRBD %s (%s, %s)" % (self.res, cs, ds))
+            time.sleep(2)
+
+    def wait_participant0(self):
+        """Participant 1 promotes only once participant 0 has MXFS mounted, or
+        once participant 0's boot program has not been running for
+        NOT_STARTING_GRACE_S.  After both nodes crashed, the first mount
+        recovers both old incarnations, and proving them ended needs the
+        other node Secondary (fence kind 27): two nodes promoting at once
+        would leave neither able to.  This is ordering for liveness only;
+        the module refuses an unsafe mount whatever the order."""
+        ep = drbd_endpoints(self.res)
+        if not ep:
+            return
+        me, my_addr, _, peer, peer_addr, _ = ep
+        if participant_index(my_addr, peer_addr) != 1:
+            return
+        said, last, idle_since = 0, None, None
+        while True:
+            f, why = peer_facts(self.res, peer, peer_addr)
+            if f is not None:
+                if f["MOUNTS"] != "0":
+                    log("%s: %s (participant 0) has MXFS mounted; mounting here"
+                        % (self.res, peer))
+                    return
+                if f["BOOTLIVE"] != "1":
+                    idle_since = idle_since or time.time()
+                    if time.time() - idle_since >= NOT_STARTING_GRACE_S:
+                        log("%s: %s (participant 0) is not starting MXFS (boot program: "
+                            "%s); mounting here" % (self.res, peer, f["BOOTSTATE"].split()[0]))
+                        return
+                else:
+                    idle_since = None
+                why = "%s is %s, its boot program %s" % (
+                    peer, f["ROLE"], f["BOOTSTATE"].split()[0])
+            if why != last or time.time() - said > 60:
+                log("%s: waiting to mount %s until %s (participant 0) has mounted it or "
+                    "is not starting it (%s)" % (self.res, self.mountpoint, peer, why))
+                said, last = time.time(), why
+            self.ready_if_due("waiting for %s to mount first" % peer)
+            time.sleep(5)
+
+
 def cmd_boot(res, mountpoint):
     """Bring the resource up and mount it, only in a state the module admits:
     connected with both disks UpToDate, or the survivor of an exclusion.
     Never promotes a disconnected node that holds no exclusion: that is how a
-    restarted loser would come back on stale data."""
+    restarted loser would come back on stale data.  Connected, participant 1
+    waits for participant 0 to mount first, and a refused mount steps down to
+    Secondary and is retried, so the other node can recover the pair first."""
+    b = Boot(res, mountpoint)
     dev = drbd_device(res)
     if mxfs_mounted_on(dev):
+        sd_notify("READY=1\nSTATUS=%s mounted" % mountpoint)
         return 0
+    write_boot_state(res, "starting")
     inh = read_inhibit(res)
     if inh:
         nft_apply(res, inh["peer_addr"], int(inh["drbd_port"]))
@@ -502,28 +691,78 @@ def cmd_boot(res, mountpoint):
         run(["drbdadm", "disconnect", res], timeout=15)
         log("%s: this node holds %s excluded (episode %s); mounting as the survivor"
             % (res, inh["peer"], inh["episode"]))
-    else:
-        said = 0
-        while True:
-            cs = cstate(res)
-            rc, ds = run(["drbdadm", "dstate", res], timeout=10)
-            ds = ds.strip()
-            if cs == "Connected" and ds == "UpToDate/UpToDate":
-                break
-            if time.time() - said > 60:
-                log("%s: waiting to mount %s until DRBD is Connected and both disks are "
-                    "UpToDate (now %s, %s)" % (res, mountpoint, cs, ds))
-                said = time.time()
-            time.sleep(2)
-    if not role(res).startswith("Primary"):
-        run(["drbdadm", "primary", res], timeout=30, check=True)
     os.makedirs(mountpoint, exist_ok=True)
-    rc, _ = run(["mount", "-t", "mxfs", dev, mountpoint], timeout=180)
-    if rc != 0:
-        log("%s: mount of %s on %s failed (rc=%d); the reason is in the kernel log "
-            "(dmesg | grep mxfs)" % (res, dev, mountpoint, rc), crit=True)
-        return 1
+    backoff = MOUNT_RETRY_FIRST_S
+    for attempt in range(1, MOUNT_ATTEMPTS + 1):
+        if not inh:
+            write_boot_state(res, "waiting")
+            b.wait_connected()
+            b.wait_participant0()
+            b.wait_connected()
+        write_boot_state(res, "mounting")
+        if not role(res).startswith("Primary"):
+            run(["drbdadm", "primary", res], timeout=30, check=True)
+        # A mount past its bound is a failed attempt like any other: it steps
+        # down and is retried.  Raised out of here, it ended the whole boot
+        # with this node still Primary, which keeps the peer from recovering.
+        # mount(8)'s own message carries the module's reason for a refusal.
+        try:
+            p = subprocess.run(["mount", "-t", "mxfs", dev, mountpoint],
+                               stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE, timeout=MOUNT_TIMEOUT_S)
+            rc, err = p.returncode, " ".join(p.stderr.decode(errors="replace").split())
+        except subprocess.TimeoutExpired:
+            rc, err = 124, "no answer in %d s" % MOUNT_TIMEOUT_S
+        if rc == 0:
+            break
+        log("%s: mount of %s on %s failed (rc=%d, attempt %d of %d): %s"
+            % (res, dev, mountpoint, rc, attempt, MOUNT_ATTEMPTS,
+               err or "the reason is in the kernel log (dmesg | grep mxfs)"), crit=True)
+        if inh or attempt == MOUNT_ATTEMPTS:
+            write_boot_state(res, "failed")
+            return 1
+        # Step down so the peer, if it is starting too, can mount first.
+        rc, _ = run(["drbdadm", "secondary", res], timeout=30)
+        write_boot_state(res, "retrying")
+        log("%s: stepped down to Secondary (rc=%d); mounting again in %d s"
+            % (res, rc, backoff))
+        until = time.time() + backoff
+        while time.time() < until:
+            b.ready_if_due("retrying the mount of %s" % mountpoint)
+            time.sleep(2)
+        backoff = min(backoff * 2, MOUNT_RETRY_MAX_S)
+    write_boot_state(res, "mounted")
     log("%s: mounted %s on %s" % (res, dev, mountpoint))
+    sd_notify("READY=1\nSTATUS=%s mounted" % mountpoint)
+    if b.ready:
+        start_onboot_guests(res, mountpoint)
+    return 0
+
+
+def cmd_stop(res, mountpoint):
+    """A clean departure: unmount MXFS from the resource's device, then step
+    down and take the resource down, so the peer carries on.  Whether MXFS is
+    mounted is read from /proc/mounts, never from stat(2) on the mountpoint:
+    a withdrawn or recovery-blocked MXFS mount answers stat with ESTALE or
+    EIO, and `mountpoint -q` then calls it unmounted.  Measured on pve1: the
+    unit's stop skipped the umount of such a mount, `drbdadm secondary` and
+    `down` failed under it, and the unit still reported itself stopped."""
+    dev = drbd_device(res)
+    mnt = mxfs_mounted_on(dev)
+    if mnt:
+        rc, _ = run(["umount", mnt], timeout=170)
+        if rc != 0:
+            log("%s: umount of %s failed (rc=%d); DRBD stays Primary under it, so the "
+                "peer will treat this node's departure as a loss" % (res, mnt, rc), crit=True)
+            return 1
+        log("%s: unmounted %s" % (res, mnt))
+    elif mountpoint and os.path.ismount(mountpoint):
+        log("%s: %s is mounted but not from %s; left alone" % (res, mountpoint, dev))
+    rc, _ = run(["drbdadm", "secondary", res], timeout=30)
+    if rc != 0:
+        log("%s: drbdadm secondary failed (rc=%d)" % (res, rc), crit=True)
+        return 1
+    run(["drbdadm", "down", res], timeout=30)
     return 0
 
 
@@ -542,6 +781,8 @@ def main():
             return cmd_guard()
         if len(a) == 3 and a[0] == "boot":
             return cmd_boot(a[1], a[2])
+        if len(a) == 3 and a[0] == "stop":
+            return cmd_stop(a[1], a[2])
     except Exception as e:
         log("%s: %s" % (" ".join(a), e), crit=True)
         return 1

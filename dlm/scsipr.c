@@ -1598,6 +1598,8 @@ const char *mxfs_fence_kind_name(enum mxfs_fence_kind k)
 		return "DRBD_STONITH_WITNESSED_V1";
 	case MXFS_FENCE_KIND_DRBD_REPLICA_EXCLUDED_V1:
 		return "DRBD_REPLICA_EXCLUDED_V1";
+	case MXFS_FENCE_KIND_DRBD_PEER_SECONDARY_V1:
+		return "DRBD_PEER_SECONDARY_V1";
 	case MXFS_FENCE_KIND_PREEMPT_ABORT_DONE:
 		return "PREEMPT_ABORT_DONE_RETIRED16";
 	case MXFS_FENCE_KIND_SINGLE_NODE_EXCLUSIVE: return "SINGLE_NODE_EXCLUSIVE";
@@ -2637,6 +2639,17 @@ bool mxfs_fence_durable_kind_supported(enum mxfs_fence_record_family family,
 				*why = "kind 26 is minted only into recovery descriptors";
 			return false;
 		}
+		return true;
+	case MXFS_FENCE_KIND_DRBD_PEER_SECONDARY_V1:
+		/* 0.90.62.  The DRBD pair's death certificate: the witness showed
+		 * the peer Secondary on a Connected link with both disks UpToDate
+		 * and this node a working Primary (mxfs_drbd_judge_peer_secondary),
+		 * and the victim is not an incarnation of the minting host's
+		 * current boot.  DRBD's role rules then put every earlier
+		 * incarnation of either host out of existence, every write it made
+		 * on both disks.  One producer, v5_drbd_fence.  Accepted in both
+		 * families: what a bootstrap-owner record needs of an old owner is
+		 * exactly its death, and that fact holds on either replica. */
 		return true;
 	case MXFS_FENCE_KIND_SINGLE_NODE_EXCLUSIVE:
 		reason = "REVOKED kind 17: the operator's single-node assertion is "

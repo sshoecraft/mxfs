@@ -2405,7 +2405,8 @@ mxfs_buf_iodone_install(
 static unsigned int
 mxfs_dlm_drop_clean_cached_blocks(
 	struct xfs_perag	*pag,
-	unsigned int		*dropped)
+	unsigned int		*dropped,
+	unsigned int		*locked)
 {
 	struct rhashtable_iter	iter;
 	struct xfs_buf		*bp;
@@ -2443,6 +2444,7 @@ mxfs_dlm_drop_clean_cached_blocks(
 
 			if (!xfs_buf_trylock(bp)) {
 				retained++;
+				(*locked)++;
 				xfs_buf_rele(bp);
 				continue;
 			}
@@ -2478,6 +2480,29 @@ int
 mxfs_dlm_invalidate_cached_views(
 	struct xfs_mount	*mp)
 {
+	struct mxfs_inval_census	c;
+	int				error;
+
+	error = mxfs_dlm_invalidate_cached_views_census(mp, &c);
+	if (error == -EBUSY)
+		xfs_warn(mp,
+			"mxfs: cached-view invalidation INCOMPLETE (%u perags): "
+			"%u AG(s) retained %u buffer(s), %u AG(s) had live "
+			"holders, %u cached block(s) marked for re-read "
+			"[retained: inode-cluster=%u ag-held=%u ag-unheld=%u "
+			"own-block=%u locked-block=%u] (P232-INVAL-BUSY)",
+			c.perags, c.ags_retained,
+			c.ino + c.ag_held + c.ag_unheld + c.blk_own + c.blk_locked,
+			c.ags_live, c.dropped, c.ino, c.ag_held, c.ag_unheld,
+			c.blk_own, c.blk_locked);
+	return error;
+}
+
+int
+mxfs_dlm_invalidate_cached_views_census(
+	struct xfs_mount	*mp,
+	struct mxfs_inval_census *c)
+{
 	struct xfs_perag	*pag = NULL;
 	xfs_agnumber_t		agno;
 	unsigned int		invalidated = 0;
@@ -2487,6 +2512,7 @@ mxfs_dlm_invalidate_cached_views(
 	unsigned int		bufs_retained = 0;
 	unsigned int		blocks_dropped = 0;	/* 0.83.4: non-AG-meta */
 
+	memset(c, 0, sizeof(*c));
 	if (!mp)
 		return -EINVAL;
 
@@ -2517,18 +2543,34 @@ mxfs_dlm_invalidate_cached_views(
 	 */
 	for (agno = 0; agno < mp->m_sb.sb_agcount; agno++) {
 		unsigned int	ag_pres = 0;
-		unsigned int	retained;
+		unsigned int	blk_locked = 0;
+		unsigned int	meta, blk;
+		bool		held;
 
 		pag = xfs_perag_get(mp, agno);
 		if (!pag)
 			continue;
-		retained = mxfs_dlm_invalidate_ag_meta(pag, &ag_pres);
-		retained += mxfs_dlm_drop_clean_cached_blocks(pag,
-							      &blocks_dropped);
-		if (retained) {
+		meta = mxfs_dlm_invalidate_ag_meta(pag, &ag_pres);
+		blk = mxfs_dlm_drop_clean_cached_blocks(pag, &blocks_dropped,
+							&blk_locked);
+		if (meta + blk) {
 			ags_retained++;
-			bufs_retained += retained;
+			bufs_retained += meta + blk;
 		}
+		/* this node holds the AG's grant: in use, cached, or an open lineage */
+		mxfs_pag_dlm_lock(pag, MXFS_SITE);
+		held = pag->pag_dlm_holders > 0 || pag->pag_dlm_cached ||
+		       pag->pag_dlm_lineage_open;
+		if (pag->pag_dlm_holders || pag->pag_dlm_demoting)
+			ags_held++;
+		mxfs_pag_dlm_unlock(pag, MXFS_SITE);
+		c->ino += meta - ag_pres;
+		if (held)
+			c->ag_held += ag_pres;
+		else
+			c->ag_unheld += ag_pres;
+		c->blk_own += blk - blk_locked;
+		c->blk_locked += blk_locked;
 
 		/*
 		 * 0.41.0 (D-0354 candidate A): the v0.3.86/
@@ -2552,11 +2594,6 @@ mxfs_dlm_invalidate_cached_views(
 		 * require replay) forbids that.  Retained buffers (ag_pres)
 		 * are still reported, since a caller may act on them.
 		 */
-		mxfs_pag_dlm_lock(pag, MXFS_SITE);
-		if (pag->pag_dlm_holders || pag->pag_dlm_demoting)
-			ags_held++;
-		mxfs_pag_dlm_unlock(pag, MXFS_SITE);
-
 		xfs_perag_put(pag);
 		invalidated++;
 	}
@@ -2566,19 +2603,18 @@ mxfs_dlm_invalidate_cached_views(
 	 *
 	 * A retained BUFFER is a hard incompleteness: its content is this
 	 * node's and it will be written back, so anyone who treats the walk as
-	 * "our view is gone" can be overwritten later.  Both callers act on
-	 * it (peer-joined retries the destage; the recovery barrier refuses to
-	 * publish the slice).  AGs with live holders are counted for the log
-	 * only; their grants are retained by design (above).
+	 * "our view is gone" can be overwritten later.  The join and the intent
+	 * engine's home write act on any of them (they retry the destage); the
+	 * barrier around a dead peer's slice replay reads the census instead,
+	 * because what it needs gone is narrower (mxfs_dlm_foreign_replay_barrier).
+	 * AGs with live holders are counted for the log only; their grants are
+	 * retained by design (above).
 	 */
-	if (bufs_retained)
-		xfs_warn(mp,
-			"mxfs: cached-view invalidation INCOMPLETE (%u perags): "
-			"%u AG(s) retained %u buffer(s), %u AG(s) had live "
-			"holders, %u cached block(s) marked for re-read (P232-INVAL-BUSY)",
-			invalidated, ags_retained, bufs_retained, ags_held,
-			blocks_dropped);
-	else
+	c->dropped = blocks_dropped;
+	c->perags = invalidated;
+	c->ags_retained = ags_retained;
+	c->ags_live = ags_held;
+	if (!bufs_retained)
 		mxfs_pal_log(MXFS_LOG_DEBUG,
 			"mxfs: cached-view invalidation complete (%u perags, "
 			"%u AG(s) with live holders, grants retained, "

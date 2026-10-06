@@ -471,6 +471,29 @@ struct mxfs_drbd_cas {
 	int			(*judge_excluded)(const struct mxfs_pal_drbd_report *r,
 						  char *why, size_t whylen);
 	unsigned long		excl_next;
+	/*
+	 * A PEER REGISTER SET ASIDE.  After both nodes crash, the peer's
+	 * register keeps whatever its dead attachment last wrote — a ticket,
+	 * or a doorway half done — until the peer mounts again, and every swap
+	 * here would wait on it and fail.  A peer that is Secondary on a
+	 * Connected link (judge_quiescent, kind 27's judgment) has no attachment
+	 * at all: DRBD refuses a Secondary every write open, and a Primary
+	 * cannot demote while a mount holds it open.  So a register read before
+	 * such a report, while our own ticket was already published, was
+	 * written by an attachment that is gone, and its exact 512 bytes are
+	 * recorded here and read as idle for as long as the sector still holds
+	 * them.  The register is never written: a later attachment of the peer
+	 * first rewrites it under a fresh random boot_nonce, so its content
+	 * differs from these bytes from its first write on, and its doorway
+	 * reads our published ticket and takes a larger one.  Zeroing it
+	 * instead could erase the live ticket of a peer that attached between
+	 * the report and the write.  Any read that differs ends the setting
+	 * aside for good.
+	 */
+	int			(*judge_quiescent)(const struct mxfs_pal_drbd_report *r,
+						   char *why, size_t whylen);
+	bool			void_set;
+	u8			void_img[512];
 };
 #define MXFS_DRBD_STATS_EVERY	512
 
@@ -564,10 +587,13 @@ static int mxfs_drbd_reg_put(struct mxfs_drbd_cas *e, struct mxfs_drbd_reg *r,
 }
 
 /*
- * Read the peer's register.  Never written (all zero) reads as idle.  Any
- * other content must be a valid register of THIS filesystem, of the peer's
- * index, from the peer's endpoint: anything else is corruption or a
- * misconfigured pair, and the swap fails closed.
+ * Read the peer's register.  Never written (all zero) reads as idle, and so
+ * do the exact bytes set aside under void_img.  Any other content must be a
+ * valid register of THIS filesystem, of the peer's index, from the peer's
+ * endpoint.  Anything else — a sector torn by a power cut, corruption, a
+ * misconfigured pair — reads as BUSY, never as idle: the swap waits on it
+ * and fails at the wait bound unless the peer is proven excluded (the
+ * register is cleared) or without an attachment (it is set aside).
  */
 static int mxfs_drbd_reg_get_peer(struct mxfs_drbd_cas *e, struct mxfs_drbd_reg *r,
 				  u32 *choosing, u64 *number)
@@ -577,6 +603,16 @@ static int mxfs_drbd_reg_get_peer(struct mxfs_drbd_cas *e, struct mxfs_drbd_reg 
 
 	if (rc)
 		return rc;
+	if (e->void_set) {
+		if (!memcmp(r, e->void_img, 512)) {
+			*choosing = 0;
+			*number = 0;
+			return 0;
+		}
+		e->void_set = false;
+		pr_warn("mxfs: P-DRBD-CAS-PEER-SET-ASIDE-ENDED minor=%u index=%u — the peer's register changed (an attachment of the peer wrote it); its ticket counts again\n",
+			MINOR(e->devt), e->index);
+	}
 	if (mxfs_drbd_all_zero(r)) {
 		*choosing = 0;
 		*number = 0;
@@ -588,11 +624,13 @@ static int mxfs_drbd_reg_get_peer(struct mxfs_drbd_cas *e, struct mxfs_drbd_reg 
 	    le16_to_cpu(r->index) != peer ||
 	    memcmp(r->fs_uuid, e->fs_uuid, 16) ||
 	    strncmp(r->endpoint, e->peer_endpoint, sizeof(r->endpoint))) {
-		pr_err("mxfs: P-DRBD-CAS-PEER-REG-INVALID minor=%u peer_index=%u magic=0x%x crc_ok=%d index=%u endpoint='%.48s' want='%s' — refusing the swap\n",
-		       MINOR(e->devt), peer, le32_to_cpu(r->magic),
-		       le32_to_cpu(r->crc) == mxfs_drbd_crc(r),
-		       le16_to_cpu(r->index), r->endpoint, e->peer_endpoint);
-		return -EIO;
+		pr_err_ratelimited("mxfs: P-DRBD-CAS-PEER-REG-INVALID minor=%u peer_index=%u magic=0x%x crc_ok=%d index=%u endpoint='%.48s' want='%s' — read as busy: the swap waits on it\n",
+				   MINOR(e->devt), peer, le32_to_cpu(r->magic),
+				   le32_to_cpu(r->crc) == mxfs_drbd_crc(r),
+				   le16_to_cpu(r->index), r->endpoint, e->peer_endpoint);
+		*choosing = 1;
+		*number = 0;
+		return 0;
 	}
 	*choosing = le32_to_cpu(r->choosing);
 	*number = le64_to_cpu(r->number);
@@ -602,32 +640,53 @@ static int mxfs_drbd_reg_get_peer(struct mxfs_drbd_cas *e, struct mxfs_drbd_reg 
 }
 
 /*
- * Called with e->lock held from a swap waiting on the peer's ticket.  The
- * witness is taken for the attachment's minor; if the judgment says the peer
- * is excluded, its register is cleared, the membership generation advanced and
- * our own register (still holding `mine`) re-published under it.  1 = cleared.
+ * Called with e->lock held from a swap waiting on the peer's ticket, our own
+ * ticket `mine` already published.  `reg` holds the peer's register as last
+ * read.  The witness is taken for the attachment's minor; if the judgment
+ * says the peer is excluded, its register is cleared, the membership
+ * generation advanced and our own register (still holding `mine`)
+ * re-published under it.  If instead the peer is Secondary on a Connected
+ * link, the register as read BEFORE the witness ran is set aside (void_img).
+ * 1 = cleared or set aside: the caller reads the peer's register again.
  */
 static int mxfs_drbd_peer_excluded_locked(struct mxfs_drbd_cas *e,
 					  struct mxfs_drbd_reg *reg, u64 mine)
 {
 	struct mxfs_pal_drbd_report *r;
-	char why[160] = "";
-	u8 *zero;
+	char why[160] = "", whyq[160] = "";
+	u8 *zero, *img;
 	int rc;
 
 	r = kzalloc(sizeof(*r), GFP_KERNEL);
-	zero = kzalloc(512, GFP_KERNEL);
+	zero = kzalloc(1024, GFP_KERNEL);
 	if (!r || !zero) {
 		kfree(r);
 		kfree(zero);
 		return 0;
 	}
+	img = zero + 512;
+	memcpy(img, reg, 512);
 	rc = mxfs_drbdw_run(MINOR(e->devt), MXFS_PAL_DRBD_RECHECK, r);
 	if (rc == 0)
-		rc = e->judge_excluded(r, why, sizeof(why));
+		rc = e->judge_excluded ? e->judge_excluded(r, why, sizeof(why)) : -EPERM;
+	if (rc && r->delivered && e->judge_quiescent &&
+	    e->judge_quiescent(r, whyq, sizeof(whyq)) == 0) {
+		/* No attachment exists on the peer at the report, and the image
+		 * was read before it: the attachment that wrote it is gone. */
+		memcpy(e->void_img, img, 512);
+		e->void_set = true;
+		pr_warn("mxfs: P-DRBD-CAS-PEER-SET-ASIDE minor=%u index=%u ticket=%llu peer_choosing=%u peer_ticket=%llu peer_nonce=%016llx — the peer is Secondary on a Connected link, so no attachment of it is alive; the register its dead attachment left is read as idle while unchanged, and never written\n",
+			MINOR(e->devt), e->index, mine,
+			le32_to_cpu(((struct mxfs_drbd_reg *)img)->choosing),
+			(unsigned long long)le64_to_cpu(((struct mxfs_drbd_reg *)img)->number),
+			(unsigned long long)le64_to_cpu(((struct mxfs_drbd_reg *)img)->boot_nonce));
+		kfree(r);
+		kfree(zero);
+		return 1;
+	}
 	if (rc) {
-		pr_warn_ratelimited("mxfs: P-DRBD-CAS-PEER-NOT-EXCLUDED minor=%u index=%u why='%s' — the peer's ticket stands\n",
-				    MINOR(e->devt), e->index, why);
+		pr_warn_ratelimited("mxfs: P-DRBD-CAS-PEER-NOT-EXCLUDED minor=%u index=%u why='%s' quiescent='%s' — the peer's ticket stands\n",
+				    MINOR(e->devt), e->index, why, whyq);
 		kfree(r);
 		kfree(zero);
 		return 0;
@@ -644,10 +703,12 @@ static int mxfs_drbd_peer_excluded_locked(struct mxfs_drbd_cas *e,
 	return rc == 0;
 }
 
-/* Register the mount's exclusion judgment on the attachment of `dev`. */
+/* Register the mount's judgments on the attachment of `dev`. */
 void mxfs_pal_drbd_cas_set_judge(mxfs_bdev_t *dev,
-				 int (*judge)(const struct mxfs_pal_drbd_report *r,
-					      char *why, size_t whylen))
+				 int (*excluded)(const struct mxfs_pal_drbd_report *r,
+						 char *why, size_t whylen),
+				 int (*quiescent)(const struct mxfs_pal_drbd_report *r,
+						  char *why, size_t whylen))
 {
 	struct block_device *bdev = dev ? mxfs_pal_bdev_get_bdev(dev) : NULL;
 	struct mxfs_drbd_cas *e;
@@ -660,7 +721,8 @@ void mxfs_pal_drbd_cas_set_judge(mxfs_bdev_t *dev,
 	if (!e)
 		return;
 	mutex_lock(&e->lock);
-	e->judge_excluded = judge;
+	e->judge_excluded = excluded;
+	e->judge_quiescent = quiescent;
 	mutex_unlock(&e->lock);
 }
 EXPORT_SYMBOL_GPL(mxfs_pal_drbd_cas_set_judge);
@@ -771,13 +833,16 @@ static void mxfs_drbd_cas_serve(struct mxfs_drbd_cas *e)
 		 * needs swaps to be written: measured, every swap on the survivor
 		 * then failed after 10 s and it withdrew itself.  So once a swap
 		 * has waited a second, ask the witness whether the peer is
-		 * excluded by the evidence kind 25 is built from (link
-		 * disconnected, peer Outdated, a STONITHED receipt, the authority
-		 * holding it off under that episode).  If it is, its ticket is
-		 * cleared and the membership generation advanced exactly as the
-		 * certificate path does; never on age alone.
+		 * excluded by the evidence kind 25 or 26 is built from (link
+		 * disconnected, peer Outdated, a receipt, the authority holding
+		 * it off under that episode).  If it is, its ticket is cleared
+		 * and the membership generation advanced exactly as the
+		 * certificate path does.  If the peer is instead Secondary on a
+		 * Connected link (both nodes restarted after a pair outage), the
+		 * register its dead attachment left is set aside unwritten
+		 * (void_img).  Never on age alone.
 		 */
-		if (e->judge_excluded &&
+		if ((e->judge_excluded || e->judge_quiescent) &&
 		    time_after(jiffies, deadline - msecs_to_jiffies(mxfs_drbd_cas_wait_ms) + HZ) &&
 		    time_after_eq(jiffies, e->excl_next)) {
 			e->excl_next = jiffies + 2 * HZ;
@@ -1117,6 +1182,97 @@ void mxfs_pal_drbd_cas_peer_fenced(mxfs_bdev_t *dev)
 }
 EXPORT_SYMBOL_GPL(mxfs_pal_drbd_cas_peer_fenced);
 
+/* ═══════════════════════ the exclusion notice ═══════════════════════ */
+
+/*
+ * The pair's fence-peer handler excludes the peer as soon as DRBD loses it
+ * (DRBD's own ping timeout, about ten seconds after a death), but MXFS learns
+ * of the death from its lock manager's TCP link: a dead peer sends nothing,
+ * so the socket times out at 25 s and the death then waits out the 40 s flap
+ * grace.  Measured on the rig (0.90.57): exclusion at +10.9 s, death declared
+ * at +65.6 s, and everything waiting on the dead node's grants waited that
+ * long.  So the handler writes the DRBD minor here once its exclusion is
+ * durable, and the mount on that minor takes the write as a cue, never as
+ * evidence: it asks its own witness and declares the death only on the
+ * judgment the fence leg certifies on (dlm/drbdfence.c).  A minor no mount
+ * watches is accepted and ignored.
+ */
+#define MXFS_DRBDX_PROC_NAME	"fs/mxfs/drbd_excluded"
+
+struct mxfs_drbd_excl_watch {
+	struct list_head	list;
+	dev_t			devt;
+	void			(*fn)(void *data);	/* atomic context: a flag, no more */
+	void			*data;
+};
+static LIST_HEAD(mxfs_drbd_excl_watches);
+static DEFINE_SPINLOCK(mxfs_drbd_excl_lock);
+static struct proc_dir_entry *mxfs_drbdx_pde;
+
+static ssize_t mxfs_drbdx_write(struct file *file, const char __user *ubuf,
+				size_t count, loff_t *ppos)
+{
+	struct mxfs_drbd_excl_watch *w;
+	char buf[16];
+	size_t n = min(count, sizeof(buf) - 1);
+	unsigned int minor, mounts = 0;
+
+	if (copy_from_user(buf, ubuf, n))
+		return -EFAULT;
+	buf[n] = '\0';
+	if (kstrtouint(buf, 10, &minor))
+		return -EINVAL;
+	spin_lock(&mxfs_drbd_excl_lock);
+	list_for_each_entry(w, &mxfs_drbd_excl_watches, list) {
+		if (MAJOR(w->devt) == DRBD_MAJOR && MINOR(w->devt) == minor) {
+			w->fn(w->data);
+			mounts++;
+		}
+	}
+	spin_unlock(&mxfs_drbd_excl_lock);
+	pr_info("mxfs: P-DRBD-EXCL-NOTICE minor=%u mounts=%u — the fence handler reports its peer excluded; a mount confirms with its own witness before it declares the death\n",
+		minor, mounts);
+	*ppos += count;
+	return count;
+}
+
+static const struct proc_ops mxfs_drbdx_ops = {
+	.proc_write	= mxfs_drbdx_write,
+	.proc_lseek	= noop_llseek,
+};
+
+int mxfs_pal_drbd_exclusion_watch(mxfs_bdev_t *dev, void (*fn)(void *data),
+				  void *data)
+{
+	struct block_device *bdev = dev ? mxfs_pal_bdev_get_bdev(dev) : NULL;
+	struct mxfs_drbd_excl_watch *w, *n;
+
+	if (!fn) {
+		spin_lock(&mxfs_drbd_excl_lock);
+		list_for_each_entry_safe(w, n, &mxfs_drbd_excl_watches, list) {
+			if (w->data == data) {
+				list_del(&w->list);
+				kfree(w);
+			}
+		}
+		spin_unlock(&mxfs_drbd_excl_lock);
+		return 0;
+	}
+	if (!bdev)
+		return -EINVAL;
+	w = kzalloc(sizeof(*w), GFP_KERNEL);
+	if (!w)
+		return -ENOMEM;
+	w->devt = bdev->bd_dev;
+	w->fn = fn;
+	w->data = data;
+	spin_lock(&mxfs_drbd_excl_lock);
+	list_add(&w->list, &mxfs_drbd_excl_watches);
+	spin_unlock(&mxfs_drbd_excl_lock);
+	return 0;
+}
+EXPORT_SYMBOL_GPL(mxfs_pal_drbd_exclusion_watch);
+
 /* ═══════════════════════════ lifetime ═══════════════════════════ */
 
 int mxfs_pal_drbd_init(void)
@@ -1129,11 +1285,30 @@ int mxfs_pal_drbd_init(void)
 		       MXFS_DRBDW_PROC_PATH);
 		return -ENOMEM;
 	}
+	/* Without it a death is still declared, by the TCP link's timeout and
+	 * grace; the notice only shortens that. */
+	mxfs_drbdx_pde = proc_create(MXFS_DRBDX_PROC_NAME, 0200, NULL,
+				     &mxfs_drbdx_ops);
+	if (!mxfs_drbdx_pde)
+		pr_warn("mxfs: P-DRBDX-NOCHAN could not create /proc/%s — a DRBD peer's death waits out the TCP link's timeout and grace\n",
+			MXFS_DRBDX_PROC_NAME);
 	return 0;
 }
 
 void mxfs_pal_drbd_exit(void)
 {
+	struct mxfs_drbd_excl_watch *w, *n;
+
+	if (mxfs_drbdx_pde) {
+		proc_remove(mxfs_drbdx_pde);
+		mxfs_drbdx_pde = NULL;
+	}
+	spin_lock(&mxfs_drbd_excl_lock);
+	list_for_each_entry_safe(w, n, &mxfs_drbd_excl_watches, list) {
+		list_del(&w->list);
+		kfree(w);
+	}
+	spin_unlock(&mxfs_drbd_excl_lock);
 	if (mxfs_drbdw_pde) {
 		proc_remove(mxfs_drbdw_pde);
 		mxfs_drbdw_pde = NULL;

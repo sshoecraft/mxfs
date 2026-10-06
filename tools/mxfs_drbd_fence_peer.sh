@@ -98,6 +98,11 @@ esac
 case "$out" in
     "FENCE_OK $peer shut off episode="*)
         record STONITHED "$peer" "episode=${out##*episode=} agent=$agent"
+        # Tell the MXFS mount on the resource, once DRBD has this answer, so
+        # it asks its witness now instead of after its lock link's timeout and
+        # grace (a cue: the module judges the exclusion itself).
+        ( sleep 1; m=$(drbdadm sh-minor "$RES" 2>/dev/null) && [ -w /proc/fs/mxfs/drbd_excluded ] \
+            && echo "$m" > /proc/fs/mxfs/drbd_excluded ) </dev/null >/dev/null 2>&1 &
         exit 7 ;;
     *)
         record FAIL "$peer" "agent=$agent answer='$out'"

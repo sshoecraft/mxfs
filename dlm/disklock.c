@@ -3097,10 +3097,19 @@ static void disklock_hb_fn(void *arg)
 			uint64_t prot_mask = 0;
 			bool prot_complete = true;
 			uint64_t prot_gen0;
+			/* the excluded-peer posting this pass acts on (see the arm
+			 * below); one that arrives mid-pass waits for the next pass */
+			mxfs_node_id_t excl_node;
+			uint64_t excl_seq;
+			bool excl_used = false, pass_done = true;
 
 			mxfs_pal_mutex_lock(ctx->prot_lock);
 			prot_gen0 = ctx->protected_gen;
 			mxfs_pal_mutex_unlock(ctx->prot_lock);
+			mxfs_pal_mutex_lock(ctx->lock);
+			excl_node = ctx->excl_post_node;
+			excl_seq = ctx->excl_post_seq;
+			mxfs_pal_mutex_unlock(ctx->lock);
 
 			for (slot = 0; slot < MXFS_DISKLOCK_HB_SLOTS; slot++) {
 				struct mxfs_disklock_node_track *nt;
@@ -3128,6 +3137,7 @@ static void disklock_hb_fn(void *arg)
 
 				if (!ctx->running) {
 					prot_complete = false;
+					pass_done = false;
 					break;
 				}
 
@@ -3887,6 +3897,57 @@ static void disklock_hb_fn(void *arg)
 					goto fire_dead;
 				}
 
+				/*
+				 * A PEER EXCLUDED FROM THIS REPLICA.  The DRBD pair's fence
+				 * authority isolated it, and the mount's own witness confirmed
+				 * the link StandAlone with the peer's disk Outdated under the
+				 * authority's receipt (mxfs_disklock_post_excluded).  DRBD
+				 * completes every write it received from the peer before it
+				 * reports the connection closed, and that is before it runs
+				 * the fence handler (drivers/block/drbd/drbd_receiver.c,
+				 * conn_disconnect → drbd_disconnected), so this record holds
+				 * the peer's last beat on this replica and nothing can
+				 * advance it again.  The stale window can only run out, and
+				 * the authority lease it outwaits governs writes that can no
+				 * longer reach this replica.  Measured on the DRBD rig
+				 * (0.90.58): exclusion confirmed at +22.8 s, the window
+				 * expired at +83.1 s (its passes stall while DRBD holds I/O
+				 * for the handler), and everything needing the dead node's
+				 * grants waited for it.  Priority re-read, then fire once,
+				 * for the incarnation this monitor tracks: a successor
+				 * incarnation was dispatched by the epoch-change arm above,
+				 * and the fence leg still judges the exclusion itself before
+				 * it certifies anything.
+				 */
+				if (excl_node && victim_node == excl_node &&
+				    rhb->node_id == excl_node && ctx->monitored[slot] &&
+				    inc_eq(rhb->epoch, nt->last_epoch)) {
+					mxfs_pal_mutex_lock(ctx->lock);
+					crr = mxfs_pal_bdev_read_prio(ctx->dev, off, rhb,
+								      sizeof(*rhb));
+					mxfs_pal_mutex_unlock(ctx->lock);
+					if (crr == 0 &&
+					    rhb->magic == MXFS_DISKLOCK_MAGIC &&
+					    rhb->flags == MXFS_DISKLOCK_FLAG_ACTIVE &&
+					    !hb_gen_foreign(ctx, rhb) &&
+					    rhb->node_id == excl_node &&
+					    inc_eq(rhb->epoch, nt->last_epoch)) {
+						excl_used = true;
+						mxfs_pal_log(MXFS_LOG_WARN,
+						    "mxfs: P163-EXCLUDED-SEEN slot=%u node=%u "
+						    "inc=%llu eq=%d — excluded from this replica "
+						    "by the pair's fence authority, and the "
+						    "mount's witness confirmed it; declaring the "
+						    "death now instead of after %d silent samples",
+						    slot, excl_node,
+						    (unsigned long long)nt->last_epoch,
+						    nt->equal_samples, ctx->dead_threshold);
+						nt->last_timestamp = rhb->timestamp_ms;
+						victim_epoch = nt->last_epoch;
+						goto fire_dead;
+					}
+				}
+
 				if (rhb->timestamp_ms != nt->last_timestamp) {
 					/* Heartbeat is fresh */
 					nt->changed_samples++;
@@ -4210,6 +4271,24 @@ rebase_only:
 						ctx->protect_cb(ctx->protect_cb_data, prot_mask);
 				}
 				mxfs_pal_mutex_unlock(ctx->prot_lock);
+			}
+
+			/* A whole pass acted on the excluded-peer posting: it is
+			 * spent, whether a slot fired on it or none tracks that
+			 * node any more (already dead, recovering, or departed —
+			 * each has its own arm).  A newer posting stays. */
+			if (excl_node && pass_done) {
+				mxfs_pal_mutex_lock(ctx->lock);
+				if (ctx->excl_post_seq == excl_seq)
+					ctx->excl_post_node = 0;
+				mxfs_pal_mutex_unlock(ctx->lock);
+				if (!excl_used)
+					mxfs_pal_log(MXFS_LOG_WARN,
+					    "mxfs: P163-EXCLUDED-NOSLOT node=%u — "
+					    "no slot this monitor tracks holds that node's "
+					    "live incarnation; the posting is spent and "
+					    "the slot's own arms decide",
+					    excl_node);
 			}
 		}
 
@@ -10494,7 +10573,7 @@ int mxfs_disklock_recovery_claim(struct mxfs_disklock_ctx *ctx, int slot,
 		    slot, victim, victim_epoch, &why) ||
 		(!recov_mptr_of(cur) &&
 		 (why = "certified but carries no valid fence-time manifest pointer"))) {
-		mxfs_pal_log(MXFS_LOG_WARN,
+		mxfs_pal_log_repeating(MXFS_LOG_WARN,
 		    "disklock: P236-CLAIM-UNCERTIFIED slot=%d victim=%u stage=%u "
 		    "kind=%u — %s; refusing the claim.  Nothing on this slice may be "
 		    "replayed, purged, repaired or published",
@@ -11060,6 +11139,23 @@ void mxfs_disklock_set_dead_timeout_ms(struct mxfs_disklock_ctx *ctx,
 	mxfs_pal_log(MXFS_LOG_INFO,
 	    "disklock: dead-declaration window set to %u ms (%u samples)",
 	    samples * MXFS_DISKLOCK_HB_INTERVAL_MS, samples);
+}
+
+/*
+ * The mount's witness confirmed that the attachment's fence authority excluded
+ * @node from this replica.  The monitor consumes the posting on its next pass
+ * (the excluded-peer arm there); the sequence number keeps a newer posting from
+ * being cleared by the pass that consumed an older one.
+ */
+void mxfs_disklock_post_excluded(struct mxfs_disklock_ctx *ctx,
+				 mxfs_node_id_t node)
+{
+	if (!ctx || !node)
+		return;
+	mxfs_pal_mutex_lock(ctx->lock);
+	ctx->excl_post_node = node;
+	ctx->excl_post_seq++;
+	mxfs_pal_mutex_unlock(ctx->lock);
 }
 
 /*
