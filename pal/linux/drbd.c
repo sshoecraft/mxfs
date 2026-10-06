@@ -30,6 +30,10 @@
  * protected sector, which is why the bootstrap and ledger fallbacks to a plain
  * write were removed.
  *
+ * THE WRITE BOUND.  Those swaps are ordinary writes in the same ordered stream
+ * as the guests' data, so the mount's own data and metadata writes are held to
+ * a bounded amount in flight (mxfs_ioq.h says why and what).
+ *
  * Copyright (c) 2026
  * SPDX-License-Identifier: GPL-2.0
  */
@@ -50,8 +54,12 @@
 #include <linux/blkdev.h>
 #include <linux/major.h>
 #include <linux/list.h>
+#include <linux/bio.h>
+#include <linux/mempool.h>
+#include <linux/sched.h>
 
 #include "../pal.h"
+#include "mxfs_ioq.h"
 
 int mxfs_pal_bio_write_fua_bdev(struct block_device *bdev, uint64_t lba_512,
 				const void *buf, uint32_t len);
@@ -1144,6 +1152,323 @@ void mxfs_pal_drbd_cas_detach(mxfs_bdev_t *dev)
 	kfree(e);
 }
 EXPORT_SYMBOL_GPL(mxfs_pal_drbd_cas_detach);
+
+/*
+ * THE WRITE BOUND (mxfs_ioq.h says why).  4 MiB and 64 requests per mount: on
+ * the two-host pair it was measured on (non-NCQ SATA SSDs, gigabit) that
+ * keeps one replicated 512-byte write under ~2 s with both hosts writing flat
+ * out, where 16 MiB let it reach 9 s and no bound 34 s; and it costs nothing
+ * where writes complete quickly, since what flows is the bound divided by the
+ * time one write takes.  The count matters for small writes: 4 MiB of 4 KiB
+ * writes is a thousand of them.  Both are read at each admission, so a change
+ * applies to the next write; 0 removes that half of the bound.
+ */
+static unsigned int mxfs_drbd_inflight_kb = 4096;
+module_param_named(drbd_inflight_kb, mxfs_drbd_inflight_kb, uint, 0644);
+MODULE_PARM_DESC(drbd_inflight_kb,
+		 "most KiB of data and metadata writes one mount keeps in flight on a DRBD device (0 = no byte bound)");
+static unsigned int mxfs_drbd_inflight_reqs = 64;
+module_param_named(drbd_inflight_reqs, mxfs_drbd_inflight_reqs, uint, 0644);
+MODULE_PARM_DESC(drbd_inflight_reqs,
+		 "most data and metadata write requests one mount keeps in flight on a DRBD device (0 = no count bound)");
+
+struct mxfs_ioq {
+	spinlock_t		lock;		/* irq-safe: completions release */
+	unsigned long		bytes;		/* admitted and not yet completed */
+	unsigned int		reqs;
+	bool			dead;		/* the mount is gone */
+	struct list_head	wait[MXFS_IOQ_NCLASS];	/* each first come, first served */
+	mempool_t		*pool;		/* completion hooks */
+	dev_t			devt;
+	bool			(*admitted)(void *ctx);
+	void			*ctx;
+	/* since the mount */
+	u64			n_admit, n_wait, n_refused, wait_ns, wait_ns_max;
+	unsigned long		bytes_peak;
+	unsigned int		reqs_peak;
+};
+
+/* A writer waiting for its share; lives on its own stack until `go`. */
+struct mxfs_ioq_waiter {
+	struct list_head	node;
+	struct task_struct	*task;
+	unsigned int		bytes;
+	bool			go;
+};
+
+/* What an admitted bio's completion gives back, and to whom. */
+struct mxfs_ioq_hook {
+	bio_end_io_t		*end_io;
+	void			*private;
+	struct mxfs_ioq		*q;
+	unsigned int		bytes;
+};
+
+#define MXFS_IOQ_POOL_MIN	64
+#define MXFS_IOQ_STATS_EVERY	1024	/* waits between P-DRBD-IOQ-STATS lines */
+
+static bool mxfs_ioq_fits(struct mxfs_ioq *q, unsigned int bytes)
+{
+	unsigned long max_bytes = (unsigned long)READ_ONCE(mxfs_drbd_inflight_kb) << 10;
+	unsigned int max_reqs = READ_ONCE(mxfs_drbd_inflight_reqs);
+
+	/* Never refuse the only write: one larger than the bound still goes. */
+	if (!q->reqs)
+		return true;
+	if (max_bytes && q->bytes + bytes > max_bytes)
+		return false;
+	if (max_reqs && q->reqs >= max_reqs)
+		return false;
+	return true;
+}
+
+static void mxfs_ioq_take(struct mxfs_ioq *q, unsigned int bytes)
+{
+	q->bytes += bytes;
+	q->reqs++;
+	q->n_admit++;
+	if (q->bytes > q->bytes_peak)
+		q->bytes_peak = q->bytes;
+	if (q->reqs > q->reqs_peak)
+		q->reqs_peak = q->reqs;
+}
+
+/*
+ * Under q->lock: hand a freed share to the waiters, metadata before data and
+ * each class in arrival order.  A waiter that does not fit stops the hand-out:
+ * nothing behind it, in its class or a later one, overtakes it.
+ */
+static void mxfs_ioq_grant(struct mxfs_ioq *q)
+{
+	struct mxfs_ioq_waiter *w;
+	int c;
+
+	for (c = 0; c < MXFS_IOQ_NCLASS; c++) {
+		while (!list_empty(&q->wait[c])) {
+			w = list_first_entry(&q->wait[c], struct mxfs_ioq_waiter, node);
+			if (!mxfs_ioq_fits(q, w->bytes))
+				return;
+			list_del_init(&w->node);
+			mxfs_ioq_take(q, w->bytes);
+			w->go = true;
+			wake_up_process(w->task);
+		}
+	}
+}
+
+static void mxfs_ioq_free(struct mxfs_ioq *q)
+{
+	pr_info("mxfs: P-DRBD-IOQ-DONE minor=%u admitted=%llu waited=%llu refused=%llu wait_avg_ms=%llu wait_max_ms=%llu peak_kib=%lu peak_reqs=%u\n",
+		MINOR(q->devt), q->n_admit, q->n_wait, q->n_refused,
+		q->n_wait ? q->wait_ns / q->n_wait / NSEC_PER_MSEC : 0,
+		q->wait_ns_max / NSEC_PER_MSEC, q->bytes_peak >> 10, q->reqs_peak);
+	mempool_destroy(q->pool);
+	kfree(q);
+}
+
+/* Give a share back and hand it on; the last one back after the mount is gone
+ * frees the bound.  Any context: completions call it. */
+static void mxfs_ioq_put(struct mxfs_ioq *q, unsigned int bytes)
+{
+	unsigned long flags;
+	bool gone;
+
+	spin_lock_irqsave(&q->lock, flags);
+	q->bytes -= bytes;
+	q->reqs--;
+	mxfs_ioq_grant(q);
+	gone = q->dead && !q->reqs;
+	spin_unlock_irqrestore(&q->lock, flags);
+	if (gone)
+		mxfs_ioq_free(q);
+}
+
+static void mxfs_ioq_end_io(struct bio *bio)
+{
+	struct mxfs_ioq_hook *h = bio->bi_private;
+	struct mxfs_ioq *q = h->q;
+	unsigned int bytes = h->bytes;
+
+	bio->bi_end_io = h->end_io;
+	bio->bi_private = h->private;
+	/* the hook goes back first: q is alive while this share is held */
+	mempool_free(h, q->pool);
+	mxfs_ioq_put(q, bytes);
+	bio->bi_end_io(bio);
+}
+
+int mxfs_pal_ioq_admit(struct mxfs_ioq *q, struct bio *bio,
+		       enum mxfs_ioq_class cls, unsigned int bytes)
+{
+	struct mxfs_ioq_waiter w;
+	struct mxfs_ioq_hook *h;
+	bool waited = false;
+	u64 t0, ns = 0, n_wait = 0;
+
+	if (!q || bio_op(bio) != REQ_OP_WRITE || !bio->bi_bdev ||
+	    bio->bi_bdev->bd_dev != q->devt ||
+	    (!READ_ONCE(mxfs_drbd_inflight_kb) && !READ_ONCE(mxfs_drbd_inflight_reqs)))
+		return 0;
+	/*
+	 * A bio with no completion yet would have its submitter's default
+	 * installed later, over the hook, and the share would never come back.
+	 * Every caller admits after the completion is set; one that does not
+	 * is a bug in the caller, and the write goes unbounded rather than
+	 * leaking.
+	 */
+	if (WARN_ON_ONCE(!bio->bi_end_io))
+		return 0;
+
+	spin_lock_irq(&q->lock);
+	if (list_empty(&q->wait[MXFS_IOQ_META]) &&
+	    (cls == MXFS_IOQ_META || list_empty(&q->wait[MXFS_IOQ_DATA])) &&
+	    mxfs_ioq_fits(q, bytes)) {
+		mxfs_ioq_take(q, bytes);
+		spin_unlock_irq(&q->lock);
+	} else if (bio->bi_opf & REQ_NOWAIT) {
+		spin_unlock_irq(&q->lock);
+		return -EAGAIN;
+	} else {
+		w.task = current;
+		w.bytes = bytes;
+		w.go = false;
+		list_add_tail(&w.node, &q->wait[cls]);
+		t0 = ktime_get_ns();
+		/* the semaphore's pattern: `go` is set and the task woken under
+		 * q->lock, and read here only under it */
+		while (!w.go) {
+			__set_current_state(TASK_UNINTERRUPTIBLE);
+			spin_unlock_irq(&q->lock);
+			io_schedule();
+			spin_lock_irq(&q->lock);
+		}
+		__set_current_state(TASK_RUNNING);
+		ns = ktime_get_ns() - t0;
+		q->n_wait++;
+		q->wait_ns += ns;
+		if (ns > q->wait_ns_max)
+			q->wait_ns_max = ns;
+		n_wait = q->n_wait;
+		waited = true;
+		spin_unlock_irq(&q->lock);
+	}
+
+	/*
+	 * A REQ_NOWAIT submitter must not sleep here either: without a hook to
+	 * hand it now, its share goes back and it is told to retry blocking.
+	 * Otherwise the pool's reserve is refilled by the completions of the
+	 * writes already in flight, so the wait ends.
+	 */
+	h = mempool_alloc(q->pool, (bio->bi_opf & REQ_NOWAIT) ? GFP_NOWAIT : GFP_NOIO);
+	if (!h) {
+		mxfs_ioq_put(q, bytes);
+		return -EAGAIN;
+	}
+	h->end_io = bio->bi_end_io;
+	h->private = bio->bi_private;
+	h->q = q;
+	h->bytes = bytes;
+	bio->bi_private = h;
+	bio->bi_end_io = mxfs_ioq_end_io;
+
+	if (!waited)
+		return 0;
+	if (!(n_wait % MXFS_IOQ_STATS_EVERY))
+		mxfs_probe("mxfs: P-DRBD-IOQ-STATS minor=%u admitted=%llu waited=%llu wait_avg_us=%llu wait_max_ms=%llu peak_kib=%lu peak_reqs=%u last_wait_us=%llu\n",
+			   MINOR(q->devt), q->n_admit, q->n_wait,
+			   q->wait_ns / q->n_wait / NSEC_PER_USEC,
+			   q->wait_ns_max / NSEC_PER_MSEC, q->bytes_peak >> 10,
+			   q->reqs_peak, ns / NSEC_PER_USEC);
+	/*
+	 * The writer asked the mount's authority question before it came here;
+	 * the wait must not carry its write past the answer.  Hooked already:
+	 * the caller completes the bio with an error, which returns its share.
+	 */
+	if (q->admitted && !q->admitted(q->ctx)) {
+		spin_lock_irq(&q->lock);
+		q->n_refused++;
+		spin_unlock_irq(&q->lock);
+		pr_err_ratelimited("mxfs: P-DRBD-IOQ-REFUSED minor=%u class=%s bytes=%u waited_ms=%llu comm=%s — this node's authority closed while the write waited for room on the DRBD device; it is failed (-EIO), never submitted\n",
+				   MINOR(q->devt), cls == MXFS_IOQ_META ? "meta" : "data",
+				   bytes, ns / NSEC_PER_MSEC, current->comm);
+		return -EIO;
+	}
+	return 0;
+}
+EXPORT_SYMBOL_GPL(mxfs_pal_ioq_admit);
+
+void mxfs_pal_ioq_submit(struct mxfs_ioq *q, struct bio *bio,
+			 enum mxfs_ioq_class cls)
+{
+	int rc = mxfs_pal_ioq_admit(q, bio, cls, bio->bi_iter.bi_size);
+
+	if (!rc) {
+		submit_bio(bio);
+		return;
+	}
+	bio->bi_status = rc == -EAGAIN ? BLK_STS_AGAIN : BLK_STS_IOERR;
+	bio_endio(bio);
+}
+EXPORT_SYMBOL_GPL(mxfs_pal_ioq_submit);
+
+struct mxfs_ioq *mxfs_pal_ioq_create(struct block_device *bdev,
+				     bool (*admitted)(void *ctx), void *ctx)
+{
+	struct mxfs_ioq *q;
+	bool drbd;
+	int c;
+
+	if (!bdev)
+		return NULL;
+	mutex_lock(&mxfs_drbd_cas_list_lock);
+	drbd = mxfs_drbd_cas_find(bdev->bd_dev) != NULL;
+	mutex_unlock(&mxfs_drbd_cas_list_lock);
+	if (!drbd)
+		return NULL;
+
+	q = kzalloc(sizeof(*q), GFP_KERNEL);
+	if (q)
+		q->pool = mempool_create_kmalloc_pool(MXFS_IOQ_POOL_MIN,
+						      sizeof(struct mxfs_ioq_hook));
+	if (!q || !q->pool) {
+		kfree(q);
+		pr_err("mxfs: P-DRBD-IOQ-NOMEM minor=%u — this mount's writes on the DRBD device are not bounded, so under heavy writes its coordination writes can queue behind them\n",
+		       MINOR(bdev->bd_dev));
+		return NULL;
+	}
+	spin_lock_init(&q->lock);
+	for (c = 0; c < MXFS_IOQ_NCLASS; c++)
+		INIT_LIST_HEAD(&q->wait[c]);
+	q->devt = bdev->bd_dev;
+	q->admitted = admitted;
+	q->ctx = ctx;
+	pr_info("mxfs: P-DRBD-IOQ-ARMED minor=%u inflight_kib=%u inflight_reqs=%u — this mount's data and metadata writes on the DRBD device are held to that much in flight, so its coordination writes never queue behind more\n",
+		MINOR(q->devt), READ_ONCE(mxfs_drbd_inflight_kb),
+		READ_ONCE(mxfs_drbd_inflight_reqs));
+	return q;
+}
+EXPORT_SYMBOL_GPL(mxfs_pal_ioq_create);
+
+void mxfs_pal_ioq_destroy(struct mxfs_ioq *q)
+{
+	bool idle;
+	int c;
+
+	if (!q)
+		return;
+	spin_lock_irq(&q->lock);
+	for (c = 0; c < MXFS_IOQ_NCLASS; c++)
+		WARN_ON_ONCE(!list_empty(&q->wait[c]));
+	q->dead = true;
+	idle = !q->reqs;
+	if (!idle)
+		pr_warn("mxfs: P-DRBD-IOQ-LATE minor=%u reqs=%u kib=%lu — writes still in flight as the mount is freed; the last of them frees the bound\n",
+			MINOR(q->devt), q->reqs, q->bytes >> 10);
+	spin_unlock_irq(&q->lock);
+	if (idle)
+		mxfs_ioq_free(q);
+}
+EXPORT_SYMBOL_GPL(mxfs_pal_ioq_destroy);
 
 /*
  * The peer is FENCED: a certificate (kind 25) proves it can no longer write.

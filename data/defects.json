@@ -1691,6 +1691,30 @@
       "impact": "stability",
       "impact_why": "no data is lost, but the survivor's mount is refused and its boot program gives up, so the pair stays unmounted and every guest on shared storage stays down until an operator intervenes",
       "platform": "pve9"
+    },
+    {
+      "id": "D-DRBD-COORDINATION-WRITES-QUEUE-BEHIND-GUEST-DATA-BOTH-HOSTS-SELF-FENCE",
+      "severity": "critical",
+      "nodes": 2,
+      "config": "net/mesh/drbd",
+      "opened": "2026-10-06",
+      "summary": "on 2 physical PVE 9 hosts with old non-NCQ SATA SSDs, eight concurrent VM installs on /mnt/shared made each MXFS coordination write on /dev/drbd0 (bakery register, heartbeat compare-and-swap) wait 8-9 s behind guest data in the disk and DRBD queues of both hosts; no heartbeat landed for ~30 s, the authority lease expired and both hosts self-fenced 9 s apart",
+      "evidence": "MEASURED 2026-10-06, 0.90.68 (A63A278AB7D61F145D6A320), tests/evidence/pve_phys_drbd_20261006/builds-1038/: pve1 P278-HB-STALL stage=CASWRITE age_ms=9278 at 10:41:54 (mxfs_drbd_reg_put -> submit_bio_wait) and age_ms=8820 at 10:46:21; P290-AUTH-CLOSED AUTHORITY_LEASE_EXPIRED 10:46:39 (last_ok 29.7 s before); pve2 P278-HB-STALL age_ms=8064 10:45:13 and 8832 10:46:15, P-DRBD-CAS-WAIT-TIMEOUT waited_ms=10000, 'heartbeat write failed: -5 (age_since_last_ok_ms=25230)', P290-AUTH-CLOSED 10:46:30; guest consoles (same dir, *.png): VMs 103/105/107 'Error unpacking rpm package linux-firmware', 101 'libpcap'. pve2's kernel recorded no device change after 10:31, so the drive the owner unplugged is not involved, and pve1 stalled first. RAW DRBD MEASUREMENT (scripts/drbd_write_latency_probe.sh, scratch resource on the same disks and link, no MXFS), latency-probe-1..6: under 4 writers x QD16 x 1 MiB per host, a 512 B O_DIRECT write took max 21-34 s (FUA 27-35 s), DRBD ap=pe=130, disk aqu 74-86, scheduler none no better (14-28 s); bounding bulk in flight per host: 4 MiB -> max 1.3-1.8 s (FUA 1.7-2.7 s) at 35 MB/s total, 8 MiB -> 3.6-3.7 s at 31 MB/s, 16 MiB -> 6.9-9.2 s at 36 MB/s, unbounded 48-52 MB/s. Disks: Kingston SNV325S2 SATA 2.6, queue_depth 1, mq-deadline write_expire 5000.",
+      "next": "Bound what MXFS itself has in flight on a DRBD attachment (data and metadata, not coordination or log writes) so the queue in front of a coordination write stays short on both hosts; verify with the same raw probe plus an MXFS-level VM-image load on the physical pair (heartbeat cycle, CAS stats, lease margin), then the owner's eight builds end to end with no guest error.",
+      "impact": "stability",
+      "impact_why": "both hosts shut their MXFS mount down (P131-SELF-FENCE AUTHORITY_LEASE_EXPIRED) and every VM disk on /mnt/shared returned EIO; no data loss observed, filesystem check not yet run",
+      "platform": "pve9"
+    },
+    {
+      "id": "D-DRBD-WRITE-BOUND-MISSES-CHAINED-WRITEBACK-BIOS-ON-KERNELS-BEFORE-6-9",
+      "severity": "high",
+      "nodes": 2,
+      "config": "net/mesh/drbd",
+      "opened": "2026-10-06",
+      "summary": "on a kernel whose iomap still chains a writeback ioend's bios (no embedded io_bio: 6.8 and older, e.g. Ubuntu 24.04 GA), the DRBD write bound sees only the last bio of each ioend; iomap submits the earlier ones as each fills, so one ioend per writer (up to IOEND_BATCH_SIZE folios, 16 MiB at 4 KiB folios) is in flight uncapped while the previous one is held, and coordination writes can again queue behind it",
+      "evidence": "DERIVED FROM CODE 2026-10-06 (0.90.70), not observed: 6.8 iomap_add_to_ioend -> iomap_chain_bio() does bio_chain(prev,new); submit_bio(prev) inside iomap, and ->prepare_ioend (the only filesystem hook, pal/linux/xfs_aops.c xfs_prepare_ioend -> mxfs_ioend_bound_admit) runs only for the last bio; 0.90.70 counts the whole io_size on that last bio, which holds the next ioend's admission but cannot stop the bios iomap submits while building it. The physical pair (6.17) and every embedded-bio kernel (6.9+) are fully covered; direct writes (QEMU cache=none) are covered on every kernel.",
+      "next": "Measure it before fixing: on an Ubuntu 24.04 (6.8) DRBD pair run buffered sequential writers on MXFS and read P-DRBD-CAS-STATS max_us and P278-HB-STALL; then bound the writeback ioend size on chaining kernels (e.g. cap what one writepages pass builds while the bound is full) and re-measure.",
+      "platform": "any"
     }
   ]
 }

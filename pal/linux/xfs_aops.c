@@ -23,6 +23,7 @@
 #include "../../dlm/v5_mount.h"	/* resv-conflict note */
 #include <mxfs/mxfs_dlm.h>	/* FIX-26/P26PRE: MXFS_LOCK_* modes */
 #include <linux/hashtable.h>	/* FIX-26 writepages task registry */
+#include "mxfs_ioq.h"		/* the DRBD write bound on buffered writeback */
 
 /* declared locally (as in xfs_da_btree.c) — not exported via a header. */
 extern bool mxfs_v5_dlm_is_single_node(struct mxfs_v5_dlm *ctx);
@@ -115,9 +116,11 @@ xfs_setfilesize(
  * already embeds io_bio but still classifies with io_type/IOMAP_F_SHARED.
  */
 #ifdef MXFS_HAVE_IOMAP_IOEND_BIO_EMBEDDED
+#define mxfs_ioend_bio(ioend)		(&(ioend)->io_bio)
 #define mxfs_ioend_bi_status(ioend)	((ioend)->io_bio.bi_status)
 #define mxfs_ioend_set_bi_end_io(ioend, fn)	((ioend)->io_bio.bi_end_io = (fn))
 #else
+#define mxfs_ioend_bio(ioend)		((ioend)->io_bio)
 #define mxfs_ioend_bi_status(ioend)	((ioend)->io_bio->bi_status)
 #define mxfs_ioend_set_bi_end_io(ioend, fn)	((ioend)->io_bio->bi_end_io = (fn))
 #endif
@@ -1134,6 +1137,29 @@ mxfs_ioend_write_admitted(
 	return false;
 }
 
+/*
+ * THE DRBD WRITE BOUND, buffered-data arm (pal/linux/mxfs_ioq.h).  The bound
+ * keeps the bio's completion and calls it when the bio is done, so this runs
+ * last, once that completion is final, and iomap submits the bio next.
+ *
+ * Where iomap still chains an ioend's bios (the bio is not embedded in the
+ * ioend), the bios ahead of the last are submitted by iomap as each one fills,
+ * before any filesystem hook runs, and the last completes only after all of
+ * them.  So the whole ioend's size is admitted on the last bio and held until
+ * the ioend is done: a writer cannot start another ioend until this one is
+ * admitted, though the one it builds meanwhile is in flight unbounded.
+ */
+static int
+mxfs_ioend_bound_admit(
+	struct iomap_ioend	*ioend)
+{
+	struct xfs_mount	*mp = XFS_I(ioend->io_inode)->i_mount;
+
+	return mxfs_pal_ioq_admit(mp->m_mxfs_ioq, mxfs_ioend_bio(ioend),
+				  MXFS_IOQ_DATA,
+				  min_t(size_t, ioend->io_size, UINT_MAX));
+}
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
 static int
 xfs_prepare_ioend(
@@ -1175,6 +1201,10 @@ xfs_prepare_ioend(
 	if (xfs_ioend_is_append(ioend) || mxfs_ioend_unwritten(ioend) ||
 	    mxfs_ioend_shared(ioend))
 		mxfs_ioend_set_bi_end_io(ioend, xfs_end_bio);
+
+	/* iomap set its own completion before calling here; this one is final */
+	if (!status)
+		status = mxfs_ioend_bound_admit(ioend);
 	return status;
 }
 #else
@@ -1240,11 +1270,21 @@ xfs_writeback_submit(
 
 	memalloc_nofs_restore(nofs_flag);
 
-	/* send ioends that might require a transaction to the completion wq */
+	/*
+	 * Send ioends that might require a transaction to the completion wq —
+	 * and, on a mount with a DRBD write bound, every ioend.  From 6.17
+	 * iomap names its own completion only inside the submission below, and
+	 * only for a bio that has none, while the bound has to keep the bio's
+	 * completion and call it; iomap's is not exported.  xfs_end_ioend
+	 * completes an overwrite exactly as iomap's would, a workqueue hop later.
+	 */
 	if (xfs_ioend_is_append(ioend) || mxfs_ioend_unwritten(ioend) ||
-	    mxfs_ioend_shared(ioend))
+	    mxfs_ioend_shared(ioend) ||
+	    XFS_I(ioend->io_inode)->i_mount->m_mxfs_ioq)
 		mxfs_ioend_set_bi_end_io(ioend, xfs_end_bio);
 
+	if (!error)
+		error = mxfs_ioend_bound_admit(ioend);
 	return iomap_ioend_writeback_submit(wpc, error);
 }
 #endif

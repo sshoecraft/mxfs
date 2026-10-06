@@ -42,6 +42,8 @@
 #include <linux/mount.h>
 #include <linux/filelock.h>
 
+#include "mxfs_ioq.h"	/* the DRBD write bound on direct writes */
+
 static const struct vm_operations_struct xfs_file_vm_ops;
 
 /*
@@ -953,8 +955,26 @@ xfs_dio_write_end_io(
 	return ret;
 }
 
+/*
+ * THE DRBD WRITE BOUND, direct-write arm (pal/linux/mxfs_ioq.h).  iomap
+ * submits a direct bio with submit_bio when it carries no inline-encryption
+ * context, and XFS never attaches one, so the only change here is the wait:
+ * on a mount with no bound — any device that is not a DRBD attachment — the
+ * bio goes straight to submit_bio.
+ */
+static void
+xfs_dio_write_submit_io(
+	const struct iomap_iter	*iter,
+	struct bio		*bio,
+	loff_t			file_offset)
+{
+	mxfs_pal_ioq_submit(XFS_I(iter->inode)->i_mount->m_mxfs_ioq, bio,
+			    MXFS_IOQ_DATA);
+}
+
 static const struct iomap_dio_ops xfs_dio_write_ops = {
 	.end_io		= xfs_dio_write_end_io,
+	.submit_io	= xfs_dio_write_submit_io,
 };
 
 static void

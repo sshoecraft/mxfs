@@ -73,6 +73,8 @@
 #include <linux/in.h>		/* ipv4_is_multicast et al.: peers= */
 #include <linux/fserror.h>
 
+#include "mxfs_ioq.h"	/* the DRBD write bound, created and freed with the mount */
+
 /* the cluster init's refusal line handed to mount(8) (xfs_fs_fill_super) */
 #define MXFS_MOUNT_REFUSAL_LEN	256
 
@@ -1095,6 +1097,9 @@ xfs_mount_free(
 	 * object; buffers that still hold tokens keep theirs. */
 	mxfs_depart_acct_put(mp->m_mxfs_acct);
 	mp->m_mxfs_acct = NULL;
+	/* No writer is left to wait in the DRBD write bound or ask it anything. */
+	mxfs_pal_ioq_destroy(mp->m_mxfs_ioq);
+	mp->m_mxfs_ioq = NULL;
 	/*
 	 * The authority object goes last.  Every producer, workqueue, timer
 	 * and I/O completion of this incarnation is gone by the time the mount
@@ -2327,6 +2332,14 @@ mxfs_mount_write_admitted(
 			  site, current->comm);
 	}
 	return ok;
+}
+
+/* The DRBD write bound's question for a write it held: the gate's, again. */
+static bool
+mxfs_ioq_write_admitted(
+	void			*ctx)
+{
+	return mxfs_mount_write_admitted(ctx, "ioq");
 }
 
 static void
@@ -5357,6 +5370,17 @@ xfs_fs_fill_super(
 			mp->m_mxfs_dlm_was_active = true;
 			mp->m_mxfs_node_slot =
 				mxfs_v5_dlm_get_node_slot(mp->m_mxfs_dlm);
+			/*
+			 * On a DRBD attachment (armed inside the DLM init just
+			 * returned), bound this mount's data and metadata
+			 * writes in flight before anything below writes:
+			 * the slice zeroing goes through the FUA path, which
+			 * the bound never sees, and log recovery's writeback
+			 * is the first thing it holds.  NULL anywhere else.
+			 */
+			mp->m_mxfs_ioq = mxfs_pal_ioq_create(
+					mp->m_ddev_targp->bt_bdev,
+					mxfs_ioq_write_admitted, mp);
 			/*
 			 * 0.88.0 (D-SLICE-CLAIM-TIME-INIT-UNTRUSTED-ZERO-531):
 			 * the heartbeat slot just claimed is the exclusive lease

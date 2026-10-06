@@ -31,6 +31,7 @@
 #include "xfs_inode_item.h"
 #include "xfs_bmap_btree.h"
 #include "../../dlm/v5_mount.h"
+#include "mxfs_ioq.h"	/* the DRBD write bound on metadata writes */
 
 struct kmem_cache *xfs_buf_cache;
 
@@ -6247,11 +6248,12 @@ mxfs_submit_partial_inode_write(
 				bio_add_virt_nofail(child, (char *)bp->b_addr + off, rlen);
 			child->bi_iter.bi_sector = base_512 + (off >> 9);
 			bio_chain(child, tail);
-			submit_bio(child);
+			mxfs_pal_ioq_submit(bp->b_mount->m_mxfs_ioq, child,
+					    MXFS_IOQ_META);
 		}
 	}
 	mxfs_buf_ev(bp, MXFS_BEV_BIO);
-	submit_bio(tail);
+	mxfs_pal_ioq_submit(bp->b_mount->m_mxfs_ioq, tail, MXFS_IOQ_META);
 	blk_finish_plug(&plug);
 
 	if (unlikely(mxfs_dirwr_enabled || mxfs_instr_enabled))
@@ -9456,7 +9458,8 @@ xfs_buf_submit_bio(
 		split->bi_iter.bi_sector = bp->b_maps[map].bm_bn +
 					   bp->b_target->bt_sector_offset;
 		bio_chain(split, bio);
-		submit_bio(split);
+		mxfs_pal_ioq_submit(bp->b_mount->m_mxfs_ioq, split,
+				    MXFS_IOQ_META);
 	}
 	bio->bi_iter.bi_sector = bp->b_maps[map].bm_bn +
 				 bp->b_target->bt_sector_offset;
@@ -9494,7 +9497,8 @@ xfs_buf_submit_bio(
 		}
 	}
 	mxfs_buf_ev(bp, MXFS_BEV_BIO);
-	submit_bio(bio);
+	/* reads pass straight through: the bound holds writes only */
+	mxfs_pal_ioq_submit(bp->b_mount->m_mxfs_ioq, bio, MXFS_IOQ_META);
 	blk_finish_plug(&plug);
 }
 

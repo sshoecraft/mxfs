@@ -1,3 +1,49 @@
+## 2026-10-06 — 0.90.70 — on DRBD, a mount holds back its own writes so its heartbeat never queues behind them
+
+**Both hosts shut `/mnt/shared` down under eight VM installs.** On DRBD,
+MXFS's coordination writes (the bakery registers and the heartbeat
+compare-and-swap) are ordinary writes on the same device as the guests' data.
+DRBD carries them in one ordered stream to the peer, which writes them to a
+disk its own guests are also writing. DRBD has no priority to lift one past
+data queued ahead of it. On the physical pair's SATA SSDs (no command
+queuing, queue depth 1), eight installs made each heartbeat write wait 8–9 s
+(`P278-HB-STALL stage=CASWRITE`). No heartbeat landed for 30 s, and both
+authority leases expired 9 s apart. With MXFS out of the picture, a scratch
+DRBD resource on the same disks and link (`scripts/drbd_write_latency_probe.sh`)
+took up to 21–34 s for one 512-byte write under 4 writers × QD16 × 1 MiB per
+host. Capping each host at 4 MiB of bulk writes in flight brought that to
+1.3–1.8 s, at 35 MB/s total against 48–52 MB/s uncapped.
+
+**A mount on a DRBD attachment now caps its own data and metadata writes at
+4 MiB and 64 requests in flight.** The code is in `pal/linux/drbd.c` and
+`pal/linux/mxfs_ioq.h`. The module parameters are `drbd_inflight_kb` and
+`drbd_inflight_reqs`; 0 lifts either cap. Mounts on any other device are
+untouched.
+- The cap covers direct writes, buffered writeback and metadata buffers.
+- Waiting metadata goes before waiting data, so the log keeps draining under a
+  data flood. Reads, the log and the coordination writes never wait.
+- A write that waited asks the authority question again before it goes, so the
+  wait cannot carry it past this node's lease. A refusal is logged as
+  `P-DRBD-IOQ-REFUSED`, and the write fails with -EIO without being issued.
+- From 6.17, iomap installs its writeback completion only at submission, and
+  only where the filesystem set none. So a capped mount sends every writeback
+  completion through XFS's completion workqueue, which finishes an overwrite
+  exactly as iomap would, one workqueue hop later.
+- Where iomap still chains a writeback ioend's bios (6.8, for example), it
+  submits each bio but the last as it fills, before any filesystem hook runs.
+  There the whole ioend's size is counted on the last bio and held until the
+  ioend completes. The ioend being built is not capped meanwhile; that gap is
+  in the defect queue.
+- One line at mount (`P-DRBD-IOQ-ARMED`) and one at unmount (`P-DRBD-IOQ-DONE`,
+  with the waits and the peaks).
+
+**Also:**
+- `tools/pve_netconsole.sh` and `tools/pve_crashdiag.sh` set the hosts'
+  console level to 5, not 7. An oops or panic still reaches clyde whole, and
+  a stack dump a diagnostic asks for stays off the host's own screen.
+- `scripts/pve_vm_screens.sh` captures guest consoles as PPM, because Proxmox
+  builds QEMU without PNG support.
+
 ## 2026-10-06 — 0.90.69 — only participant 0 can take a DRBD pair alone; a survivor's guard waits for its own mount
 
 **Both hosts could win one split.** DRBD runs the fence-peer handler for two

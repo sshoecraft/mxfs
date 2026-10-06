@@ -18,9 +18,11 @@
 #
 # Each host gets its own UDP port and log: host N of PVE_PAIR sends to port
 # 6667+N-1, logged to <evidence-dir>/netconsole_<hostname>.log (appended).
-# The console log level on the hosts is raised to 7 (everything but debug),
-# because netconsole only carries what the console prints and Proxmox boots
-# with "quiet" (level 4: errors and worse only).
+# The console log level on the hosts is raised to 5, because netconsole only
+# carries what the console prints and Proxmox boots with "quiet" (level 4:
+# errors and worse only).  5 adds warnings; an oops or panic turns the console
+# verbose by itself.  Not 7: informational lines (a stack dump a diagnostic
+# asks for) would then fill the host's own screen and read as a crash there.
 
 set -u
 REPO=$(cd "$(dirname "$0")/.." && pwd)
@@ -58,7 +60,7 @@ echo $CLYDE_IP > \$T/remote_ip
 echo $2 > \$T/remote_mac
 echo $1 > \$T/remote_port
 echo 1 > \$T/enabled
-dmesg -n 7
+dmesg -n 5
 echo "<4>mxfs-netconsole: \$(hostname) -> $CLYDE_IP:$1 via \$DEV src \$SRC enabled \$(date -Is)" > /dev/kmsg
 echo "netconsole \$(hostname) dev=\$DEV src=\$SRC port=$1 enabled=\$(cat \$T/enabled)"
 EOF

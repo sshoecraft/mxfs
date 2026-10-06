@@ -568,6 +568,13 @@ typedef struct xfs_mount {
 	bool			m_mxfs_clustered;
 	struct mxfs_authority	*m_mxfs_auth;
 	/*
+	 * The bound on this mount's data and metadata writes in flight, when
+	 * its device is a DRBD attachment (pal/linux/mxfs_ioq.h says why);
+	 * NULL on every other device.  Set once the DLM has attached, before
+	 * log recovery writes anything back; freed with the mount.
+	 */
+	struct mxfs_ioq		*m_mxfs_ioq;
+	/*
 	 * 0.84.5 (D-...-0960): xfs_mountfs ran to completion — the mount
 	 * lifecycle mark a refused mount never reaches.  A mount refused
 	 * before it (its root lookup met a stalled authority transition, or

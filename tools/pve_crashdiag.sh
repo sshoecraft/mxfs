@@ -74,7 +74,11 @@ echo $CLYDE_IP > \$T/remote_ip
 echo $2 > \$T/remote_mac
 echo $1 > \$T/remote_port
 echo 1 > \$T/enabled
-dmesg -n 7
+# 5, not 7: an oops or panic turns the console verbose by itself, and warnings
+# print below 5, so a crash still reaches clyde whole; informational lines (a
+# stack dump a diagnostic asks for, a stuck task's report) stay off the screen,
+# where they read as a crash to whoever is at the host.
+dmesg -n 5
 echo "<4>mxfs-diag-netconsole: \$(hostname) boot \$(cat /proc/sys/kernel/random/boot_id) -> $CLYDE_IP:$1" > /dev/kmsg
 NC
 chmod 755 /usr/local/sbin/mxfs-diag-netconsole
