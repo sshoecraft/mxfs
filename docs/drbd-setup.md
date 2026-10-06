@@ -100,8 +100,10 @@ drbdadm primary mxfs                             # node B
 ## 5. Format, once
 
 ```
-mkfs.mxfs /dev/drbd0                             # node A only; answer y
+mkfs.mxfs /dev/drbd0                             # node A only
 ```
+
+A device that already holds a filesystem is refused; add `-f` to overwrite it.
 
 ## 6. Mount at boot
 

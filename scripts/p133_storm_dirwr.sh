@@ -55,7 +55,7 @@ out=$(run "$NODE0" "
   insmod $MODULE dyndbg=+p dirwr=1 2>/dev/null
   sg_persist --out --register-ignore --param-sark=0x5eed $DEV >/dev/null 2>&1
   sg_persist --out --clear --param-rk=0x5eed $DEV >/dev/null 2>&1
-  echo y | /src/mxfs/tools/mkfs_mxfs $DEV >/tmp/m.log 2>&1 && echo MKFS_OK
+  /src/mxfs/tools/mkfs_mxfs -f $DEV >/tmp/m.log 2>&1 && echo MKFS_OK
   mount -t mxfs $DEV $MNT && echo MOUNT_OK" 150)
 echo "$out" | grep -q MOUNT_OK || { echo "form $NODE0 FAILED: $out"; exit 1; }
 for n in "${NODES[@]:1}"; do

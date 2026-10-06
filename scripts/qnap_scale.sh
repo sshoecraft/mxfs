@@ -54,7 +54,7 @@ for N in "${STEPS[@]}"; do
   # NODE0 forms: mkfs + mount
   out=$(run "$NODE0" "
     modprobe libcrc32c; insmod $MODULE dyndbg=+p $OPTS 2>/dev/null;
-    echo y | /src/mxfs/tools/mkfs_mxfs $DEV >/tmp/mk.log 2>&1 && echo MKFS_OK || { echo MKFS_FAIL; tail -2 /tmp/mk.log; }
+    /src/mxfs/tools/mkfs_mxfs -f $DEV >/tmp/mk.log 2>&1 && echo MKFS_OK || { echo MKFS_FAIL; tail -2 /tmp/mk.log; }
     mount -t mxfs $DEV $MNT && echo MOUNT_OK || echo MOUNT_FAIL" 120)
   # CRITICAL: abort if mkfs did not succeed.  Without this, a missing mkfs_mxfs
   # binary (make clean w/o make tools) or a dropped iSCSI LUN echoes MKFS_FAIL

@@ -1808,6 +1808,54 @@ out:
     return rc;
 }
 
+/* ─── Existing-signature check ─── */
+
+/*
+ * What the device already holds, or NULL when it looks empty: like mkfs.xfs
+ * and mkfs.ext4, a format proceeds without asking on an empty device and
+ * refuses without -f when there is something to destroy.  MXFS's own
+ * envelope first (blkid does not know it), then whatever blkid -p finds
+ * (filesystems, partition tables, LVM, RAID, swap), then the XFS magic for a
+ * host without blkid.
+ */
+static const char *existing_signature(const char *device, char *buf, size_t buflen)
+{
+    unsigned char sb[512];
+    int fd = open(device, O_RDONLY);
+
+    if (fd >= 0) {
+        ssize_t n = pread(fd, sb, sizeof(sb), 0);
+
+        close(fd);
+        if (n == (ssize_t)sizeof(sb)) {
+            if (!memcmp(sb, "MXFS", 4))
+                return "an MXFS filesystem";
+            if (!memcmp(sb, "XFSB", 4))
+                return "an XFS filesystem";
+        }
+    }
+    if (!strchr(device, '\'') &&
+        (access("/sbin/blkid", X_OK) == 0 || access("/usr/sbin/blkid", X_OK) == 0)) {
+        char cmd[512], line[128];
+        FILE *p;
+
+        snprintf(cmd, sizeof(cmd),
+                 "blkid -p -o export -- '%s' 2>/dev/null | "
+                 "sed -n 's/^\\(TYPE\\|PTTYPE\\)=//p' | head -1", device);
+        p = popen(cmd, "r");
+        if (p) {
+            if (fgets(line, sizeof(line), p) && line[0] && line[0] != '\n') {
+                line[strcspn(line, "\n")] = '\0';
+                snprintf(buf, buflen, "an existing '%s' signature", line);
+                pclose(p);
+                return buf;
+            }
+            pclose(p);
+        }
+    }
+    return NULL;
+}
+
 /* ─── Usage ─── */
 
 static void usage(const char *prog)
@@ -1817,7 +1865,8 @@ static void usage(const char *prog)
             "\n"
             "Format a block device for MXFS (Multinode XFS).\n"
             "\n"
-            "  -f          Force — skip confirmation prompt\n"
+            "  -f          Format even if DEVICE already holds a filesystem or\n"
+            "              partition table (without -f that is refused)\n"
             "  -c NAME     Record the cluster this filesystem belongs to\n"
             "              (1-63 of A-Z a-z 0-9 . _ -); every mount must then\n"
             "              pass -o cluster=NAME.  Change it later with mxfs_admin\n"
@@ -2112,12 +2161,12 @@ int main(int argc, char *argv[])
     /* ─── Confirm ─── */
 
     if (!force) {
-        char answer[16];
-        fprintf(stdout, "Format %s? All data will be destroyed. [y/N] ", device);
-        fflush(stdout);
-        if (!fgets(answer, sizeof(answer), stdin) ||
-            (answer[0] != 'y' && answer[0] != 'Y')) {
-            pr_info("Aborted.\n");
+        char sigbuf[160];
+        const char *found = existing_signature(device, sigbuf, sizeof(sigbuf));
+
+        if (found) {
+            fprintf(stderr, "mkfs.mxfs: %s appears to contain %s.\n"
+                    "Use the -f option to force overwrite.\n", device, found);
             return 1;
         }
     }

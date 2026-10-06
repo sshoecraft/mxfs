@@ -64,7 +64,12 @@ disklock regions.  The remaining space is available for XFS data.
 .SH OPTIONS
 .TP
 .BR \-f
-Force formatting.  Skip the interactive confirmation prompt.
+Format even if the device already holds a filesystem, a partition table or
+another signature.  Without
+.BR \-f ,
+.B mkfs.mxfs
+formats an empty device without asking and refuses one that holds
+something, naming what it found.
 .TP
 .BI \-c " name"
 Record the cluster this filesystem belongs to.  Every mount must then pass

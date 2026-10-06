@@ -52,7 +52,7 @@ out=$(run "$NODE0" "
   lsmod | grep -q '^mxfs ' || insmod $MXFS_MODULE dyndbg=+p
   sg_persist --out --register-ignore --param-sark=0x5eed $MXFS_DEV >/dev/null 2>&1
   sg_persist --out --clear --param-rk=0x5eed $MXFS_DEV >/dev/null 2>&1
-  echo y | /src/mxfs/tools/mkfs_mxfs $MXFS_DEV >/tmp/m.log 2>&1 && echo MKFS_OK
+  /src/mxfs/tools/mkfs_mxfs -f $MXFS_DEV >/tmp/m.log 2>&1 && echo MKFS_OK
   mount -t mxfs $MXFS_DEV $MXFS_MOUNT && echo MOUNT_OK
 " 150)
 echo "$out" | grep -q MOUNT_OK || { echo "form $NODE0 failed: $out" >&2; exit 1; }

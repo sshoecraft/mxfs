@@ -72,7 +72,7 @@ mount_cluster() {
     insmod $MODULE dyndbg=+p ${INSMOD_OPTS:-} 2>/dev/null
     sg_persist --out --register-ignore --param-sark=0x5eed $DEV 2>&1 | grep -i 'conflict\|fail' | sed 's/^/PR_REGISTER: /'
     sg_persist --out --clear --param-rk=0x5eed $DEV 2>&1 | grep -i 'conflict\|fail' | sed 's/^/PR_CLEAR: /'
-    echo y | /src/mxfs/tools/mkfs_mxfs $DEV >/tmp/m.log 2>&1 && echo MKFS_OK || { echo MKFS_FAIL_rc=\$?; tail -3 /tmp/m.log; }
+    /src/mxfs/tools/mkfs_mxfs -f $DEV >/tmp/m.log 2>&1 && echo MKFS_OK || { echo MKFS_FAIL_rc=\$?; tail -3 /tmp/m.log; }
     mount -t mxfs $DEV $MNT && echo MOUNT_OK || {
       echo MOUNT_FAIL_rc=\$?
       echo FORM-DIAG-LSMOD: \$(lsmod | grep mxfs | head -1)
