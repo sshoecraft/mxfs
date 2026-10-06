@@ -113,7 +113,7 @@ configuration that uses one is refused until it exists.
 | `direct` | yes | Its own initiator, one path: bare metal, or an in-guest iSCSI login. | `scripts/rig.sh N/<class>/<method>/direct` |
 | `mpath` | yes | Its own initiator over two or more paths, assembled by dm-multipath. | `scripts/rig.sh N/<class>/<method>/mpath` |
 | `pass` | yes | The hypervisor's initiator. The disk is passed into the VM as a SCSI LUN (QEMU SCSI passthrough, VMware RDM). | `scripts/rig.sh N/<class>/<method>/pass` |
-| `drbd` | yes | DRBD dual-primary: each node's local disk, replicated synchronously to the other. Released as `2/net/mesh/drbd`. | `scripts/drbd_rig.sh` (a rig and a board of its own: see below) |
+| `drbd` | yes | DRBD dual-primary: each node's local disk, replicated synchronously to the other. Released as `2/net/mesh/drbd` in 0.90.41, withdrawn on 2026-10-06 (README). | `scripts/drbd_rig.sh` (a rig and a board of its own: see below) |
 
 Each attachment has its own way of breaking the requirements above:
 

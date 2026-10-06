@@ -1,3 +1,40 @@
+## 2026-10-06 — 0.90.79 — `2/net/mesh/drbd` is withdrawn from release
+
+**MXFS on DRBD dual-primary is no longer a released configuration.** It was
+released in 0.90.41, verified on two Ubuntu 24.04 VMs on the test rig. On the
+owner's two physical Proxmox VE 9 hosts, eight concurrent VM installs on the
+shared filesystem shut both hosts' MXFS mounts down, and guests whose disks were
+on it got I/O errors. Installers failed and one guest's kernel panicked.
+- 20 open defects block this configuration's release, 13 of them critical
+  (`tools/defects.py 2/net/mesh/drbd --release`).
+- Most of what that load found is not specific to Proxmox: coordination writes
+  queueing behind guest data on slow disks, the witness stalling a swap on a
+  host short of memory, the step-down of a withdrawn host.
+- The README says so at the top, moves `2/net/mesh/drbd` out of the Released
+  table into "Implemented, not yet released", and marks its Quick start
+  section. `docs/drbd-setup.md` and `docs/attachment-methods.md` do too.
+- `data/configurations.json` no longer lists it under `released_by_own_rig`, so
+  `scripts/release.sh --publish` will not claim it.
+- `tools/release_text_check.py`'s rule against calling an attachment unreleased
+  now covers only the attachments the data releases. It was written when the
+  README still called a released DRBD a trial, and it would have rejected the
+  withdrawal.
+
+**Also:**
+- `tests/pve_pair_failover.sh answering-restart`: participant 0 restarts while
+  participant 1 is up and answering with no DRBD, as pve1 did at 09:46 on
+  2026-10-06 with pve2. Participant 0's guard must not release participant 1
+  before its own mount as the survivor is done. The step uses resets only.
+- `tests/pve_replay_gate_lag.sh fix|control`: a dead peer's journal is
+  replayed while the survivor's gate reads every cached inode's change count
+  low. The gate must follow the platter there; every line either host fsynced
+  to a shared file must survive; and `chk_mxfs -n` must find the filesystem
+  clean afterwards. The comment on `replay_gate_platter` named this test, but
+  it had never been written. On the nested pair the fix arm passed: one
+  foreign image reached the gate, and the stale slot said apply where the
+  platter said skip. The gate skipped it. No durable line was lost, and the
+  cold check was clean.
+
 ## 2026-10-06 — 0.90.78 — a withdrawn DRBD host kills its guests at once instead of stopping them one at a time
 
 **pve1 took 4 min 23 s to step down after it withdrew.** On 0.90.76, under

@@ -79,6 +79,20 @@
 > the abandoned wait's own registration was left behind, which stalls every
 > other node's readers of that lock.  See `CHANGELOG.md`.
 
+> ## `2/net/mesh/drbd` is withdrawn: do not deploy MXFS on DRBD
+>
+> **MXFS on DRBD dual-primary (`2/net/mesh/drbd`) is no longer a released
+> configuration, as of 2026-10-06.** On two physical Proxmox VE 9 hosts, eight
+> concurrent VM installs on the shared filesystem shut both hosts' MXFS mounts
+> down, and the guests whose disks were on it got I/O errors: installers failed
+> and one guest's kernel panicked.  The validation it was released on, two
+> Ubuntu 24.04 VMs on the test rig, never put that load on it, and most of
+> what that load found is not specific to Proxmox.  The fixes are being made
+> and verified on this development tree, on those two hosts;
+> `tools/defects.py 2/net/mesh/drbd --release` lists what still blocks the
+> configuration.  It is released again only when a release lists it under
+> "Released" below.
+
 > ## 0.90.41: MXFS on DRBD dual-primary — a clustered filesystem with no shared storage
 >
 > **Two nodes, a local disk each, no SAN, no iSCSI target, no third server.**
@@ -120,8 +134,9 @@
 > restart left nothing stalled; a device stacked on DRBD, and a loop device,
 > were refused and left byte-identical.  Cold `chk_mxfs` clean after each.
 >
-> **Status: released, two nodes, on Ubuntu 24.04 with DRBD 8.4.11.**  That is
-> the platform and DRBD version everything above was measured on.  The
+> **Status: withdrawn on 2026-10-06** (see above).  It was released in 0.90.41,
+> two nodes, on Ubuntu 24.04 with DRBD 8.4.11, the platform and DRBD version
+> everything above was measured on.  The
 > packages ship everything a DRBD node needs
 > (`/usr/sbin/mxfs_drbd_witness.py`, `/usr/sbin/mxfs-drbd-fence-peer`).  Not
 > yet run for this attachment, and therefore not claimed: the package-install
@@ -181,7 +196,7 @@
 > - All six released configurations were verified on this version, and the
 >   release boards now run side by side, each on its own fixed-size test LUN.
 
-> ## Released: seventeen configurations, on the `direct`, `mpath` and `drbd` attachments
+> ## Released: sixteen configurations, on the `direct` and `mpath` attachments
 >
 > A configuration is four fields, `<nodes>/<class>/<method>/<attach>`, for
 > example `8/net/mesh/direct`. Each field is explained in the tables below and in
@@ -207,12 +222,9 @@
 > | `8/disk/caw/mpath` | 0.90.51 | Ubuntu 24.04 |
 > | `16/net/mesh/mpath` | 0.90.51 | Ubuntu 24.04 |
 > | `16/disk/caw/mpath` | 0.90.51 | Ubuntu 24.04 |
-> | `2/net/mesh/drbd` | 0.90.41 | Ubuntu 24.04, DRBD 8.4.11 |
 >
-> All seventeen were verified on the current release, 0.90.51: each
-> configuration's suite on the test rig at its node count (for `drbd`, the
-> suite and the fence, split, node-death, pair-outage and takeover tests of
-> `scripts/drbd_rig.sh`), and for the `direct`
+> All sixteen were verified on the current release, 0.90.51: each
+> configuration's suite on the test rig at its node count, and for the `direct`
 > configurations the installed packages on two nodes of each of the four
 > platforms. The `mpath` configurations were verified on the test rig only,
 > which runs Ubuntu 24.04 (kernel 6.8.0-101-generic, multipath-tools 0.9.4),
@@ -233,6 +245,7 @@
 > | `disk/caw/direct` | `32/disk/caw/direct` |
 > | `disk/caw/mpath` | `32/disk/caw/mpath` |
 > | `disk/caw/pass` | `2/disk/caw/pass`, `4/disk/caw/pass`, `8/disk/caw/pass`, `16/disk/caw/pass`, `32/disk/caw/pass` |
+> | `net/mesh/drbd` | `2/net/mesh/drbd` (released in 0.90.41, withdrawn on 2026-10-06; see the top of this file) |
 >
 > Every other node count from 3 to 64 (3, 5 to 7, 9 to 15, and 17 and up) is in
 > the same state on `net/mesh` and `disk/caw` with `direct`, `mpath` or `pass`.
@@ -269,7 +282,7 @@
 > | `direct` | yes | yes | its own initiator, one path: bare metal, or an in-guest iSCSI login |
 > | `mpath` | yes | yes | its own initiator over two or more paths, assembled by dm-multipath |
 > | `pass` | yes | no | the hypervisor's initiator: the LUN is passed into the VM (QEMU SCSI passthrough, VMware RDM) |
-> | `drbd` | yes | yes, two nodes with `net/mesh` | a DRBD dual-primary replica of two local disks: no shared storage at all |
+> | `drbd` | yes | no: released in 0.90.41, withdrawn on 2026-10-06 | a DRBD dual-primary replica of two local disks: no shared storage at all |
 >
 > A configuration that names a method or an attach that is not implemented does
 > not exist yet. `drbd` can never be more than two nodes, because DRBD allows
@@ -327,11 +340,12 @@
 > has tested. Fibre Channel and SAS are not verified. A device without SCSI
 > persistent reservations (virtio-blk, NVMe, md RAID) is refused at mount.
 >
-> **Verified without shared storage: `drbd`.** Two nodes, each with a local
-> disk, replicated by DRBD dual-primary and fenced through the site's own
-> fence authority instead of SCSI reservations (`2/net/mesh/drbd`, released in
-> 0.90.41; `docs/attachment-methods.md`). Verified on Ubuntu 24.04 with DRBD
-> 8.4.11.
+> **Without shared storage, `drbd`, is not released.** Two nodes, each with a
+> local disk, replicated by DRBD dual-primary and fenced without SCSI
+> reservations (`2/net/mesh/drbd`, `docs/attachment-methods.md`).  It was
+> released in 0.90.41 on Ubuntu 24.04 with DRBD 8.4.11 and withdrawn on
+> 2026-10-06, after it failed under real load on two physical Proxmox hosts
+> (see the top of this file).
 >
 > What a build has to pass before it is called a release, and what that does
 > not cover, is in "How a release is validated" below.
@@ -390,7 +404,7 @@
 > ```
 > tools/defects.py 16/net/mesh/direct --release  # released; also 2/, 4/, 8/ and .../mpath
 > tools/defects.py 16/disk/caw/mpath --release   # released; also 2/, 4/, 8/ and .../direct
-> tools/defects.py 2/net/mesh/drbd --release     # released
+> tools/defects.py 2/net/mesh/drbd --release     # withdrawn: not released
 > tools/defects.py 32/disk/caw/mpath             # 32 nodes: not released yet
 > ```
 
@@ -409,7 +423,8 @@ fork of XFS.
   fencing and lock commands are SCSI's.
 - **Or two nodes and no shared storage at all.** Two hosts with a local disk
   each, replicated by DRBD dual-primary, mount one MXFS filesystem read/write
-  on both (`2/net/mesh/drbd`, "DRBD dual-primary" under Quick start).
+  on both (`2/net/mesh/drbd`, "DRBD dual-primary" under Quick start).  Not
+  released: withdrawn on 2026-10-06, see the top of this file.
 - **Coherent and consistent.** A write on one node becomes visible to the
   others; metadata and data stay consistent across node failures.
 - **One kernel module, no daemon.** All cluster coordination — locking, peer
@@ -741,6 +756,9 @@ mount -t mxfs -o peer=10.0.0.11 /dev/sdX /mnt/shared      # on 10.0.0.12
 other sender. See `mxfs(5)` and [`docs/discovery.md`](docs/discovery.md).
 
 ### DRBD dual-primary (`2/net/mesh/drbd`)
+
+**Not released: withdrawn on 2026-10-06** (see the top of this file).  Do not
+put data you need on it until a release lists it again.
 
 Two hosts, each with a local disk, and no shared storage, no third machine and
 no fence hardware. The complete, tested setup is in

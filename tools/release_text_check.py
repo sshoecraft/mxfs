@@ -92,10 +92,23 @@ STALE = [
     (r"(CAW|disk/caw)[^.\n]{0,60}\bin development\b|\bin development\b[^.\n]{0,60}(CAW|disk/caw)",
      "calls the disk/caw lock manager in development"),
     (r"\bthe released (transport|configuration)\b", "implies one lock manager is the released one"),
-    (r"(dm-multipath|multipath|\bmpath\b|DRBD)[^.\n]{0,120}\b(not verified|unverified|not supported|not released|not in any release)\b",
-     "calls multipath or DRBD unverified, unsupported or unreleased"),
     (r"\b(not in|outside) the release matrix\b", "places a configuration outside the release"),
 ]
+
+# How prose names an attachment.  A public file must not call a RELEASED
+# attachment unverified, unsupported or unreleased; which ones are released
+# comes from the data.  DRBD was released in 0.90.41 and withdrawn on
+# 2026-10-06, and the text that says so is right.
+ATTACH_WORDS = {"mpath": r"dm-multipath|multipath|\bmpath\b", "drbd": r"DRBD"}
+
+
+def attach_rule(rel: list[str]) -> tuple[str, str] | None:
+    names = sorted({c.split("/")[3] for c in rel} & set(ATTACH_WORDS))
+    if not names:
+        return None
+    return (r"(" + "|".join(ATTACH_WORDS[n] for n in names) + r")[^.\n]{0,120}"
+            r"\b(not verified|unverified|not supported|not released|not in any release)\b",
+            "calls a released attachment (" + ", ".join(names) + ") unverified, unsupported or unreleased")
 
 # (file, exact stripped line, reason).  The line must still be in the file: a
 # stale exemption fails the check, so this list cannot outlive what it excuses.
@@ -233,10 +246,11 @@ def main() -> int:
         ]
     texts = [(f, list(enumerate(read(f).splitlines(), 1))) for f in PUBLIC if (ROOT / f).exists()]
     texts += [(f, module_text(f)) for f in MODULE_TEXT if (ROOT / f).exists()]
+    stale = STALE + [r for r in [attach_rule(rel)] if r]
     for f, lines in texts:
         for i, line in lines:
             hit = None
-            for pat, why in STALE:
+            for pat, why in stale:
                 if re.search(pat, line, re.I):
                     hit = why
                     break

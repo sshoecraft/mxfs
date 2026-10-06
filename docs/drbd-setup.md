@@ -1,5 +1,8 @@
 # MXFS on two hosts with DRBD dual-primary
 
+**Not released: `2/net/mesh/drbd` was withdrawn on 2026-10-06** (see the top of
+the README).  Do not put data you need on it until a release lists it again.
+
 Two hosts, each with a local disk, and no shared storage: DRBD keeps the two
 disks identical and MXFS runs on top of both at once. This is the `2/net/mesh/drbd`
 configuration. It works with exactly two hosts and nothing else: no SAN, no

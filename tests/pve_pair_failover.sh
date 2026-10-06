@@ -34,6 +34,14 @@
 #              the survivor's guard releases it on its answer, and it dies
 #              again before it ever connects; only then is participant 0
 #              reset.  The physical pair did exactly this on 2026-10-05/06.
+#   answering-restart
+#              participant 1 is reset with its unit masked, so it comes back
+#              answering with no DRBD; participant 0 recovers it and its guard
+#              releases it.  Then participant 0 is reset with participant 1
+#              still up that way.  Participant 0 must exclude it again and
+#              mount alone, and its guard must not release participant 1
+#              before that mount is done; then participant 1's unit starts and
+#              the pair is whole.  Resets only: no host is powered off.
 #   stale-promotion
 #              participant 1 is powered off; participant 0 carries on and
 #              writes, then its unit is stopped (up, not Primary, unmounted).
@@ -531,6 +539,61 @@ step_released_restart() {
     check_set released-restart.alone "$P1" "$P0"
 }
 
+# answering-restart: participant 0 restarts while participant 1 is up and
+# answering with no DRBD, as pve1 did at 09:46 on 2026-10-06 with pve2 on an
+# install that had lost its DRBD units.  DRBD's record holds participant 1
+# Outdated, so participant 0's boot program excludes it again and mounts
+# alone, and the module's startup fence judges that exclusion until the mount
+# completes.  pve1's guard released pve2 a minute into that mount (pve2
+# answered), and the mount was refused at its 120 s bound.
+step_answering_restart() {
+    local b0 b1 t0 s out tm tr
+    write_sets answering-restart; start_loads answering-restart
+    sleep 10
+    on "$P1" "systemctl mask mxfs-drbd@$RES >/dev/null 2>&1 && echo MASKED" 20 | grep -q MASKED \
+        || die "could not mask mxfs-drbd@$RES on $P1"
+    LEFT="$P1 has mxfs-drbd@$RES masked: systemctl unmask mxfs-drbd@$RES there, then start it"
+    b1=$(boot_id "$P1")
+    say "answering-restart: resetting $P1 (participant 1) under load on both; it comes back with no DRBD"
+    t0=$(date +%s); reset_host "$P1"
+    s=$(wait_recovered "$P0" "$t0" "$RECOVER_BUDGET") || die "$P0 did not recover $P1 within ${RECOVER_BUDGET}s of its reset"
+    say "  $P0 recovered $P1 $s s after its reset"
+    out=$(load_result "$P0")
+    [ "$(sed -n 's/.*err=\([0-9]*\).*/\1/p' <<<"$out")" = 0 ] || die "the survivor's load saw an error: ${out:-no result}"
+    say "  survivor $P0: $out"
+    s=$(wait_rebooted "$P1" "$b1" "$BOOT_BUDGET") || die "$P1 did not come back within ${BOOT_BUDGET}s of its reset"
+    s=$(wait_released "$P0" "$t0" "$RELEASE_BUDGET") || die "$P0 did not release $P1 within ${RELEASE_BUDGET}s of its answering with DRBD down"
+    say "  $P0 released $P1 ${s}s after it answered with DRBD down"
+    write_set answering-restart.alone "$P0"
+    b0=$(boot_id "$P0")
+    say "  resetting $P0 (participant 0) with $P1 up and answering, DRBD down"
+    reset_host "$P0"
+    s=$(wait_rebooted "$P0" "$b0" "$BOOT_BUDGET") || die "$P0 did not come back within ${BOOT_BUDGET}s of its reset"
+    s=$(wait_alone "$P0" "$ALONE_BUDGET") || die "$P0 did not mount alone within ${ALONE_BUDGET}s of answering ($P1 up, no DRBD)"
+    say "  $P0 mounted alone $s s after answering"
+    out=$(on "$P0" "journalctl -b --no-pager -o short-unix -t mxfs-drbd-fence | grep -a -E 'peer-outdated|is excluded \(episode|mounting as the survivor|: mounted /dev|holding .* out|released |failed \(rc=' | cut -c1-260" 30)
+    echo "$out" > "$EVID/answering-restart.boot.$P0"
+    sed 's/^/    /' <<<"$out" | tee -a "$EVID/log"
+    tm=$(awk '/: mounted \/dev/ {print $1; exit}' <<<"$out")
+    tr=$(awk '/released / {print $1; exit}' <<<"$out")
+    [ -n "$tm" ] || die "$P0's journal does not show its boot program mounting"
+    grep -q 'is excluded (episode' <<<"$out" || die "$P0 mounted alone without excluding $P1 at boot"
+    if [ -n "$tr" ] && awk -v r="$tr" -v m="$tm" 'BEGIN { exit !(r < m) }'; then
+        die "$P0's guard released $P1 before its own mount was done (released at $tr, mounted at $tm)"
+    fi
+    check_set answering-restart "$P0" "$P0"; check_set answering-restart "$P0" "$P1"; check_set answering-restart.alone "$P0" "$P0"
+    check_writes answering-restart "$P0"
+    say "  $P0 alone holds every fsynced file of both hosts, and its own since, and writes"
+    on "$P1" "systemctl unmask mxfs-drbd@$RES >/dev/null 2>&1 && systemctl start --no-block mxfs-drbd@$RES && echo STARTED" 30 | grep -q STARTED \
+        || die "could not unmask and start mxfs-drbd@$RES on $P1"
+    LEFT=""
+    s=$(wait_mounted "$P1" "$REJOIN_BUDGET") || die "$P1 did not mount again within ${REJOIN_BUDGET}s of its unit starting"
+    say "  $P1 rejoined $s s after its unit started"
+    collect answering-restart "$t0"
+    verify_sets answering-restart
+    check_set answering-restart.alone "$P1" "$P0"
+}
+
 step_stale_promotion() {
     local b1 s out
     write_sets stale-promotion; start_loads stale-promotion
@@ -774,7 +837,7 @@ STEPS=("$@")
 [ "${#STEPS[@]}" -gt 0 ] || STEPS=(p1-crash reboot power-cut p0-crash)
 for s in "${STEPS[@]}"; do
     case "$s" in
-        p1-crash|p0-crash|power-cut|reboot|promotion-race|withdraw-both|withdraw-p1|withdraw-held|withdraw-guests) ;;
+        p1-crash|p0-crash|power-cut|reboot|promotion-race|withdraw-both|withdraw-p1|withdraw-held|withdraw-guests|answering-restart) ;;
         survivor-restart|released-restart|stale-promotion)
             [ -n "${PVE_POWER_ON:-}" ] || { echo "$s keeps a host powered off: set PVE_POWER_ON to the command that powers one on"; exit 2; } ;;
         *) echo "unknown step: $s"; exit 2 ;;
