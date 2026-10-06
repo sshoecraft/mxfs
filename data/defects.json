@@ -1547,17 +1547,6 @@
       "updated": "2026-10-05"
     },
     {
-      "id": "D-UNFENCED-CLUSTERED-MOUNT-ADMITTED-ON-A-DEVICE-WITH-NO-PR",
-      "severity": "critical",
-      "nodes": 2,
-      "config": "net/mesh/*",
-      "opened": "2026-10-05",
-      "summary": "a clustered net/mesh mount on a device with no SCSI PR support (here /dev/drbd0 over a loop device) is admitted with no fence at all: PR register/reserve are skipped with a warning, the slot is claimed by a plain write, and a survivor later replays a dead peer journal with no proof the peer is off",
-      "evidence": "MEASURED 2026-10-05 on two physical PVE 9 hosts (pve1/pve2), source build 8fb6cf3 (0.90.42, srcversion EB186976F3E469919F78351), tests/evidence/pve_phys_drbd_20261005/pve1/k_b-1.log.gz: 17:07:02 and 17:28:43 'scsipr: 'mxfs' has no PR support, skipping register' / '... skipping reserve', 'disklock: claimed heartbeat slot 0 ... (non-CAW verified, attempt 0)'; no P-DRBD-ARM line in any boot. 17:57:16 DRBD NetworkFailure; 17:58:22 'elected (slot 0) to replay dead node 320782260's log slice 1', 17:58:26 P163-RECOVERY-COMPLETE. Nothing proved pve2 off (no fence authority existed); pve2 was in fact dead (its journal ends 17:56:42). Host has no /usr/sbin/mxfs_drbd_witness.py, no /etc/mxfs/drbd-fence.conf.",
-      "next": "Find where the -EOPNOTSUPP register result lets the mount continue (dlm/scsipr.c:522 returns 0) and why a DRBD-major device took this path rather than v5_drbd_arm (drbd_minor<0?); a clustered mount with no fence capability must be refused, then reproduce on a drbd0-over-loop rig pair and confirm the refusal.",
-      "platform": "pve9"
-    },
-    {
       "id": "D-PVE-PHYS-DRBD-NODE-DIED-IN-A-LOCK-RELEASE-SPIN",
       "severity": "critical",
       "nodes": 2,
@@ -1565,8 +1554,9 @@
       "opened": "2026-10-05",
       "summary": "on 2 physical PVE 9 hosts under two concurrent image builds on /mnt/shared, pve2 stopped (no oops, no pstore) while a kworker cycled P15-REL-ABORT/P79-STALEBAST-CLEAR on one inode every ~20 us with the lock held 252 s, and ls/du hit acquire timeouts on another",
       "evidence": "MEASURED 2026-10-05, build as D-UNFENCED-CLUSTERED-MOUNT-ADMITTED-ON-A-DEVICE-WITH-NO-PR, tests/evidence/pve_phys_drbd_20261005/pve2/k_b-4.log.gz: last line 17:56:42.986720; final cycles 'P74-GRANT ino=10485889 mode=NL status=10', 'DLM inode lock failed: ino=10485889 mode=5 rc=-35', 'P79-STALEBAST-CLEAR ... req=5 granted=3', 'P70-BP ... held_ms=252744 tops=4390 comm=kworker/u32:0', 'P15-REL-ABORT ... holder re-acquired during drain; release aborted, BAST re-armed'; 17:56:33 P-LKTIMEOUT-REMOTE ino=133 + P36-RETRY comm=ls, 17:56:39 comm=du. /var/lib/systemd/pstore empty on both hosts. Cause of the stop (livelock, hang, reset) NOT established. pve1 shows the same pattern on ino=133 (2269 P71-HOLD, 2118 P79-NESTADMIT, 645 lock failed rc=-35, 592 P79-STALEBAST-CLEAR in tests/evidence/pve_phys_drbd_20261005/pve1/k_b-1.log.gz). Note the mount ran unfenced and with target_cache_protected=0 fua_disable=1 (see the unfenced-mount record).",
-      "next": "Read the release/BAST loop at P15-REL-ABORT (holder re-acquired during drain) with P79-STALEBAST-CLEAR: can it re-arm forever with no backoff? Reproduce two concurrent large-file writers on 2/net/mesh/drbd on the rig with netconsole capturing the end.",
-      "platform": "pve9"
+      "next": "Read the release/BAST loop at P15-REL-ABORT (holder re-acquired during drain) with P79-STALEBAST-CLEAR: can it re-arm forever with no backoff? Reproduce two concurrent large-file writers on 2/net/mesh/drbd on the rig with netconsole capturing the end. ===== BUILD CORRECTION (measured 2026-10-05): the crash-time module was NOT 0.90.42 \u2014 it was loaded at boot (pve1 12:27, pve2 12:23) from an earlier install that the 16:52 make install overwrote; it carries 'single_node observed true again', which 0.90.42 does not. Version unknown, July-era. Re-run the same workload (two concurrent image builds on /mnt/shared) on 0.90.55 with DRBD fenced before judging the current build.",
+      "platform": "pve9",
+      "updated": "2026-10-05"
     },
     {
       "id": "D-SURVIVOR-FLOODS-KERNEL-LOG-WITH-DIAGNOSTIC-LINES",
@@ -1576,8 +1566,9 @@
       "opened": "2026-10-05",
       "summary": "a 0.90.42 source build filled pve1 kernel log with MXFS diagnostic lines: 22,828 of 24,202 kernel lines in the boot, including P-SINGLENODE-REGRESSION every ~10 s for an hour after the peer died, a line the 0.90.42 source names only in a comment",
       "evidence": "MEASURED 2026-10-05 tests/evidence/pve_phys_drbd_20261005/pve1/k_b-1.log.gz: top prefixes 2853 P-SINGLENODE-REGRESSION, 2269 P71-HOLD, 2118 P79-NESTADMIT, 1220 P44-GRANTDIREPOCH, 1206+1143+804+804 'DLM reload BAIL', 537+328+325+93 P2G-LOGWHO, 123 P63-INSERT-DESYNC. /proc/dynamic_debug/control: 1585 mxfs sites, 7 enabled; cmdline and modprobe.d carry no dyndbg. dist/0.90.41 and 0.90.42 source: mxfs_probe is pr_debug and P-SINGLENODE-REGRESSION appears only in a comment (dlm/v5_mount.c), so which code printed it is NOT established.",
-      "next": "Find the code that printed P-SINGLENODE-REGRESSION in 8fb6cf3 (grep the format text, not the tag), and why the other probe lines printed with 7 dyndbg sites enabled; diagnostic lines must not reach a production log at that rate.",
-      "platform": "pve9"
+      "next": "Find the code that printed P-SINGLENODE-REGRESSION in 8fb6cf3 (grep the format text, not the tag), and why the other probe lines printed with 7 dyndbg sites enabled; diagnostic lines must not reach a production log at that rate. ===== BUILD CORRECTION (measured 2026-10-05): the crash-time module was NOT 0.90.42 \u2014 it was loaded at boot (pve1 12:27, pve2 12:23) from an earlier install that the 16:52 make install overwrote; it carries 'single_node observed true again', which 0.90.42 does not. Version unknown, July-era. Re-run the same workload (two concurrent image builds on /mnt/shared) on 0.90.55 with DRBD fenced before judging the current build.",
+      "platform": "pve9",
+      "updated": "2026-10-05"
     },
     {
       "id": "D-DRBD-SETUP-NOT-REPRODUCIBLE-FROM-THE-PUBLIC-INSTRUCTIONS",
@@ -1589,6 +1580,16 @@
       "evidence": "MEASURED 2026-10-05 tests/evidence/pve_phys_drbd_20261005/*/03_mounts_drbd.txt: r0.res protocol C, allow-two-primaries, become-primary-on both, disk /dev/loop0 (backed by /root/disk.img), no fencing/handlers; after reboot 'drbdadm status' = 'r0: No such resource', no fstab or unit mounts MXFS. pve2 became Primary at 17:08:53 while SyncTarget/Inconsistent (UpToDate only at 17:25:18). The user reported having to search the web for how to set DRBD up. 2/net/mesh/drbd was verified only by scripts/drbd_rig.sh, which installs witness, authority and config itself.",
       "next": "Write a standalone DRBD setup guide (resource, fence authority on physical hosts, boot-time bring-up, mount at boot) and run it end to end on pve1/pve2 from a clean clone; until it passes there, 2/net/mesh/drbd should not be listed as released.",
       "platform": "pve9"
+    },
+    {
+      "id": "D-REFUSED-MOUNT-REPORTS-ENOTCONN-TO-THE-USER",
+      "severity": "minor",
+      "nodes": 1,
+      "config": "*/*/*",
+      "opened": "2026-10-05",
+      "summary": "a mount MXFS refuses for a stated reason (no fencing, no PR support) returns ENOTCONN, so mount(8) prints 'Transport endpoint is not connected' and the reason exists only in dmesg",
+      "evidence": "MEASURED 2026-10-05 pve1, 0.90.55: both refusals (P-DRBD-ARM-REFUSED, PR register failed) gave mount rc=32 with 'fsconfig() failed: Transport endpoint is not connected.'",
+      "next": "Return EPERM/EACCES for an admission refusal and log the one-line reason through the fs_context log (errorfc) so mount(8) prints it."
     }
   ]
 }

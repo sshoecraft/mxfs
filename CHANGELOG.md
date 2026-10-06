@@ -18,6 +18,23 @@ an MXFS .deb, rpm or DKMS module, naming it and the command that removes it;
 measured on the pve1 host, which still has the 0.11.39 .deb: refused, rc=1.
 The rpm still carries its own copy of the list in its spec.
 
+`make install` also warns when the module still loaded is not the one it just
+installed: `modprobe mxfs` does nothing while a module is loaded.  That is what
+happened on the PVE hosts: the module loaded at boot (pve1 12:27, pve2 12:23)
+came from an earlier, July-era install and ran every mount of the afternoon,
+while 0.90.42 sat on disk unused.  It carries a log line 0.90.42 does not, and
+it ran no DRBD admission at all.
+
+**An unfenced clustered mount is refused (verified on 0.90.55; the PVE crash
+ran the July build).**  Installed on pve1 by `git pull` + `make install`,
+0.90.55 refused both shapes, mount rc=32 each: `/dev/drbd0` with no fencing in
+the DRBD resource (`P-DRBD-ARM-REFUSED minor=0 — fencing policy is '', not
+resource-and-stonith`), and a plain loop device with no PR support (`TCP SCSI
+PR register failed — aborting mount (node would be unfenced ...)`).
+`D-UNFENCED-CLUSTERED-MOUNT-ADMITTED-ON-A-DEVICE-WITH-NO-PR` is removed from
+the queue.  mount(8) reports either refusal only as "Transport endpoint is not
+connected"; that is queued as `D-REFUSED-MOUNT-REPORTS-ENOTCONN-TO-THE-USER`.
+
 ## 2026-10-05 — 0.90.54 — IN PROGRESS, NOT RELEASED: multipath verification; a refused lock upgrade is retried ahead of the node's own readers
 
 **Nothing on the `mpath` attachment is released by this entry yet.**  The

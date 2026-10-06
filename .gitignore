@@ -31,6 +31,25 @@ tests/**/*.log.*
 # records still cite paths under it; those files exist on the rig host only.
 tests/evidence/
 
+# ---- Rig run state written at the repo root by run.sh and the harnesses ----
+# Cluster markers, last-run records, throughput yardsticks, crash latches, the
+# run lock, the host guard's snapshots and bench output: per-host state of the
+# test rig, rewritten on every run.  None of it is source, and a clone that
+# carries it shows a stranger's rig as if it were theirs.
+/.cluster_marker*.json
+/.last_run*.json
+/.raw_fio_ceiling.*.json
+/.xfs_fio_baseline*.json
+/.xfs_fio_baseline*.json.backup
+/.criteria_results.json*
+/.suite_results.json
+/.tooling_results.json
+/.crash_seen
+/.run_lock
+/.evidence/
+/bench.json
+/._*
+
 # ---- ccloop run state: session prompts, logs and resume files. ----
 # Local loop state, not project source; it holds full local paths and
 # verbatim session text.

@@ -1,5 +1,0 @@
-when:    2026-10-05T08:14:35Z
-why:     FLOOD
-trigger: kernel log above 60 lines/s for 60s (12 consecutive hot windows, last ~97 lines/s over 5s) — last: [500688]: scst: scst_set_cmd_error_status:1758:Reservation conflict (dev mxfspool05, initiator iqn.2004-10.com.ubuntu:01:test9-mxfs-node, tgt_id 22)
-uptime:   03:14:35 up 13 days, 12:39,  4 users,  load average: 17.64, 14.56, 13.96
-tainted: 12800
