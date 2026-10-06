@@ -440,6 +440,12 @@ struct mxfs_recov_complete_res {
 	unsigned int    retry_ms;       /* RETRY: delay before the next attempt */
 	unsigned int    attempts;       /* failures charged to this identity so far */
 	const char      *site;          /* the ladder step that failed */
+	/* walls of the grant retirement's steps, printed on the
+	 * P163-RECOVERY-COMPLETE line: a survivor's rejoining peer and every
+	 * request on a resource the dead node mastered wait for that line */
+	unsigned int    ledger_ms;      /* ledger purge of the dead owner */
+	unsigned int    tables_ms;      /* lock-table purge */
+	unsigned int    handoff_ms;     /* page takeover, or queueing it */
 };
 
 /* the budget rule derivations for the bounded completion ladder (ruling 5):

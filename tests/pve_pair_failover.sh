@@ -770,7 +770,10 @@ step_withdraw_held() {
 # group locks participant 1 mastered among them.
 step_withdraw_guests() {
     local t0 s sd rc out i id ids="" b1 tr tu
-    write_sets withdraw-guests; start_loads withdraw-guests
+    # The VMs are made before the loads start: under both hosts' loads one VM's
+    # disk allocation on the shared storage took past Proxmox's 60 s lock
+    # (0.90.78: "'storage-shared'-locked command timed out"), a defect of its
+    # own, and not what this step measures.
     for i in $(seq 1 "$GUESTS"); do
         out=$(on "$P1" "id=\$(pvesh get /cluster/nextid) && qm create \$id --name pvefail-g$i --memory 256 --cores 1 --scsihw virtio-scsi-single --scsi0 shared:1 --boot order=scsi0 >/dev/null && qm start \$id >/dev/null && kill -STOP \$(cat /var/run/qemu-server/\$id.pid) && echo \"GUEST \$id \$(cat /var/run/qemu-server/\$id.pid)\"" 120)
         id=$(sed -n 's/^GUEST \([0-9]*\) .*/\1/p' <<<"$out")
@@ -779,6 +782,7 @@ step_withdraw_guests() {
         LEFT="test VMs$ids on $P1 (frozen or killed): there, for each, kill -9 its QEMU if running, then qm destroy <id> --purge 1"
     done
     say "  $P1 runs $GUESTS VMs on $MNT, frozen:$ids"
+    write_sets withdraw-guests; start_loads withdraw-guests
     out=$(on "$P0" "e=io_uring; fio --enghelp 2>/dev/null | grep -q io_uring || e=libaio
         rm -f $MNT/pvefail/thin.\$(hostname) /root/pvefail_thin.json
         nohup setsid fio --name=thin --filename=$MNT/pvefail/thin.\$(hostname) --size=8g --rw=randwrite --bs=64k --fallocate=none \

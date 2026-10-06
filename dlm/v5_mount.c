@@ -16461,6 +16461,9 @@ static int v5_dead_grants_retire(struct mxfs_v5_dlm *ctx, uint32_t dead_slot,
 		     (unsigned long long)(tc_ledger ? tc_ledger - tc_refresh : 0),
 		     (unsigned long long)(tc_dlmpurge ? tc_dlmpurge - tc_ledger : 0),
 		     (unsigned long long)(tc_handoff ? tc_handoff - tc_dlmpurge : 0));
+	res->ledger_ms = (unsigned int)(tc_ledger ? tc_ledger - tc_refresh : 0);
+	res->tables_ms = (unsigned int)(tc_dlmpurge ? tc_dlmpurge - tc_ledger : 0);
+	res->handoff_ms = (unsigned int)(tc_handoff ? tc_handoff - tc_dlmpurge : 0);
 	return 0;
 }
 
@@ -16471,6 +16474,9 @@ static int v5_recovery_complete_ladder(struct mxfs_v5_dlm *ctx,
 	mxfs_node_id_t dead_node;
 	mxfs_epoch_t dead_epoch;
 	struct mxfs_recov_auth auth;
+	/* step walls for the P163-RECOVERY-COMPLETE line */
+	uint64_t t_entry = mxfs_pal_time_ms(), t_gated = 0, t_flushed = 0,
+		 t_retired = 0, t_zeroed = 0;
 	int rc;
 
 	/* both bail paths below were SILENT — a
@@ -16885,6 +16891,7 @@ static int v5_recovery_complete_ladder(struct mxfs_v5_dlm *ctx,
 		}
 	}
 
+	t_gated = mxfs_pal_time_ms();
 	/* ── 1. CAW authority purge (irreversible; must succeed) ── */
 	if (ctx->dlm_caw) {
 		rc = mxfs_dlm_caw_purge_node(ctx->dlm_caw, (uint8_t)dead_slot);
@@ -16912,6 +16919,7 @@ static int v5_recovery_complete_ladder(struct mxfs_v5_dlm *ctx,
 		V5_COMPLETE_HELD_FAIL(res, rc, "flush", 0, false);
 		return rc;
 	}
+	t_flushed = mxfs_pal_time_ms();
 
 	/*
 	 * ── 2b. The grants are gone AND durable: record the milestone ──
@@ -17020,12 +17028,14 @@ static int v5_recovery_complete_ladder(struct mxfs_v5_dlm *ctx,
 				   "recovery-complete");
 	if (rc < 0)
 		return rc;
+	t_retired = mxfs_pal_time_ms();
 	{
 	uint64_t tc0 = mxfs_pal_time_ms(), tc_dkpurge;
 
 	/* ── 3. Zero the dead node's lock records + HB sector — the broadcast ── */
 	rc = mxfs_disklock_purge_node(ctx->disklock, dead_node);
 	tc_dkpurge = mxfs_pal_time_ms();
+	t_zeroed = tc_dkpurge;
 	mxfs_pal_log(MXFS_LOG_DEBUG,
 		     "mxfs: P-COMPLETE-TIMING slot=%u node=%u "
 		     "disklock_purge_ms=%llu rc=%d",
@@ -17074,8 +17084,16 @@ static int v5_recovery_complete_ladder(struct mxfs_v5_dlm *ctx,
 	mxfs_pal_log(MXFS_LOG_WARN,
 		     "mxfs: P163-RECOVERY-COMPLETE slot=%u node=%u — slice "
 		     "replayed, shared purges done, dead slot zeroed (peers "
-		     "will run their deferred purges)",
-		     dead_slot, dead_node);
+		     "will run their deferred purges); ms: total=%llu "
+		     "lease+milestones=%llu purge+flush=%llu grants=%llu "
+		     "(ledger=%u tables=%u handoff=%u) zero=%llu",
+		     dead_slot, dead_node,
+		     (unsigned long long)(mxfs_pal_time_ms() - t_entry),
+		     (unsigned long long)(t_gated - t_entry),
+		     (unsigned long long)(t_flushed - t_gated),
+		     (unsigned long long)(t_retired - t_flushed),
+		     res->ledger_ms, res->tables_ms, res->handoff_ms,
+		     (unsigned long long)(t_zeroed - t_retired));
 	memset(&ctx->complete_retry[dead_slot], 0,
 	       sizeof(ctx->complete_retry[dead_slot]));
 	/* the case is published: the next occupant of this slot starts with no

@@ -20,10 +20,13 @@
  *   -y   Repair all, answer yes to everything
  *
  * Returns (fsck-compatible exit codes):
- *   0  Filesystem clean, no errors
+ *   0  Filesystem clean, no errors; or, in -a/-p mode, journal slices that
+ *      only a mount can replay (nothing checked, nothing written)
  *   1  Errors found and corrected
  *   2  Usage error
  *   4  Errors found but NOT corrected (check-only or unfixable)
+ *   8  Journal slices not replayed: -n checked, but the findings are not a
+ *      verdict; -y refused to write
  *
  * Standalone — no libmxfs linkage. Uses POSIX pread() directly.
  *
@@ -2795,6 +2798,95 @@ static uint64_t decode_mepoch(const uint8_t *slot_buf, int slot,
     return epoch;
 }
 
+/* ─── Unreplayed journal slices ─── */
+
+/*
+ * Log slices that may hold transactions no mount has replayed, found by
+ * scan_unreplayed() before any pass that can write.  A slot whose incarnation
+ * never released it is one: ACTIVE (a node has it mounted now, or crashed) or
+ * WITHDRAWN (its mount shut down).  So is a recovery that stopped before its
+ * replay: a RECOVERY GUARD whose descriptor is not quarantined and is below
+ * IMAGES_REPLAYED, or cannot be read.  Not one: a clean release (inactive or
+ * RETIRE_PENDING), whose slice ends in an unmount record; a recovered slot,
+ * zeroed only once its slice was replayed; a quarantined slice, a terminal
+ * verdict that is never replayed.
+ *
+ * Until a mount replays them the XFS metadata on the platter is a checkpoint,
+ * not the filesystem: XFS writes a metadata buffer in place only after the log
+ * holds it, one buffer at a time, so structures can disagree with each other
+ * and the superblock's lazy counters lag.  What the check finds is then not a
+ * verdict, and a repair written now would have the replay land on top of it.
+ */
+static int unreplayed;
+static char unreplayed_slots[256];
+
+static void scan_unreplayed(int fd, const struct mxfs_ondisk_super *super)
+{
+    uint8_t sec[MXFS_DISKLOCK_RECORD_SIZE];
+    const struct chk_hb_hdr *h = (const void *)sec;
+
+    for (int i = 0; i < MXFS_DISKLOCK_HB_SLOTS; i++) {
+        off_t off = (off_t)(super->disklock_offset +
+                            (uint64_t)i * MXFS_DISKLOCK_RECORD_SIZE);
+        const char *why;
+        size_t n;
+
+        if (pread(fd, sec, sizeof(sec), off) != (ssize_t)sizeof(sec)) {
+            why = "unreadable";
+        } else if (h->magic != MXFS_DISKLOCK_MAGIC) {
+            continue;
+        } else if (h->flags == MXFS_DISKLOCK_FLAG_ACTIVE) {
+            why = "ACTIVE";
+        } else if (h->flags == MXFS_DISKLOCK_FLAG_WITHDRAWN_C) {
+            why = "WITHDRAWN";
+        } else if (h->flags == MXFS_DISKLOCK_FLAG_RECOVERY_GUARD_C) {
+            struct chk_recov_desc d;
+            uint32_t oc_magic;
+
+            memcpy(&d, sec + MXFS_RECOV_DESC_OFF_C, sizeof(d));
+            memcpy(&oc_magic, sec + MXFS_RECOV_OUTCOME_OFF_C, sizeof(oc_magic));
+            if (d.magic == 0 && oc_magic == 0)
+                continue;       /* the unlinked-bucket sweep's working guard */
+            if (d.magic != MXFS_RECOV_DESC_MAGIC_C ||
+                d.version != MXFS_RECOV_DESC_VERSION_C ||
+                chk_recov_body_crc(h->fs_gen, h->node_id, h->epoch, &d,
+                                   offsetof(struct chk_recov_desc, crc32c)) !=
+                    d.crc32c)
+                why = "RECOVERY GUARD, descriptor unreadable";
+            else if (d.flags & MXFS_RECOV_F_QUARANTINED_C)
+                continue;
+            else if (d.stage < 4)       /* IMAGES_REPLAYED */
+                why = "RECOVERY GUARD, stopped before its replay";
+            else
+                continue;
+        } else {
+            continue;
+        }
+        unreplayed++;
+        n = strlen(unreplayed_slots);
+        snprintf(unreplayed_slots + n, sizeof(unreplayed_slots) - n, "%s%d %s",
+                 n ? ", " : "", i, why);
+    }
+}
+
+/*
+ * A superblock counter that disagrees with the trees it summarises.  The
+ * counters are lazy, written back at unmount: while a journal slice is
+ * unreplayed they lag, and that is a note, not an error.
+ */
+static void counter_err(const char *fmt, ...)
+{
+    va_list ap;
+
+    va_start(ap, fmt);
+    fprintf(stdout, unreplayed ? "  NOTE (journals not replayed): " : "  ERROR: ");
+    vfprintf(stdout, fmt, ap);
+    fprintf(stdout, "\n");
+    va_end(ap);
+    if (!unreplayed)
+        errors++;
+}
+
 static void check_disklock(int fd, const struct mxfs_ondisk_super *super)
 {
     uint8_t buf[512];
@@ -4781,9 +4873,9 @@ static void print_summary(int fd, const struct xfs_geo *geo,
     bool sb_needs_fix = false;
 
     if (total_agf_freeblks > geo->fdblocks) {
-        err("AGF freeblks sum %llu > superblock fdblocks %llu",
-            (unsigned long long)total_agf_freeblks,
-            (unsigned long long)geo->fdblocks);
+        counter_err("AGF freeblks sum %llu > superblock fdblocks %llu",
+                    (unsigned long long)total_agf_freeblks,
+                    (unsigned long long)geo->fdblocks);
     }
     if (total_bno_freeblks != geo->fdblocks) {
         sb_needs_fix = true;
@@ -4796,9 +4888,9 @@ static void print_summary(int fd, const struct xfs_geo *geo,
            (unsigned long long)geo->icount);
 
     if (total_inobt_inodes != geo->icount) {
-        err("inobt total inodes %llu != superblock icount %llu",
-            (unsigned long long)total_inobt_inodes,
-            (unsigned long long)geo->icount);
+        counter_err("inobt total inodes %llu != superblock icount %llu",
+                    (unsigned long long)total_inobt_inodes,
+                    (unsigned long long)geo->icount);
         sb_needs_fix = true;
     }
 
@@ -4808,9 +4900,9 @@ static void print_summary(int fd, const struct xfs_geo *geo,
            (unsigned long long)geo->ifree);
 
     if (total_inobt_free != geo->ifree) {
-        err("inobt total free inodes %llu != superblock ifree %llu",
-            (unsigned long long)total_inobt_free,
-            (unsigned long long)geo->ifree);
+        counter_err("inobt total free inodes %llu != superblock ifree %llu",
+                    (unsigned long long)total_inobt_free,
+                    (unsigned long long)geo->ifree);
         sb_needs_fix = true;
     }
 
@@ -8152,6 +8244,9 @@ static void usage(const char *prog)
                     "implemented in this build\n");
     fprintf(stderr, "  1  errors found and corrected\n");
     fprintf(stderr, "  4  errors found, not corrected\n");
+    fprintf(stderr, "  8  journal slices no mount has replayed: -n findings are "
+                    "not a verdict,\n     -y refuses to write (-a/-p exit 0: "
+                    "the mount replays them)\n");
     exit(2);
 }
 
@@ -8420,6 +8515,38 @@ int main(int argc, char **argv)
         return 4;
     }
 
+    /* 1b. Journal slices no mount has replayed, decided before any pass
+     * that can write.  (The envelope superblock above is written by mkfs
+     * alone, never journaled, so its CRC repair cannot meet a replay.) */
+    scan_unreplayed(fd, &super);
+    if (unreplayed) {
+        printf("Journals ................ NOT REPLAYED  (%d slice(s): slot %s)\n",
+               unreplayed, unreplayed_slots);
+        printf("  until a mount replays them, the XFS metadata on this device "
+               "is a checkpoint,\n  not the filesystem: what this check finds "
+               "is not a verdict\n");
+        if (repair == REPAIR_AUTO) {
+            /* preen, as fsck.mxfs at boot: after a crash this is the
+             * ordinary state, and replaying is the mount's job, as with
+             * XFS.  Nothing found now is a verdict and nothing may be
+             * written under the replay, so there is nothing to do. */
+            printf("\nchk_mxfs: nothing checked or repaired: mounting the "
+                   "filesystem replays its journals\n");
+            close(fd);
+            return 0;
+        }
+        if (repair == REPAIR_ALL) {
+            printf("\nchk_mxfs: repair refused: %d journal slice(s) hold "
+                   "transactions no mount has\nreplayed, and the replay would "
+                   "land on top of anything written now.  Mount the\n"
+                   "filesystem once (the mounting node replays them), unmount "
+                   "it cleanly on every\nnode, and check again.  An ACTIVE slot "
+                   "can be a node that still has it mounted.\n", unreplayed);
+            close(fd);
+            return 8;
+        }
+    }
+
     /* 2. Journal */
     check_journal(fd, &super);
 
@@ -8506,6 +8633,12 @@ int main(int argc, char **argv)
     close(fd);
 
     printf("\nchk_mxfs: ");
+    if (unreplayed) {
+        printf("%d error(s) found with %d journal slice(s) not replayed: not a "
+               "verdict.  Mount the\nfilesystem once, unmount it cleanly on "
+               "every node, and check again\n", errors, unreplayed);
+        return 8;
+    }
     if (errors == 0 && repaired == 0) {
         printf("filesystem clean\n");
         return 0;

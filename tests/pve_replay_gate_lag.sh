@@ -17,11 +17,12 @@
 # judged by the platter (P77-STALE-BASE-VERDICT buf_verdict=APPLY verdict=SKIP
 # where they disagree); with the slot alone, those images are applied.
 #
-#  1. Both hosts churn one shared directory: each appends numbered lines to one
-#     shared file, creates and renames files of its own there, removes old
-#     ones, and every 25 lines syncs the filesystem and records the last line
-#     it knows durable on its root filesystem.  Both hosts change the same
-#     inodes, so the peer's slice holds images the survivor has newer copies of.
+#  1. Both hosts churn one shared directory with CHURN loops each: loop k on
+#     either host appends numbered lines to the shared file shared.<k>.log,
+#     creates and renames files of its own there, removes old ones, and every
+#     25 lines syncs the filesystem and records the last line it knows durable
+#     on its root filesystem.  Both hosts change the same inodes, so the peer's
+#     slice holds images the survivor has newer copies of.
 #  2. After WORK_S participant 1 is reset (sysrq b).  Participant 0 recovers
 #     it under the injected lag, its own churn still running.
 #  3. Participant 0 must recover participant 1 and keep writing, and every line
@@ -41,6 +42,8 @@
 #   LAG        changes the gate reads each slot low by (default 1000000: every
 #              in-core slot reads as older than any image)
 #   WORK_S     seconds of churn before the reset (default 40)
+#   CHURN      churn loops per host (default 4; the first run, with one, put a
+#              single foreign inode image in front of the gate)
 #
 # Evidence: tests/evidence/pve_replay_gate_lag/<UTC stamp>-<addr>-<arm>/
 set -u
@@ -58,6 +61,7 @@ RES=${RES:-mxfs}
 MNT=${MNT:-/mnt/shared}
 LAG=${LAG:-1000000}
 WORK_S=${WORK_S:-40}
+CHURN=${CHURN:-4}
 # The same bounds as tests/pve_pair_failover.sh: the survivor's recovery of a
 # reset peer, the peer's boot, and its mount after answering.
 RECOVER_BUDGET=60
@@ -96,17 +100,18 @@ B1=$(field "$s1" boot)
 D="$MNT/gatelag/$STAMP"
 say "replay gate lag ($ARM): participant 0 $P0 ($N0) survives, participant 1 $P1 ($N1) is reset; build $(field "$s0" build); replay_gate_platter=$PLATTER lag=$LAG; evidence $EVID"
 
-# The churn.  It stops at its first error and says which command failed.
-LOAD='d=$1; h=$(hostname); i=0
-rm -f /root/gatelag.durable /root/gatelag.err
+# One churn loop, k.  It stops at its first error and says which command
+# failed; its durable count is /root/gatelag.durable.<k>.
+LOAD='d=$1; k=$2; h=$(hostname); i=0
+rm -f /root/gatelag.durable.$k /root/gatelag.err.$k
 while [ ! -e /dev/shm/gatelag.stop ]; do
     i=$((i + 1))
-    echo "$h $i" >> $d/shared.log || { echo "append $i" > /root/gatelag.err; exit 1; }
-    echo "$h $i" > $d/$h.$i && mv $d/$h.$i $d/$h.$i.r || { echo "create $i" > /root/gatelag.err; exit 1; }
-    [ $i -gt 20 ] && { rm -f $d/$h.$((i - 20)).r || { echo "remove $i" > /root/gatelag.err; exit 1; }; }
+    echo "$h $i" >> $d/shared.$k.log || { echo "append $k $i" > /root/gatelag.err.$k; exit 1; }
+    echo "$h $i" > $d/$h.$k.$i && mv $d/$h.$k.$i $d/$h.$k.$i.r || { echo "create $k $i" > /root/gatelag.err.$k; exit 1; }
+    [ $i -gt 20 ] && { rm -f $d/$h.$k.$((i - 20)).r || { echo "remove $k $i" > /root/gatelag.err.$k; exit 1; }; }
     if [ $((i % 25)) = 0 ]; then
-        sync -f $d/shared.log || { echo "sync $i" > /root/gatelag.err; exit 1; }
-        echo $i > /root/gatelag.durable.tmp && sync /root/gatelag.durable.tmp && mv /root/gatelag.durable.tmp /root/gatelag.durable && sync /root
+        sync -f $d/shared.$k.log || { echo "sync $k $i" > /root/gatelag.err.$k; exit 1; }
+        echo $i > /root/gatelag.durable.$k.tmp && sync /root/gatelag.durable.$k.tmp && mv /root/gatelag.durable.$k.tmp /root/gatelag.durable.$k && sync /root
     fi
 done'
 on "$P0" "mkdir -p $D && echo MADE" 30 | grep -q MADE || die "could not make $D"
@@ -114,7 +119,7 @@ for h in "$P0" "$P1"; do
     on "$h" "rm -f /dev/shm/gatelag.stop; cat > /dev/shm/gatelag-load.sh <<'EOS'
 $LOAD
 EOS
-nohup setsid bash /dev/shm/gatelag-load.sh $D >/dev/null 2>&1 </dev/null & echo STARTED" 20 | grep -q STARTED || die "could not start the churn on $h"
+for k in \$(seq 1 $CHURN); do nohup setsid bash /dev/shm/gatelag-load.sh $D \$k >/dev/null 2>&1 </dev/null & done; echo STARTED" 20 | grep -q STARTED || die "could not start the churn on $h"
 done
 LEFT="the churn may still run on $P0: touch /dev/shm/gatelag.stop there"
 say "  both hosts churn $D; resetting $P1 in ${WORK_S}s"
@@ -135,7 +140,7 @@ while [ $(( $(date +%s) - t0 )) -lt "$RECOVER_BUDGET" ]; do
 done
 say "  $P0 after the reset ($(( $(date +%s) - t0 )) s): ${rec:-no recovery lines}"
 sleep 10
-on "$P0" "touch /dev/shm/gatelag.stop; sleep 3; cat /root/gatelag.err 2>/dev/null; echo DURABLE=\$(cat /root/gatelag.durable 2>/dev/null)" 30 > "$EVID/churn.$P0"
+on "$P0" "touch /dev/shm/gatelag.stop; sleep 3; for k in \$(seq 1 $CHURN); do cat /root/gatelag.err.\$k 2>/dev/null; echo DURABLE.\$k=\$(cat /root/gatelag.durable.\$k 2>/dev/null); done" 30 > "$EVID/churn.$P0"
 on "$P0" "echo 1 > $PARAMS/replay_gate_platter; echo 0 > $PARAMS/dbg_replay_gate_buf_lag; echo 'file xfs_inode_item_recover.c -p' > /proc/dynamic_debug/control" 15 >/dev/null
 LEFT=""
 on "$P0" "journalctl -k --no-pager -o short-iso --since @$t0 | grep -aE 'P77-|P163-|P236-FENCE-CERTIFIED|P-RBLK|XFS|corrupt|Corruption|shutdown' | cut -c1-400" 60 > "$EVID/klog.$P0"
@@ -168,17 +173,19 @@ until pair_ok "$(state "$P1")"; do
     sleep 5
 done
 say "  $P1 mounted again $(( $(date +%s) - t1 )) s after answering"
-DUR0=$(sed -n 's/^DURABLE=//p' "$EVID/churn.$P0")
-DUR1=$(on "$P1" "cat /root/gatelag.durable 2>/dev/null" 10)
-say "  durable lines: $N0 ${DUR0:-0}, $N1 ${DUR1:-0}"
-[ -n "$DUR1" ] && [ "$DUR1" -gt 0 ] || { say "FAIL: INVALID RUN: $P1 recorded no durable line before its reset"; FAIL=1; }
-for h in "$P0" "$P1"; do
-    out=$(on "$h" "awk -v a=$N0 -v na=${DUR0:-0} -v b=$N1 -v nb=${DUR1:-0} '\$1 == a && \$2 <= na {sa[\$2] = 1} \$1 == b && \$2 <= nb {sb[\$2] = 1} END {ma = 0; mb = 0; for (j = 1; j <= na; j++) if (!(j in sa)) ma++; for (j = 1; j <= nb; j++) if (!(j in sb)) mb++; print \"MISSING \" ma \" \" mb}' $D/shared.log" 60)
-    say "  $h reads the shared file: $(grep '^MISSING' <<<"$out" || echo "$out")"
-    grep -q '^MISSING 0 0$' <<<"$out" || { say "FAIL: $h is missing durable lines of the shared file"; FAIL=1; }
+on "$P1" "for k in \$(seq 1 $CHURN); do echo DURABLE.\$k=\$(cat /root/gatelag.durable.\$k 2>/dev/null); done" 15 > "$EVID/churn.$P1"
+for k in $(seq 1 "$CHURN"); do
+    d0=$(sed -n "s/^DURABLE.$k=//p" "$EVID/churn.$P0"); d1=$(sed -n "s/^DURABLE.$k=//p" "$EVID/churn.$P1")
+    say "  shared.$k.log durable lines: $N0 ${d0:-0}, $N1 ${d1:-0}"
+    [ -n "$d1" ] && [ "$d1" -gt 0 ] || { say "FAIL: INVALID RUN: $P1's loop $k recorded no durable line before its reset"; FAIL=1; }
+    for h in "$P0" "$P1"; do
+        out=$(on "$h" "awk -v a=$N0 -v na=${d0:-0} -v b=$N1 -v nb=${d1:-0} '\$1 == a && \$2 <= na {sa[\$2] = 1} \$1 == b && \$2 <= nb {sb[\$2] = 1} END {ma = 0; mb = 0; for (j = 1; j <= na; j++) if (!(j in sa)) ma++; for (j = 1; j <= nb; j++) if (!(j in sb)) mb++; print \"MISSING \" ma \" \" mb}' $D/shared.$k.log" 60)
+        say "    $h reads shared.$k.log: $(grep '^MISSING' <<<"$out" || echo "$out")"
+        grep -q '^MISSING 0 0$' <<<"$out" || { say "FAIL: $h is missing durable lines of shared.$k.log"; FAIL=1; }
+    done
 done
-on "$P1" "rm -f /dev/shm/gatelag-load.sh /dev/shm/gatelag.stop /root/gatelag.durable; echo 1" 10 >/dev/null
-on "$P0" "rm -f /dev/shm/gatelag-load.sh /dev/shm/gatelag.stop /root/gatelag.durable; rm -rf $D; echo 1" 60 >/dev/null
+on "$P1" "rm -f /dev/shm/gatelag-load.sh /dev/shm/gatelag.stop /root/gatelag.durable.* /root/gatelag.err.*; echo 1" 10 >/dev/null
+on "$P0" "rm -f /dev/shm/gatelag-load.sh /dev/shm/gatelag.stop /root/gatelag.durable.* /root/gatelag.err.*; rm -rf $D; echo 1" 60 >/dev/null
 
 say "  stopping both mounts for a cold check"
 bash -c "PVE_PAIR='$P0 $P1' SKIP_INSTALL=1 CHECK=1 exec '$REPO/scripts/pve_pair_update.sh'" > "$EVID/cold-check.log" 2>&1

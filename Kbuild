@@ -236,11 +236,18 @@ mxfs-y += pal/linux/drbd.o
 # build.  filechk rewrites the header only when its content changes, and the
 # content names the header it was read from, so building one tree for a second
 # kernel cannot keep the first kernel's value.
-filechk_mxfs_libiscsi_fp = $(CONFIG_SHELL) $(src)/pal/linux/libiscsi_fingerprint.sh $(abspath $(srctree))/include/scsi/libiscsi.h
-$(obj)/pal/linux/mxfs_libiscsi_fp.h: FORCE
-	$(call filechk,mxfs_libiscsi_fp)
-$(obj)/pal/linux/kern.o: $(obj)/pal/linux/mxfs_libiscsi_fp.h
-clean-files += pal/linux/mxfs_libiscsi_fp.h
+#
+# The generated header is untracked (.gitignore).  Its earlier name,
+# pal/linux/mxfs_libiscsi_fp.h, was committed with one kernel's value, so every
+# clone that built for another kernel holds a modified copy of it; a commit that
+# changed or deleted that path would make those clones' `git pull` abort on
+# their local change.  Nothing includes or writes it any more, and it stays in
+# the tree exactly as committed.
+filechk_mxfs_libiscsi_fingerprint = $(CONFIG_SHELL) $(src)/pal/linux/libiscsi_fingerprint.sh $(abspath $(srctree))/include/scsi/libiscsi.h
+$(obj)/pal/linux/mxfs_libiscsi_fingerprint.h: FORCE
+	$(call filechk,mxfs_libiscsi_fingerprint)
+$(obj)/pal/linux/kern.o: $(obj)/pal/linux/mxfs_libiscsi_fingerprint.h
+clean-files += pal/linux/mxfs_libiscsi_fingerprint.h
 
 # ═══════════════════════════════════════════════════════════
 # MXFS Cluster layer (D9 + D10 — Phase 2 onward)

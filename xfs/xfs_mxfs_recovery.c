@@ -1641,14 +1641,24 @@ mxfs_dlm_foreign_replay_work_fn(
 		 * genuinely durable first, and skip the completion if we
 		 * cannot: the dead slot stays pending and re-arms.
 		 */
-		if (mxfs_blkdev_flush_durable(mp)) {
-			xfs_alert(mp,
-				"MXFS foreign replay slot=%u: durability "
-				"flush FAILED — recovery NOT published; the "
-				"slot stays pending and will be retried", slot);
-			set_bit(MXFS_REAPF_FREPLAY, &mp->m_mxfs_reap_duties);
-			mxfs_reap_sched(mp, MXFS_REAP_RETRY_MS, "freplay-retry");
-			continue;
+		{
+			ktime_t	tflush = ktime_get();
+
+			if (mxfs_blkdev_flush_durable(mp)) {
+				xfs_alert(mp,
+					"MXFS foreign replay slot=%u: durability "
+					"flush FAILED — recovery NOT published; the "
+					"slot stays pending and will be retried", slot);
+				set_bit(MXFS_REAPF_FREPLAY, &mp->m_mxfs_reap_duties);
+				mxfs_reap_sched(mp, MXFS_REAP_RETRY_MS, "freplay-retry");
+				continue;
+			}
+			/* the publication waits for it, and so does everything
+			 * waiting for the publication */
+			if (ktime_ms_delta(ktime_get(), tflush) >= 1000)
+				xfs_notice(mp,
+					"MXFS foreign replay slot=%u: the durability flush before publishing took %lld ms",
+					slot, ktime_ms_delta(ktime_get(), tflush));
 		}
 		/*
 		 * D2: only now — with the slice

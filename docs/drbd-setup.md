@@ -198,14 +198,17 @@ DRBD address (here `pve1`) is participant 0; the other is participant 1.
   device stalled past its 30 s authority lease, and from then on every access
   to `/mnt/shared` on that node fails with an I/O error. `mxfs-drbd-guard`
   sees this within seconds (`/sys/fs/mxfs/drbd0/shutdown` reads 1) and
-  rejoins the node without restarting it. It stops the VMs whose disks are on
-  the mount, which can no longer read or write them, and unmounts it. Then it
-  restarts `mxfs-drbd@mxfs`, which mounts it again as after a restart of that
-  node, and starts the on-boot guests. The node stays Secondary until the
-  other node has replayed its old mount's journal (it asks over ssh; at most
-  3 min). Being Secondary on a connected link is how the other node knows the
-  old mount is gone, so a node that promoted first would hold up that replay,
-  and with it its own mount. Other VMs it stopped stay stopped, and
+  rejoins the node without restarting it. It kills every process holding the
+  mount at once, the VMs whose disks are on it among them: they can no longer
+  read or write them, and a `qm stop` would pull their power too, only one VM
+  at a time. Proxmox cleans each one up as after a guest crash. Then it
+  unmounts the mount and restarts `mxfs-drbd@mxfs`, which mounts it again as
+  after a restart of that node, and starts the on-boot guests. The node stays
+  Secondary until the other node has replayed its old mount's journal (it asks
+  over ssh; at most 3 min). Being Secondary on a connected link is how the
+  other node knows the old mount is gone, so a node that promoted first would
+  hold up that replay, and with it its own mount. Other VMs it killed stay
+  stopped, and
   the journal names each one. It rejoins at most three times an hour. A mount
   that keeps shutting down stays down until you restart `mxfs-drbd@mxfs`, and
   the kernel log says why each time. A mount that cannot be released, because

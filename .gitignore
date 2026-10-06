@@ -127,5 +127,5 @@ __pycache__/
 *.klog
 
 # generated at build time from the target kernel's headers (Kbuild filechk)
-/pal/linux/mxfs_libiscsi_fp.h
+/pal/linux/mxfs_libiscsi_fingerprint.h
 /pal/linux/mxfs_kcompat.h

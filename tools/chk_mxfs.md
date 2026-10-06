@@ -196,7 +196,40 @@ chk_mxfs [-v] [-a|-p|-y|-n] /dev/sdX
 - `-a`: Auto-repair safe fixes (default for fsck.mxfs)
 - `-p`: Same as -a (preen mode, used by boot scripts)
 - `-y`: Repair all, answer yes to everything
-- Returns 0 if clean, 1 if errors corrected, 4 if errors remain
+- Returns 0 if clean, 1 if errors corrected, 4 if errors remain, 8 if journal
+  slices are not replayed (below)
+
+### Unreplayed journal slices
+
+Before any pass that can write, the check reads every heartbeat slot. A log
+slice may hold transactions no mount has replayed when its slot is:
+- ACTIVE: a node has the filesystem mounted now, or crashed;
+- WITHDRAWN: a node's mount shut down;
+- a RECOVERY GUARD whose recovery stopped before its replay (descriptor below
+  IMAGES_REPLAYED, not quarantined), or whose descriptor cannot be read.
+
+A clean release ends its slice in an unmount record, a recovered slot is
+zeroed only once its slice is replayed, and a quarantined slice is never
+replayed, so none of those counts.
+
+Until a mount replays those slices, the XFS metadata on the device is a
+checkpoint, not the filesystem. XFS writes a metadata buffer in place only
+after the log holds it, one buffer at a time, so structures can disagree, and
+the superblock's lazy counters (icount, ifree, fdblocks) lag. Then:
+- `-n` runs every check, reports the counter comparisons as notes, and exits
+  8: what it finds is not a verdict.
+- `-y` writes nothing and exits 8: a replay would land on top of any repair.
+- `-a`/`-p` (fsck.mxfs at boot) checks and writes nothing and exits 0: after a
+  crash this is the ordinary state, and replaying is the mount's job, as it is
+  for XFS.
+
+To check such a filesystem, mount it once (the mounting node replays every
+unreplayed slice), unmount it cleanly on every node, and check again.
+
+The journal region checked under "Journal" below is a different structure:
+the kernel module never opens, dirties or replays it (`dlm/mount.c`, its only
+user, is not part of the module build), so its slot flags say nothing about
+the XFS log slices.
 
 ### Repair Capabilities
 

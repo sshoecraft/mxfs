@@ -1,3 +1,76 @@
+## 2026-10-06 — 0.90.80 — chk_mxfs no longer judges or repairs a filesystem whose journals were never replayed
+
+**chk_mxfs reported an error on a sound filesystem and advised a repair.** On
+the physical pair both DRBD mounts withdrew, and the hosts were stopped with no
+mount since. `chk_mxfs -n /dev/drbd0` returned 4 with "inobt total free inodes
+102 != superblock ifree 115" and advised `-a` or `-y`. The journals still held
+1.37 GiB of allocations. After one mount, which replayed them, and a clean
+stop, the same check was clean (ifree 102 = 102). The superblock's counters are
+lazy, written back at unmount. More than that, XFS writes a metadata buffer in
+place only after the log holds it, one buffer at a time, so until a replay the
+platter is a checkpoint, not the filesystem. A repair written then would have
+the replay land on top of it.
+- Before any pass that can write, chk_mxfs now reads every heartbeat slot. A
+  slice can hold unreplayed transactions when its slot is ACTIVE (mounted now,
+  or crashed), WITHDRAWN, or a recovery guard whose recovery stopped before its
+  replay. A clean release, a recovered slot and a quarantined slice cannot.
+- With any such slice it prints "Journals ... NOT REPLAYED" with the slots.
+  `-n` runs every check, reports the superblock counter comparisons as notes,
+  and exits 8: what it finds is not a verdict. `-y` writes nothing and exits 8.
+  `-a`/`-p` (fsck.mxfs at boot) checks and writes nothing and exits 0: after a
+  crash this is the ordinary state, and replaying is the mount's job, as it is
+  for XFS.
+- The journal region chk_mxfs's "Journal" line checks is a different
+  structure. The kernel module never opens, dirties or replays it:
+  `dlm/mount.c`, its only user, is not part of the module build. Clearing its
+  slot flags could not discard anything a mount replays.
+- `tools/chk_mxfs.md` says all of this.
+
+**A recovery's completion line says where its time went.** On the physical
+pair, `withdraw-guests` on 0.90.78 replayed pve2's journal slice in 7 s, then
+took 40 s more to publish the recovery. pve2's rejoin waits for that, as does
+every request on a resource the dead node mastered. Other runs took 1-14 s.
+The step walls existed only as debug lines. `P163-RECOVERY-COMPLETE` now ends
+with them: total, lease and milestones, CAW purge and flush, grant retirement
+(ledger purge, lock tables, page handoff) and the heartbeat zero. The
+durability flush before the completion is reported too when it takes a
+second or more.
+
+**The build no longer rewrites a file git tracks.** `make` regenerated
+`pal/linux/mxfs_libiscsi_fp.h`, a per-kernel fingerprint that had been
+committed with clyde's kernel's value. On every other kernel a clone then
+showed it modified, and a commit that changed or deleted it would have made
+those clones' `git pull` abort. The fingerprint is now generated as
+`pal/linux/mxfs_libiscsi_fingerprint.h`, which git ignores. The old file stays
+in the tree exactly as committed and nothing reads it: changing or deleting it
+now would break every clone that already built.
+
+**Also:**
+- `tests/pve_pair_failover.sh withdraw-guests` makes its VMs before the loads
+  start. Under both hosts' loads one VM's disk allocation outlasted Proxmox's
+  60 s storage lock, which is a defect of its own and not what the step
+  measures.
+- `tests/pve_replay_gate_lag.sh` runs CHURN churn loops per host (default 4),
+  each on its own shared file. The first run, with one loop, put a single
+  foreign inode image in front of the gate.
+- `tests/pve_create_latency.sh` (new): times the filesystem steps of a VM disk
+  allocation (mkdir, create, ftruncate to 1 GiB, close) on participant 1 while
+  both hosts run a VM-like load, and samples what a slow step waits on.
+- `docs/drbd-setup.md` describes the rejoin as 0.90.78 does it: it kills every
+  process holding the dead mount at once.
+- Defect queue: a VM create on the shared storage failed under guest load
+  (Proxmox's 60 s storage lock ran out). Removed, verified on PVE 9 today:
+  - **a mount MXFS refuses for a stated reason (no fencing, no PR support)
+    returns ENOTCONN, so mount(8) prints 'Transport endpoint is not connected'
+    and the reason exists only in dmesg** — fixed in 0.90.65/0.90.66. On pve9-2
+    (util-linux 2.41) a mount of a loop device formatted with `mkfs.mxfs`
+    failed with mount(8) printing "the device has no SCSI persistent
+    reservations, so a node that dies could not be fenced off it; refusing a
+    clustered mount. Use a shared LUN whose target supports SCSI-3 persistent
+    reservations, or DRBD dual-primary (docs/drbd-setup.md)." The DRBD
+    refusals log at the same level in the same init, so they take the same
+    path.
+
 ## 2026-10-06 — 0.90.79 — `2/net/mesh/drbd` is withdrawn from release
 
 **MXFS on DRBD dual-primary is no longer a released configuration.** It was
