@@ -1,3 +1,57 @@
+## 2026-10-06 — 0.90.72 — a withdrawn DRBD mount rejoins by itself, without a host restart
+
+**A withdrawn mount stayed dead.** After both physical hosts self-fenced at
+10:46, each kept `/mnt/shared` mounted, answering every access with an I/O
+error, for over two hours. `mxfs-drbd@mxfs` still reported itself active, and
+nothing unmounted it or brought the host back into the pair.
+
+**Each mount now says when it has shut down.** It reports this in
+`/sys/fs/mxfs/<dev>/shutdown` (1 once shut down, for any cause), read from
+the mount and never through the filesystem: every path under a withdrawn
+mount answers EIO, which is also what an AG quarantine on a live mount
+answers.
+
+**`mxfs-drbd-guard` rejoins it.** Every 5 s it reads that flag for each
+active `mxfs-drbd@` resource. On a 1 it starts `mxfs-drbd-fence-self rejoin
+<res>` as the transient unit `mxfs-drbd-rejoin-<res>`, one at a time, which
+does what a restart of the host would do, without the restart:
+- It stops each Proxmox VM holding the mount with `qm stop`, and kills any
+  other holder. Holders are found from `/proc/<pid>/{fd,cwd,root}`, never from
+  `maps`, which takes a process's mmap lock.
+- It unmounts the mount, then restarts the unit, whose boot program mounts it
+  again once DRBD and the peer allow, as after that host's restart.
+- Once the mount is back it starts the on-boot guests. Other VMs it stopped
+  stay stopped, and the journal names each one.
+- At most 3 rejoins an hour. A mount that keeps shutting down stays down and
+  says so every ten minutes.
+- An unmount that does not finish within 170 s, or is still refused after 3
+  rounds, restarts the host (sysrq b, as the fence handler's tie-break loser
+  does). Nothing else can release the old mount then.
+
+Not yet run on a pair. `tests/pve_pair_failover.sh` gains the steps that
+prove it:
+- `withdraw-both`: both hosts' heartbeats stop past the 30 s authority lease
+  under load, as on 2026-10-06. Both must rejoin without a restart.
+- `withdraw-p1`: participant 1 alone. Participant 0 must carry on with no I/O
+  error and refuse nothing.
+
+**Also:**
+- The physical pair is back on 0.90.71, mounted. The `chk_mxfs -n` run while
+  both units were stopped reported `inobt total free inodes 102 != superblock
+  ifree 115` and advised repair. The filesystem was sound. Both mounts had
+  withdrawn, so neither unmount was clean. The journals still held 1.37 GiB of
+  allocations, and XFS writes the superblock's inode and block counters only
+  at a clean unmount. One mount (replay, 162 s), a clean stop, and the check
+  read clean: free inodes 102 = 102, free blocks equal to the btree sum plus
+  the 76 AGFL blocks. Defect queue:
+  `D-CHK-MXFS-FLAGS-LAZY-COUNTERS-OF-A-DIRTY-JOURNAL-AND-ADVISES-REPAIR` (the
+  repair it advised rewrites dirty journal slots as clean).
+- The nested pair passed all eight failover steps on 0.90.70, the first build
+  with the write cap: promotion-race, p1-crash, reboot, power-cut, p0-crash,
+  survivor-restart, released-restart, stale-promotion (38 min).
+- `docs/drbd-setup.md` ("What happens when a node is lost") describes the
+  rejoin.
+
 ## 2026-10-06 — 0.90.71 — the DRBD write cap splits large writes, so one writeback bio can no longer fill it alone
 
 **One writeback bio filled the cap by itself.** On the nested Proxmox pair

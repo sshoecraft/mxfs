@@ -1725,10 +1725,23 @@
       "opened": "2026-10-06",
       "summary": "after both DRBD hosts self-fenced (P131/P290 AUTHORITY_LEASE_EXPIRED, then P163-WITHDRAW-STAMP), each host's mxfs-drbd@mxfs unit stayed 'active (exited)' with Status '/mnt/shared mounted' over a withdrawn mount that answers every access with EIO; neither the boot program, the unit nor mxfs-drbd-guard noticed, and nothing unmounted and rejoined",
       "evidence": "MEASURED 2026-10-06 on the physical pair, 0.90.68 (A63A278AB7D61F145D6A320): self-fence 10:46:30 (pve2) / 10:46:39 (pve1); at 12:20 both 'ls /mnt/shared' -> Input/output error while /proc/mounts listed it rw and systemctl showed mxfs-drbd@mxfs active since 09:57 (pve1) / 10:31 (pve2). Kernel logs: pve1 P378-TRANS-READ-FAIL err=-5, P-SHUTDOWN-FENCE 10:48:16; both 'node ... has left the cluster (no heartbeat for 600 seconds)' at 10:56 and P238-FENCE-NOINC (neither detector a fencing authority for the other). No further mxfs activity to 12:20.",
-      "next": "Decide the rejoin path for a withdrawn DRBD mount (unmount, then the ordinary join through the boot program, as after a pair power cut) and who drives it (the guard watching the mount's shutdown state, or the unit); prove it on the nested pair by forcing both leases to expire under load, then on the physical pair.",
+      "next": "0.90.72 implements the rejoin: the mount reports /sys/fs/mxfs/<dev>/shutdown, mxfs-drbd-guard starts 'mxfs-drbd-fence-self rejoin <res>' (stop the VMs and other holders, unmount, restart mxfs-drbd@<res>, then the on-boot guests; 3 per hour; a host restart only when the unmount cannot finish). Verify on the nested pair with tests/pve_pair_failover.sh withdraw-p1 and withdraw-both (heartbeat paused 45 s under load: each withdrawn host must rejoin with the same boot id, the other carry on with no I/O error, every fsynced file intact), then the full suite, then on the physical pair.",
       "impact": "stability",
       "impact_why": "both physical hosts kept a withdrawn /mnt/shared (every access EIO) for 1h34m+ after the 10:46 self-fence with nothing restarting it; every guest disk on it was dead until a manual stop/start",
-      "platform": "pve9"
+      "platform": "pve9",
+      "updated": "2026-10-06"
+    },
+    {
+      "id": "D-CHK-MXFS-FLAGS-LAZY-COUNTERS-OF-A-DIRTY-JOURNAL-AND-ADVISES-REPAIR",
+      "severity": "high",
+      "nodes": 1,
+      "config": "*/*/*",
+      "opened": "2026-10-06",
+      "summary": "chk_mxfs -n on a filesystem whose journals were never replayed (both DRBD mounts withdrawn, then stopped) reported 'inobt total free inodes 102 != superblock ifree 115' as an error and advised repair with -a/-y; the superblock counters are lazy and the journals held 1.37 GiB of allocations, so the finding was stale state, not corruption, and the repair it advised rewrites dirty journal slots as clean before anything replays them",
+      "evidence": "MEASURED 2026-10-06 on the physical pair (pve1/pve2, PVE 9): both mounts withdrew at 10:46 on 0.90.68 and were stopped at 12:59 with no mount since. chk_mxfs -n /dev/drbd0 rc=4: BNO sum 6903535 = AGF sum, superblock fdblocks 8286699, inobt free 102 vs superblock ifree 115 (the one ERROR), icount 128 = 128. After one mount on 0.90.71 (participant 0 replayed both old incarnations; 162 s to both mounted) and a clean stop, chk_mxfs -n rc=0: BNO 6544913 = AGF, fdblocks 6544989 (76 over = 4 AGFL blocks x 19 AGs), ifree 102 = 102. 358622 blocks were allocated by the replay. tools/chk_mxfs.c print_summary() errs on any icount/ifree mismatch whatever the journal state; the journal check (~1788) counts DIRTY slots and under can_repair() rewrites each as CLEAN; dlm/journal.c:1600 skips the replay of a CLEAN slot. Logs: tests/evidence/pve_phys_drbd_20261006/update-0.90.71.log, update-0.90.71-recheck.log",
+      "next": "Establish which replay reads the slot flag chk rewrites (dlm/journal.c's or the XFS log slices') and so whether chk_mxfs -y on a dirty journal discards committed transactions. Then make chk_mxfs say first, and fail closed, when any journal is dirty: the on-disk metadata is not current until a mount replays it (as xfs_repair says), the lazy superblock counters are then notes, never errors, and every repair is refused unless the operator explicitly discards the journals. Prove on the nested pair: withdraw both mounts, stop, chk -n reports the dirty journals and no counter error, -y refuses.",
+      "impact": "verify",
+      "impact_why": "the filesystem check reported an error on a sound filesystem and advised a repair that rewrites unreplayed journals as clean (measured on the physical pair; the rewrite read from tools/chk_mxfs.c)"
     }
   ]
 }

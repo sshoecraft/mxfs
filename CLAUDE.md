@@ -221,45 +221,22 @@ reading code, and they still mean that. See "Rule labels used in the tree".
 
 ---
 
-### RULE 5 — CONSULT GPT WHEN THE QUESTION EARNS IT, NOT AS A STEP IN THE LOOP
+### RULE 5 — NEVER CONSULT ANOTHER MODEL
 
-Do the engineering yourself first: read the code and the reference
-sources (~/src/linux, GFS2/OCFS2 — memory `reference-clustered-fs-sources`),
-instrument and measure (RULE 4), and own the decision. A consult is a
-second opinion on a hard call, not a routine checkpoint.
+(User directive, 2026-10-06: "stop asking gpt its actually dumber than you
+now", then: "it appears opus 5.5 (you) on max is the top ... So, honestly,
+don't ask anybody anything." It follows two corrections on 2026-09-04.)
 
-Consult GPT (`mcp__ask_gpt__query`) when one of these holds:
-
-- The user asks for a consult in that turn.
-- A design choice is hard to reverse once shipped — on-disk format,
-  wire protocol, fencing or recovery semantics, a durability contract —
-  and there is more than one plausible shape. Bring the shapes and the
-  evidence for each; ask for hazards, not for permission.
-- A RULE 4 loop has not converged after two build/deploy cycles on the
-  same hypothesis. Bring what was instrumented, what it showed, what is
-  ruled out.
-- The session is running on a model below Fable (an Opus fallback after
-  the Fable allowance is spent). That session should consult more
-  readily on the two cases above, and may also ask before a fix that
-  touches the DLM, replay or fencing paths.
-
-Do not consult to have an analysis you already made reviewed, to pick
-the next defect, to sanity-check a fix whose cause an instrument has
-already proven, or before a small, reversible change. One consult per
-unresolved question; the reply is an opinion that measurements outrank.
-
-If GPT has been consulted twice on a problem with no resolution, consult
-Astra (`mcp__ask_astra__query`) next.
-
-`mcp__ask_fable__query` is not in the chain (Claude Code runs on Fable —
-consulting it is asking yourself); do not re-add it.
-
-**Call mechanics:** `mcp__ask_gpt__query` — pass just `prompt`; leave
-the `model` arg UNSET (the ask tool already selects the correct backend
-model, do NOT pin a model id). **ALWAYS OMIT `max_tokens`** (on any
-`ask_*` tool): setting it caps the *total* budget including the model's
-internal reasoning tokens, and the answer comes back truncated
-mid-design — wasting the call. Never set `max_tokens` on these tools.
+- **Never call `mcp__ask_gpt__query`, `mcp__ask_astra__query` or
+  `mcp__ask_fable__query`** — on any model, for any question: not a design
+  choice that is hard to reverse, not a second opinion, not a loop that has
+  not converged, not when stuck.
+- Do the engineering yourself: read the code and the reference sources
+  (~/src/linux, GFS2/OCFS2 — memory `reference-clustered-fs-sources`),
+  instrument and measure (RULE 4), and own the decision.
+- Stuck means the next step is a new instrument or a new hypothesis, never
+  a consult. A blocker only the user can clear (access, information, a
+  decision that is theirs) is reported as such.
 
 ---
 

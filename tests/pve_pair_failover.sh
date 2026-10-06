@@ -46,6 +46,16 @@
 #              Participant 1 must lose the tie-break and restart, never carry
 #              on because its peer looks idle; a plain `drbdadm primary` on
 #              participant 0 must be refused; then both mount again.
+#   withdraw-both
+#              both hosts' MXFS heartbeats stop past the 30 s authority lease
+#              under load, as both hosts' did on 2026-10-06 when their writes
+#              queued behind the guests' data: both mounts shut down with the
+#              hosts up.  Each host's guard must rejoin its own mount (stop
+#              what holds it, unmount, restart the unit) with no host restart,
+#              and both must mount again.
+#   withdraw-p1
+#              the same on participant 1 alone: participant 0 carries on and
+#              recovers it, and participant 1 rejoins without a restart.
 #   (default: p1-crash reboot power-cut p0-crash)
 #
 # Before each step both hosts must be mounted, DRBD Connected Primary/Primary
@@ -102,6 +112,14 @@ ALONE_BUDGET=$OUTAGE_BUDGET
 RELEASE_BUDGET=30
 # From sysrq o to the host no longer answering ping.
 DOWN_BUDGET=30
+# The withdraw steps pause a heartbeat this long, past the 30 s authority
+# lease, so the mount shuts down while the host stays up.
+WITHDRAW_PAUSE_MS=45000
+# From the pause to a withdrawn host mounted again: the lease runs out (30 s),
+# the guard sees the shutdown (5 s poll) and unmounts, and the unit's boot
+# program mounts as after a pair outage (OUTAGE_BUDGET) -- the pause's length
+# plus that.
+WITHDRAW_BUDGET=$(( WITHDRAW_PAUSE_MS / 1000 + OUTAGE_BUDGET ))
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
 EVID="$REPO/tests/evidence/pve_pair_failover/$STAMP"
 mkdir -p "$EVID" || exit 1
@@ -303,6 +321,19 @@ wait_released() {
         on "$1" "awk -v t=$2 '\$1 >= t && / result=RELEASED /' /var/lib/mxfs/drbd-fence.$RES" 20 | grep -q RELEASED \
             && { echo $(( $(date +%s) - t0 )); return 0; }
         sleep 3
+    done
+    return 1
+}
+
+# wait_journal <host> <since> <text> <budget>: the DRBD programs logged a line
+# holding <text> after <since>; prints seconds since <since>
+wait_journal() {
+    local t0
+    t0=$(date +%s)
+    while [ $(( $(date +%s) - t0 )) -lt "$4" ]; do
+        on "$1" "journalctl --no-pager -o cat -t mxfs-drbd-fence --since @$2 | grep -qF '$3' && echo SEEN" 20 | grep -q SEEN \
+            && { echo $(( $(date +%s) - $2 )); return 0; }
+        sleep 5
     done
     return 1
 }
@@ -551,11 +582,56 @@ step_promotion_race() {
     verify_sets promotion-race
 }
 
+# withdraw <step> <host...>: those hosts' heartbeats stop past the authority
+# lease under load on both.  Each must withdraw (its kernel log says so) and
+# its guard rejoin it with no host restart; a host not paused must carry on
+# with no I/O error and refuse nothing; both end mounted with every fsynced
+# file intact.
+withdraw() {
+    local step=$1 h t0 s out
+    local -A boot
+    shift
+    write_sets "$step"; start_loads "$step"
+    sleep 10
+    for h in "$P0" "$P1"; do boot[$h]=$(boot_id "$h"); done
+    say "$step: pausing the MXFS heartbeat of $* for $(( WITHDRAW_PAUSE_MS / 1000 )) s under load on both, past the 30 s authority lease"
+    t0=$(date +%s)
+    for h in "$@"; do
+        on "$h" "echo $WITHDRAW_PAUSE_MS > /sys/module/mxfs/parameters/dl_inject_hb_pause_ms && echo ARMED" 15 | grep -q ARMED \
+            || die "could not pause $h's heartbeat"
+    done
+    LEFT="a withdrawn mount the guard did not rejoin stays down on $*: systemctl restart mxfs-drbd@$RES there"
+    for h in "$@"; do
+        s=$(wait_journal "$h" "$t0" "rejoined: " "$WITHDRAW_BUDGET") \
+            || die "$h's guard did not rejoin its withdrawn mount within ${WITHDRAW_BUDGET}s of the pause"
+        out=$(on "$h" "journalctl -k --no-pager -o cat --since @$t0 | grep -aoE 'P-HB-INJECT-PAUSE|P290-AUTH-CLOSED|P290-AUTH-WITHDRAW|P131-SELF-FENCE' | sort | uniq -c | tr '\n' ' '" 30)
+        grep -q -E 'P290-AUTH-WITHDRAW|P131-SELF-FENCE' <<<"$out" || die "$h rejoined, but its kernel log shows no withdrawal: ${out:-nothing}"
+        say "  $h withdrew ($out) and its guard rejoined it: mounted again $s s after the pause"
+    done
+    for h in "$P0" "$P1"; do
+        s=$(wait_mounted "$h" "$OUTAGE_BUDGET") || die "$h is not a full half of the pair again within ${OUTAGE_BUDGET}s"
+        [ "$(boot_id "$h")" = "${boot[$h]}" ] || die "$h restarted: a withdrawn mount must rejoin without a host restart"
+        case " $* " in *" $h "*) continue ;; esac
+        out=$(load_result "$h")
+        [ "$(sed -n 's/.*err=\([0-9]*\).*/\1/p' <<<"$out")" = 0 ] || die "$h, which did not withdraw, saw an I/O error: ${out:-no result}"
+        say "  $h carried on: $out"
+        out=$(on "$h" "journalctl -k --no-pager -o cat --since @$t0 | grep -aoE 'P163-RECOVERY-COMPLETE|P-RBLK-[A-Z-]+' | sort | uniq -c | tr '\n' ' '" 30)
+        grep -q P-RBLK <<<"$out" && die "$h refused operations as RECOVERY_BLOCKED: $out"
+        say "  $h: ${out:-no recovery lines}"
+    done
+    LEFT=""
+    say "  both mounted again, and neither host restarted"
+    collect "$step" "$t0"
+    verify_sets "$step"
+}
+step_withdraw_both() { withdraw withdraw-both "$P0" "$P1"; }
+step_withdraw_p1() { withdraw withdraw-p1 "$P1"; }
+
 STEPS=("$@")
 [ "${#STEPS[@]}" -gt 0 ] || STEPS=(p1-crash reboot power-cut p0-crash)
 for s in "${STEPS[@]}"; do
     case "$s" in
-        p1-crash|p0-crash|power-cut|reboot|promotion-race) ;;
+        p1-crash|p0-crash|power-cut|reboot|promotion-race|withdraw-both|withdraw-p1) ;;
         survivor-restart|released-restart|stale-promotion)
             [ -n "${PVE_POWER_ON:-}" ] || { echo "$s keeps a host powered off: set PVE_POWER_ON to the command that powers one on"; exit 2; } ;;
         *) echo "unknown step: $s"; exit 2 ;;

@@ -190,6 +190,20 @@ DRBD address (here `pve1`) is participant 0; the other is participant 1.
   alone. DRBD's record of which copy is newer can be left stale on disk by a
   crash, and only pve1 may ever take the pair alone, so pve2 cannot trust that
   record. Bring pve1 back.
+- **A node's mount shuts down while the node stays up.** MXFS withdraws a
+  node that lost its standing, for example when its writes to the shared
+  device stalled past its 30 s authority lease, and from then on every access
+  to `/mnt/shared` on that node fails with an I/O error. `mxfs-drbd-guard`
+  sees this within seconds (`/sys/fs/mxfs/drbd0/shutdown` reads 1) and
+  rejoins the node without restarting it. It stops the VMs whose disks are on
+  the mount, which can no longer read or write them, and unmounts it. Then it
+  restarts `mxfs-drbd@mxfs`, which mounts it again as after a restart of that
+  node, and starts the on-boot guests. Other VMs it stopped stay stopped, and
+  the journal names each one. It rejoins at most three times an hour. A mount
+  that keeps shutting down stays down until you restart `mxfs-drbd@mxfs`, and
+  the kernel log says why each time. A mount that cannot be released, because
+  something the guard cannot stop holds it, restarts the host as in the cases
+  above.
 - **A host never promotes itself while the other is unreachable** unless it
   holds an exclusion of the other. A `drbdadm primary` run then is refused.
 - **Both nodes crash or lose power at once.** When they come back, DRBD

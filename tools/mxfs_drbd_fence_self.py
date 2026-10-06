@@ -49,9 +49,12 @@ Subcommands:
   fence <target> <requester>      the authority verb (startup fencing): refused
   status <target>                 STATE <target> excluded|unfenced|... inhibit=<ep>|none
   release <target> <ep> <req>     release now if the evidence holds
-  guard                           daemon: keep isolation in place, release on evidence
+  guard                           daemon: keep isolation in place, release on evidence,
+                                  rejoin a mount that has shut down
   boot <resource> <mountpoint>    bring the resource up and mount it when safe
   stop <resource> <mountpoint>    unmount, step down and take the resource down
+  rejoin <resource>               bring a shut-down MXFS mount back: stop what
+                                  holds it, unmount it, restart its unit
 """
 
 import json
@@ -104,6 +107,27 @@ MXFS_TCP_PORTS = "7600"
 MXFS_UDP_PORTS = "7601-7603"
 RESTART_DELAY_S = 10
 GUARD_INTERVAL_S = 5
+# A shut-down MXFS mount never serves again: its authority lease expired, a
+# heartbeat detector or a peer fenced it, or it was forced down for another
+# cause, and every access to it fails with EIO.  The module says so per mount
+# in SHUTDOWN_ATTR_FMT.  `guard` sees it and starts `rejoin`, which brings the
+# mount back the way a restart of the host would, without restarting the
+# host: it stops the guests holding the mount, unmounts it, and restarts the
+# resource's unit, whose boot program mounts it again once DRBD and the peer
+# allow; the on-boot guests then start.  At most REJOIN_MAX rejoins in
+# REJOIN_WINDOW_S (a mount that keeps shutting down is left down and says
+# so).  An unmount still refused after REJOIN_UMOUNT_TRIES rounds, or that
+# does not finish within REJOIN_UMOUNT_S, restarts the host: nothing else is
+# left that can release the old mount.
+SHUTDOWN_ATTR_FMT = "/sys/fs/mxfs/%s/shutdown"
+REJOIN_RECORD_FMT = os.path.join(STATE_DIR, "drbd-rejoin.%s")
+REJOIN_UNIT_FMT = "mxfs-drbd-rejoin-%s"
+REJOIN_MAX = 3
+REJOIN_WINDOW_S = 3600
+REJOIN_UMOUNT_S = 170
+REJOIN_UMOUNT_TRIES = 3
+REJOIN_GUEST_STOP_S = 90
+QEMU_PID_DIR = "/var/run/qemu-server"
 # Tells the MXFS mount on a resource that its peer is excluded: the module
 # then asks its own witness at once instead of declaring the death after its
 # lock link's timeout and grace.  A cue, never evidence -- the module judges
@@ -618,11 +642,245 @@ def cmd_release(target, episode):
     return 1
 
 
+# ------------------------------------------------------------------- rejoin
+
+def active_resources():
+    """The DRBD resources whose mxfs-drbd@ unit is active on this node."""
+    rc, out = run(["systemctl", "list-units", "--plain", "--no-legend", "--state=active",
+                   "mxfs-drbd@*.service"], timeout=15)
+    return [m.group(1) for m in re.finditer(r"^mxfs-drbd@(\S+)\.service\s", out, re.M)]
+
+
+def mount_shut_down(dev):
+    """True once the MXFS mount of `dev` has shut down, False before it has;
+    None when the module does not say (a build without the flag)."""
+    try:
+        with open(SHUTDOWN_ATTR_FMT % os.path.basename(os.path.realpath(dev))) as fh:
+            return fh.read().strip() == "1"
+    except OSError:
+        return None
+
+
+def mount_holders(mnt):
+    """{pid: comm} of the processes with an open file, working directory or
+    root under `mnt`, from the /proc/<pid>/{fd,cwd,root} links: the kernel
+    names those without asking the filesystem, which answers EIO once it is
+    withdrawn.  Memory maps are not read (/proc/<pid>/maps takes the process's
+    mmap lock, which a task stuck in the filesystem can hold), so a map with
+    no open file is missed and the unmount reports it busy."""
+    under = mnt.rstrip("/") + "/"
+    found = {}
+    for p in os.listdir("/proc"):
+        if not p.isdigit() or int(p) == os.getpid():
+            continue
+        links = ["/proc/%s/cwd" % p, "/proc/%s/root" % p]
+        try:
+            links += ["/proc/%s/fd/%s" % (p, fd) for fd in os.listdir("/proc/%s/fd" % p)]
+        except OSError:
+            pass
+        for link in links:
+            try:
+                target = os.readlink(link)
+            except OSError:
+                continue
+            if target == mnt or target.startswith(under):
+                try:
+                    with open("/proc/%s/comm" % p) as fh:
+                        found[int(p)] = fh.read().strip()
+                except OSError:
+                    found[int(p)] = "?"
+                break
+    return found
+
+
+def qemu_vmids(pids):
+    """{pid: vmid} for the Proxmox VMs whose QEMU process is among `pids`."""
+    out = {}
+    try:
+        names = os.listdir(QEMU_PID_DIR)
+    except OSError:
+        return out
+    for n in names:
+        m = re.fullmatch(r"(\d+)\.pid", n)
+        if not m:
+            continue
+        try:
+            with open(os.path.join(QEMU_PID_DIR, n)) as fh:
+                pid = int(fh.read().split()[0])
+        except (OSError, ValueError, IndexError):
+            continue
+        if pid in pids:
+            out[pid] = m.group(1)
+    return out
+
+
+def rejoin_times(res):
+    """When this resource's recent rejoins started, oldest first."""
+    try:
+        with open(REJOIN_RECORD_FMT % res) as fh:
+            times = [float(line.split()[0]) for line in fh if line.strip()]
+    except (OSError, ValueError, IndexError):
+        return []
+    return [t for t in times if time.time() - t < REJOIN_WINDOW_S]
+
+
+def restart_host(why):
+    """The last way back in, as the fence-peer loser takes it: a restart in
+    RESTART_DELAY_S, with no sync (a stuck filesystem would hang it)."""
+    log("restarting this host in %d s: %s" % (RESTART_DELAY_S, why), crit=True)
+    subprocess.Popen(["/bin/sh", "-c", "sleep %d; echo b > /proc/sysrq-trigger"
+                      % RESTART_DELAY_S], start_new_session=True,
+                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                     stderr=subprocess.DEVNULL)
+
+
+def bounded_umount(mnt, limit):
+    """umount's exit code, or None when it has not finished within `limit`
+    seconds.  An unmount stuck in the kernel cannot be killed, so it is never
+    waited on past the bound (subprocess.run would wait for it forever)."""
+    p = subprocess.Popen(["umount", mnt], stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                         start_new_session=True)
+    until = time.time() + limit
+    while time.time() < until:
+        rc = p.poll()
+        if rc is not None:
+            return rc
+        time.sleep(1)
+    return None
+
+
+def stop_holders(res, mnt):
+    """Stop what holds the shut-down mount: each Proxmox VM through `qm stop`
+    (which keeps Proxmox's own state right), then any other process by
+    SIGKILL.  Every one of them has had only EIO from the mount since it shut
+    down.  Returns how many processes were found."""
+    holders = mount_holders(mnt)
+    vms = qemu_vmids(holders)
+    for pid, vmid in sorted(vms.items(), key=lambda x: int(x[1])):
+        try:
+            rc, _ = run(["qm", "stop", vmid, "--skiplock", "1"], timeout=REJOIN_GUEST_STOP_S)
+        except subprocess.TimeoutExpired:
+            rc = 124
+        log("%s: stopped VM %s, whose disk is on the shut-down %s (qm stop rc=%d)"
+            % (res, vmid, mnt, rc), crit=rc != 0)
+    rest = mount_holders(mnt) if vms else holders
+    for pid, comm in sorted(rest.items()):
+        try:
+            os.kill(pid, 9)
+        except OSError:
+            continue
+        log("%s: killed %s (pid %d), which held the shut-down %s open" % (res, comm, pid, mnt))
+    return len(holders)
+
+
+def cmd_rejoin(res):
+    """Bring this node's shut-down MXFS mount of `res` back (see
+    SHUTDOWN_ATTR_FMT): stop what holds it, unmount it, restart the unit and,
+    once its boot program has mounted it again, start the on-boot guests."""
+    dev = drbd_device(res)
+    mnt = mxfs_mounted_on(dev)
+    if not mnt or not mount_shut_down(dev):
+        log("%s: rejoin: no shut-down MXFS mount of %s here; nothing to do" % (res, dev or "?"))
+        return 0
+    times = rejoin_times(res)
+    if len(times) >= REJOIN_MAX:
+        log("%s: %s has shut down again and has been rejoined %d times in the last %d s; "
+            "it stays down until an operator restarts mxfs-drbd@%s (the kernel log says why "
+            "each shut down)" % (res, mnt, len(times), REJOIN_WINDOW_S, res), crit=True)
+        return 1
+    durable_write(REJOIN_RECORD_FMT % res, "".join("%.3f\n" % t for t in times + [time.time()]))
+    log("%s: the MXFS mount %s on %s has shut down (withdrawn from the cluster; the kernel "
+        "log says why) and every access to it fails.  Rejoining (%d of at most %d in %d s): "
+        "stopping what holds it, unmounting it, and restarting mxfs-drbd@%s, which mounts it "
+        "again once DRBD and the peer allow" % (res, dev, mnt, len(times) + 1, REJOIN_MAX,
+                                               REJOIN_WINDOW_S, res), crit=True)
+    for attempt in range(1, REJOIN_UMOUNT_TRIES + 1):
+        stop_holders(res, mnt)
+        rc = bounded_umount(mnt, REJOIN_UMOUNT_S)
+        if rc is None:
+            restart_host("the unmount of the shut-down %s did not finish in %d s"
+                         % (mnt, REJOIN_UMOUNT_S))
+            return 1
+        if rc == 0:
+            break
+        log("%s: umount of the shut-down %s refused (rc=%d, round %d of %d)"
+            % (res, mnt, rc, attempt, REJOIN_UMOUNT_TRIES), crit=True)
+        time.sleep(5)
+    else:
+        restart_host("the shut-down %s could not be unmounted in %d rounds (something "
+                     "this program cannot stop holds it)" % (mnt, REJOIN_UMOUNT_TRIES))
+        return 1
+    log("%s: unmounted the shut-down %s; restarting mxfs-drbd@%s" % (res, mnt, res))
+    unit = "mxfs-drbd@%s.service" % res
+    rc, _ = run(["systemctl", "restart", "--no-block", unit], timeout=30)
+    if rc != 0:
+        log("%s: systemctl restart %s failed (rc=%d)" % (res, unit, rc), crit=True)
+        return 1
+    # The boot program bounds each of its own waits; this only follows it.  A
+    # restart passes through deactivating, and can read inactive for a moment
+    # between its stop and its start, so only failed, or inactive on two
+    # passes running, means the unit ended.
+    idle = False
+    while True:
+        time.sleep(GUARD_INTERVAL_S)
+        mnt2 = mxfs_mounted_on(dev)
+        if mnt2 and mount_shut_down(dev):
+            # this run ends, so the guard can start the next one if it may
+            log("%s: %s was mounted again and has shut down again" % (res, mnt2), crit=True)
+            return 1
+        if mnt2:
+            log("%s: rejoined: %s is mounted again" % (res, mnt2), crit=True)
+            start_onboot_guests(res, mnt2)
+            return 0
+        rc, out = run(["systemctl", "is-active", unit], timeout=10)
+        state = out.strip()
+        if state == "failed" or (state == "inactive" and idle):
+            log("%s: mxfs-drbd@%s ended %s without mounting %s; its journal says why"
+                % (res, res, state, mnt), crit=True)
+            return 1
+        idle = state == "inactive"
+
+
+def watch_mounts(said):
+    """One guard pass over this node's MXFS-on-DRBD mounts: start a rejoin
+    for each that has shut down, unless one is running already or the
+    resource has used its rejoins (said once every ten minutes)."""
+    for res in active_resources():
+        dev = drbd_device(res)
+        if not mxfs_mounted_on(dev) or not mount_shut_down(dev):
+            continue
+        if len(rejoin_times(res)) >= REJOIN_MAX:
+            if time.time() - said.get(res, 0) > 600:
+                log("%s: the MXFS mount of %s has shut down and its rejoins are used up "
+                    "(%d in %d s); it stays down until an operator restarts mxfs-drbd@%s"
+                    % (res, dev, REJOIN_MAX, REJOIN_WINDOW_S, res), crit=True)
+                said[res] = time.time()
+            continue
+        # One rejoin at a time: systemd refuses a second unit of that name
+        # while the first is loaded.
+        unit = REJOIN_UNIT_FMT % res
+        rc, out = run(["systemctl", "is-active", unit], timeout=10)
+        if out.strip() in ("active", "activating"):
+            continue
+        rc, _ = run(["systemd-run", "--no-block", "--collect", "--unit=" + unit,
+                     os.path.realpath(sys.argv[0]), "rejoin", res], timeout=15)
+        log("%s: the MXFS mount of %s has shut down; %s" % (
+            res, dev, "rejoining it (unit %s)" % unit if rc == 0 else
+            "the rejoin could not be launched (systemd-run rc=%d)" % rc), crit=True)
+
+
 def cmd_guard():
     """Keep every inhibit's isolation in place (it does not survive a reboot
-    on its own) and release an inhibit once the peer's evidence holds."""
+    on its own), release an inhibit once the peer's evidence holds, and
+    rejoin an MXFS mount that has shut down."""
     last = {}
+    said = {}
     while True:
+        try:
+            watch_mounts(said)
+        except Exception as e:
+            log("guard: rejoin watch: %s" % e, crit=True)
         for inh in all_inhibits():
             res = inh["resource"]
             try:
@@ -999,6 +1257,8 @@ def main():
             return cmd_boot(a[1], a[2])
         if len(a) == 3 and a[0] == "stop":
             return cmd_stop(a[1], a[2])
+        if len(a) == 2 and a[0] == "rejoin":
+            return cmd_rejoin(a[1])
     except Exception as e:
         log("%s: %s" % (" ".join(a), e), crit=True)
         return 1

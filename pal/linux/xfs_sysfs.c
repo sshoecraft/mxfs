@@ -65,7 +65,32 @@ static const struct sysfs_ops xfs_sysfs_ops = {
 	.store = xfs_sysfs_object_store,
 };
 
+static inline struct xfs_mount *kobj_to_mp(struct kobject *kobj)
+{
+	return container_of(to_kobj(kobj), struct xfs_mount, m_kobj);
+}
+
+/*
+ * .../mxfs/<dev>/shutdown: 1 once this mount has shut down, 0 before.  A
+ * withdrawal from the cluster ends here (an expired authority lease, a
+ * heartbeat detector, a peer's fence), as does any other forced shutdown, and
+ * a shut-down mount never serves again: only an unmount and a fresh mount
+ * bring the node back.  The DRBD guard drives exactly that when it reads 1
+ * (tools/mxfs_drbd_fence_self.py).  It is read from the mount, never through
+ * the filesystem: every path under a withdrawn mount answers EIO, which is
+ * also what an AG quarantine on a live mount answers.
+ */
+static ssize_t
+shutdown_show(
+	struct kobject		*kobj,
+	char			*buf)
+{
+	return sysfs_emit(buf, "%d\n", xfs_is_shutdown(kobj_to_mp(kobj)) ? 1 : 0);
+}
+XFS_SYSFS_ATTR_RO(shutdown);
+
 static struct attribute *xfs_mp_attrs[] = {
+	ATTR_LIST(shutdown),
 	NULL,
 };
 ATTRIBUTE_GROUPS(xfs_mp);
