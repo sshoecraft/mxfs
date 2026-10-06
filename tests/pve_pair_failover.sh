@@ -605,6 +605,9 @@ withdraw() {
     write_sets "$step"; start_loads "$step"
     sleep 10
     for h in "$P0" "$P1"; do boot[$h]=$(boot_id "$h"); done
+    # The guard allows 3 rejoins an hour and keeps their times on disk, across
+    # restarts; earlier steps and runs must not spend this step's.
+    for h in "$@"; do on "$h" "rm -f /var/lib/mxfs/drbd-rejoin.$RES" 15 >/dev/null; done
     say "$step: pausing the MXFS heartbeat of $* for $(( WITHDRAW_PAUSE_MS / 1000 )) s under load on both, past the 30 s authority lease"
     t0=$(date +%s)
     for h in "$@"; do
@@ -648,6 +651,7 @@ step_withdraw_held() {
     write_sets withdraw-held; start_loads withdraw-held
     sleep 10
     b1=$(boot_id "$P1")
+    on "$P1" "rm -f /var/lib/mxfs/drbd-rejoin.$RES" 15 >/dev/null
     on "$P1" "mkdir -p $MNT/pvefail/held && mount -t tmpfs -o size=1m mxfs-held $MNT/pvefail/held && echo HELD" 20 | grep -q HELD \
         || die "could not mount a tmpfs inside $P1's mount"
     LEFT="a tmpfs on $MNT/pvefail/held on $P1: umount it there"

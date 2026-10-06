@@ -2682,6 +2682,8 @@ restart_armsweep:
 		 * ctx v5_shutdown is about to free.
 		 */
 		mp->m_mxfs_dlm = NULL;
+		/* a sysfs reader of the ctx (recovery_pending) holds only RCU */
+		synchronize_rcu();
 		cancel_work_sync(&mp->m_mxfs_withdraw_work);
 		cancel_work_sync(&mp->m_mxfs_foreign_replay_work);
 		/*
@@ -5589,6 +5591,7 @@ xfs_fs_fill_super(
 		void *v5dlm = mp->m_mxfs_dlm;
 
 		mp->m_mxfs_dlm = NULL;	/* no-op any queued withdraw */
+		synchronize_rcu();	/* and wait out a sysfs reader of it */
 		cancel_work_sync(&mp->m_mxfs_withdraw_work);
 		mxfs_defer_reap_destroy(mp);
 		mxfs_v5_dlm_shutdown(v5dlm);
@@ -5637,6 +5640,7 @@ xfs_fs_fill_super(
 		void *v5dlm = mp->m_mxfs_dlm;
 
 		mp->m_mxfs_dlm = NULL;	/* no-op any queued withdraw */
+		synchronize_rcu();	/* and wait out a sysfs reader of it */
 		cancel_work_sync(&mp->m_mxfs_withdraw_work);
 		mxfs_defer_reap_destroy(mp);
 		/*

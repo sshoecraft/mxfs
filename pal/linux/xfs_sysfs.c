@@ -14,6 +14,7 @@
 #include "xfs_log_priv.h"
 #include "xfs_mount.h"
 #include "xfs_zones.h"
+#include "../../dlm/v5_mount.h"	/* mxfs_v5_dlm_any_recovery_pending */
 
 struct xfs_sysfs_attr {
 	struct attribute attr;
@@ -89,8 +90,42 @@ shutdown_show(
 }
 XFS_SYSFS_ATTR_RO(shutdown);
 
+/*
+ * .../mxfs/<dev>/recovery_pending: 1 while this mount still owes the recovery
+ * of a dead or withdrawn incarnation of another node (its journal slice
+ * replayed, its slot retired), 0 when it owes none.
+ *
+ * A DRBD node coming back reads its peer's before it promotes.  The peer can
+ * prove the old incarnation excluded only while this node is DRBD Secondary on
+ * a connected link, so a node that promotes the moment its disks are UpToDate
+ * holds up the peer's recovery, and with it its own mount, which waits for
+ * that recovery (tools/mxfs_drbd_fence_self.py, Boot.wait_peer_recovered).
+ *
+ * The DLM context is read under RCU.  put_super and the mount unwind clear
+ * m_mxfs_dlm and wait out readers with synchronize_rcu before the context is
+ * freed, and this kobject outlives both.
+ */
+static ssize_t
+recovery_pending_show(
+	struct kobject		*kobj,
+	char			*buf)
+{
+	struct xfs_mount	*mp = kobj_to_mp(kobj);
+	struct mxfs_v5_dlm	*dlm;
+	int			pending = 0;
+
+	rcu_read_lock();
+	dlm = READ_ONCE(mp->m_mxfs_dlm);
+	if (dlm)
+		pending = mxfs_v5_dlm_any_recovery_pending(dlm);
+	rcu_read_unlock();
+	return sysfs_emit(buf, "%d\n", pending ? 1 : 0);
+}
+XFS_SYSFS_ATTR_RO(recovery_pending);
+
 static struct attribute *xfs_mp_attrs[] = {
 	ATTR_LIST(shutdown),
+	ATTR_LIST(recovery_pending),
 	NULL,
 };
 ATTRIBUTE_GROUPS(xfs_mp);

@@ -78,7 +78,21 @@ left=$(cat $K); echo 0 > $K; echo "REFUSALS_SPENT=$((1000 - left))"
 timeout 20 md5sum $f > /dev/null; echo "READ_RC=$?"
 timeout 20 sync $f; echo "SYNC_RC=$?"
 timeout 20 python3 -I -c "$FSYNC" $f; echo "FSYNC2_RC=$?"
-D=$(awk '\''$3 == "D" {print $1 "(" $2 ")"}'\'' /proc/[0-9]*/stat 2>/dev/null | tr "\n" " ")
+# The refusals are writeback errors of the whole filesystem too (the errseq
+# of the superblock), reported once to the next syncfs on this host by
+# whoever calls it.  Take that report here, so the sync -f of the next test
+# is not handed the error of this one; the second must then be clean.
+timeout 20 sync -f $d; echo "SYNCFS_RC=$?"
+timeout 20 sync -f $d; echo "SYNCFS2_RC=$?"
+# Stuck, not busy: a task in D in each of five samples 2 s apart.  A worker
+# waiting on its own I/O is in D for a moment at a time and is not counted.
+D=""
+for i in 1 2 3 4 5; do
+    now=$(awk '\''$3 == "D" {print $1 "(" $2 ")"}'\'' /proc/[0-9]*/stat 2>/dev/null | sort)
+    if [ "$i" = 1 ]; then D=$now; else D=$(comm -12 <(echo "$D") <(echo "$now")); fi
+    [ "$i" = 5 ] || sleep 2
+done
+D=$(echo "$D" | tr "\n" " " | sed "s/ *$//")
 echo "DSTATE=${D:-none}"
 echo "<5>mxfs-test: wb-refusal '"$STAMP"' end" > /dev/kmsg
 if [ -z "$D" ]; then timeout 30 rm -rf -- "$d"; echo "CLEANUP_RC=$?"; else echo "CLEANUP=skipped, tasks in D"; fi
@@ -109,6 +123,7 @@ fail=""
 [ "$(val READ_RC)" = 0 ] || fail="$fail the read-back did not finish (rc $(val READ_RC));"
 [ "$(val SYNC_RC)" = 0 ] || fail="$fail the second sync did not finish (rc $(val SYNC_RC));"
 [ "$(val FSYNC2_RC)" = 0 ] || fail="$fail the second fsync did not finish (rc $(val FSYNC2_RC));"
+[ "$(val SYNCFS2_RC)" = 0 ] || fail="$fail a second syncfs still reported an error or hung (rc $(val SYNCFS2_RC));"
 [ "$(val DSTATE)" = none ] || fail="$fail tasks left in D: $(val DSTATE);"
 [ "$bad" = 0 ] || fail="$fail $bad BUG/WARNING lines in the kernel log;"
 if [ -n "$fail" ]; then

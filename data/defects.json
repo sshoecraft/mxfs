@@ -1783,6 +1783,19 @@
       "impact_why": "a node whose withdrawn mount cannot be released stays out of the pair until someone restarts it",
       "platform": "pve9",
       "updated": "2026-10-06"
+    },
+    {
+      "id": "D-DRBD-REJOIN-PROMOTES-BEFORE-THE-PEER-CAN-PROVE-ITS-OLD-INCARNATION-ENDED",
+      "severity": "critical",
+      "nodes": 2,
+      "config": "net/mesh/drbd",
+      "opened": "2026-10-06",
+      "summary": "a DRBD node rejoining after a withdrawal (or any restart while its peer owes the recovery of its old incarnation) promotes the moment both disks are UpToDate; the mounted peer can prove the old incarnation ended only while the node is Secondary on a connected link (DRBD_PEER_SECONDARY_V1), so it cannot replay the old slice, and the node's own mount waits for that replay until its 122 s barrier refuses it (EBUSY); it mounts only after a refused attempt steps it down in a window the peer's fence retry happens to catch",
+      "evidence": "MEASURED 2026-10-06 on 0.90.74 (3C10196B1134E0D62876A07). Nested pair withdraw-p1 (tests/evidence/pve_pair_failover/nested-0.90.74-withdraw.log): pve9-1 withdrew 19:28:26, rejoin unmounted and restarted the unit 19:28:27, DRBD reconnected and pve9-1 promoted 19:28:34; pve9-2 logged P238-DRBD-FENCE-NOT-YET 'link Connected ... peer Primary, not Secondary' at every retry and 'foreign replay slot=1: NOT replayed'; pve9-1's mount logged P-BARRIER-GHOST-EXTEND bound_ms=122000 and failed rc=32 'already mounted or mount point busy' at 19:30:40 and 19:33:06, stepping down each time; mounted 19:33:44, 5.5 min after the pause (budget 345 s, FAIL). The passing 0.90.72 run (20261006T182319Z) had the same race: peer( Secondary -> Primary ) in the same second as SyncSource -> Connected, and P236-FENCE-CERTIFIED kind=DRBD_PEER_SECONDARY_V1 only 4 s after a refused mount stepped the node down. pve2 (physical) after an operator restart of its unit at 14:34:38: mount attempt 1 refused rc=32 at 14:35:24, mounted 14:35:48 after the 15 s step-down.",
+      "next": "FIX in 0.90.75: the mount exposes /sys/fs/mxfs/<dev>/recovery_pending (1 while it owes another node's recovery; the DLM ctx read under RCU, synchronize_rcu at the three sites that clear m_mxfs_dlm before it is freed); the boot program reads the peer's over ssh (peer_facts RECOVERY) and Boot.wait_peer_recovered keeps a connected node Secondary until it is 0 (at most PEER_RECOVERY_WAIT_S=180) before it promotes. VERIFY: withdraw-p1, withdraw-both, withdraw-held on both pairs with no refused mount attempt (rc=32) in the rejoining node's journal, the peer certifying within one fence retry, and each rejoin within the step's budget.",
+      "impact": "stability",
+      "impact_why": "a withdrawn node's mount stays down for minutes after its rejoin and fails the rejoin's own bound; its mount attempts are refused until a refusal happens to step it down at the right moment",
+      "platform": "pve9"
     }
   ]
 }

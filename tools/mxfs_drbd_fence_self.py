@@ -97,6 +97,13 @@ NOT_STARTING_GRACE_S = 30
 # excludes it as the fence-peer winner does and mounts alone.  DRBD's own
 # init script waits the same way (outdated-wfc-timeout).
 ALONE_GRACE_S = 30
+# How long a connected node stays Secondary, before it promotes, while its
+# mounted peer still owes the recovery of this node's previous incarnation
+# (Boot.wait_peer_recovered).  The peer proves that incarnation ended at its
+# next fence retry (at most ~6 s apart) and then replays its journal slice: up
+# to 162 s measured on the physical pair for both journals after a pair outage.
+# Past this the mount goes ahead and the module decides.
+PEER_RECOVERY_WAIT_S = 180
 # DRBD 8.4 connection states with no peer attached.
 DISCONNECTED = ("StandAlone", "Disconnecting", "Unconnected", "Timeout", "BrokenPipe",
                 "NetworkFailure", "ProtocolError", "TearDown", "WFConnection")
@@ -532,8 +539,10 @@ def peer_facts(res, peer, peer_addr):
     """The peer's own answer over ssh, as a dict, or (None, why).  ROLE is
     `drbdadm role`, MOUNTS the number of MXFS mounts, REFCNT the module's
     reference count, BOOT its boot id, BOOTSTATE what its boot program
-    published (BOOT_STATE_FMT; 'none' when there is no such file) and
-    BOOTLIVE whether that program is still running."""
+    published (BOOT_STATE_FMT; 'none' when there is no such file),
+    BOOTLIVE whether that program is still running, and RECOVERY its mount's
+    /sys/fs/mxfs/<dev>/recovery_pending ('none' with no such mount or a
+    module without it)."""
     # Authenticate the peer the way Proxmox's own migrations do: its key from
     # the cluster's per-node file under its node name (PVE 9 keeps no cluster
     # host keys in the shared known_hosts).  Elsewhere, the system's known
@@ -550,10 +559,13 @@ def peer_facts(res, peer, peer_addr):
                        "echo MOUNTS=$(grep -c ' mxfs ' /proc/mounts); "
                        "echo REFCNT=$(cat /sys/module/mxfs/refcnt 2>/dev/null || echo unloaded); "
                        "echo BOOT=$(cat /proc/sys/kernel/random/boot_id); "
+                       "d=$(drbdadm sh-dev %s 2>/dev/null); "
+                       "r=$(cat /sys/fs/mxfs/${d##*/}/recovery_pending 2>/dev/null); "
+                       "echo RECOVERY=${r:-none}; "
                        "s=$(cat %s 2>/dev/null); echo BOOTSTATE=${s:-none}; "
                        "p=${s##* pid=}; p=${p%%%% *}; "
                        "[ -n \"$s\" ] && kill -0 \"$p\" 2>/dev/null && echo BOOTLIVE=1 || echo BOOTLIVE=0"
-                       % (res, state)],
+                       % (res, res, state)],
                       timeout=20)
     except subprocess.SubprocessError:
         return None, "ssh to %s timed out" % peer
@@ -1119,6 +1131,53 @@ class Boot:
             self.ready_if_due("waiting for %s to mount first" % peer)
             time.sleep(5)
 
+    def wait_peer_recovered(self):
+        """Promote only once a peer with MXFS mounted owes no recovery.
+
+        When this node's previous incarnation died or withdrew, the mounted
+        peer recovers it, and it can prove that incarnation ended only while
+        this node is DRBD Secondary on a connected link (fence kind
+        DRBD_PEER_SECONDARY_V1).  A node that promotes as soon as both disks
+        are UpToDate holds that proof off.  The peer cannot replay the old
+        journal slice, and this node's own mount, which waits for that replay,
+        is refused at its bound.  On 2026-10-06 the withdraw-p1 rejoin on both
+        pairs mounted only after a refused mount had stepped the node down
+        (pve9-1 5.5 min, pve2 73 s), and the peer certified in that window.
+
+        Waits while the peer answers that it has MXFS mounted and that its
+        mount's recovery_pending is 1, for at most PEER_RECOVERY_WAIT_S.  No
+        answer, no mount there, or a module without the attribute: the mount
+        goes ahead, and the module's own barrier decides as before."""
+        ep = drbd_endpoints(self.res)
+        if not ep:
+            return
+        _, _, _, peer, peer_addr, _ = ep
+        t0, said = time.time(), 0
+        while True:
+            f, why = peer_facts(self.res, peer, peer_addr)
+            if f is None:
+                if said:
+                    log("%s: no answer from %s (%s); promoting" % (self.res, peer, why))
+                return
+            if f["MOUNTS"] == "0" or f.get("RECOVERY", "none") != "1":
+                if said:
+                    log("%s: %s has recovered this node's previous incarnation (%d s); "
+                        "promoting" % (self.res, peer, time.time() - t0))
+                return
+            if time.time() - t0 >= PEER_RECOVERY_WAIT_S:
+                log("%s: %s still owes a recovery after %d s; promoting anyway, and the "
+                    "module decides whether this mount may proceed"
+                    % (self.res, peer, PEER_RECOVERY_WAIT_S), crit=True)
+                return
+            if not said or time.time() - said > 60:
+                log("%s: staying Secondary until %s has recovered this node's previous "
+                    "incarnation: it can prove that incarnation ended only while this "
+                    "node is Secondary" % (self.res, peer))
+                said = time.time()
+            self.ready_if_due("waiting for %s to recover this node's previous incarnation"
+                              % peer)
+            time.sleep(2)
+
 
 def cmd_boot(res, mountpoint):
     """Bring the resource up and mount it, only in a state the module admits:
@@ -1170,6 +1229,8 @@ def cmd_boot(res, mountpoint):
             b.wait_connected()
             b.wait_participant0()
             b.wait_connected()
+            if not role(res).startswith("Primary"):
+                b.wait_peer_recovered()
         write_boot_state(res, "mounting")
         # The promotion can race the link: lost after the wait above, it goes
         # through the fence-peer handler, which refuses a promotion without

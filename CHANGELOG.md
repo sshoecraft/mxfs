@@ -1,3 +1,43 @@
+## 2026-10-06 — 0.90.75 — a DRBD node stays Secondary until its peer has recovered its previous incarnation
+
+**A rejoining node promoted too early.** On 0.90.74 the withdraw-p1 rejoin
+failed its 345 s bound on the nested pair:
+- pve9-1 withdrew at 19:28:26. Its rejoin restarted the unit at 19:28:27, and
+  DRBD reconnected. pve9-1 promoted at 19:28:34, the moment both disks were
+  UpToDate.
+- pve9-2 can prove the withdrawn incarnation ended only while pve9-1 is
+  Secondary on a connected link. Every fence retry logged
+  `P238-DRBD-FENCE-NOT-YET … peer 'Primary'`, so pve9-2 could not replay the
+  old journal slice.
+- pve9-1's mount waits for that replay. Twice it was refused at its 122 s
+  bound (`P-BARRIER-GHOST-EXTEND`, rc=32 "already mounted or mount point busy")
+  and stepped down. pve9-1 mounted at 19:33:44, after pve9-2 had certified
+  during the second step-down.
+
+The 0.90.72 run that passed in 115 s raced the same way and won by luck:
+pve9-2 certified 4 s after a refused mount had stepped pve9-1 down. pve2 hit
+the race too, when its unit was restarted by hand at 14:34:38.
+
+**The fix:**
+- Each mount has `/sys/fs/mxfs/<dev>/recovery_pending`, which reads 1 while
+  the mount owes the recovery of another node's incarnation.
+- Before promoting, the boot program reads the peer's over ssh, beside the
+  facts it already reads there. A connected node stays Secondary while its
+  mounted peer reads 1, for at most 180 s, then promotes.
+- The attribute reads the DLM context under RCU. The three places that clear
+  `m_mxfs_dlm` before the context is freed now wait for RCU readers first.
+
+**Also:**
+- `tests/pve_pair_failover.sh` clears the guard's rejoin record (3 an hour,
+  kept on disk across restarts) on the hosts a withdraw step pauses. On the
+  physical pair, this morning's three failed rejoins had used up pve2's
+  budget, so today's withdraw-p1 there got no rejoin at all.
+- `tests/pve_pair_concurrency.sh` is an instrument for the physical pair's
+  hosts writing one at a time. Both hosts' loads are armed over ssh to start
+  at the same second, so a slow launch cannot pass for a host waiting.
+  Participant 1 samples, into tmpfs, its MXFS stat latency, its root-disk
+  fsync latency and its tasks in D.
+
 ## 2026-10-06 — 0.90.74 — a refused writeback no longer ends its ioend twice, and the rejoin's last-resort restart happens
 
 **The cause, measured on 0.90.73.** On the nested pair, `tests/pve_wb_refusal.sh`
@@ -26,6 +66,19 @@ child included. On pve9-1 a child started that way from a `systemd-run` unit
 never ran. pve2 logged "restarting this host in 10 s" three times this
 morning and stayed up with its mount shut down. `restart_host()` now waits
 and restarts from its own process.
+
+**Measured on 0.90.74.** `tests/pve_wb_refusal.sh` passed on pve1, pve2 and
+pve9-1. In each run there were four refusals over four distinct extents, no
+ended ioend was handed back, fsync answered EIO in 24-81 ms, the read-back,
+sync and second fsync finished, nothing stayed in D and the kernel logged no
+BUG.
+- The test now takes the refusals' error report from the superblock's
+  writeback errseq with one `sync -f`, and requires a second `sync -f` to be
+  clean. Before this, the next test's `sync -f` on that host was handed the
+  injected EIO. That is how syncfs is meant to report an unseen error, and it
+  failed the first withdraw run on both pairs at its first write.
+- Its stuck-task check now counts only a task in D in all of five samples 2 s
+  apart. A worker in D for its own FUA write had failed it once.
 
 **Test:** `tests/pve_pair_failover.sh withdraw-held`. Participant 1 withdraws
 while a tmpfs mounted inside its mount holds it. No process holds the mount,
