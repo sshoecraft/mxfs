@@ -1,3 +1,39 @@
+## 2026-10-06 — 0.90.74 — a refused writeback no longer ends its ioend twice, and the rejoin's last-resort restart happens
+
+**The cause, measured on 0.90.73.** On the nested pair, `tests/pve_wb_refusal.sh`
+refused the first ioend of an fsync's pass, `ino=8528208 off=0 ioend=…6976`.
+The next folio brought the same ioend back, `P294-WB-ENDED-IOEND-AGAIN … error=0`,
+and it was refused and ended a second time. The kernel then hit `kernel BUG at
+mm/slub.c:563` (a double free) and a page fault in `iomap_finish_folio_write`.
+The fsync died with SIGSEGV after 44 ms, and the next `sync` hung. On the
+physical pair the same thing had happened eleven times to one ioend, and it
+showed up there as a folio lock nobody held.
+
+**The fix.** From 6.17, iomap leaves `wpc->wb_ctx` for the filesystem to
+clear. After a failed `->writeback_submit` in `iomap_add_to_ioend` it returns
+the error with the ended ioend still cached. An fsync's pass then goes on and
+submits that ioend again for its next folio, and once more at the end. MXFS
+now clears `wb_ctx` after every hand-off to `iomap_ioend_writeback_submit`
+(`mxfs_ioend_hand_off`), as iomap did itself before 6.17. Both refusals take
+that path: the authority gate's and the DRBD write cap's. `P294` stays in place
+to catch a regression.
+
+**The rejoin's restart now happens.** `mxfs-drbd-fence-self rejoin` runs as the
+transient unit `mxfs-drbd-rejoin-<res>`. Its last resort used to start
+`sleep 10; echo b > /proc/sysrq-trigger` as a detached child and then return.
+systemd then stopped the unit and killed everything left in its cgroup, the
+child included. On pve9-1 a child started that way from a `systemd-run` unit
+never ran. pve2 logged "restarting this host in 10 s" three times this
+morning and stayed up with its mount shut down. `restart_host()` now waits
+and restarts from its own process.
+
+**Test:** `tests/pve_pair_failover.sh withdraw-held`. Participant 1 withdraws
+while a tmpfs mounted inside its mount holds it. No process holds the mount,
+so nothing the rejoin can stop frees it, and the unmount answers busy. The
+host must restart itself, the journal of its previous boot must show the
+rejoin's restart, and it must mount again. Participant 0's load must see no
+I/O error.
+
 ## 2026-10-06 — 0.90.73 — an instrument and a test knob for an ioend refused in the middle of a writeback pass
 
 **What the physical pair logged.** At 13:38:51 pve2's write cap refused one

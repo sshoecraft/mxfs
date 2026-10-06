@@ -726,12 +726,21 @@ def rejoin_times(res):
 
 def restart_host(why):
     """The last way back in, as the fence-peer loser takes it: a restart in
-    RESTART_DELAY_S, with no sync (a stuck filesystem would hang it)."""
+    RESTART_DELAY_S, with no sync (a stuck filesystem would hang it).
+
+    It waits and restarts in this process, and returns only if the restart
+    could not be asked for.  The rejoin that calls it runs as a transient
+    unit, and a child started to do it later does not outlive that unit: once
+    the rejoin returns, systemd stops the unit and kills every process left in
+    its cgroup (KillMode=control-group), a new session or not."""
     log("restarting this host in %d s: %s" % (RESTART_DELAY_S, why), crit=True)
-    subprocess.Popen(["/bin/sh", "-c", "sleep %d; echo b > /proc/sysrq-trigger"
-                      % RESTART_DELAY_S], start_new_session=True,
-                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                     stderr=subprocess.DEVNULL)
+    time.sleep(RESTART_DELAY_S)
+    try:
+        with open("/proc/sysrq-trigger", "w") as fh:
+            fh.write("b")
+    except OSError as e:
+        log("the restart could not be asked for (/proc/sysrq-trigger: %s); this host "
+            "stays up with its mount shut down until it is restarted" % e, crit=True)
 
 
 def bounded_umount(mnt, limit):

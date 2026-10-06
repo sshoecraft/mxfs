@@ -56,6 +56,12 @@
 #   withdraw-p1
 #              the same on participant 1 alone: participant 0 carries on and
 #              recovers it, and participant 1 rejoins without a restart.
+#   withdraw-held
+#              as withdraw-p1, while something the rejoin cannot stop holds
+#              participant 1's mount (a tmpfs mounted inside it: no process to
+#              kill, and the unmount answers busy).  The rejoin must give up on
+#              the unmount after its rounds and restart the host itself, which
+#              must come back and mount by itself; participant 0 carries on.
 #   (default: p1-crash reboot power-cut p0-crash)
 #
 # Before each step both hosts must be mounted, DRBD Connected Primary/Primary
@@ -120,6 +126,11 @@ WITHDRAW_PAUSE_MS=45000
 # program mounts as after a pair outage (OUTAGE_BUDGET) -- the pause's length
 # plus that.
 WITHDRAW_BUDGET=$(( WITHDRAW_PAUSE_MS / 1000 + OUTAGE_BUDGET ))
+# From the pause to a held host answering after its rejoin restarted it: the
+# lease runs out (30 s), the guard sees the shutdown (5 s), three refused
+# unmount rounds 5 s apart, the restart's 10 s delay -- 60 s, twice that --
+# then the host's boot.
+HELD_BUDGET=$(( 120 + BOOT_BUDGET ))
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
 EVID="$REPO/tests/evidence/pve_pair_failover/$STAMP"
 mkdir -p "$EVID" || exit 1
@@ -627,11 +638,48 @@ withdraw() {
 step_withdraw_both() { withdraw withdraw-both "$P0" "$P1"; }
 step_withdraw_p1() { withdraw withdraw-p1 "$P1"; }
 
+# withdraw-held: participant 1 withdraws while a tmpfs mounted inside its
+# mount holds it.  No process holds that, so nothing the rejoin stops or kills
+# frees it, and the unmount answers busy every round: the rejoin's last resort,
+# a restart of the host, is the only way back.  The restart must be the
+# rejoin's own (its journal says so), not a watchdog's or this test's.
+step_withdraw_held() {
+    local b1 t0 s out
+    write_sets withdraw-held; start_loads withdraw-held
+    sleep 10
+    b1=$(boot_id "$P1")
+    on "$P1" "mkdir -p $MNT/pvefail/held && mount -t tmpfs -o size=1m mxfs-held $MNT/pvefail/held && echo HELD" 20 | grep -q HELD \
+        || die "could not mount a tmpfs inside $P1's mount"
+    LEFT="a tmpfs on $MNT/pvefail/held on $P1: umount it there"
+    say "withdraw-held: a tmpfs inside $P1's mount holds it; pausing $P1's MXFS heartbeat for $(( WITHDRAW_PAUSE_MS / 1000 )) s under load on both"
+    t0=$(date +%s)
+    on "$P1" "echo $WITHDRAW_PAUSE_MS > /sys/module/mxfs/parameters/dl_inject_hb_pause_ms && echo ARMED" 15 | grep -q ARMED \
+        || die "could not pause $P1's heartbeat"
+    LEFT="$P1's withdrawn mount, held by a tmpfs on $MNT/pvefail/held: umount that, then systemctl restart mxfs-drbd@$RES there"
+    s=$(wait_rebooted "$P1" "$b1" "$HELD_BUDGET") || die "$P1's rejoin did not restart the host within ${HELD_BUDGET}s of the pause"
+    LEFT=""
+    say "  $P1 restarted and answered again $s s after the pause"
+    out=$(on "$P1" "journalctl -b -1 --no-pager -o cat -t mxfs-drbd-fence | grep -a -E 'umount of the shut-down|could not be unmounted|did not finish|restarting this host' | tail -4" 30)
+    grep -q 'restarting this host' <<<"$out" || die "$P1 restarted, but its previous boot's journal does not show its rejoin restarting it: ${out:-nothing}"
+    say "  $P1's rejoin before the restart: $(tr '\n' '|' <<<"$out" | cut -c1-400)"
+    s=$(wait_mounted "$P1" "$REJOIN_BUDGET") || die "$P1 did not mount again within ${REJOIN_BUDGET}s of answering"
+    say "  $P1 mounted again $s s after answering"
+    out=$(on "$P0" "journalctl -k --no-pager -o cat --since @$t0 | grep -aoE 'P163-RECOVERY-COMPLETE|P-RBLK-[A-Z-]+' | sort | uniq -c | tr '\n' ' '" 30)
+    grep -q P163-RECOVERY-COMPLETE <<<"$out" || die "$P0 did not complete the recovery of $P1: ${out:-no recovery lines}"
+    grep -q P-RBLK <<<"$out" && die "$P0 refused operations as RECOVERY_BLOCKED: $out"
+    say "  $P0: $out"
+    out=$(load_result "$P0")
+    [ "$(sed -n 's/.*err=\([0-9]*\).*/\1/p' <<<"$out")" = 0 ] || die "$P0, which did not withdraw, saw an I/O error: ${out:-no result}"
+    say "  $P0 carried on: $out"
+    collect withdraw-held "$t0"
+    verify_sets withdraw-held
+}
+
 STEPS=("$@")
 [ "${#STEPS[@]}" -gt 0 ] || STEPS=(p1-crash reboot power-cut p0-crash)
 for s in "${STEPS[@]}"; do
     case "$s" in
-        p1-crash|p0-crash|power-cut|reboot|promotion-race|withdraw-both|withdraw-p1) ;;
+        p1-crash|p0-crash|power-cut|reboot|promotion-race|withdraw-both|withdraw-p1|withdraw-held) ;;
         survivor-restart|released-restart|stale-promotion)
             [ -n "${PVE_POWER_ON:-}" ] || { echo "$s keeps a host powered off: set PVE_POWER_ON to the command that powers one on"; exit 2; } ;;
         *) echo "unknown step: $s"; exit 2 ;;

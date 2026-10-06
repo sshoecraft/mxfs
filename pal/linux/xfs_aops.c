@@ -1300,6 +1300,32 @@ xfs_writeback_range(
 	return ret;
 }
 
+/*
+ * Hand the cached ioend to iomap, which submits it, or ends it with @error, and
+ * either way this pass is done with it: clear wb_ctx.
+ *
+ * From 6.17 iomap keeps the ioend it is building in wpc->wb_ctx and leaves
+ * clearing it to the filesystem.  After a successful submission it puts the
+ * next ioend there at once.  After a failed one iomap_add_to_ioend returns the
+ * error with wb_ctx untouched, and a WB_SYNC_ALL pass goes on to its next
+ * folio: it found the ended ioend still cached, submitted it again, and once
+ * more at the end of the pass.  Each submission ended the same bio again after
+ * its completion had freed it.  On the nested pair a second refusal of one
+ * ioend was enough for a double free (kernel BUG at mm/slub.c:563) and a page
+ * fault in iomap_finish_folio_write; on the physical pair one ioend refused
+ * eleven times left an fsync waiting on a folio lock no task held.  Before
+ * 6.17 iomap cleared its own pointer after every submission.
+ */
+static int
+mxfs_ioend_hand_off(
+	struct iomap_writepage_ctx	*wpc,
+	int				error)
+{
+	error = iomap_ioend_writeback_submit(wpc, error);
+	wpc->wb_ctx = NULL;
+	return error;
+}
+
 static int
 xfs_writeback_submit(
 	struct iomap_writepage_ctx	*wpc,
@@ -1337,7 +1363,7 @@ xfs_writeback_submit(
 	 */
 	if (!error && !mxfs_ioend_write_admitted(ioend)) {
 		xwpc->ended = ioend;
-		return iomap_ioend_writeback_submit(wpc, -EIO);
+		return mxfs_ioend_hand_off(wpc, -EIO);
 	}
 
 	nofs_flag = memalloc_nofs_save();
@@ -1367,7 +1393,7 @@ xfs_writeback_submit(
 		error = mxfs_ioend_bound_admit(ioend);
 	if (error)
 		xwpc->ended = ioend;
-	return iomap_ioend_writeback_submit(wpc, error);
+	return mxfs_ioend_hand_off(wpc, error);
 }
 #endif
 
