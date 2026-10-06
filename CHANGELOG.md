@@ -1,3 +1,35 @@
+## 2026-10-05 — 0.90.56 — a DRBD survivor certifies the peer it excluded
+
+**The survivor of a DRBD split never replayed the excluded peer's journal.**
+Measured on the physical PVE pair (0.90.55): pve2 died, pve1 won the tie-break
+and excluded it (fence-peer exit 7, then StandAlone), and from then on every
+fence attempt read "replication protocol is '' (configured 'C'), not C".  The
+peer's slice stayed unreplayed, everything pve2 had held answered
+`RECOVERY_BLOCKED`, and the root of `/mnt/shared` answered "Stale file
+handle".  The cause is in the witness, not the fence: DRBD prints the
+protocol column of `/proc/drbd` as a blank once StandAlone has dropped the
+network configuration, and the witness's pattern required a non-blank there,
+so the whole line failed to parse and the report carried no roles, no disk
+states and no suspend flag either (run read-only on pve1:
+`CSTATE=StandAlone ROLE_LOCAL= DISK_LOCAL= DISK_PEER= SUSPENDED=`).
+- `mxfs_drbd_witness.py` reads a blank protocol column as no protocol, so a
+  StandAlone line reports its roles, disks and suspend flag.
+- The judgment (`dlm/drbdfence.c`) accepts no live protocol only when the
+  resource is StandAlone, where nothing replicates under any protocol, and the
+  configuration, which every reconnect applies, still says C.
+
+**`make install` restarts the DRBD guard.**  A running `mxfs-drbd-guard` kept
+the program it started with: on pve1 the guard installed before the host-key
+fix kept failing ssh to pve2 (`rc=255` every 5 s) and could never release it.
+`make install`, the .deb and the rpm now `try-restart` it; the restart drops
+nothing, because the isolation is an nftables table and the inhibit a file.
+
+**Tools.**  `tools/pve_pair.sh` reports and drives the two physical PVE hosts
+(status, a command on both, kernel-log counts).  `tools/pve_netconsole.sh`
+sends their kernel log to clyde, one port and log per host, because a host
+that resets loses the last ~30 s of its journal and these hosts have no pstore
+backend; `tools/netconsole_listen.sh` takes a port of its own per listener.
+
 ## 2026-10-05 — 0.90.55 — `make install` installs a working node, not just the module
 
 **DRBD pairs are fenced by default with no fence hardware and no third host.**

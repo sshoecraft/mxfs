@@ -30,11 +30,19 @@
 #
 # The log lands in tests/evidence/netconsole.log by default and is APPENDED to,
 # never truncated: an old capture is evidence too.
+#
+# MXFS_NETCONSOLE_PORT picks another port, so hosts outside the rig (the
+# physical Proxmox pair, tools/pve_netconsole.sh) each get a listener and a log
+# of their own beside the rig's; each port keeps its own pidfile.
 set -u
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 PORT=${MXFS_NETCONSOLE_PORT:-6666}
 LOG=${2:-$REPO/tests/evidence/netconsole.log}
-PIDFILE=$REPO/tests/evidence/.netconsole.pid
+if [ "$PORT" = 6666 ]; then
+    PIDFILE=$REPO/tests/evidence/.netconsole.pid
+else
+    PIDFILE=$REPO/tests/evidence/.netconsole.$PORT.pid
+fi
 
 have() { command -v "$1" >/dev/null 2>&1; }
 

@@ -69,8 +69,14 @@ install_files() {
         udevadm trigger --subsystem-match=block 2>/dev/null || true
         # The DRBD guard is idle unless this node holds a peer excluded;
         # enabled always, so an exclusion survives a reboot on any node.
+        # A running guard keeps the program it started with, so it is
+        # restarted onto the one just installed: measured on a PVE host, a
+        # guard left on the old build could never release its peer.  The
+        # restart drops nothing: the isolation is an nftables table and the
+        # inhibit a file, both outside the process.
         systemctl daemon-reload 2>/dev/null || true
         systemctl enable --now mxfs-drbd-guard.service 2>/dev/null || true
+        systemctl try-restart mxfs-drbd-guard.service 2>/dev/null || true
     fi
 
     # `modprobe mxfs` does nothing while a module is loaded, so after an

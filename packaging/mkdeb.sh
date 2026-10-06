@@ -97,6 +97,8 @@ udevadm control --reload-rules 2>/dev/null || true
 udevadm trigger --subsystem-match=block 2>/dev/null || true
 systemctl daemon-reload 2>/dev/null || true
 systemctl enable --now mxfs-drbd-guard.service 2>/dev/null || true
+# an upgraded guard runs the old program until it is restarted
+systemctl try-restart mxfs-drbd-guard.service 2>/dev/null || true
 echo "MXFS ${VERSION} installed. Module will auto-load on boot."
 echo ""
 echo "To mount a filesystem:"

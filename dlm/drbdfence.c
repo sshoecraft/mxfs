@@ -27,7 +27,11 @@ static int eq(const char *a, const char *b)
 static int common(const struct mxfs_pal_drbd_report *r, char *why, size_t whylen)
 {
     NEED(r->delivered, "no witness report (%s)%s", r->reason, "");
-    NEED(eq(r->protocol, "C") && eq(r->protocol_cfg, "C"),
+    /* StandAlone discards the network configuration, so DRBD shows no live
+     * protocol and nothing replicates under any; the configured one is what
+     * any reconnect applies.  Everywhere else the live protocol must be C. */
+    NEED((eq(r->protocol, "C") || (eq(r->protocol, "") && eq(r->cstate, "StandAlone"))) &&
+         eq(r->protocol_cfg, "C"),
          "replication protocol is '%s' (configured '%s'), not C", r->protocol, r->protocol_cfg);
     NEED(eq(r->two_primaries, "yes"), "allow-two-primaries is '%s'%s", r->two_primaries, "");
     NEED(eq(r->fencing, "resource-and-stonith"),

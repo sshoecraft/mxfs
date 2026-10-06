@@ -113,14 +113,18 @@ def proc_drbd(minor):
             text = fh.read()
     except OSError:
         return None
-    m = re.search(r"^\s*%d: cs:(\S+)(?: ro:(\S+) ds:(\S+) (\S) (\S+))?" % minor, text, re.M)
+    # drbd_proc.c prints the protocol column as a blank when the resource has
+    # no network configuration (StandAlone), so the column is one character
+    # that may be a space; requiring a non-space there dropped the roles, the
+    # disk states and the suspend flag of every StandAlone line.
+    m = re.search(r"^\s*%d: cs:(\S+)(?: ro:(\S+) ds:(\S+) (\S| ) (\S+))?" % minor, text, re.M)
     if not m:
         return None
     out = {"cstate": m.group(1)}
     if m.group(2):
         out["role_local"], _, out["role_peer"] = m.group(2).partition("/")
         out["disk_local"], _, out["disk_peer"] = m.group(3).partition("/")
-        out["protocol"] = m.group(4)
+        out["protocol"] = m.group(4).strip()
         # drbd_proc.c: the flag field's first character is 's' when I/O is
         # suspended for any reason (user, no-data, or the fencing freeze).
         out["suspended"] = "1" if m.group(5)[0] == "s" else "0"

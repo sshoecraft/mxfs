@@ -187,6 +187,8 @@ udevadm control --reload-rules 2>/dev/null || true
 udevadm trigger --subsystem-match=block 2>/dev/null || true
 systemctl daemon-reload 2>/dev/null || true
 systemctl enable --now mxfs-drbd-guard.service 2>/dev/null || true
+# an upgraded guard runs the old program until it is restarted
+systemctl try-restart mxfs-drbd-guard.service 2>/dev/null || true
 # installed into the policy store even while SELinux is disabled, so a host
 # that enables it later labels MXFS from its first boot enforcing
 if command -v semodule >/dev/null 2>&1; then
