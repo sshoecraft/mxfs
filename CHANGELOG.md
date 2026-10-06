@@ -1,3 +1,82 @@
+## 2026-10-06 — 0.90.69 — only participant 0 can take a DRBD pair alone; a survivor's guard waits for its own mount
+
+**Both hosts could win one split.** DRBD runs the fence-peer handler for two
+requests: a Primary that lost its link, and `drbdadm primary` on a
+disconnected Secondary (`drbd_set_role`: `SS_PRIMARY_NOP` for an UpToDate
+disk). The handler never read this node's role, so it answered a promotion
+with the tie-break. Participant 1 also carried on whenever the peer answered
+over ssh that it was not Primary and had nothing mounted. Two interleavings
+let both hosts become Primary on diverging replicas:
+- Participant 0 is promoted just as the link fails, while participant 1 reads
+  it as idle.
+- Participant 0 demotes at the end of a planned stop while its own lost-link
+  handler is still running.
+
+Found by reading this code against DRBD 8.4's (`drbd_state.c` is_valid_state,
+`drbd_nl.c` drbd_set_role and conn_try_outdate_peer), then reproduced live on
+the nested Proxmox pair with the 0.90.68 handler
+(`tests/evidence/pve_pair_failover/20261006T152844Z`):
+- pve9-2 (participant 0) was unmounted and Secondary on a Connected link, and
+  the DRBD port was cut on pve9-2 only.
+- Within 5 s pve9-1 excluded pve9-2 on the "departed" evidence and carried on
+  mounted.
+- A `drbdadm primary` on pve9-2 then returned Primary, with pve9-2 holding its
+  own exclusion of pve9-1.
+- On reconnect DRBD reported "Split-Brain detected". It was resolved by
+  discarding pve9-2's side, which had written nothing.
+- A handler call while this node is not Primary is a promotion. It is granted
+  only under participant 0's own standing exclusion of the peer. Otherwise
+  the answer is 1 and the promotion fails. The answer is never 5: on an
+  UpToDate disk, DRBD answers 5 by outdating the peer, and the promotion then
+  goes ahead.
+- Participant 1 never carries on after a lost link. A planned restart of
+  participant 0 is a graceful DRBD disconnect, because the unit stops before
+  the network does, and DRBD runs no handler for that.
+- At boot, only participant 0 mounts alone on DRBD's peer-Outdated record.
+  DRBD writes that record to disk only after the state change, so a crash can
+  leave it stale on participant 1, whose peer may have resynced since and
+  carried on.
+- A promotion the handler refuses is a failed attempt for the boot program,
+  which waits for the connection again and retries. Before, the refusal ended
+  the boot program.
+- An isolation table that no inhibit holds, left by a crash inside an
+  exclusion or by dropping an earlier version's participant-1 inhibit, is
+  removed while the boot program waits to connect. Otherwise DRBD could
+  never connect.
+
+**The guard released the peer in the middle of the survivor's own mount.**
+Measured on pve1 on 0.90.68:
+- pve1 restarted alone, excluded pve2 at +30 s on DRBD's record, and began
+  mounting as the survivor.
+- pve2 was up with DRBD unconfigured. 65 s later pve1's guard got pve2's
+  clean answer and released it.
+- The module's startup fence then had neither the exclusion nor a Connected
+  Secondary peer. It refused the mount at its 120 s bound
+  (`P-DRBD-STARTUP-FENCE-UNPROVEN`), and the boot program gave up.
+
+The guard and the release verb now hold a release while this node's boot
+program is running and has not mounted. The rig never saw this: its victim was
+powered off during the survivor's mount, so the guard never got an answer.
+
+**New tests:**
+- `scripts/drbd_rig.sh promotion-race-test` and the
+  `tests/pve_pair_failover.sh promotion-race` step: participant 0 is unmounted
+  and Secondary on a Connected link when the replication link fails on its
+  side only, with ssh still up.
+- `SELF_RESTART=answering` for `self-restart-test`: the victim stays up and
+  answers with DRBD down for the survivor's whole restart.
+
+**Verified on the rig** (module 0.90.69, `tests/evidence/drbd_rig/chain-0.90.69.log`):
+- **promotion-race-test:** participant 1 lost the tie-break and restarted. A
+  `drbdadm primary` on participant 0 was refused and excluded nothing. Both
+  mounted again, every fsynced file was intact, and the cold check was clean.
+- **self-restart-test, answering:** the survivor mounted alone in 162 s, and
+  its guard released the victim only after that mount. The victim rejoined in
+  21 s and the cold check was clean.
+- **Repeated:** self-restart-test held (137 s) and released (162 s),
+  self-death-test, self-outage-test, and the misconfiguration matrix (eight
+  rows). All passed.
+
 ## 2026-10-06 — 0.90.68 — a DRBD survivor that restarts while its peer is down mounts again; the fence handler never promotes a stale replica
 
 **A survivor that restarted with its peer still down never mounted again.**

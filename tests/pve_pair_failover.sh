@@ -40,6 +40,12 @@
 #              Participant 1 comes back with a replica that lacks those
 #              writes, and a plain `drbdadm primary` on it must be refused;
 #              then participant 0's unit starts and both mount again.
+#   promotion-race
+#              participant 0 is unmounted and Secondary on a Connected link
+#              when the replication link fails on its side alone (ssh up).
+#              Participant 1 must lose the tie-break and restart, never carry
+#              on because its peer looks idle; a plain `drbdadm primary` on
+#              participant 0 must be refused; then both mount again.
 #   (default: p1-crash reboot power-cut p0-crash)
 #
 # Before each step both hosts must be mounted, DRBD Connected Primary/Primary
@@ -500,11 +506,56 @@ step_stale_promotion() {
     check_set stale-promotion.alone "$P1" "$P0"
 }
 
+# Participant 0 unmounted and Secondary on a Connected link (its boot
+# program's state just before it promotes) when the replication link fails on
+# its side alone, ssh still up.  Participant 1 must lose the tie-break and
+# restart, never carry on because its peer looks idle, and a plain drbdadm
+# primary on participant 0 must be refused.  Then both mount again.
+step_promotion_race() {
+    local b1 s out tcut port bad=""
+    write_sets promotion-race
+    b1=$(boot_id "$P1")
+    port=$(on "$P0" "drbdadm dump $RES 2>/dev/null | sed -n 's/.*address[[:space:]]*\(ipv4[[:space:]]*\)\{0,1\}$P0:\([0-9]*\);.*/\2/p' | head -1" 15)
+    [ -n "$port" ] || die "no DRBD port for $P0 in resource $RES"
+    out=$(on "$P0" "umount $MNT && drbdadm secondary $RES && echo \"P0_STATE \$(drbdadm role $RES) \$(drbdadm cstate $RES) \$(drbdadm dstate $RES)\"" 200)
+    grep -q '^P0_STATE Secondary/Primary Connected UpToDate/UpToDate' <<<"$out" || die "$P0 is not Secondary on a Connected link: $out"
+    LEFT="$P0 is unmounted and Secondary: systemctl restart mxfs-drbd@$RES there"
+    tcut=$(on "$P1" "date +%s" 10)
+    on "$P0" "nft add table inet pvefail_cut && nft add chain inet pvefail_cut in '{ type filter hook input priority -310; }' && nft add rule inet pvefail_cut in ip saddr $P1 tcp dport $port drop && nft add rule inet pvefail_cut in ip saddr $P1 tcp sport $port drop && echo CUT" 15 | grep -q CUT \
+        || die "could not cut the replication link on $P0"
+    LEFT="$LEFT; the link is cut on $P0: nft delete table inet pvefail_cut there"
+    say "promotion-race: $P0 unmounted and Secondary; the replication link (port $port) cut on $P0 alone, ssh up"
+    out=$(on "$P1" "for i in \$(seq 1 40); do r=\$(awk -v t=$tcut '\$1 >= t && / result=(TIEBREAK_LOST|EXCLUDED) / {print \$5}' /var/lib/mxfs/drbd-fence.$RES | tail -1); [ -n \"\$r\" ] && { echo \"P1_DECIDED \$r\"; exit 0; }; sleep 1; done; echo P1_UNDECIDED" 60)
+    case "$out" in
+        *"result=TIEBREAK_LOST"*) say "  $P1 lost the tie-break: its I/O froze, and it restarts because it was mounted" ;;
+        *"result=EXCLUDED"*) bad="$bad; $P1 carried on: it excluded $P0, which only looked idle" ;;
+        *) bad="$bad; $P1 recorded no decision within 40 s: $(tail -1 <<<"$out")" ;;
+    esac
+    out=$(on "$P0" "echo \"BEFORE \$(drbdadm cstate $RES) \$(drbdadm dstate $RES)\"; drbdadm primary $RES 2>&1 | tail -1; echo \"ROLE=\$(drbdadm role $RES) INHIBIT=\$(ls /var/lib/mxfs | grep -c inhibit)\"" 120)
+    echo "$out" > "$EVID/promotion-race.$P0"
+    if grep -q '^ROLE=Secondary' <<<"$out" && grep -q 'INHIBIT=0' <<<"$out"; then
+        say "  a plain drbdadm primary on $P0 was refused, and it excluded nothing: $(grep -a '^BEFORE' <<<"$out")"
+    else
+        bad="$bad; $P0 was promoted with the link down: $(tr '\n' ' ' <<<"$out")"
+    fi
+    [ -z "$bad" ] || die "both hosts could win this split${bad} (DRBD may now be split: resolve by hand before anything else)"
+    on "$P0" "nft delete table inet pvefail_cut && echo RESTORED" 15 | grep -q RESTORED || die "could not restore the link on $P0"
+    s=$(wait_rebooted "$P1" "$b1" "$BOOT_BUDGET") || die "$P1 did not restart within ${BOOT_BUDGET}s"
+    say "  $P1 restarted; the link is back; restarting $P0's unit"
+    on "$P0" "systemctl restart --no-block mxfs-drbd@$RES && echo RESTARTED" 30 | grep -q RESTARTED || die "could not restart mxfs-drbd@$RES on $P0"
+    LEFT=""
+    s=$(wait_mounted "$P0" "$OUTAGE_BUDGET") || die "$P0 did not mount again within ${OUTAGE_BUDGET}s"
+    s=$(wait_mounted "$P1" "$OUTAGE_BUDGET") || die "$P1 did not mount again within ${OUTAGE_BUDGET}s"
+    say "  both mounted again"
+    collect promotion-race "$tcut"
+    verify_sets promotion-race
+}
+
 STEPS=("$@")
 [ "${#STEPS[@]}" -gt 0 ] || STEPS=(p1-crash reboot power-cut p0-crash)
 for s in "${STEPS[@]}"; do
     case "$s" in
-        p1-crash|p0-crash|power-cut|reboot) ;;
+        p1-crash|p0-crash|power-cut|reboot|promotion-race) ;;
         survivor-restart|released-restart|stale-promotion)
             [ -n "${PVE_POWER_ON:-}" ] || { echo "$s keeps a host powered off: set PVE_POWER_ON to the command that powers one on"; exit 2; } ;;
         *) echo "unknown step: $s"; exit 2 ;;

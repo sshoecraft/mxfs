@@ -41,7 +41,8 @@
 #   scripts/drbd_rig.sh self-restart-test   the survivor of a built-in exclusion restarts while its peer is
 #                                              still down and must mount alone through the boot program, then
 #                                              the peer rejoins (SELF_RESTART=released: the guard released the
-#                                              peer first and it died again before it connected)
+#                                              peer first and it died again before it connected;
+#                                              SELF_RESTART=answering: the peer is up with DRBD down throughout)
 #   scripts/drbd_rig.sh takeover-test [self|foreign]
 #                                           a pair outage whose bootstrap owner fails after adopting
 #                                           K: the term is taken over and finished (TAKEOVER_NOCAW_ARM=1
@@ -50,6 +51,10 @@
 #                                              whole-cluster restart, all on one filesystem
 #   scripts/drbd_rig.sh resolve-test        passthrough never resolves /dev/drbd0 (or dm on it) to its
 #                                              backing disk; a loop-device mount refuses and writes nothing
+#   scripts/drbd_rig.sh promotion-race-test the link fails on participant 0's side while it is unmounted and
+#                                              Secondary: participant 1 must lose the tie-break, never carry on
+#                                              because its peer looks idle, and a drbdadm primary on participant 0
+#                                              must be refused; both then mount again with every fsynced file
 #   scripts/drbd_rig.sh misconfig-test      each wrong setting of a user's DRBD resource is refused at
 #                                              mount with a reason that names the setting
 #   scripts/drbd_rig.sh reconfig            re-apply the resource file and fencing to the running pair
@@ -1252,7 +1257,7 @@ step_self_outage_test() {
 SELF_RESTART_BUDGET=330
 step_self_restart_test() {
     local out t0 surv vict a1 a2 n ssum vsum asum ep mode=${SELF_RESTART:-held}
-    case "$mode" in held|released) ;; *) die "self restart test: SELF_RESTART must be held or released" ;; esac
+    case "$mode" in held|released|answering) ;; *) die "self restart test: SELF_RESTART must be held, released or answering" ;; esac
     need_dual_primary
     need_mounted || die "self restart test: MXFS is not mounted on both nodes (scripts/drbd_rig.sh mxfs)"
     a1=$(lab_addr "$N1"); a2=$(lab_addr "$N2")
@@ -1293,6 +1298,13 @@ step_self_restart_test() {
         ssh_n "$surv" "systemctl stop mxfs-rig-guard 2>/dev/null; drbdadm cstate $RES; drbdadm dstate $RES; ls /var/lib/mxfs" 20 > "$EVID/srestart_released"
         timeout 60 virsh -c qemu:///system destroy "$vict" >/dev/null 2>&1 || die "self restart test: virsh destroy $vict (again) failed"
         say "  $vict destroyed again before it ever connected; $surv: $(head -2 "$EVID/srestart_released" | tr '\n' ' ')"
+    elif [ "$mode" = answering ]; then
+        # The victim is up and answers over ssh, with DRBD down, for the whole
+        # of the survivor's restart: pve2 on 2026-10-06.  The survivor's guard
+        # must not release it while the survivor's mount depends on the
+        # exclusion.
+        "$REPO/scripts/lab_power.sh" up "$vict" > "$EVID/srestart_power.$vict" 2>&1 || die "self restart test: $vict did not boot: $(tail -1 "$EVID/srestart_power.$vict")"
+        say "  $vict is up with DRBD down, and stays up through $surv's restart"
     fi
 
     timeout 60 virsh -c qemu:///system destroy "$surv" >/dev/null 2>&1 || die "self restart test: virsh destroy $surv failed"
@@ -1334,6 +1346,10 @@ step_self_restart_test() {
     # which waits until the survivor's guard releases it and DRBD has resynced.
     t0=$(date +%s)
     "$REPO/scripts/lab_power.sh" up "$vict" > "$EVID/srestart_power2.$vict" 2>&1 || die "self restart test: $vict did not boot: $(tail -1 "$EVID/srestart_power2.$vict")"
+    if [ "$mode" = answering ]; then
+        grep -q 'result=RELEASED' "$EVID/srestart_bootlog.$surv" \
+            && say "  $surv's guard released $vict only after its own mount: $(grep -a 'released' "$EVID/srestart_bootlog.$surv" | tail -1 | cut -c1-200)"
+    fi
     out=$(ssh_n "$vict" "$NODE_DRBD_UP
         mountpoint -q /src || { mkdir -p /src; timeout 20 mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp; }
         MXFS_NO_MOUNT=1 MXFS_DEV=$DRBD_DEV MXFS_KO_MD5=$KO_MD5 MXFS_REPO=/src/mxfs bash /src/mxfs/tests/setup/prep_node.sh tcp 2>&1 | grep -a NODE_PREP
@@ -1360,6 +1376,104 @@ step_self_restart_test() {
     say "  cold chk_mxfs clean"
     install_fencing
     say "self restart test ($mode): passed (the rig's node fence is configured again; MXFS left unmounted)"
+}
+
+# The race that let both nodes win one split under the built-in authority.
+# Participant 0 is unmounted and Secondary on a Connected link (its boot
+# program's state just before it promotes) when the replication link fails
+# on its side alone, ssh still up.  Participant 1, Primary and mounted, must
+# lose the tie-break and restart, never carry on because its peer looks idle;
+# a plain drbdadm primary on participant 0 must be refused, because it holds
+# no exclusion of a peer that may have carried on.  Then the link returns,
+# both boot programs mount, and every fsynced file is intact on both.
+PRACE_BUDGET=40         # DRBD notices the cut (2 x ping-int 3 + ping-timeout) and the handler answers
+PRACE_BOOT_BUDGET=120   # participant 1 restarts 10 s after its handler; a rig node boots in ~30 s
+PRACE_MOUNT_BUDGET=330  # a pair recovery after a crash mounts at ~150-160 s (self-outage-test); twice that
+step_promotion_race_test() {
+    local out a1 a2 p0 p1 s0 s1 b1 tcut n KO_MD5 bad=""
+    need_dual_primary
+    need_mounted || die "promotion race test: MXFS is not mounted on both nodes (scripts/drbd_rig.sh mxfs)"
+    a1=$(lab_addr "$N1"); a2=$(lab_addr "$N2")
+    if python3 -I -c 'import ipaddress, sys; sys.exit(0 if ipaddress.ip_address(sys.argv[1]) < ipaddress.ip_address(sys.argv[2]) else 1)' "$a1" "$a2"; then
+        p0=$N1; p1=$N2
+    else
+        p0=$N2; p1=$N1
+    fi
+    install_self_authority
+    say "promotion race test: participant 0 $p0, participant 1 $p1"
+    s0=$(ssh_n "$p0" "mkdir -p $MNT/prace/p0 && for i in \$(seq 1 32); do head -c 65536 /dev/urandom > $MNT/prace/p0/f\$i; done && sync -f $MNT && cd $MNT/prace/p0 && md5sum f* | sort -k2 | md5sum | cut -c1-32" 60 | tail -1)
+    s1=$(ssh_n "$p1" "mkdir -p $MNT/prace/p1 && for i in \$(seq 1 32); do head -c 65536 /dev/urandom > $MNT/prace/p1/f\$i; done && sync -f $MNT && cd $MNT/prace/p1 && md5sum f* | sort -k2 | md5sum | cut -c1-32" 60 | tail -1)
+    [ ${#s0} = 32 ] && [ ${#s1} = 32 ] || die "promotion race test: could not record checksums ($s0 / $s1)"
+    out=$(ssh_n "$p0" "$NODE_UNMOUNT
+        drbdadm secondary $RES 2>&1 | tail -1; echo \"P0_STATE \$(drbdadm role $RES) \$(drbdadm cstate $RES) \$(drbdadm dstate $RES)\"" 120)
+    grep -q '^P0_STATE Secondary/Primary Connected UpToDate/UpToDate' <<<"$out" \
+        || die "promotion race test: $p0 is not Secondary on a Connected link: $(tail -2 <<<"$out" | tr '\n' ' ')"
+    b1=$(ssh_n "$p1" "cat /proc/sys/kernel/random/boot_id" 10)
+    tcut=$(ssh_n "$p1" "date +%s; echo '<5>mxfs-test: promotion race: cutting the link on $p0' > /dev/kmsg" 10 | head -1)
+    ssh_n "$p0" "iptables -I INPUT -p tcp --dport $DRBD_PORT -j DROP; iptables -I INPUT -p tcp --sport $DRBD_PORT -j DROP; echo CUT" 15 | grep -q CUT \
+        || die "promotion race test: could not cut the link on $p0"
+    say "  $p0 unmounted and Secondary; the replication link cut on $p0 alone (ssh up)"
+    # participant 1's handler decides first (it is the one that is Primary);
+    # then participant 0 is promoted by hand, as its boot program would be
+    out=$(ssh_n "$p1" "for i in \$(seq 1 $PRACE_BUDGET); do r=\$(awk -v t=$tcut '\$1 >= t && / result=(TIEBREAK_LOST|EXCLUDED) / {print \$5}' /var/lib/mxfs/drbd-fence.$RES | tail -1); [ -n \"\$r\" ] && { echo \"P1_DECIDED \$r\"; exit 0; }; sleep 1; done; echo P1_UNDECIDED" $((PRACE_BUDGET + 15)))
+    echo "$out" > "$EVID/prace_p1"
+    out=$(ssh_n "$p0" "echo \"BEFORE \$(drbdadm cstate $RES) \$(drbdadm dstate $RES)\"; drbdadm primary $RES 2>&1 | tail -1; echo \"ROLE=\$(drbdadm role $RES) INHIBIT=\$(ls /var/lib/mxfs | grep -c inhibit)\"" 90)
+    echo "$out" > "$EVID/prace_promote.$p0"
+    case "$(cat "$EVID/prace_p1")" in
+        *"result=TIEBREAK_LOST"*) say "  $p1 lost the tie-break: its I/O froze, and it restarts because it was mounted" ;;
+        *"result=EXCLUDED"*) bad="$bad; $p1 carried on: it excluded $p0, which only looked idle" ;;
+        *) bad="$bad; $p1 recorded no decision within ${PRACE_BUDGET}s: $(tail -1 "$EVID/prace_p1")" ;;
+    esac
+    if grep -q '^ROLE=Secondary' <<<"$out" && grep -q 'INHIBIT=0' <<<"$out"; then
+        say "  a plain drbdadm primary on $p0 was refused, and it excluded nothing: $(grep -a '^BEFORE' <<<"$out")"
+    else
+        bad="$bad; $p0 was promoted with the link down: $(tr '\n' ' ' <<<"$out")"
+    fi
+    [ -z "$bad" ] || die "promotion race test: both nodes could win this split${bad} (evidence $EVID; DRBD may now be split: scripts/drbd_rig.sh up)"
+
+    out=$(ssh_n "$p0" "iptables -D INPUT -p tcp --dport $DRBD_PORT -j DROP; iptables -D INPUT -p tcp --sport $DRBD_PORT -j DROP; echo RESTORED" 15)
+    grep -q RESTORED <<<"$out" || die "promotion race test: could not restore the link on $p0: $out"
+    for i in $(seq 1 $((PRACE_BOOT_BUDGET / 5))); do
+        out=$(ssh_n "$p1" "cat /proc/sys/kernel/random/boot_id" 10 | grep -E '^[0-9a-f-]{36}$')
+        [ -n "$out" ] && [ "$out" != "$b1" ] && break
+        sleep 5
+    done
+    [ -n "$out" ] && [ "$out" != "$b1" ] || die "promotion race test: $p1 did not restart within ${PRACE_BOOT_BUDGET}s"
+    say "  $p1 restarted; the link is back"
+    # Both come back through their boot programs, as PVE hosts do: DRBD's
+    # resource up, the module loaded, then the boot program.
+    KO_MD5=$(md5sum "$REPO/mxfs.ko" | awk '{print $1}')
+    for n in "$p0" "$p1"; do
+        out=$(ssh_n "$n" "$NODE_DRBD_UP
+            mountpoint -q /src || { mkdir -p /src; timeout 20 mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp; }
+            MXFS_NO_MOUNT=1 MXFS_DEV=$DRBD_DEV MXFS_KO_MD5=$KO_MD5 MXFS_REPO=/src/mxfs bash /src/mxfs/tests/setup/prep_node.sh tcp 2>&1 | grep -a NODE_PREP
+            systemctl reset-failed mxfs-rig-boot 2>/dev/null
+            systemd-run --unit=mxfs-rig-boot --property=RemainAfterExit=yes --setenv=GUEST_WAIT=0 /usr/sbin/mxfs-drbd-fence-self boot $RES $MNT 2>&1 | tail -1
+            echo BOOT_STARTED" 180)
+        grep -aq '^NODE_PREP_OK' <<<"$out" && grep -aq '^BOOT_STARTED' <<<"$out" || die "promotion race test: $n's boot: $(tail -2 <<<"$out" | tr '\n' ' ')"
+    done
+    both pracemnt "for i in \$(seq 1 $((PRACE_MOUNT_BUDGET / 5))); do
+            m=\$(awk '\$3 == \"mxfs\" && \$1 == \"$DRBD_DEV\" {print \$2}' /proc/mounts | head -1)
+            [ \"\$m\" = $MNT ] && { echo MOUNTED; exit 0; }
+            sleep 5
+        done; echo \"NOT_MOUNTED \$(drbdadm cstate $RES) \$(drbdadm dstate $RES) \$(drbdadm role $RES)\"" $((PRACE_MOUNT_BUDGET + 30))
+    for n in "${NODES[@]}"; do
+        grep -q '^MOUNTED' "$EVID/pracemnt.$n" || die "promotion race test: $n did not mount again within ${PRACE_MOUNT_BUDGET}s: $(tail -1 "$EVID/pracemnt.$n")"
+    done
+    for n in "${NODES[@]}"; do
+        out=$(ssh_n "$n" "for d in p0 p1; do cd $MNT/prace/\$d && md5sum f* | sort -k2 | md5sum | cut -c1-32; done" 60)
+        [ "$(sed -n 1p <<<"$out")" = "$s0" ] && [ "$(sed -n 2p <<<"$out")" = "$s1" ] \
+            || die "promotion race test: $n reads different data: $out (written $s0 $s1)"
+    done
+    say "  both mounted again through their boot programs; every fsynced file of both intact on both"
+    both pracestop "systemctl stop mxfs-rig-boot 2>/dev/null; systemctl reset-failed mxfs-rig-boot 2>/dev/null; $NODE_UNMOUNT; echo STOP_OK" 120
+    for n in "${NODES[@]}"; do grep -aq '^STOP_OK' "$EVID/pracestop.$n" || die "promotion race test: $n would not release mxfs: $(tail -1 "$EVID/pracestop.$n")"; done
+    out=$(ssh_n "$p0" "/src/mxfs/tools/chk_mxfs $DRBD_DEV 2>&1 | tail -3; echo CHK_RC=\${PIPESTATUS[0]}" 120)
+    echo "$out" > "$EVID/prace_chk"
+    grep -q 'CHK_RC=0' <<<"$out" || die "promotion race test: chk_mxfs: $(tail -3 <<<"$out" | tr '\n' ' ')"
+    say "  cold chk_mxfs clean"
+    install_fencing
+    say "promotion race test: passed (the rig's node fence is configured again; MXFS left unmounted)"
 }
 
 # Both handlers race: delay 0 on both nodes, the link cut on both sides at
@@ -1978,6 +2092,7 @@ case "$CMD" in
     self-death-test) evid; take_locks; hold_luns adopt; step_self_death_test ;;
     resolve-test) evid; take_locks; hold_luns adopt; step_resolve_test ;;
     misconfig-test) evid; take_locks; hold_luns adopt; step_misconfig_test ;;
+    promotion-race-test) evid; take_locks; hold_luns adopt; step_promotion_race_test ;;
     remount-test) evid; take_locks; hold_luns adopt; step_remount_test ;;
     outage-test) evid; take_locks; hold_luns adopt; step_outage_test ;;
     self-outage-test) evid; take_locks; hold_luns adopt; step_self_outage_test ;;

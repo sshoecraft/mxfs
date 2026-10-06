@@ -25,18 +25,23 @@ docs/rulings/drbd-two-node-self-exclusion.md; in short:
   * RELEASE happens only on positive evidence, never on elapsed time: over
     the root ssh trust a Proxmox cluster already has, the peer must report no
     live MXFS superblock (no mount, module refcount 0) and DRBD not Primary.
-    The same evidence lets participant 1 carry on when participant 0 left on
-    purpose (a planned restart), instead of losing the tie-break.
+    That evidence only ever lets the excluded peer back in to resync; it
+    never makes participant 1 a winner.  A peer that looks idle is a
+    snapshot, not a promise: its own handler may already be running.
   * When participant 0 is the one that died, participant 1 cannot tell that
     from a cut link.  It does not take over; it logs that a two-node pair
-    without a third vote or a node fence cannot recover automatically.
-  * A survivor that restarts while its peer is still away keeps its standing
-    from DRBD's own record, released or not: a node that attaches
-    UpToDate/Outdated holds the newest replica, so when the peer does not
+    without a third vote or a node fence cannot recover automatically.  A
+    planned restart of participant 0 is a graceful DRBD disconnect, for which
+    DRBD runs no handler, so participant 1 simply carries on.
+  * Participant 0, restarting while participant 1 is still away, keeps its
+    standing from DRBD's own record, released or not: attaching
+    UpToDate/Outdated, it holds the newest replica, so when the peer does not
     connect within ALONE_GRACE_S `boot` excludes it again and mounts alone.
-  * DRBD also runs the handler to promote a disk that is only Consistent.
-    That replica may be older than the peer's, so it is promoted only under
-    this node's own standing exclusion of the peer, never on the tie-break.
+    Participant 1 never takes the pair alone, at boot or on a lost link.
+  * DRBD also runs the handler to promote a disconnected Secondary.  A node
+    that was Secondary when the link failed cannot know what its peer did
+    since, so a promotion is granted only under this node's own standing
+    exclusion of the peer, never on the tie-break.
 
 Subcommands:
   fence-peer                      DRBD's handler action (DRBD_RESOURCE,
@@ -370,29 +375,32 @@ def cmd_fence_peer():
         # runs the handler too.  A connected, live peer is not excluded.
         return cmd_fence(peer, me)
 
-    # DRBD also runs this handler to promote a disk that is only Consistent
-    # while the peer's state is unknown (drbd_set_role).  That replica may be
-    # older than the peer's: the peer may have carried on alone after this
-    # node stopped.  A Primary that lost its link has an UpToDate disk, and
-    # only a node that excluded its peer knows its own replica is the newest.
-    # So a disk below UpToDate is promoted only under this node's own standing
-    # exclusion of that peer (it won, and stopped before DRBD recorded the
-    # peer Outdated).  Otherwise the answer is DRBD's "peer unreachable",
-    # which leaves a disk below UpToDate unpromoted -- and which on an
-    # UpToDate disk would outdate the peer with nothing excluding it, so it is
-    # never the answer when this node's disk state cannot be read.
-    mine = ""
+    # DRBD runs this handler for two requests (drbd_nl.c): a Primary that lost
+    # its link, and the promotion of a disconnected Secondary whose peer is
+    # unknown (drbd_set_role: SS_PRIMARY_NOP for an UpToDate disk,
+    # SS_NO_UP_TO_DATE_DISK for one that is only Consistent).  A node that saw
+    # the link fail while it was Secondary cannot know what the peer did
+    # since: the peer may be Primary and writing, its replica newer.  So a
+    # promotion is granted only under this node's own standing exclusion of
+    # the peer (it won, and stopped before DRBD recorded the peer Outdated).
+    # Refused, the answer is 1, never DRBD's "peer unreachable" (5): on an
+    # UpToDate disk 5 outdates the peer and the promotion goes ahead.  When
+    # this node's role or disk cannot be read the answer is 1 as well, which
+    # for a Primary leaves I/O frozen.
+    mine_role = mine = ""
     for i in range(3):
-        mine = dstate(res).split("/")[0]
-        if mine:
+        mine_role, mine = role(res).split("/")[0], dstate(res).split("/")[0]
+        if mine_role and mine:
             break
         time.sleep(1)
-    if not mine:
-        log("fence-peer: DRBD %s: this node's disk state cannot be read; I/O stays frozen"
-            % res, crit=True)
+    if not mine_role or not mine:
+        log("fence-peer: DRBD %s: this node's role or disk state cannot be read (%s, %s); "
+            "nothing is granted" % (res, mine_role or "?", mine or "?"), crit=True)
         return 1
-    if mine != "UpToDate":
-        inh = read_inhibit(res)
+    if mine_role != "Primary":
+        # Only participant 0 ever excludes; an inhibit on participant 1 can
+        # only be an earlier version's, and grants nothing.
+        inh = read_inhibit(res) if idx == 0 else None
         if inh and inh.get("peer") == peer:
             try:
                 nft_apply(res, peer_addr, drbd_port)
@@ -403,22 +411,24 @@ def cmd_fence_peer():
                 "is promoted under that exclusion" % (res, peer, inh.get("episode"), mine),
                 crit=True)
             return 7
-        log("DRBD %s: refusing to promote this node (%s): its disk is %s, not UpToDate, so "
-            "it may be older than %s's, which may have carried on without it. It is "
-            "promoted once DRBD has resynced it from %s." % (res, me, mine or "unknown",
-                                                              peer, peer), crit=True)
-        return 5
+        log("DRBD %s: refusing to promote this node (%s) while %s is unreachable: only a "
+            "node that holds %s excluded may become Primary alone, and %s may have carried "
+            "on without this one (this disk is %s). It is promoted once DRBD is connected "
+            "to %s again." % (res, me, peer, peer, peer, mine, peer), crit=True)
+        return 1
+    if mine != "UpToDate":
+        log("fence-peer: DRBD %s: this node is Primary on a %s disk; nothing is granted"
+            % (res, mine), crit=True)
+        return 1
 
-    if idx == 1:
-        # A peer that left on purpose (unmounted, demoted) cannot be the
-        # winner of a split -- DRBD runs this handler only on a Primary -- so
-        # positive evidence of that lets participant 1 carry on.  Without it,
-        # a planned restart of participant 0 would restart this node too.
-        gone, why = peer_evidence(res, peer, peer_addr)
-        if gone:
-            log("DRBD %s: peer %s departed (%s); this node continues" % (res, peer, why),
-                crit=True)
-            idx = 0
+    # A Primary that lost its link.  The fixed tie-break alone decides:
+    # participant 0 carries on, participant 1 freezes.  Participant 1 never
+    # carries on because the peer looks idle -- Secondary, unmounted -- since
+    # that is a snapshot, not a promise: the peer's own handler may already be
+    # running (it lost the link while Primary and demoted since), or it may be
+    # promoting.  A peer that leaves on purpose disconnects gracefully (its
+    # unit unmounts, steps down and takes DRBD down, outdating its own disk),
+    # and DRBD runs no handler for that.
     if idx == 1:
         append_record(res, record_line(res, peer_addr, peer, "TIEBREAK_LOST",
                                        "participant=1"))
@@ -567,10 +577,37 @@ def release(inh, why):
         % (inh["peer"], inh["episode"], why, res, inh["peer"]), crit=True)
 
 
+def own_mount_pending(res):
+    """Why a release must wait, or "" when it need not: this node's boot
+    program is running and has not mounted yet.  It mounts as the survivor on
+    the exclusion, and the module's startup fence judges that exclusion until
+    the mount completes.  Released under it, with a peer that is up but has no
+    DRBD, the fence has neither the exclusion nor a Connected Secondary peer,
+    and the mount is refused (pve1, 2026-10-06)."""
+    try:
+        with open(BOOT_STATE_FMT % res) as fh:
+            f = fh.read().split()
+    except OSError:
+        return ""
+    if not f or f[0] in ("mounted", "failed"):
+        return ""
+    kv = dict(x.split("=", 1) for x in f[1:] if "=" in x)
+    try:
+        pid = int(kv.get("pid", "0"))
+        if kv.get("boot") != boot_id() or pid <= 0:
+            return ""
+        os.kill(pid, 0)
+    except (ValueError, OSError):
+        return ""
+    return "this node's boot program is %s on the exclusion; released once it has mounted" % f[0]
+
+
 def cmd_release(target, episode):
     for inh in all_inhibits():
         if inh.get("peer") == target and inh.get("episode") == episode:
             ok, why = peer_evidence(inh["resource"], inh["peer"], inh["peer_addr"])
+            if ok and own_mount_pending(inh["resource"]):
+                ok, why = False, own_mount_pending(inh["resource"])
             if not ok:
                 print("RELEASE_REFUSED %s %s" % (target, why))
                 return 1
@@ -596,6 +633,8 @@ def cmd_guard():
                 if cstate(res) not in ("StandAlone", "Unconfigured", ""):
                     run(["drbdadm", "disconnect", res], timeout=15)
                 ok, why = peer_evidence(res, inh["peer"], inh["peer_addr"])
+                if ok and own_mount_pending(res):
+                    ok, why = False, own_mount_pending(res)
                 if ok:
                     release(inh, why)
                 elif last.get(res) != why:
@@ -694,13 +733,34 @@ class Boot:
         attaches UpToDate/Outdated is that replica's holder: the peer's disk
         is Outdated or Inconsistent until it resyncs from this one, DRBD
         refuses to promote it without --force, and the fence-peer handler
-        refuses to promote it as a disk below UpToDate.  Only one of the two
-        can hold the other Outdated: the flag is set by excluding the peer or
-        by the peer departing, and cleared by the next connection.  So when
-        no connection comes within ALONE_GRACE_S, the peer is excluded exactly
-        as the fence-peer winner excludes it, and this node mounts as the
-        survivor.  Returns the inhibit, or None when the ordinary path
-        decides (the peer connected, or DRBD does not hold it Outdated)."""
+        refuses to promote it while it is disconnected.  The flag is set by
+        excluding the peer or by the peer departing, and cleared by the next
+        connection -- but DRBD writes it to disk only after the state change
+        (after_state_ch), so a crash in between can leave it set on a node
+        whose peer has since resynced and carried on.  It is therefore acted
+        on only by participant 0, the one node the tie-break lets carry on
+        alone: participant 1 never continues without participant 0, so
+        participant 0's replica holds every write the pair acknowledged
+        whenever it is the one restarting.  When no connection comes within
+        ALONE_GRACE_S, participant 0 excludes the peer exactly as the
+        fence-peer winner excludes it and mounts as the survivor.  Returns
+        the inhibit, or None when the ordinary path decides (the peer
+        connected, DRBD does not hold it Outdated, or this is participant
+        1)."""
+        cs, ds = cstate(self.res), dstate(self.res)
+        if ds != "UpToDate/Outdated" or cs not in DISCONNECTED:
+            return None
+        ep = drbd_endpoints(self.res)
+        if not ep:
+            log("%s: DRBD holds the peer Outdated, but the resource is not two IPv4 "
+                "endpoints including this host; waiting for the peer" % self.res, crit=True)
+            return None
+        me, my_addr, _, peer, peer_addr, drbd_port = ep
+        if participant_index(my_addr, peer_addr) != 0:
+            log("%s: DRBD's record holds %s Outdated, but this node (%s) is participant 1, "
+                "which never takes the pair alone; waiting for %s to connect"
+                % (self.res, peer, me, peer))
+            return None
         t0 = time.time()
         while True:
             cs, ds = cstate(self.res), dstate(self.res)
@@ -710,12 +770,6 @@ class Boot:
                 break
             self.ready_if_due("waiting for DRBD %s's peer (%s, %s)" % (self.res, cs, ds))
             time.sleep(2)
-        ep = drbd_endpoints(self.res)
-        if not ep:
-            log("%s: DRBD holds the peer Outdated, but the resource is not two IPv4 "
-                "endpoints including this host; waiting for the peer" % self.res, crit=True)
-            return None
-        me, my_addr, _, peer, peer_addr, drbd_port = ep
         nft_apply(self.res, peer_addr, drbd_port)
         run(["drbdadm", "disconnect", self.res], timeout=15)
         cs, ds = cstate(self.res), dstate(self.res)
@@ -740,6 +794,13 @@ class Boot:
     def wait_connected(self):
         said = 0
         while True:
+            # An isolation with no inhibit claims nothing: exclude() puts the
+            # isolation in first, so a crash before the inhibit leaves one,
+            # and so does dropping an earlier version's inhibit.  It would
+            # keep DRBD from ever connecting.
+            if read_inhibit(self.res) is None and nft_present(self.res):
+                nft_remove(self.res)
+                log("%s: removed an isolation of the peer that no exclusion holds" % self.res)
             cs = cstate(self.res)
             rc, ds = run(["drbdadm", "dstate", self.res], timeout=10)
             ds = ds.strip()
@@ -795,10 +856,10 @@ class Boot:
 def cmd_boot(res, mountpoint):
     """Bring the resource up and mount it, only in a state the module admits:
     connected with both disks UpToDate, or the survivor of an exclusion --
-    which a node whose DRBD record holds its peer Outdated becomes when the
-    peer does not connect (Boot.exclude_outdated_peer).  Never promotes a
-    disconnected node that DRBD does not record as holding the newest replica:
-    that is how a restarted loser would come back on stale data.  Connected,
+    which participant 0 becomes when its DRBD record holds the peer Outdated
+    and the peer does not connect (Boot.exclude_outdated_peer).  Never
+    promotes a disconnected node that holds no exclusion of its peer: that is
+    how a restarted loser would come back on stale data.  Connected,
     participant 1 waits for participant 0 to mount first, and a refused mount
     steps down to Secondary and is retried, so the other node can recover the
     pair first."""
@@ -809,6 +870,21 @@ def cmd_boot(res, mountpoint):
         return 0
     write_boot_state(res, "starting")
     inh = read_inhibit(res)
+    ep = drbd_endpoints(res)
+    if inh and ep and participant_index(ep[1], ep[4]) == 1:
+        # Only participant 0 ever excludes; this inhibit is an earlier
+        # version's and authorises nothing.  Its isolation would keep DRBD
+        # from connecting, and connecting is how this node gets back in:
+        # DRBD's handshake decides which replica is the newer.  The inhibit
+        # goes first, so the guard stops re-applying the isolation, and
+        # wait_connected removes the isolation left without one.
+        os.unlink(INHIBIT_FMT % res)
+        append_record(res, record_line(res, inh["peer_addr"], inh["peer"], "DROPPED",
+                                       "episode=%s participant=1" % inh["episode"]))
+        log("%s: dropped this node's exclusion of %s (episode %s): participant 1 never "
+            "takes the pair alone; waiting for %s to connect"
+            % (res, inh["peer"], inh["episode"], inh["peer"]), crit=True)
+        inh = None
     if inh:
         nft_apply(res, inh["peer_addr"], int(inh["drbd_port"]))
     if cstate(res) == "":
@@ -828,24 +904,36 @@ def cmd_boot(res, mountpoint):
             b.wait_participant0()
             b.wait_connected()
         write_boot_state(res, "mounting")
+        # The promotion can race the link: lost after the wait above, it goes
+        # through the fence-peer handler, which refuses a promotion without
+        # an exclusion of the peer.  That is a failed attempt like a refused
+        # mount, never the end of the boot.  So is a mount past its bound:
+        # raised out of here, it ended the whole boot with this node still
+        # Primary, which keeps the peer from recovering.  mount(8)'s own
+        # message carries the module's reason for a refusal.
+        rc, what = 0, "mount of %s on %s" % (dev, mountpoint)
         if not role(res).startswith("Primary"):
-            run(["drbdadm", "primary", res], timeout=30, check=True)
-        # A mount past its bound is a failed attempt like any other: it steps
-        # down and is retried.  Raised out of here, it ended the whole boot
-        # with this node still Primary, which keeps the peer from recovering.
-        # mount(8)'s own message carries the module's reason for a refusal.
-        try:
-            p = subprocess.run(["mount", "-t", "mxfs", dev, mountpoint],
-                               stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                               stderr=subprocess.PIPE, timeout=MOUNT_TIMEOUT_S)
-            rc, err = p.returncode, " ".join(p.stderr.decode(errors="replace").split())
-        except subprocess.TimeoutExpired:
-            rc, err = 124, "no answer in %d s" % MOUNT_TIMEOUT_S
+            what = "promotion of %s" % res
+            try:
+                p = subprocess.run(["drbdadm", "primary", res], stdin=subprocess.DEVNULL,
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60)
+                rc, err = p.returncode, " ".join(p.stderr.decode(errors="replace").split())
+            except subprocess.TimeoutExpired:
+                rc, err = 124, "no answer in 60 s"
+        if rc == 0:
+            what = "mount of %s on %s" % (dev, mountpoint)
+            try:
+                p = subprocess.run(["mount", "-t", "mxfs", dev, mountpoint],
+                                   stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE, timeout=MOUNT_TIMEOUT_S)
+                rc, err = p.returncode, " ".join(p.stderr.decode(errors="replace").split())
+            except subprocess.TimeoutExpired:
+                rc, err = 124, "no answer in %d s" % MOUNT_TIMEOUT_S
         if rc == 0:
             break
-        log("%s: mount of %s on %s failed (rc=%d, attempt %d of %d): %s"
-            % (res, dev, mountpoint, rc, attempt, MOUNT_ATTEMPTS,
-               err or "the reason is in the kernel log (dmesg | grep mxfs)"), crit=True)
+        log("%s: %s failed (rc=%d, attempt %d of %d): %s"
+            % (res, what, rc, attempt, MOUNT_ATTEMPTS,
+               err or "the reason is in the kernel log (dmesg | grep -E 'mxfs|drbd')"), crit=True)
         if inh or attempt == MOUNT_ATTEMPTS:
             write_boot_state(res, "failed")
             return 1

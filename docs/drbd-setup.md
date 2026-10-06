@@ -131,8 +131,8 @@ systemctl enable --now mxfs-drbd@mxfs
 ```
 
 `mxfs-drbd@mxfs` brings the resource up, waits until DRBD is Connected with both
-disks UpToDate, promotes the node, and mounts; a host that was running alone
-gives the other 30 s and then mounts without it (section 7). At shutdown it unmounts and
+disks UpToDate, promotes the node, and mounts; pve1, if it was running alone,
+gives pve2 30 s and then mounts without it (section 7). At shutdown it unmounts and
 steps down, so the other node carries on. Check it with
 `systemctl status mxfs-drbd@mxfs`, and see why MXFS admitted or refused the
 mount with `dmesg | grep P-DRBD-ARM`.
@@ -173,19 +173,25 @@ DRBD address (here `pve1`) is participant 0; the other is participant 1.
 - **The replication link breaks with both nodes alive.** The same: pve1
   carries on, and pve2 freezes, logs why, and restarts itself, then rejoins as
   above.
-- **pve1 is shut down or restarted on purpose.** Its unit unmounts and steps
-  down first; pve2 sees that over ssh and carries on.
+- **pve1 is shut down or restarted on purpose.** Its unit unmounts, steps
+  down and takes DRBD down before the network stops, so DRBD disconnects
+  gracefully and pve2 carries on.
 - **pve1 dies.** pve2 cannot tell a dead pve1 from a cut cable, so it does not
   take over. It freezes, logs exactly this, restarts, and waits. Bring pve1
   back. No two-node system without a third vote or fence hardware can do
   better: Proxmox HA and corosync's tie-breaker behave the same way.
-- **The host running alone restarts while the other is still down** (pve1
-  after pve2 died, or pve2 after pve1 was shut down on purpose). DRBD records
-  which copy is newer, and it is the restarted host's: DRBD will not promote the
-  other until it has resynced from it. So the restarted host gives the other
-  30 s to connect, then isolates it as above and mounts alone, about two and a
-  half minutes after the boot in our tests; the other rejoins when it is back.
-  A host whose copy DRBD does not record as the newer one never mounts alone.
+- **pve1 restarts while pve2 is still down.** DRBD records that pve1's copy is
+  the newer one and will not promote pve2 until it has resynced from it. So
+  pve1 gives pve2 30 s to connect, then isolates it as above and mounts alone,
+  about two and a half minutes after the boot in our tests. pve2 rejoins when
+  it is back.
+- **pve2 restarts while pve1 is down** (for example, pve2 was running alone
+  after pve1 was shut down on purpose). pve2 waits for pve1 and does not mount
+  alone. DRBD's record of which copy is newer can be left stale on disk by a
+  crash, and only pve1 may ever take the pair alone, so pve2 cannot trust that
+  record. Bring pve1 back.
+- **A host never promotes itself while the other is unreachable** unless it
+  holds an exclusion of the other. A `drbdadm primary` run then is refused.
 - **Both nodes crash or lose power at once.** When they come back, DRBD
   reconnects and resyncs. Then pve2 waits, Secondary, while pve1 mounts: pve2
   being Secondary on a connected link is DRBD's own proof that no old mount is

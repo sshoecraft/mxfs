@@ -40,12 +40,22 @@ nodes, no fence hardware and no third vote. Neither does this design.
    showed that mixing a quorum rule with a local fallback can elect both sides
    (one side sees a new quorate view, the other times out on an old one); no
    settle timeout fixes that.
-2. **The exception is positive evidence, not time.** Participant 1 may carry on
-   when the peer answers over authenticated ssh (a Proxmox cluster's root key
-   trust) that it holds no live MXFS superblock (no mount, module refcount 0)
-   and its DRBD is not Primary. A peer in that state cannot be the winner of a
-   split, because DRBD runs the handler only on a Primary. Without it, a planned
-   restart of participant 0 would also restart participant 1.
+2. **No exception for a peer that looks idle.** An earlier version let
+   participant 1 carry on when the peer answered over ssh that it was not
+   Primary and had no MXFS mounted, on the premise that DRBD runs the handler
+   only on a Primary. It does not. DRBD also runs it to promote a disconnected
+   Secondary (`drbd_set_role`: `SS_PRIMARY_NOP` for an UpToDate disk,
+   `SS_NO_UP_TO_DATE_DISK` for a Consistent one), and a node that lost the link
+   while Primary can demote while its own handler is still running. The
+   answer was a snapshot, not a promise, so both sides could win one split:
+   participant 0 promoting as the link failed, or demoting at the end of a
+   planned stop, granted itself the win while participant 1 read it as idle
+   and carried on too. Participant 1 therefore never carries on after a lost
+   link. A planned restart of participant 0 costs nothing by this: its unit
+   unmounts, steps down and takes DRBD down while the network is still up (the
+   unit is ordered after `network-online.target`), and DRBD runs no handler
+   for a graceful disconnect, in which the departing Secondary outdates its own
+   disk.
 3. **The winner excludes the peer before DRBD resumes I/O:** nftables drops the
    DRBD port and MXFS's ports to and from the peer's address (the replica and
    the lock manager, never corosync or ssh); a durable inhibit and an EXCLUDED
@@ -57,8 +67,12 @@ nodes, no fence hardware and no third vote. Neither does this design.
    resource (the only way back in). After the restart nothing promotes or
    mounts it until it is Connected with both disks UpToDate, so there is no
    reset loop.
-5. **Release is positive evidence only:** the same ssh answer as in 2. Never
-   elapsed time: a softdog reset deadline is not proof of a reset, and a
+5. **Release is positive evidence only:** the excluded peer answers over
+   authenticated ssh (a Proxmox cluster's root key trust) that it holds no live
+   MXFS superblock (no mount, module refcount 0) and its DRBD is not Primary.
+   Release only lets the peer reconnect, and DRBD's handshake then resyncs it
+   from this node; it never lets the peer carry on alone, which is why a
+   snapshot of its state is enough here and not in 2. Never elapsed time: a softdog reset deadline is not proof of a reset, and a
    wedged old incarnation that resumed after a reconnect would bring stale
    caches and stale lock state back.
 6. **A new proof kind, 26 (`DRBD_REPLICA_EXCLUDED_V1`).** It proves the old
@@ -158,34 +172,43 @@ nodes, no fence hardware and no third vote. Neither does this design.
     becomes UpToDate when the peer is recorded Outdated), and that flag is set
     by this node excluding its peer (fence-peer exit 7) or by the peer departing
     as a Secondary (a graceful disconnect outdates the departing side), and is
-    cleared by the next connection. So at most one of the two holds the other
-    Outdated, and it holds the newest replica: the peer's disk is Outdated or
-    Inconsistent until it resyncs from this one, DRBD will not promote it
-    without `--force`, and the handler will not promote it (decision 11). The
-    boot program therefore treats a node that attaches UpToDate/Outdated and
-    sees no connection within 30 s as the survivor: it excludes the peer exactly
-    as the fence-peer winner does (isolation, inhibit, EXCLUDED receipt,
-    StandAlone) and mounts alone, which the module admits on the exclusion
-    (kind 26 for the startup fence and for the victims, the survivor's own
-    earlier incarnation among them). This is DRBD's own rule for a degraded
-    node that reboots with its peer Outdated (`outdated-wfc-timeout`: "the peer
-    is not allowed to become primary in the meantime"). The guard releases the
-    peer on the same evidence as after any exclusion. A connection within the
-    30 s takes the ordinary path. The tie-break does not enter into it: the
-    participant that holds the record is the survivor.
-11. **The handler never promotes a replica that may be stale.** DRBD runs the
-    fence-peer handler for two different requests: a Primary that lost its
-    link, whose disk is UpToDate, and the promotion of a disk that is only
-    Consistent while the peer is unknown (`drbd_set_role`). Answering the second
-    with the tie-break let participant 0, or participant 1 on the departed-peer
-    evidence, promote a replica the peer had moved past, and the exclusion that
-    came with it would have let the boot program mount it. A disk below UpToDate
-    is therefore promoted only under this node's own standing exclusion of that
-    peer (it won and stopped before DRBD recorded the peer Outdated); otherwise
-    the handler answers 5, "peer unreachable", which DRBD acts on only for an
-    UpToDate disk, so the promotion fails. When this node's disk state cannot be
-    read at all the answer is 1 and I/O stays frozen, never 5, because on an
-    UpToDate disk 5 outdates the peer with nothing excluding it.
+    cleared by the next connection. But DRBD writes the flag to disk only after
+    the state change (`after_state_ch` ends in `drbd_md_sync`), so a crash in
+    between can leave it set on a node whose peer has resynced since and
+    carried on. The record is therefore acted on only by participant 0, the one
+    node the tie-break lets carry on alone. Participant 1 never continues
+    without participant 0 (decision 2), so whenever participant 0 restarts, its
+    replica holds every write the pair acknowledged: protocol C completes a
+    write only once both disks have it, and participant 1 froze at the link
+    loss. The boot program therefore treats participant 0 attaching
+    UpToDate/Outdated with no connection within 30 s as the survivor: it
+    excludes the peer exactly as the fence-peer winner does (isolation,
+    inhibit, EXCLUDED receipt, StandAlone) and mounts alone, which the module
+    admits on the exclusion (kind 26 for the startup fence and for the victims,
+    the survivor's own earlier incarnation among them). This is DRBD's own rule
+    for a degraded node that reboots with its peer Outdated
+    (`outdated-wfc-timeout`: "the peer is not allowed to become primary in the
+    meantime"). The guard releases the peer on the same evidence as after any
+    exclusion. A connection within the 30 s takes the ordinary path.
+    Participant 1 holding the record waits for participant 0: it cannot tell a
+    true record from a stale one, and only participant 0 may take the pair
+    alone.
+11. **The handler never promotes a node that may be behind its peer.** DRBD
+    runs the fence-peer handler for two different requests: a Primary that lost
+    its link, and the promotion of a disconnected Secondary (`drbd_set_role`),
+    whose disk is UpToDate if it was connected when the link failed and
+    Consistent if it crashed. Answering the second with the tie-break let a
+    node promote a replica the peer had moved past, and the exclusion that came
+    with it would have let the boot program mount it. A Secondary is therefore
+    promoted only under this node's own standing exclusion of that peer (it won
+    and stopped before DRBD recorded the peer Outdated), and only on
+    participant 0, the only node that excludes. Otherwise the answer is 1 and
+    the promotion fails. It is never 5, "peer unreachable": on an UpToDate disk
+    DRBD answers 5 by outdating the peer, and the promotion goes ahead. When
+    this node's role or disk state cannot be read, the answer is 1 too, which
+    for a Primary leaves I/O frozen. A promotion the handler refuses is a
+    failed attempt for the boot program, which waits for the connection again
+    and retries, the same as for a refused mount.
 
 ## What it does not cover
 
