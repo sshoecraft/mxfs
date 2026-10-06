@@ -1,3 +1,75 @@
+## 2026-10-06 — 0.90.68 — a DRBD survivor that restarts while its peer is down mounts again; the fence handler never promotes a stale replica
+
+**A survivor that restarted with its peer still down never mounted again.**
+pve1 excluded pve2 at 22:57 on 2026-10-05 and carried on alone. At 23:56 its
+guard released pve2: pve2 had come back with DRBD down (a crash had left its
+unit files empty) and reported no MXFS mount. pve2 then died again before it
+ever connected. Every time pve1 restarted after that, its boot program waited
+for a connected peer. Yet DRBD's own record on pve1 held pve2 Outdated
+(UpToDate/Outdated: pve1 has the newest replica). The release had deleted the
+inhibit, and the inhibit was the boot program's only way to mount alone.
+Reproduced on the nested Proxmox pair on 0.90.66
+(`tests/evidence/pve_pair_failover/20261006T135922Z`).
+- `mxfs-drbd-fence-self boot` now reads DRBD's record. A node that attaches
+  UpToDate/Outdated gives its peer 30 s to connect. If the peer does not, the
+  node excludes it exactly as the fence-peer winner does (isolation, inhibit,
+  EXCLUDED receipt, StandAlone) and mounts as the survivor. The module admits
+  that mount on the exclusion. DRBD's own init script waits the same way for a
+  degraded node whose peer is Outdated (`outdated-wfc-timeout`).
+- A connection within the 30 s takes the ordinary path.
+
+**The fence-peer handler never promotes a replica that may be stale.** DRBD
+runs the handler for two different requests: a Primary that lost its link, and
+the promotion of a disk that is only Consistent while the peer is unknown
+(`drbd_set_role`). The handler answered both with the tie-break. So a plain
+`drbdadm primary` on a host the other host had moved past was granted, and the
+boot program would then have mounted it. A disk below UpToDate is now promoted
+only under this host's own standing exclusion of the peer. Otherwise the
+handler answers "peer unreachable", which DRBD acts on only for an UpToDate
+disk, so the promotion fails. When this host's disk state cannot be read, the
+answer leaves I/O frozen.
+
+**A misconfigured DRBD resource is refused with a reason that names the
+setting.** Examples: "fencing is not set (DRBD's default, dont-care)",
+"fencing is resource-only", "the fence-peer handler is not set", "the
+fence-peer handler is /bin/true", an automatic after-split-brain policy,
+allow-two-primaries off. Each reason ends with a pointer to
+`docs/drbd-setup.md`.
+
+**README:** a notice at the top says this repository is the development tree,
+not a release, and that MXFS is installed from a package on the Releases page.
+
+**New tests:**
+- `scripts/drbd_rig.sh self-restart-test`: the survivor restarts with its peer
+  still down. `SELF_RESTART=released` releases the peer first, then destroys
+  it again before it ever connects (pve1's history).
+- `scripts/drbd_rig.sh misconfig-test`: each wrong setting of a user's resource
+  is mounted once and must be refused with a reason that names it.
+- `tests/pve_pair_failover.sh`: new steps survivor-restart, released-restart and
+  stale-promotion.
+
+**Verified on the rig** (module `55F070327BF3E1BF7150908`):
+- **self-restart-test, held** (`20261006T140639Z-self-restart-test`): the
+  survivor mounted alone 132 s after its boot program started. The victim
+  rejoined 67 s after its power-on, every fsynced file was intact on both, and
+  the cold check was clean.
+- **self-restart-test, released** (`20261006T142055Z-self-restart-test`): the
+  survivor excluded its released peer again 30 s after its boot
+  (`reason=peer-outdated-at-boot`) and mounted alone 163 s after its boot
+  program started. The victim rejoined in 65 s, all three sets were intact,
+  and the cold check was clean.
+- **Regressions:** self-death-test and self-outage-test (both nodes remounted
+  by themselves at +148 s and +159 s) passed. So did misconfig-test, all eight
+  rows.
+- **Not yet run:** the new `tests/pve_pair_failover.sh` steps on Proxmox. The
+  nested and physical pairs are updated from this version.
+
+**Still open:** `D-DRBD-SELF-AUTHORITY-CAN-ELECT-BOTH-SIDES`, found by reading
+this version against DRBD's code. Participant 1's continuation on a "departed"
+peer, and the handler's grant of a promotion to a disconnected UpToDate
+Secondary, can let both hosts win one split. A participant-1 host can also
+mount alone at boot on a peer-Outdated record a crash left stale.
+
 ## 2026-10-06 — 0.90.66 — a refused mount names its reason in plain terms; the failover test passes on a Proxmox pair
 
 **The reason mount(8) shows for a device without persistent reservations.**

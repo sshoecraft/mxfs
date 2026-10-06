@@ -30,6 +30,13 @@ docs/rulings/drbd-two-node-self-exclusion.md; in short:
   * When participant 0 is the one that died, participant 1 cannot tell that
     from a cut link.  It does not take over; it logs that a two-node pair
     without a third vote or a node fence cannot recover automatically.
+  * A survivor that restarts while its peer is still away keeps its standing
+    from DRBD's own record, released or not: a node that attaches
+    UpToDate/Outdated holds the newest replica, so when the peer does not
+    connect within ALONE_GRACE_S `boot` excludes it again and mounts alone.
+  * DRBD also runs the handler to promote a disk that is only Consistent.
+    That replica may be older than the peer's, so it is promoted only under
+    this node's own standing exclusion of the peer, never on the tie-break.
 
 Subcommands:
   fence-peer                      DRBD's handler action (DRBD_RESOURCE,
@@ -75,6 +82,16 @@ MOUNT_TIMEOUT_S = 300
 # program has been seen not running for this long: systemd starts it within
 # seconds of the boot, and DRBD may be Connected before it starts.
 NOT_STARTING_GRACE_S = 30
+# A node whose DRBD record holds its peer Outdated (it attaches
+# UpToDate/Outdated) has the newest replica, and DRBD will not promote the
+# peer until it has resynced from it.  At boot the peer gets this long to
+# connect -- connected, the pair takes its ordinary path -- and then this node
+# excludes it as the fence-peer winner does and mounts alone.  DRBD's own
+# init script waits the same way (outdated-wfc-timeout).
+ALONE_GRACE_S = 30
+# DRBD 8.4 connection states with no peer attached.
+DISCONNECTED = ("StandAlone", "Disconnecting", "Unconnected", "Timeout", "BrokenPipe",
+                "NetworkFailure", "ProtocolError", "TearDown", "WFConnection")
 NFT_TABLE_FMT = "mxfs_fence_%s"
 # MXFS's ports: 7600/tcp carries the network lock manager, 7601-7603/udp
 # discovery, lock hints and heartbeat (README "firewall-cmd" line).
@@ -214,6 +231,12 @@ def role(res):
     return out.strip() if rc == 0 else ""
 
 
+def dstate(res):
+    """'<this node's disk>/<the peer's disk>', e.g. UpToDate/Outdated."""
+    rc, out = run(["drbdadm", "dstate", res], timeout=10)
+    return out.strip() if rc == 0 else ""
+
+
 def drbd_device(res):
     rc, out = run(["drbdadm", "sh-dev", res], timeout=10)
     return out.strip().splitlines()[0] if rc == 0 and out.strip() else ""
@@ -305,6 +328,23 @@ def all_inhibits():
     return out
 
 
+def exclude(res, peer, peer_addr, drbd_port, detail):
+    """Exclude the peer in a new episode: isolation first, then the durable
+    inhibit, then the EXCLUDED receipt, in that order, so a crash leaves at
+    worst an isolation with no claim on it.  Returns the episode; raises when
+    any of the three fails."""
+    episode = "%d-%s" % (time.time_ns(), secrets.token_hex(4))
+    nft_apply(res, peer_addr, drbd_port)
+    durable_write(INHIBIT_FMT % res, json.dumps({
+        "resource": res, "peer": peer, "peer_addr": peer_addr,
+        "drbd_port": drbd_port, "episode": episode,
+        "excluded_at": time.time(), "excluded_by_boot": boot_id(),
+    }, indent=1) + "\n")
+    append_record(res, record_line(res, peer_addr, peer, "EXCLUDED",
+                                   "episode=%s %s" % (episode, detail)))
+    return episode
+
+
 # --------------------------------------------------------------- fence-peer
 
 def cmd_fence_peer():
@@ -329,6 +369,45 @@ def cmd_fence_peer():
         # Not a lost link: the module's startup fence after a pair outage
         # runs the handler too.  A connected, live peer is not excluded.
         return cmd_fence(peer, me)
+
+    # DRBD also runs this handler to promote a disk that is only Consistent
+    # while the peer's state is unknown (drbd_set_role).  That replica may be
+    # older than the peer's: the peer may have carried on alone after this
+    # node stopped.  A Primary that lost its link has an UpToDate disk, and
+    # only a node that excluded its peer knows its own replica is the newest.
+    # So a disk below UpToDate is promoted only under this node's own standing
+    # exclusion of that peer (it won, and stopped before DRBD recorded the
+    # peer Outdated).  Otherwise the answer is DRBD's "peer unreachable",
+    # which leaves a disk below UpToDate unpromoted -- and which on an
+    # UpToDate disk would outdate the peer with nothing excluding it, so it is
+    # never the answer when this node's disk state cannot be read.
+    mine = ""
+    for i in range(3):
+        mine = dstate(res).split("/")[0]
+        if mine:
+            break
+        time.sleep(1)
+    if not mine:
+        log("fence-peer: DRBD %s: this node's disk state cannot be read; I/O stays frozen"
+            % res, crit=True)
+        return 1
+    if mine != "UpToDate":
+        inh = read_inhibit(res)
+        if inh and inh.get("peer") == peer:
+            try:
+                nft_apply(res, peer_addr, drbd_port)
+            except Exception as e:
+                log("fence-peer: re-isolating %s failed (%s); not promoting" % (peer, e), crit=True)
+                return 1
+            log("fence-peer: DRBD %s: this node holds %s excluded (episode %s); its %s disk "
+                "is promoted under that exclusion" % (res, peer, inh.get("episode"), mine),
+                crit=True)
+            return 7
+        log("DRBD %s: refusing to promote this node (%s): its disk is %s, not UpToDate, so "
+            "it may be older than %s's, which may have carried on without it. It is "
+            "promoted once DRBD has resynced it from %s." % (res, me, mine or "unknown",
+                                                              peer, peer), crit=True)
+        return 5
 
     if idx == 1:
         # A peer that left on purpose (unmounted, demoted) cannot be the
@@ -365,16 +444,8 @@ def cmd_fence_peer():
 
     # participant 0: the winner.  Isolation first, then the durable inhibit,
     # then the receipt; only then does DRBD get the exit code that resumes I/O.
-    episode = "%d-%s" % (time.time_ns(), secrets.token_hex(4))
     try:
-        nft_apply(res, peer_addr, drbd_port)
-        durable_write(INHIBIT_FMT % res, json.dumps({
-            "resource": res, "peer": peer, "peer_addr": peer_addr,
-            "drbd_port": drbd_port, "episode": episode,
-            "excluded_at": time.time(), "excluded_by_boot": boot_id(),
-        }, indent=1) + "\n")
-        append_record(res, record_line(res, peer_addr, peer, "EXCLUDED",
-                                       "episode=%s agent=self participant=0" % episode))
+        episode = exclude(res, peer, peer_addr, drbd_port, "agent=self participant=0")
     except Exception as e:  # any failure leaves DRBD frozen: never exit 7 half-done
         log("fence-peer: excluding %s failed (%s); I/O stays frozen" % (peer, e), crit=True)
         return 1
@@ -614,6 +685,58 @@ class Boot:
                 % (self.res, self.mountpoint, guest_wait_s()))
             sd_notify("READY=1\nSTATUS=%s" % status)
 
+    def exclude_outdated_peer(self):
+        """The survivor's standing after a restart, from DRBD's own record.
+        A node that excluded its peer and later released it (the peer
+        answered with no MXFS, then never connected), or whose peer left
+        cleanly (a departing Secondary outdates itself), holds no inhibit;
+        DRBD's metadata still says which replica is the newest.  A node that
+        attaches UpToDate/Outdated is that replica's holder: the peer's disk
+        is Outdated or Inconsistent until it resyncs from this one, DRBD
+        refuses to promote it without --force, and the fence-peer handler
+        refuses to promote it as a disk below UpToDate.  Only one of the two
+        can hold the other Outdated: the flag is set by excluding the peer or
+        by the peer departing, and cleared by the next connection.  So when
+        no connection comes within ALONE_GRACE_S, the peer is excluded exactly
+        as the fence-peer winner excludes it, and this node mounts as the
+        survivor.  Returns the inhibit, or None when the ordinary path
+        decides (the peer connected, or DRBD does not hold it Outdated)."""
+        t0 = time.time()
+        while True:
+            cs, ds = cstate(self.res), dstate(self.res)
+            if ds != "UpToDate/Outdated" or cs not in DISCONNECTED:
+                return None
+            if time.time() - t0 >= ALONE_GRACE_S:
+                break
+            self.ready_if_due("waiting for DRBD %s's peer (%s, %s)" % (self.res, cs, ds))
+            time.sleep(2)
+        ep = drbd_endpoints(self.res)
+        if not ep:
+            log("%s: DRBD holds the peer Outdated, but the resource is not two IPv4 "
+                "endpoints including this host; waiting for the peer" % self.res, crit=True)
+            return None
+        me, my_addr, _, peer, peer_addr, drbd_port = ep
+        nft_apply(self.res, peer_addr, drbd_port)
+        run(["drbdadm", "disconnect", self.res], timeout=15)
+        cs, ds = cstate(self.res), dstate(self.res)
+        if cs != "StandAlone" or ds not in ("UpToDate/Outdated", "UpToDate/Inconsistent"):
+            # The peer connected as the isolation went in: let it resync.
+            nft_remove(self.res)
+            run(["drbdadm", "connect", self.res], timeout=15)
+            log("%s: DRBD changed while %s was being isolated (%s, %s); waiting for "
+                "it instead" % (self.res, peer, cs, ds))
+            return None
+        episode = exclude(self.res, peer, peer_addr, drbd_port,
+                          "agent=self participant=%s reason=peer-outdated-at-boot"
+                          % participant_index(my_addr, peer_addr))
+        log("DRBD %s: this node (%s) holds the newest replica -- DRBD's record holds %s "
+            "Outdated, and DRBD does not promote it until it has resynced from this node "
+            "-- and %s did not connect within %d s. %s is excluded (episode %s) and this "
+            "node mounts alone; %s rejoins once it reports no live MXFS and DRBD not "
+            "Primary." % (self.res, me, peer, peer, ALONE_GRACE_S, peer, episode, peer),
+            crit=True)
+        return read_inhibit(self.res)
+
     def wait_connected(self):
         said = 0
         while True:
@@ -671,11 +794,14 @@ class Boot:
 
 def cmd_boot(res, mountpoint):
     """Bring the resource up and mount it, only in a state the module admits:
-    connected with both disks UpToDate, or the survivor of an exclusion.
-    Never promotes a disconnected node that holds no exclusion: that is how a
-    restarted loser would come back on stale data.  Connected, participant 1
-    waits for participant 0 to mount first, and a refused mount steps down to
-    Secondary and is retried, so the other node can recover the pair first."""
+    connected with both disks UpToDate, or the survivor of an exclusion --
+    which a node whose DRBD record holds its peer Outdated becomes when the
+    peer does not connect (Boot.exclude_outdated_peer).  Never promotes a
+    disconnected node that DRBD does not record as holding the newest replica:
+    that is how a restarted loser would come back on stale data.  Connected,
+    participant 1 waits for participant 0 to mount first, and a refused mount
+    steps down to Secondary and is retried, so the other node can recover the
+    pair first."""
     b = Boot(res, mountpoint)
     dev = drbd_device(res)
     if mxfs_mounted_on(dev):
@@ -687,6 +813,8 @@ def cmd_boot(res, mountpoint):
         nft_apply(res, inh["peer_addr"], int(inh["drbd_port"]))
     if cstate(res) == "":
         run(["drbdadm", "up", res], timeout=30, check=True)
+    if not inh:
+        inh = b.exclude_outdated_peer()
     if inh:
         run(["drbdadm", "disconnect", res], timeout=15)
         log("%s: this node holds %s excluded (episode %s); mounting as the survivor"

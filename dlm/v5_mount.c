@@ -17876,7 +17876,8 @@ static int v5_drbd_arm(struct mxfs_v5_dlm *ctx)
 	if (rc) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P-DRBD-ARM-REFUSED minor=%d — %s; a DRBD "
-			     "device is admitted only with its fence evidence",
+			     "device is admitted only with its fence evidence "
+			     "(set the resource up as docs/drbd-setup.md shows)",
 			     ctx->drbd_minor, why);
 		rc = -EPERM;
 		goto out;

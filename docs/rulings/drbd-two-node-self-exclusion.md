@@ -147,6 +147,45 @@ nodes, no fence hardware and no third vote. Neither does this design.
    or that its boot program has not been running for 30 s. A refused mount
    steps down to Secondary and is retried with a doubling backoff. The module
    refuses an unsafe mount whatever order the nodes take.
+10. **A survivor keeps its standing across its own restart, from DRBD's
+    record.** The inhibit is not that record: the release deletes it once the
+    peer answers with no MXFS, and a peer that departs cleanly leaves none. A
+    survivor that then restarts before the peer has resynced held no inhibit,
+    waited for a Connected peer, and with the peer dead never mounted again
+    (the physical pair, 2026-10-06). DRBD's metadata still says which replica is
+    the newest. A node attaches UpToDate/Outdated only when its
+    `MDF_PEER_OUT_DATED` flag is set (`drbd_nl.c` attach: a Consistent disk
+    becomes UpToDate when the peer is recorded Outdated), and that flag is set
+    by this node excluding its peer (fence-peer exit 7) or by the peer departing
+    as a Secondary (a graceful disconnect outdates the departing side), and is
+    cleared by the next connection. So at most one of the two holds the other
+    Outdated, and it holds the newest replica: the peer's disk is Outdated or
+    Inconsistent until it resyncs from this one, DRBD will not promote it
+    without `--force`, and the handler will not promote it (decision 11). The
+    boot program therefore treats a node that attaches UpToDate/Outdated and
+    sees no connection within 30 s as the survivor: it excludes the peer exactly
+    as the fence-peer winner does (isolation, inhibit, EXCLUDED receipt,
+    StandAlone) and mounts alone, which the module admits on the exclusion
+    (kind 26 for the startup fence and for the victims, the survivor's own
+    earlier incarnation among them). This is DRBD's own rule for a degraded
+    node that reboots with its peer Outdated (`outdated-wfc-timeout`: "the peer
+    is not allowed to become primary in the meantime"). The guard releases the
+    peer on the same evidence as after any exclusion. A connection within the
+    30 s takes the ordinary path. The tie-break does not enter into it: the
+    participant that holds the record is the survivor.
+11. **The handler never promotes a replica that may be stale.** DRBD runs the
+    fence-peer handler for two different requests: a Primary that lost its
+    link, whose disk is UpToDate, and the promotion of a disk that is only
+    Consistent while the peer is unknown (`drbd_set_role`). Answering the second
+    with the tie-break let participant 0, or participant 1 on the departed-peer
+    evidence, promote a replica the peer had moved past, and the exclusion that
+    came with it would have let the boot program mount it. A disk below UpToDate
+    is therefore promoted only under this node's own standing exclusion of that
+    peer (it won and stopped before DRBD recorded the peer Outdated); otherwise
+    the handler answers 5, "peer unreachable", which DRBD acts on only for an
+    UpToDate disk, so the promotion fails. When this node's disk state cannot be
+    read at all the answer is 1 and I/O stays frozen, never 5, because on an
+    UpToDate disk 5 outdates the peer with nothing excluding it.
 
 ## What it does not cover
 

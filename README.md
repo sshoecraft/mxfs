@@ -1,5 +1,15 @@
 # MXFS — Multinode XFS
 
+> **⚠️ THIS REPOSITORY IS THE DEVELOPMENT TREE, NOT A RELEASE. DO NOT INSTALL
+> MXFS FROM IT.**
+>
+> **The code on this branch is work in progress. It has not been verified to
+> release quality and cannot be considered production quality. To install
+> MXFS, use a release package from the
+> [Releases page](https://github.com/sshoecraft/mxfs/releases). Clone and build
+> this repository only to run the latest development code, knowing it is not
+> a release.**
+
 > **A shared-LUN clustered filesystem written entirely by AI.**
 >
 > Every line of the clustering, coordination, distributed-lock, fencing, and
@@ -681,9 +691,12 @@ The released configurations are 2, 4, 8 and 16 nodes with either lock manager
 (`direct`) or through dm-multipath on two (`mpath`, with the settings of
 `tools/mpath_settings.sh`), and two nodes with no shared storage on DRBD
 dual-primary (`2/net/mesh/drbd`, its own section below). Install
-the release package, or a source build with `make && make install`, on every
-node; either loads the module with `force_transport=1 target_cache_protected=1`,
-i.e. `net/mesh`, and every node must run the same version.
+the release package from the
+[Releases page](https://github.com/sshoecraft/mxfs/releases) on every node; it
+loads the module with `force_transport=1 target_cache_protected=1`, i.e.
+`net/mesh`, and every node must run the same version. A source build of this
+tree (`make && make install`) installs the development code, which is not a
+release (see the notice at the top).
 For `disk/caw`, see "Choosing the transport" below before the first mount.
 
 ```

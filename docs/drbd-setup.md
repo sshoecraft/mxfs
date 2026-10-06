@@ -131,7 +131,8 @@ systemctl enable --now mxfs-drbd@mxfs
 ```
 
 `mxfs-drbd@mxfs` brings the resource up, waits until DRBD is Connected with both
-disks UpToDate, promotes the node, and mounts. At shutdown it unmounts and
+disks UpToDate, promotes the node, and mounts; a host that was running alone
+gives the other 30 s and then mounts without it (section 7). At shutdown it unmounts and
 steps down, so the other node carries on. Check it with
 `systemctl status mxfs-drbd@mxfs`, and see why MXFS admitted or refused the
 mount with `dmesg | grep P-DRBD-ARM`.
@@ -178,6 +179,13 @@ DRBD address (here `pve1`) is participant 0; the other is participant 1.
   take over. It freezes, logs exactly this, restarts, and waits. Bring pve1
   back. No two-node system without a third vote or fence hardware can do
   better: Proxmox HA and corosync's tie-breaker behave the same way.
+- **The host running alone restarts while the other is still down** (pve1
+  after pve2 died, or pve2 after pve1 was shut down on purpose). DRBD records
+  which copy is newer, and it is the restarted host's: DRBD will not promote the
+  other until it has resynced from it. So the restarted host gives the other
+  30 s to connect, then isolates it as above and mounts alone, about two and a
+  half minutes after the boot in our tests; the other rejoins when it is back.
+  A host whose copy DRBD does not record as the newer one never mounts alone.
 - **Both nodes crash or lose power at once.** When they come back, DRBD
   reconnects and resyncs. Then pve2 waits, Secondary, while pve1 mounts: pve2
   being Secondary on a connected link is DRBD's own proof that no old mount is

@@ -38,6 +38,10 @@
 #                                              by itself (SELF_OUTAGE_HOLD_TICKET=1: one dies holding its swap lock;
 #                                              SELF_OUTAGE_RESUME=1: the first mount fails after K's replay and resumes;
 #                                              SELF_OUTAGE_PEER_PRIMARY=1: the first mount is refused, stepped down, retried)
+#   scripts/drbd_rig.sh self-restart-test   the survivor of a built-in exclusion restarts while its peer is
+#                                              still down and must mount alone through the boot program, then
+#                                              the peer rejoins (SELF_RESTART=released: the guard released the
+#                                              peer first and it died again before it connected)
 #   scripts/drbd_rig.sh takeover-test [self|foreign]
 #                                           a pair outage whose bootstrap owner fails after adopting
 #                                           K: the term is taken over and finished (TAKEOVER_NOCAW_ARM=1
@@ -46,6 +50,8 @@
 #                                              whole-cluster restart, all on one filesystem
 #   scripts/drbd_rig.sh resolve-test        passthrough never resolves /dev/drbd0 (or dm on it) to its
 #                                              backing disk; a loop-device mount refuses and writes nothing
+#   scripts/drbd_rig.sh misconfig-test      each wrong setting of a user's DRBD resource is refused at
+#                                              mount with a reason that names the setting
 #   scripts/drbd_rig.sh reconfig            re-apply the resource file and fencing to the running pair
 #   scripts/drbd_rig.sh hook-setup          install the libvirt hook that refuses an inhibited start
 #   scripts/drbd_rig.sh fence-setup         authorise the rig fence key on this host (up does it)
@@ -1224,6 +1230,138 @@ step_self_outage_test() {
     say "self outage test: passed (the rig's node fence is configured again; MXFS left unmounted)"
 }
 
+# The survivor of a built-in exclusion restarts while its peer is still down,
+# as the physical pair did on 2026-10-06: pve2's hardware dead, pve1 reset, and
+# pve1 never mounted again.  The victim is destroyed and the survivor recovers
+# it; then
+#   SELF_RESTART=held      (default) the survivor still holds its exclusion
+#   SELF_RESTART=released  the victim comes back first with DRBD down, the
+#                          guard releases it on its answer (no MXFS), and it
+#                          is destroyed again before it ever connects -- pve1's
+#                          history, which leaves the survivor no inhibit, only
+#                          DRBD's record of the peer as Outdated
+# The survivor is destroyed too and booted alone, through what a PVE host
+# starts at boot: the guard, DRBD, the boot program.  It must mount alone with
+# every fsynced file, its own since the victim's death included; then the
+# victim boots, is released, resyncs and mounts through its boot program.
+#
+# From the boot program's start to mounted alone: the grace the peer gets to
+# connect when the survivor has to exclude it itself (30 s), then the
+# bootstrap reads the heartbeat table twice a dead window apart (2 x 64 s) and
+# replays the survivor's own slice (~5 s): ~165 s, twice that.
+SELF_RESTART_BUDGET=330
+step_self_restart_test() {
+    local out t0 surv vict a1 a2 n ssum vsum asum ep mode=${SELF_RESTART:-held}
+    case "$mode" in held|released) ;; *) die "self restart test: SELF_RESTART must be held or released" ;; esac
+    need_dual_primary
+    need_mounted || die "self restart test: MXFS is not mounted on both nodes (scripts/drbd_rig.sh mxfs)"
+    a1=$(lab_addr "$N1"); a2=$(lab_addr "$N2")
+    if python3 -I -c 'import ipaddress, sys; sys.exit(0 if ipaddress.ip_address(sys.argv[1]) < ipaddress.ip_address(sys.argv[2]) else 1)' "$a1" "$a2"; then
+        surv=$N1; vict=$N2
+    else
+        surv=$N2; vict=$N1
+    fi
+    install_self_authority
+    say "self restart test ($mode): survivor $surv (participant 0), victim $vict"
+    for n in "$surv" "$vict"; do self_dyndbg "$n" narrow || die "self restart test: cannot narrow the debug sites on $n"; done
+    out=$(ssh_n "$surv" "mkdir -p $MNT/srestart/s && for i in \$(seq 1 64); do head -c 65536 /dev/urandom > $MNT/srestart/s/f\$i; done && sync -f $MNT && cd $MNT/srestart/s && md5sum f* | sort -k2 | md5sum | cut -c1-32" 60)
+    ssum=$(tail -1 <<<"$out")
+    out=$(ssh_n "$vict" "mkdir -p $MNT/srestart/v && for i in \$(seq 1 64); do head -c 65536 /dev/urandom > $MNT/srestart/v/f\$i; done && sync -f $MNT && cd $MNT/srestart/v && md5sum f* | sort -k2 | md5sum | cut -c1-32" 60)
+    vsum=$(tail -1 <<<"$out")
+    [ ${#ssum} = 32 ] && [ ${#vsum} = 32 ] || die "self restart test: could not record checksums ($ssum / $vsum)"
+
+    ssh_n "$surv" "dmesg -C; echo '<5>mxfs-test: self-restart kill $vict' > /dev/kmsg" 10 >/dev/null
+    t0=$(date +%s)
+    timeout 60 virsh -c qemu:///system destroy "$vict" >/dev/null 2>&1 || die "self restart test: virsh destroy $vict failed"
+    out=$(ssh_n "$surv" "for i in \$(seq 1 $SELF_RECOVER_BUDGET); do dmesg | grep -q 'P163-RECOVERY-COMPLETE' && { echo RECOVERED; exit 0; }; sleep 1; done; echo NOT_RECOVERED" $((SELF_RECOVER_BUDGET + 20)))
+    grep -q '^RECOVERED' <<<"$out" || die "self restart test: $surv did not recover $vict within ${SELF_RECOVER_BUDGET}s"
+    say "  $vict destroyed; $surv recovered it in $(( $(date +%s) - t0 ))s"
+    # a set only the survivor holds: written after the victim died
+    out=$(ssh_n "$surv" "mkdir -p $MNT/srestart/a && for i in \$(seq 1 64); do head -c 65536 /dev/urandom > $MNT/srestart/a/f\$i; done && sync -f $MNT && cd $MNT/srestart/a && md5sum f* | sort -k2 | md5sum | cut -c1-32" 60)
+    asum=$(tail -1 <<<"$out")
+    [ ${#asum} = 32 ] || die "self restart test: the survivor could not write alone: $out"
+    ep=$(ssh_n "$surv" "sed -n 's/.*\"episode\": *\"\\([^\"]*\\)\".*/\\1/p' /var/lib/mxfs/drbd-inhibit.$RES.json" 10)
+    [ -n "$ep" ] || die "self restart test: $surv holds no inhibit after excluding $vict"
+
+    if [ "$mode" = released ]; then
+        ssh_n "$surv" "systemctl stop mxfs-rig-guard 2>/dev/null; systemd-run --unit=mxfs-rig-guard --collect /usr/sbin/mxfs-drbd-fence-self guard >/dev/null 2>&1 && echo GUARD_OK" 20 | grep -q GUARD_OK \
+            || die "self restart test: cannot start the guard on $surv"
+        "$REPO/scripts/lab_power.sh" up "$vict" > "$EVID/srestart_power.$vict" 2>&1 || die "self restart test: $vict did not boot: $(tail -1 "$EVID/srestart_power.$vict")"
+        out=$(ssh_n "$surv" "for i in \$(seq 1 60); do grep -qE 'result=RELEASED .*episode=$ep' /var/lib/mxfs/drbd-fence.$RES && { grep -E 'result=RELEASED .*episode=$ep' /var/lib/mxfs/drbd-fence.$RES | tail -1; exit 0; }; sleep 1; done; echo NOT_RELEASED" 75)
+        grep -q 'result=RELEASED' <<<"$out" || die "self restart test: the guard did not release $vict within 60 s of its boot"
+        say "  $vict booted with DRBD down; the guard released it: ${out##*result=RELEASED }"
+        ssh_n "$surv" "systemctl stop mxfs-rig-guard 2>/dev/null; drbdadm cstate $RES; drbdadm dstate $RES; ls /var/lib/mxfs" 20 > "$EVID/srestart_released"
+        timeout 60 virsh -c qemu:///system destroy "$vict" >/dev/null 2>&1 || die "self restart test: virsh destroy $vict (again) failed"
+        say "  $vict destroyed again before it ever connected; $surv: $(head -2 "$EVID/srestart_released" | tr '\n' ' ')"
+    fi
+
+    timeout 60 virsh -c qemu:///system destroy "$surv" >/dev/null 2>&1 || die "self restart test: virsh destroy $surv failed"
+    "$REPO/scripts/lab_power.sh" up "$surv" > "$EVID/srestart_power.$surv" 2>&1 || die "self restart test: $surv did not boot: $(tail -1 "$EVID/srestart_power.$surv")"
+    # What a PVE host starts at boot, in its order: the guard (before DRBD:
+    # it re-applies a held isolation), DRBD's resource, then the boot program.
+    local KO_MD5; KO_MD5=$(md5sum "$REPO/mxfs.ko" | awk '{print $1}')
+    out=$(ssh_n "$surv" "systemd-run --unit=mxfs-rig-guard --collect /usr/sbin/mxfs-drbd-fence-self guard >/dev/null 2>&1 && echo GUARD_OK
+        $NODE_DRBD_UP
+        mountpoint -q /src || { mkdir -p /src; timeout 20 mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp; }
+        MXFS_NO_MOUNT=1 MXFS_DEV=$DRBD_DEV MXFS_KO_MD5=$KO_MD5 MXFS_REPO=/src/mxfs bash /src/mxfs/tests/setup/prep_node.sh tcp 2>&1 | grep -a NODE_PREP" 150)
+    echo "$out" > "$EVID/srestart_prep.$surv"
+    grep -q GUARD_OK <<<"$out" && grep -aq '^NODE_PREP_OK' <<<"$out" || die "self restart test: $surv's boot: $(tail -2 <<<"$out" | tr '\n' ' ')"
+    self_dyndbg "$surv" narrow || die "self restart test: cannot narrow the debug sites on $surv"
+    out=$(ssh_n "$surv" "echo '<5>mxfs-test: self-restart boot' > /dev/kmsg; systemctl reset-failed mxfs-rig-boot 2>/dev/null
+        systemd-run --unit=mxfs-rig-boot --property=RemainAfterExit=yes --setenv=GUEST_WAIT=0 /usr/sbin/mxfs-drbd-fence-self boot $RES $MNT 2>&1 | tail -1
+        echo \"BOOT_STARTED \$(drbdadm cstate $RES) \$(drbdadm dstate $RES) \$(drbdadm role $RES) inhibit=\$(ls /var/lib/mxfs | grep -c inhibit)\"" 30)
+    grep -aq '^BOOT_STARTED' <<<"$out" || die "self restart test: $surv: the boot program did not start: $out"
+    say "  $surv booted alone and started its boot program: $(grep -a '^BOOT_STARTED' <<<"$out" | cut -d' ' -f2-)"
+    t0=$(date +%s)
+    out=$(ssh_n "$surv" "for i in \$(seq 1 $((SELF_RESTART_BUDGET / 5))); do
+            m=\$(awk '\$3 == \"mxfs\" && \$1 == \"$DRBD_DEV\" {print \$2}' /proc/mounts | head -1)
+            [ \"\$m\" = $MNT ] && { echo MOUNTED; exit 0; }
+            systemctl is-failed -q mxfs-rig-boot && { echo BOOT_FAILED; exit 0; }
+            sleep 5
+        done; echo NOT_MOUNTED" $((SELF_RESTART_BUDGET + 30)))
+    ssh_n "$surv" "journalctl -b 0 --no-pager -o short-iso -u mxfs-rig-boot -u mxfs-rig-guard -t mxfs-drbd-fence | cut -c1-400 | tail -40; tail -5 /var/lib/mxfs/drbd-fence.$RES" 30 > "$EVID/srestart_bootlog.$surv"
+    ssh_n "$surv" "grep -aE 'mxfs-test|P-BOOT-|P-DRBD-|P236-FENCE|P238-|P163-|P-RBLK-|mxfs-drbd-fence' /root/dmesg.stream | sed 's/^\\(\\[[ 0-9.]*\\]\\).*\\(mxfs[-:]\\|XFS\\)/\\1 \\2/' | cut -c1-300" 30 > "$EVID/srestart_kernlog.$surv"
+    grep -q '^MOUNTED' <<<"$out" || die "self restart test: $surv did not mount alone within ${SELF_RESTART_BUDGET}s of its boot program's start ($(tail -1 <<<"$out")): $(grep -a 'mxfs-drbd-fence' "$EVID/srestart_bootlog.$surv" | tail -2 | cut -c1-300 | tr '\n' ' ') (evidence $EVID)"
+    say "  $surv mounted alone $(( $(date +%s) - t0 ))s after its boot program started: $(grep -aoE 'P-DRBD-STARTUP-[A-Z-]+ [^—]*' "$EVID/srestart_kernlog.$surv" | head -1 | cut -c1-160)"
+    grep -q 'P-RBLK-' "$EVID/srestart_kernlog.$surv" && die "self restart test: $surv refused operations as RECOVERY_BLOCKED"
+    out=$(ssh_n "$surv" "for d in s v a; do cd $MNT/srestart/\$d && md5sum f* | sort -k2 | md5sum | cut -c1-32; done; touch $MNT/srestart/after && rm $MNT/srestart/after && echo FS_OK" 60)
+    [ "$(sed -n 1p <<<"$out")" = "$ssum" ] && [ "$(sed -n 2p <<<"$out")" = "$vsum" ] && [ "$(sed -n 3p <<<"$out")" = "$asum" ] \
+        || die "self restart test: $surv alone reads different data: $out (written $ssum $vsum $asum)"
+    grep -q FS_OK <<<"$out" || die "self restart test: $surv cannot write alone: $out"
+    say "  every fsynced file of both nodes, and the survivor's own since, intact on $surv alone, which writes"
+
+    # The victim returns as a PVE host does: DRBD up, then its boot program,
+    # which waits until the survivor's guard releases it and DRBD has resynced.
+    t0=$(date +%s)
+    "$REPO/scripts/lab_power.sh" up "$vict" > "$EVID/srestart_power2.$vict" 2>&1 || die "self restart test: $vict did not boot: $(tail -1 "$EVID/srestart_power2.$vict")"
+    out=$(ssh_n "$vict" "$NODE_DRBD_UP
+        mountpoint -q /src || { mkdir -p /src; timeout 20 mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp; }
+        MXFS_NO_MOUNT=1 MXFS_DEV=$DRBD_DEV MXFS_KO_MD5=$KO_MD5 MXFS_REPO=/src/mxfs bash /src/mxfs/tests/setup/prep_node.sh tcp 2>&1 | grep -a NODE_PREP
+        systemctl reset-failed mxfs-rig-boot 2>/dev/null
+        systemd-run --unit=mxfs-rig-boot --property=RemainAfterExit=yes --setenv=GUEST_WAIT=0 /usr/sbin/mxfs-drbd-fence-self boot $RES $MNT 2>&1 | tail -1
+        echo BOOT_STARTED" 180)
+    grep -aq '^NODE_PREP_OK' <<<"$out" && grep -aq '^BOOT_STARTED' <<<"$out" || die "self restart test: $vict's boot: $(tail -2 <<<"$out" | tr '\n' ' ')"
+    out=$(ssh_n "$vict" "for i in \$(seq 1 $((REJOIN_BUDGET / 5))); do
+            m=\$(awk '\$3 == \"mxfs\" && \$1 == \"$DRBD_DEV\" {print \$2}' /proc/mounts | head -1)
+            [ \"\$m\" = $MNT ] && { echo MOUNTED; exit 0; }
+            sleep 5
+        done; echo \"NOT_MOUNTED \$(drbdadm cstate $RES) \$(drbdadm dstate $RES)\"" $((REJOIN_BUDGET + 30)))
+    grep -q '^MOUNTED' <<<"$out" || die "self restart test: $vict did not rejoin within ${REJOIN_BUDGET}s of its boot program's start: $out"
+    out=$(ssh_n "$vict" "for d in s v a; do cd $MNT/srestart/\$d && md5sum f* | sort -k2 | md5sum | cut -c1-32; done" 60)
+    [ "$(sed -n 1p <<<"$out")" = "$ssum" ] && [ "$(sed -n 2p <<<"$out")" = "$vsum" ] && [ "$(sed -n 3p <<<"$out")" = "$asum" ] \
+        || die "self restart test: the rejoined $vict reads different data: $out"
+    say "  $vict rejoined $(( $(date +%s) - t0 ))s after its power-on, and reads all three sets identically"
+
+    both srestop "systemctl stop mxfs-rig-guard 2>/dev/null; systemctl stop mxfs-rig-boot 2>/dev/null; systemctl reset-failed mxfs-rig-boot 2>/dev/null; $NODE_UNMOUNT; echo STOP_OK" 120
+    for n in "${NODES[@]}"; do grep -aq '^STOP_OK' "$EVID/srestop.$n" || die "self restart test: $n would not release mxfs: $(tail -1 "$EVID/srestop.$n")"; done
+    out=$(ssh_n "$surv" "/src/mxfs/tools/chk_mxfs $DRBD_DEV 2>&1 | tail -3; echo CHK_RC=\${PIPESTATUS[0]}" 120)
+    echo "$out" > "$EVID/srestart_chk"
+    grep -q 'CHK_RC=0' <<<"$out" || die "self restart test: chk_mxfs: $(tail -3 <<<"$out" | tr '\n' ' ')"
+    say "  cold chk_mxfs clean"
+    install_fencing
+    say "self restart test ($mode): passed (the rig's node fence is configured again; MXFS left unmounted)"
+}
+
 # Both handlers race: delay 0 on both nodes, the link cut on both sides at
 # once.  The fence authority must grant exactly one: one node off and
 # inhibited, the other Primary with its peer Outdated, writing.  Then the loser
@@ -1385,6 +1523,80 @@ step_resolve_test() {
     cas_arm override "force_transport=1 fence_capability_override=1 single_node_exclusive=1"
     ssh_n "$N1" "rmmod mxfs" 30 >/dev/null
     say "resolve test: passed (MXFS left unmounted; scripts/drbd_rig.sh mxfs mounts it)"
+}
+
+# A DRBD resource MXFS cannot fence on is refused at mount, and the refusal
+# names the setting that is wrong — the reason mount(8) shows a user (on
+# util-linux 2.40 and later; this rig's 2.39 prints only the errno, so the
+# reason is read from the kernel log).  Measured on the physical PVE pair: a
+# resource set up without fencing was refused as "Transport endpoint is not
+# connected", and the user had to search the web for how to set DRBD up.
+# Each arm is a throwaway resource on $N1 alone — minor 1, a loop file, a peer
+# address nothing listens on — that breaks exactly one setting of the
+# resource docs/drbd-setup.md gives, formatted and mounted once with the
+# module options a source install ships (packaging/mxfs-modprobe.conf).  The
+# control arm breaks nothing: it must get past every configuration check and
+# be refused later, for its missing peer.  The rig's own resource is not
+# touched; MXFS is left unmounted (`mxfs` mounts it again).
+MISCONFIG_ARMS=(
+    "control|protocol C; allow-two-primaries yes;|fencing resource-and-stonith;|fence-peer \"/usr/sbin/mxfs-drbd-fence-peer\";|disconnect|"
+    "protocol-A|protocol A;|fencing resource-and-stonith;|fence-peer \"/usr/sbin/mxfs-drbd-fence-peer\";|disconnect|replication protocol is 'A'"
+    "single-primary|protocol C;|fencing resource-and-stonith;|fence-peer \"/usr/sbin/mxfs-drbd-fence-peer\";|disconnect|allow-two-primaries is"
+    "no-fencing|protocol C; allow-two-primaries yes;||fence-peer \"/usr/sbin/mxfs-drbd-fence-peer\";|disconnect|fencing is not set"
+    "resource-only|protocol C; allow-two-primaries yes;|fencing resource-only;|fence-peer \"/usr/sbin/mxfs-drbd-fence-peer\";|disconnect|fencing is resource-only"
+    "no-handler|protocol C; allow-two-primaries yes;|fencing resource-and-stonith;||disconnect|the fence-peer handler is not set"
+    "wrong-handler|protocol C; allow-two-primaries yes;|fencing resource-and-stonith;|fence-peer \"/bin/true\";|disconnect|the fence-peer handler is /bin/true"
+    "auto-split-brain|protocol C; allow-two-primaries yes;|fencing resource-and-stonith;|fence-peer \"/usr/sbin/mxfs-drbd-fence-peer\";|discard-zero-changes|after-split-brain policies are"
+)
+step_misconfig_test() {
+    local spec label net fencing handler sb0 want res out reason a1 a2 n
+    need_dual_primary
+    a1=$(lab_addr "$N1"); a2=$(lab_addr "$N2")
+    both mmum "$NODE_UNMOUNT; echo UM_OK" 120
+    for n in "${NODES[@]}"; do grep -q UM_OK "$EVID/mmum.$n" || die "misconfig test: $n would not unmount: $(tail -1 "$EVID/mmum.$n")"; done
+    out=$(ssh_n "$N1" "insmod /src/mxfs/mxfs.ko $(grep -v -E '^\s*(#|$)' "$REPO/packaging/mxfs-modprobe.conf" | sed 's/^options mxfs //' | tr '\n' ' ') && cat /sys/module/mxfs/srcversion" 30)
+    [ "$out" = "$(modinfo -F srcversion "$REPO/mxfs.ko")" ] || die "misconfig test: could not load the tree's module with the shipped options on $N1: $out"
+    say "misconfig test on $N1 (build $out, shipped module options)"
+    for spec in "${MISCONFIG_ARMS[@]}"; do
+        IFS='|' read -r label net fencing handler sb0 want <<<"$spec"
+        res="resource mxfsmis {
+    net { $net after-sb-0pri $sb0; after-sb-1pri disconnect; after-sb-2pri disconnect; }
+    disk { $fencing }
+    handlers { $handler }
+    on $N1 { device /dev/drbd1 minor 1; disk LOOPDEV; address $a1:7791; meta-disk internal; }
+    on $N2 { device /dev/drbd1 minor 1; disk /dev/null; address $a2:7791; meta-disk internal; }
+}"
+        out=$(ssh_n "$N1" "truncate -s 2G /root/mxfs_mis.img; L=\$(losetup -f --show /root/mxfs_mis.img)
+            echo '$(base64 -w0 <<<"$res")' | base64 -d | sed \"s|LOOPDEV|\$L|\" > /etc/drbd.d/mxfsmis.res
+            if drbdadm -- --force create-md mxfsmis </dev/null >/dev/null 2>&1 && drbdadm up mxfsmis 2>/root/mxfs_mis.err && drbdadm primary --force mxfsmis 2>>/root/mxfs_mis.err; then
+                /src/mxfs/tools/mkfs_mxfs -f -n $LOG_SLICES /dev/drbd1 >/dev/null 2>&1 || echo MKFS_FAIL
+                mkdir -p /mnt/mxfs_mis; dmesg -C
+                if timeout 60 mount -t mxfs /dev/drbd1 /mnt/mxfs_mis 2>/dev/null; then echo MIS_MOUNTED; timeout 30 umount /mnt/mxfs_mis; else echo MIS_REFUSED; fi
+                dmesg | grep -a -m1 'P-DRBD-ARM-REFUSED' | sed 's/^.*mxfs: //'
+            else
+                echo \"DRBD_REFUSED \$(tail -1 /root/mxfs_mis.err)\"
+            fi
+            drbdadm down mxfsmis >/dev/null 2>&1; rm -f /etc/drbd.d/mxfsmis.res; losetup -d \$L; rm -f /root/mxfs_mis.img /root/mxfs_mis.err" 150)
+        echo "$out" > "$EVID/misconfig_$label"
+        reason=$(grep -a 'P-DRBD-ARM-REFUSED' <<<"$out" | head -1)
+        if grep -q '^DRBD_REFUSED' <<<"$out"; then
+            [ "$label" = control ] && die "misconfig test: DRBD would not bring up the guide's own resource: $out"
+            say "  $label: DRBD itself refuses this resource ($(grep '^DRBD_REFUSED' <<<"$out" | cut -c15-140))"
+            continue
+        fi
+        grep -q MIS_MOUNTED <<<"$out" && die "misconfig test ($label): MXFS mounted a resource with this setting: $out"
+        grep -q MIS_REFUSED <<<"$out" || die "misconfig test ($label): no verdict: $out"
+        if [ "$label" = control ]; then
+            grep -qE "replication protocol|allow-two-primaries|fencing is|fence-peer handler|after-split-brain" <<<"$reason" \
+                && die "misconfig test: the guide's own resource was refused for its configuration: $reason"
+            say "  control (the guide's resource): past every configuration check; refused later: ${reason:-not by the DRBD arm}"
+            continue
+        fi
+        grep -qF "$want" <<<"$reason" || die "misconfig test ($label): the refusal does not name the setting: ${reason:-no P-DRBD-ARM-REFUSED line}"
+        say "  $label: refused — $(sed 's/^P-DRBD-ARM-REFUSED minor=1 — //' <<<"$reason" | cut -c1-150)"
+    done
+    ssh_n "$N1" "rmmod mxfs" 30 >/dev/null
+    say "misconfig test: passed (MXFS left unmounted; scripts/drbd_rig.sh mxfs mounts it)"
 }
 
 # A clean departure on DRBD retires itself: its RETIRE_PENDING record (written
@@ -1765,9 +1977,11 @@ case "$CMD" in
     death-test)  evid; take_locks; hold_luns adopt; step_death_test ;;
     self-death-test) evid; take_locks; hold_luns adopt; step_self_death_test ;;
     resolve-test) evid; take_locks; hold_luns adopt; step_resolve_test ;;
+    misconfig-test) evid; take_locks; hold_luns adopt; step_misconfig_test ;;
     remount-test) evid; take_locks; hold_luns adopt; step_remount_test ;;
     outage-test) evid; take_locks; hold_luns adopt; step_outage_test ;;
     self-outage-test) evid; take_locks; hold_luns adopt; step_self_outage_test ;;
+    self-restart-test) evid; take_locks; hold_luns adopt; step_self_restart_test ;;
     takeover-test) evid; take_locks; hold_luns adopt; step_takeover_test "$@" ;;
     rejoin)      # [node]: the node to bring back (default $N2); the other is its survivor
         evid; take_locks; hold_luns adopt

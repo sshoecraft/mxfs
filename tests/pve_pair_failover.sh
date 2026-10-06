@@ -22,6 +22,24 @@
 #   reboot     participant 1 is rebooted cleanly (systemctl reboot): its unit
 #              unmounts and steps down, the survivor's load carries on without
 #              a fence, and the host mounts again after its boot.
+#   survivor-restart
+#              participant 1 is powered off and stays off; participant 0
+#              excludes it and carries on, then is itself reset.  It must
+#              mount again alone, holding every fsynced file, and participant
+#              1 must rejoin once it is powered on.  A host that dies while
+#              its peer is being repaired is the case.
+#   released-restart
+#              as survivor-restart, but participant 1 first comes back without
+#              DRBD (its unit masked, as when its unit files were lost), so
+#              the survivor's guard releases it on its answer, and it dies
+#              again before it ever connects; only then is participant 0
+#              reset.  The physical pair did exactly this on 2026-10-05/06.
+#   stale-promotion
+#              participant 1 is powered off; participant 0 carries on and
+#              writes, then its unit is stopped (up, not Primary, unmounted).
+#              Participant 1 comes back with a replica that lacks those
+#              writes, and a plain `drbdadm primary` on it must be refused;
+#              then participant 0's unit starts and both mount again.
 #   (default: p1-crash reboot power-cut p0-crash)
 #
 # Before each step both hosts must be mounted, DRBD Connected Primary/Primary
@@ -35,6 +53,14 @@
 #                  the HP Z400 pair boots in ~3 min, 2 of them retrying iSCSI
 #                  logins to retired targets)
 #   LOAD_S         seconds of load per step (default 120)
+#   PVE_POWER_ON   the command that powers a host on, run here with {name}
+#                  replaced by the host's name and {addr} by its address; the
+#                  steps that keep a host off need it.  The nested pair:
+#                  'virsh -c qemu:///system start {name}'
+#   PVE_POWER_OFF  the same for cutting a host's power.  Unset, the host is
+#                  crashed with kernel.panic=0 and stays stopped until reset,
+#                  so PVE_POWER_ON must reset it.  The nested pair:
+#                  'virsh -c qemu:///system destroy {name}'
 #
 # Evidence: tests/evidence/pve_pair_failover/<UTC stamp>/<step>/ — each host's
 # kernel log and boot-program journal since the step began, and fio's json.
@@ -61,12 +87,23 @@ REJOIN_BUDGET=180
 # From both hosts answering ssh to both mounted after a pair outage: 143-148 s
 # on the rig (self-outage-test); twice that.
 OUTAGE_BUDGET=300
+# A survivor that restarts alone mounts with the same work as the first mount
+# after a pair outage (the heartbeat scan, its own journal's replay) and no
+# peer to wait for, so the same bound.
+ALONE_BUDGET=$OUTAGE_BUDGET
+# From the excluded host answering ssh to the survivor's guard releasing it:
+# the guard looks every 5 s and asks over ssh (ConnectTimeout 5).
+RELEASE_BUDGET=30
+# From sysrq o to the host no longer answering ping.
+DOWN_BUDGET=30
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
 EVID="$REPO/tests/evidence/pve_pair_failover/$STAMP"
 mkdir -p "$EVID" || exit 1
 
 say() { echo "[$(date +%H:%M:%S)] $*" | tee -a "$EVID/log"; }
-die() { say "FAIL: $*"; exit 1; }
+# LEFT names what a failed step leaves changed on a host, so it can be undone.
+LEFT=""
+die() { say "FAIL: $*"; [ -z "$LEFT" ] || say "LEFT: $LEFT"; exit 1; }
 on() {  # <host> <cmd> [timeout]
     timeout "${3:-60}" "$SSHP" "$1" "$2" </dev/null 2>&1 | grep -avE '^Warning:|^Unauthorized|^If you|^$'
     return "${PIPESTATUS[0]}"
@@ -91,6 +128,17 @@ pair_ok() {  # <state line>
         && [ "$(field "$1" role)" = Primary/Primary ] && [ "$(field "$1" cs)" = Connected ] \
         && [ "$(field "$1" ds)" = UpToDate/UpToDate ]
 }
+# Mounted with the peer away: Primary on an UpToDate disk, link not Connected.
+alone_ok() {  # <state line>
+    local role ds
+    role=$(field "$1" role); ds=$(field "$1" ds)
+    [ "$(field "$1" unit)" = active ] && [ "$(field "$1" mnt)" = "$MNT" ] \
+        && [ "${role%%/*}" = Primary ] && [ "$(field "$1" cs)" != Connected ] \
+        && [ "${ds%%/*}" = UpToDate ]
+}
+# Each host's name, read while both answer: a host that is off is still
+# named in the paths its files were written under.
+declare -A NAME
 need_pair_up() {
     local s0 s1
     s0=$(state "$P0"); s1=$(state "$P1")
@@ -99,6 +147,7 @@ need_pair_up() {
     [ "$(field "$s0" build)" = "$(field "$s1" build)" ] \
         || die "the hosts run different MXFS builds: $(field "$s0" build) / $(field "$s1" build)"
     BUILD=$(field "$s0" build)
+    NAME[$P0]=$(on "$P0" hostname 10); NAME[$P1]=$(on "$P1" hostname 10)
 }
 boot_id() { field "$(state "$1")" boot; }
 
@@ -125,27 +174,43 @@ wait_mounted() {
     say "  $1 at the bound: ${s:-no answer}"
     return 1
 }
+# wait_alone <host> <budget>: the host is mounted with its peer away
+wait_alone() {
+    local t0 s
+    t0=$(date +%s)
+    while [ $(( $(date +%s) - t0 )) -lt "$2" ]; do
+        s=$(state "$1")
+        alone_ok "$s" && { echo $(( $(date +%s) - t0 )); return 0; }
+        sleep 5
+    done
+    say "  $1 at the bound: ${s:-no answer}"
+    on "$1" "journalctl -b --no-pager -o short-iso -t mxfs-drbd-fence | tail -4; journalctl -k -b --no-pager -o short-iso | grep -aE 'P-BOOT|P238|P-DRBD-ARM|refus' | tail -6" 30 | cut -c1-400 | sed 's/^/    /' | tee -a "$EVID/log"
+    return 1
+}
 
 # Each host writes and fsyncs 32 files of 64 KiB; the md5 of the set is kept.
 declare -A SUMS
-write_sets() {  # <step>
-    local h out
-    for h in "$P0" "$P1"; do
-        out=$(on "$h" "d=$MNT/pvefail/$STAMP/$1/\$(hostname); mkdir -p \$d && for i in \$(seq 1 32); do head -c 65536 /dev/urandom > \$d/f\$i; done && sync -f \$d && cd \$d && md5sum f* | sort -k2 | md5sum | cut -c1-32" 60)
-        [ "${#out}" = 32 ] || die "$h could not write its fsynced set: $out"
-        SUMS[$1.$h]=$out
-    done
+write_set() {  # <step> <host>
+    local out
+    out=$(on "$2" "d=$MNT/pvefail/$STAMP/$1/\$(hostname); mkdir -p \$d && for i in \$(seq 1 32); do head -c 65536 /dev/urandom > \$d/f\$i; done && sync -f \$d && cd \$d && md5sum f* | sort -k2 | md5sum | cut -c1-32" 60)
+    [ "${#out}" = 32 ] || die "$2 could not write its fsynced set: $out"
+    SUMS[$1.$2]=$out
+}
+write_sets() { write_set "$1" "$P0"; write_set "$1" "$P1"; }
+check_set() {  # <step> <reader> <writer>: the reader holds the writer's set as written
+    local out
+    out=$(on "$2" "cd $MNT/pvefail/$STAMP/$1/${NAME[$3]} && md5sum f* | sort -k2 | md5sum | cut -c1-32" 60)
+    [ "$out" = "${SUMS[$1.$3]}" ] || die "$2 reads $3's fsynced set differently after $1: $out (written ${SUMS[$1.$3]}; sets: $(on "$2" "ls $MNT/pvefail/$STAMP/$1" 20 | tr '\n' ' '))"
+}
+check_writes() {  # <step> <host>
+    on "$2" "touch $MNT/pvefail/$STAMP/$1/after.\$(hostname) && rm $MNT/pvefail/$STAMP/$1/after.\$(hostname) && echo W_OK" 30 | grep -q W_OK \
+        || die "$2 cannot write after $1"
 }
 verify_sets() {  # <step>
-    local h g out names
-    names=$(on "$P0" "ls $MNT/pvefail/$STAMP/$1" 20 | tr '\n' ' ')
+    local h g
     for h in "$P0" "$P1"; do
-        for g in "$P0" "$P1"; do
-            out=$(on "$h" "cd $MNT/pvefail/$STAMP/$1/$(on "$g" hostname 10) && md5sum f* | sort -k2 | md5sum | cut -c1-32" 60)
-            [ "$out" = "${SUMS[$1.$g]}" ] || die "$h reads $g's fsynced set differently after $1: $out (written ${SUMS[$1.$g]}; sets: $names)"
-        done
-        on "$h" "touch $MNT/pvefail/$STAMP/$1/after.\$(hostname) && rm $MNT/pvefail/$STAMP/$1/after.\$(hostname) && echo W_OK" 30 | grep -q W_OK \
-            || die "$h cannot write after $1"
+        for g in "$P0" "$P1"; do check_set "$1" "$h" "$g"; done
+        check_writes "$1" "$h"
     done
     say "  every fsynced file of both hosts intact on both, and both write"
 }
@@ -178,6 +243,62 @@ print(\"LOAD err=%d read_ios=%d write_ios=%d lat_max_ms=%.0f\" % (j[\"error\"], 
 reset_host() {  # <host>: sysrq b one second after the ssh session ends
     on "$1" "echo 1 > /proc/sys/kernel/sysrq; nohup setsid sh -c 'sleep 1; echo b > /proc/sysrq-trigger' >/dev/null 2>&1 < /dev/null & echo RESET_ARMED" 15 | grep -q RESET_ARMED \
         || die "could not arm the reset on $1"
+}
+# The host stops dead, as at a power cut: nothing synced, no unit stopped, no
+# leave message.  PVE_POWER_OFF when set; otherwise a kernel crash with
+# kernel.panic=0, which leaves the host stopped until it is reset.  Not sysrq
+# o: that is kernel_power_off(), which shuts devices down first, and on the
+# nested pair it blocked until the softdog restarted the host 60 s later.
+power_off_host() {  # <host>
+    local cmd
+    if [ -n "${PVE_POWER_OFF:-}" ]; then
+        cmd=${PVE_POWER_OFF//\{name\}/${NAME[$1]}}
+        cmd=${cmd//\{addr\}/$1}
+        timeout 60 bash -c "$cmd" >>"$EVID/log" 2>&1 || die "could not power $1 off: $cmd"
+        return
+    fi
+    on "$1" "echo 0 > /proc/sys/kernel/panic; echo 1 > /proc/sys/kernel/sysrq; nohup setsid sh -c 'sleep 1; echo c > /proc/sysrq-trigger' >/dev/null 2>&1 < /dev/null & echo OFF_ARMED" 15 | grep -q OFF_ARMED \
+        || die "could not arm the crash on $1"
+}
+power_on_host() {  # <host>
+    local cmd=${PVE_POWER_ON//\{name\}/${NAME[$1]}}
+    cmd=${cmd//\{addr\}/$1}
+    timeout 60 bash -c "$cmd" >>"$EVID/log" 2>&1 || die "could not power $1 on: $cmd"
+}
+# wait_down <host> <budget>: the host no longer answers ping
+wait_down() {
+    local t0
+    t0=$(date +%s)
+    while [ $(( $(date +%s) - t0 )) -lt "$2" ]; do
+        ping -c 1 -W 1 "$1" >/dev/null 2>&1 || { echo $(( $(date +%s) - t0 )); return 0; }
+        sleep 1
+    done
+    return 1
+}
+# wait_recovered <survivor> <since> <budget>: the survivor completed the
+# recovery of its dead peer, refusing nothing; prints seconds since <since>
+wait_recovered() {
+    local t0 out
+    t0=$(date +%s)
+    while [ $(( $(date +%s) - t0 )) -lt "$3" ]; do
+        out=$(on "$1" "journalctl -k --no-pager -o cat --since @$2 | grep -aoE 'P163-RECOVERY-COMPLETE|P-RBLK-[A-Z-]+' | sort | uniq -c | tr '\n' ' '" 30)
+        grep -q P-RBLK <<<"$out" && { say "  $1 refused operations as RECOVERY_BLOCKED: $out"; return 1; }
+        grep -q P163-RECOVERY-COMPLETE <<<"$out" && { echo $(( $(date +%s) - $2 )); return 0; }
+        sleep 3
+    done
+    return 1
+}
+# wait_released <survivor> <since> <budget>: the survivor's guard released its
+# excluded peer after <since> (a RELEASED receipt)
+wait_released() {
+    local t0
+    t0=$(date +%s)
+    while [ $(( $(date +%s) - t0 )) -lt "$3" ]; do
+        on "$1" "awk -v t=$2 '\$1 >= t && / result=RELEASED /' /var/lib/mxfs/drbd-fence.$RES" 20 | grep -q RELEASED \
+            && { echo $(( $(date +%s) - t0 )); return 0; }
+        sleep 3
+    done
+    return 1
 }
 
 # Each host's evidence since the step began.
@@ -270,10 +391,124 @@ step_reboot() {
     verify_sets reboot
 }
 
+# The first half of both survivor steps: participant 1 is powered off under
+# load and stays off; participant 0 recovers it with its load error-free.
+p1_off_survivor_recovers() {  # <step>
+    local t0 s out
+    say "$1: powering $P1 (participant 1) off under load on both; it stays off"
+    t0=$(date +%s); power_off_host "$P1"
+    s=$(wait_down "$P1" "$DOWN_BUDGET") || die "$P1 still answers ${DOWN_BUDGET}s after its power-off"
+    s=$(wait_recovered "$P0" "$t0" "$RECOVER_BUDGET") || die "$P0 did not recover $P1 within ${RECOVER_BUDGET}s of its power-off"
+    say "  $P0 recovered $P1 $s s after its power-off"
+    out=$(load_result "$P0")
+    [ "$(sed -n 's/.*err=\([0-9]*\).*/\1/p' <<<"$out")" = 0 ] || die "the survivor's load saw an error: ${out:-no result}"
+    say "  survivor $P0: $out"
+    STEP_T0=$t0
+}
+# The second half: the survivor writes a set only it holds, is reset with its
+# peer still off, and must mount alone holding every fsynced file.
+survivor_reset_mounts_alone() {  # <step>
+    local b0 s
+    write_set "$1.alone" "$P0"
+    b0=$(boot_id "$P0")
+    say "  resetting $P0, the survivor, with $P1 still off"
+    reset_host "$P0"
+    s=$(wait_rebooted "$P0" "$b0" "$BOOT_BUDGET") || die "$P0 did not come back within ${BOOT_BUDGET}s of its reset"
+    s=$(wait_alone "$P0" "$ALONE_BUDGET") || die "$P0 did not mount alone within ${ALONE_BUDGET}s of answering ($P1 is still off)"
+    say "  $P0 mounted alone $s s after answering"
+    check_set "$1" "$P0" "$P0"; check_set "$1" "$P0" "$P1"; check_set "$1.alone" "$P0" "$P0"
+    check_writes "$1" "$P0"
+    say "  $P0 alone holds every fsynced file of both hosts, and its own since, and writes"
+}
+
+step_survivor_restart() {
+    local b1 s
+    write_sets survivor-restart; start_loads survivor-restart
+    sleep 10
+    b1=$(boot_id "$P1")
+    p1_off_survivor_recovers survivor-restart
+    survivor_reset_mounts_alone survivor-restart
+    power_on_host "$P1"
+    s=$(wait_rebooted "$P1" "$b1" "$BOOT_BUDGET") || die "$P1 did not answer within ${BOOT_BUDGET}s of its power-on"
+    s=$(wait_mounted "$P1" "$REJOIN_BUDGET") || die "$P1 did not mount again within ${REJOIN_BUDGET}s of answering"
+    say "  $P1 rejoined $s s after answering"
+    collect survivor-restart "$STEP_T0"
+    verify_sets survivor-restart
+    check_set survivor-restart.alone "$P1" "$P0"
+}
+
+step_released_restart() {
+    local b1 s
+    write_sets released-restart; start_loads released-restart
+    sleep 10
+    # It comes back without DRBD, as pve2 did when a crash left its unit files empty.
+    on "$P1" "systemctl mask mxfs-drbd@$RES >/dev/null 2>&1 && echo MASKED" 20 | grep -q MASKED \
+        || die "could not mask mxfs-drbd@$RES on $P1"
+    LEFT="$P1 has mxfs-drbd@$RES masked: systemctl unmask mxfs-drbd@$RES there"
+    b1=$(boot_id "$P1")
+    p1_off_survivor_recovers released-restart
+    power_on_host "$P1"
+    s=$(wait_rebooted "$P1" "$b1" "$BOOT_BUDGET") || die "$P1 did not answer within ${BOOT_BUDGET}s of its power-on"
+    s=$(wait_released "$P0" "$STEP_T0" "$RELEASE_BUDGET") || die "$P0 did not release $P1 within ${RELEASE_BUDGET}s of its answering with DRBD down"
+    say "  $P0 released $P1 ${s}s after it answered with DRBD down; powering $P1 off again before it ever connects"
+    b1=$(boot_id "$P1")
+    power_off_host "$P1"
+    s=$(wait_down "$P1" "$DOWN_BUDGET") || die "$P1 still answers ${DOWN_BUDGET}s after its power-off"
+    survivor_reset_mounts_alone released-restart
+    power_on_host "$P1"
+    s=$(wait_rebooted "$P1" "$b1" "$BOOT_BUDGET") || die "$P1 did not answer within ${BOOT_BUDGET}s of its power-on"
+    on "$P1" "systemctl unmask mxfs-drbd@$RES >/dev/null 2>&1 && systemctl start --no-block mxfs-drbd@$RES && echo STARTED" 30 | grep -q STARTED \
+        || die "could not unmask and start mxfs-drbd@$RES on $P1"
+    LEFT=""
+    s=$(wait_mounted "$P1" "$REJOIN_BUDGET") || die "$P1 did not mount again within ${REJOIN_BUDGET}s of its unit starting"
+    say "  $P1 rejoined $s s after its unit started"
+    collect released-restart "$STEP_T0"
+    verify_sets released-restart
+    check_set released-restart.alone "$P1" "$P0"
+}
+
+step_stale_promotion() {
+    local b1 s out
+    write_sets stale-promotion; start_loads stale-promotion
+    sleep 10
+    b1=$(boot_id "$P1")
+    p1_off_survivor_recovers stale-promotion
+    write_set stale-promotion.alone "$P0"
+    say "  stopping $P0's unit: it unmounts and steps down, so it is up, not Primary and unmounted"
+    on "$P0" "systemctl stop mxfs-drbd@$RES && echo STOPPED" 200 | grep -q STOPPED || die "could not stop mxfs-drbd@$RES on $P0"
+    LEFT="$P0's mxfs-drbd@$RES is stopped: systemctl start mxfs-drbd@$RES there"
+    power_on_host "$P1"
+    s=$(wait_rebooted "$P1" "$b1" "$BOOT_BUDGET") || die "$P1 did not answer within ${BOOT_BUDGET}s of its power-on"
+    # P1's replica lacks the set P0 wrote alone.  DRBD runs the fence-peer
+    # handler for this promotion (a Consistent disk, the peer unknown); it
+    # must not let a replica that may be stale become Primary.
+    out=$(on "$P1" "echo DISK_BEFORE=\$(drbdadm dstate $RES); drbdadm primary $RES 2>&1 | tail -2; echo ROLE=\$(drbdadm role $RES) DISK=\$(drbdadm dstate $RES)" 120)
+    echo "$out" > "$EVID/stale-promotion.$P1"
+    if grep -q '^ROLE=Primary' <<<"$out"; then
+        LEFT="$LEFT; $P1 was promoted on a stale replica: there drbdadm secondary $RES, remove /var/lib/mxfs/drbd-inhibit.$RES.json and nft table inet mxfs_fence_$RES, then drbdadm connect --discard-my-data $RES"
+        die "$P1 was promoted on a stale replica by a plain drbdadm primary: $(tr '\n' ' ' <<<"$out")"
+    fi
+    on "$P1" "test -e /var/lib/mxfs/drbd-inhibit.$RES.json && echo HOLDS_INHIBIT" 10 | grep -q HOLDS_INHIBIT \
+        && die "$P1 excluded $P0 for a promotion it refused"
+    say "  a plain drbdadm primary on $P1's stale replica was refused: $(grep -E '^DISK_BEFORE=|^ROLE=' <<<"$out" | tr '\n' ' ')"
+    on "$P0" "systemctl start --no-block mxfs-drbd@$RES && echo STARTED" 30 | grep -q STARTED || die "could not start mxfs-drbd@$RES on $P0"
+    LEFT=""
+    s=$(wait_mounted "$P0" "$OUTAGE_BUDGET") || die "the pair was not mounted again within ${OUTAGE_BUDGET}s of $P0's unit starting"
+    say "  both mounted again $s s after $P0's unit started"
+    collect stale-promotion "$STEP_T0"
+    verify_sets stale-promotion
+    check_set stale-promotion.alone "$P1" "$P0"
+}
+
 STEPS=("$@")
 [ "${#STEPS[@]}" -gt 0 ] || STEPS=(p1-crash reboot power-cut p0-crash)
 for s in "${STEPS[@]}"; do
-    case "$s" in p1-crash|p0-crash|power-cut|reboot) ;; *) echo "unknown step: $s"; exit 2 ;; esac
+    case "$s" in
+        p1-crash|p0-crash|power-cut|reboot) ;;
+        survivor-restart|released-restart|stale-promotion)
+            [ -n "${PVE_POWER_ON:-}" ] || { echo "$s keeps a host powered off: set PVE_POWER_ON to the command that powers one on"; exit 2; } ;;
+        *) echo "unknown step: $s"; exit 2 ;;
+    esac
 done
 say "pve pair failover: participant 0 $P0, participant 1 $P1; steps: ${STEPS[*]}; evidence $EVID"
 for s in "${STEPS[@]}"; do

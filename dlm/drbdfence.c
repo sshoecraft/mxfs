@@ -34,11 +34,13 @@ static int common(const struct mxfs_pal_drbd_report *r, char *why, size_t whylen
          eq(r->protocol_cfg, "C"),
          "replication protocol is '%s' (configured '%s'), not C", r->protocol, r->protocol_cfg);
     NEED(eq(r->two_primaries, "yes"), "allow-two-primaries is '%s'%s", r->two_primaries, "");
+    /* An unset value reads as '' otherwise; this text reaches mount(8). */
     NEED(eq(r->fencing, "resource-and-stonith"),
-         "fencing policy is '%s', not resource-and-stonith%s", r->fencing, "");
+         "fencing is %s, not resource-and-stonith%s",
+         r->fencing[0] ? r->fencing : "not set (DRBD's default, dont-care)", "");
     NEED(eq(r->fence_handler, MXFS_DRBD_FENCE_HANDLER) && eq(r->handler_installed, "1"),
-         "fence-peer handler is '%s' (installed=%s), not this attachment's",
-         r->fence_handler, r->handler_installed);
+         "the fence-peer handler is %s (installed=%s), not " MXFS_DRBD_FENCE_HANDLER,
+         r->fence_handler[0] ? r->fence_handler : "not set", r->handler_installed);
     NEED(eq(r->after_sb, "disconnect,disconnect,disconnect"),
          "after-split-brain policies are '%s'; automatic resolution may discard acknowledged writes%s",
          r->after_sb, "");
