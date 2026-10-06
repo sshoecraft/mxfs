@@ -1,3 +1,38 @@
+## 2026-10-06 — 0.90.66 — a refused mount names its reason in plain terms; the failover test passes on a Proxmox pair
+
+**The reason mount(8) shows for a device without persistent reservations.**
+0.90.65 hands mount(8) the refusal's first error line. On Proxmox VE 9
+(util-linux 2.41) a loop device showed
+`fsconfig() failed: mxfs: P-PRKEY-PUBLISHED ... rc=-95 — the registration
+stands but is UNATTRIBUTED on the LUN`. That is correct but useless to the
+person mounting. Such a device is now named for what it lacks: no SCSI
+persistent reservations, so a node that dies could not be fenced off it. The
+line says what to use instead: a LUN with SCSI-3 PR, or DRBD as
+`docs/drbd-setup.md` describes. The clustered mount is refused as before,
+further on.
+
+**The durability and transport admission gates say why too.** A clustered
+mount refused for its module parameters (for example `fua_disable=1` without
+`target_cache_protected=1`) gave a bare "Operation not permitted". It now
+gives mount(8) the same reason the kernel log has.
+
+**`tests/pve_pair_failover.sh` passed on the nested Proxmox VE 9 pair**
+(pve9-1/pve9-2, kernel 6.17.2-1-pve, 0.90.65 installed by `git pull && make
+install OVERWRITE=1`, set up from `docs/drbd-setup.md`). Evidence:
+`tests/evidence/pve_pair_failover/20261006T125211Z`.
+- Participant 1 reset under load: the survivor excluded it, certified the
+  exclusion and replayed its journal. The survivor's load saw no error (worst
+  latency 6.7 s, DRBD's dead-peer detection). The reset host rejoined by
+  itself 143 s after it answered.
+- Participant 1 rebooted cleanly: no fence; the survivor's worst latency was
+  126 ms.
+- Both reset at once: both remounted by themselves.
+- Participant 0 reset: participant 1 froze and restarted itself, and both
+  remounted by themselves.
+- After every step, every fsynced file of both hosts was intact on both.
+- Fixed in the test: its load check now waits up to 30 s for fio's file. The
+  create can wait on the other host's lock on the directory.
+
 ## 2026-10-06 — 0.90.65 — the DRBD boot program retries a mount that runs long; a refused mount says why
 
 **The DRBD boot program gave up after one long mount.** `mxfs-drbd-fence-self

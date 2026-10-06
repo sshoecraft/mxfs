@@ -3729,9 +3729,15 @@ MODULE_INFO(mxfs_iclus_relmark_lab, "1");
  * reconfigure: a mount that reaches it with NO DLM transport selected at all
  * is refused, since nothing downstream can fence or replay for it.
  */
+/*
+ * Both admission arms state their refusal to mount(8) too (errorfc), not only
+ * to the kernel log: a refused mount otherwise read "Operation not permitted"
+ * with the reason only in dmesg.
+ */
 static int
 mxfs_transport_domain_admit(
-	struct xfs_mount	*mp)
+	struct xfs_mount	*mp,
+	struct fs_context	*fc)
 {
 	if (!mp->m_mxfs_has_envelope || xfs_is_readonly(mp) || !mp->m_mxfs_dlm)
 		return 0;
@@ -3740,12 +3746,14 @@ mxfs_transport_domain_admit(
 		return 0;
 	xfs_alert(mp,
 	"MXFS P-DOMAIN-REFUSED clustered RW mount REFUSED: no DLM transport is selected (neither CAW nor TCP), so no dead peer could be fenced or replayed");
+	errorfc(fc, "clustered read-write mount refused: no DLM transport is selected, so no dead peer could be fenced or replayed");
 	return -EPERM;
 }
 
 static int
 mxfs_durability_domain_admit(
-	struct xfs_mount	*mp)
+	struct xfs_mount	*mp,
+	struct fs_context	*fc)
 {
 	const char		*why = NULL;
 
@@ -3767,6 +3775,7 @@ mxfs_durability_domain_admit(
 			  why, READ_ONCE(mxfs_foreign_replay_token_enforce),
 			  mxfs_release_proof_enforce, READ_ONCE(mxfs_fua_disable),
 			  READ_ONCE(mxfs_target_cache_protected), mxfs_icluster_dlm);
+		errorfc(fc, "clustered read-write mount refused: %s", why);
 		return -EPERM;
 	}
 	return 0;
@@ -5222,7 +5231,7 @@ xfs_fs_fill_super(
 		/* (D-FOREIGN-REPLAY-UNGATED-IMAGES default-on, design-consult
 		 * ruling): the durability-domain admission for a clustered RW
 		 * mount.  Refuses before any recovery write. */
-		error = mxfs_durability_domain_admit(mp);
+		error = mxfs_durability_domain_admit(mp, fc);
 		if (error)
 			goto out_filestream_unmount;
 		/*
@@ -5486,7 +5495,7 @@ xfs_fs_fill_super(
 			 * refuse an unqualified (non-CAW) domain before
 			 * xfs_mountfs runs any recovery.  out_filestream_unmount
 			 * shuts the DLM down again. */
-			error = mxfs_transport_domain_admit(mp);
+			error = mxfs_transport_domain_admit(mp, fc);
 			if (error)
 				goto out_filestream_unmount;
 			mxfs_domain_admitted_announce(mp);
@@ -5879,9 +5888,9 @@ xfs_fs_reconfigure(
 		 * helper skips read-only mounts, so evaluate it as if RW. */
 		if (mp->m_mxfs_has_envelope) {
 			clear_bit(XFS_OPSTATE_READONLY, &mp->m_opstate);
-			error = mxfs_durability_domain_admit(mp);
+			error = mxfs_durability_domain_admit(mp, fc);
 			if (!error)	/* transport arm too */
-				error = mxfs_transport_domain_admit(mp);
+				error = mxfs_transport_domain_admit(mp, fc);
 			if (!error)
 				mxfs_domain_admitted_announce(mp);
 			set_bit(XFS_OPSTATE_READONLY, &mp->m_opstate);

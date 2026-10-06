@@ -160,8 +160,12 @@ start_loads() {  # <step>
             rm -f /root/pvefail_fio.json
             nohup setsid fio --name=vm --filename=$MNT/pvefail/load.\$(hostname) --size=1g --rw=randrw --rwmixread=60 \
                 --bs=4k --iodepth=16 --ioengine=\$e --direct=1 --time_based --runtime=$LOAD_S \
-                --output-format=json --output=/root/pvefail_fio.json >/dev/null 2>&1 < /dev/null &
-            sleep 2; fuser $MNT/pvefail/load.\$(hostname) >/dev/null 2>&1 && echo LOAD_UP" 40 | grep -q LOAD_UP || die "no load on $h (fio installed? apt install fio)"
+                --output-format=json --output=/root/pvefail_fio.json >/dev/null 2>/root/pvefail_fio.err < /dev/null &
+            # the file's create can wait on the other host's lock on the
+            # directory, and fio's descriptor appears only once it returns
+            for i in \$(seq 1 30); do fuser $MNT/pvefail/load.\$(hostname) >/dev/null 2>&1 && { echo LOAD_UP; exit 0; }; sleep 1; done
+            echo \"NO_LOAD \$(tail -2 /root/pvefail_fio.err | tr '\n' ' ')\"" 60 > "$EVID/load.$h"
+        grep -q LOAD_UP "$EVID/load.$h" || die "no load on $h: $(tail -1 "$EVID/load.$h")"
     done
 }
 # load_result <host>: waits for the host's fio to end, then its errors and worst latency

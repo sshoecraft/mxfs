@@ -520,9 +520,25 @@ static int scsipr_register_locked(struct mxfs_scsipr_ctx *ctx,
 	}
 
 	if (ret == -EOPNOTSUPP) {
-		mxfs_pal_log(MXFS_LOG_WARN,
-			     "scsipr: '%s' has no PR support, skipping register",
-			     ctx->dev_name);
+		/*
+		 * A clustered mount on such a device is refused further on (the
+		 * key publish or the fence-capability gate), and the first
+		 * error-level line is what mount(8) shows as the reason: measured
+		 * on PVE 9, it showed the publish's "P-PRKEY-PUBLISHED ... rc=-95
+		 * ... UNATTRIBUTED" instead.  So say it here, in the user's terms.
+		 */
+		if (!replace_predecessor)
+			mxfs_pal_log(MXFS_LOG_ERR,
+				     "mxfs: the device has no SCSI persistent "
+				     "reservations, so a node that dies could not be "
+				     "fenced off it; refusing a clustered mount.  Use a "
+				     "shared LUN whose target supports SCSI-3 persistent "
+				     "reservations, or DRBD dual-primary "
+				     "(docs/drbd-setup.md)");
+		else
+			mxfs_pal_log(MXFS_LOG_WARN,
+				     "scsipr: '%s' has no PR support, skipping register",
+				     ctx->dev_name);
 		return 0;
 	}
 
