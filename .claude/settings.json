@@ -61,7 +61,10 @@
       "Bash(du:*)",
       "Bash(lsmod:*)",
       "Bash(dmesg:*)",
-      "Bash(journalctl:*)"
+      "Bash(journalctl:*)",
+      "Bash(nohup:*)",
+      "Bash(setsid:*)",
+      "Bash(rsync:*)"
     ],
     "deny": [
       "Bash(reboot:*)",

@@ -11,7 +11,8 @@
 #   IDENT path=<resolved> mm=<major:minor> wwid=<naa...|none> fsid=<uuid|none|unreadable> mounted=<mountpoint|-> livemm=<major:minor of the node's live mxfs mount|->
 #
 # wwid: the SCSI identifier from /sys/block/<disk>/device/wwid; for a
-# device-mapper multipath map the map's dm uuid (mpath-<wwid>); for a
+# device-mapper multipath map the one identifier all its paths carry (the
+# map's dm uuid, mpath-<wwid>, when they carry none or disagree); for a
 # partition its parent disk's.  `none` when the device carries no such
 # identity (a virtio disk): that is the absence of evidence, and the caller
 # treats it as a refusal, never as a fallback to path, size or model.
@@ -32,7 +33,16 @@ d=$(readlink -f "$P" 2>/dev/null)
 if [ -z "$d" ] || [ ! -b "$d" ]; then echo "IDENT path=$P absent"; exit 0; fi
 b=${d#/dev/}
 w=$(cat "/sys/block/$b/device/wwid" 2>/dev/null)
-[ -n "$w" ] || w=$(sed -n 's/^mpath-//p' "/sys/block/$b/dm/uuid" 2>/dev/null)
+# A multipath map: the SCSI identifier its paths carry, the same one a
+# single-path node reads off the LUN and the one a rig declares.  The map's
+# own dm uuid is multipath's spelling of it (a type digit in front: an
+# eui.<x> LUN is mpath-2<x>), which matches no declaration; it is the answer
+# only when the paths do not agree on one identifier or carry none.
+if [ -z "$w" ] && grep -q '^mpath-' "/sys/block/$b/dm/uuid" 2>/dev/null; then
+    sw=$(cat /sys/block/"$b"/slaves/*/device/wwid 2>/dev/null | tr -d ' ' | sort -u)
+    [ "$(echo "$sw" | grep -c .)" = 1 ] && w=$sw
+    [ -n "$w" ] || w=$(sed -n 's/^mpath-//p' "/sys/block/$b/dm/uuid" 2>/dev/null)
+fi
 if [ -z "$w" ]; then
     parent=$(echo "$b" | sed 's/p\{0,1\}[0-9]*$//')
     [ "$parent" != "$b" ] && w=$(cat "/sys/block/$parent/device/wwid" 2>/dev/null)

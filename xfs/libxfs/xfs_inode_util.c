@@ -1391,6 +1391,17 @@ xfs_droplink(
 	if (S_ISDIR(inode->i_mode))
 		ip->i_mxfs_disk_nlink_seen = 0;
 
+	/* nlink LEDGER, drop end (see P180-NLB in xfs_bumplink).  A load that
+	 * makes and removes one subdirectory over and over moves its parent's
+	 * count both ways, so a lost update can only be found with both ends
+	 * logged. */
+	if (unlikely(mxfs_nlink_ledger) && S_ISDIR(inode->i_mode))
+		mxfs_probe("mxfs: P180-NLD ino=%llu to=%u cc=%llu comm=%s realns=%llu\n",
+			(unsigned long long)ip->i_ino, inode->i_nlink,
+			(unsigned long long)inode_peek_iversion(inode),
+			current->comm,
+			(unsigned long long)ktime_get_real_ns());
+
 	xfs_trans_log_inode(tp, ip, XFS_ILOG_CORE);
 
 	if (inode->i_nlink)

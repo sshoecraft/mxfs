@@ -1,3 +1,487 @@
+## 2026-10-05 — 0.90.55 — `make install` installs a working node, not just the module
+
+**A source install now gets everything a package installs.**  `make install`
+ran `modules_install` and `depmod` and nothing else.  On two physical
+Proxmox VE 9 hosts installed from a clone with `make && make install`
+(0.90.42), that left: no `mkfs.mxfs` of that version (the one on `PATH` was
+from a 0.11.39 package still installed, Jul 20), no DRBD witness helper and no
+fence-peer handler, no `/etc/modprobe.d/mxfs.conf` (the module ran with
+`target_cache_protected=0 fua_disable=1`), no man pages, no udev rule.  The
+node-side file list now lives in one function, `mxfs_stage_node_files` in
+`packaging/common.sh`; the .deb and `make install` (through
+`packaging/install_source.sh`) both call it.  The rebuilt .deb's file list is
+identical to 0.90.42's.  An existing `/etc/modprobe.d/mxfs.conf` is kept;
+`make install OVERWRITE=1` replaces it with the shipped one and saves the old
+one as `mxfs.conf.backup` (modprobe reads only `*.conf`).
+`make install` refuses, before installing anything, on a host that already has
+an MXFS .deb, rpm or DKMS module, naming it and the command that removes it;
+measured on the pve1 host, which still has the 0.11.39 .deb: refused, rc=1.
+The rpm still carries its own copy of the list in its spec.
+
+## 2026-10-05 — 0.90.54 — IN PROGRESS, NOT RELEASED: multipath verification; a refused lock upgrade is retried ahead of the node's own readers
+
+**Nothing on the `mpath` attachment is released by this entry yet.**  The
+path-fault rows of `docs/mpath-verification.md` are being built and run;
+`tools/defects.py` holds what they have found and not yet fixed.  This heading
+and paragraph are rewritten when the verification is complete.
+
+**A replay that skips an inode no longer publishes the survivor's own copy of
+it (cold audit CORRUPT on `8/net/mesh/mpath`: the shared directory's link
+count 1).**  A survivor replaying a fenced peer's journal compares each inode
+image with the slot it holds; for an inode it has in core that slot is its own
+cached copy.  When the comparison said skip, the code still marked the slot as
+the recovery's to publish, and the survivor wrote its copy home.  Measured in
+the kept logs of the failing lap: test7's copy of the shared directory was 3 s
+old (change count 167240) and went over five newer tenures of other nodes
+(167360 on the platter); the next node reloaded 167240 and the cluster rebuilt
+those changes a second time while two nodes kept the first version, so the
+directory's link count forked and ended at 1 with two entries naming it.  A
+slot is now the recovery's only when the replay wrote an image into it.  The
+same comparison against a cached copy could also say apply where the platter
+would say skip; that case is now measured (`P77-STALE-BASE-VERDICT`), not yet
+changed.
+
+**A fenced node stops its ledger passes at the first write the target
+refuses (`net/mesh`: a fenced node flooded the LUN with refused commands).**  A
+node fenced in the middle of a ledger takeover pass went on after it was
+thawed, one page every ~12 ms, and the target refused each write with a
+reservation conflict: 287 refused pages and 288 conflicts in the host's log in
+30 s, measured with the new `tests/mpath/fenced_takeover_stop.sh` on
+`2/net/mesh/mpath`.  The 0.90.52 stop tested only the closure of the node's
+authority, which its heartbeat delivers about 3.5 s after the thaw.  The
+ledger store now counts writes refused with a reservation conflict, and the
+takeover pass, the orphan sweep and the hand-off tick each stop once that count
+moves while they run (`P-TAUTH-TAKEOVER-INTERRUPTED why=target-refused`).  The
+same row on this build passed three times out of three: 5 conflicts from the
+fenced node each time, its pass stopped before the closure arrived.
+
+**A late release no longer frees the node's next grant while it is being
+written (`net/mesh`: a node shut down 17 s after a fenced peer thawed).**  A
+release that finds no granted entry of its node falls back to removing an
+abandoned request of that node on the same resource.  It took any entry
+without a waiter attached, and a grant the node masters and has just decided
+for its own request has none while its ledger write runs.  Measured on
+`4/net/mesh/mpath` (`path_fenced_return`): two release runners for one shared
+directory ran on its master at once; the second found the first's release
+already retired and freed the master's own new shared grant mid-write.  The
+write landed, so the ledger held a shared holder that no table entry
+described and nobody would release, and it refused one peer's exclusive
+request sixty times in 17 s as a conflicting grant; that peer shut its
+filesystem down.  The fallback now removes only waiting or blocked entries and
+names any in-flight one it leaves (`P-UNLOCK-SKIP-PENDING`, with the caller).
+The second runner came from the recovery for a release that seems to have
+stopped: a BAST that finds the inode mid-release with no release work queued
+started one, even when another path (a timer or a transaction's deferred
+release) had claimed the release a millisecond earlier.  A release claimed less
+than 10 s ago now answers the BAST itself (`P72-REQUEUE-LIVE-DEMOTER`); an
+older claim is the leak that recovery exists for and is re-queued as before.
+Over the multipath laps of this build the second runner was turned away 2111
+times in 264 node logs, no grant was freed mid-write, and every path row and
+cold audit of the 4- and 8-node laps after the first passed.
+
+**A lookup whose entry still names a reused number's old type reads the
+directory again.**  The 0.90.48 change below re-reads the parent when the type
+check ends on a freed inode.  It also ends on a live one: the shared lock
+directory was removed and its number reused as a regular file, this node and
+the device agreed it was a file (same mode, same generation), and only the
+lookup's copy of the entry still said directory, with the parent already
+flagged out of date.  The `mkdir` failed ESTALE after a 2 s wait, once on
+`4/net/mesh/mpath` (`path_fabric`) and once on `8/disk/caw/mpath`
+(`path_fenced_return`), and each failed its row.  That case now reads the
+parent again too (`P201-RELOOKUP why=reused-live`), within the same bound of
+three.
+
+- **Tooling: `tests/mpath/lap_chain.sh` and `tools/kgrep.py`.**  Path-row laps (prep, stagger, test switches, the victim sampler) and a single host row on a group's prepared cluster run as one command with arguments; kernel logs, plain or gzip, are searched from a row's marker with include/exclude patterns, line cuts, context and a per-file count that shows when the output cap cut anything.
+- **Path rows: no row starts beside a load left by another run.**  A chain stopped from outside never sets its stop file, and its load kept running through the next prep on any node whose mount released cleanly: on `4/net/mesh/mpath` one ran into the next lap and that lap's first unmount answered busy.  Every row's start gate now kills such a load on each node, reports it, and aborts if one cannot be stopped.
+- **The cold audit's evidence log is readable without root.**  `chk_clean` copied it from a mode-600 temporary file and the copy kept that mode.
+- **Instruments: `P-DIR-NLINK-SHORT` and `P180-NLD`.**  An rmdir that leaves its live parent's link count below 2 is logged with the parent's change count (an earlier subdirectory increment was lost); the `nlink_ledger` switch now logs the decrement end as well as increments, reloads and publishes.
+- **Path rows: `pf_wait_keys` can ask the target through a named node.**  It always asked through the first node; a row whose first node is the one frozen read every sample empty and reported the fence as never made.
+
+- **Board: chk_clean at 2/net/mesh/mpath, the FAILs of 2026-10-05T17:15:52Z and 17:47:28Z were the detector's** — `release=VACUOUS` on a clean audit (verdict CLEAN, cohort, finobt, targets and accounting PASS, both nodes remounted).  The one unmet coverage condition was "covered AGs without a retained inode": recomputed from each run's `witness.txt` with the audit's geometry, rank 1 had carved in AGs 0 and 4 and rank 2 in AG 1, and all 18 cohort inodes were in AG 0.  `alloc_witness` recorded a fixed list of nine file names as its cohort wherever they landed, not a retained inode in every AG it carved as its design states; it now records every file the rank created and keeps.
+
+**A node newly granted a directory no longer publishes an older copy of it
+(cold audit CORRUPT on `net/mesh` multipath, three laps of three).**  A
+directory that sits at the edge of its inline form goes to block form when a
+name is added and back when one is removed.  A node that read it in block form
+under a shared grant (a peer's `mkdir` had it there) kept that copy; the peer's
+`rmdir` then put it back inline and freed the child.  Granted the directory
+exclusively 120 ms later, the node saw that its copy was behind the device
+(change count 195333 against 195339) and went to reload, and the reload refused:
+a guard written for a holder whose own conversion is newer than the device
+keeps an in-core block-form directory whenever the node "holds it exclusively",
+and the lock mode is already set to the new grant when the reload runs.  The
+node then wrote its old block-form copy out (`P43-DIR-FMTREVERT-SKIP dirty=0`,
+`P-CCREGRESS cc_disk=195339 cc_writing=195336`).  The removed name came back
+naming a free inode, two renames made since were lost and the directory's link
+count went back up.  The guard now also compares change counts: a clean copy
+behind the device is replaced whatever the grant (`P43-ADOPT-BEHIND`); a copy
+with unwritten changes, or one ahead of the device, is kept as before.
+
+**A lock page handed to a node that never took it up is taken up when its
+next owner asks (`net/mesh`: three nodes shut down 20 s after a remount).**  A
+node that unmounts hands each lock page it serves to the node that will own it
+and tells that node once.  When that message is not acted on, the page stays
+"prepared" for the node, which takes it up only when it serves a request on it
+as its owner.  If another node joins first, ownership moves to a third node; it
+asked the prepared-for node for the page every half second and was told "not
+mine" each time.  Measured on `4/net/mesh/mpath` (`path_mount_degraded`, twice):
+two pages read from the device 107 and 89 times as prepared by the identity
+that had left 19 s earlier for a live node, while the new owner parked every
+request on them for 17 s; the requesters spent their retries and shut their
+filesystems down.  The prepared-for node now activates such a page when it is
+asked for it, serving nothing on it, and the hand-off pass moves it to its
+owner (`P-TAUTH-RELAY-ON-ASK`); a hand-off announcement whose activation is
+refused is named (`P-TAUTH-FROZEN-NOT-CONSUMED`).  The loss is rare, so it was
+made on purpose: a test-only module parameter (`dl_drop_departing_frozen`)
+makes a node ignore a departing node's hand-offs, and `PF_KNOBS` arms one for
+a path row.  Two `path_mount_degraded` runs on `4/net/mesh/mpath` with every
+departing hand-off ignored took the new path 100 and 177 times, every
+activation succeeded, no node shut down and both rows passed; a lap without
+the parameter met the loss naturally four times and passed as well.
+
+**One runner finishes an allocation-group release (`net/mesh`: acknowledged
+files held another file's data).**  The function that hands an allocation
+group back is run by a queued worker, and also inline by any thread that meets
+a group with a revocation pending while it waits for an inode lock.  Several
+can be in its preparation pass at once.  One takes the commit; each of the
+others, finding the commit taken, went on to the drains and the unlock as
+well, so one tenure was unlocked two, three or four times.  Measured on
+`8/net/mesh/mpath` (0.90.48, the row after `ag_strand_repair`): one commit,
+three more runners past it within 70 µs, one unlock answered and three finding
+no grant.  Those three were classed "outcome unknown", the re-check that
+follows asked a question this transport always answers "held", and each
+re-armed a tenure for a grant that was gone.  The node was left with a cached
+hint for the group and nothing in its lock table or at the master; 38 s later
+it allocated blocks there while the group's real holder allocated the same
+blocks.  Thirteen fsynced files read back with another node's data and the cold
+audit ended CORRUPT.  Three changes, each at one step of that chain:
+the runner that goes past the commit owns the rest of the release and any
+other leaves it alone (`P12-WORK ... dup-finisher`); an unlock that finds no
+grant of this node's reports "released", and the re-check asks the lock table;
+and a cached hint is checked against the node's own lock table when it is
+adopted and dropped when nothing stands behind it (`P-AGCACHED-PHANTOM`).
+Reproduced on purpose with two test-only module parameters, one that lets the
+inline runner start beside a running worker and one that holds the preparation
+pass open for 30 ms, on `8/net/mesh/direct` over six runs of
+`ag_strand_repair` each: without the first change, 21 runners went past a
+commit another had taken and 19 reached the unlock with no grant left; with
+it, 22 runners were turned away, none reached the unlock without a grant, and
+the cold audit of that filesystem was clean.  Nothing in the fault is specific
+to multipath.
+
+**A grant of a lower mode no longer completes a wait for a higher one
+(`net/mesh`).**  A node waiting for a grant is found by the resource alone, and
+a master answers every re-sent request it has already granted by sending the
+grant again.  A shared grant could therefore arrive while the node waited for
+the exclusive one it had asked for next, and complete that wait as granted.
+Measured on `4/net/mesh/mpath` (`path_fabric`, 0.90.48): a master stalled 8 s
+by the path outage re-sent one node's shared grant on a directory four times
+and refused its exclusive request; one copy completed the exclusive wait, the
+rename it was for changed the directory under a shared grant, the change could
+never be written home, and all four nodes' loads hung behind that directory
+for 31 minutes.  A wait now records the mode it asked for and a successful
+grant below it leaves the wait pending (`P-GRANT-BELOW-WANT`).  Five more of
+these were in the saved logs of `8/net/mesh/mpath`, all at a path coming back.
+
+**A page prepared for a node that left is taken back when it is asked for
+(`net/mesh`).**  A master hands a share of its lock pages to a joining node by
+preparing each for it.  A page prepared for a node that then unmounted is
+consumed by nobody, and only the hand-off pass retargeted it, in page order
+and behind every page the pass was moving to the next joiner.  Measured on
+`4/net/mesh/mpath` (`path_mount_degraded`): a node unmounted with pages
+prepared for it and mounted again 20 s later under a new identity; a peer's
+request on one of those pages was answered "remaster" for 17.5 s, spent its
+retries and shut its filesystem down, and two more nodes followed.  The master
+now applies the pass's own test to the page a request needs and takes it back
+at once (`P-TAUTH-RETARGET-DEPARTED`).
+
+**The replayer asks again within a second while a live peer is finishing the
+fence.**  One survivor proves a dead node excluded and seals a manifest; the
+elected replayer may claim the journal only after the seal.  A replayer that
+asked before the seal waited a flat 30 s to ask again.  Measured on
+`8/disk/caw/mpath` (`path_fenced_return`): first claim refused with the
+prover heartbeating and the manifest unsealed, second claim 30.2 s later
+granted at once, replay 5 s; the survivors' load stalled 120.7 s against a
+120 s bound (115 s and 117 s on the two runs before).  While the attempt is
+held by a live peer the replayer now asks every second for up to 20 s, then
+falls back to the 30 s interval.
+
+**A lock master that loses its storage no longer takes its requesters down
+with it (`net/mesh`).**  A master records each decision on the shared device
+before it answers.  A master whose device is gone cannot, stops granting, and
+answered every request with "ledger error", which the requester returned to
+its caller as an I/O error; an I/O error on a directory's lock shuts the
+filesystem down.  Measured on `8/net/mesh/mpath` (`path_all_lost`): the node
+that lost both paths was the master of a directory all eight nodes use; 36 s
+later its writes failed, it answered six waiting nodes, and all six shut down
+within one second, before any of them had declared it dead.  A requester now
+treats that answer as it treats no answer: it waits and asks again on the same
+budget, which ends when the master is declared dead and its pages are taken
+over (`P-LEDGER-DENY-WAIT`).
+
+**A fenced node stops moving lock pages (`net/mesh`).**  The passes that hand
+pages to another node, or take a departed node's pages over, write one page
+after another.  On a node that had lost its authority over the device every
+one of those writes was refused by the target and the pass went on to the next
+page: 9270 refused commands in 68 s from one shut-down node of eight.  The
+three passes now stop at the next page once the node's authority is closed.
+
+**A node that had a recovery batch refused can still unmount cleanly.**  A
+node replaying a departed peer's journal queues the buffers it will write and
+submits them at the end of the pass; when the pass is refused the batch is
+failed without any I/O and the replay is tried again.  Those failed buffers
+were completed without the mark that tells the unmount accounting "no I/O was
+issued", so each was counted as a completion of unknown provenance, and a mount
+with one of those cannot prove at unmount that it left nothing in flight.
+Measured on `16/disk/caw/mpath` (`path_peer_withdrawn`, then `chk_clean`): one
+node's replay was refused once because a buffer it needed was already queued
+by a live owner (`P227-FR-QCONFLICT`, -EBUSY), the retry succeeded, and six
+minutes later that node's ordinary unmount was recorded dirty.  Its slot and
+reservation key stayed on the LUN, its own remount was refused, and six of the
+other fifteen nodes' mounts gave up after 64 s behind the slot it had left.
+The failed batch now carries the mark.  Nothing in it is specific to
+multipath, the transport or the node count.  A forced torn replay on
+`4/disk/caw/mpath` failed its batch without I/O and the replayer then
+unmounted cleanly, and the `16/disk/caw/mpath` board ended `chk_clean` CLEAN
+with all sixteen nodes remounting.
+
+- **Board: three path rows at 16/disk/caw/mpath ended ABORT on 2026-10-05 (run 20261005T023308Z-g16b) at the harness's own read-back** — `path_mount_degraded`, `path_fenced_return` and `path_all_lost` read every node's files back on one node with sixteen ssh logins started at once; sshd accepts ten unauthenticated connections and dropped one each time ("exited MaxStartups throttling ... 1 connections dropped" on test32). Every file read before the drop verified. The read-back now starts eight at a time.
+- **Board: ag_strand_repair at 8/net/mesh/direct, five FAILs of 2026-10-05 (03:57:36Z, 03:58:51Z, 04:05:17Z, 04:06:31Z, 04:07:45Z) were the lap harness's** — the row was run by `tests/ag_phantom_laps.sh` with the two test-only module parameters of the duplicate-finisher reproduction armed on every node, which change the release path the row measures ("no AG release occurred on this node, so no strand was created"). The board's own run on the same build, without them, passed 8/8.
+
+**A lookup whose name was removed under it reads the directory again instead
+of failing.**  A lookup reads the name's entry, then loads the inode the entry
+names.  When a peer removes the name and frees the inode in between, and the
+number is reused and freed again before the load settles, the lookup's type
+check ended on a free inode and failed the path walk with ESTALE.  Measured on
+`4/disk/caw/mpath` (`path_answer_lost`, 0.90.47): four nodes taking one
+directory as a mutex with `mkdir` and `rmdir`; one inode number was a file, a
+directory, a file and free inside 110 ms, the lookup of the directory's name
+stopped at "free" with its own copy of the parent already marked out of date,
+and one `mkdir` in about 4,500 returned ESTALE.  Nothing was lost and no node
+stopped; the operation failed where it should have found the name absent or
+pointing elsewhere.  The lookup now reads the parent again, up to three times
+(`P201-RELOOKUP`).  The natural event is met about once in dozens of path-fault
+rows, so the new path was run on purpose: with a test-only module parameter
+sending the first pass of every type change through it, one `path_fabric` row
+on four nodes took it 27 times, every one resolved on the second read, 17,598
+operations with no error and every file verified.  Every path-fault row now
+reports how many lookups read their parent again and how many ended
+unresolved.  Not specific to multipath or to `disk/caw`.
+
+**The survivor of a two-node cluster no longer opens a dead peer's files as
+what their inode numbers used to be.**  A name's directory entry carries its
+type, and a lookup compares it with the inode it has cached under that number:
+a mismatch means the number was freed and reused by a peer, and the cached
+shell is replaced before the VFS sees it.  That check asked "does this mount
+have peers now", so the last node standing skipped it, with the shells it had
+cached while the peer was alive still in memory.  Measured on
+`2/net/mesh/mpath` (`path_fence_degraded`, the first two times the row ran): a
+node was killed, the survivor fenced it and replayed its journal, and 1.4 s
+after the recovery completed 33 of 582 and then 18 of 1256 of the dead node's
+fsynced files failed to read on the survivor with EISDIR; the numbers had been
+directories the survivor once removed.  The open's own lock then reloaded each
+one, and every file read correctly minutes later.  The check now runs on any
+mount that has ever had a peer.  Three runs since: 405, 1030 and 503 files, all
+read, with the lookup replacing stale shells in each.  Nothing in it is
+specific to multipath; it took a row that reads a dead node's files from the
+survivor straight after the recovery to see it.
+
+**A lock wait that has lost its registration registers again (`disk/caw`).**
+A peer can hand an exclusive grant straight to a waiting node, clearing its
+waiter bit and setting its holder bit in one swap.  When the receiving node's
+own release of an earlier grant commits at that moment, the release clears the
+holder bit it has just been given, and the wait is left as neither a waiter
+nor a holder: nobody nominates it, and a holder that sees no waiter is never
+asked to release.  Measured on `4/disk/caw/mpath` (`path_fabric`): one node's
+create in a shared directory waited 115 s while the other three passed the
+directory among themselves, every image of the slot in that time showing their
+waiter bits and never its own.  The wait now notices that it holds nothing and
+is registered for nothing, and goes back to register (`P-WAIT-REG-LOST`).  The
+same row on this build: worst stall 17 s, the failover itself.  The ceiling of
+that wait is 480 s, which is how long two operations blocked together on
+`2/disk/caw/mpath` earlier in this work; that occurrence left no log, so the
+connection is the mechanism and the number, not a capture.
+
+**A node whose departing peer had prepared lock-table pages for it now
+activates them (`net/mesh`).**  A node that leaves hands its pages of the lock
+table to the nodes that stay, in two steps: prepared, then activated by a
+message.  When the messages were lost with the departing node's connection the
+pages stayed prepared for ever: the takeover that exists for this answered "a
+live node will consume it" about the surviving node itself.  The next node to
+join was then given some of those pages, both nodes spent their retry budgets,
+the joiner's mount shut down and the survivor's operations failed (measured on
+`2/net/mesh/mpath`, `path_mount_degraded`: 617 pages, none activated, sixty
+declined transitions).  The survivor now activates a page prepared for itself.
+
+**A node can mount, run and unmount with one path down, and fencing follows
+its paths.**  The reservation key was registered through the multipath device,
+which registers on every path and undoes all of them when one cannot be
+reached, so a node could not mount during a path outage (rc 32 in 0.5 s).
+MXFS now registers on each path itself: at mount on every path that answers;
+on a path that appears later, from the reservation worker, only while the node
+still holds its authority and only if its key is still on the target before
+and after; at unmount, a path that cannot be reached is retired from one that
+can.  `docs/mpath-verification.md` states what this does and does not close.
+
+**The lone survivor's fence works with a key registered once per path.**  A
+survivor that must recover a node whose key is already gone proves it with a
+witnessed reset of the logical unit, and may issue one only as the sole
+registrant.  On multipath its own key is on the target once per path, and the
+admission refused on that count alone (21 refusals in 112 s; the departed
+node's journal was never replayed).  The admission now proves each
+registration of the key to be this node's, path by path; with a path down it
+removes the registration it cannot ask and proceeds on one.  The reset goes
+through one logged-in path of the map.
+
+**More path-fault rows** (F5-F10 of `docs/mpath-verification.md`):
+`path_fence_degraded` (a node is killed while every survivor is on one path,
+and its acknowledged files are read from a survivor as soon as it is
+recovered), `path_fenced_return` (a frozen, fenced node's dead path comes
+back), `path_all_lost`, `path_mount_degraded`, `path_peer_withdrawn` (a node
+shuts down and leaves; the others recover it on two paths and on one, and each
+recovery must be certified), and on `disk/caw` `path_answer_lost`, which mutes
+a path's replies and then reports forty applied lock swaps to the retry loop
+as lost (a test-only module parameter): muting alone was measured to catch the
+slot read that precedes every swap, never the swap.
+
+**A node no longer shuts down when a refused lock upgrade keeps losing to its
+own readers (`disk/caw`).**  An exclusive request from a task whose node holds
+the directory's cached shared grant, with a peer holding one too, is refused
+(EDEADLK); the node drops its cached grant and the request is retried from no
+grant, where it queues behind the peer.  Nothing kept the node's other tasks
+out between the drop and the retry.  Measured on `2/disk/caw/mpath` with the
+lock trace: 0.02 ms after the drain released the root directory, another
+task's lookup took the shared grant again, and the retry was refused again, for
+65 laps and 56 s, at which point the mount shut itself down — on both nodes of
+a freshly formed cluster whose first operation was the same `mkdir` in the
+mount root.  The refused task is now named on the inode for a short,
+self-expiring hold, and shared requests from other tasks wait for its retry
+(`P-UPG-STANDBACK`).  `tests/sym_create_upgrade.sh` drives the shape (every
+node lists a directory and creates the same name at one instant): it hung at
+round 19 in both runs on the old build, and on this build two runs of 60 rounds
+were 60/60 with the new wait taken 104 times and no shutdown.
+
+**A lock swap whose answer was lost is no longer reported as having changed
+nothing (`disk/caw`).**  COMPARE AND
+WRITE goes to one path; when the path dies after the target applied the swap
+and before the answer arrived, the lock manager sends the swap again and the
+second copy miscompares against the first one's write.  That miscompare is now
+read back: a slot holding exactly the image the swap was writing is reported
+as landed (`P-CAW-ANSWER-LOST-LANDED`), and one that does not tells the callers
+that close a destructive-clear window that the clear may have landed.
+`scripts/san_net.sh mute` drops only the frames toward a node, which is the
+fault that reaches this on purpose.
+
+**A healthy node no longer shuts down because a peer stalled while queued
+ahead of it (`disk/caw`).**  A lock request defers to a node named in the
+slot's `yield_to` on every retry, exactly as it waits behind a holder.  When
+its 5 s budget ran out it asked whether the parties it was waiting on were
+alive, and that question counted holders only: a requester whose one obstacle
+was a yield target was told there was nothing to wait for, and took the
+fail-fast shutdown.  Measured on `2/disk/caw/mpath`: one node lost a path and
+stalled for the failover; the other, holding PR on a shared directory and
+wanting EX, spent four 100-retry rounds on yield backoffs and shut its
+filesystem down 6 s after the peer's path went away (every later operation
+failed, and its reservation keys left the target).  The yield target is now
+counted, so the requester waits (`P-LKWAIT-LIVE`) until the target takes its
+turn, or stops heartbeating and the stale-yield clear removes it.  Nothing in
+the fault is specific to multipath: any peer that stalls about 5 s while it is
+the yield target did this.
+
+**The multipath rig has paths that can fail alone.**  Two portals on one
+bridge were one wire.  `scripts/san_net.sh` builds two isolated storage
+networks, gives every node a NIC on each, and takes a node's cable away or
+gives it back at the hypervisor; `tools/lun_pool.sh --paths 2` logs a node in
+on the two storage portals with each iSCSI session bound to its NIC (unbound,
+a session whose NIC lost its link reconnected through the cluster NIC after a
+10 s stall and the "failed" path carried I/O again), and refuses portals that
+share a NIC or use the default route's.  The settings a node is given are one
+file, `tools/mpath_settings.sh`.
+
+**Path-fault rows on the `mpath` columns** (`docs/mpath-verification.md` says
+what "verified" means for this attachment; these are its F1-F4):
+`path_failover` (a node loses one path under load, gets it back, loses the
+other), `path_fabric` (every node loses a whole storage network at once, then
+the other), `path_flap` (a path that goes down and up ten times, 4 s each).
+Each runs `tests/mpath/pathload.py` on every node and passes only with zero
+failed operations, every node's measured stall under 30 s, zero double grants,
+unchanged reservation keys on the target, no node lost, and every acknowledged
+file read back by checksum from another node.
+
+**A board on `mpath` proves its paths.**  `run.sh` asks every node, when the
+cluster is prepared and again when a whole board ends, how many paths
+multipathd reports active under the device the filesystem is on.  Fewer than
+two at prep fails the prep; fewer than two at the end fails the run (exit 4),
+so a board cannot be graded on one path under a multipath name.
+
+**A multipath map is identified by the SCSI identifier of its paths.**
+`tests/setup/dev_identity.sh` answered for `/dev/mapper/mpatha` with the map's
+dm uuid, which is multipath's spelling of the LUN's identifier (an `eui.<x>`
+LUN is `mpath-2<x>`).  No declaration matches that, so every harness that
+checks the device under test refused a two-path pool LUN: `crash_audit` on
+`2/disk/caw/mpath` ended in 1 s with "is not the declared LUN".  It now reports
+the one identifier all the map's paths carry, the same one a single-path node
+reads, and falls back to the dm uuid only when the paths carry none or
+disagree.
+
+**The documentation says what is released.**  `2/net/mesh/drbd` was labelled
+"trial" in the README, the attachment table and the manual page, although it
+passed the cluster suite and the fence, split, node-death, pair-outage and
+takeover tests on the build it shipped in (0.90.41); it is listed as released,
+on Ubuntu 24.04 with DRBD 8.4.11, with the package-install round and the other
+three platforms named as not run for it.  Text that still stopped at eight
+nodes or at one path is corrected in the README, `mxfs(5)` (which also listed
+DRBD and dm-multipath as unsupported or unverified), `docs/iscsi_setup.md`,
+the installed `/etc/modprobe.d/mxfs.conf`, and the module's own
+`force_transport` description, which called `disk/caw` "in development".  The
+README's defect paragraph now leads with the bar a released configuration
+clears, and the sentence "Not yet recommended for production data" is gone;
+what the verification does not cover is still listed under "What this does
+not cover".
+
+**A release cannot publish text that disagrees with its data, or leave DRBD
+out.**  `tools/release_text_check.py` derives what is released from the
+release matrix, the platform ledger, the version and the defect queue, and
+reads the README, the manual pages, the installed module-options file, the
+storage guides and the module's parameter descriptions against it: the
+Released table, the current version, the defect counts, the cluster sizes,
+and wording that calls a released thing a trial, unverified, unsupported or in
+development.  `scripts/release.sh` runs it before building a package and
+before publishing and stops on a failure; `tests/full_verify.sh` records it
+with the build's audits.  `2/net/mesh/drbd`, which is verified by a rig of
+its own and so has no board column to go red, is now named in
+`data/configurations.json` (`released_by_own_rig`), verified by one script
+(`tests/drbd_release_verify.sh`), and `--publish` refuses a version without
+that script's PASS.
+
+- **Board: dirent_publish_integrity at 2/disk/caw/mpath, the four FAILs of 2026-10-05T00:09:30Z to 00:23:56Z were the lap list's** — the row was run as a lap of its own; it scans the kernel log after the marker `dirent_durability` stamps, none had run on the freshly prepared cluster, and the row reported "nothing to judge" (window=0 win_src=none) in 2-3 s. No filesystem behaviour was examined. Its laps now run `dirent_durability` with it, as the board does.
+- **Board: crash_audit at 2/disk/caw/mpath, the FAIL of 2026-10-04T11:53:17Z was the detector's** — the oracle never ran: `tests/lib/rig.sh` aborted at stage=device in 1 s on that identity mismatch (`tests/evidence/board_20261004T114139Z-g2b_crash_audit/oracle.log`). No node was killed and nothing was replayed; the other 29 rows of that run passed on the same map, and the next run of the row on the same LUN passed (oracle=PASS acked=946, 2026-10-04T12:10:13Z).
+
+**The board chain gives its yardstick LUN back.**  `tests/board_4node_chain.sh`
+borrowed a LUN for test1 to capture a missing native-XFS yardstick and kept it
+for as long as the chain lived, so a side-by-side board whose group includes
+test1 was refused its own LUN and never started (`2/net/mesh/mpath` on `g2`).
+The capture now frees the LUN when it is done.
+
+**A run's host preflight no longer counts its neighbours' logins as a flood.**
+Six runs started together on two-path LUNs put 58 lines/s into the host kernel
+log against the gate's 40, every one a target session or LUN thread starting
+for a run that was logging its nodes in, and two of the six were refused.  The
+gate is unchanged; `run.sh` now takes its sample through
+`tools/lun_pool.sh quiet`, which holds the pool lock, so no allocation or
+release is in progress while it is taken.
+
+**More configurations at a node count than the rig has groups.**  With `direct`
+and `mpath` both in the matrix there are four configurations per node count and
+two rig groups of each size.  `tests/board_4node_chain.sh` runs the boards that
+name the same group one after another while the groups run side by side;
+`tests/release_verify_chain.sh` and `tests/full_verify.sh` hand out the groups
+round-robin instead of stopping at a missing third group.  The platform rounds
+run on the matrix's `direct` configurations only: the packaged-round harness
+builds a one-path in-guest attachment and nothing else.
+
+- **Board: dirent_publish_integrity at 2/disk/caw/mpath, the FAIL of 2026-10-04T12:14:02Z was the detector's** — a window lap ran the row without `dirent_durability`, whose kernel-log marker it judges, on a node the board's `crash_audit` had just power-cycled: "could not locate this run's dirent window ... nothing to judge" (window=0, stale_base_mutations=0).  Nothing was measured; a lap for this row names `dirent_durability` with it.
+
 ## 2026-10-03 — 0.90.42 — sixteen nodes: 16/net/mesh/direct and 16/disk/caw/direct released; a give-up that reads a reused lock slot no longer leaves its waiter registration behind
 
 **The release matrix gains `16/net/mesh/direct` and `16/disk/caw/direct`.**

@@ -181,6 +181,27 @@ int mxfs_scsipr_register_succeed(struct mxfs_scsipr_ctx *ctx, uint64_t old_key)
 	return rc;
 }
 
+/*
+ * Register this node's key on a path of a multipath map that does not hold
+ * it yet.  The caller is the reservation worker, alone, and only while the
+ * node still has authority over the LUN: this is a REGISTER made after the
+ * mount, and one made by a node whose authority has lapsed could follow its
+ * own fence.  -ESTALE: the key was found registered nowhere else.
+ */
+int mxfs_scsipr_fill_paths(struct mxfs_scsipr_ctx *ctx)
+{
+	int rc, added = 0;
+
+	if (!ctx || !ctx->dev || !ctx->registered || !ctx->local_key)
+		return 0;
+	mxfs_scsipr_departure_lock();
+	rc = mxfs_pal_scsi_pr_fill_paths(ctx->dev, ctx->local_key, &added);
+	if (added || rc == -ESTALE)
+		mxfs_scsipr_snap_invalidate(ctx, "fill-paths");
+	mxfs_scsipr_departure_unlock();
+	return rc;
+}
+
 int mxfs_scsipr_reserve(struct mxfs_scsipr_ctx *ctx)
 {
 	int rc;
@@ -3458,8 +3479,75 @@ int mxfs_scsipr_lu_reset_admit(struct mxfs_scsipr_ctx *ctx,
 		goto out;
 	}
 	if (out->own_n > 1) {
-		out->refusal = MXFS_LURESET_REFUSE_MULTI_NEXUS;
-		goto out;
+		/*
+		 * More than one registration carries our key.  On a multipath map
+		 * that is the ordinary state — one registration per path — and
+		 * refusing it outright left a two-node cluster unable to recover a
+		 * peer whose key was already gone (measured, 2/net/mesh/mpath: 21
+		 * refusals in 112 s, the slice never replayed).  What the single
+		 * descriptor rule protects is that every registration is THIS
+		 * node's, and that can be asked of each one: a matching RESERVE
+		 * down each path answers GOOD only from a nexus holding the key
+		 * (step 1 saw the reservation in force, so none of them creates
+		 * one).
+		 *
+		 *   every registration answers    admitted on that proof; step 3
+		 *                                 and the bracket then hold own_n
+		 *                                 where they held one.
+		 *   exactly one path answers      the others are down, and their
+		 *                                 registrations cannot be shown to
+		 *                                 be ours.  They are removed —
+		 *                                 PREEMPT of our own key from the
+		 *                                 path that answers — which leaves
+		 *                                 the single-descriptor case; the
+		 *                                 paths are registered again when
+		 *                                 they return.
+		 *   anything else                 refused, as before.
+		 */
+		int good = 0, npaths = 0, mrc;
+
+		mrc = mxfs_pal_scsi_pr_own_nexuses(ctx->dev, ctx->local_key,
+						   MXFS_SCSIPR_RESV_TYPE, &good,
+						   &npaths);
+		mxfs_scsipr_snap_invalidate(ctx, "lureset-admit-nexuses");
+		if (mrc == 0 && good == 1) {
+			mrc = mxfs_pal_scsi_pr_collapse_to_one_nexus(ctx->dev,
+						ctx->local_key, MXFS_SCSIPR_RESV_TYPE);
+			mxfs_scsipr_snap_invalidate(ctx, "lureset-admit-collapse");
+			if (mrc == 0)
+				mrc = scsipr_gate_view(ctx, victim_key, keys,
+						       &out->own_n, &out->other_n,
+						       &out->victim_present,
+						       &out->pr_generation);
+			mxfs_pal_log(MXFS_LOG_WARN,
+				     "scsipr: P306-LURESET-MULTINEXUS '%s' paths=%d "
+				     "answered=1 rc=%d own_n=%d — one path proves our "
+				     "key; its registrations on the paths that do not "
+				     "answer were removed",
+				     ctx->dev_name, npaths, mrc, out->own_n);
+			if (mrc || out->own_n != 1) {
+				out->refusal = MXFS_LURESET_REFUSE_MULTI_NEXUS;
+				out->rc = mrc;
+				goto out;
+			}
+		} else {
+			mxfs_pal_log(MXFS_LOG_WARN,
+				     "scsipr: P306-LURESET-MULTINEXUS '%s' paths=%d "
+				     "answered=%d own_n=%d rc=%d — %s",
+				     ctx->dev_name, npaths, good, out->own_n, mrc,
+				     (mrc == 0 && good == out->own_n) ?
+				     "every registration of our key is a nexus of this node" :
+				     "not every registration of our key can be shown to be this node's");
+			if (mrc != 0 || good != out->own_n) {
+				out->refusal = MXFS_LURESET_REFUSE_MULTI_NEXUS;
+				out->rc = mrc < 0 ? mrc : 0;
+				goto out;
+			}
+		}
+		if (out->victim_present) {
+			out->refusal = MXFS_LURESET_REFUSE_VICTIM_REGISTERED;
+			goto out;
+		}
 	}
 	/*
 	 * The victim's own registration is checked BEFORE the general
@@ -3519,7 +3607,8 @@ int mxfs_scsipr_lu_reset_admit(struct mxfs_scsipr_ctx *ctx,
 		out->rc = ret;
 		goto out;
 	}
-	if (gen_b != out->pr_generation || own_b != 1 || other_b != 0 || victim_b) {
+	if (gen_b != out->pr_generation || own_b != out->own_n || other_b != 0 ||
+	    victim_b) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "scsipr: P306-LURESET-RACE '%s' the registration table "
 			     "moved while admission was being decided: gen %u->%u "

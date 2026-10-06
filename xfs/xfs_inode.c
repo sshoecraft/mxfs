@@ -1316,6 +1316,29 @@ dlm_two_again:
 }
 
 /*
+ * May this mount's inode cache hold a shell of an incarnation a peer has since
+ * replaced?  Yes while it has peers, and yes after the last of them left: the
+ * shells cached while a peer existed are still there.
+ *
+ * The type checks in xfs_lookup asked "is this mount multi-node now", and the
+ * sole survivor of a two-node cluster answered no.  Measured on
+ * 2/net/mesh/mpath (path_fence_degraded, twice): the survivor opened the
+ * killed node's acknowledged files 1.4 s after its recovery completed, 18 of
+ * 1256 names resolved to a number the survivor still cached as a directory it
+ * had once removed, the lookup handed that shell to the VFS as a directory,
+ * and the read failed EISDIR; the open's own grant then reloaded the shell
+ * (P208-TYPEFLIP-REUSE expect_ft=0, P-RELOAD-IOPS-REWIRE) and every file read
+ * correctly afterwards.  No INODE-REUSE-EVICT line was printed for any of
+ * them: the check that compares the name's type with the shell's never ran.
+ */
+static inline bool
+mxfs_lookup_peer_state(struct xfs_mount *mp)
+{
+	return !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm) ||
+	       mxfs_v5_dlm_sole_survivor(mp->m_mxfs_dlm);
+}
+
+/*
  * Lookups up an inode from "name". If ci_name is not NULL, then a CI match
  * is allowed, otherwise it has to be an exact match. If a CI match is found,
  * ci_name->name will point to a the actual name (caller must free) or
@@ -1373,6 +1396,12 @@ xfs_lookup(
 	 * the parent's identity/DLM/fork state so the next natural occurrence
 	 * is self-diagnosing.  1=xfs_dir_lookup 2=iget ladder 3=post-iget. */
 	int			lk_stage = 0;
+	/*
+	 * Times this lookup read the parent again because the name it had
+	 * resolved turned out to point at a number a peer has since freed
+	 * (see the unresolved type-flip arm below).
+	 */
+	int			relookups = 0;
 
 	trace_xfs_lookup(dp, name);
 
@@ -1419,6 +1448,7 @@ xfs_lookup(
 	 * (the unlink/create-visibility residual).  No-op single-node / unchanged
 	 * dir / shortform.
 	 */
+relookup:
 	if (create_intent && dp->i_mount->m_mxfs_dlm) {
 		mxfs_createint_enter(&createint_ent, dp->i_ino);
 		createint_armed = true;
@@ -2279,7 +2309,7 @@ retry_iget:
 	 */
 	if (xfs_has_ftype(dp->i_mount) &&
 	    dp->i_mount->m_mxfs_dlm &&
-	    !mxfs_v5_dlm_is_single_node(dp->i_mount->m_mxfs_dlm) &&
+	    mxfs_lookup_peer_state(dp->i_mount) &&
 	    dirent_ftype != XFS_DIR3_FT_UNKNOWN &&
 	    dirent_ftype < XFS_DIR3_FT_MAX &&
 	    VFS_I(*ipp)->i_mode != 0 &&
@@ -2344,7 +2374,7 @@ retry_iget:
 	 */
 	if (xfs_has_ftype(dp->i_mount) &&
 	    dp->i_mount->m_mxfs_dlm &&
-	    !mxfs_v5_dlm_is_single_node(dp->i_mount->m_mxfs_dlm) &&
+	    mxfs_lookup_peer_state(dp->i_mount) &&
 	    *ipp &&
 	    /* "an eviction loop above was tried" now spans BOTH
 	     * counters -- the poisoned-shell arm keeps its own retry budget,
@@ -2394,8 +2424,17 @@ retry_iget:
 		 * will not accept a fix whose path has never run.  With this set,
 		 * every flip that reaches here takes the unresolved branch.
 		 */
+		/*
+		 * 2 forces only the FIRST pass of a lookup and sends it down the
+		 * read-the-parent-again path below as if the resolver had ended
+		 * on a freed inode, so that path runs on every flip (it is met
+		 * about once in dozens of path-fault rows otherwise); the second
+		 * pass resolves the flip as usual.
+		 */
 		{ extern int mxfs_typeflip_force_unresolved;
-		  if (unlikely(mxfs_typeflip_force_unresolved))
+		  if (unlikely(mxfs_typeflip_force_unresolved == 1 ||
+			       (mxfs_typeflip_force_unresolved == 2 &&
+				relookups == 0)))
 			p95w = 200; }
 		while (p95w++ < 200 &&
 		       !xfs_is_shutdown(dp->i_mount) &&
@@ -2416,9 +2455,16 @@ retry_iget:
 			msleep(10);
 		}
 		{
+			extern int mxfs_typeflip_force_unresolved;
 			bool p95_ok = (VFS_I(*ipp)->i_mode != 0 &&
 				       xfs_mode_to_ftype(VFS_I(*ipp)->i_mode) ==
 						dirent_ftype);
+
+			/* test knob 2: the peer flush above can resolve the flip
+			 * by itself; the first pass is unresolved regardless */
+			if (unlikely(mxfs_typeflip_force_unresolved == 2 &&
+				     relookups == 0))
+				p95_ok = false;
 
 			mxfs_probe_ratelimited(
 				"mxfs: P95B-TYPEFLIP-WAIT ino=%llu resolved=%d rounds=%d final_ftype=%u dirent_ftype=%u name=%.*s\n",
@@ -2500,6 +2546,7 @@ retry_iget:
 					mxfs_dbg_disk_di_mode_coherent(
 						dp->i_mount, (*ipp)->i_ino,
 						&coh_gen);
+				bool		p201_entry_behind;
 
 				if (atomic_inc_return(&p201_n) <= 2000)
 					mxfs_probe("mxfs: P207-COHERENT-TRUTH ino=%llu coh_mode=0%o coh_gen=%u incore_mode=0%o incore_gen=%u dirent_ft=%u dlm_mode=%d dlm_state=%d name=%.*s\n",
@@ -2547,6 +2594,74 @@ retry_iget:
 						name->len,
 						(const char *)name->name,
 						current->comm, p95w);
+				/*
+				 * The resolver ended on a FREE inode: the name
+				 * was removed and its number freed by a peer
+				 * after this lookup read the entry, so the entry
+				 * is what is out of date, not the inode.
+				 * Measured on 4/disk/caw/mpath (path_answer_lost,
+				 * a mkdir/rmdir of one name from four nodes): the
+				 * number went file, directory, file, free inside
+				 * 110 ms, the resolver stopped at mode 0 with the
+				 * parent already flagged stale, and the mkdir
+				 * that was walking the name failed ESTALE.  Read
+				 * the parent again and resolve the name from what
+				 * it says now: absent, or a different number.
+				 * Bounded, so a parent that keeps naming a free
+				 * number still ends as ESTALE.
+				 *
+				 * The same holds when the resolver ended on a
+				 * LIVE inode whose platter image is the in-core
+				 * one (same mode, same generation): the number
+				 * was freed and reused as another type, the
+				 * device and this node agree on what it is now,
+				 * and only the entry still names the old type.
+				 * Measured on 4/net/mesh/mpath (path_fabric) and
+				 * 8/disk/caw/mpath (path_fenced_return): the
+				 * shared mutex directory LOCK was removed and its
+				 * number reused as a regular file; the lookup
+				 * held the old directory entry, waited 201
+				 * rounds, read coh_mode=0100644 coh_gen ==
+				 * incore_gen with the parent flagged stale
+				 * (loaded gen 4834 behind dir gen 4872), and the
+				 * mkdir failed ESTALE without reading the parent
+				 * again.  A dirent that is itself corrupt on the
+				 * device names the same number on every re-read
+				 * and still ends ESTALE.
+				 */
+				p201_entry_behind = VFS_I(*ipp)->i_mode != 0 &&
+					coh_mode == VFS_I(*ipp)->i_mode &&
+					coh_gen == VFS_I(*ipp)->i_generation;
+
+				if ((VFS_I(*ipp)->i_mode == 0 || p201_entry_behind ||
+				     (mxfs_typeflip_force_unresolved == 2 &&
+				      relookups == 0)) && relookups < 3 &&
+				    !xfs_is_shutdown(dp->i_mount)) {
+					relookups++;
+					mxfs_probe_ratelimited(
+						"mxfs: P201-RELOOKUP ino=%llu pino=%llu name=%.*s lap=%d p_stale=%d why=%s comm=%s — the entry is behind what the number names now; reading the parent again\n",
+						(unsigned long long)(*ipp)->i_ino,
+						(unsigned long long)dp->i_ino,
+						name->len, (const char *)name->name,
+						relookups, dp->i_dlm_stale ? 1 : 0,
+						VFS_I(*ipp)->i_mode == 0 ? "freed" :
+						p201_entry_behind ? "reused-live" : "forced",
+						current->comm);
+					xfs_irele(*ipp);
+					*ipp = NULL;
+					if (ci_name) {
+						kfree(ci_name->name);
+						ci_name->name = NULL;
+					}
+					dirent_ftype = XFS_DIR3_FT_UNKNOWN;
+					evict_tries = 0;
+					reuse_coord = 0;
+					poison_tries = 0;
+					poison_drains = 0;
+					igetmiss_tries = 0;
+					gcwait_tries = 0;
+					goto relookup;
+				}
 				xfs_irele(*ipp);
 				*ipp = NULL;
 				return -ESTALE;
@@ -2561,7 +2676,7 @@ retry_iget:
 	 * bug is in the dcache/dentry, not the inode. */
 	if ((evict_tries > 0 || poison_tries > 0) && *ipp &&
 	    dp->i_mount->m_mxfs_dlm &&
-	    !mxfs_v5_dlm_is_single_node(dp->i_mount->m_mxfs_dlm)) {
+	    mxfs_lookup_peer_state(dp->i_mount)) {
 		struct inode *vi2 = VFS_I(*ipp);
 		extern const struct file_operations xfs_dir_file_operations;
 		mxfs_probe_ratelimited(

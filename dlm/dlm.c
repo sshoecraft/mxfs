@@ -70,6 +70,26 @@ MODULE_PARM_DESC(dl_inject_import_unresolvable,
  */
 unsigned long long mxfs_dl_drop_lockreq_ino;
 static atomic_t mxfs_dl_drop_lockreq_n = ATOMIC_INIT(0);
+
+/*
+ * TEST ONLY (tests/mpath/umount_pair_race.sh): sleep this many ms after each
+ * release of the shutdown release-all, so a peer can finish leaving while
+ * this node is still sending it releases — the race in which one unmount
+ * spent ~62 s retrying releases to a peer that had already gone.  0 = off.
+ */
+unsigned int mxfs_dl_relall_step_ms;
+module_param_named(dl_relall_step_ms, mxfs_dl_relall_step_ms, uint, 0644);
+MODULE_PARM_DESC(dl_relall_step_ms,
+		 "TEST ONLY: ms to sleep after each release of the shutdown release-all (0 = off)");
+/*
+ * The release-all sends a master nothing more once a release to it has failed
+ * after its retries (0.90.54).  0 = every release is still sent with its
+ * retries: the same-build control arm, never a production value.
+ */
+int mxfs_dl_relall_skip_unreachable = 1;
+module_param_named(dl_relall_skip_unreachable, mxfs_dl_relall_skip_unreachable, int, 0644);
+MODULE_PARM_DESC(dl_relall_skip_unreachable,
+		 "release-all skips a master a release could not reach (1, default); 0 = test control");
 /*
  * The drop count is the harness's evidence that the target is remotely
  * mastered and that the fault fired during the armed read; the probe LINE
@@ -146,6 +166,21 @@ MODULE_PARM_DESC(dl_no_ondemand_takeover,
 		 "demand for a request; requests wait for the bulk pass (0 = off)");
 static unsigned int mxfs_dl_takeover_pause_ms;
 module_param_named(dl_takeover_pause_ms, mxfs_dl_takeover_pause_ms, uint, 0644);
+
+/*
+ * TEST ONLY: ignore this many FROZEN hand-off messages from a departing
+ * node (MXFS_HANDOFF_F_DEPARTING), leaving each page PREPARED to this node
+ * and never consumed — the state a hand-off message lost with the departing
+ * node's connection leaves behind.  A later join that moves such a page's
+ * ownership to a third node makes that node ask this one for it, which is
+ * the path P-TAUTH-RELAY-ON-ASK serves; on path_mount_degraded the natural
+ * loss was met twice in many laps.  Never set in production.
+ */
+static int mxfs_dl_drop_departing_frozen;
+module_param_named(dl_drop_departing_frozen, mxfs_dl_drop_departing_frozen, int, 0644);
+MODULE_PARM_DESC(dl_drop_departing_frozen,
+		 "TEST ONLY: ignore this many FROZEN hand-offs from a departing "
+		 "node, leaving those pages prepared and unconsumed (0 = off)");
 
 /*
  * TEST ONLY (0.89.69, D-A-GRANT-COMPLETING-A-PENDING-ENTRY-RACES-THE-WAITERS-
@@ -797,6 +832,7 @@ static struct mxfs_dlm_pending *pending_alloc(
 	p->cond = mxfs_pal_cond_create();
 	p->done = false;
 	p->granted_mode = MXFS_LOCK_NL;
+	p->want_mode = MXFS_LOCK_NL;
 	p->status = 0;
 	p->request_epoch = 0;
 	p->next = NULL;
@@ -918,6 +954,35 @@ static bool pending_signal_resource(struct mxfs_dlm_ctx *ctx,
 					     (unsigned long long)epoch,
 					     (unsigned long long)p->request_epoch);
 				return false;
+			}
+			/*
+			 * A grant answers a wait only if it grants at least what the
+			 * wait asked for.  Entries are found by resource alone, and a
+			 * master answers every queued re-send of a request it has
+			 * already granted by sending that grant again, so a shared
+			 * grant can arrive while this node is waiting for the
+			 * exclusive one it asked for next.  Measured on
+			 * 4/net/mesh/mpath (path_fabric, 0.90.48): a master stalled
+			 * for 8 s by a path outage re-affirmed one node's shared grant
+			 * on a directory four times and denied its exclusive request;
+			 * one of the four completed the exclusive wait as granted, the
+			 * rename it was for changed the directory under a shared
+			 * grant, and that change could never be written home (its
+			 * flush was refused as stale for 31 minutes, with every other
+			 * node queued behind the directory).  The lower grant is
+			 * already recorded in the table by the caller; this wait
+			 * stays pending for its own answer.
+			 */
+			if (status == 0 && p->want_mode != MXFS_LOCK_NL &&
+			    mode < p->want_mode) {
+				ctx->grant_below_want++;
+				pr_warn_ratelimited(
+				    "mxfs: P-GRANT-BELOW-WANT type=%u ino=%llu ag=%u granted=%s want=%s req_id=%u total=%llu — a grant of a lower mode than this wait asked for does not complete it\n",
+				    resource->type, (unsigned long long)resource->ino,
+				    resource->ag_number, mode_name(mode),
+				    mode_name(p->want_mode), p->req_id,
+				    (unsigned long long)ctx->grant_below_want);
+				continue;
 			}
 			/*
 			 * 0.89.69 (D-A-GRANT-COMPLETING-A-PENDING-ENTRY-RACES-THE-
@@ -1833,6 +1898,7 @@ static bool dlm_owner_mark_purged(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t node,
  * writer == auth and nothing is recorded.
  */
 static bool dlm_node_in_view(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t node);
+static bool dlm_authority_lost(struct mxfs_dlm_ctx *ctx);
 static int dlm_takeover_page(struct mxfs_dlm_ctx *ctx, uint32_t p, mxfs_node_id_t node,
 			     uint64_t inc, const char *how,
 			     mxfs_node_id_t hint_node, uint64_t hint_inc);
@@ -1916,6 +1982,17 @@ static bool dlm_owner_sealed(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t node)
 
 	for (i = 0; i < ctx->sealed_owner_count; i++)
 		if (node != 0 && ctx->sealed_owners[i].node == node)
+			return true;
+	return false;
+}
+
+/* Has the release-all in progress already failed to reach `master`? */
+static bool dlm_relall_unreachable(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t master)
+{
+	int i;
+
+	for (i = 0; i < ctx->relall_unreachable_n; i++)
+		if (ctx->relall_unreachable[i] == master)
 			return true;
 	return false;
 }
@@ -3453,20 +3530,73 @@ static int dlm_page_acquire(struct mxfs_dlm_ctx *ctx, uint32_t page, uint64_t ge
 	if (a.state == MXFS_TAUTH_PG_PREPARED && a.auth_node == ctx->local_node &&
 	    a.auth_inc == ctx->local_inc) {
 		/* we handed it off; only a recovery-purged target lets us take it
-		 * back (ruling 2: never retarget while the target can write) */
-		if (dlm_owner_purged(ctx, a.target_node, -1)) {
+		 * back (ruling 2: never retarget while the target can write) —
+		 * or a target that is no longer in the view.
+		 *
+		 * A page prepared for a node that then left cleanly is consumed by
+		 * nobody (a leaving mount refuses the activation on purpose), and
+		 * the view now names this node its owner.  The hand-off tick
+		 * retargets such a page, but it walks every page in order and does
+		 * a durable transition for each one it moves: after a leave that
+		 * is followed by a join it is busy handing a share of this node's
+		 * pages to the joiner, and reaches the stranded page when it
+		 * reaches it.  Every request on the page was parked here until
+		 * then.  Measured on 4/net/mesh/mpath (path_mount_degraded): a
+		 * node unmounted with pages prepared for it, remounted 20 s later
+		 * under a new identity, and a peer's request on one of those pages
+		 * was answered REMASTER for 17.5 s (P-TAUTH-REMASTER-PARKED st=2
+		 * target=<the departed identity>), spent its sixty retries and shut
+		 * its filesystem down; two more nodes followed.  The tick's own
+		 * test is applied here, for the page that is asked for.
+		 */
+		bool departed = a.target_node != ctx->local_node &&
+				!dlm_node_in_view(ctx, a.target_node);
+		bool purged = dlm_owner_purged(ctx, a.target_node, -1);
+		int prc = -ENODATA, brc = -ENODATA, arc = -ENODATA;
+		static atomic_t p_take_back = ATOMIC_INIT(0);
+
+		if (purged || departed) {
 			rc = mxfs_tauth_ledger_prepare(ctx->ledger, page, gen, ctx->local_node,
 						       ctx->local_inc, 0, 0, true, NULL);
+			prc = rc;
 			if (rc == 0) {
 				struct mxfs_tauth_page_auth b;
 
 				ctx->handoff_retargets++;
-				if (mxfs_tauth_ledger_page_auth(ctx->ledger, page, false, &b) == 0 &&
-				    mxfs_tauth_ledger_activate(ctx->ledger, page, gen, b.seq, false) == 0) {
+				brc = mxfs_tauth_ledger_page_auth(ctx->ledger, page, false, &b);
+				if (brc == 0)
+					arc = mxfs_tauth_ledger_activate(ctx->ledger, page, gen, b.seq, false);
+				if (brc == 0 && arc == 0) {
+					if (departed) {
+						ctx->handoff_retarget_departed++;
+						pr_warn_ratelimited(
+						    "mxfs: P-TAUTH-RETARGET-DEPARTED page=%u target=%u/%llu total=%llu — a page prepared for a node that left the view is taken back for the request that needs it, ahead of the hand-off pass\n",
+						    page, a.target_node,
+						    (unsigned long long)a.target_inc,
+						    (unsigned long long)ctx->handoff_retarget_departed);
+					}
 					dlm_page_now_mine(ctx, page, "retarget-self");
 					return 0;
 				}
 			}
+		}
+		/* every term of a take-back that did not happen: requests on such
+		 * a page were parked for 17 s with no line saying which step
+		 * refused (the first 300, then one in 500) */
+		{
+			int tn = atomic_inc_return(&p_take_back);
+
+			/* a live target that has not consumed its page yet is the
+			 * ordinary hand-off and says nothing: 300 such lines in
+			 * 150 ms on one node of a passing lap */
+			if ((purged || departed) && (tn <= 300 || (tn % 500) == 0))
+				pr_warn("mxfs: P-TAUTH-TAKE-BACK-PARKED n=%d page=%u seq=%llu target=%u/%llu departed=%d purged=%d prepare_rc=%d reread_rc=%d activate_rc=%d gen=%#llx ledger_gen=%#llx we=%u/%llu\n",
+					tn, page, (unsigned long long)a.seq, a.target_node,
+					(unsigned long long)a.target_inc, departed ? 1 : 0,
+					purged ? 1 : 0, prc, brc, arc,
+					(unsigned long long)gen,
+					(unsigned long long)ctx->ledger_gen,
+					ctx->local_node, (unsigned long long)ctx->local_inc);
 		}
 		return -EAGAIN;
 	}
@@ -3854,6 +3984,48 @@ int mxfs_dlm_process_page_handoff(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t sende
 					 msg->target_inc, seq, ctx->local_node, ctx->local_inc);
 			return 0;
 		}
+		/*
+		 * The page is PREPARED to THIS node by another authority and this
+		 * node never consumed it.  A departing node prepares each of its
+		 * pages to the owner under the view without it and tells that
+		 * owner (FROZEN); when that message does not arrive or its
+		 * activation is refused, nothing repeats it — the sender is gone —
+		 * and the target consumes a prepared page only when it serves a
+		 * request on it as its owner.  A join then moves the page's
+		 * ownership to a third node, which asks this one for it, and this
+		 * node answered NOT_OWNER for as long as it was asked.  Measured
+		 * on 4/net/mesh/mpath (path_mount_degraded, twice): the platter
+		 * held st=PREPARED auth=<the identity that had left 19 s earlier>
+		 * target=<a live node> on two pages for the whole 17 s the new
+		 * owner parked requests on them (107 and 89 readings); the
+		 * requesters spent their retries and three nodes shut down.
+		 * Complete the chain the way a late FROZEN would have: activate as
+		 * a relay that serves nothing, and let the hand-off pass prepare
+		 * the page to its owner.  A mount that is leaving does not (its
+		 * successor's takeover retargets the page).
+		 */
+		if (a.state == MXFS_TAUTH_PG_PREPARED &&
+		    a.target_node == ctx->local_node && a.target_inc == ctx->local_inc &&
+		    (a.auth_node != ctx->local_node || a.auth_inc != ctx->local_inc) &&
+		    !ctx->shutting_down) {
+			dlm_page_departed_authority(ctx, page, a.auth_node, a.auth_inc,
+						    a.writer_node, "freeze-req");
+			rc = mxfs_tauth_ledger_activate(ctx->ledger, page, ctx->ledger_gen,
+							a.seq, false);
+			ctx->handoff_relay_on_ask++;
+			pr_warn_ratelimited(
+			    "mxfs: P-TAUTH-RELAY-ON-ASK page=%u seq=%llu auth=%u/%llu asker=%u rc=%d total=%llu — a page prepared to this node and never consumed is activated for the node that now owns it; the hand-off pass moves it on\n",
+			    page, (unsigned long long)a.seq, a.auth_node,
+			    (unsigned long long)a.auth_inc, sender, rc,
+			    (unsigned long long)ctx->handoff_relay_on_ask);
+			if (rc == 0) {
+				dlm_set_page_state(ctx, page, DLM_PS_FROZEN);
+				ctx->handoff_scan = true;
+			}
+			/* the asker asks again on its cadence; by then the pass has
+			 * prepared the page to it, or the image moved and it re-routes */
+			return 0;
+		}
 		if (a.auth_node != ctx->local_node || a.auth_inc != ctx->local_inc) {
 			/*
 			 * 0.75.9 (D-...-0907): the requester masters this page under
@@ -3975,6 +4147,15 @@ int mxfs_dlm_process_page_handoff(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t sende
 				     (unsigned long long)ctx->handoff_refused_leaving);
 			return 0;
 		}
+		if (unlikely(mxfs_dl_drop_departing_frozen > 0) &&
+		    (msg->flags & MXFS_HANDOFF_F_DEPARTING)) {
+			mxfs_dl_drop_departing_frozen--;
+			pr_warn_ratelimited(
+			    "mxfs: P-TAUTH-TEST-DROP-FROZEN page=%u from=%u seq=%llu left=%d — test knob: a departing node's hand-off is ignored; the page stays prepared to this node\n",
+			    page, sender, (unsigned long long)msg->prepared_seq,
+			    mxfs_dl_drop_departing_frozen);
+			return 0;
+		}
 		/* 0.75.8: a takeover names the departed authority and is sent by
 		 * the successor; a live handoff names its sender */
 		dlm_page_departed_authority(ctx, page, msg->auth_node, msg->auth_inc,
@@ -4007,6 +4188,13 @@ int mxfs_dlm_process_page_handoff(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t sende
 						msg->prepared_seq, false);
 		if (rc == 0)
 			dlm_page_now_mine(ctx, page, "frozen-msg");
+		else
+			/* a hand-off that was announced and not consumed leaves the
+			 * page prepared to this node with nobody to repeat it */
+			pr_warn_ratelimited(
+			    "mxfs: P-TAUTH-FROZEN-NOT-CONSUMED page=%u from=%u seq=%llu rc=%d gen=%#llx — the activation of a page handed to this node was refused\n",
+			    page, sender, (unsigned long long)msg->prepared_seq, rc,
+			    (unsigned long long)ctx->ledger_gen);
 		return rc;
 	case MXFS_HANDOFF_DEFER:
 		ctx->handoff_defers++;
@@ -4033,15 +4221,24 @@ int mxfs_dlm_process_page_handoff(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t sende
 void mxfs_dlm_handoff_tick(struct mxfs_dlm_ctx *ctx)
 {
 	uint32_t p;
+	uint64_t refused0;
 	int left = 0;
 
 	if (!ctx || !dlm_ledger_active(ctx) || !ctx->page_state || !ctx->handoff_scan)
 		return;
+	refused0 = ctx->ledger->store.target_refused;
 	for (p = 0; p < ctx->page_count; p++) {
 		struct mxfs_tauth_page_auth a;
 		mxfs_node_id_t owner;
 		int rc;
 
+		/* a node that has lost its authority over the LUN moves no page:
+		 * the target refuses each write, and the pass would send one per
+		 * page it owns, every tick.  A refusal inside this tick ends it
+		 * too: the closure follows from the heartbeat seconds later. */
+		if (dlm_authority_lost(ctx) ||
+		    ctx->ledger->store.target_refused != refused0)
+			return;
 		if (mxfs_tauth_ledger_page_auth(ctx->ledger, p, false, &a))
 			continue;       /* not loaded: nothing of ours to move */
 		if (a.auth_node != ctx->local_node || a.auth_inc != ctx->local_inc)
@@ -4163,7 +4360,7 @@ static int dlm_takeover_page(struct mxfs_dlm_ctx *ctx, uint32_t p, mxfs_node_id_
 	struct mxfs_tauth_page_auth a;
 	mxfs_node_id_t owner;
 	uint64_t seq = 0, tinc;
-	bool retarget;
+	bool retarget, to_self = false;
 	int rc;
 
 	rc = mxfs_tauth_ledger_page_auth(ctx->ledger, p, true, &a);
@@ -4218,25 +4415,51 @@ static int dlm_takeover_page(struct mxfs_dlm_ctx *ctx, uint32_t p, mxfs_node_id_
 	 * — as "live"; the slot map now decides (dlm_authority_dead).
 	 */
 	if (retarget && a.target_node != node &&
-	    !dlm_authority_dead(ctx, a.target_node, a.target_inc))
-		return 0;       /* a live target consumes it */
-	owner = dlm_page_owner(ctx, p);
-	tinc = (owner == ctx->local_node) ? ctx->local_inc :
-	       (ctx->node_inc_cb ? ctx->node_inc_cb(ctx->cb_data, owner) : 0);
-	if (!tinc && hint_node != 0 && owner == hint_node)
-		tinc = hint_inc;
-	if (!tinc)
-		return -EAGAIN;
-	rc = mxfs_tauth_ledger_prepare(ctx->ledger, p, ctx->ledger_gen, owner, tinc,
-				       node, inc, retarget, &seq);
-	if (rc == -ESTALE || rc == -EBUSY) {
-		if (mxfs_tauth_ledger_page_auth(ctx->ledger, p, true, &a) == 0 &&
-		    (a.auth_node != node || a.auth_inc != inc))
-			return 0;   /* taken over by the other path meanwhile */
-		return rc;
+	    !dlm_authority_dead(ctx, a.target_node, a.target_inc)) {
+		if (a.target_node != ctx->local_node || a.target_inc != ctx->local_inc)
+			return 0;       /* a live target consumes it */
+		/*
+		 * The live target is this mount.  A departing node prepares its
+		 * pages to us and sends one FROZEN per page; when it closes its
+		 * connection with requests of ours still unread, the FROZENs
+		 * behind them are lost with the stream and nothing activates the
+		 * pages.  They used to be consumed only by a request of our own
+		 * on a page the view gives us (dlm_page_acquire), so once another
+		 * node joined and the view gave it some of them, nobody did: it
+		 * asked us, this function answered "a live target consumes it"
+		 * about ourselves, and both nodes spent their retry budgets.
+		 * Measured (path_mount_degraded, 2/net/mesh/mpath): cand=617
+		 * pages_prepared=0 skipped=0, then 60 P960-AUTH-TRANSITION-DECLINE
+		 * rc=0, the joiner's root-inode request failed prepare=60 and its
+		 * mount shut down.  Consume it here: activate the image as it
+		 * stands, then retire the departed authority's records as for any
+		 * page taken over; the hand-off tick passes it on if the view
+		 * names another owner.
+		 */
+		to_self = true;
 	}
-	if (rc)
-		return rc;
+	if (to_self) {
+		owner = ctx->local_node;
+		seq = a.seq;
+	} else {
+		owner = dlm_page_owner(ctx, p);
+		tinc = (owner == ctx->local_node) ? ctx->local_inc :
+		       (ctx->node_inc_cb ? ctx->node_inc_cb(ctx->cb_data, owner) : 0);
+		if (!tinc && hint_node != 0 && owner == hint_node)
+			tinc = hint_inc;
+		if (!tinc)
+			return -EAGAIN;
+		rc = mxfs_tauth_ledger_prepare(ctx->ledger, p, ctx->ledger_gen, owner, tinc,
+					       node, inc, retarget, &seq);
+		if (rc == -ESTALE || rc == -EBUSY) {
+			if (mxfs_tauth_ledger_page_auth(ctx->ledger, p, true, &a) == 0 &&
+			    (a.auth_node != node || a.auth_inc != inc))
+				return 0;   /* taken over by the other path meanwhile */
+			return rc;
+		}
+		if (rc)
+			return rc;
+	}
 	if (strcmp(how, "takeover") != 0 && strcmp(how, "orphan-sweep") != 0) {
 		ctx->handoff_ondemand++;
 		mxfs_pal_log(MXFS_LOG_DEBUG,
@@ -4344,6 +4567,11 @@ static int dlm_takeover_page(struct mxfs_dlm_ctx *ctx, uint32_t p, mxfs_node_id_
 			 */
 			if (irc)
 				return irc < 0 ? irc : -EAGAIN;
+			if (to_self) {
+				ctx->handoff_self_consumed++;
+				if (dlm_page_owner(ctx, p) != ctx->local_node)
+					ctx->handoff_scan = true;
+			}
 		}
 	} else {
 		dlm_send_handoff(ctx, owner, p, MXFS_HANDOFF_FROZEN, owner, tinc, seq,
@@ -4379,7 +4607,7 @@ int mxfs_dlm_handoff_takeover(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t node,
 {
 	struct dlm_takeover_scan sc;
 	uint32_t p, scanned = 0;
-	uint64_t t0, scan_ms;
+	uint64_t t0, scan_ms, refused0;
 	int done = 0, skipped = 0, rc;
 
 	if (!ctx || !dlm_ledger_active(ctx) || !ctx->page_state)
@@ -4413,6 +4641,7 @@ int mxfs_dlm_handoff_takeover(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t node,
 		return rc;
 	}
 	mxfs_tauth_pass_quiet = mxfs_dl_takeover_quiet ? 1 : 0;
+	refused0 = ctx->ledger->store.target_refused;
 	for (p = 0; p < ctx->page_count; p++) {
 		if (!(sc.cand[p >> 3] & (1u << (p & 7))))
 			continue;
@@ -4431,7 +4660,17 @@ int mxfs_dlm_handoff_takeover(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t node,
 		 * the next bootstrap node's orphan sweep or a request's on-demand
 		 * takeover moves them.
 		 */
-		if (ctx->shutting_down) {
+		/* ... or has lost its authority over the LUN: every page write of a
+		 * fenced node is refused by the target, and a pass that went on
+		 * sent one refused command per page (measured: 9270 in 68 s from
+		 * one shut-down node of eight). */
+		/* ... or the target has already refused one of this pass's writes
+		 * with RESERVATION CONFLICT: the key is off the LUN, and the
+		 * authority closure that says so comes from the heartbeat seconds
+		 * later — 287 refused pages in the 3.5 s between a fenced node's
+		 * thaw and its closure (fenced_takeover_stop, 0.90.52). */
+		if (ctx->shutting_down || dlm_authority_lost(ctx) ||
+		    ctx->ledger->store.target_refused != refused0) {
 			uint32_t q, remaining = 0;
 
 			for (q = p; q < ctx->page_count; q++)
@@ -4441,12 +4680,15 @@ int mxfs_dlm_handoff_takeover(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t node,
 			mxfs_pal_log(MXFS_LOG_WARN,
 				     "mxfs: P-TAUTH-TAKEOVER-INTERRUPTED departed=%u/%llu "
 				     "at_page=%u pages_prepared=%d skipped=%d remaining=%u "
-				     "cand=%u elapsed_ms=%llu — this mount is leaving; the "
+				     "cand=%u elapsed_ms=%llu why=%s — this mount is leaving; the "
 				     "remaining pages stay under the departed authority "
 				     "for the next bootstrap node's orphan sweep",
 				     node, (unsigned long long)inc, p, done, skipped,
 				     remaining, sc.ncand,
-				     (unsigned long long)(mxfs_pal_time_ms() - t0));
+				     (unsigned long long)(mxfs_pal_time_ms() - t0),
+				     ctx->shutting_down ? "unmount" :
+				     ctx->ledger->store.target_refused != refused0 ?
+				     "target-refused" : "authority-closed");
 			ctx->handoff_takeovers += done;
 			mxfs_tauth_pass_quiet = 0;
 			mxfs_pal_free(sc.cand);
@@ -4497,10 +4739,11 @@ int mxfs_dlm_handoff_takeover(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t node,
 	mxfs_tauth_pass_quiet = 0;
 	mxfs_pal_log(MXFS_LOG_DEBUG,
 		     "mxfs: P-TAUTH-TAKEOVER departed=%u/%llu pages_prepared=%d skipped=%d by=%u "
-		     "scanned=%u cand=%u bad=%u scan_ms=%llu total_ms=%llu",
+		     "scanned=%u cand=%u bad=%u scan_ms=%llu total_ms=%llu self_consumed_total=%llu",
 		     node, (unsigned long long)inc, done, skipped, ctx->local_node,
 		     scanned, sc.ncand, sc.bad, (unsigned long long)scan_ms,
-		     (unsigned long long)(mxfs_pal_time_ms() - t0));
+		     (unsigned long long)(mxfs_pal_time_ms() - t0),
+		     (unsigned long long)ctx->handoff_self_consumed);
 	mxfs_pal_free(sc.cand);
 	return skipped ? -EAGAIN : done;
 }
@@ -4589,7 +4832,7 @@ int mxfs_dlm_takeover_orphans(struct mxfs_dlm_ctx *ctx)
 {
 	struct dlm_orphan_scan *s;
 	uint32_t p, scanned = 0;
-	uint64_t t0, scan_ms;
+	uint64_t t0, scan_ms, refused0;
 	int rc, done = 0, skipped = 0, waited = 0, i, ndead = 0;
 
 	if (!ctx || !dlm_ledger_active(ctx) || !ctx->page_state)
@@ -4642,13 +4885,20 @@ int mxfs_dlm_takeover_orphans(struct mxfs_dlm_ctx *ctx)
 			     (ctx->occupant_cb(ctx->cb_data, s->auth[i].node,
 					       s->auth[i].inc) ? 1 : 0) : -1);
 	}
+	refused0 = ctx->ledger->store.target_refused;
 	for (p = 0; p < ctx->page_count; p++) {
 		if (!s->idx[p])
 			continue;
 		/* D-0953: same stop-between-pages rule as the named takeover;
 		 * the sweep is the pass that finishes what an interrupted one
 		 * left, so it must itself be interruptible. */
-		if (ctx->shutting_down) {
+		/* ... or has lost its authority over the LUN: every page write of a
+		 * fenced node is refused by the target, and a pass that went on
+		 * sent one refused command per page (measured: 9270 in 68 s from
+		 * one shut-down node of eight).  The target refusing one of this
+		 * sweep's writes says so before the heartbeat closes the authority. */
+		if (ctx->shutting_down || dlm_authority_lost(ctx) ||
+		    ctx->ledger->store.target_refused != refused0) {
 			uint32_t q, remaining = 0;
 
 			for (q = p; q < ctx->page_count; q++)
@@ -4658,10 +4908,13 @@ int mxfs_dlm_takeover_orphans(struct mxfs_dlm_ctx *ctx)
 			mxfs_pal_log(MXFS_LOG_DEBUG,
 				     "mxfs: P-TAUTH-ORPHAN-SWEEP-INTERRUPTED at_page=%u "
 				     "prepared=%d skipped=%d remaining=%u cand=%u "
-				     "elapsed_ms=%llu — this mount is leaving; the "
+				     "elapsed_ms=%llu why=%s — this mount is leaving; the "
 				     "remaining pages wait for the next bootstrap node's sweep",
 				     p, done, skipped, remaining, s->ncand,
-				     (unsigned long long)(mxfs_pal_time_ms() - t0));
+				     (unsigned long long)(mxfs_pal_time_ms() - t0),
+				     ctx->shutting_down ? "unmount" :
+				     ctx->ledger->store.target_refused != refused0 ?
+				     "target-refused" : "authority-closed");
 			ctx->handoff_takeovers += done;
 			mxfs_pal_free(s->idx);
 			mxfs_pal_free(s);
@@ -7800,6 +8053,7 @@ static int dlm_lock_impl(struct mxfs_dlm_ctx *ctx,
 			return -ENOMEM;
 		pend->request_epoch = ctx->current_epoch;
 		pend->req_id = req_id;
+		pend->want_mode = mode;
 
 		pending_insert(ctx, pend);
 
@@ -8020,6 +8274,37 @@ lockreq_sent:
 			if (ret == MXFS_ERR_LEDGER_FULL) {
 				mxfs_pal_sleep_ms(50);
 				return dlm_retry(ctx, 10);
+			}
+			/*
+			 * The master could not make its decision durable.  That is
+			 * the master's condition, not this request's: a master whose
+			 * ledger writes fail has lost its storage, stops granting
+			 * (P-TAUTH-FAILSTOP) and is about to be declared dead and
+			 * its pages taken over.  Returned as -EIO it was fatal to
+			 * every node that asked.  Measured on 8/net/mesh/mpath
+			 * (path_all_lost): the node that lost both paths mastered a
+			 * shared directory; 36 s later its ledger writes failed, it
+			 * answered six waiting nodes with this status, and all six
+			 * shut their filesystems down within one second.  A master
+			 * that cannot decide is treated as one that did not answer:
+			 * the attempt waits out its window and is retried on the
+			 * budget a silent master gets, which ends when the master is
+			 * declared dead and the page moves.
+			 */
+			if (ret == MXFS_ERR_LEDGER) {
+				ctx->ledger_deny_waits++;
+				pr_warn_ratelimited(
+				    "mxfs: P-LEDGER-DENY-WAIT type=%u ino=%llu ag=%u master=%u req=%s we=%u total=%llu — the master could not make its decision durable; waiting as for a master that did not answer, not failing the operation\n",
+				    resource->type, (unsigned long long)resource->ino,
+				    resource->ag_number, master, mode_name(mode),
+				    ctx->local_node,
+				    (unsigned long long)ctx->ledger_deny_waits);
+				/* a request that asked not to queue does not wait here
+				 * either: would-block, as toward an unreachable master */
+				if (flags & MXFS_LKF_NOQUEUE)
+					return -EAGAIN;
+				mxfs_pal_sleep_ms(MXFS_LOCK_ACQUIRE_WAIT_MS);
+				return -ETIMEDOUT;
 			}
 			if (ret > 0)
 				return -EIO;
@@ -9290,6 +9575,31 @@ int mxfs_dlm_lock_retries(struct mxfs_dlm_ctx *ctx,
 					     ret, mode_name(mode), retries - 1);
 				n_xport++;
 				mxfs_pal_sleep_ms(500);
+			} else if (ret == -ETIMEDOUT && (flags & MXFS_LKF_NOQUEUE)) {
+				/*
+				 * A request that asked not to queue and got no answer
+				 * within one attempt answers "would block", as it does
+				 * when the master cannot be reached at all.  Its callers
+				 * hold inode locks and fall back to a wait that holds
+				 * nothing.  Measured on 8/net/mesh/mpath path_all_lost:
+				 * the victim had withdrawn with its connections up, so
+				 * every attempt toward it timed out instead of failing;
+				 * a rename's AG probe re-sent 60 times, 1 s each, with
+				 * two directory ILOCKs held, those inodes pinned the
+				 * AIL, the post-replay flush waited on the AIL, and
+				 * every survivor stalled 131 s.
+				 */
+				mxfs_node_id_t m = mxfs_dlm_resource_master(ctx, resource);
+
+				mxfs_probe_ratelimited(
+				    "mxfs: P-ACQ-NOQUEUE-UNANSWERED type=%u ino=%llu ag=%u mode=%s master=%u we=%u master_live=%d comm=%s — a no-queue request with no answer in one attempt answers would-block\n",
+				    resource->type, (unsigned long long)resource->ino,
+				    resource->ag_number, mode_name(mode), m,
+				    ctx->local_node,
+				    ctx->node_live_cb ?
+					ctx->node_live_cb(ctx->cb_data, m) : -1,
+				    dlm_cur_comm());
+				return -EAGAIN;
 			} else if (ret == -ETIMEDOUT && retries > 1 &&
 				   ctx->acq_fallible_cb &&
 				   ctx->acq_fallible_cb(ctx->cb_data, resource) &&
@@ -9645,6 +9955,38 @@ int mxfs_dlm_unlock_open(struct mxfs_dlm_ctx *ctx,
 					pp = &lk->next;
 					continue;
 				}
+				/*
+				 * Only a WAITING or BLOCKED leftover is abandoned.  A
+				 * grant this node masters and has just decided for its
+				 * own request is PENDING_DURABLE with no waiter attached
+				 * (the uncontended local grant never queues), and the
+				 * table lock is dropped while its ledger write runs.  A
+				 * second release of the tenure before it — two release
+				 * runners for one inode — arrived here, found no granted
+				 * entry, and freed that in-flight decision.  The commit
+				 * then landed with no table entry: a durable holder bit
+				 * nobody would release (P-TAUTH-GHOST), the requester
+				 * told -ENOENT, and every later exclusive request refused
+				 * by the ledger as a conflicting grant.  Measured on
+				 * 4/net/mesh/mpath (path_fenced_return): the master's own
+				 * PR bit on the shared directory refused one peer's EX
+				 * sixty times in 17 s and that peer shut its filesystem
+				 * down.  A PENDING_RELEASE entry of another tenure is the
+				 * same kind of in-flight transition and is left alone too.
+				 */
+				if (lk->state != MXFS_LSTATE_WAITING &&
+				    lk->state != MXFS_LSTATE_BLOCKED) {
+					ctx->unlock_fallback_inflight_skips++;
+					pr_warn_ratelimited(
+					    "mxfs: P-UNLOCK-SKIP-PENDING type=%u ino=%llu ag=%u state=%u mode=%u gen=%u expected_gen=%u caller=%pS comm=%s total=%llu — a release found no granted entry; the in-flight transition of this node's next tenure is not reaped\n",
+					    resource->type, (unsigned long long)resource->ino,
+					    resource->ag_number, (unsigned)lk->state,
+					    (unsigned)lk->mode, lk->grant_gen, expected_gen,
+					    __builtin_return_address(0), dlm_cur_comm(),
+					    (unsigned long long)ctx->unlock_fallback_inflight_skips);
+					pp = &lk->next;
+					continue;
+				}
 				found = lk;
 				break;
 			}
@@ -9831,6 +10173,12 @@ int mxfs_dlm_unlock_open(struct mxfs_dlm_ctx *ctx,
 		    resource->type, (unsigned long long)resource->ino,
 		    resource->ag_number, master, rel_gen,
 		    master_blocked ? 1 : 0, master_sealed ? 1 : 0);
+	} else if (found_holder && ctx->send_cb && ctx->relall_active &&
+		   READ_ONCE(mxfs_dl_relall_skip_unreachable) &&
+		   dlm_relall_unreachable(ctx, master)) {
+		/* a release-all already failed to reach this master: the rest of
+		 * its grants go to its departure purge, not 200 ms of retries each */
+		ctx->relall_unreachable_skips++;
 	} else if (found_holder && ctx->send_cb) {
 		uint32_t rel_id = ++ctx->rel_id_next;
 		int send_ret;
@@ -9854,6 +10202,18 @@ int mxfs_dlm_unlock_open(struct mxfs_dlm_ctx *ctx,
 				mxfs_pal_sleep_ms(100);
 			}
 		} while (send_retries > 0);
+		if (send_ret != 0 && ctx->relall_active)
+			ctx->relall_send_fail++;
+		if (send_ret != 0 && ctx->relall_active &&
+		    ctx->relall_unreachable_n < (int)(sizeof(ctx->relall_unreachable) /
+						     sizeof(ctx->relall_unreachable[0])) &&
+		    !dlm_relall_unreachable(ctx, master)) {
+			ctx->relall_unreachable[ctx->relall_unreachable_n++] = master;
+			mxfs_pal_log(MXFS_LOG_WARN,
+				     "mxfs: P-RELALL-MASTER-UNREACHABLE master=%u rc=%d — "
+				     "this release-all sends it nothing more",
+				     master, send_ret);
+		}
 	}
 
 	/* AG unlock visibility — pairs with P5R-AGREL at the
@@ -10448,8 +10808,34 @@ static int dlm_wire_release_all(struct mxfs_dlm_ctx *ctx)
 		}
 	}
 
-	for (i = 0; i < n; i++)
-		mxfs_dlm_unlock(ctx, &list[i]);
+	ctx->relall_unreachable_n = 0;
+	ctx->relall_unreachable_skips = 0;
+	ctx->relall_send_fail = 0;
+	ctx->relall_active = true;
+	{
+		uint64_t t0 = mxfs_pal_time_ms();
+		unsigned int step = READ_ONCE(mxfs_dl_relall_step_ms);
+
+		for (i = 0; i < n; i++) {
+			mxfs_dlm_unlock(ctx, &list[i]);
+			if (step)
+				mxfs_pal_sleep_ms(step);
+		}
+		mxfs_pal_log(MXFS_LOG_WARN,
+			     "mxfs: P-RELALL-WALL released=%u ms=%llu send_failed=%llu skipped=%llu step_ms=%u skip_unreachable=%d",
+			     n, (unsigned long long)(mxfs_pal_time_ms() - t0),
+			     (unsigned long long)ctx->relall_send_fail,
+			     (unsigned long long)ctx->relall_unreachable_skips, step,
+			     READ_ONCE(mxfs_dl_relall_skip_unreachable));
+	}
+	ctx->relall_active = false;
+	if (ctx->relall_unreachable_n)
+		mxfs_pal_log(MXFS_LOG_WARN,
+			     "mxfs: P-RELALL-UNREACHABLE masters=%d skipped=%llu of %u — "
+			     "a master that refused a release send was not sent the rest; "
+			     "they are left to its departure purge",
+			     ctx->relall_unreachable_n,
+			     (unsigned long long)ctx->relall_unreachable_skips, n);
 
 	mxfs_pal_free(list);
 	return (int)n;
@@ -11701,6 +12087,36 @@ int mxfs_dlm_process_remote_request(struct mxfs_dlm_ctx *ctx,
 					     arc == 0 ? a.state : 0,
 					     arc == 0 ? a.target_node : 0,
 					     arc == 0 ? (unsigned long long)a.target_inc : 0ULL);
+				/* the shape that parked for 17 s: this node's own page,
+				 * prepared for a node the view no longer has.  What the
+				 * platter says of it and who the view names its owner
+				 * (the first 200, then one in 500). */
+				if (arc == 0 && a.state == MXFS_TAUTH_PG_PREPARED &&
+				    a.auth_node == ctx->local_node &&
+				    a.target_node != ctx->local_node &&
+				    !dlm_node_in_view(ctx, a.target_node)) {
+					static atomic_t p_stranded = ATOMIC_INIT(0);
+					int sn = atomic_inc_return(&p_stranded);
+
+					if (sn <= 200 || (sn % 500) == 0) {
+						struct mxfs_tauth_page_auth f;
+						int frc = mxfs_tauth_ledger_page_auth(ctx->ledger, pg, true, &f);
+
+						pr_warn("mxfs: P-TAUTH-STRANDED-PREPARE n=%d page=%u page_state=%u owner=%u cached_seq=%llu cached_auth_inc=%llu fresh_rc=%d fresh_st=%u fresh_seq=%llu fresh_auth=%u/%llu fresh_target=%u/%llu we=%u/%llu\n",
+							sn, pg, ctx->page_state ? ctx->page_state[pg] : 255,
+							dlm_page_owner(ctx, pg),
+							(unsigned long long)a.seq,
+							(unsigned long long)a.auth_inc, frc,
+							frc == 0 ? f.state : 0,
+							frc == 0 ? (unsigned long long)f.seq : 0ULL,
+							frc == 0 ? f.auth_node : 0,
+							frc == 0 ? (unsigned long long)f.auth_inc : 0ULL,
+							frc == 0 ? f.target_node : 0,
+							frc == 0 ? (unsigned long long)f.target_inc : 0ULL,
+							ctx->local_node,
+							(unsigned long long)ctx->local_inc);
+					}
+				}
 			}
 			/*
 			 * 0.84.5 (D-...-0960): the page is under a dead authority a

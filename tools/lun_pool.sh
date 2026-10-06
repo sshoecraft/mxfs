@@ -48,8 +48,12 @@
 #   tools/lun_pool.sh create <count> [<size>]   add <count> LUNs (default 20G)
 #   tools/lun_pool.sh up                        register every pool image with SCST
 #   tools/lun_pool.sh alloc [--owner <pid>] [--what <text>] [--size <min>] [--paths 1|2] <node>...
-#       --paths 2 logs every node in through both portals (storage portal= and
-#       portal2= in the lab file) and hands out the multipath map, mpatha
+#       --paths 2 logs every node in on the multipath portals (storage mpath=
+#       in the lab file: one portal per path, each on a storage network of its
+#       own, scripts/san_net.sh), applies tools/mpath_settings.sh, and hands
+#       out the multipath map, mpatha.  It is refused unless every node
+#       reaches each portal through a different NIC, none of them the NIC its
+#       default route uses: two portals over one NIC are one path
 #       prints: POOL_LUN id=NN size=<bytes> target=<iqn> dev=<guest path>
 #                        wwid=<id> img=<host path> nodes=<a,b,..> owner=<pid>
 #   tools/lun_pool.sh lookup --owner <pid>      the POOL_LUN line <pid> holds, if any
@@ -57,6 +61,10 @@
 #                                               kept) bound to exactly that node set
 #   tools/lun_pool.sh free <id> | --owner <pid> [--force]
 #   tools/lun_pool.sh status
+#   tools/lun_pool.sh quiet <command...>        run it holding the pool lock, so
+#       no allocation or release logs nodes in or out meanwhile (each login
+#       is ~20 host kernel log lines; a run's host preflight samples that
+#       log's rate).  Waits up to 300 s: five allocations of <= 60 s ahead.
 #   tools/lun_pool.sh snapshot <id> <label>     copy a LUN's platter out of the pool
 #   tools/lun_pool.sh destroy <id>              remove a free LUN and its image
 #
@@ -68,9 +76,10 @@ HERE="$(cd "$(dirname "$0")/.." && pwd)"
 SSH="$HERE/tools/mxfs_sshpass.sh"
 PORTAL=$(lab_need storage portal) || exit 2
 PORTAL=${PORTAL%%:*}
-# the second portal a multipath allocation logs in through (optional): every
-# target is exported on both, and a single-path login names PORTAL itself
-PORTAL2=$(lab_get storage portal2 2>/dev/null); PORTAL2=${PORTAL2%%:*}
+# the portals a multipath allocation logs in on (optional), one per path:
+# every target is exported on PORTAL and on each of them, and a single-path
+# login names PORTAL alone
+MPLIST=$(lab_get storage mpath 2>/dev/null | tr ',' ' ')
 POOL=$(lab_need paths pool) || exit 2
 DEFAULT_SIZE=20G
 T=/sys/kernel/scst_tgt/targets/iscsi
@@ -93,7 +102,7 @@ die() { echo "lun_pool: $*" >&2; exit 1; }
 pool_lock() {  # serialise every decision about who holds what
     mkdir -p "$POOL" || die "cannot create $POOL"
     exec {LOCKFD}>>"$LOCKFILE" || die "cannot open $LOCKFILE"
-    flock -w 60 "$LOCKFD" || die "pool lock not taken in 60 s: $LOCKFILE"
+    flock -w "${1:-60}" "$LOCKFD" || die "pool lock not taken in ${1:-60} s: $LOCKFILE"
 }
 pool_unlock() { exec {LOCKFD}>&-; }
 
@@ -122,10 +131,15 @@ lun_size() { stat -c %s "$(img_of "$1")" 2>/dev/null; }
 register() {  # <id>: the SCST device and target exist, target has no default LUN
     local id=$1 tgt dev img g
     tgt=$(tgt_of "$id"); dev=$(scstdev_of "$id"); img=$(img_of "$id")
-    if [ -n "$PORTAL2" ] && ! ip -4 addr show br0 | grep -q "inet $PORTAL2/"; then
-        sudo ip addr add "$PORTAL2/24" dev br0 || { echo "lun_pool: cannot add portal $PORTAL2 to br0" >&2; return 1; }
-    fi
-    MXFS_SCST_IMG=$img MXFS_SCST_DEV=$dev MXFS_SCST_TGT=$tgt MXFS_SCST_PORTAL_IP="$PORTAL${PORTAL2:+ $PORTAL2}" \
+    # A multipath portal is an address a storage network's bridge already
+    # holds.  It is never added here as an alias beside PORTAL: that made two
+    # portals on one wire, which no path fault can tell apart.
+    local p
+    for p in $MPLIST; do
+        ip -4 -o addr show | grep -q "inet $p/" \
+            || { echo "lun_pool: multipath portal $p is not an address on this host (scripts/san_net.sh host)" >&2; return 1; }
+    done
+    MXFS_SCST_IMG=$img MXFS_SCST_DEV=$dev MXFS_SCST_TGT=$tgt MXFS_SCST_PORTAL_IP="$PORTAL${MPLIST:+ $MPLIST}" \
         timeout 60 "$HERE/scripts/scst_setup.sh" setup | grep -E 'SCST_SETUP|FAIL' >/dev/null || return 1
     # scst_setup.sh reuses a device of the same name whatever file it holds.
     g=$(sudo cat "/sys/kernel/scst_tgt/devices/$dev/filename" 2>/dev/null | head -1)
@@ -205,34 +219,58 @@ NODE_LOGIN=$NODE_UNMOUNT'
     done
     echo LOGIN_FAIL no device'
 
-# Two paths: a node record per portal, both logged in at boot, and multipathd
-# assembling them as mpatha.  The wwids and bindings files are cleared so this
-# LUN's map is the one named mpatha.  The WWID reported is the SCSI one of a
-# path under the map, the same identifier a single-path node reads.
+# Two paths: a node record per multipath portal, each logged in at boot, and
+# multipathd assembling them as mpatha under the settings of
+# tools/mpath_settings.sh (the multipath text arrives base64 in MPCONF, the
+# initiator settings as "name value" lines in ISCSISET).  The wwids and
+# bindings files are cleared so this LUN's map is the one named mpatha.  Each
+# portal must be reached through a NIC of its own that is not the NIC the
+# default route uses, or the login is refused: paths that share a NIC, or
+# share the cluster's, cannot fail alone.  The WWID reported is the SCSI one
+# of a path under the map, the same identifier a single-path node reads.
 NODE_LOGIN_MP=$NODE_UNMOUNT'
     for t in 1 2 3 4 5; do lsmod | grep -q "^mxfs " || break; rmmod mxfs 2>/dev/null && break; sleep 2; done
     lsmod | grep -q "^mxfs " && { echo LOGIN_FAIL mxfs still loaded; exit 0; }
+    def=$(ip -4 route show default | sed -n "s/.* dev \([^ ]*\).*/\1/p" | head -1)
+    nics=""
+    for p in MPLIST; do
+        d=$(ip -4 route get $p 2>/dev/null | sed -n "s/.* dev \([^ ]*\).*/\1/p" | head -1)
+        [ -n "$d" ] && [ "$d" != "$def" ] || { echo "LOGIN_FAIL portal $p is reached through ${d:-nothing}, the default route NIC is $def: no storage NIC for this path"; exit 0; }
+        case " $nics " in *" $d "*) echo "LOGIN_FAIL portals share NIC $d: one path, not two"; exit 0 ;; esac
+        nics="$nics $d"
+    done
     iscsiadm -m node -u >/dev/null 2>&1
     iscsiadm -m node -o delete >/dev/null 2>&1
     multipath -F >/dev/null 2>&1
     mkdir -p /etc/multipath/conf.d
-    printf "defaults {\n    find_multipaths yes\n}\n" > /etc/multipath/conf.d/mxfs.conf
+    echo MPCONF | base64 -d > /etc/multipath/conf.d/mxfs.conf
     > /etc/multipath/wwids 2>/dev/null
     rm -f /etc/multipath/bindings 2>/dev/null
     systemctl enable iscsid multipathd >/dev/null 2>&1
     systemctl restart multipathd >/dev/null 2>&1
-    for p in PORTAL PORTAL2; do
-        iscsiadm -m node -o new -T TGT -p $p:3260 >/dev/null 2>&1
-        iscsiadm -m node -T TGT -p $p:3260 --op update -n node.startup -v automatic >/dev/null 2>&1
-        iscsiadm -m node -T TGT -p $p:3260 --login >/dev/null 2>&1
+    # Each session is BOUND to its path NIC (an iSCSI iface with
+    # net_ifacename).  Unbound, a session whose NIC lost its link reconnects
+    # through the default route, because the portal is still reachable that
+    # way: measured 2026-10-04, a path whose cable was pulled stalled for 10 s
+    # and then carried I/O again, over the cluster NIC.
+    for p in MPLIST; do
+        d=$(ip -4 route get $p 2>/dev/null | sed -n "s/.* dev \([^ ]*\).*/\1/p" | head -1)
+        iscsiadm -m iface -I mxfs-$d --op new >/dev/null 2>&1
+        iscsiadm -m iface -I mxfs-$d --op update -n iface.net_ifacename -v $d >/dev/null 2>&1
+        iscsiadm -m node -o new -T TGT -p $p:3260 -I mxfs-$d >/dev/null 2>&1
+        iscsiadm -m node -T TGT -p $p:3260 -I mxfs-$d --op update -n node.startup -v automatic >/dev/null 2>&1
+        echo "ISCSISET" | tr ";" "\n" | while read k v; do
+            [ -n "$k" ] && iscsiadm -m node -T TGT -p $p:3260 -I mxfs-$d --op update -n "$k" -v "$v" >/dev/null 2>&1
+        done
+        iscsiadm -m node -T TGT -p $p:3260 -I mxfs-$d --login >/dev/null 2>&1
     done
     iscsiadm -m session --rescan >/dev/null 2>&1
     for t in $(seq 1 15); do
         multipath >/dev/null 2>&1
         n=$(multipath -ll mpatha 2>/dev/null | grep -cE "[0-9]+:[0-9]+:[0-9]+:[0-9]+ +sd[a-z]+ ")
-        if [ -b /dev/mapper/mpatha ] && [ "${n:-0}" -ge 2 ]; then
+        if [ -b /dev/mapper/mpatha ] && [ "${n:-0}" -ge NPATHS ]; then
             sd=$(ls /sys/block/$(basename $(readlink -f /dev/mapper/mpatha))/slaves | head -1)
-            echo "LOGIN_OK paths=$n wwid=$(cat /sys/block/$sd/device/wwid 2>/dev/null | tr -d " ")"
+            echo "LOGIN_OK paths=$n nics=$(echo $nics | tr " " ,) wwid=$(cat /sys/block/$sd/device/wwid 2>/dev/null | tr -d " ")"
             exit 0
         fi
         sleep 2
@@ -241,7 +279,7 @@ NODE_LOGIN_MP=$NODE_UNMOUNT'
 
 NODE_LOGOUT=$NODE_UNMOUNT'
     multipath -F >/dev/null 2>&1
-    for p in PORTAL PORTAL2; do
+    for p in PORTAL MPLIST; do
         iscsiadm -m node -T TGT -p $p:3260 -u >/dev/null 2>&1
         iscsiadm -m node -T TGT -p $p:3260 -o delete >/dev/null 2>&1
     done
@@ -249,8 +287,13 @@ NODE_LOGOUT=$NODE_UNMOUNT'
 
 subst() {  # <snippet> <id>
     local s=${1//TGT/$(tgt_of "$2")}
-    s=${s//PORTAL2/${PORTAL2:-$PORTAL}}
+    s=${s//MPLIST/$MPLIST}
+    s=${s//NPATHS/$(echo $MPLIST | wc -w)}
     s=${s//PORTAL/$PORTAL}
+    case "$s" in *MPCONF*)
+        s=${s//MPCONF/$("$HERE/tools/mpath_settings.sh" multipath | base64 -w0)}
+        s=${s//ISCSISET/$("$HERE/tools/mpath_settings.sh" iscsi | tr '\n' ';')} ;;
+    esac
     echo "${s//DEVPATH/$(dev_of "$2")}"
 }
 
@@ -346,7 +389,7 @@ cmd_alloc() {
         esac
     done
     [ "${#nodes[@]}" -ge 1 ] || die "alloc needs at least one node"
-    case "$paths" in 1) ;; 2) [ -n "$PORTAL2" ] || die "--paths 2 needs a second portal: storage portal2= in $MXFS_LAB" ;;
+    case "$paths" in 1) ;; 2) [ "$(echo $MPLIST | wc -w)" -ge 2 ] || die "--paths 2 needs a portal per path on its own storage network: storage mpath=<ip>,<ip> in $MXFS_LAB (scripts/san_net.sh)" ;;
         *) die "--paths is 1 or 2" ;; esac
     local st; st=$(starttime_of "$owner")
     [ -n "$st" ] || die "owner pid $owner is not running"
@@ -566,6 +609,8 @@ case "${1:-}" in
     lookup)  shift; cmd_lookup "$@" ;;
     free)    shift; cmd_free "$@" ;;
     status)  cmd_status ;;
+    quiet)   # run a command while no allocation or release is in progress
+             shift; pool_lock 300; "$@"; rc=$?; pool_unlock; exit $rc ;;
     snapshot) shift; cmd_snapshot "$@" ;;
     destroy) shift; cmd_destroy "$@" ;;
     *) echo "usage: $0 create <count> [<size>] | up | alloc [--owner <pid>] [--what <text>] [--size <min>] <node>... | lookup --owner <pid> | lookup --nodes <a,b,..> | free <id>|--owner <pid> [--force] | status | snapshot <id> <label> | destroy <id>" >&2; exit 2 ;;

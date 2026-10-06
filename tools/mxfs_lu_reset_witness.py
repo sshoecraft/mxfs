@@ -37,6 +37,10 @@ THE DEVICE IS RESOLVED BY IDENTITY, NEVER BY PATH.  The caller names the LUN by
 the designator the node reports in /sys/block/<disk>/device/wwid.  A /dev/sdX
 that is not that LUN is refused, and so is an ambiguous match -- resetting the
 wrong logical unit destroys in-flight I/O on a device nobody was fencing.
+Several disks with that designator are accepted in exactly one case: every one
+of them is a path of the same single multipath map.  That is one logical unit
+reached over several sessions, a reset through any one session is a reset of
+that unit, and the first path whose session is logged in carries it.
 
 usage:
     mxfs_lu_reset_witness.py <nonce-hex16> <wwid> <epoch> <victim-tag> [report-path]
@@ -190,6 +194,34 @@ def resolve_by_wwid(want):
     return found
 
 
+def one_map(disks):
+    """The dm device every one of `disks` is a path of, or None.  A disk with
+    no holder, with more than one, or held by a different map than the others
+    is not a path of one map, and the match stays ambiguous."""
+    maps = set()
+    for d in disks:
+        try:
+            holders = sorted(os.listdir(os.path.join("/sys/block", d, "holders")))
+        except OSError:
+            return None
+        if len(holders) != 1 or not holders[0].startswith("dm-"):
+            return None
+        maps.add(holders[0])
+    if len(maps) != 1:
+        return None
+    dm = maps.pop()
+    uuid = readattr(os.path.join("/sys/block", dm, "dm", "uuid")) or ""
+    if not uuid.startswith("mpath-"):
+        return None
+    try:
+        slaves = sorted(os.listdir(os.path.join("/sys/block", dm, "slaves")))
+    except OSError:
+        return None
+    if slaves != sorted(disks):
+        return None
+    return dm
+
+
 def iscsi_paths(disk):
     """The iSCSI session and connection directories backing a disk, found by
     walking the device's own sysfs ancestry rather than by assuming there is
@@ -296,6 +328,25 @@ def main():
 
     matches = resolve_by_wwid(want)
     emit("WWID_MATCHES", len(matches))
+    if len(matches) > 1:
+        # Several disks: one logical unit only when they are exactly the
+        # paths of one multipath map.  Then the reset goes through the first
+        # path whose session is logged in; a path that is down cannot carry
+        # the function and is not a reason to refuse while another can.
+        dm = one_map([m[0] for m in matches])
+        emit("MPATH_MAP", dm if dm else "none")
+        if dm is None:
+            refuse("wwid-matches-%d" % len(matches))
+        live = []
+        for m in matches:
+            ps, pc = iscsi_paths(m[0])
+            if ps is not None and readattr(os.path.join(ps, "state")) == "LOGGED_IN":
+                live.append(m)
+        emit("MPATH_PATHS", len(matches))
+        emit("MPATH_PATHS_LOGGED_IN", len(live))
+        if not live:
+            refuse("no-path-logged-in")
+        matches = live[:1]
     if len(matches) != 1:
         # Zero: the LUN this fence is about is not attached here.  More than
         # one: ambiguous, and the right device cannot be chosen by guessing.

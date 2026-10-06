@@ -40,9 +40,13 @@ pass / mpath (fixed image named by the lab file's `paths image=`):
   mpath: the same target on two portals, multipathd in each VM
 ```
 
-The pool exports each LUN on one portal and never through clyde, so it serves
-`direct` only. The `:shared` chain needs a `paths image=` in the lab file; the
-dev host's names none, so there `pass` and `mpath` have no LUN.
+The pool exports every LUN on both portals the lab file names (`storage
+portal=` and `portal2=`) and never through clyde. A `direct` allocation logs
+each node in on the first portal; an `mpath` allocation
+(`tools/lun_pool.sh alloc --paths 2`) logs each node in on both and hands out
+the map multipathd assembles, `/dev/mapper/mpatha`. The `:shared` chain above
+is what `pass` still needs: a `paths image=` in the lab file, which the dev
+host's names none of, so there `pass` has no LUN.
 
 ## Scripts (all in `scripts/`, the source-tree rule)
 

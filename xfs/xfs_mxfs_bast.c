@@ -7665,6 +7665,38 @@ __mxfs_dlm_bast_notify(
 			 * holders) — fall through to the re-queue below, which drains
 			 * a mode==EX holder and transitions it toward a NL orphan. */
 		}
+		/*
+		 * A demoter that claimed this inode less than 10 s ago is a live
+		 * release on a path work_busy() cannot see (the MHT timer, a
+		 * transaction-deferred release, an inline drain).  Re-queuing
+		 * here started a SECOND bast_process beside it, and both reached
+		 * the unlock.  Measured on 4/net/mesh/mpath (path_fenced_return):
+		 * P126-DEMOTE-RACE dem_age_ms=1, P72-STALE-REQUEUE, then two
+		 * workers each printed P146-RELDUR and P147-PREUNLOCK for the
+		 * shared directory 30 us apart on its master; the second release
+		 * freed the master's own new shared grant while it was being
+		 * written, and the ledger kept that holder bit with nothing to
+		 * release it, refusing a peer's exclusive request until the peer
+		 * shut down.  The live demoter answers this BAST; the master
+		 * re-sends it if what the demoter leaves still conflicts.  A
+		 * demoter older than 10 s is the leak the strike gate above
+		 * already treats as dead, and is re-queued as before.
+		 */
+		if (!p72_busy && ip->i_dlm_demoter != NULL &&
+		    ktime_get_ns() - ip->i_dlm_demoter_set_ns <=
+			    10ULL * NSEC_PER_SEC) {
+			static atomic64_t p72live_total = ATOMIC64_INIT(0);
+
+			pr_warn_ratelimited("mxfs: P72-REQUEUE-LIVE-DEMOTER ino=%llu mode=%u dem_pid=%d dem_comm=%s dem_line=%u:%u dem_age_ms=%llu total=%lld — a live demoter is releasing this inode; no second bast_process\n",
+				(unsigned long long)ino, ip->i_dlm_mode,
+				ip->i_dlm_demoter_pid, ip->i_dlm_demoter_comm,
+				MXFS_SITE_ARGS(ip->i_dlm_demoter_line),
+				(unsigned long long)((ktime_get_ns() -
+					ip->i_dlm_demoter_set_ns) / NSEC_PER_MSEC),
+				(long long)atomic64_inc_return(&p72live_total));
+			xfs_irele(ip);
+			return;
+		}
 		if (!p72_busy) {
 			/* v0.10.45 STALE-DEMOTING RECOVERY: DEMOTING with the demote
 			 * work neither running nor queued is a lost-work race that

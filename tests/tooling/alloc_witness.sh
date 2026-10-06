@@ -367,9 +367,14 @@ rec "PHASE4 reuse_end_ns=$(date +%s%N)"
 
 # ---- the retained cohort: inode numbers, recorded outside the filesystem ----
 sleep 3
-for f in "$D/shared/r${RANK}_0" "$D/shared/r${RANK}_1" "$D/shared/r${RANK}_63" "$D/shared/r${RANK}_64" \
-         "$D/own_r$RANK/f0" "$D/own_r$RANK/f5b" "$D/own_r$RANK/f100" "$D/own_r$RANK/f199" \
-         "$D/disp_r$RANK/keep"; do
+# Every file this rank created and keeps is recorded, so each AG it carved in
+# and still holds a file of carries a retained inode.  A fixed list of nine
+# names left the cohort wherever those nine landed: on 2/net/mesh/mpath both
+# ranks' nine were all in AG 0 while rank 1 had carved one chunk in AG 4 and
+# rank 2 one in AG 1, and chk_clean ended VACUOUS ("covered AGs
+# without a retained inode") on a clean audit, twice.  An AG carved here whose
+# every file was since unlinked still has none, and is still reported.
+for f in "$D/shared/r${RANK}_"* "$D/own_r$RANK/"* "$D/disp_r$RANK/keep" "$D/disp_r$RANK/u"*; do
     [ -e "$f" ] || continue
     rec "COHORT ino=$(stat -c %i "$f") path=${f#$MNT/}"
 done

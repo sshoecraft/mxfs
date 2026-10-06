@@ -300,6 +300,10 @@ int  mxfs_v5_dlm_recovery_complete(struct mxfs_v5_dlm *ctx,
  * sleeps MXFS_RECOV_ABANDON_MS.
  */
 int  mxfs_v5_dlm_recovery_acquire(struct mxfs_v5_dlm *ctx, uint32_t dead_slot);
+/* After a refused acquire: how long to wait before the next one — short while
+ * a live peer is still finishing the fence, `idle_ms` otherwise. */
+uint32_t mxfs_v5_dlm_recovery_wait_ms(struct mxfs_v5_dlm *ctx, uint32_t dead_slot,
+				      uint32_t idle_ms);
 /*
  * The same acquire under a caller's remaining budget (ms; 0 = unbounded, the
  * worker-context form above).  An arm that must pay the MXFS_RECOV_ABANDON_MS

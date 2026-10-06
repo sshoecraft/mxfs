@@ -32,15 +32,21 @@
              "doc": "the hypervisor's initiator; the disk is passed into the VM as a SCSI LUN"},
     "drbd": {"implemented": false, "rig_mode": "drbd", "trial": true,
              "device": "/dev/drbd0",
-             "doc": "DRBD dual-primary replica of two local disks, admitted by its witness and fenced by its own proof profile instead of SCSI reservations (docs/attachment-methods.md). trial: the rig builds it (scripts/drbd_rig.sh) and a caller that sets MXFS_TRIAL=1 may name it; it is never a board column or in a release matrix"}
+             "doc": "DRBD dual-primary replica of two local disks, admitted by its witness and fenced by its own proof profile instead of SCSI reservations (docs/attachment-methods.md). Released as 2/net/mesh/drbd. The 'trial' flag is tooling: the attachment is verified by its own rig and board (scripts/drbd_rig.sh, MXFS_TRIAL=1) and is not a column of data/criteria.json or an entry of release_matrix; it says nothing about release status"}
   },
   "baseline": {"key": "1/xfs", "device": "/dev/sda",
                "doc": "native XFS on one node, no mxfs.ko: what the 2x performance ceiling is measured against"},
   "ladder_nodes": [1, 2, 4, 8, 16, 32],
   "release_matrix": [
     "2/net/mesh/direct", "4/net/mesh/direct", "8/net/mesh/direct", "16/net/mesh/direct",
-    "2/disk/caw/direct", "4/disk/caw/direct", "8/disk/caw/direct", "16/disk/caw/direct"
+    "2/disk/caw/direct", "4/disk/caw/direct", "8/disk/caw/direct", "16/disk/caw/direct",
+    "2/net/mesh/mpath", "4/net/mesh/mpath", "8/net/mesh/mpath", "16/net/mesh/mpath",
+    "2/disk/caw/mpath", "4/disk/caw/mpath", "8/disk/caw/mpath", "16/disk/caw/mpath"
   ],
+  "released_by_own_rig": {
+    "_": "Configurations a release claims that are verified by a rig and board of their own instead of a column of data/criteria.json. tools/release_text_check.py counts them as released when it checks the public text; scripts/release.sh --publish requires the named evidence for the version being published.",
+    "2/net/mesh/drbd": {"since": "0.90.41", "verified_by": "tests/drbd_release_verify.sh", "evidence": "tests/evidence/drbd_release_verify_<version>.out", "platforms": "Ubuntu 24.04, DRBD 8.4.11"}
+  },
   "retired_keys": {
     "_": "The condition codes the rig used before 0.90.37. A tool given one refuses it and names the replacement; only the migrations translate them.",
     "tcp": "net/mesh/direct",

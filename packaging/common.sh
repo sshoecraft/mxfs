@@ -154,6 +154,67 @@ mxfs_stage_manpages() {
     done
 }
 
+# Install everything a node needs besides the kernel module into a root
+# (a package staging directory, or / for `make install`).  The .deb and
+# `make install` both call this, so a source install gets the same files a
+# package does: the module alone mounts with the compiled-in parameter
+# defaults, formats nothing, and refuses every DRBD mount for want of the
+# witness.
+# Usage: mxfs_stage_node_files <dest_root>
+mxfs_stage_node_files() {
+    local root="$1"
+    local pkgdir="$SRCDIR/packaging"
+
+    echo "--- Building tools ---"
+    mxfs_build_tools "$root/usr/sbin"
+
+    # fsck.mxfs symlink for fstab integration
+    ln -sf chk_mxfs "$root/usr/sbin/fsck.mxfs"
+
+    # The witnessed LOGICAL UNIT RESET helper the module upcalls when a dead
+    # node's registration is already gone from the target (pal/linux/lureset.c's
+    # default path).  Without it that fence is refused and the survivor stays
+    # frozen, so it ships with the module, not with the test rig.
+    install -m 755 "$SRCDIR/tools/mxfs_lu_reset_witness.py" "$root/usr/sbin/mxfs_lu_reset_witness.py"
+
+    # The DRBD dual-primary attachment's two node-side pieces: the witness the
+    # module upcalls at mount, at a peer's death and before each recovery step
+    # (pal/linux/drbd.c), and DRBD's fence-peer handler, which the module requires
+    # the resource to name at exactly /usr/sbin/mxfs-drbd-fence-peer.  Without
+    # them every DRBD mount is refused.
+    install -m 755 "$SRCDIR/tools/mxfs_drbd_witness.py" "$root/usr/sbin/mxfs_drbd_witness.py"
+    install -m 755 "$SRCDIR/tools/mxfs_drbd_fence_peer.sh" "$root/usr/sbin/mxfs-drbd-fence-peer"
+
+    echo "--- Installing man pages ---"
+    mxfs_stage_manpages "$root"
+
+    # Module auto-load at boot
+    mkdir -p "$root/etc/modules-load.d"
+    echo "mxfs" > "$root/etc/modules-load.d/mxfs.conf"
+
+    # Module options.  This is the operator's file once installed: an existing
+    # one is kept (the packages mark it a conffile for the same reason) unless
+    # MXFS_OVERWRITE_CONFIG=1, which saves it as mxfs.conf.backup first —
+    # modprobe reads only *.conf, so the backup is inert.
+    mkdir -p "$root/etc/modprobe.d"
+    if [ -e "$root/etc/modprobe.d/mxfs.conf" ] && [ "${MXFS_OVERWRITE_CONFIG:-0}" = 1 ]; then
+        cp -p "$root/etc/modprobe.d/mxfs.conf" "$root/etc/modprobe.d/mxfs.conf.backup"
+        install -m 644 "$pkgdir/mxfs-modprobe.conf" "$root/etc/modprobe.d/mxfs.conf"
+        echo "  Replaced $root/etc/modprobe.d/mxfs.conf; the previous one is mxfs.conf.backup"
+    elif [ -e "$root/etc/modprobe.d/mxfs.conf" ]; then
+        echo "  Keeping existing $root/etc/modprobe.d/mxfs.conf (the shipped one is $pkgdir/mxfs-modprobe.conf;"
+        echo "  make install OVERWRITE=1 replaces it)"
+    else
+        install -m 644 "$pkgdir/mxfs-modprobe.conf" "$root/etc/modprobe.d/mxfs.conf"
+    fi
+
+    # udev rule: teach blkid/lsblk/mount to auto-detect MXFS by its on-disk
+    # magic, so `blkid`/`lsblk -f`/`mount` (no -t) recognize the fstype
+    # without needing it explicitly specified.
+    mkdir -p "$root/etc/udev/rules.d"
+    install -m 644 "$pkgdir/60-mxfs-blkid.rules" "$root/etc/udev/rules.d/60-mxfs-blkid.rules"
+}
+
 # Print banner
 mxfs_banner() {
     local version

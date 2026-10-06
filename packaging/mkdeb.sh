@@ -36,45 +36,9 @@ mxfs_stage_kmod_source "$DKMS_DST"
 # Install dkms.conf with version substituted
 sed "s/__VERSION__/$VERSION/" "$SCRIPTDIR/dkms.conf" > "$DKMS_DST/dkms.conf"
 
-# --- 2. Userspace tools ---
-echo "--- Building tools ---"
-mxfs_build_tools "$STAGING/usr/sbin"
-
-# fsck.mxfs symlink for fstab integration
-ln -sf chk_mxfs "$STAGING/usr/sbin/fsck.mxfs"
-
-# The witnessed LOGICAL UNIT RESET helper the module upcalls when a dead
-# node's registration is already gone from the target (pal/linux/lureset.c's
-# default path).  Without it that fence is refused and the survivor stays
-# frozen, so it ships with the module, not with the test rig.
-install -m 755 "$SRCDIR/tools/mxfs_lu_reset_witness.py" "$STAGING/usr/sbin/mxfs_lu_reset_witness.py"
-
-# The DRBD dual-primary attachment's two node-side pieces: the witness the
-# module upcalls at mount, at a peer's death and before each recovery step
-# (pal/linux/drbd.c), and DRBD's fence-peer handler, which the module requires
-# the resource to name at exactly /usr/sbin/mxfs-drbd-fence-peer.  Without
-# them every DRBD mount is refused.
-install -m 755 "$SRCDIR/tools/mxfs_drbd_witness.py" "$STAGING/usr/sbin/mxfs_drbd_witness.py"
-install -m 755 "$SRCDIR/tools/mxfs_drbd_fence_peer.sh" "$STAGING/usr/sbin/mxfs-drbd-fence-peer"
-
-# --- 3. Man pages ---
-echo "--- Installing man pages ---"
-mxfs_stage_manpages "$STAGING"
-
-# --- 4. Module auto-load config ---
-mkdir -p "$STAGING/etc/modules-load.d"
-echo "mxfs" > "$STAGING/etc/modules-load.d/mxfs.conf"
-
-# --- 4a. Transport: TCP is the released configuration; the module's own
-# default forms a new cluster on CAW, which is still in development.
-mkdir -p "$STAGING/etc/modprobe.d"
-cp "$SCRIPTDIR/mxfs-modprobe.conf" "$STAGING/etc/modprobe.d/mxfs.conf"
-
-# --- 4b. udev rule: teach blkid/lsblk/mount to auto-detect MXFS by its
-# on-disk magic, so `blkid`/`lsblk -f`/`mount` (no -t) recognize the fstype
-# without needing it explicitly specified.
-mkdir -p "$STAGING/etc/udev/rules.d"
-cp "$SCRIPTDIR/60-mxfs-blkid.rules" "$STAGING/etc/udev/rules.d/60-mxfs-blkid.rules"
+# --- 2-4. Tools, helpers, man pages, module config, udev rule ---
+# The same list `make install` installs (packaging/common.sh).
+mxfs_stage_node_files "$STAGING"
 
 # --- 5. DEBIAN control files ---
 mkdir -p "$STAGING/DEBIAN"

@@ -1560,6 +1560,7 @@ extern atomic64_t mxfs_dlm_stat_demote_wait_max;
 extern atomic64_t mxfs_dlm_stat_demote_wait_trans;
 extern atomic64_t mxfs_dlm_stat_demote_wait_dirty;
 extern atomic64_t mxfs_dlm_stat_postlatch_adopt;
+extern atomic64_t mxfs_dlm_stat_ag_cached_phantom;
 extern atomic64_t mxfs_dlm_stat_handoff_q_gt500;
 extern atomic64_t mxfs_dlm_stat_handoff_q_max;
 extern atomic64_t mxfs_dlm_stat_handoff_wq_gt500;

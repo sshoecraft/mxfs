@@ -427,6 +427,19 @@ struct xfs_perag {
 	 */
 	bool			pag_dlm_latched;
 	bool			pag_dlm_prepass_done;
+	/*
+	 * One runner finishes a committed release.  The release function is
+	 * not only the queued worker: a thread on the slow inode-lock road
+	 * runs it inline for a cached AG with a revocation pending, and
+	 * several can be in its pre-COMMIT pass at once.  Each one that then
+	 * found the COMMIT taken went on to the drains and the wire unlock,
+	 * so one tenure was unlocked two, three, four times; an unlock that
+	 * lands after the first has completed releases whatever grant this
+	 * node holds on the AG by then.  Set under pag_dlm_lock by the runner
+	 * that goes past the COMMIT, cleared when that runner is done; a
+	 * runner that finds it set leaves the release to its owner.
+	 */
+	bool			pag_dlm_finishing;
 	u64			pag_dlm_latch_ns;
 	u64			pag_dlm_bast_rx_ns;	/* first rx of this generation */
 	/*

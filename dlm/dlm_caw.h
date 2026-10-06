@@ -553,6 +553,11 @@ struct mxfs_dlm_caw_ctx {
 	 */
 	volatile uint64_t       protected_mask;
 	uint64_t                guard_refused;      /* diagnostic counter */
+	/* A swap whose answer was lost (see caw_slot_ex): how often the retry
+	 * found its own write in the slot, and how often it could not tell. */
+	uint64_t                answer_lost_landed;
+	uint64_t                answer_lost_unresolved;
+	uint64_t                wait_reg_lost;     /* waits that found their registration gone and registered again */
 
 	/* BAST poll thread */
 	mxfs_thread_t           *bast_poll_thread;

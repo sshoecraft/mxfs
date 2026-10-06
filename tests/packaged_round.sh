@@ -323,7 +323,10 @@ every lun 60 "
     for i in \$(seq 1 10); do [ -b $LUN ] && break; sleep 1; done
     [ -b $LUN ] && echo lun_ok; mkdir -p $MNT" || die "the shared LUN is not present on every node"
 for h in $NODES; do grep -q "^startup=automatic" "$EV/lun_$h.log" || die "$h: the storage target is not set to log in at boot"; done
-on $A 30 "sg_persist --in --read-keys $LUN; sg_persist --out --register --param-sark=0x4d58465352455431 $LUN >/dev/null 2>&1; sg_persist --out --clear --param-rk=0x4d58465352455431 $LUN >/dev/null 2>&1; sg_persist --in --read-keys $LUN" > "$EV/pr_clear_$A.log" 2>&1
+# REGISTER AND IGNORE EXISTING KEY: a plain REGISTER is refused when the key a
+# failed earlier round left behind sits on this node's own nexus (measured: the
+# round after a hung mount stopped here with that node's key still listed)
+on $A 30 "sg_persist --in --read-keys $LUN; sg_persist --out --register-ignore --param-sark=0x4d58465352455431 $LUN >/dev/null 2>&1; sg_persist --out --clear --param-rk=0x4d58465352455431 $LUN >/dev/null 2>&1; sg_persist --in --read-keys $LUN" > "$EV/pr_clear_$A.log" 2>&1
 grep -q "NO registered reservation keys" "$EV/pr_clear_$A.log" || die "stale PR keys remain on the LUN (see pr_clear_$A.log)"
 on $A 120 "mkfs.mxfs -f $LUN; echo mkfs_rc=\$?" > "$EV/mkfs_$A.log" 2>&1
 grep -q "mkfs_rc=0" "$EV/mkfs_$A.log" && pass "mkfs.mxfs" || die "mkfs.mxfs (see mkfs_$A.log)"
@@ -345,8 +348,15 @@ mount_all() {  # label mode — mode: none (no options), peer (peer=/peers= by a
         # persistent.  0.90.39's rhel9 postboot joiner overran 60 s with
         # nothing left to say where it waited.  A mount still running in the
         # kernel keeps running; this reads its log, it does not stop it.
-        grep -q mount_rc=0 "$EV/${lbl}_mount_$h.log" ||
+        # Where it is waiting is in the mount task's kernel stack, and what it
+        # is waiting for is in the log of the node that formed the cluster:
+        # the second occurrence (debian13, 0.90.47) kept neither and left the
+        # wait unplaced between the recovery barrier and the end of the mount.
+        if ! grep -q mount_rc=0 "$EV/${lbl}_mount_$h.log"; then
             on $h 30 "date -u; grep ' $MNT ' /proc/mounts; dmesg -T" > "$EV/${lbl}_mount_fail_kernlog_$h.log" 2>&1
+            on $h 30 "date -u; for s in /proc/[0-9]*/stat; do d=\${s%/stat}; c=\$(cat \$d/comm 2>/dev/null); st=\$(sed 's/.*) //' \$s 2>/dev/null | cut -d' ' -f1); if [ \"\$c\" = mount ] || [ \"\$st\" = D ]; then echo \"TASK pid=\${d#/proc/} comm=\$c state=\$st\"; cat \$d/stack 2>/dev/null; fi; done" > "$EV/${lbl}_mount_fail_stacks_$h.log" 2>&1
+            [ "$h" = "$A" ] || on $A 30 "date -u; dmesg -T | grep -a -i mxfs | tail -400" > "$EV/${lbl}_mount_fail_kernlog_first_$A.log" 2>&1
+        fi
     done
     for h in $NODES; do grep -q mount_rc=0 "$EV/${lbl}_mount_$h.log" || ok=0; done
     if [ $ok = 1 ]; then

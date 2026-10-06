@@ -21,6 +21,10 @@
 # The containers use the host network: on clyde, docker's bridge network has
 # no outbound TCP, so apt/dnf inside a bridged container cannot reach a mirror.
 #
+# Before anything else, tools/release_text_check.py must pass: the README, the
+# manual pages, the module-options file and the module's parameter text are
+# checked against the release data, and a disagreement stops the run.
+#
 # --publish creates GitHub release v<version> on sshoecraft/mxfs with the
 # packages attached.  If dist/<version>/ already holds a build, --publish
 # checks it against its SHA256SUMS and publishes it without rebuilding.  Release notes are this version's CHANGELOG.md section
@@ -85,6 +89,15 @@ mkdir -p "$OUT"
 
 owner="$(id -u):$(id -g)"
 
+# The text a user reads must say what the release data says, before anything is
+# built from it and again before it is published: the README, the manual pages
+# and the installed module-options file go into the packages.  Two releases
+# shipped describing released configurations as trials or as unverified.
+python3 "$SRCDIR/tools/release_text_check.py" || {
+    echo "ERROR: the public text disagrees with the release data (lines above); fix the text, then run this again" >&2
+    exit 1
+}
+
 if [ "$built" = 0 ]; then
     # Every platform a release claims (data/platforms.json, status released)
     # must compile the module before any package is built: the rig's kernel
@@ -129,6 +142,31 @@ python3 "$SRCDIR/tools/platforms.py" check --version "$VERSION" || {
     echo "ERROR: record each verification with tools/platforms.py verify, then publish" >&2
     exit 1
 }
+
+# A configuration verified by a rig of its own (data/configurations.json,
+# released_by_own_rig) is claimed only with that rig's verdict for this exact
+# version: no board column goes red when its run is left out.
+python3 - "$SRCDIR" "$VERSION" <<'PYEOF' || { echo "ERROR: run the named verification for $VERSION, then publish" >&2; exit 1; }
+import json, sys
+from pathlib import Path
+root, version = Path(sys.argv[1]), sys.argv[2]
+own = json.loads((root / "data/configurations.json").read_text()).get("released_by_own_rig", {})
+bad = 0
+for cfg, rec in own.items():
+    if cfg == "_":
+        continue
+    ev = root / rec["evidence"].replace("<version>", version)
+    last = ev.read_text(errors="replace").strip().splitlines()[-1] if ev.exists() and ev.stat().st_size else ""
+    if not last.startswith("DRBD_RELEASE_VERIFY PASS version=%s " % version) and \
+       not (" PASS version=%s " % version) in last:
+        print("ERROR: %s is claimed but %s does not end in a PASS for %s (%s; run %s %s)"
+              % (cfg, ev.relative_to(root), version, last[:120] or "no verdict line",
+                 rec["verified_by"], version), file=sys.stderr)
+        bad = 1
+    else:
+        print("%s: %s" % (cfg, last))
+sys.exit(bad)
+PYEOF
 
 if [ -z "$notes" ]; then
     notes="$OUT/CHANGELOG_NOTES.md"

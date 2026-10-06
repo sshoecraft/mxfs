@@ -26,6 +26,7 @@
 #include "xfs_ialloc.h"
 #include "../../dlm/v5_mount.h"	/* mxfs_v5_dlm_is_single_node + pal log */
 #include "xfs_mxfs_dlm.h"	/* mxfs_dlm_note_dir_modified */
+#include <linux/iversion.h>	/* the change count P-DIR-NLINK-SHORT reports */
 
 const struct xfs_name xfs_name_dotdot = {
 	.name	= (const unsigned char *)"..",
@@ -1679,6 +1680,23 @@ xfs_dir_remove_child(
 		error = xfs_droplink(tp, dp);
 		if (error)
 			return error;
+		/*
+		 * A parent that still has a name and has just lost a subdirectory
+		 * keeps "." and its own entry: below 2 here means the count was
+		 * already one short before this rmdir — a subdirectory's increment
+		 * was lost earlier, by this node or a peer.  Seen as a cold-audit
+		 * CORRUPT (directory nlink 1, two entries naming it) on
+		 * 8/net/mesh/mpath; this names the node and the moment it shows.
+		 */
+		if (VFS_I(dp)->i_nlink < 2 && VFS_I(dp)->i_nlink != 0)
+			pr_err_ratelimited("mxfs: P-DIR-NLINK-SHORT dp=%llu nlink=%u cc=%llu child=%llu name=\"%.*s\" dlm_mode=%d comm=%s realns=%llu — a live directory's link count went below 2 at rmdir: an earlier subdirectory increment of it was lost\n",
+				(unsigned long long)dp->i_ino,
+				VFS_I(dp)->i_nlink,
+				(unsigned long long)inode_peek_iversion(VFS_I(dp)),
+				(unsigned long long)ip->i_ino,
+				name->len, (const char *)name->name,
+				dp->i_dlm_mode, current->comm,
+				(unsigned long long)ktime_get_real_ns());
 
 		/* Drop the "." link from ip to self.  */
 		error = xfs_droplink(tp, ip);

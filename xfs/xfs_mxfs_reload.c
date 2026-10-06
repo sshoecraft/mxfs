@@ -22,6 +22,20 @@ module_param_named(reload_demote_wait_ms, mxfs_reload_demote_wait_ms, int, 0644)
 MODULE_PARM_DESC(reload_demote_wait_ms,
 	"ms to wait for an active release drain before abandoning a reload (P34J); 0=bail immediately (earlier)");
 
+/*
+ * The directory format-revert guard, counted: how often a clean block-form
+ * fork behind the platter was replaced under a fresh EX grant, and how often
+ * the guard kept the in-core block-form fork.  Read at the end of a lap; a
+ * node's kernel log holds about two minutes under load.
+ */
+long mxfs_dir_fmtrevert_behind_total;
+module_param_named(dir_fmtrevert_behind_total, mxfs_dir_fmtrevert_behind_total, long, 0444);
+MODULE_PARM_DESC(dir_fmtrevert_behind_total,
+	"clean block-form directory forks behind the platter replaced under a fresh EX grant");
+long mxfs_dir_fmtrevert_keep_total;
+module_param_named(dir_fmtrevert_keep_total, mxfs_dir_fmtrevert_keep_total, long, 0444);
+MODULE_PARM_DESC(dir_fmtrevert_keep_total,
+	"times the format-revert guard kept an in-core block-form directory over a shortform platter image");
 int mxfs_dir_epoch_adopt;	/* DEFAULT 0 (was 1). PROVEN REGRESSION: epoch_adopt=1 sets genuine_handoff=true, which BYPASSES the P33-DIRGROW-REVERT-SKIP / P43-FMTREVERT-SKIP guards (`if ((dg_inflight||dirty||grant_held) && !genuine_handoff)`) so mxfs_dlm_reload_inode runs xfs_idestroy_fork+xfs_inode_from_disk and ADOPTS a STALE-SMALLER disk dinode (our just-grown dir block not yet destaged) -> SHRINKS the in-core data fork -> a leaf-referenced logical block becomes DELAYSTARTBLOCK(-2)/hole -> xfs_dabuf_map !HOLE_OK (P21H-LEAFHOLE) AND xfs_free_ag_extent ltbno+ltlen>bno (AG double-free) -> FS SHUTDOWN. Only triggers under heavy cross-node handoff churn (8-node: deterministic shutdown ~round 10; 4-node clean). MEASURED: epoch_adopt=1 -> 8/tcp dir_reuse 0/8 SHUTDOWN; epoch_adopt=0 -> 8/8 PASS, 0 RDMISS, 0 shutdown (recovers the mht=300-masked working state). The reload now KEEPS the authoritative in-core fork when dirty/grant-held (correct: our committed-not-destaged grow is authoritative; disk lags). See `docs/history/8node-shutdown-is-agdoublefree-from-epochadopt-stale-reload.md` `docs/history/sess18run-milestone-8tcp-dirreuse-passes-correct-mht300-speed-only-residual.md`. */
 module_param_named(dir_epoch_adopt, mxfs_dir_epoch_adopt, int, 0644);
 int mxfs_dir_lower_block0_wins;	/* when 1, a block<->block same-incarnation reload REFUSES to adopt a disk block0 HIGHER than our in-core one (deterministic lowest-block0-wins dir-block0 convergence -> node1_f1 preserved). */
@@ -2755,11 +2769,49 @@ static int mxfs_reload_dir_format_revert_guard(struct xfs_inode *ip,
 				     test_bit(XFS_LI_IN_AIL,
 					      &dfr_iip->ili_item.li_flags)));
 		bool dfr_grant_held = (ip->i_dlm_mode == MXFS_LOCK_EX);
+		/*
+		 * Holding EX says nothing about where the in-core fork came from:
+		 * the acquire path sets i_dlm_mode to its target before this
+		 * reload runs, so a node that has only just been granted EX reads
+		 * as the holder.  Measured on 4/net/mesh/mpath (cold audit CORRUPT,
+		 * three laps of three): a node loaded the directory in block
+		 * format under a shared grant while a peer's mkdir had it there,
+		 * the peer's rmdir shrank it back to shortform and freed the
+		 * child, and this node, granted EX 120 ms later with a clean block
+		 * fork (change count 195333 against the platter's 195339), kept
+		 * the block fork here and published it: the removed name came
+		 * back naming a free inode, two later renames were lost and the
+		 * link count went back up.  A clean fork whose change count is
+		 * behind the platter's is older than the platter, whatever the
+		 * grant; the stale pre-conversion flush this guard exists for is
+		 * the opposite order and is still refused.
+		 */
+		bool dfr_behind = !dfr_dirty &&
+			be64_to_cpu((*dip_ref)->di_changecount) >
+			inode_peek_iversion(VFS_I(ip));
+
+		if (dfr_behind && dfr_grant_held && !genuine_handoff) {
+			static atomic_t p43b = ATOMIC_INIT(0);
+
+			WRITE_ONCE(mxfs_dir_fmtrevert_behind_total,
+				   READ_ONCE(mxfs_dir_fmtrevert_behind_total) + 1);
+			if (atomic_inc_return(&p43b) <= 200)
+				pr_warn("mxfs: P43-ADOPT-BEHIND ino=%llu incore_fmt=%u incore_chg=%llu disk_chg=%llu mem_size=%lld disk_size=%lld gen=%u — clean block fork behind the platter under a fresh EX grant; adopting the shortform image\n",
+					(unsigned long long)ip->i_ino,
+					ip->i_df.if_format,
+					(unsigned long long)inode_peek_iversion(VFS_I(ip)),
+					(unsigned long long)be64_to_cpu((*dip_ref)->di_changecount),
+					(long long)ip->i_disk_size,
+					(long long)be64_to_cpu((*dip_ref)->di_size),
+					(unsigned)VFS_I(ip)->i_generation);
+		}
 
 		/* a genuine cross-node handoff means a peer held EX and
 		 * committed this block->shortform shrink; our prior tenure drained
 		 * at release, so disk is authoritative — adopt, do not keep stale. */
-		if ((dfr_dirty || dfr_grant_held) && !genuine_handoff) {
+		if ((dfr_dirty || (dfr_grant_held && !dfr_behind)) && !genuine_handoff) {
+			WRITE_ONCE(mxfs_dir_fmtrevert_keep_total,
+				   READ_ONCE(mxfs_dir_fmtrevert_keep_total) + 1);
 			mxfs_pal_log(MXFS_LOG_ERR,
 				"mxfs: P43-DIR-FMTREVERT-SKIP ino=%llu incore_fmt=%u incore_nx=%llu mem_size=%lld disk_fmt=LOCAL disk_size=%lld gen=%u dirty=%d held=%d(mode=%u) — keeping authoritative in-core BLOCK dir (block->shortform revert for same incarnation is stale; adopting it would re-init block0 and lose live dirents)",
 				(unsigned long long)ip->i_ino,
@@ -5191,11 +5243,34 @@ mxfs_dlm_reload_inode_under(
 				     test_bit(XFS_LI_IN_AIL,
 					      &dfr_iip->ili_item.li_flags)));
 		bool dfr_grant_held = (ip->i_dlm_mode == MXFS_LOCK_EX);
+		/* a clean fork behind the platter's change count is not the
+		 * holder's own work, whatever the grant (see the early guard) */
+		bool dfr_behind = !dfr_dirty &&
+			be64_to_cpu(dip->di_changecount) >
+			inode_peek_iversion(VFS_I(ip));
+
+		if (dfr_behind && dfr_grant_held && !genuine_handoff) {
+			static atomic_t p43b = ATOMIC_INIT(0);
+
+			WRITE_ONCE(mxfs_dir_fmtrevert_behind_total,
+				   READ_ONCE(mxfs_dir_fmtrevert_behind_total) + 1);
+			if (atomic_inc_return(&p43b) <= 200)
+				pr_warn("mxfs: P43B-ADOPT-BEHIND-SNAP ino=%llu incore_fmt=%u incore_chg=%llu disk_chg=%llu mem_size=%lld disk_size=%lld gen=%u — clean block fork behind the platter under a fresh EX grant; adopting the shortform image\n",
+					(unsigned long long)ip->i_ino,
+					ip->i_df.if_format,
+					(unsigned long long)inode_peek_iversion(VFS_I(ip)),
+					(unsigned long long)be64_to_cpu(dip->di_changecount),
+					(long long)ip->i_disk_size,
+					(long long)be64_to_cpu(dip->di_size),
+					(unsigned)VFS_I(ip)->i_generation);
+		}
 
 		/* a genuine cross-node handoff means a peer held EX and
 		 * committed this block->shortform shrink; our prior tenure drained
 		 * at release, so disk is authoritative — adopt, do not keep stale. */
-		if ((dfr_dirty || dfr_grant_held) && !genuine_handoff) {
+		if ((dfr_dirty || (dfr_grant_held && !dfr_behind)) && !genuine_handoff) {
+			WRITE_ONCE(mxfs_dir_fmtrevert_keep_total,
+				   READ_ONCE(mxfs_dir_fmtrevert_keep_total) + 1);
 			mxfs_pal_log(MXFS_LOG_ERR,
 				"mxfs: P43B-DIR-FMTREVERT-SNAP-SKIP ino=%llu incore_fmt=%u incore_nx=%llu mem_size=%lld disk_fmt=LOCAL disk_size=%lld gen=%u dirty=%d held=%d(mode=%u) — keeping authoritative in-core BLOCK dir (post-spin snapshot block->shortform revert for same incarnation is stale; adopting it would re-init block0 and lose live dirents)",
 				(unsigned long long)ip->i_ino,

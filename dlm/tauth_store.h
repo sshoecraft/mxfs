@@ -47,7 +47,12 @@ struct mxfs_tauth_store {
                     ticket_takeovers, /* abandoned ticket of a fenced writer */
                     ticket_resumes, /* our own abandoned ticket */
                     stolen,         /* publish CAW lost: protocol/fencing fault */
-                    superseded;     /* readback shows a later commit: ours landed */
+                    superseded,     /* readback shows a later commit: ours landed */
+                    target_refused; /* a write bounced RESERVATION CONFLICT:
+                                     * this initiator's key is off the LUN.  A
+                                     * bulk pass stops when this moves, rather
+                                     * than send one refused command per page
+                                     * until the heartbeat closes the authority */
     /* (D-0349 instrumented): per-phase commit cost in ms — totals + max */
     uint64_t        ph_ticket_ms, ph_ticket_max, ph_body_ms, ph_body_max,
                     ph_publish_ms, ph_publish_max, ph_flush_ms, ph_flush_max,

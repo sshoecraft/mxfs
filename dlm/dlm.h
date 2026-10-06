@@ -144,6 +144,7 @@ struct mxfs_dlm_pending {
 	mxfs_cond_t             *cond;
 	bool                    done;
 	uint8_t                 granted_mode;
+	uint8_t                 want_mode;      /* the mode this wait asked for; NL = any grant answers it */
 	int                     status;         /* 0 or negative errno */
 	mxfs_epoch_t            request_epoch;  /* epoch when request was sent */
 	uint32_t                req_id;         /* idempotent retry id */
@@ -672,6 +673,13 @@ struct mxfs_dlm_ctx {
 				handoff_not_owner, handoff_activations,
 				handoff_prepares, handoff_parked,
 				handoff_takeovers, handoff_retargets,
+				handoff_retarget_departed,  /* pages prepared for a node
+							     * that left the view, taken
+							     * back for a request */
+				handoff_relay_on_ask,       /* pages prepared to this
+							     * node and never consumed,
+							     * activated when their new
+							     * owner asked */
 				handoff_ondemand,
 				handoff_takeover_interrupted, /* D-0953: bulk passes
 														   * stopped between pages
@@ -684,6 +692,10 @@ struct mxfs_dlm_ctx {
 							handoff_refused_leaving,      /* D-0953: FROZEN hand-offs
 														   * to a leaving mount, left
 														   * PREPARED for the successor */
+							handoff_self_consumed,   /* takeovers that activated a
+													  * page a departed authority
+													  * had prepared to this mount
+													  * and whose FROZEN never came */
 							handoff_stale_targets,   /* 0.75.18: hand-offs refused
 													  * because the view moved
 													  * during the freeze drain */
@@ -878,6 +890,20 @@ struct mxfs_dlm_ctx {
 	uint64_t                acq_grant_vanished; /* mirror gone before the claim */
 	uint64_t                acq_grant_released; /* no claimant; handed back */
 	uint64_t                acq_grant_bounced;  /* no wait at all; bounced */
+	uint64_t                grant_below_want;   /* a grant below a wait's mode left it pending */
+	uint64_t                ledger_deny_waits;  /* ledger-error denies from a master, waited
+						     * out as unanswered instead of failed */
+	uint64_t                unlock_fallback_inflight_skips; /* a release with no granted
+							     * entry left a PENDING_* transition alone */
+	/* dlm_wire_release_all in progress: a master whose release send failed
+	 * after its retries is not sent the rest (they are left to its departure
+	 * purge, as an unacked release is).  One departed peer otherwise cost
+	 * 200 ms per grant: 62 s of unmount for ~310 grants (8/net/mesh/mpath). */
+	bool                    relall_active;
+	int                     relall_unreachable_n;
+	mxfs_node_id_t          relall_unreachable[8];
+	uint64_t                relall_unreachable_skips;
+	uint64_t                relall_send_fail;   /* release sends that failed after retries */
 };
 
 /* page_state */

@@ -125,7 +125,29 @@ N=32 (confirm presentation), then torn down to bare (2nd alias removed).
 real-2-network fidelity (path failover) remains deferred. The mxfs *kernel* CAW/PR
 code running on the mpath device is FS work, but the storage layer supports it.
 
-## Starting point for the mxfs KERNEL multipath work (handoff)
+## What the kernel paths turned out to need: nothing
+
+The code map below was written before MXFS had been mounted on a multipath
+map. Mounted on one, with both lock managers at 2, 4, 8 and 16 nodes, the full
+suite passes with no multipath-specific change to the module:
+
+- **COMPARE AND WRITE** rides the dm queue to one live path as one command;
+  `pal/linux/kern.c` retries a passthrough command that returns UNIT
+  ATTENTION, which is what the first command after a path event gets.
+- **Persistent reservations** go through the block layer's `pr_ops`, and
+  dm-multipath registers the key on every path under the map, so a fenced
+  node is refused on both paths and a survivor's I/O is not refused on the
+  path that did not carry the registration.
+- **Device identity**: a map has no SCSI identifier of its own, and its dm
+  uuid is multipath's spelling of the LUN's (`mpath-2<x>` for `eui.<x>`). The
+  harness identifies a map by the identifier its paths agree on
+  (`tests/setup/dev_identity.sh`).
+
+Still deferred, as decided above: two paths here are two portals of one target
+on one network, and nothing removes a path under load. Path failover needs the
+real two-network rig.
+
+## Starting point for the mxfs KERNEL multipath work (as written before the first mount)
 
 The infra/storage substrate is proven (above). The remaining work is making
 mxfs's OWN kernel CAW/PR paths run when mounted on `/dev/mapper/mpathX`. Confirmed

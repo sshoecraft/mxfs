@@ -241,6 +241,8 @@ void mxfs_authority_put(struct mxfs_authority *auth);
 
 /* THE GATE.  Nothing here can reach the LUN, block, allocate, or reopen. */
 bool mxfs_authority_ok(struct mxfs_authority *auth);
+/* Milliseconds of authority left: 0 unless admitted and before the deadline. */
+uint64_t mxfs_authority_remaining_ms(struct mxfs_authority *auth);
 void mxfs_authority_renew(struct mxfs_authority *auth, uint64_t anchor_ms,
 			  uint64_t last_ok_ms);
 void mxfs_authority_close(struct mxfs_authority *auth, int reason,

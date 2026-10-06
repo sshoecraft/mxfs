@@ -307,6 +307,28 @@ xlog_recover_inode_dbroot(
 	return 0;
 }
 
+/*
+ * The foreign replay's changecount gate compares a dead peer's inode image
+ * with the newer of the buffer slot's and the platter's counts (0.90.54).
+ * 0 = the pre-0.90.54 gate, which trusted the buffer slot alone: a same-build
+ * control arm for tests/mpath/replay_gate_lag.sh, never a production value.
+ */
+static int mxfs_replay_gate_platter = 1;
+module_param_named(replay_gate_platter, mxfs_replay_gate_platter, int, 0644);
+MODULE_PARM_DESC(replay_gate_platter,
+	"foreign replay gate takes the newer of slot and platter change counts (1, default); 0 = slot only (test control)");
+
+/*
+ * TEST ONLY: the gate reads the buffer slot's change count as this many
+ * changes behind what the slot holds, as a survivor's cached copy is when
+ * peers have published since it last held the inode.  Exercises the gate's
+ * stale-base case on every image instead of on the rare one.  0 = off.
+ */
+static unsigned int mxfs_dbg_replay_gate_buf_lag;
+module_param_named(dbg_replay_gate_buf_lag, mxfs_dbg_replay_gate_buf_lag, uint, 0644);
+MODULE_PARM_DESC(dbg_replay_gate_buf_lag,
+	"TEST: the replay gate reads the buffer slot's change count this many changes low (0 = off)");
+
 STATIC int
 xlog_recover_inode_commit_pass2(
 	struct xlog			*log,
@@ -328,6 +350,7 @@ xlog_recover_inode_commit_pass2(
 	uint				isize;
 	int				need_free = 0;
 	xfs_failaddr_t			fa;
+	bool				image_applied = false;
 
 	if (item->ri_buf[0].iov_len == sizeof(struct xfs_inode_log_format)) {
 		in_f = item->ri_buf[0].iov_base;
@@ -426,6 +449,19 @@ xlog_recover_inode_commit_pass2(
 		if (xlog_is_mxfs_untrusted_replay(log)) {
 			uint64_t	disk_cc = be64_to_cpu(dip->di_changecount);
 			uint64_t	log_cc  = ldip->di_changecount;
+			unsigned int	lag = READ_ONCE(mxfs_dbg_replay_gate_buf_lag);
+
+			if (lag && xlog_is_mxfs_foreign_replay(log)) {
+				static atomic_t plag_n = ATOMIC_INIT(0);
+
+				if (atomic_inc_return(&plag_n) <= 200)
+					pr_warn("mxfs: P77-GATE-LAG-INJECT ino=%lld buf_cc=%llu reads_as=%llu log_cc=%llu — TEST: the gate sees the slot %u changes behind\n",
+						(long long)in_f->ilf_ino,
+						(unsigned long long)disk_cc,
+						(unsigned long long)(disk_cc > lag ? disk_cc - lag : 0),
+						(unsigned long long)log_cc, lag);
+				disk_cc = disk_cc > lag ? disk_cc - lag : 0;
+			}
 
 			/*
 			 * Every verdict of this gate is named, with both sides'
@@ -462,6 +498,54 @@ xlog_recover_inode_commit_pass2(
 					be16_to_cpu(dip->di_mode), ldip->di_mode,
 					be32_to_cpu(dip->di_gen), ldip->di_gen,
 					(disk_cc >= log_cc) ? "SKIP" : "APPLY"); }
+
+			/*
+			 * The comparison above is against this buffer's slot.  For
+			 * an inode this node has in core that is this node's own
+			 * cached copy (the baseline refresh leaves it alone), which
+			 * is behind the platter whenever peers have published since
+			 * this node last held the inode; an APPLY against it that
+			 * the platter refutes would be a revert published on the
+			 * recovery's authority.  So the gate takes the newer of the
+			 * two counts: the platter's when peers have moved past this
+			 * node's copy, the slot's when this node's own unflushed
+			 * change is ahead of the platter.  A platter read that fails
+			 * fails the replay (retryable), as the baseline read does.
+			 */
+			if (xlog_is_mxfs_foreign_replay(log) && mp->m_sb.sb_inodelog) {
+				uint64_t pcc = 0;
+				int prc = mxfs_recov_slot_platter_cc(bp,
+						in_f->ilf_boffset >> mp->m_sb.sb_inodelog,
+						&pcc);
+
+				if (prc && prc != -ENOENT) {
+					pr_warn_ratelimited("mxfs: P77-PLATTER-CC-FAIL ino=%lld rc=%d — platter read for the replay gate failed; failing this replay\n",
+						(long long)in_f->ilf_ino, prc);
+					error = prc;
+					goto out_release;
+				}
+				if (prc == 0 && pcc != disk_cc &&
+				    (pcc >= log_cc) != (disk_cc >= log_cc))
+					pr_warn_ratelimited("mxfs: P77-STALE-BASE-VERDICT ino=%lld buf_cc=%llu platter_cc=%llu log_cc=%llu buf_verdict=%s verdict=%s — the slot and the platter disagree; the gate follows the newer count\n",
+						(long long)in_f->ilf_ino,
+						(unsigned long long)disk_cc,
+						(unsigned long long)pcc,
+						(unsigned long long)log_cc,
+						(disk_cc >= log_cc) ? "SKIP" : "APPLY",
+						((READ_ONCE(mxfs_replay_gate_platter) ?
+						  max(pcc, disk_cc) : disk_cc) >= log_cc) ?
+							"SKIP" : "APPLY");
+				else if (prc == 0 && pcc != disk_cc)
+					mxfs_probe("mxfs: P77-BUF-BEHIND-PLATTER ino=%lld buf_cc=%llu platter_cc=%llu log_cc=%llu verdict=%s (same either way)\n",
+						(long long)in_f->ilf_ino,
+						(unsigned long long)disk_cc,
+						(unsigned long long)pcc,
+						(unsigned long long)log_cc,
+						(disk_cc >= log_cc) ? "SKIP" : "APPLY");
+				if (prc == 0 && pcc > disk_cc &&
+				    READ_ONCE(mxfs_replay_gate_platter))
+					disk_cc = pcc;
+			}
 
 			if (disk_cc >= log_cc) {
 				trace_xfs_log_recover_inode_skip(log, in_f);
@@ -586,6 +670,7 @@ xlog_recover_inode_commit_pass2(
 	 * the changes in this transaction.
 	 */
 	xfs_log_dinode_to_disk(ldip, dip, current_lsn);
+	image_applied = true;
 
 	fields = in_f->ilf_fields;
 	if (fields & XFS_ILOG_DEV)
@@ -687,8 +772,19 @@ out_owner_change:
 	 * authority mask knows nothing of recovery and would otherwise drop
 	 * the slot as a passenger this node neither logged nor holds
 	 * (D-0976: the dead peer's leaves landed, its dinode never did).
+	 *
+	 * Only when this item wrote its image into the slot.  A skip (the
+	 * changecount gate or the LSN veto above) leaves the slot holding
+	 * whatever the buffer had — for an inode this node has in core, its
+	 * own cached copy, which the baseline refresh deliberately leaves alone
+	 * — and owning it published that copy past the mask.  Measured on
+	 * 8/net/mesh/mpath: a survivor's replay skipped the shared directory
+	 * (disk_cc=167240 log_cc=167049), owned its slot anyway
+	 * (P218-RECOV-OWNED slots=0x4) and wrote the survivor's 3 s old image
+	 * over five newer peer tenures (cc 167360 on the platter); the cluster
+	 * rebuilt on 167240 and the directory's link count forked.
 	 */
-	if (mp->m_sb.sb_inodelog &&
+	if (image_applied && mp->m_sb.sb_inodelog &&
 	    (in_f->ilf_boffset >> mp->m_sb.sb_inodelog) < 64)
 		bp->b_mxfs_recov_slots |=
 			1ULL << (in_f->ilf_boffset >> mp->m_sb.sb_inodelog);

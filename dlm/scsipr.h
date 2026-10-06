@@ -1683,6 +1683,7 @@ int mxfs_scsipr_exclusion_holds(struct mxfs_scsipr_ctx *ctx,
 
 /* Unregister this node's key on clean shutdown */
 int mxfs_scsipr_unregister(struct mxfs_scsipr_ctx *ctx);
+int mxfs_scsipr_fill_paths(struct mxfs_scsipr_ctx *ctx);
 
 /* Read all currently registered keys.  generation and total (both optional)
  * receive the PR GENERATION counter and the number of descriptors the TARGET

@@ -66,6 +66,8 @@ atomic64_t mxfs_dlm_stat_demote_wait_max = ATOMIC64_INIT(0);
 atomic64_t mxfs_dlm_stat_demote_wait_trans = ATOMIC64_INIT(0);
 atomic64_t mxfs_dlm_stat_demote_wait_dirty = ATOMIC64_INIT(0);
 atomic64_t mxfs_dlm_stat_postlatch_adopt = ATOMIC64_INIT(0);
+/* cached AG hints found with no grant behind them in this node's table (net/mesh) */
+atomic64_t mxfs_dlm_stat_ag_cached_phantom = ATOMIC64_INIT(0);
 /* 0.22.3: BAST->COMMIT split tails (rx->queued, queued->enter, enter->armed, armed->commit) */
 atomic64_t mxfs_dlm_stat_handoff_q_gt500 = ATOMIC64_INIT(0);
 atomic64_t mxfs_dlm_stat_handoff_q_max = ATOMIC64_INIT(0);
@@ -88,6 +90,7 @@ void mxfs_ag_demote_clear(struct xfs_perag *pag)
 {
 	pag->pag_dlm_demoting = false;
 	pag->pag_dlm_latched = false;
+	pag->pag_dlm_finishing = false;
 	pag->pag_dlm_prepass_done = false;
 	/*
 	 * 0.22.1: the schedule latch is released HERE, at demote
@@ -2265,6 +2268,8 @@ mxfs_dlm_inode_init(
 	ip->i_dlm_dir_want_ex = false;		/* peer-wants-EX (modifier) BAST flag (design review) */
 	ip->i_dlm_bast_during_acq = false;	/* deferred-during-ACQUIRING BAST */ ip->i_dlm_stale_src = 0; ip->i_dlm_bastq_src = 0;
 	ip->i_dlm_self_demote = false;		/* EDEADLK self-demote tag */
+	ip->i_dlm_upg_pid = 0;
+	ip->i_dlm_upg_until_ns = 0;
 	ip->i_dlm_bastq_qns = 0;		/* P296-BASTQLAT arm stamp */
 	ip->i_dlm_ex_acquire_ns = 0;
 	{ u8 dtr_om = ip->i_dlm_mode, dtr_os = ip->i_dlm_state;

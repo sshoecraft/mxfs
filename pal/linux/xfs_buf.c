@@ -1509,6 +1509,50 @@ mxfs_recov_slot_refresh(
 	return 0;
 }
 /*
+ * The platter's change count of inode slot `slot` in `bp`, read past the
+ * cache.  For the replay's changecount gate on a slot this node has in core:
+ * the refresh above leaves such a slot on this node's cached bytes, so the
+ * gate compares a dead peer's image against this node's copy, which can be
+ * behind the platter when this node no longer holds the inode.  Returns 0 and
+ * the count, or a read error, or -ENOENT for a slot that is not a dinode.
+ */
+int
+mxfs_recov_slot_platter_cc(
+	struct xfs_buf		*bp,
+	int			slot,
+	uint64_t		*cc)
+{
+	struct xfs_mount	*mp = bp->b_mount;
+	struct xfs_dinode	*d;
+	unsigned int		isz, len;
+	void			*tmp;
+	int			rc;
+
+	if (!mp || !bp->b_addr || bp->b_map_count != 1 || slot < 0 || slot >= 64)
+		return -EINVAL;
+	isz = mp->m_sb.sb_inodesize;
+	len = BBTOB(bp->b_length);
+	if (!isz || (unsigned int)(slot + 1) * isz > len)
+		return -EINVAL;
+	tmp = kmalloc(len, GFP_NOFS);
+	if (!tmp)
+		return -ENOMEM;
+	rc = mxfs_pal_scsi_read_fua_bdev(bp->b_target->bt_bdev,
+			(uint64_t)bp->b_maps[0].bm_bn +
+				bp->b_target->bt_sector_offset,
+			tmp, len);
+	if (rc == 0) {
+		d = (struct xfs_dinode *)(tmp + (size_t)slot * isz);
+		if (d->di_magic == cpu_to_be16(MXFS_DINODE_MAGIC))
+			*cc = be64_to_cpu(d->di_changecount);
+		else
+			rc = -ENOENT;
+	}
+	kfree(tmp);
+	return rc;
+}
+
+/*
  * (design-consult review of 0.39.6, the one measurement it required): a
  * FAULT-INJECTION knob — drop the next N claimed FREE-image sectors from
  * their cluster write, exactly as a masked slot is dropped (sector omitted,
@@ -13559,6 +13603,19 @@ xfs_buf_delwri_fail(
 		xfs_buf_list_del(bp);
 		xfs_buf_ioerror(bp, error);
 		xfs_buf_stale(bp);
+		/*
+		 * This completion issued no I/O by construction, and the
+		 * departure accounting has to be told so.  Unmarked, it was
+		 * counted as a completion of unknown provenance, and the
+		 * replayer's next unmount could not prove itself quiescent:
+		 * measured on 16/disk/caw/mpath, a replay batch refused once
+		 * (-EBUSY, a buffer already queued by a live owner) and retried
+		 * successfully left P304-IOCNT-UNTOKENED behind; six minutes
+		 * later the node's clean unmount was recorded DIRTY, its slot
+		 * and reservation key were kept, and its own remount and six
+		 * other nodes' remounts were refused.
+		 */
+		bp->b_mxfs_io_soft = true;
 		xfs_buf_ioend(bp);
 		xfs_buf_iowait(bp);
 		xfs_buf_relse(bp);

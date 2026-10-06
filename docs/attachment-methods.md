@@ -113,7 +113,7 @@ configuration that uses one is refused until it exists.
 | `direct` | yes | Its own initiator, one path: bare metal, or an in-guest iSCSI login. | `scripts/rig.sh N/<class>/<method>/direct` |
 | `mpath` | yes | Its own initiator over two or more paths, assembled by dm-multipath. | `scripts/rig.sh N/<class>/<method>/mpath` |
 | `pass` | yes | The hypervisor's initiator. The disk is passed into the VM as a SCSI LUN (QEMU SCSI passthrough, VMware RDM). | `scripts/rig.sh N/<class>/<method>/pass` |
-| `drbd` | no | DRBD dual-primary: each node's local disk, replicated synchronously to the other. | `scripts/drbd_rig.sh` (a trial: see below) |
+| `drbd` | yes | DRBD dual-primary: each node's local disk, replicated synchronously to the other. Released as `2/net/mesh/drbd`. | `scripts/drbd_rig.sh` (a rig and a board of its own: see below) |
 
 Each attachment has its own way of breaking the requirements above:
 
@@ -274,10 +274,14 @@ The rig builds and exercises the whole attachment with `scripts/drbd_rig.sh`:
 each node of a rig group gets a pool LUN of its own as its local disk, DRBD
 comes up dual-primary with the rig's fence authority (`tools/rig_fence_virsh.sh`,
 the hypervisor fence for test VMs), and MXFS, the suite, fio and the death,
-fence and split tests run on `/dev/drbd0`. The configuration parses only for a
-caller that sets `MXFS_TRIAL=1` (`trial` in `data/configurations.json`), is never
-a board column or part of a release matrix, and its results go to a board of
-their own.
+fence and split tests run on `/dev/drbd0`. Because it has no pool LUN to share
+and no SCSI fence, it is verified by that rig and not by the suite's ordinary
+board columns: its results go to a board of their own
+(`tests/evidence/drbd_rig/`), and a release that claims `2/net/mesh/drbd` runs
+`scripts/drbd_rig.sh` on the build being released. (In the tooling the
+attachment carries a flag named `trial` and is parsed only for a caller that
+sets `MXFS_TRIAL=1`; that flag selects the separate rig and board, and says
+nothing about release status.)
 
 ## Fabric is a separate question
 

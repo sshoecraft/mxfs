@@ -49,6 +49,33 @@ mxfs_ag_stamp_holder(struct xfs_perag *pag)
 		sizeof(pag->pag_dlm_holder_comm));
 }
 
+/*
+ * net/mesh, under pag_dlm_lock, before a cached hint is adopted: drop the
+ * hint if this node's grant table holds no grant behind it.  "In flight" and
+ * "table busy" answers are not a "no" and leave the hint alone.
+ */
+static void
+mxfs_ag_cached_phantom_drop(
+	struct mxfs_v5_dlm	*dlm,
+	struct xfs_perag	*pag,
+	const char		*src)
+{
+	extern long mxfs_ag_cached_phantom_total;
+
+	if (!pag->pag_dlm_cached || mxfs_v5_dlm_is_caw(dlm) ||
+	    mxfs_v5_dlm_is_single_node(dlm) ||
+	    mxfs_v5_dlm_ag_strand_held(dlm, pag_agno(pag)) != 0)
+		return;
+	pag->pag_dlm_cached = false;
+	atomic64_inc(&mxfs_dlm_stat_ag_cached_phantom);
+	WRITE_ONCE(mxfs_ag_cached_phantom_total,
+		   atomic64_read(&mxfs_dlm_stat_ag_cached_phantom));
+	pr_warn_ratelimited("mxfs: P-AGCACHED-PHANTOM ag=%u src=%s comm=%s total=%lld bast_pending=%d — cached AG hint with no grant in this node's table; hint dropped, acquiring from the master\n",
+		pag_agno(pag), src, current->comm,
+		(long long)atomic64_read(&mxfs_dlm_stat_ag_cached_phantom),
+		pag->pag_dlm_bast_pending ? 1 : 0);
+}
+
 int
 __mxfs_ag_dlm_lock(
 	struct xfs_mount	*mp,
@@ -290,6 +317,23 @@ __mxfs_ag_dlm_lock(
 			pag->pag_mxfs_grant_single = false;
 		}
 	}
+	/*
+	 * net/mesh: a cached hint is a tenure only while this node's own grant
+	 * table still holds the grant behind it.  The table is in memory there,
+	 * so the question costs a hash lookup (on disk/caw it is a slot read
+	 * per acquire, which is why the same check was measured and dropped
+	 * for that transport, below).  Measured on 8/net/mesh/mpath (0.90.48):
+	 * one node's release of AG 2 was finished by four workers at once, the
+	 * three that found no grant left to release re-armed a tenure anyway,
+	 * and the node was left with the hint set and nothing in its table or
+	 * at the master.  38 s later it allocated data blocks in AG 2 from
+	 * that hint while the node the master had granted the AG to allocated
+	 * the same blocks: 13 acknowledged files held another file's data.
+	 * A hint with no grant behind it is dropped here and the acquire goes
+	 * to the master like any other.  "In flight" and "table busy" answers
+	 * are not a "no" and leave the hint alone.
+	 */
+	mxfs_ag_cached_phantom_drop(dlm, pag, "fast");
 	if (pag->pag_dlm_cached && unlikely(pag->pag_dlm_bast_pending) &&
 	    mxfs_ag_handoff_closing(pag)) {
 		/*
@@ -528,6 +572,9 @@ __mxfs_ag_dlm_lock(
 			pag->pag_mxfs_grant_single = false;
 		}
 	}
+	/* a sibling may have left the hint while we waited on
+	 * pag_dlm_acquire_lock: same question as the fast path */
+	mxfs_ag_cached_phantom_drop(dlm, pag, "slow");
 	if (pag->pag_dlm_cached && unlikely(pag->pag_dlm_bast_pending) &&
 	    mxfs_ag_handoff_closing(pag)) {
 		/* same latch as the fast path — a sibling installed a

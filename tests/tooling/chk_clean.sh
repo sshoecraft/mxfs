@@ -215,6 +215,10 @@ if [ "$RANK" = 1 ]; then
     # corruption verdict this file is the only forensic record there is.
     chkout="$EVID/chk_clean_${NODES}node_$(date -u +%Y%m%dT%H%M%SZ).log"
     cp -f "$out" "$chkout" 2>/dev/null || chkout="(evidence copy failed)"
+    # $out is a mktemp file (mode 600) and cp keeps that mode: the evidence
+    # copy came out root-only, and reading a CORRUPT verdict's errors then
+    # took sudo on the host.
+    [ -f "$chkout" ] && chmod 644 "$chkout" 2>/dev/null
     # THE LEDGER CENSUS.  Every node has unmounted cleanly, so nothing holds a
     # lock: a record of the TCP authority ledger that still names an exclusive
     # holder or carries a shared-holder slot bit is a release that never

@@ -2318,8 +2318,21 @@ on the filesystem that also holds every guest image and the host journal.
   released.  `destroy <id>` removes a free LUN.
 - **After a clyde reboot** run `tools/lun_pool.sh up`: SCST objects are
   runtime-only.
-- **mpath and pass have no LUN.** `scripts/rig.sh mpath|pass` use the `:shared`
-  target over a fixed `paths image=`, which the lab file no longer names.
+- **mpath is a pool allocation on two paths.** `run.sh <N>/<c>/<m>/mpath`
+  allocates with `--paths 2`: every node logs in on `storage portal=` and
+  `portal2=`, multipathd (`find_multipaths yes`) assembles `/dev/mapper/mpatha`,
+  and the allocation fails unless every node reports 2 paths.  A kept
+  allocation is adopted only by the same node set on the same path count.
+  `run.sh` fails the prep when a node's mount sits on fewer than 2 active
+  paths and fails a whole board (exit 4) when one ends that way.
+  `tests/setup/dev_identity.sh` identifies a map by the SCSI identifier its
+  paths carry (the dm uuid is multipath's own spelling, `mpath-2<x>` for
+  `eui.<x>`, and matches no declaration).
+- **The preflight runs under `tools/lun_pool.sh quiet`.** Side-by-side runs
+  log nodes in while a neighbour's preflight samples the host log rate; each
+  login is ~20 target lines (twice that on two paths).
+- **pass has no LUN.** `scripts/rig.sh pass` uses the `:shared` target over a
+  fixed `paths image=`, which the lab file no longer names.
 - `scripts/clyde_preflight.sh` checks headroom on the pool directory's
   filesystem.
 

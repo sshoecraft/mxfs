@@ -1,8 +1,8 @@
 {
-  "run_id": "20261004T040503Z-g16b",
+  "run_id": "20261005T144844Z-g16b",
   "nodes": 16,
-  "configuration": "16/disk/caw/direct",
-  "ran": 30,
+  "configuration": "16/disk/caw/mpath",
+  "ran": 39,
   "pending": 0,
-  "iso": "2026-10-04T04:27:39Z"
+  "iso": "2026-10-05T15:36:44Z"
 }

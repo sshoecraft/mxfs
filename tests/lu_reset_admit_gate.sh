@@ -57,6 +57,9 @@ LABEL=${1:?label}
 cd "$(dirname "$0")/.." || exit 2
 export MXFS_NODE_LIST=${MXFS_NODE_LIST:-test1,test2}
 export MXFS_CONFIG=${MXFS_CONFIG:-2/net/mesh/direct}
+# registrations of one node's key: one per path (MXFS_GROUP names the rig
+# group for an mpath configuration)
+case "$MXFS_CONFIG" in */mpath) NEX=${MXFS_OWN_NEXUSES:-2} ;; *) NEX=${MXFS_OWN_NEXUSES:-1} ;; esac
 A=${MXFS_NODE_LIST%%,*}          # the node whose gate is asked
 B=${MXFS_NODE_LIST##*,}          # the other registrant, unmounted for the control arm
 SSH=tools/mxfs_sshpass.sh
@@ -96,7 +99,7 @@ for n in "$A" "$B"; do
 done
 echo "STAGE boot-wait polls=$w at +$(el)s"
 
-MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2/net/mesh/direct prep_cluster > "$OUT/prep.log" 2>&1
+MXFS_FORCE_PREP=1 timeout 300 ./run.sh "$MXFS_CONFIG" ${MXFS_GROUP:+--group "$MXFS_GROUP"} prep_cluster > "$OUT/prep.log" 2>&1
 prc=$?
 echo "STAGE prep rc=$prc wall=$(el)s  $(grep -am1 'prep_cluster OK\|FAIL' "$OUT/prep.log" | cut -c1-140)"
 [ $prc = 0 ] || { echo "RESULT: ABORT label=$LABEL stage=prep evidence=$OUT"; exit 2; }
@@ -178,7 +181,7 @@ armfield() { grep -ao "$2=[^ ]*" "$OUT/A_arm_$1.dmesg" | head -1 | cut -d= -f2; 
 arm peer 0 0
 ck "peer: the gate refused"            "$(armfield peer admitted)"  0
 ck "peer: it named the other registrant" "$(armfield peer reason)"  another-initiator-is-registered
-ck "peer: our key is on exactly one nexus" "$(armfield peer own_n)" 1
+ck "peer: our key is on one nexus per path ($NEX)" "$(armfield peer own_n)" "$NEX"
 ckge "peer: at least one other registrant was seen" "$(armfield peer other_n)" 1
 ck "peer: the write was refused too"   "$([ "$(field "$OUT/A_arm_peer.txt" ADMIT_RC)" != 0 ] && echo refused || echo accepted)" refused
 echo "FINDING peer resv_type=$(armfield peer resv_type) gen=$(armfield peer gen) wall_ms=$(field "$OUT/A_arm_peer.txt" WALL_MS) at +$(el)s"
@@ -208,7 +211,7 @@ echo "STAGE B unregistered at +$(el)s"
 arm sole 0 "$BKEY"
 ck "sole: the gate ADMITTED"           "$(armfield sole admitted)" 1
 ck "sole: it said so"                  "$(armfield sole reason)"   admitted
-ck "sole: our key is on exactly one nexus" "$(armfield sole own_n)" 1
+ck "sole: our key is on one nexus per path ($NEX)" "$(armfield sole own_n)" "$NEX"
 ck "sole: no other initiator is registered" "$(armfield sole other_n)" 0
 ck "sole: the victim's registration is gone" "$(armfield sole victim_present)" 0
 ck "sole: the all-registrants reservation is in force" "$(armfield sole resv_type)" 0x7
@@ -262,6 +265,42 @@ ck "A still accepts work after the gate"  "$(cnt "$OUT/A_health.txt" '^WORK_OK$'
 ck "no BUG or Oops on A"                  "$(field "$OUT/A_health.txt" BUGS)" 0
 ck "no filesystem shutdown on A"          "$(field "$OUT/A_health.txt" SHUT)" 0
 ck "A is still mounted"                   "$(field "$OUT/A_health.txt" MOUNTED)" 1
+
+# ---- 9. multipath only: the sole registrant with one of its paths DOWN.  The
+#         registration on that path cannot be asked whether it is ours, so the
+#         gate must remove it (PREEMPT of our own key, as at unmount) and admit
+#         on the one that answers; the path is registered again when it
+#         returns.  Runs last: it changes the key table on purpose, which the
+#         sections above require nothing to do.  Adds ~70 s (path failure
+#         16-20 s, the arm, reinstatement 15-20 s, late registration <= 30 s).
+if [ "$NEX" -ge 2 ]; then
+    scripts/san_net.sh link "$A" a down >> "$OUT/links.log" 2>&1
+    w=0; one=0
+    while [ $w -lt 40 ]; do
+        [ "$(timeout 20 "$SSH" "$A" "multipathd show paths format '%t %T' 2>/dev/null | grep -c 'active ready'" 2>/dev/null | grep -aE '^[0-9]+$' | tail -1)" = 1 ] && { one=1; break; }
+        sleep 2; w=$((w + 2))
+    done
+    ck "onepath: multipathd failed $A's path a (within 40 s)" "$one" 1
+    arm onepath 0 "$BKEY"
+    measure "$A" 40 "$OUT/A_collapse.txt" '^COLLAPSE_END$' "the collapse lines on $A" \
+        "dmesg | sed -n '/$MARKID-onepath/,\$p' | grep -a 'P-PR-COLLAPSED-TO-ONE-NEXUS' | cut -c1-300; echo COLLAPSE_END"
+    ck "onepath: the gate ADMITTED"           "$(armfield onepath admitted)" 1
+    ck "onepath: our key was left on exactly one nexus" "$(armfield onepath own_n)" 1
+    ck "onepath: it removed the registration it could not ask (preempt_rc=0)" "$([ "$(cnt "$OUT/A_collapse.txt" 'P-PR-COLLAPSED-TO-ONE-NEXUS.*preempt_rc=0')" -ge 1 ] && echo yes || echo no)" yes
+    ck "onepath: the write succeeded"         "$(field "$OUT/A_arm_onepath.txt" ADMIT_RC)" 0
+    scripts/san_net.sh link "$A" a up >> "$OUT/links.log" 2>&1
+    w=0; back=0
+    while [ $w -lt 90 ]; do
+        fullstatus "$A" "A_after_onepath"
+        [ "$(grep -aic "key *= *$AKEY" "$OUT/A_after_onepath.fs.txt")" = "$NEX" ] && { back=1; break; }
+        sleep 3; w=$((w + 3))
+    done
+    ck "onepath: once path a returned, $A's key is on every path again ($NEX registrations, within 90 s)" "$back" 1
+    measure "$A" 40 "$OUT/A_health_onepath.txt" '^HEALTH_END$' "the health of $A after the one-path arm" \
+        "echo MOUNTED=\$(grep -c ' $MNT mxfs ' /proc/mounts); echo SHUT=\$(dmesg | sed -n '/$MARKID-onepath/,\$p' | grep -ac 'hutting down filesystem\|P131-SELF-FENCE'); t=$MNT/.lrag_onepath_\$\$; echo x > \$t && sync \$t && rm -f \$t && echo WORK_OK; echo HEALTH_END"
+    ck "onepath: $A still accepts work"       "$(cnt "$OUT/A_health_onepath.txt" '^WORK_OK$')" 1
+    ck "onepath: no shutdown or self-fence on $A" "$(field "$OUT/A_health_onepath.txt" SHUT)" 0
+fi
 
 echo "=== lu_reset_admit_gate $LABEL: fails=$fails wall=$(el)s ==="
 if [ $fails = 0 ]; then

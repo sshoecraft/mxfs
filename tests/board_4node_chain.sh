@@ -85,6 +85,10 @@ yardstick() {
             echo "=== rc=$? fio_perf 1 xfs ($(date -u +%FT%TZ)) ==="
             ls -la "$base" 2>&1
             cat "$base" 2>/dev/null; echo
+            # This chain outlives the capture, and a LUN held by a live owner
+            # is refused to anyone else: left bound, the board that runs on
+            # test1 next is told "no pool LUN" and never starts.
+            tools/lun_pool.sh free --owner $$
         fi
     } > "$L" 2>&1
     if [ -s "$base" ]; then
@@ -157,9 +161,19 @@ fi
 for dlm in $(for c in "${CFGS[@]}"; do python3 tools/configuration.py get "$c" shape; done | sort -u); do
     yardstick "$dlm" || rc_all=1
 done
+# one lane per group: the groups run side by side, and the boards that name
+# the same group (a matrix with more configurations at a node count than the
+# rig has groups) run in that lane one after another, in argument order
 pids=()
-for i in "${!CFGS[@]}"; do
-    board "${CFGS[$i]}" "${ROWS[$i]}" "${BGROUPS[$i]}" &
+for g in $(printf '%s\n' "${BGROUPS[@]}" | awk '!seen[$0]++'); do
+    (
+        rc=0
+        for i in "${!CFGS[@]}"; do
+            [ "${BGROUPS[$i]}" = "$g" ] || continue
+            board "${CFGS[$i]}" "${ROWS[$i]}" "$g" || rc=1
+        done
+        exit $rc
+    ) &
     pids+=($!)
 done
 for p in "${pids[@]}"; do wait "$p" || rc_all=1; done

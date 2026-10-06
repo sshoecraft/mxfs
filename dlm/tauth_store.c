@@ -340,6 +340,8 @@ int mxfs_tauth_page_write(struct mxfs_tauth_store *s, struct mxfs_tauth_page *pg
 		goto out;
 	}
 	if (rc) {
+		if (rc == -EBADE)
+			s->target_refused++;
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "tauth: P-TAUTH-TICKET-FAIL page=%u copy=%u seq=%llu rc=%d",
 			     page_id, target, (unsigned long long)next, rc);
@@ -389,6 +391,8 @@ int mxfs_tauth_page_write(struct mxfs_tauth_store *s, struct mxfs_tauth_page *pg
 		rc = mxfs_pal_bdev_flush(s->dev);
 	ph_add(&s->ph_flush_ms, &s->ph_flush_max, t0);
 	if (rc) {
+		if (rc == -EBADE)
+			s->target_refused++;
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "tauth: P-TAUTH-WRITE-FAIL page=%u copy=%u seq=%llu rc=%d",
 			     page_id, target, (unsigned long long)next, rc);
@@ -408,6 +412,8 @@ int mxfs_tauth_page_write(struct mxfs_tauth_store *s, struct mxfs_tauth_page *pg
 		goto out;
 	}
 	if (rc) {
+		if (rc == -EBADE)
+			s->target_refused++;
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "tauth: P-TAUTH-PUBLISH-FAIL page=%u copy=%u seq=%llu rc=%d — uncertain",
 			     page_id, target, (unsigned long long)next, rc);

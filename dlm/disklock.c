@@ -2541,6 +2541,17 @@ bool mxfs_authority_ok(struct mxfs_authority *auth)
 	return false;
 }
 
+uint64_t mxfs_authority_remaining_ms(struct mxfs_authority *auth)
+{
+	uint64_t deadline, now;
+
+	if (!auth || mxfs_atomic32_get(&auth->state) != MXFS_AUTH_ADMITTED)
+		return 0;
+	deadline = auth->deadline_ms;
+	now = mxfs_pal_time_ms();
+	return now < deadline ? deadline - now : 0;
+}
+
 void mxfs_authority_renew(struct mxfs_authority *auth, uint64_t anchor_ms,
 			  uint64_t last_ok_ms)
 {

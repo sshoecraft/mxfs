@@ -496,9 +496,12 @@ mxfs_dlm_yield_basted_cached_ags(
 			 * PENDING work with non-blocking cancel_work(); if the
 			 * work is RUNNING it already owns this drain — skip.
 			 */
+			extern int mxfs_ag_release_twin;	/* TEST ONLY */
+
 			if (!cancel_work(&scan->pag_dlm_bast_work) &&
 			    (work_busy(&scan->pag_dlm_bast_work) &
-			     WORK_BUSY_RUNNING)) {
+			     WORK_BUSY_RUNNING) &&
+			    likely(!READ_ONCE(mxfs_ag_release_twin))) {
 				mxfs_probe_ratelimited(
 				    "mxfs: P67-NOWAIT-SKIP ag=%u yield-scan — in-flight bast work owns drain; not waiting (ILOCK deadlock guard)\n",
 					scan_agno);
@@ -1508,6 +1511,38 @@ mxfs_ilock_test_strand_inject_exit:
  * requires. An unpublished inode is first dropped from the unpublished list,
  * because this acquire is its publish.
  */
+/*
+ * A REFUSED UPGRADE IS RETRIED AHEAD OF THIS NODE'S OWN READERS.
+ *
+ * An exclusive request from a task whose node holds the inode's cached shared
+ * grant, with a peer holding one too, is refused (-EDEADLK): the cached grant
+ * is dropped through the drain and the request retried from no grant, where it
+ * queues behind the peer.  Nothing kept the node's other tasks out between the
+ * drop and the retry.  Measured on two nodes (lock trace, 2/disk/caw/mpath):
+ * 6 ms after the drain released the root directory, another task's lookup took
+ * the shared grant again; the retry found it, was refused again, and so on
+ * for 65 laps, at which point the mount shut itself down.
+ *
+ * So the refusal names its task on the inode for a short hold, renewed at each
+ * lap, and a shared request from any other task waits for it at the slow
+ * path's door.  The hold expires by itself: a retry that ends without a grant
+ * (a give-up, a shutdown) leaves nothing to clean.  The drain is exempt, and
+ * exclusive requests are not held back.
+ */
+#define MXFS_UPG_HOLD_NS	(2ULL * NSEC_PER_SEC)
+
+static bool mxfs_ilock_upgrade_pending(struct xfs_inode *ip)
+{
+	pid_t	pid = READ_ONCE(ip->i_dlm_upg_pid);
+	u64	until = READ_ONCE(ip->i_dlm_upg_until_ns);
+	u64	now;
+
+	if (!pid || pid == current->pid)
+		return false;
+	now = ktime_get_ns();
+	return now < until && until - now <= MXFS_UPG_HOLD_NS;
+}
+
 static int mxfs_ilock_acquire_from_dlm(struct xfs_inode *ip,
 				       bool *slowpath_publish_io, uint8_t mode,
 				       uint64_t auth_gen_snap,
@@ -1823,6 +1858,11 @@ static int mxfs_ilock_acquire_from_dlm(struct xfs_inode *ip,
 			 * livelock amplifier — without dropping the coherency-
 			 * masking barrier on genuine peer handoffs. */
 			ip->i_dlm_self_demote = true;
+			/* this task's retry comes first: see
+			 * mxfs_ilock_upgrade_pending */
+			ip->i_dlm_upg_pid = current->pid;
+			ip->i_dlm_upg_until_ns = ktime_get_ns() +
+						 MXFS_UPG_HOLD_NS;
 			spin_unlock(&ip->i_dlm_lock);
 			wake_up_all(&ip->i_dlm_wait);
 			/*
@@ -4822,6 +4862,19 @@ restart:
 	 * concurrent state writers CANNOT trample (unlike ISTATE_ACQUIRING,
 	 * which a stale pipeline exit overwrote to NONE in the proven
 	 * mkdir-storm kill).  Balanced at every slow-path exit below. */
+	if (mode != MXFS_LOCK_EX && !mxfs_is_demoter(ip) &&
+	    mxfs_ilock_upgrade_pending(ip)) {
+		static atomic_t upgn = ATOMIC_INIT(0);
+
+		if (atomic_inc_return(&upgn) <= 200)
+			pr_warn("mxfs: P-UPG-STANDBACK ino=%llu req=%u comm=%s upg_pid=%d — a task of this node is retrying a refused upgrade on this inode; this shared request waits for it\n",
+				(unsigned long long)ip->i_ino, mode,
+				current->comm, ip->i_dlm_upg_pid);
+		spin_unlock(&ip->i_dlm_lock);
+		wait_event_timeout(ip->i_dlm_wait,
+				   !mxfs_ilock_upgrade_pending(ip), HZ / 4);
+		goto restart;
+	}
 	if (ip->i_mount->m_mxfs_dlm &&
 	    !mxfs_v5_dlm_is_single_node(ip->i_mount->m_mxfs_dlm))
 		ip->i_dlm_acq_inflight++;
@@ -4871,6 +4924,10 @@ restart:
 			return;
 		if (block_outcome == MXFS_BLOCK_GOTO + 0)
 			goto restart;
+	}
+	if (READ_ONCE(ip->i_dlm_upg_pid) == current->pid) {
+		WRITE_ONCE(ip->i_dlm_upg_pid, 0);
+		wake_up_all(&ip->i_dlm_wait);
 	}
 
 	/*

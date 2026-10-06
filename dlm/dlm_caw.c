@@ -70,6 +70,75 @@ MODULE_PARM_DESC(caw_gen_verify,
                  "success; mismatch returns -EAGAIN.");
 
 /*
+ * A COMPARE AND WRITE WHOSE ANSWER WAS LOST.
+ *
+ * The swap is sent to one path of the LUN.  When that path dies between the
+ * target applying the swap and its answer reaching this node, the command
+ * comes back as a transport error and caw_slot_ex sends it again, on whatever
+ * path is alive.  The second copy carries the same compare image, the slot now
+ * holds this node's own write, and the target answers MISCOMPARE: a swap that
+ * landed is reported as one that changed nothing.
+ *
+ * So a miscompare that follows a lost answer is read back before it is
+ * believed.  The slot holding exactly the image this swap was writing means
+ * the earlier copy landed, and the swap is reported as landed.  The image
+ * carries this node's bit, the generation it advanced and the time it was
+ * built, so no other writer produces it.
+ *
+ * 1 (default) = report the landed swap as landed.
+ * 0 = detect and log it, and return the miscompare as before: the control arm
+ *     for tests/mpath/path_caw_answer.sh.
+ */
+static int mxfs_caw_answer_lost_resolve = 1;
+module_param_named(caw_answer_lost_resolve, mxfs_caw_answer_lost_resolve, int, 0644);
+MODULE_PARM_DESC(caw_answer_lost_resolve,
+                 "A lock swap that miscompares after an earlier copy of it "
+                 "ended in a transport error: 1 (default) = read the slot "
+                 "back and report the swap as landed when it holds this "
+                 "swap's image; 0 = log only.");
+
+/*
+ * A WAIT THAT HAS LOST ITS REGISTRATION (see P-WAIT-REG-LOST in
+ * caw_wait_for_grant).
+ *
+ * caw_wait_reg_requeue: 1 (default) = a wait that finds itself neither a
+ * waiter nor a holder goes back to the caller and registers again; 0 = it
+ * keeps polling as it did before 0.90.47, the control arm.
+ *
+ * caw_inject_wait_reg_lost: TEST ONLY.  The next N inode-lock waits that read
+ * their own waiter bit while holding nothing clear that bit themselves, which
+ * is the state the release-under-acquire race leaves: natural occurrences were
+ * one in a 4-node row and none in the nine laps that followed.
+ */
+static int mxfs_caw_wait_reg_requeue = 1;
+module_param_named(caw_wait_reg_requeue, mxfs_caw_wait_reg_requeue, int, 0644);
+MODULE_PARM_DESC(caw_wait_reg_requeue,
+                 "A lock wait whose waiter bit is gone and which holds "
+                 "nothing: 1 (default) = register again; 0 = keep polling.");
+static int mxfs_caw_inject_wait_reg_lost;
+module_param_named(caw_inject_wait_reg_lost, mxfs_caw_inject_wait_reg_lost, int, 0644);
+MODULE_PARM_DESC(caw_inject_wait_reg_lost,
+                 "TEST ONLY: the next N inode-lock waits clear their own "
+                 "waiter bit (0 = off).");
+
+/*
+ * TEST ONLY.  The next N swaps the target applies are reported to the retry
+ * loop as a transport error, exactly once each, so the loop sends the swap
+ * again and the second copy meets the first one's write.  A path fault reaches
+ * this only when it lands between a swap and its answer, and every swap is
+ * preceded by a slot read of the same length, so a muted path was measured to
+ * catch the read instead (4/disk/caw/mpath: two 40 s mutes, zero swaps caught).
+ * This puts the lost answer where the fault would have to, with the platter
+ * and every peer exactly as a real one leaves them.
+ */
+static int mxfs_caw_inject_answer_lost_n;
+module_param_named(caw_inject_answer_lost_n, mxfs_caw_inject_answer_lost_n, int, 0644);
+MODULE_PARM_DESC(caw_inject_answer_lost_n,
+                 "TEST ONLY: report the next N applied lock swaps as a "
+                 "transport error, once each, so each is sent again "
+                 "(0 = off).");
+
+/*
  * instrumentation for D-HOT-SLOT-CAW-SERIALIZES-LUN-PER-LBA-379.
  *
  * PROVED the serialization is per-LBA (direct READ(16)+FUA to the root
@@ -1646,26 +1715,50 @@ static bool caw_guard_refuses(struct mxfs_dlm_caw_ctx *ctx,
 	return false;
 }
 
-static int caw_slot_ex(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_index,
-		       const struct mxfs_caw_lock_slot *compare,
-		       const struct mxfs_caw_lock_slot *write,
-		       unsigned int cas_flags, uint64_t purge_mask);
-
-static int caw_slot(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_index,
-		     const struct mxfs_caw_lock_slot *compare,
-		     const struct mxfs_caw_lock_slot *write)
-{
-	return caw_slot_ex(ctx, slot_index, compare, write, 0, 0);
-}
+static int caw_slot_amb(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_index,
+			const struct mxfs_caw_lock_slot *compare,
+			const struct mxfs_caw_lock_slot *write,
+			unsigned int cas_flags, uint64_t purge_mask,
+			bool *maybe_landed);
 
 static int caw_slot_ex(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_index,
 		       const struct mxfs_caw_lock_slot *compare,
 		       const struct mxfs_caw_lock_slot *write,
 		       unsigned int cas_flags, uint64_t purge_mask)
 {
+	return caw_slot_amb(ctx, slot_index, compare, write, cas_flags,
+			    purge_mask, NULL);
+}
+
+static int caw_slot(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_index,
+		     const struct mxfs_caw_lock_slot *compare,
+		     const struct mxfs_caw_lock_slot *write)
+{
+	return caw_slot_amb(ctx, slot_index, compare, write, 0, 0, NULL);
+}
+
+/*
+ * The swap itself.  `maybe_landed`, when given, is set when the function
+ * returns -EAGAIN for a swap that MAY nevertheless have been applied: an
+ * earlier copy ended in a transport error, the retry miscompared, and the slot
+ * no longer holds this swap's image, which is what a copy that landed and was
+ * then written over by a peer looks like too.  A caller that must know whether
+ * its own bit could have been stripped asks for it; to every other caller
+ * -EAGAIN means what it always meant, re-read the slot and decide again.
+ */
+static int caw_slot_amb(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_index,
+			const struct mxfs_caw_lock_slot *compare,
+			const struct mxfs_caw_lock_slot *write,
+			unsigned int cas_flags, uint64_t purge_mask,
+			bool *maybe_landed)
+{
 	uint32_t backoff = MXFS_CAW_IO_BACKOFF_MS;
+	bool answer_lost = false;	/* an earlier copy of this swap got no answer */
 	int attempt;
 	int rc;
+
+	if (maybe_landed)
+		*maybe_landed = false;
 
 	/* writer guard — BEFORE the platter is touched. */
 	{
@@ -1758,6 +1851,54 @@ static int caw_slot_ex(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_index,
 							     slot_offset(ctx, slot_index),
 							     compare, write);
 		}
+		if (rc == 0 && attempt == 0 &&
+		    mxfs_caw_inject_answer_lost_n > 0) {
+			mxfs_caw_inject_answer_lost_n--;
+			mxfs_pal_log(MXFS_LOG_WARN,
+			    "mxfs: P-CAW-ANSWER-LOST-INJECT slot=%u gen=%u->%u left=%d — TEST ONLY: the target applied this swap and its answer is reported lost",
+			    slot_index, compare->generation, write->generation,
+			    mxfs_caw_inject_answer_lost_n);
+			rc = -EIO;
+		}
+		/*
+		 * A miscompare after a lost answer: see
+		 * mxfs_caw_answer_lost_resolve.  RESERVATION CONFLICT (-EBADE)
+		 * is an answer, and so is a miscompare; everything else that is
+		 * not success left the outcome of that copy unknown.
+		 */
+		if (rc == -EAGAIN && answer_lost) {
+			struct mxfs_caw_lock_slot *now_slot =
+				mxfs_pal_alloc(sizeof(*now_slot));
+			int rrc = now_slot ?
+				read_slot(ctx, slot_index, now_slot) : -ENOMEM;
+
+			if (rrc == 0 &&
+			    memcmp(now_slot, write, sizeof(*now_slot)) == 0) {
+				ctx->answer_lost_landed++;
+				mxfs_pal_log(MXFS_LOG_WARN,
+				    "mxfs: P-CAW-ANSWER-LOST-LANDED slot=%u gen=%u->%u attempt=%d resolve=%d n=%llu — an earlier copy of this swap ended in a transport error after the target applied it; the copy sent again met its own write",
+				    slot_index, compare->generation,
+				    write->generation, attempt,
+				    mxfs_caw_answer_lost_resolve,
+				    (unsigned long long)ctx->answer_lost_landed);
+				if (mxfs_caw_answer_lost_resolve)
+					rc = 0;
+			} else {
+				ctx->answer_lost_unresolved++;
+				if (maybe_landed)
+					*maybe_landed = true;
+				mxfs_pal_log(MXFS_LOG_WARN,
+				    "mxfs: P-CAW-ANSWER-LOST-UNRESOLVED slot=%u gen=%u->%u now_gen=%u read_rc=%d attempt=%d n=%llu — a retried swap miscompared and the slot does not hold its image: it never landed, or it landed and a peer has written since",
+				    slot_index, compare->generation,
+				    write->generation,
+				    rrc == 0 ? now_slot->generation : 0, rrc,
+				    attempt,
+				    (unsigned long long)ctx->answer_lost_unresolved);
+			}
+			mxfs_pal_free(now_slot);
+		}
+		if (rc != 0 && rc != -EAGAIN && rc != -EBADE)
+			answer_lost = true;
 		/* Success — optionally verify slot persistence via FUA-read. */
 		if (rc == 0 && mxfs_caw_gen_verify) {
 			struct mxfs_caw_lock_slot verify_slot;
@@ -3865,6 +4006,7 @@ static int caw_slot_clearing(struct mxfs_dlm_caw_ctx *ctx,
 	struct mxfs_caw_clear_plan plan;
 	struct mxfs_caw_lreq *clr = NULL;
 	uint64_t gen0 = 0;
+	bool maybe_landed = false;
 	int rc;
 
 	if (owed_mode != MXFS_LOCK_NL && owed_mode < MXFS_LOCK_MODE_COUNT) {
@@ -3883,7 +4025,7 @@ static int caw_slot_clearing(struct mxfs_dlm_caw_ctx *ctx,
 				    (unsigned long long)ctx->lreq_reserve_dry);
 		return -EAGAIN;
 	}
-	rc = caw_slot(ctx, slot_idx, cur, new);
+	rc = caw_slot_amb(ctx, slot_idx, cur, new, 0, 0, &maybe_landed);
 
 	/*
 	 * Retract on proof only.  The permitted set here is exactly the one
@@ -3899,7 +4041,7 @@ static int caw_slot_clearing(struct mxfs_dlm_caw_ctx *ctx,
 		lreq_owed_retract(ctx, clr, gen0, &plan, owed_mode,
 				  rc == 0, false);
 	}
-	lreq_clr_end(ctx, clr, caw_may_have_written(rc));
+	lreq_clr_end(ctx, clr, caw_may_have_written(rc) || maybe_landed);
 	return rc;
 }
 
@@ -4453,7 +4595,8 @@ static int caw_count_resource_slots(struct mxfs_dlm_caw_ctx *ctx,
 				    const struct mxfs_resource_id *resource,
 				    uint32_t *dup_slots, int dupmax,
 				    uint64_t *holders_ex_or,
-				    uint64_t *holders_all_or)
+				    uint64_t *holders_all_or,
+				    uint64_t *yield_or)
 {
 	struct mxfs_caw_lock_slot *s;
 	uint32_t base = resource_hash_raw(resource) % MXFS_CAW_MAX_SLOTS;
@@ -4465,6 +4608,8 @@ static int caw_count_resource_slots(struct mxfs_dlm_caw_ctx *ctx,
 		*holders_ex_or = 0;
 	if (holders_all_or)
 		*holders_all_or = 0;
+	if (yield_or)
+		*yield_or = 0;
 	s = mxfs_pal_alloc(sizeof(*s));
 	if (!s)
 		return -1;
@@ -4491,6 +4636,8 @@ static int caw_count_resource_slots(struct mxfs_dlm_caw_ctx *ctx,
 							   s->holders_pr |
 							   s->holders_cw |
 							   s->holders_cr;
+				if (yield_or)
+					*yield_or |= s->yield_to;
 				n++;
 			}
 			continue;
@@ -4912,6 +5059,7 @@ static int caw_drop_own_waiter(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_idx,
 	struct mxfs_caw_lreq *owed;
 	struct mxfs_caw_owed_intent intent;
 	bool committed = false;
+	bool dow_maybe = false;
 	bool proven = false;
 	bool terminal = false;
 	bool stale = false;
@@ -5242,7 +5390,8 @@ static int caw_drop_own_waiter(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_idx,
 		if (caw_inject_take(&mxfs_caw_inject_dow_casfail))
 			rc = -EIO;	/* K5: transient discharge fail */
 		else
-			rc = caw_slot(ctx, slot_idx, cur_slot, new_slot);
+			rc = caw_slot_amb(ctx, slot_idx, cur_slot, new_slot,
+					  0, 0, &dow_maybe);
 		/*
 		 * a destructive clear COMMITTED.  Any local publication
 		 * that snapshotted before this must now refuse and retry from a
@@ -5254,7 +5403,7 @@ static int caw_drop_own_waiter(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_idx,
 		 * committed — otherwise a clear that actually landed is invisible
 		 * to every publication validating across this window.
 		 */
-		if (caw_may_have_written(rc))
+		if (caw_may_have_written(rc) || dow_maybe)
 			committed = true;
 		if (rc == 0) {
 			/* proof (a): the CAS landed on an image in
@@ -7647,6 +7796,67 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 			goto out;
 		}
 
+		/*
+		 * THE REGISTRATION IS GONE.  This wait entered with its waiter
+		 * bit committed, and the image now shows this node as neither a
+		 * waiter nor a holder.  A handoff clears the waiter bit and sets
+		 * the holder bit in one CAS, so the two absent together means
+		 * something took the grant or the registration away after it was
+		 * made: this node's own release committing under the acquire and
+		 * clearing the holder bit a peer had just handed to it, or a slot
+		 * freed and minted again underneath the wait.
+		 *
+		 * Measured on 4/disk/caw/mpath (path_fabric, test4, shared
+		 * directory 4194434, want EX): P-REL-COMMIT-UNDER-ACQ, three
+		 * P250-LREQ-CLR-REFUSE arm=adopt held=5, then the release's unlock
+		 * (gm=5->0); every P-ACQ-STUCK image for the next 115 s showed the
+		 * peers' waiter bits and never this node's, while the peers handed
+		 * the directory round among themselves.  Nobody nominates a node
+		 * that is not registered, and a holder that sees no waiter is never
+		 * asked to release, so at two nodes the same wait runs to the 480 s
+		 * ceiling.  Hand it back to the caller, which finds the slot and
+		 * registers again exactly as it does for a slot cleared under it.
+		 */
+		if (unlikely(mxfs_caw_inject_wait_reg_lost > 0) &&
+		    resource->type == MXFS_LTYPE_INODE &&
+		    (cur_slot->waiters & ctx->node_bit) &&
+		    node_held_mode(cur_slot, ctx->node_bit) == MXFS_LOCK_NL) {
+			*new_slot = *cur_slot;
+			new_slot->waiters &= ~ctx->node_bit;
+			new_slot->waiters_ex &= ~ctx->node_bit;
+			new_slot->waiter_mode = recompute_waiter_mode(new_slot);
+			new_slot->generation++;
+			if (caw_slot(ctx, slot_idx, cur_slot, new_slot) == 0) {
+				mxfs_caw_inject_wait_reg_lost--;
+				mxfs_pal_log(MXFS_LOG_WARN,
+				    "mxfs: P-WAIT-REG-LOST-INJECT ino=%llu slot=%u want=%u left=%d requeue=%d — TEST ONLY: this wait's waiter bit was cleared under it",
+				    (unsigned long long)resource->ino, slot_idx,
+				    mode, mxfs_caw_inject_wait_reg_lost,
+				    mxfs_caw_wait_reg_requeue);
+			}
+			continue;
+		}
+		if (mxfs_caw_wait_reg_requeue &&
+		    !((cur_slot->waiters | cur_slot->waiters_ex) & ctx->node_bit) &&
+		    node_held_mode(cur_slot, ctx->node_bit) == MXFS_LOCK_NL) {
+			ctx->wait_reg_lost++;
+			mxfs_pal_log(MXFS_LOG_WARN,
+			    "mxfs: P-WAIT-REG-LOST type=%u ino=%llu ag=%u slot=%u want=%u el_ms=%llu gen=%llu reg_gen=%llu hex=%llx hpr=%llx w=%llx yt=%llx reads=%d n=%llu — this wait's waiter bit is gone and it holds nothing; registering again",
+			    resource->type, (unsigned long long)resource->ino,
+			    resource->ag_number, slot_idx, mode,
+			    (unsigned long long)(mxfs_pal_time_ms() - start),
+			    (unsigned long long)cur_slot->generation,
+			    (unsigned long long)reg_gen,
+			    (unsigned long long)cur_slot->holders_ex,
+			    (unsigned long long)cur_slot->holders_pr,
+			    (unsigned long long)cur_slot->waiters,
+			    (unsigned long long)cur_slot->yield_to,
+			    slot_reads,
+			    (unsigned long long)ctx->wait_reg_lost);
+			rc = -ENOENT;
+			goto out;
+		}
+
 		if (is_compatible(cur_slot, mode)) {
 			if (!first_compat_ms)
 				first_compat_ms = mxfs_pal_time_ms();
@@ -9038,7 +9248,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 				uint32_t dup[8];
 				uint64_t hex_or = 0;
 				int ndup = caw_count_resource_slots(ctx,
-					resource, dup, 8, &hex_or, NULL);
+					resource, dup, 8, &hex_or, NULL, NULL);
 				if (ndup > 1)
 					mxfs_pal_log(MXFS_LOG_ERR,
 					    "mxfs: CAW-DUP-SLOT type=%u ag=%u "
@@ -11302,7 +11512,15 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 				retry);
 			rc = -EIO;
 		} else {
-			rc = caw_slot(ctx, slot_idx, cur_slot, new_slot);
+			bool unlk_maybe = false;
+
+			rc = caw_slot_amb(ctx, slot_idx, cur_slot, new_slot,
+					  0, 0, &unlk_maybe);
+			/* a release whose earlier copy may have stripped our
+			 * bit before a peer wrote over it: the clear window
+			 * closes as committed, as for an I/O error below */
+			if (unlk_maybe)
+				clr_committed = true;
 		}
 
 		if (resource->type == MXFS_LTYPE_INODE && caw_instr_on()) {
@@ -12275,7 +12493,7 @@ int mxfs_dlm_caw_ex_count(struct mxfs_dlm_caw_ctx *ctx,
 	if (!ctx || !resource)
 		return -EINVAL;
 	n = caw_count_resource_slots(ctx, resource, dup_slots,
-				     8, &holders_ex_or, NULL);
+				     8, &holders_ex_or, NULL, NULL);
 	if (n < 0)
 		return n;
 	if (nslots_out)
@@ -12307,7 +12525,7 @@ int mxfs_dlm_caw_self_held_scan(struct mxfs_dlm_caw_ctx *ctx,
 	if (!ctx || !resource)
 		return -EINVAL;
 	n = caw_count_resource_slots(ctx, resource, dup_slots, 8,
-				     &holders_ex_or, NULL);
+				     &holders_ex_or, NULL, NULL);
 	if (n < 0)
 		return n;
 	if (nslots_out)
@@ -12323,21 +12541,31 @@ int mxfs_dlm_caw_self_held_scan(struct mxfs_dlm_caw_ctx *ctx,
  * excluded) provably heartbeating?  Same oracle the wait-timeout extension
  * uses (holders_alive_fn).  1 = yes, keep waiting for their release; 0 = no
  * holder at all (nothing to wait for), a holder that is not heartbeating, or
- * no oracle.  Read-only, one probe-chain scan. */
+ * no oracle.  Read-only, one probe-chain scan.
+ *
+ * A node named in yield_to is a party too.  The acquire loop defers to it on
+ * every retry (yield backoff) exactly as it waits behind a holder, and the
+ * deferral ends the same two ways: the target takes its turn, or it stops
+ * heartbeating and the stale-yield clear removes it.  Counting holders alone
+ * answered "nothing to wait for" for a requester whose only obstacle was a
+ * yield target, and the caller shuts its mount down on that answer: measured
+ * on two nodes, the target's I/O stalled for a path failover, the requester
+ * (holding PR, wanting EX, itself the only holder) spent its budget on yield
+ * backoffs and shut down 6 s after the peer's path went away. */
 int mxfs_dlm_caw_resource_holders_live(struct mxfs_dlm_caw_ctx *ctx,
 				       const struct mxfs_resource_id *resource)
 {
 	uint32_t dup_slots[8];
-	uint64_t holders_all_or = 0, blockers;
+	uint64_t holders_all_or = 0, yield_or = 0, blockers;
 	int n;
 
 	if (!ctx || !resource || !ctx->holders_alive_fn)
 		return 0;
 	n = caw_count_resource_slots(ctx, resource, dup_slots, 8, NULL,
-				     &holders_all_or);
+				     &holders_all_or, &yield_or);
 	if (n <= 0)
 		return 0;
-	blockers = holders_all_or & ~ctx->node_bit;
+	blockers = (holders_all_or | yield_or) & ~ctx->node_bit;
 	if (!blockers)
 		return 0;
 	return ctx->holders_alive_fn(ctx->holders_alive_data, blockers) ? 1 : 0;
@@ -12413,6 +12641,7 @@ static int caw_force_release_self_body(struct mxfs_dlm_caw_ctx *ctx,
 	uint32_t i;
 	int cleared = 0;
 	bool may_have_cleared = false;		/* ruling items 3 + 8 */
+	bool fr_maybe = false;
 
 	if (!ctx || !resource)
 		return -EINVAL;
@@ -12511,7 +12740,7 @@ static int caw_force_release_self_body(struct mxfs_dlm_caw_ctx *ctx,
 			new->granted_mode = recompute_granted_mode(new);
 			new->generation++;
 			new->last_modified_ms = mxfs_pal_time_ms();
-			rc = caw_slot(ctx, idx, cur, new);
+			rc = caw_slot_amb(ctx, idx, cur, new, 0, 0, &fr_maybe);
 			/*
 			 * (ruling item 8, MULTI-STEP CLEARS): this walks
 			 * up to CLAIMRACE_SCAN_MAX slots and issues an
@@ -12523,7 +12752,7 @@ static int caw_force_release_self_body(struct mxfs_dlm_caw_ctx *ctx,
 			 * tracked separately and includes the ambiguous results
 			 * (ruling item 3).
 			 */
-			if (caw_may_have_written(rc))
+			if (caw_may_have_written(rc) || fr_maybe)
 				may_have_cleared = true;
 			if (rc == 0) {
 				untrack_held(ctx, idx);

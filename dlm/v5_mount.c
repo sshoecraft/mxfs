@@ -42,7 +42,7 @@ static int mxfs_auth_withdraw_threads;
 static int mxfs_force_transport = 1;
 module_param_named(force_transport, mxfs_force_transport, int, 0644);
 MODULE_PARM_DESC(force_transport,
-		 "DLM transport a new cluster forms on: 1=TCP (default, the released transport), 0=CAW (in development)");
+		 "DLM transport a new cluster forms on: 1=TCP (net/mesh, the default), 0=CAW (disk/caw, locks on the shared LUN); both released");
 
 /* A/B gate for the stale-HB evict-ring monotonic
  * consume fix (see the ROOT FIX note in disklock.c).  Param lives here
@@ -898,6 +898,13 @@ struct mxfs_v5_dlm {
 	 * an immediate pass past the idle floor; the flag clears when the
 	 * observation goes away, so a host that returns twice triggers twice. */
 	bool                        fence_resume_bootseen[MXFS_DISKLOCK_HB_SLOTS];
+	/* A claim on slot N was refused because a LIVE peer holds the fencing
+	 * attempt and has not sealed its certificate yet: when that wait was
+	 * first met, and for which victim incarnation.  The replayer asks
+	 * again soon while the wait is young (see mxfs_v5_dlm_recovery_wait_ms). */
+	uint64_t                    recov_wait_first_ms[MXFS_DISKLOCK_HB_SLOTS];
+	mxfs_epoch_t                recov_wait_epoch[MXFS_DISKLOCK_HB_SLOTS];
+	bool                        recov_wait_live_peer[MXFS_DISKLOCK_HB_SLOTS];
 	/* 0.89.63: the fencing attempt under which THIS incarnation last returned
 	 * having crossed the command-submission boundary on slot N (a result with
 	 * phase MAY_HAVE_SUBMITTED), named by victim, victim incarnation and
@@ -1333,6 +1340,7 @@ struct mxfs_v5_dlm {
 	 * 30 minutes on an unreserved LU and none noticed.
 	 */
 	uint64_t                        resv_health_next_ms;
+	uint64_t                        pr_fill_next_ms;        /* next look for a path with no registration */
 	/*
 	 * TEST ONLY (dbg_resv_health_pause_ms).  The proactive half of a fenced
 	 * node's containment is this tick; the reactive half needs the node to be
@@ -9486,6 +9494,41 @@ static bool v5_resv_health_tick(struct mxfs_v5_dlm *ctx, uint64_t now)
 	return true;
 }
 
+/*
+ * A path of a multipath map that holds no registration of this node — it was
+ * down at mount, or the node logged in on it since — is registered here, so
+ * that it can carry I/O when the path in use fails.  Looking costs no I/O;
+ * the commands are sent only when such a path exists.
+ *
+ * It runs only with a good part of the authority lease left.  A peer fences
+ * this node no sooner than the death window after its last heartbeat, and
+ * the lease ends well before that, so a REGISTER issued under this margin
+ * (5 s timeout, never reissued) reaches the target before any fence can.
+ * The check inside (mxfs_pal_scsi_pr_fill_paths) covers the case this margin
+ * cannot: a node fenced while its lease is still good, as a partitioned
+ * net/mesh node is.
+ */
+#define V5_PR_FILL_PERIOD_MS	500
+#define V5_PR_FILL_MIN_LEASE_MS	15000
+static void v5_resv_inspect_launch(struct mxfs_v5_dlm *ctx, const char *why);
+
+static void v5_pr_fill_tick(struct mxfs_v5_dlm *ctx, uint64_t now)
+{
+	if (!ctx->scsipr || now < ctx->pr_fill_next_ms)
+		return;
+	ctx->pr_fill_next_ms = now + V5_PR_FILL_PERIOD_MS;
+	if (mxfs_authority_remaining_ms(ctx->authority) < V5_PR_FILL_MIN_LEASE_MS)
+		return;
+	if (mxfs_scsipr_fill_paths(ctx->scsipr) == -ESTALE) {
+		mxfs_pal_log(MXFS_LOG_ERR,
+			     "mxfs: P-PR-FILL-FENCED node=%u — a path was not "
+			     "registered because this node's key is registered "
+			     "nowhere else; asking the target whether this node "
+			     "has been fenced", ctx->node_id);
+		v5_resv_inspect_launch(ctx, "late path: key gone");
+	}
+}
+
 static void v5_fence_retry_worker_fn(void *arg)
 {
 	struct mxfs_v5_dlm *ctx = arg;
@@ -9674,8 +9717,10 @@ static void v5_fence_retry_worker_fn(void *arg)
 				     "mxfs: P-DBG-AUTH-PUMP-PAUSE-END node=%u — TEST: the "
 				     "periodic evaluation resumes", ctx->node_id);
 		}
-		if (ctx->scsipr && mxfs_v5_dlm_write_admitted(ctx))
+		if (ctx->scsipr && mxfs_v5_dlm_write_admitted(ctx)) {
 			v5_resv_health_tick(ctx, now);
+			v5_pr_fill_tick(ctx, now);
+		}
 		/*
 		 * 0.89.66: a SECOND injector, holding off ONLY the withdrawal pump
 		 * while the gate call above still runs every tick.  The knob above
@@ -12496,6 +12541,29 @@ static void v5_tcp_death_worker_fn(void *arg)
 					     "(late/silent reconnect)", dead);
 				dead = 0;
 			}
+			if (dead != 0 && ctx->lease &&
+			    !mxfs_lease_has_node(ctx->lease, dead) &&
+			    (!ctx->disklock ||
+			     mxfs_disklock_find_node_slot(ctx->disklock, dead) < 0)) {
+				/*
+				 * It left since.  A node unmounting under lock traffic
+				 * closes its connection while this node is still sending
+				 * to it, which arms this grace as a lost connection; its
+				 * clean slot release is observed a second later and
+				 * retires it.  Measured (path_mount_degraded, 2/net/mesh/
+				 * mpath): the grace then expired 40 s after the node had
+				 * left — and after it had mounted again under a new
+				 * identity — and declared the departed identity dead.
+				 * An identity with no lease entry and no heartbeat slot
+				 * is not a member; there is nothing to declare, fence or
+				 * recover.
+				 */
+				mxfs_pal_log(MXFS_LOG_INFO,
+					     "mxfs: P-TCP-SUSPECT-DEPARTED peer %u — its "
+					     "reconnect grace expired, and it has left the "
+					     "cluster since; nothing is declared", dead);
+				dead = 0;
+			}
 			if (dead != 0) {
 				mxfs_pal_log(MXFS_LOG_WARN,
 					     "mxfs: TCP peer %u did not reconnect within "
@@ -15293,6 +15361,8 @@ int mxfs_v5_dlm_recovery_acquire_bounded(struct mxfs_v5_dlm *ctx,
 	dead_epoch = mxfs_disklock_pending_epoch(ctx->disklock, (int)dead_slot);
 	if (!dead_node)
 		return -ENODATA;
+	/* set again below only by the refusal it describes */
+	ctx->recov_wait_live_peer[dead_slot] = false;
 
 	/*
 	 * Already holding it?  Revalidate against the platter rather than trust
@@ -15827,6 +15897,28 @@ int mxfs_v5_dlm_recovery_acquire_bounded(struct mxfs_v5_dlm *ctx,
 			}
 			return rc < 0 ? rc : -EPERM;
 		}
+		/*
+		 * The attempt is held by a live peer that is still working on it:
+		 * its PREEMPT AND ABORT is in flight (FENCING) or exclusion is
+		 * proved and it is writing the fence-time manifest (SNAPSHOTTING).
+		 * Both end by themselves in the time one fence takes, so the
+		 * replayer should look again soon, not after the idle interval.
+		 * Measured on 8/disk/caw/mpath (path_fenced_return): the elected
+		 * replayer's first claim met stage SNAPSHOTTING with the holder
+		 * heartbeating, its next claim 30.2 s later was granted at once
+		 * and the replay took 5 s; the survivors' load stalled 120.7 s
+		 * against a 120 s bound.
+		 */
+		ctx->recov_wait_live_peer[dead_slot] =
+			hnode && hnode != ctx->node_id && hst == V5_INC_LIVE &&
+			(desc.stage == MXFS_RECOV_STAGE_FENCING ||
+			 desc.stage == MXFS_RECOV_STAGE_SNAPSHOTTING);
+		if (ctx->recov_wait_live_peer[dead_slot] &&
+		    (!ctx->recov_wait_first_ms[dead_slot] ||
+		     ctx->recov_wait_epoch[dead_slot] != dead_epoch)) {
+			ctx->recov_wait_first_ms[dead_slot] = mxfs_pal_time_ms();
+			ctx->recov_wait_epoch[dead_slot] = dead_epoch;
+		}
 		}
 		v5_blocked_set(ctx, (int)dead_slot, MXFS_RBLK_NO_CERTIFICATE,
 			       dead_node, dead_epoch, -EPERM, NULL);
@@ -15835,6 +15927,35 @@ int mxfs_v5_dlm_recovery_acquire_bounded(struct mxfs_v5_dlm *ctx,
 		return -EPERM;
 	}
 	return rc;
+}
+
+/*
+ * How long the replayer should wait before asking for slot N's execution
+ * lease again after a refusal.  While a live peer holds the fencing attempt
+ * and that wait is younger than MXFS_RECOV_WAIT_FAST_SPAN_MS, the answer is
+ * MXFS_RECOV_WAIT_FAST_MS: the peer's certificate is about to exist and each
+ * second waited past it is a second every survivor's blocked request waits.
+ * Past the span (a peer whose attempt went ambiguous can hold it without
+ * end), and for every other refusal, it is the idle interval the caller
+ * passes.  Each fast pass costs one descriptor read and one heartbeat-table
+ * lookup, no target command.
+ */
+#define MXFS_RECOV_WAIT_FAST_MS         1000u
+#define MXFS_RECOV_WAIT_FAST_SPAN_MS    20000u
+
+uint32_t mxfs_v5_dlm_recovery_wait_ms(struct mxfs_v5_dlm *ctx, uint32_t dead_slot,
+				      uint32_t idle_ms)
+{
+	if (!ctx || dead_slot >= MXFS_DISKLOCK_HB_SLOTS ||
+	    !ctx->recov_wait_live_peer[dead_slot] ||
+	    !ctx->recov_wait_first_ms[dead_slot] ||
+	    ctx->recov_wait_epoch[dead_slot] !=
+		mxfs_disklock_pending_epoch(ctx->disklock, (int)dead_slot))
+		return idle_ms;
+	if (mxfs_pal_time_ms() - ctx->recov_wait_first_ms[dead_slot] >=
+	    MXFS_RECOV_WAIT_FAST_SPAN_MS)
+		return idle_ms;
+	return MXFS_RECOV_WAIT_FAST_MS < idle_ms ? MXFS_RECOV_WAIT_FAST_MS : idle_ms;
 }
 
 /*
@@ -24049,7 +24170,17 @@ int mxfs_v5_dlm_ag_ex_count(struct mxfs_v5_dlm *ctx, uint32_t agno,
  * clean read is therefore proof: bit set -> STILL_HELD, clear ->
  * RELEASED; only a read ERROR leaves UNKNOWN.
  *
- * TCP: the transport has no read-back; rc==0 -> RELEASED, else UNKNOWN.
+ * net/mesh: rc==0 -> RELEASED.  -ENOENT is also an answer: this node's grant
+ * table is where its grants live, the unlock looked there under the table
+ * lock and found none of ours for this AG, and it has told the master to drop
+ * any record it still carries (the orphan NAK).  Nothing is held and nothing
+ * is left to release -> RELEASED.  It used to be reported UNKNOWN, and the
+ * caller's re-verify then asked mxfs_v5_dlm_ag_held, which answers "held"
+ * unconditionally on this transport: measured on 8/net/mesh/mpath, three
+ * workers finishing a release a fourth had already completed each took that
+ * road, re-armed a tenure for a grant that was gone, and left the node with a
+ * cached AG it later allocated from beside the AG's real holder.  Any other
+ * error stays UNKNOWN for the caller to resolve from the table.
  */
 enum mxfs_unlock_state mxfs_v5_dlm_ag_unlock(struct mxfs_v5_dlm *ctx,
 					     uint32_t agno)
@@ -24070,7 +24201,7 @@ enum mxfs_unlock_state mxfs_v5_dlm_ag_unlock(struct mxfs_v5_dlm *ctx,
 		if (v5_tcp_release_gate(ctx, "ag", agno))
 			return MXFS_UNLOCK_STILL_HELD;
 		rc = mxfs_dlm_unlock(ctx->dlm, &res);
-		if (rc == 0)
+		if (rc == 0 || rc == -ENOENT)
 			st = MXFS_UNLOCK_RELEASED;
 		else
 			mxfs_probe_ratelimited(

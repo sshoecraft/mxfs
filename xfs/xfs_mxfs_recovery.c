@@ -1403,7 +1403,10 @@ mxfs_dlm_foreign_replay_work_fn(
 				"this is a refusal, not a retry-and-forget",
 				slot, auth);
 			set_bit(MXFS_REAPF_FREPLAY, &mp->m_mxfs_reap_duties);
-			mxfs_reap_sched(mp, MXFS_REAP_RETRY_MS, "freplay-fence");
+			mxfs_reap_sched(mp,
+					mxfs_v5_dlm_recovery_wait_ms(mp->m_mxfs_dlm, slot,
+								     MXFS_REAP_RETRY_MS),
+					"freplay-fence");
 			continue;
 		}
 

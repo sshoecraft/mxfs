@@ -1,12 +1,12 @@
 {
   "nodes": 2,
-  "configuration": "2/net/mesh/direct",
-  "srcversion": "434A389EF37331F7ABF9680",
+  "configuration": "2/net/mesh/mpath",
+  "srcversion": "08292142797BC7CF6789635",
   "node_list": "test1,test2",
-  "dev": "/dev/disk/by-path/ip-192.168.120.1:3260-iscsi-iqn.2026-05.local.mxfs:pool-06-lun-0",
+  "dev": "/dev/mapper/mpatha",
   "rig": "scst-fio",
-  "wwid": "eui.6233653366636664",
-  "fsid": "220df07a-89ae-4a2b-8791-c5aca20e353f",
-  "gen": 38,
-  "iso": "2026-10-04T05:05:47Z"
+  "wwid": "eui.6565636230353536",
+  "fsid": "f3589205-7723-4b27-9a3f-5727a763ac7a",
+  "gen": 95,
+  "iso": "2026-10-06T00:34:08Z"
 }

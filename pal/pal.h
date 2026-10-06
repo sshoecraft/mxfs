@@ -894,6 +894,29 @@ int mxfs_pal_scsi_pr_preempt(mxfs_bdev_t *dev, uint64_t my_key,
 int mxfs_pal_scsi_pr_unregister(mxfs_bdev_t *dev, uint64_t key);
 
 /*
+ * A multipath map only: register `key` on any path that does not hold it yet
+ * (one that was down when the node mounted, or that it logged in on since),
+ * each verified against the key's other registrations so that a registration
+ * made after a peer preempted the key is undone at once.  The caller must
+ * still hold its authority over the LUN and must serialise calls.
+ * Returns 0 (nothing to do, or done), -ESTALE (the key is registered nowhere
+ * else: treat as fenced), -EAGAIN (undecided; call again).  *added: paths
+ * registered by this call.
+ */
+int mxfs_pal_scsi_pr_fill_paths(mxfs_bdev_t *dev, uint64_t key, int *added);
+
+/*
+ * On a multipath map: how many paths prove, by a matching RESERVE that
+ * changes nothing, that their nexus holds `key`; and reduce the key's
+ * registrations to the single path that proves it.  Both return 1 when the
+ * device is not a multipath map of SCSI disks.  Contracts in pal/linux/kern.c.
+ */
+int mxfs_pal_scsi_pr_own_nexuses(mxfs_bdev_t *dev, uint64_t key, uint32_t type,
+                                 int *good, int *paths);
+int mxfs_pal_scsi_pr_collapse_to_one_nexus(mxfs_bdev_t *dev, uint64_t key,
+                                           uint32_t type);
+
+/*
  * Read all currently registered keys.
  * Returns 0 on success, negative errno on failure.
  * *count is set to the number of keys written to keys[].

@@ -10,6 +10,46 @@
 > Everything that turns XFS into a filesystem many machines can mount at once
 > is AI-authored.
 
+> ## 0.90.51: multipath, verified by taking paths away
+>
+> **The `mpath` attachment is released at 2, 4, 8 and 16 nodes with both lock
+> managers:** `{2,4,8,16}/net/mesh/mpath` and `{2,4,8,16}/disk/caw/mpath`.
+> Every node reaches the shared LUN through a dm-multipath map over two iSCSI
+> paths, each path on its own NIC and its own storage network.  Each of the
+> eight configurations passed the 31-row suite the `direct` configurations
+> pass, and then the path-fault rows of
+> [`docs/mpath-verification.md`](docs/mpath-verification.md), all under load on
+> every node: one path lost and returned and then the other, a whole storage
+> network lost on every node at once, a flapping path, a mount and an unmount
+> on one path, a node killed while the survivors are on one path, a fenced
+> node whose dead path comes back, every path lost, a node that withdraws, and
+> on `disk/caw` a lock command the target applied whose answer never arrived.
+> A row passes only with no failed operation on any node, no node lost that
+> the row did not kill, every stall under the bound, and every acknowledged
+> file read back by checksum from another node.
+>
+> Making those rows pass took changes to the filesystem, not only to the rig:
+> a node now registers its fencing key on each path itself and follows its
+> paths as they come and go, the lone survivor's fence works with one
+> registration per path, a `disk/caw` lock swap whose answer was lost is
+> recognised as landed, and several faults that are not specific to multipath
+> were found and fixed on the way (a lock wait that lost its registration, a
+> refused lock upgrade that starved behind its own node's readers, a healthy
+> node shutting down behind a stalled peer, a survivor opening a dead node's
+> files as directories, a lookup failing when its name was removed under it).
+> `CHANGELOG.md` has each with what was measured.
+>
+> **What this covers:** iSCSI; two paths on separate networks to ONE target;
+> the multipath and initiator settings in `tools/mpath_settings.sh`, which are
+> the ones to use; the test rig's platform, Ubuntu 24.04 with kernel
+> 6.8.0-101-generic and multipath-tools 0.9.4.  **What it does not:** a second
+> target or storage controller, Fibre Channel or SAS, more than two paths,
+> other multipath settings, automatic failback to a preferred path group, and
+> the other three platforms, whose package rounds attach on one path.
+>
+> The eight `direct` configurations and all four platforms were verified again
+> on this build.
+
 > ## 0.90.42: sixteen nodes
 >
 > **`16/net/mesh/direct` and `16/disk/caw/direct` are released.**  Sixteen
@@ -30,15 +70,6 @@
 > other node's readers of that lock.  See `CHANGELOG.md`.
 
 > ## 0.90.41: MXFS on DRBD dual-primary — a clustered filesystem with no shared storage
->
-> The DRBD attachment was built in 0.90.40, which was never published: its
-> release validation found failures that leave a volume unmountable after a
-> second fault during pair-outage recovery — a bootstrap whose completion
-> failed partway could not be resumed, on DRBD a recovery whose owner died
-> could never be taken over, and a failed takeover attempt blocked every
-> later one until its host rebooted.  0.90.41 is the DRBD release with all of
-> them fixed, and with a pair outage on `2/net/mesh/direct` no longer left
-> REFUSED when the other host is still booting.
 >
 > **Two nodes, a local disk each, no SAN, no iSCSI target, no third server.**
 > DRBD replicates the two disks synchronously (protocol C) with both nodes
@@ -79,14 +110,23 @@
 > restart left nothing stalled; a device stacked on DRBD, and a loop device,
 > were refused and left byte-identical.  Cold `chk_mxfs` clean after each.
 >
-> **Status: trial.**  The packages ship everything a DRBD node needs
-> (`/usr/sbin/mxfs_drbd_witness.py`, `/usr/sbin/mxfs-drbd-fence-peer`), but
-> `2/net/mesh/drbd` is not in the release matrix: it has not been verified from
-> the installed packages, nor on Proxmox VE 9, RHEL 9.8 or Debian 13.  Setup
+> **Status: released, two nodes, on Ubuntu 24.04 with DRBD 8.4.11.**  That is
+> the platform and DRBD version everything above was measured on.  The
+> packages ship everything a DRBD node needs
+> (`/usr/sbin/mxfs_drbd_witness.py`, `/usr/sbin/mxfs-drbd-fence-peer`).  Not
+> yet run for this attachment, and therefore not claimed: the package-install
+> round, and Proxmox VE 9, RHEL 9.8 and Debian 13.  Setup
 > is in "DRBD dual-primary" under Quick start, the design in
 > [`docs/attachment-methods.md`](docs/attachment-methods.md) ("DRBD
 > dual-primary"), and the design rulings in
 > [`docs/rulings/drbd-dual-primary-attachment.md`](docs/rulings/drbd-dual-primary-attachment.md).
+>
+> 0.90.41 is the first published DRBD release.  The attachment was built in
+> 0.90.40, whose release validation found three ways a second fault during
+> pair-outage recovery could leave a volume unmountable; 0.90.40 was held
+> back, all three were fixed, and the tests that found them are part of what
+> passed above.  A pair outage on `2/net/mesh/direct` is also no longer left
+> REFUSED when the other host is still booting.
 >
 > Also since 0.90.39, for every configuration: a stacked device is never resolved
 > to the disk underneath it for SCSI passthrough, a compare-and-swap never
@@ -131,7 +171,7 @@
 > - All six released configurations were verified on this version, and the
 >   release boards now run side by side, each on its own fixed-size test LUN.
 
-> ## ⚠️ Released: eight configurations, all on `direct` attachment — nothing else
+> ## Released: seventeen configurations, on the `direct`, `mpath` and `drbd` attachments
 >
 > A configuration is four fields, `<nodes>/<class>/<method>/<attach>`, for
 > example `8/net/mesh/direct`. Each field is explained in the tables below and in
@@ -149,24 +189,39 @@
 > | `8/disk/caw/direct` | 0.90.36 | Proxmox VE 9, RHEL 9.8, Ubuntu 24.04, Debian 13 |
 > | `16/net/mesh/direct` | 0.90.42 | Proxmox VE 9, RHEL 9.8, Ubuntu 24.04, Debian 13 |
 > | `16/disk/caw/direct` | 0.90.42 | Proxmox VE 9, RHEL 9.8, Ubuntu 24.04, Debian 13 |
+> | `2/net/mesh/mpath` | 0.90.51 | Ubuntu 24.04 |
+> | `2/disk/caw/mpath` | 0.90.51 | Ubuntu 24.04 |
+> | `4/net/mesh/mpath` | 0.90.51 | Ubuntu 24.04 |
+> | `4/disk/caw/mpath` | 0.90.51 | Ubuntu 24.04 |
+> | `8/net/mesh/mpath` | 0.90.51 | Ubuntu 24.04 |
+> | `8/disk/caw/mpath` | 0.90.51 | Ubuntu 24.04 |
+> | `16/net/mesh/mpath` | 0.90.51 | Ubuntu 24.04 |
+> | `16/disk/caw/mpath` | 0.90.51 | Ubuntu 24.04 |
+> | `2/net/mesh/drbd` | 0.90.41 | Ubuntu 24.04, DRBD 8.4.11 |
 >
-> All eight were verified on the current release, 0.90.42: each
-> configuration's suite on the test rig at its node count, and the installed
-> packages on two nodes of each of the four platforms. A release claims
-> exactly the configurations it lists.
+> All seventeen were verified on the current release, 0.90.51: each
+> configuration's suite on the test rig at its node count (for `drbd`, the
+> suite and the fence, split, node-death, pair-outage and takeover tests of
+> `scripts/drbd_rig.sh`), and for the `direct`
+> configurations the installed packages on two nodes of each of the four
+> platforms. The `mpath` configurations were verified on the test rig only,
+> which runs Ubuntu 24.04 (kernel 6.8.0-101-generic, multipath-tools 0.9.4),
+> with the path-fault rows of `docs/mpath-verification.md` in each board:
+> the package rounds on the other platforms attach on one path. A release
+> claims exactly the configurations it lists.
 >
-> ### Implemented, not released: do not use
+> ### Implemented, not yet released
 >
-> The code runs these and the test rig can build them, but no release has
-> verified them.
+> The code runs these and the test rig can build them. No release has
+> verified them yet, so they are not claimed.
 >
 > | method and attach | configurations |
 > |---|---|
 > | `net/mesh/direct` | `32/net/mesh/direct` |
-> | `net/mesh/mpath` | `2/net/mesh/mpath`, `4/net/mesh/mpath`, `8/net/mesh/mpath`, `16/net/mesh/mpath`, `32/net/mesh/mpath` |
+> | `net/mesh/mpath` | `32/net/mesh/mpath` |
 > | `net/mesh/pass` | `2/net/mesh/pass`, `4/net/mesh/pass`, `8/net/mesh/pass`, `16/net/mesh/pass`, `32/net/mesh/pass` |
 > | `disk/caw/direct` | `32/disk/caw/direct` |
-> | `disk/caw/mpath` | `2/disk/caw/mpath`, `4/disk/caw/mpath`, `8/disk/caw/mpath`, `16/disk/caw/mpath`, `32/disk/caw/mpath` |
+> | `disk/caw/mpath` | `32/disk/caw/mpath` |
 > | `disk/caw/pass` | `2/disk/caw/pass`, `4/disk/caw/pass`, `8/disk/caw/pass`, `16/disk/caw/pass`, `32/disk/caw/pass` |
 >
 > Every other node count from 3 to 64 (3, 5 to 7, 9 to 15, and 17 and up) is in
@@ -202,9 +257,9 @@
 > | attach | implemented | released | the node's path to the LUN |
 > |---|---|---|---|
 > | `direct` | yes | yes | its own initiator, one path: bare metal, or an in-guest iSCSI login |
-> | `mpath` | yes | no | its own initiator over two or more paths, assembled by dm-multipath |
+> | `mpath` | yes | yes | its own initiator over two or more paths, assembled by dm-multipath |
 > | `pass` | yes | no | the hypervisor's initiator: the LUN is passed into the VM (QEMU SCSI passthrough, VMware RDM) |
-> | `drbd` | trial | no | a DRBD dual-primary replica of two local disks |
+> | `drbd` | yes | yes, two nodes with `net/mesh` | a DRBD dual-primary replica of two local disks: no shared storage at all |
 >
 > A configuration that names a method or an attach that is not implemented does
 > not exist yet. `drbd` can never be more than two nodes, because DRBD allows
@@ -219,11 +274,12 @@
 > on the LUN, so both need storage that implements them
 > ([`docs/fencing.md`](docs/fencing.md)).
 >
-> **0.90.36 and earlier have defects that can lose data, and 0.90.37 has races
-> that could crash or wedge a node; upgrade to 0.90.39.** The races are the
-> claim-slot ones described at the top. The data-loss defects were found
-> after 0.90.36 shipped, measured on `8/net/mesh/direct`; the code involved is
-> not specific to that configuration. All are fixed and verified in 0.90.37:
+> **Running 0.90.37 or earlier?  Upgrade.**  0.90.36 and earlier have defects
+> that can lose data, and 0.90.37 has races that could crash or wedge a node
+> (the claim-slot ones described under 0.90.39 above).  The data-loss defects
+> were found after 0.90.36 shipped, measured on `8/net/mesh/direct`; the code
+> involved is not specific to that configuration. All are fixed and verified
+> since 0.90.37:
 >
 > - A name created in a directory that another node had just removed was lost
 >   (`mkdir`, `link`, `symlink`, `rename`), and a `symlink` into such a
@@ -235,27 +291,37 @@
 > - A release claim whose owning process had exited was never retired, could
 >   be inherited by an unrelated process, and could shut a node down.
 >
-> The public defect queue (`data/defects.json`, read with `tools/defects.py`)
-> holds **92 open defects**: 27 reach `2/net/mesh/direct`, 8 reach
-> `2/disk/caw/direct`, 33 reach `4/net/mesh/direct`, 11 reach
-> `4/disk/caw/direct`, 36 reach `8/net/mesh/direct`, 12 reach
-> `8/disk/caw/direct`, 36 reach `16/net/mesh/direct` and 12 reach
-> `16/disk/caw/direct`. None of them blocks a released configuration: each is
-> classified as not crossing the data-loss or crash bar, most of them as
-> slowness. Each record
-> carries its own evidence. Read them before relying on MXFS:
-> `tools/defects.py --at 8/net/mesh/direct -d`, and the same for each
+> **No open defect that can lose data, or crash, hang or shut down a node,
+> reaches any released configuration.**  That is the bar a configuration has
+> to clear to be released, and `tools/defects.py <configuration> --release`
+> shows it for each one.  The defect queue itself is public
+> (`data/defects.json`, read with `tools/defects.py`), and every record carries
+> its evidence.  It holds 94 open records.  51 of them reach only clusters
+> larger than 16 nodes, which are not released.  The 43 that reach a released
+> configuration (between 9 and 37 each, depending on the configuration) are
+> each classified as
+> not crossing that bar, most of them as slowness in a particular operation:
+> `tools/defects.py --at 8/net/mesh/direct -d` lists them for one
 > configuration.
 >
-> **Verified attachment: `direct` only**, over iSCSI. In every verification of
-> every release, each node ran its own iSCSI initiator and reached the shared
-> LUN on one path, with nothing between MXFS and the target. `mpath` and `pass`
-> are not verified with either method: they carry the fencing reservations and,
-> for `disk/caw`, the COMPARE AND WRITE lock commands through a layer no release
+> **Verified attachments: `direct` and `mpath`**, over iSCSI. In every
+> verification, each node ran its own iSCSI initiator and reached the shared
+> LUN either on one path with nothing between MXFS and the target (`direct`),
+> or through a dm-multipath map over two paths to the same target (`mpath`,
+> from 0.90.51, on Ubuntu 24.04 with multipath-tools 0.9.4 and the settings of
+> `tools/mpath_settings.sh`). The `mpath` verification takes paths away under
+> load; what it covers and what it leaves out is at the top of this file and
+> in `docs/mpath-verification.md`. `pass` is not
+> verified with either method: it carries the fencing reservations and, for
+> `disk/caw`, the COMPARE AND WRITE lock commands through a layer no release
 > has tested. Fibre Channel and SAS are not verified. A device without SCSI
-> persistent reservations (virtio-blk, NVMe, md RAID) is refused at mount. DRBD
-> dual-primary is admitted through its own fencing method as a trial attachment
-> (`2/net/mesh/drbd`, `docs/attachment-methods.md`); it is not in any release.
+> persistent reservations (virtio-blk, NVMe, md RAID) is refused at mount.
+>
+> **Verified without shared storage: `drbd`.** Two nodes, each with a local
+> disk, replicated by DRBD dual-primary and fenced through the site's own
+> fence authority instead of SCSI reservations (`2/net/mesh/drbd`, released in
+> 0.90.41; `docs/attachment-methods.md`). Verified on Ubuntu 24.04 with DRBD
+> 8.4.11.
 >
 > What a build has to pass before it is called a release, and what that does
 > not cover, is in "How a release is validated" below.
@@ -273,11 +339,15 @@
 > another node had just re-created failed with "Structure needs cleaning" in 3
 > of 10 laps (`D-DIRSHARD-REUSE-PEER-READDIR-EUCLEAN-ON-CAW-AT-4-NODES`).
 >
-> Performance work is also still open on every configuration.
+> **Performance:** every released configuration passes the suite's pace rows
+> against native XFS on the same storage (`fio_perf`, `fio_perf_vs_xfs`), and
+> every row of the suite runs under a time budget derived from native XFS.
+> Performance work continues; the open records are in the queue.
 >
 > **Released for exactly these kernels**, each installed from the release
-> packages and verified on two, four and eight x86-64 nodes sharing an iSCSI LUN,
-> on both DLMs:
+> packages on two x86-64 nodes of that platform sharing an iSCSI LUN and
+> verified there with both lock managers (the 2-, 4-, 8- and 16-node suites
+> run on the test rig, which is the Ubuntu 24.04 row):
 >
 > | platform | kernel verified |
 > |---|---|
@@ -294,26 +364,24 @@
 > not listed here. On RHEL the RPM builds the module with DKMS (from EPEL) and
 > installs an SELinux rule that labels MXFS files as XFS files are labeled.
 > Other platforms are in development or planned — see `data/platforms.json`.
-> Not yet recommended for production data.
 >
 > **Storage:** the shared storage's write cache must survive a power loss
 > (battery- or flash-backed, as enterprise SAN and NAS arrays provide), or
 > losing the storage target's power must be outside what the cluster has to
 > survive. Crash-durable operation on unprotected caches is in development.
 >
-> The release packages configure both for you: `/etc/modprobe.d/mxfs.conf`
-> sets `options mxfs force_transport=1` (`net/mesh`) and
-> `options mxfs target_cache_protected=1` (the storage declaration above).
-> Building from source, load the module with
-> `modprobe mxfs target_cache_protected=1`: without it a clustered mount is
-> refused. A new cluster forms on `net/mesh` by default; `disk/caw` has to be
+> The release packages and `make install` configure both for you:
+> `/etc/modprobe.d/mxfs.conf` sets `options mxfs force_transport=1`
+> (`net/mesh`) and `options mxfs target_cache_protected=1` (the storage
+> declaration above); without the second a clustered mount is refused. A new cluster forms on `net/mesh` by default; `disk/caw` has to be
 > asked for with `force_transport=0` (see "Choosing the transport"). To see
 > what still blocks each configuration:
 >
 > ```
-> tools/defects.py 8/net/mesh/direct --release   # released; 4/... and 2/... for fewer nodes
-> tools/defects.py 8/disk/caw/direct --release   # released; 4/... and 2/... for fewer nodes
-> tools/defects.py 32/disk/caw/mpath             # 32 nodes, in development
+> tools/defects.py 16/net/mesh/direct --release  # released; also 2/, 4/, 8/ and .../mpath
+> tools/defects.py 16/disk/caw/mpath --release   # released; also 2/, 4/, 8/ and .../direct
+> tools/defects.py 2/net/mesh/drbd --release     # released
+> tools/defects.py 32/disk/caw/mpath             # 32 nodes: not released yet
 > ```
 
 ---
@@ -329,6 +397,9 @@ fork of XFS.
   over SCSI (iSCSI verified; see "Verified storage attachment" above) —
   read/write, concurrently. NVMe, NVMe-oF included, is not supported: the
   fencing and lock commands are SCSI's.
+- **Or two nodes and no shared storage at all.** Two hosts with a local disk
+  each, replicated by DRBD dual-primary, mount one MXFS filesystem read/write
+  on both (`2/net/mesh/drbd`, "DRBD dual-primary" under Quick start).
 - **Coherent and consistent.** A write on one node becomes visible to the
   others; metadata and data stay consistent across node failures.
 - **One kernel module, no daemon.** All cluster coordination — locking, peer
@@ -352,14 +423,14 @@ overlay.
   metadata, the inode cache, the buffer cache — and coordinates them across the
   cluster. It is not a patch series against upstream today.
 - **Distributed lock manager (`dlm/`).** Two lock managers are implemented:
-  - **`net/mesh`** (released as `2/net/mesh/direct`, `4/net/mesh/direct` and
-    `8/net/mesh/direct`) — a network DLM spoken over TCP between nodes.
-  - **`disk/caw`** (released as `2/disk/caw/direct`, `4/disk/caw/direct` and
-    `8/disk/caw/direct`) — lock state lives *in-band on the shared
+  - **`net/mesh`** (released at 2, 4, 8 and 16 nodes on `direct` and `mpath`,
+    and at 2 nodes on `drbd`) — a network DLM spoken over TCP between nodes.
+  - **`disk/caw`** (released at 2, 4, 8 and 16 nodes on `direct` and
+    `mpath`) — lock state lives *in-band on the shared
     disk*, claimed with the SCSI **COMPARE AND WRITE** (opcode `0x89`) atomic
     primitive plus SCSI Persistent Reservations. No separate lock network is
     required, which is what lets it scale past the point where a network DLM
-    stops keeping up (more than 8 nodes is still in development).
+    stops keeping up (more than 16 nodes is still in development).
 
   The module parameter `force_transport` picks the lock manager a new cluster
   forms on: `1` (the default) is `net/mesh`, `0` is `disk/caw`. The release
@@ -455,7 +526,13 @@ headers are the reference for what follows.
    - the filesystem checker exits 0 on the LUN after all of it
      (`chk_clean`);
    - pace, against native XFS on the same storage (`fio_perf`,
-     `fio_perf_vs_xfs`).
+     `fio_perf_vs_xfs`);
+   - on an `mpath` configuration, the path-fault rows as well (`path_*`,
+     defined in [`docs/mpath-verification.md`](docs/mpath-verification.md)):
+     paths, a whole storage network and whole nodes taken away under load on
+     every node. The run's log records that every node's mount sat on a
+     multipath map with at least two active paths when the board started and
+     when it ended, and a board that ends otherwise fails.
 
    The manifest lists every row with its budget.  Every row must read PASS on the board (`tools/criteria.py
    <configuration>`). The board keeps each row's last eleven runs, and a row
@@ -486,6 +563,22 @@ headers are the reference for what follows.
    platform's kernel build check and refuses to publish unless
    `data/platforms.json` holds a recorded verification of that exact version
    on every released platform (`tools/platforms.py check`).
+6. **The text agrees with the data.** `tools/release_text_check.py` derives
+   what is released from the release data (the release matrix, the
+   configurations verified by a rig of their own, the platform ledger, the
+   version, the defect queue) and reads this file, the manual pages, the
+   installed module-options file, the storage guides and the module's own
+   parameter descriptions against it: the Released table, the current
+   version, the defect counts, the cluster sizes, and any wording that calls
+   a released thing a trial, unverified, unsupported or in development.
+   `scripts/release.sh` runs it before it builds a package and again before
+   it publishes, and stops on a failure.
+7. **The configurations with a rig of their own.** `2/net/mesh/drbd` is
+   verified by `tests/drbd_release_verify.sh` (the suite on `/dev/drbd0`, then
+   the remount, node-death, fence, split, device-resolution, pair-outage and
+   takeover tests), not by a board column, so nothing would go red if its run
+   were left out. `scripts/release.sh --publish` refuses a version without
+   that script's PASS for it.
 
 ### The defect bar
 
@@ -537,12 +630,23 @@ built.
 MXFS builds as an out-of-tree kernel module against the running kernel's headers.
 
 ```
-make modules     # build the kernel module -> mxfs.ko
-make tools       # build the userspace tools
-make install     # install the module (modules_install + depmod)
+make             # build the kernel module -> mxfs.ko
+make install     # as root: install everything a node needs (below)
+make tools       # build the userspace tools in tools/ without installing them
 make load        # insmod mxfs.ko
 make unload      # rmmod mxfs
 ```
+
+`make install` installs what the release packages install, from the same file
+list (`packaging/common.sh`): the module (`modules_install` + `depmod`), the
+tools (`mkfs.mxfs`, `chk_mxfs` with its `fsck.mxfs` link, `resize_mxfs`,
+`mxfs_admin`) in `/usr/sbin`, the LU-reset and DRBD witness helpers, the DRBD
+fence-peer handler `/usr/sbin/mxfs-drbd-fence-peer`, the man pages,
+`/etc/modprobe.d/mxfs.conf` (an existing one is kept; `make install OVERWRITE=1`
+replaces it and saves the old one as `mxfs.conf.backup`), `/etc/modules-load.d/mxfs.conf`
+and the udev rule. It refuses to run on a host that already has an MXFS
+package or DKMS module installed: remove that first, or two versions of the
+module and the tools end up installed under the same names.
 
 A matching kernel build tree must be present at `/lib/modules/$(uname -r)/build`.
 The module is developed against a **6.8.x** host kernel; its XFS source was
@@ -552,14 +656,13 @@ current version is recorded in [`VERSION`](VERSION).
 
 ## Tools
 
-Built by `make tools`; the core three install into `/sbin` via
-`make -C tools install`.
+Installed by `make install` and by the packages.
 
 | Tool | Installed as | Purpose |
 |---|---|---|
-| `mkfs_mxfs` | `/sbin/mkfs.mxfs` | Format a block device for MXFS. |
-| `chk_mxfs` | `/sbin/chk_mxfs` | Check / repair and report geometry — the MXFS `fsck`. |
-| `resize_mxfs` | `/sbin/resize.mxfs` | Grow an MXFS filesystem after the device has been expanded. |
+| `mkfs_mxfs` | `/usr/sbin/mkfs.mxfs` | Format a block device for MXFS. |
+| `chk_mxfs` | `/usr/sbin/chk_mxfs` | Check / repair and report geometry — the MXFS `fsck`. |
+| `resize_mxfs` | `/usr/sbin/resize_mxfs` | Grow an MXFS filesystem after the device has been expanded. |
 | `fua_verify` | — | Verify SCSI READ/WRITE **FUA** semantics across nodes on a shared LUN. |
 | `caw_verify` | — | Verify SCSI **COMPARE AND WRITE** (`0x89`) persistence across nodes (built separately). |
 
@@ -573,12 +676,14 @@ resize.mxfs [-v] [-n] [-V] DEVICE               # -n = dry run
 
 ## Quick start
 
-The released configurations are `2/net/mesh/direct`, `4/net/mesh/direct`,
-`8/net/mesh/direct`, `2/disk/caw/direct`, `4/disk/caw/direct` and
-`8/disk/caw/direct`: each node reaches the LUN over single-path iSCSI. Install
-the release package on every node (it loads the module with
-`force_transport=1 target_cache_protected=1`, i.e. `net/mesh`), or load a source
-build with `modprobe mxfs force_transport=1 target_cache_protected=1` on every node.
+The released configurations are 2, 4, 8 and 16 nodes with either lock manager
+(`net/mesh` or `disk/caw`), each node reaching the LUN over iSCSI on one path
+(`direct`) or through dm-multipath on two (`mpath`, with the settings of
+`tools/mpath_settings.sh`), and two nodes with no shared storage on DRBD
+dual-primary (`2/net/mesh/drbd`, its own section below). Install
+the release package, or a source build with `make && make install`, on every
+node; either loads the module with `force_transport=1 target_cache_protected=1`,
+i.e. `net/mesh`, and every node must run the same version.
 For `disk/caw`, see "Choosing the transport" below before the first mount.
 
 ```
@@ -622,7 +727,7 @@ mount -t mxfs -o peer=10.0.0.11 /dev/sdX /mnt/shared      # on 10.0.0.12
 `peers=A/B/...` replaces multicast with exactly that list and drops every
 other sender. See `mxfs(5)` and [`docs/discovery.md`](docs/discovery.md).
 
-### DRBD dual-primary (`2/net/mesh/drbd`, trial)
+### DRBD dual-primary (`2/net/mesh/drbd`)
 
 Two nodes, each with a local disk of the same size, and no shared storage.
 Install the MXFS package and `drbd-utils` on both, and keep the package's
@@ -711,8 +816,8 @@ frozen I/O, never two writers.
 
 ### Choosing the transport
 
-Both lock managers are released for clusters of two, four and eight nodes on
-`direct`. Pick one per cluster, before its first mount:
+Both lock managers are released for clusters of two, four, eight and sixteen
+nodes, on `direct` and on `mpath`. Pick one per cluster, before its first mount:
 
 | | `net/mesh` | `disk/caw` |
 |---|---|---|

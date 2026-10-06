@@ -61,6 +61,84 @@ MODULE_PARM_DESC(ag_yield_adaptive,
  * from, and which has not occurred naturally since the fix landed.  Clears
  * itself as it fires.  0 = off (default); never arm outside a validation run.
  */
+/*
+ * Read-only totals a harness can read after the kernel log has rotated:
+ * cached AG hints dropped because no grant stood behind them, and AG releases
+ * that ended "still held" and re-armed a tenure.
+ */
+long mxfs_ag_cached_phantom_total;
+module_param_named(ag_cached_phantom_total, mxfs_ag_cached_phantom_total, long, 0444);
+MODULE_PARM_DESC(ag_cached_phantom_total,
+	"read-only: cached AG hints found with no grant in this node's table and dropped (net/mesh)");
+long mxfs_ag_unlock_rearm_total;
+module_param_named(ag_unlock_rearm_total, mxfs_ag_unlock_rearm_total, long, 0444);
+MODULE_PARM_DESC(ag_unlock_rearm_total,
+	"read-only: AG releases whose unlock outcome was 'still held' and re-armed a tenure");
+
+/*
+ * Two more totals for the same harness: runners of the release function that
+ * found a committed release already being finished by another runner, and
+ * finishers that reached the wire unlock with no grant of this node's in its
+ * table (net/mesh) — what a second finisher of one tenure finds.
+ */
+long mxfs_ag_release_dup_total;
+module_param_named(ag_release_dup_total, mxfs_ag_release_dup_total, long, 0444);
+MODULE_PARM_DESC(ag_release_dup_total,
+	"read-only: runs of the AG release function that found the committed release already owned by another runner");
+long mxfs_ag_release_nogrant_total;
+module_param_named(ag_release_nogrant_total, mxfs_ag_release_nogrant_total, long, 0444);
+MODULE_PARM_DESC(ag_release_nogrant_total,
+	"read-only: AG release finishers that reached the wire unlock with no grant in this node's table (net/mesh)");
+
+/*
+ * TEST ONLY.  Milliseconds every runner of the AG release function sleeps
+ * between its pre-COMMIT pass and the COMMIT decision.  Runners overlap only
+ * when a second one starts inside the first one's pre-COMMIT pass, which is a
+ * few milliseconds wide; this holds that window open so every release is met
+ * by the inline runners of whatever threads are on the slow inode-lock road.
+ * Default 0.
+ */
+int mxfs_ag_prepass_delay_ms;
+module_param_named(ag_prepass_delay_ms, mxfs_ag_prepass_delay_ms, int, 0644);
+MODULE_PARM_DESC(ag_prepass_delay_ms,
+	"TEST ONLY: ms each AG release runner sleeps between its pre-COMMIT pass and the COMMIT decision (default 0)");
+
+/*
+ * TEST ONLY.  Non-zero: a thread on the slow inode-lock road runs the release
+ * function inline for an eligible AG even while the queued worker is running
+ * it.  That is what happens untested when the work was queued again behind
+ * the running worker and the thread takes the queued instance for itself
+ * (measured on 8/net/mesh/mpath: one COMMIT, three more runners past it), but
+ * it needs a second queueing inside the worker's pre-COMMIT pass; this gives
+ * every release a second runner whenever such a thread comes by.  Default 0.
+ */
+int mxfs_ag_release_twin;
+module_param_named(ag_release_twin, mxfs_ag_release_twin, int, 0644);
+MODULE_PARM_DESC(ag_release_twin,
+	"TEST ONLY: run the AG release function inline beside a running worker (default 0)");
+
+/*
+ * Under pag_dlm_lock, by a runner about to go past the release COMMIT: true
+ * if this runner now owns the rest of the release, false if another runner
+ * already does (see pag_dlm_finishing).
+ */
+static bool
+mxfs_ag_finish_claim(
+	struct xfs_perag	*pag,
+	const char		*where)
+{
+	if (pag->pag_dlm_finishing) {
+		WRITE_ONCE(mxfs_ag_release_dup_total,
+			   READ_ONCE(mxfs_ag_release_dup_total) + 1);
+		mxfs_probe_ratelimited("mxfs: P12-WORK ag=%u dup-finisher at=%s comm=%s total=%ld — the committed release is already being finished by another runner\n",
+			pag_agno(pag), where, current->comm,
+			READ_ONCE(mxfs_ag_release_dup_total));
+		return false;
+	}
+	pag->pag_dlm_finishing = true;
+	return true;
+}
+
 int mxfs_ag_strand_inject;
 EXPORT_SYMBOL(mxfs_ag_strand_inject);
 module_param_named(ag_strand_inject, mxfs_ag_strand_inject, int, 0644);
@@ -1990,6 +2068,10 @@ mxfs_dlm_ag_bast_work_fn(
 			(unsigned long long)((ktime_get_ns() -
 				pag->pag_dlm_latch_ns) / NSEC_PER_MSEC),
 			jiffies_to_msecs(jiffies - pag->pag_dlm_bast_pending_since));
+		if (!mxfs_ag_finish_claim(pag, "enter")) {
+			mxfs_pag_dlm_unlock(pag, MXFS_SITE);
+			return;
+		}
 		mxfs_pag_dlm_unlock(pag, MXFS_SITE);
 		goto committed;
 	}
@@ -2097,6 +2179,8 @@ mxfs_dlm_ag_bast_work_fn(
 	}
 	mxfs_blkdev_flush_epoch(mp);
 	ags_pre = ktime_get_ns();
+	if (unlikely(READ_ONCE(mxfs_ag_prepass_delay_ms) > 0))
+		msleep(READ_ONCE(mxfs_ag_prepass_delay_ms));
 
 	/*
 	 * Phase 2: claim demote slot.  Re-check state — the AIL push above
@@ -2115,6 +2199,10 @@ mxfs_dlm_ag_bast_work_fn(
 			pag_agno(pag),
 			(unsigned long long)((ktime_get_ns() -
 				pag->pag_dlm_latch_ns) / NSEC_PER_MSEC));
+		if (!mxfs_ag_finish_claim(pag, "phase2")) {
+			mxfs_pag_dlm_unlock(pag, MXFS_SITE);
+			return;
+		}
 		mxfs_pag_dlm_unlock(pag, MXFS_SITE);
 		goto committed;
 	}
@@ -2161,6 +2249,7 @@ mxfs_dlm_ag_bast_work_fn(
 	 * the same helper is what the unlock/acquire latch paths run.
 	 */
 	mxfs_ag_handoff_commit(pag, NULL, NULL);
+	pag->pag_dlm_finishing = true;
 	mxfs_probe_ratelimited(
 		"mxfs: P12-WORK ag=%u COMMIT demoting readopt=%u page_ms=%u\n",
 		pag_agno(pag), pag->pag_dlm_readopt_n,
@@ -2562,6 +2651,14 @@ committed:
 	 */
 	ags_gate = ktime_get_ns();
 	mxfs_ag_relmark_before_unlock(pag, "ag-bast");
+	if (!mxfs_v5_dlm_is_caw(dlm) &&
+	    mxfs_v5_dlm_ag_strand_held(dlm, pag_agno(pag)) == 0) {
+		WRITE_ONCE(mxfs_ag_release_nogrant_total,
+			   READ_ONCE(mxfs_ag_release_nogrant_total) + 1);
+		mxfs_probe_ratelimited("mxfs: P12-AGREL-NOGRANT ag=%u comm=%s total=%ld — this release reached its unlock with no grant of ours in the table\n",
+			pag_agno(pag), current->comm,
+			READ_ONCE(mxfs_ag_release_nogrant_total));
+	}
 	us = mxfs_v5_dlm_ag_unlock(dlm, pag_agno(pag));
 	atomic64_inc(&mxfs_dlm_stat_ag_release);
 	ags_unlk = ktime_get_ns();
@@ -2614,7 +2711,16 @@ committed:
 			int held;
 
 			msleep(1000);
-			held = mxfs_v5_dlm_ag_held(dlm, pag_agno(pag));
+			/*
+			 * disk/caw reads its slot.  net/mesh asks its own
+			 * grant table (settled grant 1, none 0, in flight or
+			 * busy: no answer yet); mxfs_v5_dlm_ag_held answers 1
+			 * there whatever the table holds, which turned every
+			 * unknown outcome into "still held".
+			 */
+			held = mxfs_v5_dlm_is_caw(dlm) ?
+				mxfs_v5_dlm_ag_held(dlm, pag_agno(pag)) :
+				mxfs_v5_dlm_ag_strand_held(dlm, pag_agno(pag));
 			if (held == 1)
 				us = MXFS_UNLOCK_STILL_HELD;
 			else if (held == 0)
@@ -2759,6 +2865,8 @@ committed:
 		mxfs_pag_dlm_unlock(pag, MXFS_SITE);
 		wake_up_all(&pag->pag_dlm_demote_wq);
 
+		WRITE_ONCE(mxfs_ag_unlock_rearm_total,
+			   READ_ONCE(mxfs_ag_unlock_rearm_total) + 1);
 		lrc = mxfs_ag_dlm_lock(mp, pag);
 		if (lrc == 0) {
 			mxfs_probe("mxfs: P275-AGUNLK-REARM ag=%u — unlock left bit set, tenure re-minted, release will retry\n",
@@ -2787,6 +2895,8 @@ committed:
 		 */
 		mxfs_pag_dlm_lock(pag, MXFS_SITE);
 		pag->pag_dlm_release_pending = true;
+		/* this runner is done; a requeued one may try the release again */
+		pag->pag_dlm_finishing = false;
 		mxfs_pag_dlm_unlock(pag, MXFS_SITE);
 		pr_warn("mxfs: P275-AGUNLK-QUARANTINE ag=%u — unlock outcome UNPROVABLE after re-verify; AG quarantined (demoting held, acquires blocked)\n",
 			pag_agno(pag));

@@ -121,7 +121,18 @@ vmstat -w -t 5 > "$EV/release_verify_hostcpu_$V.log" 2>&1 &
 HOSTCPU=$!
 trap 'kill $HOSTCPU 2>/dev/null' EXIT
 # group_of <count> <i>: the rig group the i-th configuration at <count> runs on
-group_of() { local g=g$1; [ "$2" -gt 0 ] && g=g$1$(printf "\\$(printf %o $((97 + $2)))"); echo "$g"; }
+# (g<count>, g<count>b, g<count>c ... for as many as the lab file names).  A
+# matrix with more configurations at a count than the rig has groups wraps
+# around: tests/board_4node_chain.sh runs the boards that share a group one
+# after another.
+group_of() {
+    local n=0 g
+    while g=g$1; [ "$n" -gt 0 ] && g=g$1$(printf "\\$(printf %o $((97 + n)))"); [ "$(tools/mxfs_lab.sh group "$g" 2>/dev/null | wc -w)" = "$1" ]; do n=$((n + 1)); done
+    [ "$n" -gt 0 ] || { echo "g$1"; return; }
+    n=$(($2 % n))
+    g=g$1; [ "$n" -gt 0 ] && g=g$1$(printf "\\$(printf %o $((97 + n)))")
+    echo "$g"
+}
 # With POWER=1 every stage starts from a host holding only what it uses: a
 # guest left up from the stage before (a platform set is 8 of them) is memory
 # and CPU the boards do not get.  RIG_MAX is the highest rig node any group

@@ -288,6 +288,12 @@ typedef struct xfs_inode {
 	struct task_struct	*i_dlm_tries_owner; /* ABBA breaker: task for which the NEXT slow-path acquire of THIS inode is retry-bounded (set by xfs_lock_two_inodes around its SECOND ilock_begin while it holds the first inode's grant-hold).  Gating by task means a concurrent acquirer of the same inode never inherits the bound. */
 	int			i_dlm_tries;       /* retry budget for the bounded acquire (0 = unbounded/normal) */
 	int			i_dlm_tries_rc;    /* OUT: 0 = acquired; -ETIMEDOUT = bounded acquire gave up (caller must drop its other grant-hold, back off, retry both) */
+	/* A task on this node whose exclusive request was refused as an upgrade
+	 * (EDEADLK) and is being retried after dropping the cached shared grant:
+	 * its pid, and until when (ktime ns) other tasks' shared requests on
+	 * this inode stand back for it.  See mxfs_ilock_upgrade_pending. */
+	pid_t			i_dlm_upg_pid;
+	u64			i_dlm_upg_until_ns;
 	bool			i_dlm_self_demote; /* the next mxfs_dlm_bast_process for this inode is a SELF-demote (the P109 EDEADLK upgrade-conflict recovery dropping our own cached PR->NL to re-request EX from a clean state), NOT a peer handoff.  No peer reads our state across a self-demote, so a clean (read-only) self-demote needs no durability drain — skipping it kills the tcp_dlm_scaling PR->EX upgrade-livelock amplifier WITHOUT removing the coherency-masking barrier on genuine peer handoffs (dir_reuse/rsync_paired).  Set in the EDEADLK recovery before queuing bast_work; read+cleared at bast_process entry. */
 	bool			i_dlm_unpublished; /* brand-new inode granted LOCALLY (i_dlm_mode=EX) with NO on-disk CAW slot yet; published lazily on a peer dir/AGI BAST or dropped silently on local eviction.  See notes/sess43_deferred_publish_design.md */
 	struct list_head	i_dlm_unpub_link;  /* linkage on mp->m_mxfs_unpub_list while i_dlm_unpublished */

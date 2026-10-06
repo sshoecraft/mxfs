@@ -95,7 +95,7 @@ for n in "$A" "$B"; do
 done
 echo "STAGE boot-wait polls=$w at +$(el)s"
 
-MXFS_FORCE_PREP=1 timeout 300 ./run.sh 2/net/mesh/direct prep_cluster > "$OUT/prep.log" 2>&1
+MXFS_FORCE_PREP=1 timeout 300 ./run.sh "$MXFS_CONFIG" ${MXFS_GROUP:+--group "$MXFS_GROUP"} prep_cluster > "$OUT/prep.log" 2>&1
 prc=$?
 echo "STAGE prep rc=$prc wall=$(el)s  $(grep -am1 'prep_cluster OK\|FAIL' "$OUT/prep.log" | cut -c1-140)"
 [ $prc = 0 ] || { echo "RESULT: ABORT label=$LABEL stage=prep evidence=$OUT"; exit 2; }

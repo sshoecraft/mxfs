@@ -606,6 +606,11 @@ def cmd_add(data: dict, args) -> int:
                        ("max_nodes", args.max_nodes)):
         if value:
             entry[key] = value
+    if args.applies_to:
+        try:
+            entry["applies_to"] = configuration.check_pattern(args.applies_to)
+        except configuration.ConfigurationError as e:
+            sys.exit(f"criteria: --applies-to: {e}")
     data["criteria"].append(entry)
     save(data)
     if args.budget_s is None:
@@ -967,6 +972,9 @@ def main() -> int:
                      help="the smallest node count the row is meaningful at (SKIPPED below it)")
     add.add_argument("--max-nodes", type=int, dest="max_nodes",
                      help="the largest node count the row runs at (0 = no cap)")
+    add.add_argument("--applies-to", dest="applies_to", metavar="PATTERN",
+                     help="the configurations the row exists on, a pattern over "
+                          "class/method/attach: any (default) | disk/caw | net/mesh | */*/mpath")
 
     update = subs.add_parser("update", help="record a measurement")
     update.add_argument("id")

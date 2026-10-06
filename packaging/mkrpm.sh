@@ -74,7 +74,7 @@ cp "$SCRIPTDIR/60-mxfs-blkid.rules" "$TARDIR/udev/"
 mkdir -p "$TARDIR/selinux"
 cp "$SCRIPTDIR/mxfs.cil" "$TARDIR/selinux/"
 
-# modprobe config: TCP transport, the released configuration
+# modprobe config: TCP (net/mesh), the package default; CAW (disk/caw) is released too
 mkdir -p "$TARDIR/modprobe"
 cp "$SCRIPTDIR/mxfs-modprobe.conf" "$TARDIR/modprobe/mxfs.conf"
 
@@ -165,7 +165,7 @@ echo 'omit_drivers+=" mxfs "' > %{buildroot}/etc/dracut.conf.d/mxfs.conf
 mkdir -p %{buildroot}/etc/udev/rules.d
 install -m 644 udev/60-mxfs-blkid.rules %{buildroot}/etc/udev/rules.d/60-mxfs-blkid.rules
 
-# Transport: TCP is the released configuration
+# Transport: TCP (net/mesh) is the package default; CAW (disk/caw) is released too
 mkdir -p %{buildroot}/etc/modprobe.d
 install -m 644 modprobe/mxfs.conf %{buildroot}/etc/modprobe.d/mxfs.conf
 

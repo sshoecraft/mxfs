@@ -189,22 +189,28 @@ grep -E 'warning:|error:' "$B/build.log" | grep -v 'compiler differs\|Clock skew
   timeout 240 make -C tests/tauth clean test > "$B/tauth.log" 2>&1; echo "tauth_rc=$? $(grep -aoE '=== tauth_test: fails=[0-9]+' "$B/tauth.log")" ) | tee -a "$L"
 timeout 120 python3 scripts/extern_decl_audit.py >> "$L" 2>&1; echo "extern_audit_rc=$?" | tee -a "$L"
 timeout 60 python3 scripts/inode_flag_bits_audit.py >> "$L" 2>&1; echo "inode_flag_audit_rc=$?" | tee -a "$L"
+# the public text against the release data (scripts/release.sh stops on this;
+# here it is recorded with the build's other audits)
+timeout 120 python3 tools/release_text_check.py >> "$L" 2>&1; echo "release_text_check_rc=$?" | tee -a "$L"
 fi
 
 # --- 2. the release matrix's suites on the rig at the claimed node count
 MATRIX=$(python3 tools/configuration.py release-matrix --nodes "$NODES")
 [ -n "$MATRIX" ] || { echo "the release matrix (data/configurations.json) has no configuration at $NODES nodes" | tee -a "$L"; exit 2; }
-# one rig group per configuration, g<N> then g<N>b, g<N>c ...: each the
-# claimed size, so the suites run side by side on disjoint nodes
+# The rig groups of the claimed size, g<N> then g<N>b, g<N>c ... for as many
+# as the lab file names: the suites run side by side on disjoint nodes, the
+# i-th configuration on the i-th group.  A matrix with more configurations at
+# this count than the rig has groups (four at 16 nodes on a 32-node rig) wraps
+# around, and the configurations that share a group run one after another.
 SUITE_GROUPS=""
 i=0
 for cfg in $MATRIX; do
     g=g$NODES; [ "$i" -gt 0 ] && g=g$NODES$(printf "\\$(printf %o $((97 + i)))")
-    [ "$(lab_group "$g" 2>/dev/null | wc -w)" = "$NODES" ] \
-        || { echo "$cfg needs rig group $g of $NODES nodes in $MXFS_LAB" | tee -a "$L"; exit 2; }
+    [ "$(lab_group "$g" 2>/dev/null | wc -w)" = "$NODES" ] || break
     SUITE_GROUPS="$SUITE_GROUPS $g"
     i=$((i + 1))
 done
+[ -n "$SUITE_GROUPS" ] || { echo "the suites need rig group g$NODES of $NODES nodes in $MXFS_LAB" | tee -a "$L"; exit 2; }
 if want suites; then
 if [ "$POWER" = 1 ]; then
     # shellcheck disable=SC2086  # one argument per platform
@@ -212,13 +218,23 @@ if [ "$POWER" = 1 ]; then
     # shellcheck disable=SC2086
     run scripts/lab_power.sh up $(for g in $SUITE_GROUPS; do echo "group:$g"; done)
 fi
-set -- $SUITE_GROUPS
+# shellcheck disable=SC2206  # one element per group
+sgroups=($SUITE_GROUPS)
 pids=()
-for cfg in $MATRIX; do
-    slug=${cfg//\//-}
-    g=$1; shift
-    sl="$HERE/tests/evidence/full_verify_${V}_suite_$slug.log"
-    ( ./run.sh "$cfg" --group "$g" > "$sl" 2>&1; echo "=== rc=$?: ./run.sh $cfg --group $g ===" >> "$sl" ) &
+for gi in "${!sgroups[@]}"; do
+    g=${sgroups[$gi]}
+    (
+        i=0
+        for cfg in $MATRIX; do
+            if [ $((i % ${#sgroups[@]})) = "$gi" ]; then
+                slug=${cfg//\//-}
+                sl="$HERE/tests/evidence/full_verify_${V}_suite_$slug.log"
+                ./run.sh "$cfg" --group "$g" > "$sl" 2>&1
+                echo "=== rc=$?: ./run.sh $cfg --group $g ===" >> "$sl"
+            fi
+            i=$((i + 1))
+        done
+    ) &
     pids+=($!)
 done
 for p in "${pids[@]}"; do wait "$p"; done
@@ -248,7 +264,11 @@ want platforms || { echo "=== full_verify $V done (steps:${STEPS//,/ }) ===" | t
 # platforms in parallel, the groups one after another
 PR=tests/packaged_round.sh
 FZ=tests/tcp_peer_freeze_death.sh
-PMATRIX=$(python3 tools/configuration.py release-matrix --nodes "$PLATFORM_NODES")
+# The platform harnesses attach the LUN by in-guest iSCSI on one path and build
+# nothing else (tests/packaged_round.sh), so a platform is verified on the
+# matrix's direct configurations; a multipath configuration is verified by its
+# rig board.
+PMATRIX=$(python3 tools/configuration.py release-matrix --nodes "$PLATFORM_NODES" | grep '/direct$')
 [ -n "$PMATRIX" ] || { echo "the release matrix has no configuration at $PLATFORM_NODES nodes" | tee -a "$L"; exit 2; }
 steps_of() {  # <platform>: that platform's steps, in order
     local s=() cfg kernels=("") k
@@ -292,7 +312,7 @@ for k in $ALL_PLATFORMS; do
     failed=$((failed + $(grep -ac '^=== rc=[1-9]' "$HERE/tests/evidence/full_verify_${V}_$k.log")))
 done
 
-grep -E "=== rc=|RESULT|VERDICT|both nodes on kernel|suite_[0-9]+-|clean_build_rc|tools_rc|tauth_rc|extern_audit_rc|inode_flag_audit_rc|all .* laps passed|STALL|STOP" "$L" | cut -c1-200
+grep -E "=== rc=|RESULT|VERDICT|both nodes on kernel|suite_[0-9]+-|clean_build_rc|tools_rc|tauth_rc|extern_audit_rc|inode_flag_audit_rc|release_text_check_rc|all .* laps passed|STALL|STOP" "$L" | cut -c1-200
 # The exit status is the platforms' verdict.  It used to be the grep's above,
 # so 0.90.39's chain read rc=0 over twelve failed packaged rounds.
 echo "=== full_verify $V platform steps failed: $failed ===" | tee -a "$L"

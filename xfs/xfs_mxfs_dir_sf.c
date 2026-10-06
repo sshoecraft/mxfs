@@ -812,6 +812,37 @@ mxfs_dir_sf_premerge_for_release(struct xfs_inode *ip)
 	kfree(rb);
 }
 
+/*
+ * TEST ONLY (tests/mpath/sf_refresh_read_fail.sh): the next N platter reads of
+ * mxfs_dir_sf_refresh_if_disk_differs that would succeed are reported failed
+ * instead, as a read on a lost path was before 0.90.54 (measured: 2422 FUA
+ * reads ended EIO after 21 attempts on a cut path while the other path was
+ * up).  Only reads made while the fork is proven stale (dir_gen > loaded_gen)
+ * are taken, so each injection is exactly the mandatory adopt being skipped.
+ * Each logs P-SF-REFRESH-READ-FAIL.  0 = off.
+ */
+static int mxfs_dbg_sf_refresh_read_fail;
+module_param_named(dbg_sf_refresh_read_fail, mxfs_dbg_sf_refresh_read_fail, int, 0644);
+MODULE_PARM_DESC(dbg_sf_refresh_read_fail,
+	"TEST: fail the next N stale-generation shortform refresh reads (0 = off)");
+
+static bool
+mxfs_dbg_sf_refresh_read_fail_take(struct xfs_inode *ip)
+{
+	int n = READ_ONCE(mxfs_dbg_sf_refresh_read_fail);
+
+	if (ip->i_dlm_dir_gen <= ip->i_dlm_dir_loaded_gen)
+		return false;
+	while (n > 0) {
+		int o = cmpxchg(&mxfs_dbg_sf_refresh_read_fail, n, n - 1);
+
+		if (o == n)
+			return true;
+		n = o;
+	}
+	return false;
+}
+
 void
 mxfs_dir_sf_refresh_if_disk_differs(struct xfs_inode *ip)
 {
@@ -852,7 +883,16 @@ mxfs_dir_sf_refresh_if_disk_differs(struct xfs_inode *ip)
 		else
 			rrc = mxfs_pal_scsi_read_fua_bdev(
 				mp->m_ddev_targp->bt_bdev, lba, rb, clen);
+		if (rrc == 0 && mxfs_dbg_sf_refresh_read_fail_take(ip))
+			rrc = -EIO;
 		if (rrc != 0) {
+			static atomic_t	pfn = ATOMIC_INIT(0);
+
+			if (atomic_inc_return(&pfn) <= 400)
+				pr_warn("mxfs: P-SF-REFRESH-READ-FAIL ino=%llu rc=%d dir_gen=%u loaded_gen=%u clean=%d comm=%s — the platter read of a shortform dir's coherence check failed; the in-core fork is kept unverified\n",
+					(unsigned long long)ip->i_ino, rrc,
+					ip->i_dlm_dir_gen, ip->i_dlm_dir_loaded_gen,
+					xfs_inode_clean(ip) ? 1 : 0, current->comm);
 			kfree(rb);
 			return;
 		}

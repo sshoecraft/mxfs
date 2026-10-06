@@ -579,6 +579,7 @@ extern bool xfs_buf_delwri_queue(struct xfs_buf *, struct list_head *);
 extern void mxfs_buf_diag_dump(const char *tag, uint64_t ino, struct xfs_buf *bp);
 /* D-0976: platter baseline for a recovery's first patch of an inode slot */
 int mxfs_recov_slot_refresh(struct xfs_buf *bp, int slot);
+int mxfs_recov_slot_platter_cc(struct xfs_buf *bp, int slot, uint64_t *cc);
 int xfs_buf_delwri_queue_recovery(struct xfs_buf *bp,
 		struct list_head *buffer_list, bool foreign);
 void xfs_buf_delwri_queue_here(struct xfs_buf *bp, struct list_head *bl);

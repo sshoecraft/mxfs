@@ -431,6 +431,19 @@ ssh_node() {
     return "$rc"
 }
 
+# mpath_paths <node> [<device>]: how many paths multipathd reports active and
+# ready under <device> on that node; without <device>, under whatever the
+# node's mxfs mount at $MNT sits on.  0 when the device is not a multipath map
+# or the node did not answer: a board on the mpath attachment that ran on one
+# path, or on a plain disk, measured the direct attachment under another name.
+mpath_paths() {
+    local q
+    if [ -n "${2:-}" ]; then q="d=$2"
+    else q="d=\$(awk '\$2==\"$MNT\" && \$3==\"mxfs\"{print \$1}' /proc/mounts | head -1)"; fi
+    ssh_node "$1" "$q; echo PATHS=\$(multipath -ll \"\$d\" 2>/dev/null | grep -cE 'active ready running')" 2>/dev/null \
+        | sed -n 's/^PATHS=\([0-9][0-9]*\).*/\1/p' | tail -1
+}
+
 # sess11 (ccloop c7ee71c6): foreign-kernel fleets (physrig: 6.17.2-1-pve vs
 # clyde's 6.8 repo build) — the artifact under test is the NODE-INSTALLED
 # module, so the marker identity must be its srcversion, not the repo .ko's
@@ -767,8 +780,11 @@ power_cycle_node() {  # <node>  -> 0 once node is reachable and DEV present
             local restore_iscsi=''
             # A pool run's node logs back into its LUN's target and nothing
             # else: a discovery and bare login would record every pool target.
-            local rp rportals=192.168.120.1
-            [ "$CFG_ATTACH" = mpath ] && rportals="192.168.120.1 192.168.120.2"
+            # The portals are the lab file's: the one a single-path node uses,
+            # or the multipath ones, each on a storage network of its own.
+            local rp rportals
+            rportals=$("$REPO/tools/mxfs_lab.sh" get storage portal 2>/dev/null); rportals=${rportals%%:*}
+            [ "$CFG_ATTACH" = mpath ] && rportals=$("$REPO/tools/mxfs_lab.sh" get storage mpath 2>/dev/null | tr ',' ' ')
             if [ "$USE_POOL" = 1 ]; then
                 for rp in $rportals; do restore_iscsi="$restore_iscsi
                     iscsiadm -m node -T $RIG_TGT -p $rp:3260 >/dev/null 2>&1 || iscsiadm -m node -o new -T $RIG_TGT -p $rp:3260 >/dev/null 2>&1
@@ -1064,7 +1080,7 @@ d=json.load(open(sys.argv[1])); print((d.get(sys.argv[2]) or {}).get("task_retir
         # adopted as the build every other node is compared against.
         srcver_valid "$want_srcv" || { echo "PREP FAIL: $NODE1 gave no usable srcversion (got '${want_srcv:0:60}') — is it still booting?"; rm -rf "$tmpd"; return 1; }
     fi
-    local bad=""
+    local bad="" attach_note=""
     for n in "${NODES[@]}"; do
         ssh_node "$n" "mount | grep -q ' on $MNT type mxfs'" >/dev/null 2>&1 || { bad="$bad $n(unmounted)"; continue; }
         if [ -n "$want_srcv" ]; then
@@ -1082,6 +1098,12 @@ d=json.load(open(sys.argv[1])); print((d.get(sys.argv[2]) or {}).get("task_retir
                 [ "$got_srcv" = "$want_srcv" ] || bad="$bad $n(build=$got_srcv!=$want_srcv)"
             fi
         fi
+        if [ "$CFG_ATTACH" = mpath ]; then
+            local np
+            np=$(mpath_paths "$n")
+            [ "${np:-0}" -ge 2 ] || bad="$bad $n(mounted on ${np:-0} active path(s); the mpath attachment is 2 or more)"
+            [ -z "$attach_note" ] || [ "${np:-0}" -lt "${attach_note##*=}" ] && attach_note="min paths=${np:-0}"
+        fi
     done
     if [ -n "$bad" ]; then
         echo "PREP FAIL: bad nodes:$bad"
@@ -1090,6 +1112,7 @@ d=json.load(open(sys.argv[1])); print((d.get(sys.argv[2]) or {}).get("task_retir
     fi
     rm -rf "$tmpd"
     echo "--- prep OK: mxfs mounted on all $N node(s), build $want_srcv ---"
+    [ -z "$attach_note" ] || echo "--- attach: every node's mount is a dm-multipath map, $attach_note active ---"
 
     # sess45 (ccloop 4cb2d0a2): CLUSTER-CONVERGENCE GATE.  A barrier-coordinated
     # workload must not start before the mxfs cluster has converged to N members:
@@ -2021,8 +2044,17 @@ finalize_pending() {
 #
 # MXFS_PREFLIGHT_SKIP=1 bypasses it, loudly, for the rare case where the gate
 # itself is what is broken.
+#
+# It runs with the LUN pool held quiet.  A run beside this one that is logging
+# its nodes in to a LUN writes the target's session lines into the host log at
+# that moment, two paths' worth per node on a multipath attachment, and the
+# gate's log-rate sample cannot tell them from a flood: measured 2026-10-04,
+# six runs started together, 58 lines/s against the 40 allowed, every line a
+# session or a LUN thread starting, and two of the six runs refused.
 # ---------------------------------------------------------------------------
-if ! "$REPO/scripts/clyde_preflight.sh"; then
+PREFLIGHT=("$REPO/scripts/clyde_preflight.sh")
+[ "$USE_POOL" = 1 ] && PREFLIGHT=("$REPO/tools/lun_pool.sh" quiet "${PREFLIGHT[@]}")
+if ! "${PREFLIGHT[@]}"; then
     echo "=== run.sh ABORTED: host-safety preflight failed at ${CONFIG} ===" >&2
     echo "    Do not widen or skip this to make a run start.  Fix the host." >&2
     exit 3
@@ -2370,3 +2402,27 @@ jq -n --argjson n "$N" --arg cfg "$CONFIG" --arg id "$RUN_ID" \
    '{run_id:$id, nodes:$n, configuration:$cfg, ran:$ran, pending:$pend, iso:$t}' > "$LAST"
 
 echo "=== done: ran=$ran pending=$pending @ ${CONFIG} — see tools/criteria.py $CONFIG ==="
+
+# A whole board on the mpath attachment ends by asking every node again: the
+# prep's census says the board started on two paths, and a path lost on the way
+# (a node the death rows restarted that came back on one portal) would leave
+# rows graded on a single path under a multipath name.  The map is asked by
+# name, since the last row leaves nodes unmounted.  Three tries 5 s apart: a
+# restarted node's path checker takes one polling interval to call a path ready.
+if [ "$CFG_ATTACH" = mpath ] && [ "${#ONLY[@]}" -eq 0 ] && [ -n "$DEV" ]; then
+    end_bad="" end_min=""
+    for n in "${NODES[@]}"; do
+        np=0
+        for try in 1 2 3; do
+            np=$(mpath_paths "$n" "$DEV"); [ "${np:-0}" -ge 2 ] && break
+            sleep 5
+        done
+        [ "${np:-0}" -ge 2 ] || end_bad="$end_bad $n(${np:-0})"
+        [ -z "$end_min" ] || [ "${np:-0}" -lt "$end_min" ] && end_min=${np:-0}
+    done
+    if [ -n "$end_bad" ]; then
+        echo "=== ATTACH FAIL @ ${CONFIG}: fewer than 2 active paths under $DEV at the end of the run on:$end_bad ==="
+        exit 4
+    fi
+    echo "=== attach: all $N node(s) end the run with $DEV on dm-multipath, min paths=$end_min active ==="
+fi

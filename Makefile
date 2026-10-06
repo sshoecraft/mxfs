@@ -21,9 +21,14 @@ clean:
 tools:
 	$(MAKE) -C tools
 
+# Everything the packages install, not only the module: the tools, the
+# fence and witness helpers, the man pages, the module options and the udev
+# rule (packaging/install_source.sh, sharing its file list with the .deb).
 install: modules
+	./packaging/install_source.sh check
 	$(MAKE) -C $(KDIR) M=$(PWD) modules_install
 	depmod -a
+	./packaging/install_source.sh files $(if $(OVERWRITE),--overwrite)
 
 load: modules
 	@if lsmod | grep -q '^mxfs '; then rmmod mxfs; fi

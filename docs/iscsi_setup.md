@@ -16,9 +16,11 @@ nodes and you will get silent corruption. **Read this before formatting a LUN.**
 ## 1. Pick a transport: TCP DLM or CAW
 
 MXFS coordinates nodes with a distributed lock manager (DLM) that runs over one
-of two transports. Both are released for 2-, 4- and 8-node clusters, each node
-reaching the LUN over its own single-path iSCSI login (the `direct` attachment;
-multipath and hypervisor passthrough are not verified). A configuration names
+of two transports. Both are released for 2-, 4-, 8- and 16-node clusters, each
+node reaching the LUN over its own iSCSI login on one path (the `direct`
+attachment) or on two paths through dm-multipath (`mpath`, with the settings
+of `tools/mpath_settings.sh`); hypervisor passthrough is not verified. A
+configuration names
 the transport by class and method: TCP is `net/mesh`, CAW is `disk/caw`.
 
 | Transport | How locks travel | What the LUN must support | Node-to-node network |
@@ -30,8 +32,9 @@ the transport by class and method: TCP is `net/mesh`, CAW is `disk/caw`.
   a fast, reliable node-to-node network.
 - **CAW** keeps the lock state on the LUN, so the lock traffic rides the
   storage path. It needs a target that really implements COMPARE AND WRITE
-  (§2.1, §3); prove it with `caw_verify` (§4.2) before choosing it. It is the
-  transport meant to scale past two nodes, which is still in development.
+  (§2.1, §3); prove it with `caw_verify` (§4.2) before choosing it. It needs
+  no lock network, which is what lets it scale where a network lock manager
+  stops keeping up.
 
 **Transport selection rules** (as the module applies them):
 

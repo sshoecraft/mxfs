@@ -1,12 +1,12 @@
 {
   "nodes": 8,
-  "configuration": "8/disk/caw/direct",
-  "srcversion": "434A389EF37331F7ABF9680",
+  "configuration": "8/disk/caw/mpath",
+  "srcversion": "969D04DEE5EC7BC4C48CF17",
   "node_list": "test21,test22,test23,test24,test25,test26,test27,test28",
-  "dev": "/dev/disk/by-path/ip-192.168.120.1:3260-iscsi-iqn.2026-05.local.mxfs:pool-09-lun-0",
+  "dev": "/dev/mapper/mpatha",
   "rig": "scst-fio",
-  "wwid": "eui.3534396166363030",
-  "fsid": "9a7e5322-c89c-48a3-be4b-92c04a768759",
-  "gen": 10,
-  "iso": "2026-10-04T05:06:32Z"
+  "wwid": "eui.3837303435343634",
+  "fsid": "d3e81031-5aa9-4765-b0cb-e273dcb924fe",
+  "gen": 44,
+  "iso": "2026-10-05T17:29:29Z"
 }

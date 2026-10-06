@@ -1384,6 +1384,34 @@ int mxfs_pal_scsi_pr_register(mxfs_bdev_t *dev, uint64_t key)
 	return ret;
 }
 
+/* One file descriptor is one path: there is never a late path to fill. */
+int mxfs_pal_scsi_pr_fill_paths(mxfs_bdev_t *dev, uint64_t key, int *added)
+{
+	(void)dev; (void)key;
+	if (added)
+		*added = 0;
+	return 0;
+}
+
+/* One file descriptor is one path: never a multipath map. */
+int mxfs_pal_scsi_pr_own_nexuses(mxfs_bdev_t *dev, uint64_t key, uint32_t type,
+				 int *good, int *paths)
+{
+	(void)dev; (void)key; (void)type;
+	if (good)
+		*good = 0;
+	if (paths)
+		*paths = 0;
+	return 1;
+}
+
+int mxfs_pal_scsi_pr_collapse_to_one_nexus(mxfs_bdev_t *dev, uint64_t key,
+					   uint32_t type)
+{
+	(void)dev; (void)key; (void)type;
+	return 1;
+}
+
 int mxfs_pal_scsi_pr_register_replace(mxfs_bdev_t *dev, uint64_t key)
 {
 	if (!dev)

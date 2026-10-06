@@ -682,6 +682,11 @@ struct mxfs_sdev_cache_ent {
 static struct mxfs_sdev_cache_ent mxfs_sdev_cache[MXFS_SDEV_CACHE_SIZE];
 static DEFINE_SPINLOCK(mxfs_sdev_cache_lock);
 
+/* A path of a multipath map that is not known to hold this node's
+ * reservation key (defined with the per-path reservation commands). */
+static bool mxfs_pr_path_refused(dev_t devt, struct scsi_device *sdev);
+static void mxfs_pr_maps_release(void);
+
 /* Read one 512B block at absolute LBA `lba` through a candidate path via
  * READ(16) passthrough.  Bounded UNIT-ATTENTION retry: the first command
  * down a fresh path routinely reports UA (e.g. 0x29 power-on/reset). */
@@ -817,6 +822,10 @@ static struct scsi_device *mxfs_sdev_resolve_by_content(struct block_device *bde
 					name[0] ? name : "no disk");
 				continue;
 			}
+			/* a path with no registration answers a COMPARE AND
+			 * WRITE with RESERVATION CONFLICT */
+			if (mxfs_pr_path_refused(bdev->bd_dev, sdev))
+				continue;
 			if (scsi_device_get(sdev) == 0)
 				found = sdev;
 		}
@@ -914,7 +923,8 @@ static struct scsi_device *mxfs_bdev_to_sdev(struct block_device *bdev)
 	 * slave of the device asking.
 	 */
 	if (sdev) {
-		if (mxfs_sdev_is_slave_of(bdev->bd_disk, sdev, name))
+		if (mxfs_sdev_is_slave_of(bdev->bd_disk, sdev, name) &&
+		    !mxfs_pr_path_refused(bdev->bd_dev, sdev))
 			return sdev;
 		spin_lock(&mxfs_sdev_cache_lock);
 		for (i = 0; i < MXFS_SDEV_CACHE_SIZE; i++) {
@@ -1007,6 +1017,7 @@ void mxfs_pal_sdev_cache_release(void)
 	spin_unlock(&mxfs_sdev_cache_lock);
 	while (n--)
 		scsi_device_put(drop[n]);
+	mxfs_pr_maps_release();
 }
 EXPORT_SYMBOL_GPL(mxfs_pal_sdev_cache_release);
 
@@ -1419,6 +1430,44 @@ static int mxfs_pal_scsi_read_fua_bdev_body(struct block_device *bdev,
 			if (ret != 0 && scsi_sense_valid(&sshdr) &&
 			    sshdr.sense_key == ILLEGAL_REQUEST)
 				break;			/* unsupported — fall through */
+			/*
+			 * The command went to one path of a multipath map, the one
+			 * mxfs_bdev_to_sdev resolved; dm never resends it.  When
+			 * that path is gone (its session failed: the device is
+			 * transport-offline, or the attempt came back with a
+			 * transport host byte) every further attempt on it fails
+			 * the same way, so the read would end EIO with the other
+			 * path up.  Re-resolve instead: the resolver skips an
+			 * offline path.  If no path resolves, read through the
+			 * map, which routes to whichever path is alive.
+			 */
+			if (ret > 0 && fua_try < 20 &&
+			    (!scsi_device_online(sdev) ||
+			     host_byte(ret) == DID_NO_CONNECT ||
+			     host_byte(ret) == DID_TRANSPORT_FAILFAST ||
+			     host_byte(ret) == DID_TRANSPORT_DISRUPTED ||
+			     host_byte(ret) == DID_TRANSPORT_MARGINAL)) {
+				struct scsi_device *nsdev;
+				int ohost = sdev->host->host_no;
+
+				scsi_device_put(sdev);
+				nsdev = mxfs_bdev_to_sdev(bdev);
+				{
+					static atomic_t p_fuarepath_n = ATOMIC_INIT(0);
+
+					if (atomic_inc_return(&p_fuarepath_n) <= 400)
+						mxfs_probe("mxfs: P-FUA-READ-REPATH lba=%llu ret=0x%x try=%d from_host=%d to_host=%d comm=%s pid=%d — the resolved path is gone; the read moves to %s\n",
+							(unsigned long long)lba_512,
+							ret, fua_try + 1, ohost,
+							nsdev ? nsdev->host->host_no : -1,
+							current->comm, current->pid,
+							nsdev ? "another path" : "the map (no path resolves)");
+				}
+				if (!nsdev)
+					return mxfs_pal_bdev_read_plain_bdev(bdev,
+							lba_512, buf, len);
+				sdev = nsdev;	/* retried below, after the backoff */
+			}
 			if (fua_try >= 20) {
 				static atomic_t p_fuaerr_n = ATOMIC_INIT(0);
 				if (atomic_inc_return(&p_fuaerr_n) <= 200)
@@ -3928,6 +3977,848 @@ bool mxfs_pal_dbg_cas_nocaw(unsigned int opbit, const char *what)
 }
 EXPORT_SYMBOL_GPL(mxfs_pal_dbg_cas_nocaw);
 
+/* ═══════════════════════════════════════════════════════════════════
+ * Persistent reservations on a multipath map: one command per path
+ *
+ * A registration belongs to one I_T nexus, and a multipathed node has one
+ * nexus per path.  dm's own pr_register sends REGISTER down every path and
+ * fails as a whole, undoing the ones that worked, when one path cannot be
+ * reached (drivers/md/dm.c dm_pr_register) — so through it a node cannot
+ * mount while a path is down, and cannot retire its key at unmount either.
+ * The commands below go to each path's scsi_device instead:
+ *
+ *   mount     REGISTER on every path that answers; one is enough.
+ *   later     a path that was absent then is registered when it appears
+ *             (mxfs_pal_scsi_pr_fill_paths), under the check described
+ *             there, because that is a registration made at a time when a
+ *             peer may already have fenced this node.
+ *   unmount   a path that cannot be reached is retired from one that can:
+ *             PREEMPT naming our own key removes it from every other nexus.
+ *
+ * mxfs_pr_maps remembers, per map, which paths are known to hold the key.
+ * Only those are handed out for passthrough commands (mxfs_pr_path_refused):
+ * a COMPARE AND WRITE sent down an unregistered path is refused by the
+ * reservation, and that refusal reads as a fence.
+ *
+ * Every PERSISTENT RESERVE OUT here is executed once: no midlayer retry
+ * (the caller would see only the second execution's answer), a short
+ * timeout, and anything that is not GOOD or RESERVATION CONFLICT is an
+ * unknown outcome, never a negative one.
+ * ═══════════════════════════════════════════════════════════════════ */
+#define MXFS_PR_MAX_PATHS	8
+#define MXFS_PR_MAPS		8
+#define MXFS_PR_IDENT_MAX	256
+#define MXFS_PR_PATH_KEYS	256
+#define MXFS_PR_PATH_TIMEOUT	(5 * HZ)
+
+struct mxfs_pr_map {
+	dev_t			devt;		/* 0: free */
+	u64			key;
+	struct scsi_device	*known[MXFS_PR_MAX_PATHS]; /* referenced */
+	bool			unverified;	/* a REGISTER of ours may still land */
+};
+
+struct mxfs_pr_paths {
+	int			n;
+	struct scsi_device	*p[MXFS_PR_MAX_PATHS];	/* referenced */
+	int			r[MXFS_PR_MAX_PATHS];
+};
+
+static struct mxfs_pr_map mxfs_pr_maps[MXFS_PR_MAPS];
+static DEFINE_SPINLOCK(mxfs_pr_map_lock);
+
+static int mxfs_dbg_pr_fill_pause_ms;
+module_param_named(dbg_pr_fill_pause_ms, mxfs_dbg_pr_fill_pause_ms, int, 0644);
+MODULE_PARM_DESC(dbg_pr_fill_pause_ms,
+	"TEST ONLY one-shot: sleep this long between finding the key still registered and registering a late path, so a test can fence the node inside that gap. Never enable in production.");
+
+static void mxfs_pr_be64_put(u8 *b, u64 v)
+{
+	int i;
+
+	for (i = 0; i < 8; i++)
+		b[i] = (u8)(v >> (56 - 8 * i));
+}
+
+static u64 mxfs_pr_be64_get(const u8 *b)
+{
+	u64 v = 0;
+	int i;
+
+	for (i = 0; i < 8; i++)
+		v = (v << 8) | b[i];
+	return v;
+}
+
+/* The designators of VPD page 0x83 that name the LOGICAL UNIT (association
+ * 0), concatenated.  The page's target-port designators differ from path to
+ * path on a real array; these do not, and they are what multipathd groups
+ * paths by. */
+static int mxfs_sdev_lu_ident(struct scsi_device *sdev, u8 *out, int max)
+{
+	const struct scsi_vpd *vpd;
+	int len = 0, off;
+
+	rcu_read_lock();
+	vpd = rcu_dereference(sdev->vpd_pg83);
+	if (vpd) {
+		for (off = 4; off + 4 <= vpd->len; ) {
+			const u8 *d = vpd->data + off;
+			int dl = d[3] + 4;
+
+			if (off + dl > vpd->len)
+				break;
+			if ((d[1] & 0x30) == 0) {
+				if (len + dl > max) {
+					len = 0;
+					break;
+				}
+				memcpy(out + len, d, dl);
+				len += dl;
+			}
+			off += dl;
+		}
+	}
+	rcu_read_unlock();
+	return len;
+}
+
+static void mxfs_pr_paths_put(struct mxfs_pr_paths *t)
+{
+	int i;
+
+	for (i = 0; i < t->n; i++)
+		scsi_device_put(t->p[i]);
+	t->n = 0;
+}
+
+/*
+ * Every SCSI disk that is a path of the multipath map `bdev`: its slaves,
+ * and any other disk that is the same logical unit as they are.  The second
+ * group is a path the node has logged in on that multipathd has not added to
+ * the map yet; registering it now is what keeps it from entering the map
+ * unregistered.  t->n == 0: not a multipath map of SCSI disks, and the
+ * caller uses the device's own pr_ops.
+ */
+static void mxfs_pr_paths_get(struct block_device *bdev, struct mxfs_pr_paths *t)
+{
+	unsigned int hostno;
+	char name[32];
+	int ilen = 0, pass;
+	u8 *ident, *probe;
+
+	t->n = 0;
+	if (!bdev || bdev_is_partition(bdev) ||
+	    strncmp(bdev->bd_disk->disk_name, "dm-", 3))
+		return;
+	ident = kmalloc(2 * MXFS_PR_IDENT_MAX, GFP_KERNEL);
+	if (!ident)
+		return;
+	probe = ident + MXFS_PR_IDENT_MAX;
+
+	for (pass = 0; pass < 2; pass++) {
+		if (pass == 1 && (!t->n || !ilen))
+			break;
+		for (hostno = 0; hostno < MXFS_SDEV_HOST_SCAN_MAX; hostno++) {
+			struct Scsi_Host *shost = scsi_host_lookup(hostno);
+			struct scsi_device *sdev;
+
+			if (!shost)
+				continue;
+			/* no break: the iterator holds a reference it drops on
+			 * the next step */
+			shost_for_each_device(sdev, shost) {
+				bool slave;
+
+				if (sdev->type != TYPE_DISK ||
+				    t->n >= MXFS_PR_MAX_PATHS)
+					continue;
+				slave = mxfs_sdev_is_slave_of(bdev->bd_disk, sdev,
+							      name);
+				if (pass == 0) {
+					if (!slave)
+						continue;
+					if (!ilen)
+						ilen = mxfs_sdev_lu_ident(sdev, ident,
+								MXFS_PR_IDENT_MAX);
+				} else {
+					if (slave || !scsi_device_online(sdev) ||
+					    mxfs_sdev_lu_ident(sdev, probe,
+						MXFS_PR_IDENT_MAX) != ilen ||
+					    memcmp(ident, probe, ilen))
+						continue;
+				}
+				if (scsi_device_get(sdev) == 0) {
+					t->r[t->n] = -ENOLINK;
+					t->p[t->n++] = sdev;
+				}
+			}
+			scsi_host_put(shost);
+		}
+	}
+	kfree(ident);
+}
+
+/*
+ * One PERSISTENT RESERVE OUT down one path.  0: GOOD.
+ * SAM_STAT_RESERVATION_CONFLICT: the target refused it and changed nothing.
+ * Negative: the outcome is unknown (-ENOLINK: the path is offline and
+ * nothing was sent).  A UNIT ATTENTION is reported instead of executing the
+ * command, so reissuing after one is not a second execution.
+ */
+static int mxfs_prout_path(struct scsi_device *sdev, u8 sa, u8 type,
+			   u64 rk, u64 sark)
+{
+	struct scsi_sense_hdr sshdr;
+	unsigned char cdb[16];
+	unsigned char data[24];
+	int ret, ua_try;
+
+	if (!scsi_device_online(sdev))
+		return -ENOLINK;
+	for (ua_try = 0; ; ua_try++) {
+		memset(cdb, 0, sizeof(cdb));
+		memset(data, 0, sizeof(data));
+		memset(&sshdr, 0, sizeof(sshdr));
+		cdb[0] = 0x5F;			/* PERSISTENT RESERVE OUT */
+		cdb[1] = sa;
+		cdb[2] = type & 0x0f;
+		cdb[8] = sizeof(data);
+		mxfs_pr_be64_put(&data[0], rk);
+		mxfs_pr_be64_put(&data[8], sark);
+		/* APTPL on every REGISTER, as sd_pr_register sets it: the target
+		 * takes the bit of the LAST one as whether registrations persist
+		 * through power loss, so one REGISTER without it — a probe is
+		 * one — turns persistence off for the whole logical unit
+		 * (measured: P303-FENCECAP-NOPERSIST refused the mount). */
+		if (sa == 0x00 || sa == 0x06)
+			data[20] = 0x01;
+#if MXFS_EFFECTIVE_VERSION >= KERNEL_VERSION(6, 3, 0)
+		{
+			struct scsi_exec_args args = { .sshdr = &sshdr };
+
+			ret = scsi_execute_cmd(sdev, cdb, REQ_OP_DRV_OUT, data,
+					       sizeof(data), MXFS_PR_PATH_TIMEOUT,
+					       0, &args);
+		}
+#else
+		ret = scsi_execute(sdev, cdb, DMA_TO_DEVICE, data, sizeof(data),
+				   NULL, &sshdr, MXFS_PR_PATH_TIMEOUT, 0, 0, 0,
+				   NULL);
+#endif
+		if (!(ret > 0 && scsi_sense_valid(&sshdr) &&
+		      sshdr.sense_key == UNIT_ATTENTION &&
+		      ua_try < MXFS_PR_UA_RETRIES))
+			break;
+		msleep(2 << ua_try);
+	}
+	if (ret > 0 && status_byte(ret) == SAM_STAT_RESERVATION_CONFLICT)
+		return SAM_STAT_RESERVATION_CONFLICT;
+	if (ret > 0)
+		return -EIO;
+	return ret;
+}
+
+/* PERSISTENT RESERVE IN down one path into buf; 0 or a negative errno. */
+static int mxfs_prin_path(struct scsi_device *sdev, u8 sa, u8 *buf, int len)
+{
+	struct scsi_sense_hdr sshdr;
+	unsigned char cdb[16];
+	int ret, ua_try;
+
+	if (!scsi_device_online(sdev))
+		return -ENOLINK;
+	for (ua_try = 0; ; ua_try++) {
+		memset(cdb, 0, sizeof(cdb));
+		memset(&sshdr, 0, sizeof(sshdr));
+		cdb[0] = 0x5E;			/* PERSISTENT RESERVE IN */
+		cdb[1] = sa;
+		cdb[7] = (u8)(len >> 8);
+		cdb[8] = (u8)len;
+#if MXFS_EFFECTIVE_VERSION >= KERNEL_VERSION(6, 3, 0)
+		{
+			struct scsi_exec_args args = { .sshdr = &sshdr };
+
+			ret = scsi_execute_cmd(sdev, cdb, REQ_OP_DRV_IN, buf, len,
+					       MXFS_PR_PATH_TIMEOUT, 0, &args);
+		}
+#else
+		ret = scsi_execute(sdev, cdb, DMA_FROM_DEVICE, buf, len, NULL,
+				   &sshdr, MXFS_PR_PATH_TIMEOUT, 0, 0, 0, NULL);
+#endif
+		if (!(ret > 0 && scsi_sense_valid(&sshdr) &&
+		      sshdr.sense_key == UNIT_ATTENTION &&
+		      ua_try < MXFS_PR_UA_RETRIES))
+			break;
+		msleep(2 << ua_try);
+	}
+	if (ret > 0)
+		return -EIO;
+	return ret;
+}
+
+/*
+ * How many registrations carry `key`, from a READ KEYS sent down this path.
+ * Negative when the answer is not a complete table: an incomplete view is
+ * never a count.
+ */
+static int mxfs_prin_key_count(struct scsi_device *sdev, u64 key)
+{
+	const int cap = 8 + 8 * MXFS_PR_PATH_KEYS;
+	u32 add, i;
+	int n = 0, ret;
+	u8 *buf;
+
+	buf = kzalloc(cap, GFP_KERNEL);
+	if (!buf)
+		return -ENOMEM;
+	ret = mxfs_prin_path(sdev, 0x00, buf, cap);
+	if (ret) {
+		kfree(buf);
+		return ret;
+	}
+	add = ((u32)buf[4] << 24) | ((u32)buf[5] << 16) | ((u32)buf[6] << 8) |
+	      buf[7];
+	if (add > (u32)(cap - 8) || (add & 7)) {
+		kfree(buf);
+		return -E2BIG;
+	}
+	for (i = 0; i < add / 8; i++)
+		if (mxfs_pr_be64_get(buf + 8 + 8 * i) == key)
+			n++;
+	kfree(buf);
+	return n;
+}
+
+/* The type of the reservation in force, read down this path; the type MXFS
+ * reserves with when none is held or it cannot be read. */
+static u8 mxfs_prin_resv_type(struct scsi_device *sdev)
+{
+	u8 type = MXFS_PAL_PR_TYPE_WR_EX_AR;
+	u8 *buf = kzalloc(24, GFP_KERNEL);
+
+	if (!buf)
+		return type;
+	if (mxfs_prin_path(sdev, 0x01, buf, 24) == 0 &&
+	    ((((u32)buf[4] << 24) | ((u32)buf[5] << 16) | ((u32)buf[6] << 8) |
+	      buf[7]) >= 16) && (buf[21] & 0x0f))
+		type = buf[21] & 0x0f;
+	kfree(buf);
+	return type;
+}
+
+static struct mxfs_pr_map *mxfs_pr_map_find(dev_t devt)
+{
+	int i;
+
+	for (i = 0; i < MXFS_PR_MAPS; i++)
+		if (mxfs_pr_maps[i].devt == devt)
+			return &mxfs_pr_maps[i];
+	return NULL;
+}
+
+/* Forget what is known about the map (key == 0), or start over with `key`
+ * held on the paths of `t` whose result is 0. */
+static void mxfs_pr_map_set(dev_t devt, u64 key, struct mxfs_pr_paths *t)
+{
+	struct scsi_device *drop[MXFS_PR_MAX_PATHS];
+	struct mxfs_pr_map *m;
+	int i, nd = 0, k = 0;
+
+	if (t)
+		for (i = 0; i < t->n; i++)
+			if (t->r[i] == 0 && scsi_device_get(t->p[i]))
+				t->r[i] = -ENODEV;
+	spin_lock(&mxfs_pr_map_lock);
+	m = mxfs_pr_map_find(devt);
+	if (!m && key)
+		m = mxfs_pr_map_find(0);
+	if (m) {
+		for (i = 0; i < MXFS_PR_MAX_PATHS; i++) {
+			if (m->known[i])
+				drop[nd++] = m->known[i];
+			m->known[i] = NULL;
+		}
+		m->unverified = false;
+		m->key = key;
+		m->devt = key ? devt : 0;
+		if (key && t)
+			for (i = 0; i < t->n; i++)
+				if (t->r[i] == 0) {
+					m->known[k++] = t->p[i];
+					t->r[i] = 1;	/* its reference is the map's now */
+				}
+	}
+	spin_unlock(&mxfs_pr_map_lock);
+	if (t)
+		for (i = 0; i < t->n; i++) {
+			if (t->r[i] == 0)		/* no map slot: give it back */
+				scsi_device_put(t->p[i]);
+			else if (t->r[i] == 1)
+				t->r[i] = 0;
+		}
+	for (i = 0; i < nd; i++)
+		scsi_device_put(drop[i]);
+}
+
+/* Drop every path reference the maps hold (module exit): a mount that was
+ * refused after registering never reached the unregister that clears its map. */
+static void mxfs_pr_maps_release(void)
+{
+	struct scsi_device *drop[MXFS_PR_MAPS * MXFS_PR_MAX_PATHS];
+	int i, j, n = 0;
+
+	spin_lock(&mxfs_pr_map_lock);
+	for (i = 0; i < MXFS_PR_MAPS; i++) {
+		for (j = 0; j < MXFS_PR_MAX_PATHS; j++) {
+			if (mxfs_pr_maps[i].known[j])
+				drop[n++] = mxfs_pr_maps[i].known[j];
+			mxfs_pr_maps[i].known[j] = NULL;
+		}
+		mxfs_pr_maps[i].devt = 0;
+		mxfs_pr_maps[i].key = 0;
+	}
+	spin_unlock(&mxfs_pr_map_lock);
+	while (n--)
+		scsi_device_put(drop[n]);
+}
+
+/* Is `sdev` a path this node must not send a passthrough command down: the
+ * map's registrations are tracked and this path is not known to hold one. */
+static bool mxfs_pr_path_refused(dev_t devt, struct scsi_device *sdev)
+{
+	struct mxfs_pr_map *m;
+	bool refused = false;
+	int i;
+
+	spin_lock(&mxfs_pr_map_lock);
+	m = mxfs_pr_map_find(devt);
+	if (m && m->key) {
+		refused = true;
+		for (i = 0; i < MXFS_PR_MAX_PATHS; i++)
+			if (m->known[i] == sdev)
+				refused = false;
+	}
+	spin_unlock(&mxfs_pr_map_lock);
+	return refused;
+}
+
+/* Mount: REGISTER on every path that answers.  1: not a multipath map. */
+static int mxfs_pr_mp_register(struct block_device *bdev, u64 key)
+{
+	bool added[MXFS_PR_MAX_PATHS] = { false };
+	struct mxfs_pr_paths t;
+	int i, ok = 0, foreign = 0, err = 0;
+
+	mxfs_pr_paths_get(bdev, &t);
+	if (!t.n)
+		return 1;
+	for (i = 0; i < t.n; i++) {
+		int r = mxfs_prout_path(t.p[i], 0x00, 0, 0, key);
+
+		if (r == 0) {
+			added[i] = true;
+		} else if (r == SAM_STAT_RESERVATION_CONFLICT) {
+			/* registered already: with our key, or with another */
+			r = mxfs_prout_path(t.p[i], 0x00, 0, key, key);
+			if (r == SAM_STAT_RESERVATION_CONFLICT)
+				foreign++;
+		}
+		t.r[i] = r;
+		if (r == 0)
+			ok++;
+		else if (r != SAM_STAT_RESERVATION_CONFLICT && !err)
+			err = r;
+	}
+	if (foreign) {
+		for (i = 0; i < t.n; i++)
+			if (added[i])
+				mxfs_prout_path(t.p[i], 0x00, 0, key, 0);
+		mxfs_pal_log(MXFS_LOG_WARN,
+			     "mxfs-pal: P305-PR-NEXUS-ALREADY-REGISTERED plain "
+			     "REGISTER of key 0x%llx returned RESERVATION "
+			     "CONFLICT on %d of %d path(s): an I_T nexus of this "
+			     "host already holds a different registration (the "
+			     "paths this attempt registered were unregistered "
+			     "again).", (unsigned long long)key, foreign, t.n);
+		mxfs_pr_paths_put(&t);
+		return -EEXIST;
+	}
+	if (!ok) {
+		mxfs_pr_paths_put(&t);
+		return err ? err : -EIO;
+	}
+	mxfs_pr_map_set(bdev->bd_dev, key, &t);
+	pr_info("mxfs: P-PR-PATHS-REGISTERED %s key=0x%llx paths=%d registered=%d unreachable=%d\n",
+		bdev->bd_disk->disk_name, (unsigned long long)key, t.n, ok,
+		t.n - ok);
+	mxfs_pr_paths_put(&t);
+	return 0;
+}
+
+/* REGISTER rk=old sark=new, or REGISTER AND IGNORE EXISTING KEY (old == 0),
+ * on every path that answers.  1: not a multipath map. */
+static int mxfs_pr_mp_swap(struct block_device *bdev, u64 old_key, u64 new_key)
+{
+	struct mxfs_pr_paths t;
+	int i, ok = 0, nokey = 0, err = 0;
+
+	mxfs_pr_paths_get(bdev, &t);
+	if (!t.n)
+		return 1;
+	for (i = 0; i < t.n; i++) {
+		int r = mxfs_prout_path(t.p[i], old_key ? 0x00 : 0x06, 0,
+					old_key, new_key);
+
+		t.r[i] = r;
+		if (r == 0)
+			ok++;
+		else if (r == SAM_STAT_RESERVATION_CONFLICT)
+			nokey++;
+		else if (!err)
+			err = r;
+	}
+	if (ok) {
+		/* a path that did not hold old_key is left as it is, and is
+		 * registered as a late path once the mount is admitted */
+		mxfs_pr_map_set(bdev->bd_dev, new_key, &t);
+		mxfs_pr_paths_put(&t);
+		return 0;
+	}
+	mxfs_pr_paths_put(&t);
+	if (nokey)
+		return -ENOKEY;
+	return err ? err : -EIO;
+}
+
+/*
+ * Unmount: remove `key` from every path.  A path that cannot be reached is
+ * retired from one that can — PREEMPT naming our own key removes it from
+ * every other nexus — so the last reachable path is unregistered last and
+ * sends that command first when any other path could not be unregistered
+ * directly.  The caller's READ KEYS decides whether the key is gone; nothing
+ * here is taken as proof.  1: not a multipath map.
+ */
+static int mxfs_pr_mp_unregister(struct block_device *bdev, u64 key)
+{
+	struct mxfs_pr_paths t;
+	int i, last = -1, owed = 0;
+
+	mxfs_pr_paths_get(bdev, &t);
+	if (!t.n)
+		return 1;
+	for (i = 0; i < t.n; i++)
+		if (scsi_device_online(t.p[i]))
+			last = i;
+	for (i = 0; i < t.n; i++) {
+		int r;
+
+		if (i == last)
+			continue;
+		r = mxfs_prout_path(t.p[i], 0x00, 0, key, 0);
+		if (r && r != SAM_STAT_RESERVATION_CONFLICT)
+			owed++;
+	}
+	if (last >= 0) {
+		if (owed) {
+			int r = mxfs_prout_path(t.p[last], 0x04,
+						mxfs_prin_resv_type(t.p[last]),
+						key, key);
+
+			pr_info("mxfs: P-PR-PATHS-RETIRED-BY-PREEMPT %s key=0x%llx — %d of %d path(s) could not be unregistered directly; PREEMPT of our own key from a reachable path rc=%d\n",
+				bdev->bd_disk->disk_name,
+				(unsigned long long)key, owed, t.n, r);
+		}
+		mxfs_prout_path(t.p[last], 0x00, 0, key, 0);
+	}
+	mxfs_pr_map_set(bdev->bd_dev, 0, NULL);
+	mxfs_pr_paths_put(&t);
+	return 0;
+}
+
+/*
+ * Which registrations of `key` are this node's own?  READ KEYS lists a key
+ * once per I_T nexus that holds it and says nothing about whose nexus that
+ * is.  A RESERVE of the scope and type already in force changes nothing and
+ * answers GOOD only for a nexus registered with the key in the command, so
+ * one sent down each path counts the registrations of `key` that sit on a
+ * nexus of this host.  *good: paths that answered GOOD; *paths: paths of the
+ * map.  A path that is offline or did not answer proves nothing and is not
+ * counted.  The caller must have seen a reservation of `type` in force:
+ * this must never be the command that creates one.  1: not a multipath map.
+ */
+int mxfs_pal_scsi_pr_own_nexuses(mxfs_bdev_t *dev, uint64_t key, uint32_t type,
+				 int *good, int *paths)
+{
+	struct mxfs_pr_paths t;
+	int i, n = 0;
+
+	if (good)
+		*good = 0;
+	if (paths)
+		*paths = 0;
+	if (!dev || !dev->bdev || !key)
+		return -EINVAL;
+	mxfs_pr_paths_get(dev->bdev, &t);
+	if (!t.n)
+		return 1;
+	for (i = 0; i < t.n; i++) {
+		t.r[i] = mxfs_prout_path(t.p[i], 0x01, (u8)type, key, 0);
+		if (t.r[i] == 0)
+			n++;
+	}
+	pr_info("mxfs: P-PR-OWN-NEXUSES %s key=0x%llx paths=%d answered_good=%d — a matching RESERVE down each path; GOOD only from a nexus that holds the key\n",
+		dev->bdev->bd_disk->disk_name, (unsigned long long)key, t.n, n);
+	if (good)
+		*good = n;
+	if (paths)
+		*paths = t.n;
+	mxfs_pr_paths_put(&t);
+	return 0;
+}
+EXPORT_SYMBOL_GPL(mxfs_pal_scsi_pr_own_nexuses);
+
+/*
+ * Leave `key` registered on exactly one nexus: the one path of the map that
+ * proves it holds the key (as above).  PREEMPT naming our own key removes it
+ * from every other nexus and keeps the issuing one; the paths dropped are
+ * forgotten, so no passthrough command is sent down them, and each is
+ * registered again as a late path when it answers
+ * (mxfs_pal_scsi_pr_fill_paths).  This is for a node whose other paths are
+ * down: with a second path that answers, removing its registration would
+ * refuse the I/O multipath sends down it, so anything but exactly one
+ * proving path returns -ENOTUNIQ and changes nothing.  1: not a multipath
+ * map.
+ */
+int mxfs_pal_scsi_pr_collapse_to_one_nexus(mxfs_bdev_t *dev, uint64_t key,
+					   uint32_t type)
+{
+	struct mxfs_pr_paths t;
+	int i, n = 0, one = -1, r;
+
+	if (!dev || !dev->bdev || !key)
+		return -EINVAL;
+	mxfs_pr_paths_get(dev->bdev, &t);
+	if (!t.n)
+		return 1;
+	for (i = 0; i < t.n; i++) {
+		t.r[i] = mxfs_prout_path(t.p[i], 0x01, (u8)type, key, 0);
+		if (t.r[i] == 0) {
+			n++;
+			one = i;
+		}
+	}
+	if (n != 1) {
+		mxfs_pr_paths_put(&t);
+		return -ENOTUNIQ;
+	}
+	r = mxfs_prout_path(t.p[one], 0x04, (u8)type, key, key);
+	pr_warn("mxfs: P-PR-COLLAPSED-TO-ONE-NEXUS %s key=0x%llx paths=%d path %d:%d:%d:%llu preempt_rc=%d — our key removed from every nexus but this one; the others are registered again when they answer\n",
+		dev->bdev->bd_disk->disk_name, (unsigned long long)key, t.n,
+		t.p[one]->host->host_no, t.p[one]->channel, t.p[one]->id,
+		(unsigned long long)t.p[one]->lun, r);
+	if (r == 0)
+		mxfs_pr_map_set(dev->bdev->bd_dev, key, &t);
+	mxfs_pr_paths_put(&t);
+	if (r == SAM_STAT_RESERVATION_CONFLICT)
+		return -EBUSY;
+	return r;
+}
+EXPORT_SYMBOL_GPL(mxfs_pal_scsi_pr_collapse_to_one_nexus);
+
+/*
+ * Register `key` on any path of the map that does not hold it yet: a path
+ * that was down when the node mounted, or that the node logged in on since.
+ *
+ * This is the one registration MXFS makes after a mount, so it is the one
+ * that can come after a fence.  A peer fences this node by preempting `key`,
+ * which removes it from every nexus at once, and SPC has no command that
+ * registers one nexus only if another still holds the key.  So:
+ *
+ *   1. READ KEYS, down the late path itself.  `key` registered nowhere: the
+ *      node has been fenced (or never was registered); register nothing.
+ *   2. REGISTER on the late path.
+ *   3. READ KEYS again.  The late path's registration plus at least one
+ *      other of `key` means no fence came between 1 and 3 — a fence would
+ *      have removed the others — so this registration preceded any fence
+ *      and a later fence removes it too.  Anything else, including an
+ *      answer that is not a complete table: unregister the late path at
+ *      once and report it.
+ *
+ * Only this function adds registrations after a mount, and it takes one
+ * path at a time; a path it has not verified is never counted on.
+ *
+ * Returns 0 when there was nothing to do or every late path was registered
+ * and verified; -ESTALE when `key` was found registered nowhere, or was
+ * found alone on the late path after registering it (the caller treats
+ * that as a fence); -EAGAIN when something could not be decided and a later
+ * call should try again.  *added: paths registered by this call.
+ */
+int mxfs_pal_scsi_pr_fill_paths(mxfs_bdev_t *dev, uint64_t key, int *added)
+{
+	struct scsi_device *drop[MXFS_PR_MAX_PATHS];
+	struct mxfs_pr_paths t;
+	struct mxfs_pr_map *m;
+	bool unverified = false;
+	int i, j, nd = 0, ret = 0;
+	dev_t devt;
+
+	if (added)
+		*added = 0;
+	if (!dev || !dev->bdev || !key)
+		return 0;
+	devt = dev->bdev->bd_dev;
+	spin_lock(&mxfs_pr_map_lock);
+	m = mxfs_pr_map_find(devt);
+	if (!m || m->key != key) {
+		spin_unlock(&mxfs_pr_map_lock);
+		return 0;		/* not a map this node registered per path */
+	}
+	unverified = m->unverified;
+	spin_unlock(&mxfs_pr_map_lock);
+
+	mxfs_pr_paths_get(dev->bdev, &t);
+
+	/* which paths need looking at; and forget paths that are gone */
+	spin_lock(&mxfs_pr_map_lock);
+	m = mxfs_pr_map_find(devt);
+	if (!m || m->key != key) {
+		spin_unlock(&mxfs_pr_map_lock);
+		mxfs_pr_paths_put(&t);
+		return 0;
+	}
+	for (j = 0; j < MXFS_PR_MAX_PATHS; j++) {
+		bool present = false;
+
+		if (!m->known[j])
+			continue;
+		for (i = 0; i < t.n; i++)
+			if (t.p[i] == m->known[j]) {
+				present = true;
+				t.r[i] = 0;		/* known to hold the key */
+			}
+		if (!present) {
+			drop[nd++] = m->known[j];
+			m->known[j] = NULL;
+		}
+	}
+	spin_unlock(&mxfs_pr_map_lock);
+	for (j = 0; j < nd; j++)
+		scsi_device_put(drop[j]);
+
+	for (i = 0; i < t.n; i++) {
+		struct scsi_device *p = t.p[i];
+		int r, c;
+
+		if (t.r[i] == 0 || !scsi_device_online(p))
+			continue;
+		r = mxfs_prout_path(p, 0x00, 0, key, key);
+		if (r == 0) {
+			/* it holds the key already.  That is a path whose
+			 * registration outlived its session — unless a
+			 * REGISTER of ours with an unknown outcome is out. */
+			if (unverified && mxfs_prin_key_count(p, key) < 2) {
+				r = mxfs_prout_path(p, 0x00, 0, key, 0);
+				pr_warn("mxfs: P-PR-PATH-FILL-UNDONE %s path %d:%d:%d:%llu key=0x%llx — the key was found on this path alone after a REGISTER whose outcome was unknown; unregistered rc=%d\n",
+					dev->bdev->bd_disk->disk_name,
+					p->host->host_no, p->channel, p->id,
+					(unsigned long long)p->lun,
+					(unsigned long long)key, r);
+				ret = -ESTALE;
+				continue;
+			}
+			goto known;
+		}
+		if (r != SAM_STAT_RESERVATION_CONFLICT) {
+			if (!ret)
+				ret = -EAGAIN;
+			continue;
+		}
+		c = mxfs_prin_key_count(p, key);
+		if (c < 0) {
+			if (!ret)
+				ret = -EAGAIN;
+			continue;
+		}
+		if (c == 0) {
+			pr_warn("mxfs: P-PR-PATH-FILL-KEY-GONE %s path %d:%d:%d:%llu key=0x%llx — the key is registered nowhere, so this path is not registered either\n",
+				dev->bdev->bd_disk->disk_name, p->host->host_no,
+				p->channel, p->id, (unsigned long long)p->lun,
+				(unsigned long long)key);
+			ret = -ESTALE;
+			continue;
+		}
+		if (unlikely(mxfs_dbg_pr_fill_pause_ms > 0)) {
+			int ms = xchg(&mxfs_dbg_pr_fill_pause_ms, 0);
+
+			pr_warn("mxfs: P-DBG-PR-FILL-PAUSE %s key=0x%llx ms=%d — TEST: holding between the key check and the late REGISTER\n",
+				dev->bdev->bd_disk->disk_name,
+				(unsigned long long)key, ms);
+			msleep(ms);
+		}
+		r = mxfs_prout_path(p, 0x00, 0, 0, key);
+		if (r == SAM_STAT_RESERVATION_CONFLICT) {
+			pr_warn_ratelimited("mxfs: P-PR-PATH-FILL-FOREIGN %s path %d:%d:%d:%llu — this path's nexus holds a registration that is not key 0x%llx; it is left alone and stays unusable\n",
+				dev->bdev->bd_disk->disk_name, p->host->host_no,
+				p->channel, p->id, (unsigned long long)p->lun,
+				(unsigned long long)key);
+			if (!ret)
+				ret = -EAGAIN;
+			continue;
+		}
+		c = r ? -EIO : mxfs_prin_key_count(p, key);
+		if (r || c < 2) {
+			int u = mxfs_prout_path(p, 0x00, 0, key, 0);
+
+			if (u && u != SAM_STAT_RESERVATION_CONFLICT) {
+				spin_lock(&mxfs_pr_map_lock);
+				m = mxfs_pr_map_find(devt);
+				if (m && m->key == key)
+					m->unverified = true;
+				spin_unlock(&mxfs_pr_map_lock);
+				unverified = true;
+			}
+			pr_warn("mxfs: P-PR-PATH-FILL-UNDONE %s path %d:%d:%d:%llu key=0x%llx register_rc=%d key_count_after=%d unregister_rc=%d — %s\n",
+				dev->bdev->bd_disk->disk_name, p->host->host_no,
+				p->channel, p->id, (unsigned long long)p->lun,
+				(unsigned long long)key, r, c, u,
+				(!r && c >= 0) ?
+				"after registering this path the key was on no other nexus: the node was fenced before the registration" :
+				"the registration or its check has no known outcome");
+			if (!r && c >= 0)
+				ret = -ESTALE;
+			else if (!ret)
+				ret = -EAGAIN;
+			continue;
+		}
+		pr_info("mxfs: P-PR-PATH-FILLED %s path %d:%d:%d:%llu key=0x%llx registrations_of_key=%d — a path that held no registration now does, verified against the key's other registrations\n",
+			dev->bdev->bd_disk->disk_name, p->host->host_no,
+			p->channel, p->id, (unsigned long long)p->lun,
+			(unsigned long long)key, c);
+		if (added)
+			(*added)++;
+known:
+		if (scsi_device_get(p))
+			continue;
+		spin_lock(&mxfs_pr_map_lock);
+		m = mxfs_pr_map_find(devt);
+		r = -ENOSPC;
+		if (m && m->key == key)
+			for (j = 0; j < MXFS_PR_MAX_PATHS; j++)
+				if (!m->known[j]) {
+					m->known[j] = p;
+					r = 0;
+					break;
+				}
+		spin_unlock(&mxfs_pr_map_lock);
+		if (r)
+			scsi_device_put(p);
+	}
+	mxfs_pr_paths_put(&t);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(mxfs_pal_scsi_pr_fill_paths);
+
 static int mxfs_dbg_pr_register_fail;
 module_param_named(dbg_pr_register_fail, mxfs_dbg_pr_register_fail, int, 0644);
 MODULE_PARM_DESC(dbg_pr_register_fail,
@@ -3953,6 +4844,11 @@ int mxfs_pal_scsi_pr_register(mxfs_bdev_t *dev, uint64_t key)
 			     "register failure (one-shot)");
 		return -EIO;
 	}
+
+	/* a multipath map: each path separately, one that answers is enough */
+	ret = mxfs_pr_mp_register(dev->bdev, key);
+	if (ret <= 0)
+		return ret;
 
 	/*
 	 * PLAIN REGISTER (SA 0x00), reservation key 0, new key =
@@ -4008,6 +4904,10 @@ int mxfs_pal_scsi_pr_register_replace(mxfs_bdev_t *dev, uint64_t key)
 	if (!ops || !ops->pr_register)
 		return -EOPNOTSUPP;
 
+	ret = mxfs_pr_mp_swap(dev->bdev, 0, key);
+	if (ret <= 0)
+		return ret;
+
 	/* REGISTER AND IGNORE EXISTING KEY: old_key=0, new_key=key */
 	for (ua_try = 0; ua_try < MXFS_PR_UA_RETRIES; ua_try++) {
 		ret = ops->pr_register(dev->bdev, 0, key, PR_FL_IGNORE_KEY);
@@ -4035,6 +4935,13 @@ int mxfs_pal_scsi_pr_register_swap(mxfs_bdev_t *dev, uint64_t old_key,
 	ops = get_pr_ops(dev);
 	if (!ops || !ops->pr_register)
 		return -EOPNOTSUPP;
+
+	/* a multipath map: each path separately.  GOOD from any path is GOOD
+	 * (that nexus holds old_key); -ENOKEY only when no path that answered
+	 * holds it. */
+	ret = mxfs_pr_mp_swap(dev->bdev, old_key, new_key);
+	if (ret <= 0)
+		return ret;
 
 	/* plain REGISTER (SA 0x00), RK = old_key, SARK = new_key.
 	 * SPC: executed only if this nexus is registered with RK; otherwise
@@ -4960,8 +5867,10 @@ int mxfs_pal_scsi_pr_unregister_bdev(struct block_device *bdev, uint64_t key)
 		 * fail_early first pass has nothing to trip over and visits
 		 * them all.
 		 */
-		ret = -EIO;
-		for (ua_try = 0; ua_try < MXFS_PR_UA_RETRIES; ua_try++) {
+		/* a multipath map: each path separately, and a path that cannot
+		 * be reached is retired from one that can */
+		ret = mxfs_pr_mp_unregister(bdev, key);
+		for (ua_try = 0; ret > 0 && ua_try < MXFS_PR_UA_RETRIES; ua_try++) {
 			ret = ops->pr_register(bdev, key, 0, PR_FL_IGNORE_KEY);
 			if (ret != SAM_STAT_CHECK_CONDITION)
 				break;
