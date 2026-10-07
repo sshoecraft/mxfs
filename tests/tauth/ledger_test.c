@@ -34,6 +34,14 @@
  *      retired, the second survives and is counted in purge_inc_spared, and
  *      the same call with inc = 0 retires it too, which is what makes the
  *      case non-vacuous
+ *  19  the whole-ledger purge commits in batches: 70 pages in batches of 32,
+ *      a stale page in the second batch refused alone and the walk stopped
+ *      after that batch, the next purge completing the rest; every
+ *      retirement read back from the platter, a live owner's records intact
+ *  20  a commit whose ticket swap fails (never issued, or issued with its
+ *      answer lost) is -EIO, proven not committed, never reported durable;
+ *      the next commit resumes the node's own ticket; through the batched
+ *      purge the failed page alone stays ACTIVE until the next purge
  */
 #include "tauth_testlib.h"
 #include "dlm/tauth_ledger.h"
@@ -772,6 +780,236 @@ int main(int argc, char **argv)
               be.holders == ((1ULL << 5) | (1ULL << 6)),
               "18 the retirement is durable (rc=%d a.state=%u b.holders=%#llx)", rc,
               ae.state, (unsigned long long)be.holders);
+    }
+
+    /* 19 the whole-ledger purge commits its pages in batches.  A departed
+     * owner (55/5500, slot 13) holds EX on 70 resources, one per page (all
+     * this node's), and a live one (66/6600, slot 14) on three of those
+     * pages.  One page in the second batch is made stale (its platter moved
+     * past this node's cache, as another writer would leave it): the purge
+     * must commit every other page of the first two batches, refuse that one,
+     * stop after its batch (a partial purge, as a failed page always ended
+     * the walk), and leave the third batch for the next purge — which
+     * completes it, the reloaded page included.  Every retirement is read
+     * back from the platter under a fresh generation. */
+    {
+        enum { NP = 70, NLIVE = 3 };
+        struct mxfs_resource_id dr[NP], lr[NLIVE];
+        struct mxfs_tauth_entry de;
+        uint32_t pages[NP], np = 0, k, j, stale_k = NP;
+        uint64_t ino, b0, p0, gen = 2;
+        int prc, bad;
+
+        for (ino = 3000000; np < NP && ino < 9000000; ino++) {
+            struct mxfs_resource_id c = mkres(ino, MXFS_LTYPE_INODE, 0);
+            uint32_t pg = tl_page(&c);
+
+            for (k = 0; k < np; k++)
+                if (pages[k] == pg)
+                    break;
+            if (k < np)
+                continue;
+            /* only a page nothing above touched: bootstrap claims it */
+            if (page_bootstrap(&L, pg, gen) != 0)
+                continue;
+            /* ascending, so the purge's batches are the array's runs of 32 */
+            for (k = np; k > 0 && pages[k - 1] > pg; k--) {
+                pages[k] = pages[k - 1];
+                dr[k] = dr[k - 1];
+            }
+            pages[k] = pg;
+            dr[k] = c;
+            np++;
+        }
+        CHECK(np == NP, "19 %u pages of this node's, one resource each (want %d)", np, NP);
+        rc = 0;
+        for (k = 0; k < np; k++) {
+            ops[0] = mkop(MXFS_TAUTH_OP_GRANT_EX, &dr[k], 55, 5500, 13, MXFS_LOCK_EX);
+            rc |= mxfs_tauth_ledger_commit(&L, ops, 1, gen, 96);
+        }
+        for (j = 0; j < NLIVE; j++) {
+            for (ino = 9000000 + j * 1000000; ; ino++) {
+                struct mxfs_resource_id c = mkres(ino, MXFS_LTYPE_INODE, 0);
+
+                if (tl_page(&c) == pages[j] && c.ino != dr[j].ino) {
+                    lr[j] = c;
+                    break;
+                }
+            }
+            ops[0] = mkop(MXFS_TAUTH_OP_GRANT_EX, &lr[j], 66, 6600, 14, MXFS_LOCK_EX);
+            rc |= mxfs_tauth_ledger_commit(&L, ops, 1, gen, 96);
+        }
+        CHECK(rc == 0, "19 55/5500 holds %u records, 66/6600 holds %d on the first pages rc=%d",
+              np, NLIVE, rc);
+        /* page 40 of the walk: in the second batch */
+        stale_k = 40;
+        {
+            struct mxfs_tauth_page *raw = calloc(1, sizeof(*raw));
+            int copy;
+
+            rc = mxfs_tauth_page_read(&L.store, pages[stale_k], raw, &copy);
+            rc |= mxfs_tauth_page_write(&L.store, raw, raw->hdr.authority_epoch, 1, 0);
+            free(raw);
+        }
+        CHECK(rc == 0, "19 page %u's platter moved past this node's cache rc=%d", pages[stale_k], rc);
+
+        b0 = L.purge_batches;
+        p0 = L.purge_pages;
+        prc = mxfs_tauth_ledger_purge_owner(&L, 55, 13, gen, 97, NULL, NULL);
+        CHECK(prc == -ESTALE && L.purge_batches - b0 == 2 && L.purge_pages - p0 == 63,
+              "19 first purge: partial at the stale page rc=%d after %llu batches, %llu pages "
+              "committed (want -ESTALE, 2, 63)", prc, (unsigned long long)(L.purge_batches - b0),
+              (unsigned long long)(L.purge_pages - p0));
+        bad = 0;
+        for (k = 0; k < np; k++) {
+            int want_free = k < 64 && k != stale_k;
+
+            if (mxfs_tauth_ledger_lookup(&L, &dr[k], gen, &de) != 0 ||
+                (de.state == MXFS_TAUTH_ST_FREE) != want_free)
+                bad++;
+        }
+        CHECK(bad == 0, "19 first purge retired the first two batches but the stale page, "
+              "and nothing of the third (%d records wrong)", bad);
+        b0 = L.purge_batches;
+        p0 = L.purge_pages;
+        prc = mxfs_tauth_ledger_purge_owner(&L, 55, 13, gen, 97, NULL, NULL);
+        CHECK(prc == 7 && L.purge_batches - b0 == 1 && L.purge_pages - p0 == 7,
+              "19 second purge completes it: cleared %d in %llu batch, %llu pages (want 7, 1, 7)",
+              prc, (unsigned long long)(L.purge_batches - b0),
+              (unsigned long long)(L.purge_pages - p0));
+        /* durable: a fresh generation reloads every page from the platter */
+        mxfs_tauth_ledger_set_owner_gen(&L, 4);
+        bad = 0;
+        for (k = 0; k < np; k++)
+            if (mxfs_tauth_ledger_ensure(&L, pages[k], 4) != 0 ||
+                mxfs_tauth_ledger_lookup(&L, &dr[k], 4, &de) != 0 ||
+                de.state != MXFS_TAUTH_ST_FREE)
+                bad++;
+        for (j = 0; j < NLIVE; j++)
+            if (mxfs_tauth_ledger_lookup(&L, &lr[j], 4, &de) != 0 ||
+                de.state != MXFS_TAUTH_ST_ACTIVE || de.ex_node != 66 || de.ex_inc != 6600)
+                bad++;
+        CHECK(bad == 0, "19 on the platter: all %u retired, the live owner's %d intact "
+              "(%d wrong)", np, NLIVE, bad);
+        prc = mxfs_tauth_ledger_purge_owner(&L, 55, 13, 4, 97, NULL, NULL);
+        CHECK(prc == 0, "19 a third purge finds nothing (rc=%d)", prc);
+    }
+
+    /* 20 a commit whose store write fails before its image is stamped is not
+     * durable.  The store's test knob makes the ticket swap answer -EIO:
+     * first never issued, then issued with only its answer lost, so this
+     * node's ticket stands on the spare copy.  Each commit must come back
+     * -EIO, proven not committed, the record unchanged in the cache and on
+     * the platter; the next commit resumes this node's own ticket and lands.
+     * Then through the batched purge: the first page of the batch has its
+     * ticket answer lost, so that page alone is not retired and the purge is
+     * partial; the next purge retires it. */
+    {
+        struct mxfs_resource_id fr, pr[3];
+        struct mxfs_tauth_entry fe;
+        uint32_t fp = 0, pp[3], np = 0, k;
+        uint64_t ino, unc0, res0;
+        int prc, bad;
+
+        for (ino = 12000000; ino < 13000000; ino++) {
+            fr = mkres(ino, MXFS_LTYPE_INODE, 0);
+            fp = tl_page(&fr);
+            if (page_bootstrap(&L, fp, 4) == 0 &&
+                mxfs_tauth_ledger_lookup(&L, &fr, 4, &fe) == 0 &&
+                fe.state != MXFS_TAUTH_ST_ACTIVE)
+                break;
+        }
+        CHECK(ino < 13000000, "20 a free resource on page %u of this node's", fp);
+
+        unc0 = L.uncommitted;
+        L.store.ticket_fail_once_rc = -EIO;
+        L.store.ticket_fail_landed = false;
+        ops[0] = mkop(MXFS_TAUTH_OP_GRANT_EX, &fr, 77, 7700, 15, MXFS_LOCK_EX);
+        rc = mxfs_tauth_ledger_commit(&L, ops, 1, 4, 98);
+        prc = mxfs_tauth_ledger_lookup(&L, &fr, 4, &fe);
+        CHECK(rc == -EIO && ops[0].rc == -EIO && L.uncommitted == unc0 + 1 && prc == 0 &&
+              fe.state != MXFS_TAUTH_ST_ACTIVE && !L.pages[fp].poisoned,
+              "20 ticket swap never issued: commit rc=%d op.rc=%d uncommitted +%llu, record "
+              "state=%u (want -EIO, -EIO, +1, not ACTIVE)", rc, ops[0].rc,
+              (unsigned long long)(L.uncommitted - unc0), fe.state);
+
+        L.store.ticket_fail_once_rc = -EIO;
+        L.store.ticket_fail_landed = true;
+        ops[0] = mkop(MXFS_TAUTH_OP_GRANT_EX, &fr, 77, 7700, 15, MXFS_LOCK_EX);
+        rc = mxfs_tauth_ledger_commit(&L, ops, 1, 4, 98);
+        prc = mxfs_tauth_ledger_lookup(&L, &fr, 4, &fe);
+        CHECK(rc == -EIO && ops[0].rc == -EIO && L.uncommitted == unc0 + 2 && prc == 0 &&
+              fe.state != MXFS_TAUTH_ST_ACTIVE && !L.pages[fp].poisoned,
+              "20 ticket swap landed, its answer lost: commit rc=%d op.rc=%d uncommitted "
+              "+%llu, record state=%u (want -EIO, -EIO, +2, not ACTIVE)", rc, ops[0].rc,
+              (unsigned long long)(L.uncommitted - unc0), fe.state);
+
+        /* on the platter: a fresh generation re-reads both copies */
+        mxfs_tauth_ledger_set_owner_gen(&L, 5);
+        rc = mxfs_tauth_ledger_ensure(&L, fp, 5);
+        rc |= mxfs_tauth_ledger_lookup(&L, &fr, 5, &fe);
+        CHECK(rc == 0 && fe.state != MXFS_TAUTH_ST_ACTIVE,
+              "20 the platter holds neither attempt (rc=%d state=%u)", rc, fe.state);
+
+        res0 = L.store.ticket_resumes;
+        ops[0] = mkop(MXFS_TAUTH_OP_GRANT_EX, &fr, 77, 7700, 15, MXFS_LOCK_EX);
+        rc = mxfs_tauth_ledger_commit(&L, ops, 1, 5, 98);
+        rc |= mxfs_tauth_ledger_lookup(&L, &fr, 5, &fe);
+        CHECK(rc == 0 && fe.state == MXFS_TAUTH_ST_ACTIVE && fe.ex_node == 77 &&
+              L.store.ticket_resumes == res0 + 1,
+              "20 the next commit resumes this node's ticket and lands (rc=%d state=%u "
+              "resumes +%llu)", rc, fe.state,
+              (unsigned long long)(L.store.ticket_resumes - res0));
+
+        /* the batched purge: a departed 88/8800 (slot 16) holds EX on one
+         * resource on each of three of this node's pages */
+        for (ino = 13000000; np < 3 && ino < 14000000; ino++) {
+            struct mxfs_resource_id c = mkres(ino, MXFS_LTYPE_INODE, 0);
+            uint32_t pg = tl_page(&c);
+
+            for (k = 0; k < np; k++)
+                if (pp[k] == pg)
+                    break;
+            if (k < np || pg == fp || page_bootstrap(&L, pg, 5) != 0)
+                continue;
+            for (k = np; k > 0 && pp[k - 1] > pg; k--) {
+                pp[k] = pp[k - 1];
+                pr[k] = pr[k - 1];
+            }
+            pp[k] = pg;
+            pr[k] = c;
+            np++;
+        }
+        rc = 0;
+        for (k = 0; k < np; k++) {
+            ops[0] = mkop(MXFS_TAUTH_OP_GRANT_EX, &pr[k], 88, 8800, 16, MXFS_LOCK_EX);
+            rc |= mxfs_tauth_ledger_commit(&L, ops, 1, 5, 99);
+        }
+        CHECK(np == 3 && rc == 0, "20 88/8800 holds EX on pages %u %u %u (rc=%d)",
+              pp[0], pp[1], pp[2], rc);
+        unc0 = L.uncommitted;
+        L.store.ticket_fail_once_rc = -EIO;
+        L.store.ticket_fail_landed = true;
+        prc = mxfs_tauth_ledger_purge_owner(&L, 88, 16, 5, 99, NULL, NULL);
+        bad = 0;
+        for (k = 0; k < np; k++)
+            if (mxfs_tauth_ledger_lookup(&L, &pr[k], 5, &fe) != 0 ||
+                (fe.state == MXFS_TAUTH_ST_ACTIVE) != (k == 0))
+                bad++;
+        CHECK(prc == -EIO && L.uncommitted == unc0 + 1 && bad == 0,
+              "20 purge with the first page's ticket answer lost: rc=%d uncommitted +%llu, "
+              "%d records wrong (want -EIO, +1, page %u's alone still ACTIVE)", prc,
+              (unsigned long long)(L.uncommitted - unc0), bad, pp[0]);
+        prc = mxfs_tauth_ledger_purge_owner(&L, 88, 16, 5, 99, NULL, NULL);
+        mxfs_tauth_ledger_set_owner_gen(&L, 6);
+        bad = 0;
+        for (k = 0; k < np; k++)
+            if (mxfs_tauth_ledger_ensure(&L, pp[k], 6) != 0 ||
+                mxfs_tauth_ledger_lookup(&L, &pr[k], 6, &fe) != 0 ||
+                fe.state == MXFS_TAUTH_ST_ACTIVE)
+                bad++;
+        CHECK(prc == 1 && bad == 0, "20 the next purge retires it: cleared %d, on the platter "
+              "%d records still ACTIVE (want 1, 0)", prc, bad);
     }
 
     /* 15 UNKNOWN record refuses */

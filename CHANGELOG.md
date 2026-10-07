@@ -1,3 +1,87 @@
+## 2026-10-07 — 0.90.85 — a lock-ledger commit that failed before anything was published is no longer reported durable
+
+**A failed ledger commit could be delivered as committed.** A commit to the
+lock ledger that fails part-way is settled by re-reading the page from disk:
+if the disk holds the new image, the commit counts as durable. The check
+compared only sequence numbers, and the store gives the new image its
+sequence number only after it has acquired the spare copy and flushed. A
+failure before that point — the coordination swap that acquires the copy
+answering an I/O error, the flush after it failing, or a copy unreadable when
+the base is read — left the image at the old number, so the unchanged page on
+disk matched it and the commit was reported durable with nothing written. The
+grant or retirement was then delivered while the ledger did not hold it, and
+the next master to load that page would not know the holder. On DRBD the swap
+answers an I/O error when the peer holds the pair's lock past
+`drbd_cas_wait_ms`, which happens while a peer is dying.
+- A failed write now counts as durable only when the page on disk is exactly
+  the image this commit stamped. An image the store never stamped is proven
+  not committed (`-EIO`), as a torn write already was.
+- The batched purge of 0.90.84 settles each page the same way, so a page whose
+  commit failed early is no longer counted as retired.
+
+**Tests:** `tests/tauth/ledger_test` case 20. A test switch on the ledger
+store makes the swap that acquires the spare copy answer an I/O error, either
+never issued or issued with its answer lost. Before the fix a grant came back
+committed while the record read EMPTY in memory and on disk, and the batched
+purge counted three pages retired with one still holding the dead owner's
+record. After it the commit is `-EIO`, nothing changed on disk, the next
+commit resumes the node's own swap and lands, and the purge stops with that
+page alone left for the next purge. Every tauth unit test passes after a
+forced rebuild.
+
+**Defect queue:**
+
+- **a ledger commit whose store write fails before the page image is stamped (the ticket swap answers an error other than a miscompare, the flush after the ticket fails, or a copy is unreadable at the base read) is reported durable: lpage_commit_settle_locked poisons, reconciles, finds the platter seq equal to the unstamped image's seq (the old seq) and returns 0, so the operations are delivered as committed while the ledger holds none of them** — FIXED AND VERIFIED. Cause proven by instrument before the change: tests/tauth/ledger_test case 20 (a store test knob, ticket_fail_once_rc, makes the ticket swap answer -EIO) failed 3 assertions on the unfixed code -- GRANT_EX commit rc=0 op.rc=0 with the record EMPTY in the cache and on the platter, whether the swap was never issued or landed with its answer lost, and the batched purge returned cleared=3 with the first page's record still ACTIVE. The fix targets that cause: lpage_commit_settle_locked now reports a failed write durable only when the reconciled platter image is exactly the image this commit stamped (img seq != old_seq and the bytes match); an unstamped image, which the store leaves at old_seq on every failure before its ticket is acquired and flushed, is proven not committed (-EIO). After the fix case 20 passes (commit -EIO, uncommitted counted, record unchanged on the platter, the next commit resumes the node's own ticket and lands; the purge returns -EIO with that page alone ACTIVE and the next purge retires it), and every tauth unit test passes after a forced rebuild: ledger 113, dlm_ledger 72, tauth 21, formation 28, concurrent_release 60, unowned_page 8, bootstrap_race 6, stale_image_release 68, view_format 34. Kernel module builds (0.90.85, srcversion BA5A219E87CBDEDB34F6310).
+
+## 2026-10-07 — 0.90.84 — a recovery retires a dead node's lock records in batches, not one ledger page at a time
+
+**A recovery committed the dead node's lock records one ledger page at a
+time.** At recovery completion the survivor retires every ledger record the
+dead incarnation held, and each page it changed was its own durable commit:
+two coordination swaps (a ticket on the spare copy, then the publish), three
+cache flushes and a body write. Through DRBD each of those is a replicated
+round trip, and each swap also takes and releases the pair's lock. On the
+physical pair a peer reset under load spent 17.8 s of a 24 s recovery
+completion in this purge (`ledger=17835` in `P163-RECOVERY-COMPLETE`), and a
+VM-style load on the dead host's image waited 50.6 s for its first I/O.
+- The purge now commits up to 32 pages at once: every page's ticket swap
+  queued together, one flush, every body written together, one flush, every
+  publish swap queued together, one flush, every copy read back. Each page's
+  own steps keep the single commit's order, so a crash leaves each page as a
+  crash during its own commit would; the pages share only the barriers. A page
+  that fails drops out with its own result and the walk stops after its batch,
+  as a failed page always ended it.
+- On DRBD, swaps queued together are served under one acquisition of the
+  pair's lock, and a batch's sector reads and writes inside it are now issued
+  together in waves of distinct sectors instead of one replicated write after
+  another. A swap whose sector an earlier swap of the batch targets starts the
+  next wave, so it reads that write as before. This serves every queued swap,
+  not only the purge's.
+- A purge that takes a second or more says where its time went, once, at
+  warning level (`P-TAUTH-PURGE ... committed= batches= ... store_ms: read=
+  ticket= body= publish= flush=`).
+
+**Tests:**
+- `tests/tauth/ledger_test` case 19: 70 pages purged in batches of 32, a page
+  made stale in the second batch refused alone with the walk stopped after
+  that batch, the next purge completing the rest; every retirement read back
+  under a fresh generation and a live owner's records intact.
+- `tests/tauth/dlm_ledger_test` case 10 expected a ledger-less master's refusal
+  to fail the requester with an I/O error. Since 0.90.54 the requester waits as
+  for no answer (`P-LEDGER-DENY-WAIT`), so the request ends at its retry budget;
+  the case now expects that.
+- The failover suite's answering-restart step read the boot program's lines
+  cut to 260 columns, which dropped the "(episode" its exclusion check looks
+  for, and it took the guard's hold line ("released once it has mounted") for
+  the release. Both failed a boot that had excluded its peer and released it
+  only after mounting. `tools/pve_power.sh` is executable again; the suite's
+  power-off steps could not run it.
+
+**Defect queue:** the guard releasing the peer under the survivor's own mount
+is fixed and verified:
+
+- **the guard releases an excluded peer while this node's own boot program is still mounting as the survivor on that exclusion; the startup fence then has neither the exclusion (kind 26) nor a Connected Secondary peer (kind 27), and the mount is refused after its 120 s bound** — FIXED AND VERIFIED. Cause proven by the record's own 0.90.68 measurement on pve1: the guard released pve2 (up, answering, DRBD unconfigured) 65 s into pve1's survivor mount, leaving the startup fence with neither the exclusion (kind 26) nor a Connected Secondary peer (kind 27), so the mount was refused at its 120 s bound. The 0.90.69 fix targets that cause: the guard and the release verb hold a release while this node's boot program is running and has not mounted. Verified on the rig at 0.90.69 (self-restart-test SELF_RESTART=answering: mounted alone in 162 s, released only after) and now on the physical pair the record was observed on, 0.90.81 (36AE66BA919CE8EC9AC9894) set up from docs/drbd-setup.md, tests/pve_pair_failover.sh answering-restart (evidence tests/evidence/pve_pair_failover/20261007T050953Z-192.168.1.80, 2026-10-07 00:09-00:19 CDT): pve2 masked and reset under load, pve1 recovered it, pve1 reset with pve2 up and answering with DRBD down; pve1's boot program excluded pve2 on DRBD's record at boot (one exclusion, episode 1043ad46 -- the 0.90.68 incident's second exclusion did not occur), the guard logged 'holding pve2 out ... released once it has mounted' 5 s later, pve1 mounted alone 158 s after answering (budget 300 s), the guard released pve2 3.6 s after that mount; pve1 alone held every fsynced file of both hosts and wrote; pve2 rejoined 141 s after its unit started and every fsynced file was intact on both. The step's first two runs failed on two harness bugs (a 260-column cut that dropped '(episode', and the hold line read as the release), both fixed in 0.90.84; the module's behaviour was the same in all three.
+
 ## 2026-10-06 — 0.90.83 — a lock release is sent until its master acknowledges it, and a re-send no longer reads a record another thread may have freed
 
 **A re-send could read freed memory.** `mxfs_dlm_release_retry_tick` chose the

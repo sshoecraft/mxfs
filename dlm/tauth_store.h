@@ -58,6 +58,14 @@ struct mxfs_tauth_store {
                     ph_publish_ms, ph_publish_max, ph_flush_ms, ph_flush_max,
                     ph_read_ms, ph_read_max, ph_commits;
     uint64_t        nonce_state;                /* write_nonce generator */
+    /*
+     * TEST knob, set only by the usermode ledger tests: the next ticket swap
+     * answers ticket_fail_once_rc.  With ticket_fail_landed the swap is
+     * issued and only its answer is lost (the ticket stands on the spare);
+     * without, it is never issued.  0 = off; its use disarms it.
+     */
+    int             ticket_fail_once_rc;
+    bool            ticket_fail_landed;
     /* may a ticket left by {node, inc} be taken over? Only when
      * that incarnation is durably fenced from the LUN (recovery-purged
      * after the SCSI-PR fence).  Absent = never (writes on such a page
@@ -94,6 +102,31 @@ int  mxfs_tauth_page_read(struct mxfs_tauth_store *s, uint32_t page_id,
 int  mxfs_tauth_page_write(struct mxfs_tauth_store *s, struct mxfs_tauth_page *pg,
                            uint64_t authority_epoch, uint64_t config_epoch,
                            uint32_t torn_after_bytes);
+
+/*
+ * A BATCHED COMMIT: up to MXFS_TAUTH_WRITE_BATCH pages, each committed exactly
+ * as mxfs_tauth_page_write commits one (the same conditional commit, the same
+ * result in its own w[i].rc), with each step taken for every page before the
+ * next step starts: every ticket swap queued together, ONE flush, every body
+ * written together, ONE flush, every publish swap queued together, ONE flush,
+ * every published copy read back.  A page's own steps keep the single
+ * commit's order, so a crash leaves each page exactly as a crash during its
+ * own commit would; the pages only share the barriers.  A page that fails a
+ * step drops out of the steps after it.  The single commit pays the three
+ * flushes and two coordination swaps per page — through DRBD, a replicated
+ * round trip each — and a recovery's ledger purge committed its pages one by
+ * one.  No test knob: torn writes are the single commit's.
+ * Returns 0 with every w[i].rc set; -EINVAL (nothing set: n out of range or no
+ * store), -ENOMEM (every rc -ENOMEM, nothing written).
+ */
+#define MXFS_TAUTH_WRITE_BATCH 32u
+struct mxfs_tauth_wreq {
+    struct mxfs_tauth_page *pg;         /* in and out, as mxfs_tauth_page_write's */
+    uint64_t                authority_epoch;
+    int                     rc;         /* out: what mxfs_tauth_page_write returns */
+};
+int  mxfs_tauth_page_write_many(struct mxfs_tauth_store *s, struct mxfs_tauth_wreq *w,
+                                int n, uint64_t config_epoch);
 
 /* Sweep every page: counts pages with 2 / 1 / 0 valid copies.  Returns 0,
  * or -EUCLEAN when any page has no valid copy (the region cannot serve as

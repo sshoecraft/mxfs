@@ -116,7 +116,9 @@ struct mxfs_tauth_ledger {
 							probes,         /* (D-0348): records found off their home index */
 							open_pinned,    /* 0.89.0 (D-0977): a full home page held at least one
 											 * tombstone kept only by open-holder marks */
-							open_marks;     /* 0.89.0: open-mark ops applied (set, clear, zero) */
+							open_marks,     /* 0.89.0: open-mark ops applied (set, clear, zero) */
+							purge_pages,    /* 0.90.84: pages a whole-ledger purge committed */
+							purge_batches;  /* ... and the batched store commits it took */
 	/* (instrumentation): durable page-write latency of the
 	 * commit path — total / max ms, printed as P-TAUTH-STATS every 1000
 	 * commits and at close.  The s422 rig run of step 3 hung a 30 s

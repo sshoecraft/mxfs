@@ -411,8 +411,12 @@ int main(int argc, char **argv)
 
         rc = mxfs_dlm_lock_retries(C->dlm, &Rc, MXFS_LOCK_EX, 0, &granted, 2);
         CHECK(rc == -EIO, "10 grant refused without a ledger rc=%d", rc);
+        /* since 0.90.54 a requester takes a master's "could not make it
+         * durable" answer as no answer (P-LEDGER-DENY-WAIT): it waits and
+         * asks again on its budget instead of failing the operation with
+         * the master's I/O error, so here it ends at that budget */
         rc = mxfs_dlm_lock_retries(A->dlm, &Rc, MXFS_LOCK_EX, 0, &granted, 2);
-        CHECK(rc == -EIO, "10 remote request to the ledger-less master denied rc=%d", rc);
+        CHECK(rc == -ETIMEDOUT, "10 remote request to the ledger-less master waits as for no answer and ends at its budget rc=%d", rc);
     }
     node_down(C);
     membership(ids2, 2);

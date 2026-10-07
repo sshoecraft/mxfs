@@ -1663,19 +1663,6 @@
       "updated": "2026-10-06"
     },
     {
-      "id": "D-DRBD-GUARD-RELEASES-THE-PEER-UNDER-THE-SURVIVORS-OWN-MOUNT",
-      "severity": "critical",
-      "nodes": 2,
-      "config": "net/mesh/drbd",
-      "opened": "2026-10-06",
-      "summary": "the guard releases an excluded peer while this node's own boot program is still mounting as the survivor on that exclusion; the startup fence then has neither the exclusion (kind 26) nor a Connected Secondary peer (kind 27), and the mount is refused after its 120 s bound",
-      "evidence": "MEASURED 2026-10-06 on the physical pair (pve1, 0.90.68 srcversion A63A278AB7D61F145D6A320, pve2 up with DRBD unconfigured on the old 0.90.56 install): 09:46:15 pve1's unit started; 09:46:45 boot program excluded pve2 (reason=peer-outdated-at-boot, episode be0d580c) and mounted as the survivor; 09:47:49 a second exclusion (episode 582d21c1); 09:47:50 the guard RELEASED pve2 ('pve2 answers: DRBD Unconfigured, no MXFS mount, module refcnt 0'); kernel: P-DRBD-STARTUP-FENCE-ASKED why_not_yet='the peer is inhibited under episode none, the receipt names ...'; 09:49:50 P-DRBD-STARTUP-FENCE-UNPROVEN waited_ms=120938; mount rc=32 attempt 1 of 6; the survivor path returns at once (unit failed), leaving pve1 Primary/Unknown unmounted. The rig's self-restart-test never hits this: its victim is powered off during the survivor's mount, so the guard gets no answer.",
-      "next": "Fix in cmd_guard/cmd_release: hold the release while this node's boot program (BOOT_STATE_FMT, live pid, same boot) is not yet mounted. Find what made the second exclusion at 09:47:49. Add a rig/pve step: survivor restart with the peer UP and DRBD down (unit masked) during the survivor's mount.",
-      "impact": "stability",
-      "impact_why": "no data is lost, but the survivor's mount is refused and its boot program gives up, so the pair stays unmounted and every guest on shared storage stays down until an operator intervenes",
-      "platform": "pve9"
-    },
-    {
       "id": "D-DRBD-COORDINATION-WRITES-QUEUE-BEHIND-GUEST-DATA-BOTH-HOSTS-SELF-FENCE",
       "severity": "critical",
       "nodes": 2,

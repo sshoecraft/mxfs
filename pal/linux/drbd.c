@@ -68,6 +68,10 @@ int mxfs_pal_bio_write_sync_bdev(struct block_device *bdev, uint64_t lba_512,
 				 const void *buf, uint32_t len);
 int mxfs_pal_bdev_read_plain_bdev(struct block_device *bdev, uint64_t lba_512,
 				   void *buf, uint32_t len);
+int mxfs_pal_bio_read_sectors_bdev(struct block_device *bdev, int n,
+				   const uint64_t *lbas, void *const *bufs, int *rcs);
+int mxfs_pal_bio_write_fua_sectors_bdev(struct block_device *bdev, int n,
+					const uint64_t *lbas, void *const *bufs, int *rcs);
 
 #define MXFS_DRBDW_PROC_NAME	"fs/mxfs/drbd_report"
 #define MXFS_DRBDW_PROC_PATH	"/proc/" MXFS_DRBDW_PROC_NAME
@@ -448,6 +452,10 @@ struct mxfs_drbd_reg {
 	__le32	crc;
 } __packed;
 
+/* A leader serves at most this many swaps under one bakery acquisition, so the
+ * peer's wait for the lock stays bounded by a few dozen sector writes. */
+#define MXFS_DRBD_CAS_BATCH	32
+
 struct mxfs_drbd_cas {
 	struct list_head	list;
 	dev_t			devt;
@@ -510,8 +518,20 @@ struct mxfs_drbd_cas {
 	 */
 	char			proc_buf[4096];
 	u64			witness_skipped;
+	/*
+	 * The critical section's sectors, under `lock`: one read buffer and one
+	 * write buffer per swap of a batch (crit_buf, kmalloc'd at attach: a bio
+	 * cannot be built on a caller's stack image), and the vectors handed to
+	 * the PAL for a wave of them (mxfs_drbd_cas_serve).
+	 */
+	u8			*crit_buf;
+	u64			crit_lba[MXFS_DRBD_CAS_BATCH];
+	void			*crit_ptr[MXFS_DRBD_CAS_BATCH];
+	int			crit_rc[MXFS_DRBD_CAS_BATCH];
+	int			crit_idx[MXFS_DRBD_CAS_BATCH];
 };
 #define MXFS_DRBD_STATS_EVERY	512
+#define MXFS_DRBD_CRIT_BUF_BYTES	(2 * MXFS_DRBD_CAS_BATCH * 512)
 
 static LIST_HEAD(mxfs_drbd_cas_list);
 static DEFINE_MUTEX(mxfs_drbd_cas_list_lock);
@@ -830,10 +850,6 @@ struct mxfs_drbd_cas_req {
 	bool			done;
 };
 
-/* A leader serves at most this many swaps under one bakery acquisition, so the
- * peer's wait for the lock stays bounded by a few dozen sector writes. */
-#define MXFS_DRBD_CAS_BATCH	32
-
 /*
  * The swap: bakery acquire, read-compare-write the target, release.  The
  * release is ordered after the target write has completed with FUA, so the
@@ -846,22 +862,30 @@ struct mxfs_drbd_cas_req {
  * and swaps queued behind e->lock for 130 ms on average under a directory
  * workload, which pushed lock handoffs past the 1 s acquire wait.  So swaps
  * queue, and whoever takes e->lock serves every queued swap (up to
- * MXFS_DRBD_CAS_BATCH) inside one acquisition, each one's read-compare-write in
- * queue order — a later swap of the same sector reads the earlier one's write —
- * and releases once, after every target write has completed.  Mutual exclusion
- * with the peer and the release ordering are those of a single swap.
+ * MXFS_DRBD_CAS_BATCH) inside one acquisition, and releases once, after every
+ * target write has completed.  Mutual exclusion with the peer and the release
+ * ordering are those of a single swap.
+ *
+ * THE BATCH IN WAVES.  Inside the acquisition the swaps are served in waves of
+ * distinct sectors: a wave's target reads are issued together, each compared,
+ * and the writes of those that matched issued together and all waited for.  A
+ * swap whose sector an earlier swap of the batch targets starts the next wave,
+ * so it reads that swap's write, as it would served one after the other in
+ * queue order.  Served one at a time, every target write was a replicated FUA
+ * round trip of its own with the pair's lock held, and a batch of them cost
+ * that many in series.
  */
 static void mxfs_drbd_cas_serve(struct mxfs_drbd_cas *e)
 {
 	struct mxfs_drbd_cas_req *batch[MXFS_DRBD_CAS_BATCH];
 	struct mxfs_drbd_cas_req *r, *tmp;
 	struct mxfs_drbd_reg *reg;
-	u8 *cur, *bounce;
+	u8 *wbuf;
 	u32 pch;
 	u64 pnum, mine;
 	unsigned long deadline;
 	unsigned int sleep_us = 100;
-	int n = 0, i, rc, rrc;
+	int n = 0, i, j, k, m, nw, rc, rrc, vrc;
 	u64 t1, t2, t3, t4, t5;
 
 	spin_lock(&e->qlock);
@@ -875,7 +899,7 @@ static void mxfs_drbd_cas_serve(struct mxfs_drbd_cas *e)
 	if (!n)
 		return;
 
-	reg = kmalloc(1536, GFP_KERNEL);
+	reg = kmalloc(512, GFP_KERNEL);
 	if (!reg) {
 		for (i = 0; i < n; i++) {
 			batch[i]->rc = -ENOMEM;
@@ -883,15 +907,15 @@ static void mxfs_drbd_cas_serve(struct mxfs_drbd_cas *e)
 		}
 		return;
 	}
-	cur = (u8 *)reg + 512;
 	/*
-	 * The target image is written from here, never from the caller's
+	 * A target image is written from e->crit_buf, never from the caller's
 	 * buffer: COMPARE AND WRITE copies its data into a page of its own, so
 	 * callers hand it stack images (mxfs_bootstrap_claim's `want`), and a
 	 * bio cannot be built on a vmalloc'd kernel stack.  Measured: the
 	 * bootstrap claim on /dev/drbd0 failed -EINVAL after a pair outage.
+	 * The second half of crit_buf holds the wave's writes.
 	 */
-	bounce = (u8 *)reg + 1024;
+	wbuf = e->crit_buf + MXFS_DRBD_CAS_BATCH * 512;
 
 	t1 = ktime_get_ns();
 	t2 = t3 = t4 = t1;
@@ -968,18 +992,45 @@ static void mxfs_drbd_cas_serve(struct mxfs_drbd_cas *e)
 			msleep(hold);
 		}
 	}
-	for (i = 0; i < n; i++) {
-		r = batch[i];
-		r->rc = mxfs_drbd_sec_read(e, r->lba, cur);
-		if (!r->rc) {
-			if (memcmp(cur, r->compare_buf, 512)) {
+	for (i = 0; i < n; i = j) {
+		/* the wave: swaps i..j-1, up to the first whose sector repeats */
+		for (j = i + 1; j < n; j++) {
+			for (k = i; k < j; k++)
+				if (batch[k]->lba == batch[j]->lba)
+					break;
+			if (k < j)
+				break;
+		}
+		for (k = i; k < j; k++) {
+			e->crit_lba[k - i] = batch[k]->lba;
+			e->crit_ptr[k - i] = e->crit_buf + (k - i) * 512;
+		}
+		vrc = mxfs_pal_bio_read_sectors_bdev(e->bdev, j - i, e->crit_lba,
+						     e->crit_ptr, e->crit_rc);
+		nw = 0;
+		for (k = i; k < j; k++) {
+			r = batch[k];
+			r->rc = vrc ? vrc : e->crit_rc[k - i];
+			if (r->rc)
+				continue;
+			if (memcmp(e->crit_buf + (k - i) * 512, r->compare_buf, 512)) {
 				e->miscompares++;
 				r->rc = -EAGAIN;
-			} else {
-				memcpy(bounce, r->write_buf, 512);
-				r->rc = mxfs_drbd_sec_write(e, r->lba, bounce);
+				continue;
 			}
+			memcpy(wbuf + nw * 512, r->write_buf, 512);
+			e->crit_idx[nw++] = k;
 		}
+		if (!nw)
+			continue;
+		for (m = 0; m < nw; m++) {
+			e->crit_lba[m] = batch[e->crit_idx[m]]->lba;
+			e->crit_ptr[m] = wbuf + m * 512;
+		}
+		vrc = mxfs_pal_bio_write_fua_sectors_bdev(e->bdev, nw, e->crit_lba,
+							  e->crit_ptr, e->crit_rc);
+		for (m = 0; m < nw; m++)
+			batch[e->crit_idx[m]]->rc = vrc ? vrc : e->crit_rc[m];
 	}
 	t4 = ktime_get_ns();
 release:
@@ -1050,28 +1101,111 @@ static int mxfs_drbd_cas_run(struct mxfs_drbd_cas *e, u64 lba,
 	return req.rc;
 }
 
-/* Called by mxfs_pal_bdev_compare_and_write for a device with no SCSI underneath. */
-int mxfs_pal_drbd_cas_emulate(mxfs_bdev_t *dev, uint64_t offset,
-			      const void *compare_buf, const void *write_buf)
+/* The absolute LBA a swap at `offset` on `dev` targets, or a negative errno. */
+static int mxfs_drbd_cas_target(struct mxfs_drbd_cas *e, mxfs_bdev_t *dev,
+				uint64_t offset, u64 *lba)
 {
-	struct block_device *bdev = mxfs_pal_bdev_get_bdev(dev);
-	struct mxfs_drbd_cas *e;
-	u64 abs;
+	u64 abs = offset + mxfs_pal_bdev_get_base_offset(dev);
 
-	if (!bdev)
-		return -EINVAL;
-	mutex_lock(&mxfs_drbd_cas_list_lock);
-	e = mxfs_drbd_cas_find(bdev->bd_dev);
-	mutex_unlock(&mxfs_drbd_cas_list_lock);
-	if (!e)
-		return -EOPNOTSUPP;
-	abs = offset + mxfs_pal_bdev_get_base_offset(dev);
 	if (abs & 511)
 		return -EINVAL;
 	/* The lock's own sectors are never a swap target. */
 	if (abs / 512 >= e->area_lba && abs / 512 < e->area_lba + 3)
 		return -EINVAL;
-	return mxfs_drbd_cas_run(e, abs / 512, compare_buf, write_buf);
+	*lba = abs / 512;
+	return 0;
+}
+
+static struct mxfs_drbd_cas *mxfs_drbd_cas_of(mxfs_bdev_t *dev)
+{
+	struct block_device *bdev = mxfs_pal_bdev_get_bdev(dev);
+	struct mxfs_drbd_cas *e;
+
+	if (!bdev)
+		return NULL;
+	mutex_lock(&mxfs_drbd_cas_list_lock);
+	e = mxfs_drbd_cas_find(bdev->bd_dev);
+	mutex_unlock(&mxfs_drbd_cas_list_lock);
+	return e;
+}
+
+/* Called by mxfs_pal_bdev_compare_and_write for a device with no SCSI underneath. */
+int mxfs_pal_drbd_cas_emulate(mxfs_bdev_t *dev, uint64_t offset,
+			      const void *compare_buf, const void *write_buf)
+{
+	struct mxfs_drbd_cas *e;
+	u64 lba;
+	int rc;
+
+	if (!mxfs_pal_bdev_get_bdev(dev))
+		return -EINVAL;
+	e = mxfs_drbd_cas_of(dev);
+	if (!e)
+		return -EOPNOTSUPP;
+	rc = mxfs_drbd_cas_target(e, dev, offset, &lba);
+	if (rc)
+		return rc;
+	return mxfs_drbd_cas_run(e, lba, compare_buf, write_buf);
+}
+
+/*
+ * Called by mxfs_pal_bdev_compare_and_write_many for a device with no SCSI
+ * underneath.  Every swap is queued at once, in order, so one leader serves
+ * them under as few acquisitions of the pair's lock as the batch cap allows
+ * (one for up to MXFS_DRBD_CAS_BATCH of them), where swaps issued one after
+ * the other each pay a whole acquisition.  Each swap's result is its own.
+ */
+int mxfs_pal_drbd_cas_emulate_many(mxfs_bdev_t *dev, int n, const uint64_t *offsets,
+				   const void *const *compare_bufs,
+				   const void *const *write_bufs, int *rcs)
+{
+	struct mxfs_drbd_cas_req *reqs;
+	struct mxfs_drbd_cas *e;
+	bool pending;
+	u64 tq;
+	int i;
+
+	if (!mxfs_pal_bdev_get_bdev(dev) || n <= 0 || !offsets || !compare_bufs ||
+	    !write_bufs || !rcs)
+		return -EINVAL;
+	e = mxfs_drbd_cas_of(dev);
+	if (!e)
+		return -EOPNOTSUPP;
+	reqs = kcalloc(n, sizeof(*reqs), GFP_KERNEL);
+	if (!reqs)
+		return -ENOMEM;
+	tq = ktime_get_ns();
+	for (i = 0; i < n; i++) {
+		INIT_LIST_HEAD(&reqs[i].node);
+		reqs[i].compare_buf = compare_bufs[i];
+		reqs[i].write_buf = write_bufs[i];
+		reqs[i].tq = tq;
+		reqs[i].rc = mxfs_drbd_cas_target(e, dev, offsets[i], &reqs[i].lba);
+		if (reqs[i].rc || !compare_bufs[i] || !write_bufs[i]) {
+			if (!reqs[i].rc)
+				reqs[i].rc = -EINVAL;
+			reqs[i].done = true;
+		}
+	}
+	spin_lock(&e->qlock);
+	for (i = 0; i < n; i++)
+		if (!reqs[i].done)
+			list_add_tail(&reqs[i].node, &e->queue);
+	spin_unlock(&e->qlock);
+	mutex_lock(&e->lock);
+	for (;;) {
+		pending = false;
+		for (i = 0; i < n && !pending; i++)
+			pending = !reqs[i].done;
+		if (!pending)
+			break;
+		mxfs_drbd_cas_serve(e);
+	}
+	mutex_unlock(&e->lock);
+	for (i = 0; i < n; i++)
+		rcs[i] = reqs[i].rc;
+	kfree(reqs);
+	return 0;
 }
 
 /*
@@ -1151,7 +1285,11 @@ int mxfs_pal_drbd_cas_attach(mxfs_bdev_t *dev, uint64_t region_off,
 
 	e = kzalloc(sizeof(*e), GFP_KERNEL);
 	r = kmalloc(512, GFP_KERNEL);
-	if (!e || !r) {
+	if (e)
+		e->crit_buf = kmalloc(MXFS_DRBD_CRIT_BUF_BYTES, GFP_KERNEL);
+	if (!e || !r || !e->crit_buf) {
+		if (e)
+			kfree(e->crit_buf);
 		kfree(e);
 		kfree(r);
 		return -ENOMEM;
@@ -1192,6 +1330,7 @@ int mxfs_pal_drbd_cas_attach(mxfs_bdev_t *dev, uint64_t region_off,
 		rc = mxfs_drbd_reg_put(e, r, 0, 0);
 	kfree(r);
 	if (rc) {
+		kfree(e->crit_buf);
 		kfree(e);
 		return rc;
 	}
@@ -1202,6 +1341,7 @@ int mxfs_pal_drbd_cas_attach(mxfs_bdev_t *dev, uint64_t region_off,
 		/* A concurrent attach on this node won: use it. */
 		have->refs++;
 		mutex_unlock(&mxfs_drbd_cas_list_lock);
+		kfree(e->crit_buf);
 		kfree(e);
 		mxfs_pal_bdev_set_drbd_cas(dev, true);
 		return 0;
@@ -1236,6 +1376,7 @@ void mxfs_pal_drbd_cas_detach(mxfs_bdev_t *dev)
 	pr_info("mxfs: P-DRBD-CAS-DETACH minor=%u index=%u ops=%llu contended=%llu miscompares=%llu witness_skipped=%llu\n",
 		MINOR(e->devt), e->index, e->ops, e->contended, e->miscompares,
 		e->witness_skipped);
+	kfree(e->crit_buf);
 	kfree(e);
 }
 EXPORT_SYMBOL_GPL(mxfs_pal_drbd_cas_detach);

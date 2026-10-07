@@ -665,11 +665,18 @@ step_answering_restart() {
     s=$(wait_rebooted "$P0" "$b0" "$BOOT_BUDGET") || die "$P0 did not come back within ${BOOT_BUDGET}s of its reset"
     s=$(wait_alone "$P0" "$ALONE_BUDGET") || die "$P0 did not mount alone within ${ALONE_BUDGET}s of answering ($P1 up, no DRBD)"
     say "  $P0 mounted alone $s s after answering"
-    out=$(on "$P0" "journalctl -b --no-pager -o short-unix -t mxfs-drbd-fence | grep -a -E 'peer-outdated|is excluded \(episode|mounting as the survivor|: mounted /dev|holding .* out|released |failed \(rc=' | cut -c1-260" 30)
+    # Whole lines: the exclusion's line runs past 260 characters, and cut to
+    # that width it lost the "(episode" this check looks for (physical pair,
+    # 2026-10-06), failing a boot that had excluded its peer.  Only the copy in
+    # the log is cut.
+    out=$(on "$P0" "journalctl -b --no-pager -o short-unix -t mxfs-drbd-fence | grep -a -E 'peer-outdated|is excluded \(episode|mounting as the survivor|: mounted /dev|holding .* out|released |failed \(rc='" 30)
     echo "$out" > "$EVID/answering-restart.boot.$P0"
-    sed 's/^/    /' <<<"$out" | tee -a "$EVID/log"
+    cut -c1-260 <<<"$out" | sed 's/^/    /' | tee -a "$EVID/log"
     tm=$(awk '/: mounted \/dev/ {print $1; exit}' <<<"$out")
-    tr=$(awk '/released / {print $1; exit}' <<<"$out")
+    # the guard's own release line ("...]: released <peer> (episode ..."), never
+    # the hold line before it, which says the peer is "released once it has
+    # mounted" (physical pair, 2026-10-06: that line was read as the release)
+    tr=$(awk '/\]: released / {print $1; exit}' <<<"$out")
     [ -n "$tm" ] || die "$P0's journal does not show its boot program mounting"
     grep -q 'is excluded (episode' <<<"$out" || die "$P0 mounted alone without excluding $P1 at boot"
     if [ -n "$tr" ] && awk -v r="$tr" -v m="$tm" 'BEGIN { exit !(r < m) }'; then

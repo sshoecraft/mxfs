@@ -498,6 +498,85 @@ struct mxfs_inflight {
 };
 
 /*
+ * n single-sector I/Os on a RAW block device (absolute LBAs), every one
+ * submitted before any is waited on, each with its own result in rcs[i]: the
+ * DRBD compare-and-swap's critical section (pal/linux/drbd.c), which reads and
+ * writes one sector per swap for every swap it serves under one acquisition of
+ * the pair's lock.  Issued one after another, those writes cost one replicated
+ * FUA round trip each.  Returns 0, or -ENOMEM with nothing submitted.
+ */
+static int mxfs_pal_bio_sectors_bdev(struct block_device *bdev, int n,
+				     const uint64_t *lbas, void *const *bufs,
+				     unsigned int op, int *rcs)
+{
+	struct mxfs_inflight *slots;
+	int i;
+
+	if (!bdev || n <= 0 || !lbas || !bufs || !rcs)
+		return -EINVAL;
+	slots = kmalloc_array(n, sizeof(*slots), GFP_KERNEL);
+	if (!slots)
+		return -ENOMEM;
+	for (i = 0; i < n; i++) {
+		unsigned int blen = 0;
+
+		slots[i].bio = NULL;
+		rcs[i] = 0;
+		if (!bufs[i] || is_vmalloc_addr(bufs[i])) {
+			rcs[i] = -EINVAL;
+			continue;
+		}
+		slots[i].bio = build_bio(bdev, lbas[i] << 9, bufs[i], 512, op, &blen);
+		if (!slots[i].bio) {
+			rcs[i] = -ENOMEM;
+			continue;
+		}
+		if (blen != 512) {
+			bio_put(slots[i].bio);
+			slots[i].bio = NULL;
+			rcs[i] = -EIO;
+			continue;
+		}
+		init_completion(&slots[i].ctx.done);
+		slots[i].ctx.status = BLK_STS_OK;
+		slots[i].bio->bi_private = &slots[i].ctx;
+		slots[i].bio->bi_end_io = mxfs_bio_end_io;
+	}
+	for (i = 0; i < n; i++)
+		if (slots[i].bio)
+			submit_bio(slots[i].bio);
+	for (i = 0; i < n; i++) {
+		if (!slots[i].bio)
+			continue;
+		wait_for_completion(&slots[i].ctx.done);
+		rcs[i] = blk_status_to_errno(slots[i].ctx.status);
+		bio_put(slots[i].bio);
+	}
+	kfree(slots);
+	return 0;
+}
+
+int mxfs_pal_bio_read_sectors_bdev(struct block_device *bdev, int n,
+				   const uint64_t *lbas, void *const *bufs, int *rcs);
+int mxfs_pal_bio_read_sectors_bdev(struct block_device *bdev, int n,
+				   const uint64_t *lbas, void *const *bufs, int *rcs)
+{
+	return mxfs_pal_bio_sectors_bdev(bdev, n, lbas, bufs,
+					 REQ_OP_READ | REQ_SYNC, rcs);
+}
+EXPORT_SYMBOL_GPL(mxfs_pal_bio_read_sectors_bdev);
+
+int mxfs_pal_bio_write_fua_sectors_bdev(struct block_device *bdev, int n,
+					const uint64_t *lbas, void *const *bufs, int *rcs);
+int mxfs_pal_bio_write_fua_sectors_bdev(struct block_device *bdev, int n,
+					const uint64_t *lbas, void *const *bufs, int *rcs)
+{
+	return mxfs_pal_bio_sectors_bdev(bdev, n, lbas, bufs,
+					 REQ_OP_WRITE | REQ_SYNC | REQ_FUA, rcs);
+}
+EXPORT_SYMBOL_GPL(mxfs_pal_bio_write_fua_sectors_bdev);
+
+/*
  * Pipelined read: submit up to MXFS_MAX_INFLIGHT_BIOS concurrently,
  * then collect results.  This allows the block layer / iSCSI initiator
  * to overlap multiple requests, reducing per-request latency overhead.
@@ -1896,11 +1975,9 @@ int mxfs_pal_bdev_write_async(mxfs_bdev_t *dev, uint64_t offset,
  *
  * Used by block_cache_flush to write all dirty blocks concurrently.
  */
-int mxfs_pal_bdev_write_scatter(mxfs_bdev_t *dev,
-				 const uint64_t *offsets,
-				 void * const *bufs,
-				 const uint32_t *lens,
-				 int count)
+static int bdev_write_scatter(mxfs_bdev_t *dev, const uint64_t *offsets,
+			      void * const *bufs, const uint32_t *lens,
+			      int count, unsigned int op)
 {
 	struct mxfs_inflight *slots;
 	int submitted = 0;
@@ -1917,8 +1994,7 @@ int mxfs_pal_bdev_write_scatter(mxfs_bdev_t *dev,
 		/* Fallback: synchronous per-block */
 		for (i = 0; i < count; i++) {
 			int r = bdev_sync_io(dev, offsets[i],
-					     (void *)bufs[i], lens[i],
-					     REQ_OP_WRITE);
+					     (void *)bufs[i], lens[i], op);
 			if (r && !ret) ret = r;
 		}
 		return ret;
@@ -1937,7 +2013,7 @@ int mxfs_pal_bdev_write_scatter(mxfs_bdev_t *dev,
 			unsigned int blen;
 
 			bio = build_bio(dev->bdev, offsets[i] + dev->base_offset, (void *)bufs[i],
-					lens[i], REQ_OP_WRITE, &blen);
+					lens[i], op, &blen);
 			if (!bio) {
 				if (nbios > 0)
 					break;
@@ -1983,6 +2059,27 @@ int mxfs_pal_bdev_write_scatter(mxfs_bdev_t *dev,
 
 	kfree(slots);
 	return ret;
+}
+
+int mxfs_pal_bdev_write_scatter(mxfs_bdev_t *dev,
+				 const uint64_t *offsets,
+				 void * const *bufs,
+				 const uint32_t *lens,
+				 int count)
+{
+	return bdev_write_scatter(dev, offsets, bufs, lens, count, REQ_OP_WRITE);
+}
+
+/* The coordination writes' priority (mxfs_pal_bdev_write_fua says why), with
+ * no FUA: the caller flushes once after all of them. */
+int mxfs_pal_bdev_write_scatter_prio(mxfs_bdev_t *dev,
+				      const uint64_t *offsets,
+				      void * const *bufs,
+				      const uint32_t *lens,
+				      int count)
+{
+	return bdev_write_scatter(dev, offsets, bufs, lens, count,
+				  REQ_OP_WRITE | REQ_PRIO | REQ_SYNC);
 }
 
 int mxfs_pal_bdev_read_async(mxfs_bdev_t *dev, uint64_t offset,
@@ -6921,6 +7018,32 @@ done:
 	}
 }
 
+int mxfs_pal_bdev_compare_and_write_many(mxfs_bdev_t *dev, int n,
+					 const uint64_t *offsets,
+					 const void *const *compare_bufs,
+					 const void *const *write_bufs,
+					 int *rcs)
+{
+	struct scsi_device *sdev;
+	int i;
+
+	if (!dev || !dev->bdev || n <= 0 || !offsets || !compare_bufs ||
+	    !write_bufs || !rcs)
+		return -EINVAL;
+	/* the device's kind, decided once: a SCSI device takes them one at a
+	 * time, as its own COMPARE AND WRITE commands */
+	sdev = mxfs_bdev_to_sdev(dev->bdev);
+	if (!sdev)
+		return mxfs_pal_drbd_cas_emulate_many(dev, n, offsets, compare_bufs,
+						      write_bufs, rcs);
+	scsi_device_put(sdev);
+	for (i = 0; i < n; i++)
+		rcs[i] = mxfs_pal_bdev_compare_and_write(dev, offsets[i],
+							 compare_bufs[i],
+							 write_bufs[i]);
+	return 0;
+}
+
 struct block_device *mxfs_pal_bdev_get_bdev(mxfs_bdev_t *dev)
 {
 	return dev ? dev->bdev : NULL;
@@ -7006,6 +7129,7 @@ EXPORT_SYMBOL_GPL(mxfs_pal_bdev_size);
 EXPORT_SYMBOL_GPL(mxfs_pal_bdev_get_write_stats);
 EXPORT_SYMBOL_GPL(mxfs_pal_bdev_write_gather);
 EXPORT_SYMBOL_GPL(mxfs_pal_bdev_write_scatter);
+EXPORT_SYMBOL_GPL(mxfs_pal_bdev_write_scatter_prio);
 EXPORT_SYMBOL_GPL(mxfs_pal_bdev_write_async);
 EXPORT_SYMBOL_GPL(mxfs_pal_bdev_read_async);
 EXPORT_SYMBOL_GPL(mxfs_pal_alloc);
@@ -7074,6 +7198,7 @@ EXPORT_SYMBOL_GPL(mxfs_pal_scsi_pr_read_keys);
 EXPORT_SYMBOL_GPL(mxfs_pal_scsi_pr_read_full_status);
 EXPORT_SYMBOL_GPL(mxfs_pal_scsi_pr_read_reservation);
 EXPORT_SYMBOL_GPL(mxfs_pal_bdev_compare_and_write);
+EXPORT_SYMBOL_GPL(mxfs_pal_bdev_compare_and_write_many);
 EXPORT_SYMBOL_GPL(mxfs_pal_bdev_get_bdev);
 EXPORT_SYMBOL_GPL(mxfs_pal_bdev_get_base_offset);
 EXPORT_SYMBOL_GPL(mxfs_pal_get_hostname);

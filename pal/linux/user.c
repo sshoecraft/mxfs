@@ -209,6 +209,16 @@ int mxfs_pal_bdev_write_scatter(mxfs_bdev_t *dev,
 	return ret;
 }
 
+/* User mode has no I/O priority to give: the plain scatter write. */
+int mxfs_pal_bdev_write_scatter_prio(mxfs_bdev_t *dev,
+				      const uint64_t *offsets,
+				      void * const *bufs,
+				      const uint32_t *lens,
+				      int count)
+{
+	return mxfs_pal_bdev_write_scatter(dev, offsets, bufs, lens, count);
+}
+
 int mxfs_pal_bdev_read_async(mxfs_bdev_t *dev, uint64_t offset,
 			      void *buf, uint32_t len)
 {
@@ -2269,6 +2279,24 @@ int mxfs_pal_bdev_compare_and_write(mxfs_bdev_t *dev, uint64_t offset,
 		return -EIO;
 	}
 
+	return 0;
+}
+
+/* User mode has no DRBD attachment: the swaps run one after the other. */
+int mxfs_pal_bdev_compare_and_write_many(mxfs_bdev_t *dev, int n,
+					 const uint64_t *offsets,
+					 const void *const *compare_bufs,
+					 const void *const *write_bufs,
+					 int *rcs)
+{
+	int i;
+
+	if (!dev || n <= 0 || !offsets || !compare_bufs || !write_bufs || !rcs)
+		return -EINVAL;
+	for (i = 0; i < n; i++)
+		rcs[i] = mxfs_pal_bdev_compare_and_write(dev, offsets[i],
+							 compare_bufs[i],
+							 write_bufs[i]);
 	return 0;
 }
 

@@ -1241,28 +1241,14 @@ static int apply_op(struct mxfs_tauth_ledger *l, struct mxfs_tauth_page *img,
 	return 0;
 }
 
-/* Caller holds pg->lock; `img` is the patched scratch image.  Write it and
- * decide what happened.  Returns 0 (durable, cache updated), -EIO (proven
- * not committed, cache untouched), -ENOTRECOVERABLE (uncertain; poisoned). */
-static int lpage_commit_locked(struct mxfs_tauth_ledger *l, struct mxfs_tauth_lpage *pg,
-			       struct mxfs_tauth_page *img, uint64_t config_epoch)
+/* Caller holds pg->lock; `img` was written from the page's cache, whose seq
+ * was `old_seq`, and the store returned rc.  Decide what happened: see
+ * lpage_commit_locked. */
+static int lpage_commit_settle_locked(struct mxfs_tauth_ledger *l,
+				      struct mxfs_tauth_lpage *pg,
+				      struct mxfs_tauth_page *img, uint64_t old_seq,
+				      int rc)
 {
-	uint32_t torn = l->torn_after_bytes;
-	uint64_t old_seq = pg->img->hdr.seq;
-	int rc;
-
-	uint64_t t0 = mxfs_pal_time_ms(), dt;
-
-	l->torn_after_bytes = 0;
-	(void)config_epoch;
-	/* the page's authority fields ride unchanged: an entry transition is
-	 * only ever written by the ACTIVE authority itself */
-	rc = mxfs_tauth_page_write(&l->store, img, img->hdr.authority_epoch,
-				   l->config_id, torn);
-	dt = mxfs_pal_time_ms() - t0;
-	l->commit_ms_total += dt;
-	if (dt > l->commit_ms_max)
-		l->commit_ms_max = dt;
 	if (rc == 0) {
 		memcpy(pg->img, img, sizeof(*img));
 		l->commits++;
@@ -1294,7 +1280,16 @@ static int lpage_commit_locked(struct mxfs_tauth_ledger *l, struct mxfs_tauth_lp
 		     img->hdr.page_id, (unsigned long long)img->hdr.seq, rc);
 	if (lpage_reconcile_locked(l, img->hdr.page_id, pg) != 0)
 		return -ENOTRECOVERABLE;
-	if (pg->img->hdr.seq == img->hdr.seq) {
+	/*
+	 * Durable only when the platter holds exactly the image this commit
+	 * stamped.  The store stamps the image (its next seq, a fresh nonce) only
+	 * once the ticket is acquired and flushed; a failure before that — the
+	 * base read, the ticket swap, the flush after it — leaves img at old_seq,
+	 * and an image never stamped was never published.  Matching on the seq
+	 * alone read that unchanged platter as this transition, and the commit
+	 * was delivered with nothing on disk.
+	 */
+	if (img->hdr.seq != old_seq && !memcmp(pg->img, img, sizeof(*img))) {
 		/* the platter holds our transition: it IS durable */
 		l->commits++;
 		return 0;
@@ -1307,6 +1302,63 @@ static int lpage_commit_locked(struct mxfs_tauth_ledger *l, struct mxfs_tauth_lp
 	 * (ownership changed under us) — refuse, the caller re-ensures */
 	l->gen_refusals++;
 	return -ESTALE;
+}
+
+/* Caller holds pg->lock; `img` is the patched scratch image.  Write it and
+ * decide what happened.  Returns 0 (durable, cache updated), -EIO (proven
+ * not committed, cache untouched), -ENOTRECOVERABLE (uncertain; poisoned). */
+static int lpage_commit_locked(struct mxfs_tauth_ledger *l, struct mxfs_tauth_lpage *pg,
+			       struct mxfs_tauth_page *img, uint64_t config_epoch)
+{
+	uint32_t torn = l->torn_after_bytes;
+	uint64_t old_seq = pg->img->hdr.seq;
+	int rc;
+
+	uint64_t t0 = mxfs_pal_time_ms(), dt;
+
+	l->torn_after_bytes = 0;
+	(void)config_epoch;
+	/* the page's authority fields ride unchanged: an entry transition is
+	 * only ever written by the ACTIVE authority itself */
+	rc = mxfs_tauth_page_write(&l->store, img, img->hdr.authority_epoch,
+				   l->config_id, torn);
+	dt = mxfs_pal_time_ms() - t0;
+	l->commit_ms_total += dt;
+	if (dt > l->commit_ms_max)
+		l->commit_ms_max = dt;
+	return lpage_commit_settle_locked(l, pg, img, old_seq, rc);
+}
+
+/*
+ * n pages at once: the caller holds every pgs[i]->lock and imgs[i] is that
+ * page's patched image.  One batched store commit (mxfs_tauth_page_write_many:
+ * the pages share its barriers), then each page settled exactly as
+ * lpage_commit_locked settles one; rcs[i] is what it would have returned.
+ * n <= MXFS_TAUTH_WRITE_BATCH.  The commit-latency counters take the batch's
+ * wall once: their average stays the cost of a page.
+ */
+static void lpage_commit_many_locked(struct mxfs_tauth_ledger *l,
+				     struct mxfs_tauth_lpage **pgs,
+				     struct mxfs_tauth_page **imgs, int n,
+				     struct mxfs_tauth_wreq *w, int *rcs)
+{
+	uint64_t t0 = mxfs_pal_time_ms(), dt;
+	int i, rc;
+
+	for (i = 0; i < n; i++) {
+		w[i].pg = imgs[i];
+		/* as lpage_commit_locked: the authority fields ride unchanged */
+		w[i].authority_epoch = imgs[i]->hdr.authority_epoch;
+		w[i].rc = 0;
+	}
+	rc = mxfs_tauth_page_write_many(&l->store, w, n, l->config_id);
+	dt = mxfs_pal_time_ms() - t0;
+	l->commit_ms_total += dt;
+	if (dt > l->commit_ms_max)
+		l->commit_ms_max = dt;
+	for (i = 0; i < n; i++)
+		rcs[i] = lpage_commit_settle_locked(l, pgs[i], imgs[i], pgs[i]->img->hdr.seq,
+						    rc ? rc : w[i].rc);
 }
 
 int mxfs_tauth_ledger_commit(struct mxfs_tauth_ledger *l,
@@ -1468,17 +1520,19 @@ static void tauth_purge_scan_page(void *data, uint32_t page_id,
 }
 
 /*
- * One page of a purge: retire every ACTIVE record of holder `node` (and of
- * heartbeat bit `bit` when non-zero) on page `p`, if this node masters it.
- * `img` is the caller's scratch page.  Returns the number of records
- * cleared (0 = nothing to do, or not this node's page: a frozen / handed
- * off / never activated page is its authority's to purge, never written
- * here), or a negative error.
+ * One page of a purge, up to its commit: patch into `img` (the caller's
+ * scratch page) the retirement of every ACTIVE record of holder `node` (and
+ * of heartbeat bit `bit` when non-zero) on page `p`, if this node masters it.
+ * Returns the number of records changed, with the page's lock HELD and `img`
+ * ready to commit (its transition seq taken); 0 = nothing to do, or not this
+ * node's page (a frozen / handed off / never activated page is its
+ * authority's to purge, never written here); or a negative error.  Only a
+ * positive return leaves the lock held.
  */
-static int tauth_purge_page(struct mxfs_tauth_ledger *l, uint32_t p, uint32_t node,
-			    uint64_t inc, uint64_t bit, uint64_t gen,
-			    uint64_t config_epoch, struct mxfs_tauth_page *img,
-			    mxfs_tauth_purge_keep_fn keep, void *keep_data)
+static int tauth_purge_prepare(struct mxfs_tauth_ledger *l, uint32_t p, uint32_t node,
+			       uint64_t inc, uint64_t bit, uint64_t gen,
+			       uint64_t config_epoch, struct mxfs_tauth_page *img,
+			       mxfs_tauth_purge_keep_fn keep, void *keep_data)
 {
 	struct mxfs_tauth_lpage *pg = &l->pages[p];
 	uint32_t touched_mask = 0;
@@ -1589,7 +1643,11 @@ static int tauth_purge_page(struct mxfs_tauth_ledger *l, uint32_t p, uint32_t no
 			changed++;
 		}
 	}
-	if (changed) {
+	if (!changed) {
+		mxfs_pal_mutex_unlock(pg->lock);
+		return 0;
+	}
+	{
 		uint64_t tseq = img->hdr.transition_seq_next;
 
 		if (tseq == 0 || tseq == ~0ULL) {
@@ -1600,15 +1658,34 @@ static int tauth_purge_page(struct mxfs_tauth_ledger *l, uint32_t p, uint32_t no
 		for (i = 0; i < (int)MXFS_TAUTH_ENTRIES_PER_PAGE; i++)
 			if (touched_mask & (1u << i))
 				img->ent[i].transition_seq64 = tseq;
-		if (l->fail_commit_once_rc && l->fail_commit_skip) {
-			l->fail_commit_skip--;
-			rc = lpage_commit_locked(l, pg, img, config_epoch);
-		} else if (l->fail_commit_once_rc) {
-			rc = l->fail_commit_once_rc;        /* usermode fault knob */
-			l->fail_commit_once_rc = 0;
-		} else {
-			rc = lpage_commit_locked(l, pg, img, config_epoch);
-		}
+	}
+	return changed;
+}
+
+/*
+ * One page of a purge, committed alone (tauth_purge_prepare, then this page's
+ * own commit).  Returns the number of records cleared, 0, or a negative error.
+ */
+static int tauth_purge_page(struct mxfs_tauth_ledger *l, uint32_t p, uint32_t node,
+			    uint64_t inc, uint64_t bit, uint64_t gen,
+			    uint64_t config_epoch, struct mxfs_tauth_page *img,
+			    mxfs_tauth_purge_keep_fn keep, void *keep_data)
+{
+	struct mxfs_tauth_lpage *pg = &l->pages[p];
+	int changed, rc;
+
+	changed = tauth_purge_prepare(l, p, node, inc, bit, gen, config_epoch, img,
+				      keep, keep_data);
+	if (changed <= 0)
+		return changed;
+	if (l->fail_commit_once_rc && l->fail_commit_skip) {
+		l->fail_commit_skip--;
+		rc = lpage_commit_locked(l, pg, img, config_epoch);
+	} else if (l->fail_commit_once_rc) {
+		rc = l->fail_commit_once_rc;        /* usermode fault knob */
+		l->fail_commit_once_rc = 0;
+	} else {
+		rc = lpage_commit_locked(l, pg, img, config_epoch);
 	}
 	mxfs_pal_mutex_unlock(pg->lock);
 	if (rc)
@@ -1786,16 +1863,30 @@ int mxfs_tauth_ledger_purge_owner(struct mxfs_tauth_ledger *l, uint32_t node,
 						  owns_page, data, NULL, NULL);
 }
 
+/* One batch of a purge walk (mxfs_tauth_ledger_purge_owner_keep). */
+struct tauth_purge_batch {
+	uint32_t                 page[MXFS_TAUTH_WRITE_BATCH];  /* its candidates, ascending */
+	struct mxfs_tauth_lpage *pg[MXFS_TAUTH_WRITE_BATCH];    /* the prepared ones, locked */
+	struct mxfs_tauth_page  *img[MXFS_TAUTH_WRITE_BATCH];   /* allocated as first needed */
+	uint32_t                 pid[MXFS_TAUTH_WRITE_BATCH];
+	int                      changed[MXFS_TAUTH_WRITE_BATCH];
+	int                      rc[MXFS_TAUTH_WRITE_BATCH];
+	struct mxfs_tauth_wreq   w[MXFS_TAUTH_WRITE_BATCH];
+};
+
 int mxfs_tauth_ledger_purge_owner_keep(struct mxfs_tauth_ledger *l, uint32_t node,
 				       int slot, uint64_t gen, uint64_t config_epoch,
 				       mxfs_tauth_owns_page_fn owns_page, void *data,
 				       mxfs_tauth_purge_keep_fn keep, void *keep_data)
 {
 	struct mxfs_tauth_page *img;
+	struct tauth_purge_batch *b = NULL;
 	struct tauth_purge_scan sc;
+	struct mxfs_tauth_store *s;
 	uint64_t bit = (slot >= 0 && slot < 64) ? (1ULL << slot) : 0;
-	uint64_t t0, scan_ms = 0;
-	uint32_t p, visited = 0;
+	uint64_t t0, scan_ms = 0, total_ms;
+	uint64_t ph0_read, ph0_ticket, ph0_body, ph0_publish, ph0_flush;
+	uint32_t p, visited = 0, fail_page = 0, committed = 0, batches = 0, k;
 	int cleared = 0, rc = 0;
 
 	if (!l || !l->pages)
@@ -1803,6 +1894,12 @@ int mxfs_tauth_ledger_purge_owner_keep(struct mxfs_tauth_ledger *l, uint32_t nod
 	img = mxfs_pal_alloc(sizeof(*img));
 	if (!img)
 		return -ENOMEM;
+	s = &l->store;
+	ph0_read = s->ph_read_ms;
+	ph0_ticket = s->ph_ticket_ms;
+	ph0_body = s->ph_body_ms;
+	ph0_publish = s->ph_publish_ms;
+	ph0_flush = s->ph_flush_ms;
 	t0 = mxfs_pal_time_ms();
 	memset(&sc, 0, sizeof(sc));
 	sc.l = l;
@@ -1839,43 +1936,151 @@ int mxfs_tauth_ledger_purge_owner_keep(struct mxfs_tauth_ledger *l, uint32_t nod
 		}
 		scan_ms = mxfs_pal_time_ms() - t0;
 	}
-	for (p = 0; p < l->npages; p++) {
-		if (sc.cand && !(sc.cand[p >> 3] & (1u << (p & 7))))
-			continue;
-		if (owns_page && !owns_page(data, p))
-			continue;
-		visited++;
-		/*
-		 * The whole-ledger purge names a node id only.  Its two callers run
-		 * it where no other incarnation can be carrying that id: the recovery
-		 * completion, before the barrier publishes and while the departed
-		 * node is still fenced, and the departure worker, which skips these
-		 * purges entirely when the departed incarnation shares this mount's
-		 * own id.  So 0 here is "no incarnation to match on", not a wildcard
-		 * over live records.
-		 */
-		rc = tauth_purge_page(l, p, node, 0, bit, gen, config_epoch, img, keep, keep_data);
-		if (rc < 0)
-			break;
-		cleared += rc;
-		rc = 0;
+	/*
+	 * The whole-ledger purge names a node id only.  Its two callers run it
+	 * where no other incarnation can be carrying that id: the recovery
+	 * completion, before the barrier publishes and while the departed node
+	 * is still fenced, and the departure worker, which skips these purges
+	 * entirely when the departed incarnation shares this mount's own id.  So
+	 * 0 here is "no incarnation to match on", not a wildcard over live
+	 * records.
+	 */
+	if (l->fail_commit_once_rc || l->torn_after_bytes) {
+		/* a test knob is armed: the per-page commit it acts on */
+		for (p = 0; p < l->npages; p++) {
+			if (sc.cand && !(sc.cand[p >> 3] & (1u << (p & 7))))
+				continue;
+			if (owns_page && !owns_page(data, p))
+				continue;
+			visited++;
+			rc = tauth_purge_page(l, p, node, 0, bit, gen, config_epoch, img,
+					      keep, keep_data);
+			if (rc < 0) {
+				fail_page = p;
+				break;
+			}
+			if (rc > 0) {
+				committed++;
+				l->purge_pages++;
+			}
+			cleared += rc;
+			rc = 0;
+		}
+		goto done;
 	}
+	b = mxfs_pal_alloc(sizeof(*b));
+	if (!b) {
+		rc = -ENOMEM;
+		goto done;
+	}
+	memset(b, 0, sizeof(*b));
+	/*
+	 * BATCHED.  The pages are committed MXFS_TAUTH_WRITE_BATCH at a time.  A
+	 * batch's candidates that this node masters are chosen first, with no
+	 * page lock held (owns_page takes the DLM's membership lock); then each
+	 * is patched under its own lock, taken in ascending page order and held
+	 * to its commit; then the batch goes to the store as ONE commit whose
+	 * barriers its pages share; then each page is settled and unlocked.  A
+	 * failure ends the walk after its batch, as a failed page ended the
+	 * page-at-a-time walk.  Measured on the physical DRBD pair (0.90.81, a
+	 * peer reset under load), committing a page at a time held the dead
+	 * peer's grants for 17.8 s of a 24 s recovery completion.
+	 */
+	p = 0;
+	while (p < l->npages && !rc) {
+		uint32_t nc = 0, nb = 0;
+		int commit_rc = 0;
+
+		for (; p < l->npages && nc < MXFS_TAUTH_WRITE_BATCH; p++) {
+			if (sc.cand && !(sc.cand[p >> 3] & (1u << (p & 7))))
+				continue;
+			if (owns_page && !owns_page(data, p))
+				continue;
+			b->page[nc++] = p;
+		}
+		visited += nc;
+		for (k = 0; k < nc; k++) {
+			int ch;
+
+			if (!b->img[nb]) {
+				b->img[nb] = mxfs_pal_alloc(sizeof(*b->img[nb]));
+				if (!b->img[nb]) {
+					rc = -ENOMEM;
+					fail_page = b->page[k];
+					break;
+				}
+			}
+			ch = tauth_purge_prepare(l, b->page[k], node, 0, bit, gen,
+						 config_epoch, b->img[nb], keep, keep_data);
+			if (ch < 0) {
+				rc = ch;
+				fail_page = b->page[k];
+				break;
+			}
+			if (!ch)
+				continue;
+			b->pg[nb] = &l->pages[b->page[k]];
+			b->pid[nb] = b->page[k];
+			b->changed[nb++] = ch;
+		}
+		if (!nb)
+			continue;
+		lpage_commit_many_locked(l, b->pg, b->img, (int)nb, b->w, b->rc);
+		batches++;
+		l->purge_batches++;
+		for (k = 0; k < nb; k++) {
+			mxfs_pal_mutex_unlock(b->pg[k]->lock);
+			if (b->rc[k]) {
+				if (!commit_rc) {
+					/* the lowest page that failed: below any
+					 * page a prepare stopped at */
+					commit_rc = b->rc[k];
+					fail_page = b->pid[k];
+				}
+				continue;
+			}
+			committed++;
+			l->purge_pages++;
+			l->purged += (uint64_t)b->changed[k];
+			cleared += b->changed[k];
+		}
+		if (commit_rc)
+			rc = commit_rc;
+	}
+done:
+	if (b)
+		for (k = 0; k < MXFS_TAUTH_WRITE_BATCH; k++)
+			mxfs_pal_free(b->img[k]);
+	mxfs_pal_free(b);
 	mxfs_pal_free(img);
 	mxfs_pal_free(sc.cand);
 	if (rc) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "tauth: P-TAUTH-PURGE-PARTIAL node=%u slot=%d cleared=%d rc=%d "
 			     "at page=%u — blockers beyond this page remain",
-			     node, slot, cleared, rc, p);
+			     node, slot, cleared, rc, fail_page);
 		return rc;
 	}
-	mxfs_pal_log(MXFS_LOG_DEBUG,
+	/*
+	 * Said once per purge, at warning level only when it took a second or
+	 * more: the recovery completion waits for it, and where its time went
+	 * (pages committed, batches, the store's phases) is what decides whether
+	 * a slow recovery is this walk.
+	 */
+	total_ms = mxfs_pal_time_ms() - t0;
+	mxfs_pal_log(total_ms >= 1000 ? MXFS_LOG_WARN : MXFS_LOG_DEBUG,
 		     "tauth: P-TAUTH-PURGE node=%u slot=%d cleared=%d pages=%u cand=%u "
-		     "bad=%u notmine=%u visited=%u selective=%d kept_total=%llu "
-		     "scan_ms=%llu total_ms=%llu",
+		     "bad=%u notmine=%u visited=%u committed=%u batches=%u selective=%d "
+		     "kept_total=%llu scan_ms=%llu total_ms=%llu store_ms: read=%llu "
+		     "ticket=%llu body=%llu publish=%llu flush=%llu",
 		     node, slot, cleared, l->npages, sc.ncand, sc.bad, sc.notmine,
-		     visited, keep ? 1 : 0, (unsigned long long)l->purge_kept,
-		     (unsigned long long)scan_ms,
-		     (unsigned long long)(mxfs_pal_time_ms() - t0));
+		     visited, committed, batches, keep ? 1 : 0,
+		     (unsigned long long)l->purge_kept,
+		     (unsigned long long)scan_ms, (unsigned long long)total_ms,
+		     (unsigned long long)(s->ph_read_ms - ph0_read),
+		     (unsigned long long)(s->ph_ticket_ms - ph0_ticket),
+		     (unsigned long long)(s->ph_body_ms - ph0_body),
+		     (unsigned long long)(s->ph_publish_ms - ph0_publish),
+		     (unsigned long long)(s->ph_flush_ms - ph0_flush));
 	return cleared;
 }

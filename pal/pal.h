@@ -142,6 +142,13 @@ int mxfs_pal_bdev_write_scatter(mxfs_bdev_t *dev,
                                  void * const *bufs,
                                  const uint32_t *lens,
                                  int count);
+/* The same, issued as coordination writes (REQ_PRIO | REQ_SYNC, like
+ * mxfs_pal_bdev_write_fua) but without FUA: the caller flushes after them. */
+int mxfs_pal_bdev_write_scatter_prio(mxfs_bdev_t *dev,
+                                      const uint64_t *offsets,
+                                      void * const *bufs,
+                                      const uint32_t *lens,
+                                      int count);
 
 /*
  * Read len bytes asynchronously using pipelined bio submission.
@@ -1375,6 +1382,10 @@ void mxfs_pal_bdev_set_drbd_cas(mxfs_bdev_t *dev, bool on);
  * with no SCSI underneath: -EOPNOTSUPP when nothing is attached to it. */
 int mxfs_pal_drbd_cas_emulate(mxfs_bdev_t *dev, uint64_t offset,
                               const void *compare_buf, const void *write_buf);
+/* n emulated swaps queued together (mxfs_pal_bdev_compare_and_write_many). */
+int mxfs_pal_drbd_cas_emulate_many(mxfs_bdev_t *dev, int n, const uint64_t *offsets,
+                                   const void *const *compare_bufs,
+                                   const void *const *write_bufs, int *rcs);
 
 /* ─── SCSI COMPARE AND WRITE ───
  *
@@ -1396,6 +1407,20 @@ int mxfs_pal_drbd_cas_emulate(mxfs_bdev_t *dev, uint64_t offset,
 int mxfs_pal_bdev_compare_and_write(mxfs_bdev_t *dev, uint64_t offset,
                                      const void *compare_buf,
                                      const void *write_buf);
+
+/*
+ * n independent COMPARE AND WRITEs, each with the contract above and its own
+ * result in rcs[i]; nothing is ordered between them but queue order.  On a
+ * DRBD attachment they are queued together and served under as few
+ * acquisitions of the pair's lock as its batch cap allows; elsewhere they run
+ * one after the other.  Returns 0 (every rcs[i] set), or a negative errno with
+ * none of them attempted.
+ */
+int mxfs_pal_bdev_compare_and_write_many(mxfs_bdev_t *dev, int n,
+                                         const uint64_t *offsets,
+                                         const void *const *compare_bufs,
+                                         const void *const *write_bufs,
+                                         int *rcs);
 
 /*
  * Drop the cached backing-path (scsi_device) references held for stacked
