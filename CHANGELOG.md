@@ -1,3 +1,27 @@
+## 2026-10-07 — 0.90.90 — a survivor's takeover of its dead peer's pages no longer skips one for good
+
+**One page of a dead peer's could stay under the dead incarnation.** After a
+peer's death the survivor completes the recovery, then takes the dead peer's
+ledger pages over in the background. That takeover was queued from inside the
+completion, before the completion zeroed the dead slot and cleared its
+pending marker, and the worker started it about 46 ms later, inside that
+window. The first page it reached was judged "still under replay judgement"
+(the marker was up, the descriptor it names already gone) and skipped, and
+the pass never came back to a page it skipped: the page stayed under the dead
+incarnation, and every request on it depended on an on-demand takeover. It
+happened in 5 of the 22 recovery takeovers kept from the two PVE pairs'
+failover runs, among them the run where a survivor's mkdir failed with EAGAIN.
+- The completion queues the takeover only once it is published: the slot is
+  zeroed and the marker gone, so nothing judges the dead peer's replay any
+  more when the pass looks.
+
+**The 0.90.89 resume-io change, checked:** `tests/pve_fence_rcu_check.sh`
+restarts participant 0 (the warning prints once per boot), resets participant 1
+under load and reads participant 0's kernel log. On the nested pair the freeze
+ended 8 ms after the handler decided, DRBD recorded the peer Outdated, and no
+RCU warning was logged. The DRBD guide now says the handler resumes the I/O
+itself, and why.
+
 ## 2026-10-07 — 0.90.89 — the DRBD host that excludes its peer resumes its own I/O, outside the driver's RCU bug
 
 **Every exclusion of a peer logged a kernel WARNING on the survivor.** When the

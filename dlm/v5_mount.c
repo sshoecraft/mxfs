@@ -16437,7 +16437,7 @@ static int v5_dead_grants_retire(struct mxfs_v5_dlm *ctx, uint32_t dead_slot,
 				 mxfs_node_id_t dead_node,
 				 mxfs_epoch_t dead_epoch,
 				 struct mxfs_recov_complete_res *res,
-				 const char *why)
+				 const char *why, bool queue_takeover)
 {
 	uint64_t tc0 = mxfs_pal_time_ms(), tc_refresh = 0, tc_ledger = 0,
 		 tc_dlmpurge = 0, tc_handoff = 0;
@@ -16496,9 +16496,20 @@ static int v5_dead_grants_retire(struct mxfs_v5_dlm *ctx, uint32_t dead_slot,
 		 * a page this pass has not reached yet is taken over on demand ahead
 		 * of it, or waits on the pass's progress instead of its retry budget.
 		 */
+		/*
+		 * Queued here only for a caller whose recovery stays standing
+		 * (the OPEN-obligation case).  The completion ladder queues it
+		 * itself once the completion is published: queued from here, the
+		 * worker began the pass ~46 ms later, inside the ladder's zeroing
+		 * of the dead slot, and v5_recovery_judging_cb, finding the pending
+		 * marker still up over a descriptor already gone, answered
+		 * "judging" for the first page the pass reached.  The pass skipped
+		 * it and never came back to it, so that page stayed under the dead
+		 * incarnation (5 of 22 recovery takeovers on the PVE pairs).
+		 */
 		if (mxfs_dl_recovery_takeover_inline)
 			v5_handoff_takeover(ctx, dead_node, (uint64_t)dead_epoch, why, false);
-		else
+		else if (queue_takeover)
 			v5_recovery_takeover_queue(ctx, dead_node, (uint64_t)dead_epoch,
 						   dead_slot, why);
 		tc_handoff = mxfs_pal_time_ms();
@@ -16847,7 +16858,7 @@ static int v5_recovery_complete_ladder(struct mxfs_v5_dlm *ctx,
 				    ctx->obl_retired_epoch[dead_slot] != dead_epoch) {
 					rc = v5_dead_grants_retire(ctx, dead_slot, dead_node,
 								   dead_epoch, res,
-								   "obligations-open");
+								   "obligations-open", true);
 					if (rc < 0)
 						return rc;
 					ctx->obl_retired_seq[dead_slot] = rec.pub_seq;
@@ -17077,7 +17088,7 @@ static int v5_recovery_complete_ladder(struct mxfs_v5_dlm *ctx,
 	/* 0.75.74 (D-0932): the completed incarnation is dead by proof on
 	 * every path, not only under a bootstrap term (idempotent there). */
 	rc = v5_dead_grants_retire(ctx, dead_slot, dead_node, dead_epoch, res,
-				   "recovery-complete");
+				   "recovery-complete", false);
 	if (rc < 0)
 		return rc;
 	t_retired = mxfs_pal_time_ms();
@@ -17132,6 +17143,12 @@ static int v5_recovery_complete_ladder(struct mxfs_v5_dlm *ctx,
 			     "another victim while it ran; that one is still owed and "
 			     "its marker is deliberately left standing",
 			     dead_slot, dead_node, (unsigned long long)dead_epoch);
+	/* The dead peer's page takeover, now that nothing judges its replay:
+	 * the sector is zeroed and the marker naming it is gone (see
+	 * v5_dead_grants_retire for what queueing it earlier did). */
+	if (ctx->dlm && !mxfs_dl_recovery_takeover_inline)
+		v5_recovery_takeover_queue(ctx, dead_node, (uint64_t)dead_epoch,
+					   dead_slot, "recovery-complete");
 	v5_membership_beacon_caw(ctx);
 	mxfs_pal_log(MXFS_LOG_WARN,
 		     "mxfs: P163-RECOVERY-COMPLETE slot=%u node=%u — slice "

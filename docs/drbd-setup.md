@@ -172,11 +172,14 @@ DRBD address (here `pve1`) is participant 0; the other is participant 1.
   pve2 was writing waits for that replay too, ~17 s after pve2's death in our
   tests. When pve2 is back and reports MXFS unmounted, pve1 releases it, DRBD
   resyncs pve2 from pve1, and `mxfs-drbd@mxfs` mounts it again.
-  The in-kernel DRBD 8.4 driver logs one WARNING on pve1 at the first such
-  exclusion after boot ("Voluntary context switch within RCU read-side
-  critical section", from `drbd_uuid_new_current`). It is a bug in the
-  driver, not a fault in the data; `upstream/linux/` in this repository has
-  the fix for it.
+  pve1's fence handler resumes pve1's frozen I/O itself (`drbdadm
+  resume-io`) once pve2 is isolated, before it answers DRBD. Left to resume
+  it on the answer, the in-kernel DRBD 8.4 driver writes its metadata while
+  holding an RCU read lock, which the kernel reports as a WARNING ("Voluntary
+  context switch within RCU read-side critical section", from
+  `drbd_uuid_new_current`); `resume-io` does the same work without that lock.
+  The driver bug itself is fixed by the patch in `upstream/linux/` in this
+  repository.
 - **The replication link breaks with both nodes alive.** The same: pve1
   carries on, and pve2 freezes, logs why, and restarts itself, then rejoins as
   above.
