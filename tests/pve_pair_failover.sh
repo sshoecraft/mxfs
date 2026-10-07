@@ -189,10 +189,23 @@ mkdir -p "$EVID" || exit 1
 say() { echo "[$(date +%H:%M:%S)] $*" | tee -a "$EVID/log"; }
 # LEFT names what a failed step leaves changed on a host, so it can be undone.
 LEFT=""
-die() { say "FAIL: $*"; [ -z "$LEFT" ] || say "LEFT: $LEFT"; exit 1; }
+die() {
+    local h
+    say "FAIL: $*"; [ -z "$LEFT" ] || say "LEFT: $LEFT"
+    for h in "${P0:-}" "${P1:-}"; do [ -z "$h" ] || stop_loads "$h"; done
+    exit 1
+}
 on() {  # <host> <cmd> [timeout]
     timeout "${3:-60}" "$SSHP" "$1" "$2" </dev/null 2>&1 | grep -avE '^Warning:|^Unauthorized|^If you|^$'
     return "${PIPESTATUS[0]}"
+}
+# Every fio this suite started on <host> (its files are under $MNT/pvefail),
+# stopped.  A step that fails used to leave its loads running, and the next
+# run's first fsynced set waited behind them: on the physical pair
+# (2026-10-07) survivor-restart's first set ran out its 60 s while the loads
+# of the run that had just failed still ran on both hosts.
+stop_loads() {  # <host>
+    on "$1" "ps -o pid=,args= -C fio | awk -v m='$MNT/pvefail/' 'index(\$0, m) {print \$1}' | xargs -r kill 2>/dev/null; echo STOPPED" 20 >/dev/null
 }
 
 if python3 -I -c 'import ipaddress, sys; sys.exit(0 if ipaddress.ip_address(sys.argv[1]) < ipaddress.ip_address(sys.argv[2]) else 1)' "${PAIR[0]}" "${PAIR[1]}"; then
@@ -275,14 +288,19 @@ wait_alone() {
 }
 
 # Each host writes and fsyncs 32 files of 64 KiB; the md5 of the set is kept.
-declare -A SUMS
+declare -A SUMS WS_MS
 write_set() {  # <step> <host>
-    local out
+    local out t
+    t=$(date +%s%3N)
     out=$(on "$2" "d=$MNT/pvefail/$STAMP/$1/\$(hostname); mkdir -p \$d && for i in \$(seq 1 32); do head -c 65536 /dev/urandom > \$d/f\$i; done && sync -f \$d && cd \$d && md5sum f* | sort -k2 | md5sum | cut -c1-32" 60)
     [ "${#out}" = 32 ] || die "$2 could not write its fsynced set: $out"
     SUMS[$1.$2]=$out
+    WS_MS[$2]=$(( $(date +%s%3N) - t ))
 }
-write_sets() { write_set "$1" "$P0"; write_set "$1" "$P1"; }
+write_sets() {
+    write_set "$1" "$P0"; write_set "$1" "$P1"
+    say "  fsynced sets written: $P0 in ${WS_MS[$P0]} ms, $P1 in ${WS_MS[$P1]} ms"
+}
 check_set() {  # <step> <reader> <writer>: the reader holds the writer's set as written
     local out
     out=$(on "$2" "cd $MNT/pvefail/$STAMP/$1/${NAME[$3]} && md5sum f* | sort -k2 | md5sum | cut -c1-32" 60)
@@ -996,6 +1014,8 @@ for s in "${STEPS[@]}"; do
     esac
 done
 say "pve pair failover: participant 0 $P0, participant 1 $P1; steps: ${STEPS[*]}; evidence $EVID"
+# a load an earlier run left behind would compete with this run's own
+for h in "$P0" "$P1"; do stop_loads "$h"; done
 for s in "${STEPS[@]}"; do
     need_pair_up
     say "== $s (build $BUILD)"

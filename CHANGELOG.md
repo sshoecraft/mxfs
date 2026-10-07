@@ -1,3 +1,45 @@
+## 2026-10-07 — 0.90.86 — a DRBD host mounting after a pair outage no longer waits two minutes for heartbeats that cannot move
+
+**Two dead windows of waiting with nothing to wait for.** The first mount
+after both hosts went down, and a survivor's mount after its own restart,
+runs the whole-cluster bootstrap. It scans the 64 heartbeat records twice
+(once before it claims the bootstrap, once after) and each scan waits a whole
+dead window, about 64 s, for a record to move: on a shared LUN any host could
+be running a member nobody has heard from. On a DRBD pair the other host is
+the only place another member could run, and the witness already says
+whether one can: a peer that is excluded has its replica cut off from this
+one, and a Secondary peer on a Connected link cannot open the device for
+writing. Measured on the physical pair (0.90.81) after both hosts were reset
+under load: the two scans took 64.3 s and 64.0 s of the 140 s between
+participant 0's promotion and its mount, and it was not mounted 300 s after
+it answered.
+- On a DRBD attachment, when the witness judges the peer excluded or
+  Secondary on a Connected link, each scan reads the records once instead of
+  waiting the window (`P-BOOT-SCAN-DRBD-ONE-POLL`). Any other report, or no
+  report, keeps the whole window. Every victim is still certified from the
+  same judgment before its slice is replayed; the scan never made the
+  bootstrap safe.
+
+**A dead peer's journal was read three times, 2 s apart, before its replay.**
+The snapshot of a dead node's log slice is accepted only once two more full
+reads, each after a 2 s sleep, find it unchanged: on a SCSI target a write
+accepted before the fence can land after it. On a DRBD device a write reaches
+the replica only from this host or from DRBD's receiver, which completes every
+write it took from the peer before the link leaves Connected, so the first
+read is the snapshot. On the physical pair a peer reset under load spent
+6.7 s here before the replay began, on the path a guest's I/O on the dead
+peer's image waits for.
+
+**Failover suite:** a step that fails now stops the loads it started on both
+hosts, and a run stops any load an earlier run left. survivor-restart's first
+fsynced set ran out its 60 s on the physical pair while the loads of the run
+that had just failed still ran on both hosts. Each step's fsynced sets now
+say how long they took.
+
+**Defect queue:**
+
+- **with the built-in two-node authority the survivor never certifies the dead peer: after the winner takes DRBD StandAlone, /proc/drbd no longer shows the protocol and the judgment's 'protocol is C' check fails forever, so the peer's slice is never replayed** — FIXED AND VERIFIED. Cause proven by measurement on 0.90.55 (pve1 2026-10-05: after fence-peer exit 7 the survivor went StandAlone, /proc/drbd showed no live protocol, and P238-DRBD-FENCE-NOT-YET 'replication protocol is '' (configured 'C'), not C' repeated every retry, the slice was never replayed and every dead-master operation was refused). The fix targets that cause: dlm/drbdfence.c common() accepts an absent live protocol only when cstate is StandAlone and the configured protocol is C. Verified where the cause is exercised, the survivor held StandAlone after excluding its peer: the rig self-death-test (0.90.62, 20261006T102808Z: P238 witnessed + P236 + P163-RECOVERY-COMPLETE 13 s after the kill, no P-RBLK) and on the physical PVE pair, tests/pve_pair_failover.sh p1-crash twice: 0.90.81 (20261007T034245Z-192.168.1.80, recovery complete, no refusal) and 0.90.85 (20261007T060216Z-192.168.1.80: conn Disconnecting -> StandAlone 01:03:10.10, P238-DRBD-FENCE-WITNESSED cstate=StandAlone peer_disk=Outdated kind=26 at 01:03:13.49, P236-FENCE-CERTIFIED, foreign replay of slot 1 complete, P163-RECOVERY-COMPLETE 01:03:31.37, no P-RBLK or P240 refusal line; both loads err=0; every fsynced file intact on both).
+
 ## 2026-10-07 — 0.90.85 — a lock-ledger commit that failed before anything was published is no longer reported durable
 
 **A failed ledger commit could be delivered as committed.** A commit to the

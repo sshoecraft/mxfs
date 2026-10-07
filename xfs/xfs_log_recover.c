@@ -322,6 +322,20 @@ mxfs_slice_stabilize(
 	*wall_ms = 0;
 	if (need < 1)
 		need = 1;
+	/*
+	 * On a DRBD device the compare passes have nothing to catch.  A write
+	 * reaches this replica from this host or from DRBD's receiver, and the
+	 * receiver completes every write it took from a peer before the link
+	 * leaves Connected; a victim is certified only once its link is down
+	 * with the peer Outdated, or once the peer is Secondary on a new
+	 * connection.  There is no target between, holding a write it accepted
+	 * before the fence.  The first read is the snapshot.  Measured on the
+	 * physical pair (0.90.81, a peer reset under load): the two passes and
+	 * their 2 s sleeps were most of the 6.7 s before the dead peer's replay
+	 * began, on the path a guest's I/O on that peer's image waits for.
+	 */
+	if (MAJOR(targ->bt_bdev->bd_dev) == DRBD_MAJOR)
+		need = 0;
 
 	snap = kvzalloc(bytes, GFP_KERNEL | __GFP_RETRY_MAYFAIL);
 	bounce = kvzalloc(chunk, GFP_KERNEL | __GFP_RETRY_MAYFAIL);

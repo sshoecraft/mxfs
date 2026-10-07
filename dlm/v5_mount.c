@@ -6745,6 +6745,56 @@ static void v5_drbd_name_victims(struct mxfs_bootstrap_mf_entry *e, uint32_t n)
 			e[i].pr_key = v5_drbd_victim_key(e[i].node_id, e[i].epoch);
 }
 
+/*
+ * THE SURVIVOR SCAN'S WINDOW ON A DRBD ATTACHMENT.  The scan waits a whole
+ * dead window for a heartbeat to move because on a shared LUN any host could
+ * be running a member nothing has heard from.  On DRBD the pair's other
+ * endpoint is the only place one could run, and the witness can say that none
+ * does: the peer excluded (its replica cut off from this one, the evidence of
+ * kind 25) or Secondary on a Connected link (DRBD refuses a Secondary every
+ * write open, kind 27).  Then no record on this replica can move but this
+ * host's own, and a host mounts a device once, so the window would prove
+ * nothing more than the witness already has: one poll reads the records.  Any
+ * other report, or none, keeps the whole window.  Measured on the physical
+ * pair (0.90.81): after both hosts were reset, participant 0's two scans took
+ * 64.3 s and 64.0 s of the 140 s from its promotion to its mount.  The scan
+ * was never what made the bootstrap safe: every victim is still certified
+ * from the witness's judgment before its slice is replayed.
+ */
+static uint32_t v5_boot_scan_window(struct mxfs_v5_dlm *ctx, uint32_t full,
+				    const char *when)
+{
+	struct mxfs_pal_drbd_report *r;
+	char why[224], whyq[160];
+	const char *what = NULL;
+
+	if (ctx->drbd_minor < 0)
+		return full;
+	r = mxfs_pal_alloc(sizeof(*r));
+	if (!r)
+		return full;
+	memset(r, 0, sizeof(*r));
+	why[0] = '\0';
+	whyq[0] = '\0';
+	if (mxfs_pal_drbd_witness(ctx->dev, MXFS_PAL_DRBD_RECHECK, r) == 0) {
+		if (mxfs_drbd_judge_excluded(r, why, sizeof(why)) == 0)
+			what = "excluded";
+		else if (mxfs_drbd_judge_peer_secondary(r, whyq, sizeof(whyq)) == 0)
+			what = "Secondary on a Connected link";
+	}
+	if (what)
+		mxfs_pal_log(MXFS_LOG_WARN,
+			     "mxfs: P-BOOT-SCAN-DRBD-ONE-POLL when=%s peer=%s cstate=%s "
+			     "roles=%s/%s disks=%s/%s window_ms=%u — the pair's other "
+			     "endpoint is %s, so no member can move a record on this "
+			     "replica: the scan reads once instead of waiting %u ms",
+			     when, r->peer_host, r->cstate, r->role_local, r->role_peer,
+			     r->disk_local, r->disk_peer, MXFS_BOOTSTRAP_SCAN_EARLY_MS,
+			     what, full);
+	mxfs_pal_free(r);
+	return what ? MXFS_BOOTSTRAP_SCAN_EARLY_MS : full;
+}
+
 static void v5_fence_retry_one(struct mxfs_v5_dlm *ctx, int slot);
 
 static int v5_bootstrap_run(struct mxfs_v5_dlm *ctx)
@@ -6817,7 +6867,8 @@ static int v5_bootstrap_run(struct mxfs_v5_dlm *ctx)
 	}
 	rc = mxfs_bootstrap_survivor_scan(ctx->dev, ctx->disklock_offset,
 					  ctx->disklock->fs_gen,
-					  ctx->log_node_count, window,
+					  ctx->log_node_count,
+					  v5_boot_scan_window(ctx, window, "entry"),
 					  MXFS_BOOTSTRAP_SCAN_EARLY_MS, e,
 					  MXFS_BOOT_MF_MAX, &n, &victims, &moved,
 					  &unread, &noident);
@@ -6972,7 +7023,8 @@ sealscan:
 	n = 0;
 	rc = mxfs_bootstrap_survivor_scan(ctx->dev, ctx->disklock_offset,
 					  ctx->disklock->fs_gen,
-					  ctx->log_node_count, window,
+					  ctx->log_node_count,
+					  v5_boot_scan_window(ctx, window, "seal"),
 					  MXFS_BOOTSTRAP_SCAN_EARLY_MS, e,
 					  MXFS_BOOT_MF_MAX, &n, &victims, &moved,
 					  &unread, &noident);
