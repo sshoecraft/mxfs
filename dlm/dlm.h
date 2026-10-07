@@ -442,6 +442,11 @@ struct mxfs_dlm_ctx {
 	uint64_t                takeover_pages_done;
 	uint64_t                transition_progress_rx;
 	uint64_t                transition_answers;     /* AUTH_TRANSITION denies sent */
+	/* the page and the result of the last on-demand takeover a request made,
+	 * named by the line that reports a stalled transition wait: most of the
+	 * ways that takeover can fail return silently */
+	uint32_t                ondemand_last_page;
+	int                     ondemand_last_rc;
 	/*
 	 * 0.75.20 (D-...-0909): members that have announced a clean departure
 	 * (a FROZEN hand-off flagged MXFS_HANDOFF_F_DEPARTING) but whose

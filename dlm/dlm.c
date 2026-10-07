@@ -3737,6 +3737,8 @@ static int dlm_page_acquire(struct mxfs_dlm_ctx *ctx, uint32_t page, uint64_t ge
 				return -EINPROGRESS;    /* TEST ONLY: wait for the bulk pass */
 			rc = dlm_takeover_page(ctx, page, a.auth_node, a.auth_inc,
 					       "takeover-ondemand", 0, 0);
+			ctx->ondemand_last_page = page;
+			ctx->ondemand_last_rc = rc;
 			if (rc == 1 && ctx->page_state[page] == DLM_PS_MINE)
 				return 0;
 			/* 0.90.12: refused under a judgement that cannot advance
@@ -3935,6 +3937,7 @@ static void dlm_page_explain(struct mxfs_dlm_ctx *ctx,
 		"state=%u auth=%u/%llu target=%u/%llu writer=%u/%llu seq=%llu "
 		"auth{dead=%d settled=%d purged=%d occupant=%d in_view=%d judging=%d blocked=%d} "
 		"target{dead=%d purged=%d in_view=%d} takeover_done=%llu progress_rx=%llu "
+		"ondemand_last{page=%u rc=%d} "
 		"— the terms this page's acquire is decided on, read at the stall\n",
 		page, rc, ctx->page_state[page], dlm_page_owner(ctx, page),
 		dlm_bootstrap_node(ctx), ctx->local_node,
@@ -3956,7 +3959,8 @@ static void dlm_page_explain(struct mxfs_dlm_ctx *ctx,
 		dlm_owner_purged(ctx, a.target_node, -1) ? 1 : 0,
 		dlm_node_in_view(ctx, a.target_node) ? 1 : 0,
 		(unsigned long long)ctx->takeover_pages_done,
-		(unsigned long long)ctx->transition_progress_rx);
+		(unsigned long long)ctx->transition_progress_rx,
+		ctx->ondemand_last_page, ctx->ondemand_last_rc);
 }
 
 /* freeze + PREPARE one of our pages to {target, inc}; tells the target.

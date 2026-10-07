@@ -1,3 +1,14 @@
+## 2026-10-07 — 0.90.88 — a stalled page transition also names the last on-demand takeover's result
+
+**Diagnostics only.** `P960-STALLED-PAGE`, logged when a lock request's wait
+on a page transition stops advancing for 30 s, now also carries
+`ondemand_last{page rc}`: the page the last on-demand takeover was asked to
+move and what it returned. A survivor's takeover of its dead peer's pages can
+skip a page while that peer's replay is still being judged, and only a
+request's on-demand takeover moves it afterwards; several of that path's
+refusals answer the request "in transition" without a line of their own, so
+the stall line has to say which one kept answering.
+
 ## 2026-10-07 — 0.90.87 — files a host creates while mounted alone survive that host's crash
 
 **A host mounted alone lost the files it created in reused inodes when it
