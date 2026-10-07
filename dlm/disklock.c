@@ -2447,6 +2447,7 @@ struct mxfs_authority *mxfs_authority_alloc(void)
 	memset(auth, 0, sizeof(*auth));
 	mxfs_atomic32_set(&auth->state, MXFS_AUTH_NOT_ADMITTED);
 	mxfs_atomic32_set(&auth->refcnt, 1);
+	auth->lease_ms = MXFS_DISKLOCK_AUTH_LEASE_MS;
 	auth->slot = -1;
 	return auth;
 }
@@ -2584,7 +2585,7 @@ void mxfs_authority_renew(struct mxfs_authority *auth, uint64_t anchor_ms,
 		return;
 	}
 
-	deadline = anchor_ms + (uint64_t)MXFS_DISKLOCK_AUTH_LEASE_MS;
+	deadline = anchor_ms + (uint64_t)auth->lease_ms;
 	/* Never move a deadline backwards: a reordered renewal must not shorten
 	 * authority a later one already extended. */
 	if (deadline > auth->deadline_ms) {
@@ -2596,14 +2597,14 @@ void mxfs_authority_renew(struct mxfs_authority *auth, uint64_t anchor_ms,
 				  MXFS_AUTH_ADMITTED) == MXFS_AUTH_NOT_ADMITTED)
 		mxfs_pal_log(MXFS_LOG_DEBUG,
 			     "mxfs: P290-AUTH-ADMITTED node %u slot %d "
-			     "incarnation=%llu lease_ms=%d anchor_ms=%llu "
+			     "incarnation=%llu lease_ms=%u anchor_ms=%llu "
 			     "deadline_ms=%llu — this node's first heartbeat landed; "
 			     "it now holds authority over the shared LUN until that "
 			     "deadline, and must stop writing at it whether or not "
 			     "anything has told it to",
 			     auth->node, auth->slot,
 			     (unsigned long long)auth->incarnation,
-			     MXFS_DISKLOCK_AUTH_LEASE_MS,
+			     auth->lease_ms,
 			     (unsigned long long)anchor_ms,
 			     (unsigned long long)deadline);
 }
@@ -4504,6 +4505,30 @@ void mxfs_disklock_set_transport_tcp(struct mxfs_disklock_ctx *ctx, bool tcp)
 	ctx->transport_tcp = tcp;
 }
 
+/*
+ * The authority lease this context's attachment allows: the death window less
+ * one heartbeat interval on DRBD, never shorter than MXFS_DISKLOCK_AUTH_LEASE_MS
+ * (disklock.h, "ON A DRBD ATTACHMENT").  Recomputed when the attachment or the
+ * death window is set; the mount sets both before its claim, so before any
+ * beat renews.
+ */
+static void disklock_auth_lease_update(struct mxfs_disklock_ctx *ctx)
+{
+	uint64_t window = (uint64_t)ctx->dead_threshold * MXFS_DISKLOCK_HB_INTERVAL_MS;
+	uint32_t lease = MXFS_DISKLOCK_AUTH_LEASE_MS;
+
+	if (ctx->attach_drbd &&
+	    window > (uint64_t)MXFS_DISKLOCK_AUTH_LEASE_MS + MXFS_DISKLOCK_HB_INTERVAL_MS)
+		lease = (uint32_t)(window - MXFS_DISKLOCK_HB_INTERVAL_MS);
+	if (lease != ctx->auth->lease_ms)
+		mxfs_pal_log(MXFS_LOG_INFO,
+			     "disklock: authority lease %u ms%s", lease,
+			     lease == MXFS_DISKLOCK_AUTH_LEASE_MS ? "" :
+			     " (DRBD attachment: the death window less one "
+			     "heartbeat interval)");
+	ctx->auth->lease_ms = lease;
+}
+
 void mxfs_disklock_set_attach_drbd(struct mxfs_disklock_ctx *ctx, bool drbd)
 {
 	if (!ctx)
@@ -4517,6 +4542,7 @@ void mxfs_disklock_set_attach_drbd(struct mxfs_disklock_ctx *ctx, bool drbd)
 		return;
 	}
 	ctx->attach_drbd = drbd;
+	disklock_auth_lease_update(ctx);
 }
 
 void mxfs_disklock_set_slot_limit(struct mxfs_disklock_ctx *ctx, uint32_t limit)
@@ -11130,6 +11156,7 @@ void mxfs_disklock_set_dead_timeout_ms(struct mxfs_disklock_ctx *ctx,
 		return;
 	if (timeout_ms == 0) {
 		ctx->dead_threshold = MXFS_DISKLOCK_DEAD_THRESHOLD;
+		disklock_auth_lease_update(ctx);
 		return;
 	}
 	samples = timeout_ms / MXFS_DISKLOCK_HB_INTERVAL_MS;
@@ -11139,6 +11166,7 @@ void mxfs_disklock_set_dead_timeout_ms(struct mxfs_disklock_ctx *ctx,
 	mxfs_pal_log(MXFS_LOG_INFO,
 	    "disklock: dead-declaration window set to %u ms (%u samples)",
 	    samples * MXFS_DISKLOCK_HB_INTERVAL_MS, samples);
+	disklock_auth_lease_update(ctx);
 }
 
 /*

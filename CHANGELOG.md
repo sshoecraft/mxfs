@@ -1,3 +1,63 @@
+## 2026-10-06 — 0.90.81 — a DRBD host no longer withdraws its mount, and kills its guests, because its peer's disk is slow
+
+**One host's overloaded disk shut the other host's mount down.** On the
+physical pair pve1 swapped (four 4 GiB build VMs on 12 GiB, its swap on the
+same SSD as its DRBD disk), and every write of pve2's, replicated, waited on
+pve1's disk. A pve2 heartbeat took 14.3 s. The authority lease is 30 s from a
+beat's issue, which admits a beat latency L only while 2L plus one 2 s
+interval stays under it, so pve2's authority closed at 19:51:17, its mount
+withdrew, and its guard killed its four build VMs. Nothing was lost: pve1
+replayed pve2's journal once pve2 had stepped down. And pve2 had nothing to
+protect against: pve1's log at 19:51:22 says it could not have fenced pve2
+(the link was Connected, pve2 Primary).
+- On a DRBD attachment the lease is now the death window less one heartbeat
+  interval: 60 s at the default 62 s window, never less than 30 s. The 30 s
+  is the 62 s window minus 32 s kept for SCSI commands that may still execute
+  after a peer's takeover. On DRBD a peer takes over only on a DRBD proof
+  (the link down with this node isolated or held off, or this node
+  Secondary), and after it no write of this node can land, so that reserve is
+  not needed. The anchor stays at the beat's issue, so a node still withdraws
+  before its peer can declare it dead.
+- A beat may now take about 29 s. A heartbeat that stops still withdraws the
+  mount, 60 s after the last one was issued.
+- A DRBD mount logs the lease once: `disklock: authority lease 60000 ms
+  (DRBD attachment: ...)`.
+- `docs/drbd-setup.md` says it.
+
+**`tests/pve_pair_failover.sh slow-beat` (new) is the regression test.** One
+heartbeat of participant 1 lands and its completion is held 29 s, under load
+on both. Neither host may withdraw, refuse anything or see an I/O error. On
+the nested pair's 0.90.80 it failed as the physical pair did: P290-AUTH-CLOSED
+at the previous beat's issue plus 30000 ms, then the self-fence and the
+withdrawal. The withdraw steps now pause the heartbeat 75 s, past the new
+lease.
+
+**Also:**
+- `tools/pve_power.sh` (new) powers a host of the physical pair "off" by
+  resetting it into a boot isolated from its peer, with DRBD and the MXFS
+  units held, and "on" again. The failover steps that keep a host down
+  (survivor-restart, released-restart, stale-promotion) can now run on
+  pve1/pve2, which have no remote power control.
+- `scripts/pve_pair_builds.sh` touches only the VMs it created (recorded in
+  `tests/evidence/pve_pair_builds/owned_vms`, each found by the kickstart ISO
+  its build uploaded), runs on one host as well as two, and with
+  `STOP_INSTALLED=1` counts an installed build as a success.
+- Data writes on the pair are bound by DRBD, not MXFS. The same 256 KiB direct
+  writes at queue depth 8: local ext4 147 MiB/s, raw DRBD 11.0, XFS on DRBD
+  11.8, MXFS on DRBD 13-16. `scripts/drbd_write_latency_probe.sh` gained the
+  raw-DRBD and XFS-on-DRBD phases (`seqdio`, `seqdio-xfs`).
+- QEMU asks a cache=none image's direct-I/O alignment with an ioctl MXFS does
+  not answer, so a guest's 512-byte writes reach the image as sub-block
+  direct writes that drain the file's writes first. Measured on MXFS on DRBD,
+  that costs nothing (it halves throughput on local ext4); the record was
+  removed as disproved.
+- New probes: `tests/pve_trace_calls.sh` (calls of chosen module functions on
+  a host, by caller, from a private ftrace instance, nothing in the kernel
+  log), `tests/pve_pair_profile.sh` (where a workload's time goes, per MXFS
+  function, on both hosts), `tests/pve_unaligned_dio.sh`,
+  `tests/pve_dio_alloc_cost.sh`, and `tests/pve_chk_unreplayed.sh` (chk_mxfs
+  on journals no mount has replayed, on the pair).
+
 ## 2026-10-06 — 0.90.80 — chk_mxfs no longer judges or repairs a filesystem whose journals were never replayed
 
 **chk_mxfs reported an error on a sound filesystem and advised a repair.** On

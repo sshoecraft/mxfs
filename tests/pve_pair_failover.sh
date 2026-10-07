@@ -54,13 +54,18 @@
 #              Participant 1 must lose the tie-break and restart, never carry
 #              on because its peer looks idle; a plain `drbdadm primary` on
 #              participant 0 must be refused; then both mount again.
+#   slow-beat  one heartbeat of participant 1 lands and its completion is then
+#              held SLOW_BEAT_MS (29 s) under load on both, as every write of
+#              pve2's waited on pve1's swapping disk on 2026-10-06 (a beat took
+#              14.3 s and the 30 s lease withdrew a mount its peer could not
+#              have fenced).  Neither host may withdraw or see an I/O error.
 #   withdraw-both
-#              both hosts' MXFS heartbeats stop past the 30 s authority lease
-#              under load, as both hosts' did on 2026-10-06 when their writes
-#              queued behind the guests' data: both mounts shut down with the
-#              hosts up.  Each host's guard must rejoin its own mount (stop
-#              what holds it, unmount, restart the unit) with no host restart,
-#              and both must mount again.
+#              both hosts' MXFS heartbeats stop past the authority lease (60 s
+#              on DRBD) under load, as both hosts' did on 2026-10-06 when their
+#              writes queued behind the guests' data: both mounts shut down
+#              with the hosts up.  Each host's guard must rejoin its own mount
+#              (stop what holds it, unmount, restart the unit) with no host
+#              restart, and both must mount again.
 #   withdraw-p1
 #              the same on participant 1 alone: participant 0 carries on and
 #              recovers it, and participant 1 rejoins without a restart.
@@ -97,7 +102,11 @@
 #   PVE_POWER_OFF  the same for cutting a host's power.  Unset, the host is
 #                  crashed with kernel.panic=0 and stays stopped until reset,
 #                  so PVE_POWER_ON must reset it.  The nested pair:
-#                  'virsh -c qemu:///system destroy {name}'
+#                  'virsh -c qemu:///system destroy {name}'.  The physical
+#                  pair, which has no remote power control:
+#                  PVE_POWER_OFF='tools/pve_power.sh off {addr}' and
+#                  PVE_POWER_ON='tools/pve_power.sh on {addr}' (a reset, then
+#                  a boot isolated from the peer with DRBD held, until "on")
 #
 # Evidence: tests/evidence/pve_pair_failover/<UTC stamp>/<step>/ — each host's
 # kernel log and boot-program journal since the step began, and fio's json.
@@ -133,19 +142,27 @@ ALONE_BUDGET=$OUTAGE_BUDGET
 RELEASE_BUDGET=30
 # From sysrq o to the host no longer answering ping.
 DOWN_BUDGET=30
-# The withdraw steps pause a heartbeat this long, past the 30 s authority
-# lease, so the mount shuts down while the host stays up.
-WITHDRAW_PAUSE_MS=45000
+# The withdraw steps pause a heartbeat this long, past the authority lease, so
+# the mount shuts down while the host stays up.  On DRBD the lease is the 62 s
+# death window less one 2 s interval (dlm/disklock.h), 60 s, and the last beat
+# was issued at most one interval before the pause: 60 s plus the same 15 s
+# margin the 45 s pause kept over the 30 s lease.
+WITHDRAW_PAUSE_MS=75000
+# slow-beat: one beat's completion held this long after it landed.  A one-shot
+# delay D keeps authority while D < lease - 2 s - 2 x the beat's latency: under
+# 28 s on a 30 s lease, under 58 s on the DRBD one.  29 s fails the first and
+# passes the second with 29 s to spare.
+SLOW_BEAT_MS=29000
 # From the pause to a withdrawn host mounted again: the lease runs out (30 s),
 # the guard sees the shutdown (5 s poll) and unmounts, and the unit's boot
 # program mounts as after a pair outage (OUTAGE_BUDGET) -- the pause's length
 # plus that.
 WITHDRAW_BUDGET=$(( WITHDRAW_PAUSE_MS / 1000 + OUTAGE_BUDGET ))
 # From the pause to a held host answering after its rejoin restarted it: the
-# lease runs out (30 s), the guard sees the shutdown (5 s), three refused
-# unmount rounds 5 s apart, the restart's 10 s delay -- 60 s, twice that --
+# lease runs out (60 s), the guard sees the shutdown (5 s), three refused
+# unmount rounds 5 s apart, the restart's 10 s delay -- 90 s, twice that --
 # then the host's boot.
-HELD_BUDGET=$(( 120 + BOOT_BUDGET ))
+HELD_BUDGET=$(( 180 + BOOT_BUDGET ))
 # withdraw-guests: frozen VMs on the withdrawn host, and from its rejoin's start
 # to its unmount of the shut-down mount: killing every holder at once and their
 # exit (a second or two), the unmount -- 15 s.  One `qm stop` per VM in turn
@@ -319,10 +336,13 @@ power_off_host() {  # <host>
     on "$1" "echo 0 > /proc/sys/kernel/panic; echo 1 > /proc/sys/kernel/sysrq; nohup setsid sh -c 'sleep 1; echo c > /proc/sysrq-trigger' >/dev/null 2>&1 < /dev/null & echo OFF_ARMED" 15 | grep -q OFF_ARMED \
         || die "could not arm the crash on $1"
 }
+# Bounded by a boot as well: on the physical pair (tools/pve_power.sh) a host
+# that was "powered off" is still booting into its isolation when it is powered
+# on, and the command waits for that boot before it resets the host again.
 power_on_host() {  # <host>
     local cmd=${PVE_POWER_ON//\{name\}/${NAME[$1]}}
     cmd=${cmd//\{addr\}/$1}
-    timeout 60 bash -c "$cmd" >>"$EVID/log" 2>&1 || die "could not power $1 on: $cmd"
+    timeout $(( BOOT_BUDGET + 60 )) bash -c "$cmd" >>"$EVID/log" 2>&1 || die "could not power $1 on: $cmd"
 }
 # wait_down <host> <budget>: the host no longer answers ping
 wait_down() {
@@ -837,11 +857,58 @@ print(\"THIN err=%d write_ios=%d lat_max_ms=%.0f\" % (j[\"error\"], j[\"write\"]
         || die "$P1's rejoin took $sd s from its start to its unmount of the shut-down mount (budget ${STEPDOWN_BUDGET}s)"
 }
 
+# slow-beat: on DRBD a peer takes over a node's journal and grants only on a
+# DRBD proof -- the link down with the node isolated or held off, or the node
+# Secondary -- so a beat that lands late on a Connected Primary is no reason
+# for that node to stop writing.  One beat of participant 1 lands and its
+# completion is held SLOW_BEAT_MS; the beats after it run as usual.  Neither
+# host may withdraw, refuse anything as RECOVERY_BLOCKED, restart, or see an
+# I/O error.
+step_slow_beat() {
+    local t0 h out end bad
+    local -A boot
+    write_sets slow-beat; start_loads slow-beat
+    sleep 10
+    for h in "$P0" "$P1"; do boot[$h]=$(boot_id "$h"); done
+    on "$P1" "rm -f /var/lib/mxfs/drbd-rejoin.$RES" 15 >/dev/null
+    say "slow-beat: holding the completion of one heartbeat of $P1 for $(( SLOW_BEAT_MS / 1000 )) s under load on both"
+    t0=$(date +%s)
+    on "$P1" "echo $SLOW_BEAT_MS > /sys/module/mxfs/parameters/dbg_hb_completion_delay_ms && echo ARMED" 15 | grep -q ARMED \
+        || die "could not hold a heartbeat completion on $P1"
+    LEFT="a held heartbeat on $P1: echo 0 > /sys/module/mxfs/parameters/dbg_hb_completion_delay_ms there"
+    # The held beat begins within one 2 s interval of the arming and ends
+    # SLOW_BEAT_MS later (twice that, rounded up, is the bound); then three
+    # more beats (6 s) must land unrefused.
+    end=$(( t0 + 2 * (SLOW_BEAT_MS / 1000 + 2) ))
+    until on "$P1" "journalctl -k --no-pager -o cat --since @$t0 | grep -aq P-DBG-HB-COMPLETION-DELAY-END && echo DONE" 15 | grep -q DONE; do
+        [ "$(date +%s)" -lt "$end" ] || die "$P1's held heartbeat did not complete within $(( end - t0 ))s of the arming"
+        sleep 2
+    done
+    LEFT=""
+    sleep 8
+    bad=""
+    for h in "$P0" "$P1"; do
+        out=$(on "$h" "journalctl -k --no-pager -o cat --since @$t0 | grep -aoE 'P290-AUTH-CLOSED|P290-AUTH-HB-STOP|P290-AUTH-WITHDRAW|P131-SELF-FENCE|P163-WITHDRAW-STAMP|P163-WITHDRAW-SEEN|P-RBLK-[A-Z-]+' | sort | uniq -c | tr '\n' ' '" 30)
+        [ -z "$out" ] || bad="$bad; $h: $out"
+    done
+    [ -z "$bad" ] || { collect slow-beat "$t0"; die "a late heartbeat on $P1 withdrew a mount its peer could not have fenced$bad"; }
+    say "  $P1's held beat completed $(( SLOW_BEAT_MS / 1000 )) s late and its authority held: no withdrawal on either host"
+    for h in "$P0" "$P1"; do
+        out=$(load_result "$h")
+        [ "$(sed -n 's/.*err=\([0-9]*\).*/\1/p' <<<"$out")" = 0 ] || die "$h's load saw an error: ${out:-no result}"
+        say "  $h: $out"
+        pair_ok "$(state "$h")" || die "$h is not a full half of the pair after the held beat"
+        [ "$(boot_id "$h")" = "${boot[$h]}" ] || die "$h restarted"
+    done
+    collect slow-beat "$t0"
+    verify_sets slow-beat
+}
+
 STEPS=("$@")
 [ "${#STEPS[@]}" -gt 0 ] || STEPS=(p1-crash reboot power-cut p0-crash)
 for s in "${STEPS[@]}"; do
     case "$s" in
-        p1-crash|p0-crash|power-cut|reboot|promotion-race|withdraw-both|withdraw-p1|withdraw-held|withdraw-guests|answering-restart) ;;
+        p1-crash|p0-crash|power-cut|reboot|promotion-race|withdraw-both|withdraw-p1|withdraw-held|withdraw-guests|answering-restart|slow-beat) ;;
         survivor-restart|released-restart|stale-promotion)
             [ -n "${PVE_POWER_ON:-}" ] || { echo "$s keeps a host powered off: set PVE_POWER_ON to the command that powers one on"; exit 2; } ;;
         *) echo "unknown step: $s"; exit 2 ;;

@@ -177,6 +177,27 @@
  * needs exclusion that survives the fencer's disappearance, a proven target
  * quiescence mechanism, or a handoff that keeps protection until quiescence is
  * established — which is tracked as its own obligation, not settled here.
+ *
+ * ON A DRBD ATTACHMENT THAT LAST TERM IS ZERO, so the lease there is the death
+ * window less one heartbeat interval (60 s at the default 62 s window), never
+ * shorter than the 30 s here (disklock_auth_lease_update).  A peer takes over
+ * a DRBD node's journal slice and grants only on a DRBD proof (v5_drbd_fence):
+ * the link disconnected with this node isolated or held off (kinds 25 and 26;
+ * DRBD completes every write it received before it reports the connection
+ * closed, and fencing resource-and-stonith freezes this node's I/O at the
+ * drop), or this node Secondary on a connected link (kind 27; DRBD demotes
+ * only with no write in flight).  No write this node submitted can land after
+ * any of them, so nothing needs the 32 s kept above for commands that may
+ * still execute.  The anchor stays at ISSUE, and with it the property the 62 s
+ * bound gives: this node withdraws before a peer can declare it dead.
+ *
+ * Measured on the physical DRBD pair (2026-10-06): one host's disk saturated
+ * by its own swap made every replicated write wait 9-14 s, and the other
+ * host's beat took 14.3 s.  An issue-anchored lease of 30 s admits a beat
+ * latency L only while 2L + one interval stays under it (L < 14 s), so that
+ * host's mount withdrew and its guests were killed, although its peer could
+ * not have fenced it (P238-DRBD-FENCE-NOT-YET: link Connected, node Primary).
+ * At 60 s a beat may take 29 s.
  */
 #define MXFS_DISKLOCK_AUTH_LEASE_MS     30000
 
@@ -217,6 +238,7 @@ struct mxfs_authority {
 	mxfs_atomic32_t         refcnt;
 	volatile uint64_t       deadline_ms;    /* anchored at ISSUE, never at completion */
 	volatile uint64_t       anchor_ms;      /* the anchor it came from */
+	volatile uint32_t       lease_ms;       /* what a landed beat buys: MXFS_DISKLOCK_AUTH_LEASE_MS, longer on a DRBD attachment */
 	volatile uint64_t       closed_at_ms;
 	volatile uint64_t       last_ok_ms;     /* last landed beat, for the log line */
 	volatile int            close_reason;   /* enum mxfs_self_fence_reason */

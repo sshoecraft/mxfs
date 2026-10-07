@@ -194,9 +194,12 @@ DRBD address (here `pve1`) is participant 0; the other is participant 1.
   crash, and only pve1 may ever take the pair alone, so pve2 cannot trust that
   record. Bring pve1 back.
 - **A node's mount shuts down while the node stays up.** MXFS withdraws a
-  node that lost its standing, for example when its writes to the shared
-  device stalled past its 30 s authority lease, and from then on every access
-  to `/mnt/shared` on that node fails with an I/O error. `mxfs-drbd-guard`
+  node that lost its standing: no heartbeat of its own landed within its
+  60 s authority lease, because its writes to the shared device stalled for
+  that long. From then on every access to `/mnt/shared` on that node fails
+  with an I/O error. A heartbeat that is merely slow costs nothing: every
+  write waits for both disks, so one host's overloaded disk slows the other's
+  writes too, and a beat may take up to about 29 s. `mxfs-drbd-guard`
   sees this within seconds (`/sys/fs/mxfs/drbd0/shutdown` reads 1) and
   rejoins the node without restarting it. It kills every process holding the
   mount at once, the VMs whose disks are on it among them: they can no longer

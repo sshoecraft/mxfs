@@ -11,7 +11,10 @@
 #
 # Usage: scripts/drbd_write_latency_probe.sh <hostA> <hostB> <outdir> [phase ...]
 #   phases: idle | bulk | bulk-none (bulk with the backing disks' scheduler set
-#   to none for the phase, restored after).  Default: idle bulk.
+#   to none for the phase, restored after) | seqdio | seqdio-xfs (one writer
+#   on hostA: 256 KiB O_DIRECT sequential writes at QD8 on the raw device, or
+#   on XFS made on it and mounted on hostA alone; SEQ_S seconds, default 30).
+#   Default: idle bulk.
 # Env: VG (pve)  LV_SIZE (4G)  MINOR (1)  PORT (7790)  DISK (sda: the backing
 #      disk iostat watches and bulk-none switches)  IDLE_S (20)  BULK_S (90)
 #      BULK_JOBS (4)  BULK_QD (16)  BULK_BS (1M)
@@ -43,6 +46,7 @@ done
 teardown() {
     for h in "$HA" "$HB"; do
         on "$h" "[ -s /run/$RES.sched ] && cat /run/$RES.sched > /sys/block/$DISK/queue/scheduler; rm -f /run/$RES.sched
+                 if grep -q ' /mnt/$RES ' /proc/mounts; then timeout 60 umount /mnt/$RES; fi; rmdir /mnt/$RES 2>/dev/null
                  timeout 20 drbdadm secondary $RES >/dev/null 2>&1; timeout 30 drbdadm down $RES >/dev/null 2>&1
                  rm -f /etc/drbd.d/$RES.res; lvremove -y $VG/$RES >/dev/null 2>&1; echo \"\$(uname -n): torn down, minor $MINOR \$(grep -c '^ *$MINOR:' /proc/drbd) left, lv \$(lvs $VG/$RES >/dev/null 2>&1 && echo LEFT || echo gone)\"" 90
     done | tee -a "$OUT/probe.log"
@@ -155,10 +159,45 @@ for h in hosts:
 PY
 }
 
+# run_seqdio <name> <raw|xfs>: one writer on $HA alone, the pattern of
+# tests/pve_dio_alloc_cost.sh and tests/pve_unaligned_dio.sh (sequential
+# 256 KiB O_DIRECT writes at queue depth 8, io_uring, SEQ_S seconds), on the
+# raw device (its own half) or on a sparse file in an XFS made on the device
+# and mounted on $HA only: the same writes on DRBD itself and on XFS on DRBD,
+# to set beside MXFS on DRBD and a local filesystem.
+run_seqdio() {
+    local name=$1 target=$2 out
+    log "== phase $name: one writer on $NA, 256 KiB O_DIRECT sequential writes at QD8 for ${SEQ_S}s on the $target device"
+    if [ "$target" = raw ]; then
+        out=$(on "$HA" "fio --name=$name --filename=$DEV --rw=write --bs=256k --direct=1 --ioengine=io_uring --iodepth=8 \
+                --offset=64M --size=1g --time_based --runtime=$SEQ_S --output-format=json > /tmp/$RES-seq.json 2>/tmp/$RES-seq.err
+            echo FIO_RC=\$?" $((SEQ_S + 60)))
+    else
+        out=$(on "$HA" "mkfs.xfs -f -q -K $DEV && mkdir -p /mnt/$RES && mount $DEV /mnt/$RES && truncate -s 4G /mnt/$RES/f || { echo XFS_FAIL; exit; }
+            fio --name=$name --filename=/mnt/$RES/f --rw=write --bs=256k --direct=1 --ioengine=io_uring --iodepth=8 \
+                --size=4g --time_based --runtime=$SEQ_S --output-format=json > /tmp/$RES-seq.json 2>/tmp/$RES-seq.err
+            echo FIO_RC=\$?; timeout 60 umount /mnt/$RES; rmdir /mnt/$RES" $((SEQ_S + 120)))
+    fi
+    on "$HA" "cat /tmp/$RES-seq.json" 30 > "$OUT/$name.$NA.seq.json"
+    case "$out" in
+        *FIO_RC=0*) ;;
+        *) log "  $name failed: $(tr '\n' ' ' <<<"$out") $(on "$HA" "tail -2 /tmp/$RES-seq.err" | tr '\n' ' ')"; return 1 ;;
+    esac
+    python3 - "$OUT/$name.$NA.seq.json" "$name" <<'PY' | tee -a "$OUT/probe.log"
+import json, sys
+w = json.load(open(sys.argv[1]))["jobs"][0]["write"]
+c = w["clat_ns"]
+print(f"  {sys.argv[2]}: writes={w['total_ios']} MiB/s={w['bw_bytes'] / 2**20:.1f} lat_mean_ms={c['mean'] / 1e6:.1f} lat_max_ms={c['max'] / 1e6:.1f}")
+PY
+}
+SEQ_S=${SEQ_S:-30}
+
 for ph in "${PHASES[@]}"; do
     case "$ph" in
         idle) run_phase idle "$IDLE_S" 0 ;;
         bulk) run_phase bulk "$BULK_S" 1 ;;
+        seqdio) run_seqdio seqdio raw ;;
+        seqdio-xfs) run_seqdio seqdio-xfs xfs ;;
         bulk-none)
             # the scheduler in force is kept in /run on the host; teardown restores it too
             for h in "$HA" "$HB"; do
