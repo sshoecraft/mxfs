@@ -1,3 +1,31 @@
+## 2026-10-07 — 0.90.91 — a lock cancellation's re-send no longer reads or frees a record another thread has freed
+
+**0.90.83 made the release re-send copy its records under the lock; the
+cancellation re-send in the same tick still did not.** A node that abandons a
+lock wait tells the master, and keeps the message until the master
+acknowledges it. The retry tick chose the cancellations to send again under
+the pending lists' lock, dropped the lock, and then read each record to build
+the message. The acknowledgement on the receive path unlinks and frees a
+record under that lock, and so does a concurrent tick's give-up (the
+unmount's wait for acknowledgements beside the TCP death worker's tick), so
+the record could be gone when it was read. Where the resource had been
+remastered onto this node, the tick also freed the record whether or not it
+was still on the list: a cancellation acknowledged in between was freed twice.
+- The cancellations chosen are copied under the lock and sent from the
+  copies; one remastered here is retired by its identity under the lock, and
+  freed only if it was still there.
+- The release re-send's check of the session's poisoned state read the first
+  pending release's resource without the lock, after the list could have been
+  emptied; that resource is now copied under the lock too.
+
+**Also:** two checks that blocks a host writes into an unwritten extent stay
+visible. `tests/pve_unwritten_live.sh`: the other host loads the file's
+extent map, the writer grows the written extent block by block (O_DIRECT,
+fdatasync each), and the other host must read every block; on the physical
+pair it read all 32. `tests/pve_unwritten_replay.sh`: the writer is reset the
+moment its last fdatasync returns, and the survivor, after replaying its
+journal, must read every block it reported durable.
+
 ## 2026-10-07 — 0.90.90 — a survivor's takeover of its dead peer's pages no longer skips one for good
 
 **One page of a dead peer's could stay under the dead incarnation.** After a

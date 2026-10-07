@@ -6547,6 +6547,8 @@ void mxfs_dlm_release_retry_tick(struct mxfs_dlm_ctx *ctx)
 {
 	struct mxfs_dlm_pending_release *resend;
 	struct mxfs_dlm_pending_release **pp;
+	struct mxfs_resource_id first;
+	bool any;
 	uint64_t now;
 	int n = 0, i;
 
@@ -6559,10 +6561,19 @@ void mxfs_dlm_release_retry_tick(struct mxfs_dlm_ctx *ctx)
 	dlm_cancel_retry_tick(ctx, now);
 	if (!ctx->rel_pending)
 		return;
+	/* The head's resource is copied under rel_lock: the ACK that frees the
+	 * record (or empties the list) can land between the check above and the
+	 * refusal's log line below, which reads it. */
+	mxfs_pal_mutex_lock(ctx->rel_lock);
+	any = ctx->rel_pending != NULL;
+	if (any)
+		first = ctx->rel_pending->resource;
+	mxfs_pal_mutex_unlock(ctx->rel_lock);
+	if (!any)
+		return;
 	/* The pending list is left as it is: those records are the survivor's
 	 * manifest evidence now, and the recovery purge retires them. */
-	if (dlm_refuse_release_while_poisoned(ctx, "release_retry",
-					      &ctx->rel_pending->resource))
+	if (dlm_refuse_release_while_poisoned(ctx, "release_retry", &first))
 		return;
 	resend = mxfs_pal_alloc(sizeof(*resend) * MXFS_DLM_RELEASE_RESEND_BATCH);
 	if (!resend)
@@ -7825,15 +7836,43 @@ void mxfs_dlm_process_cancel_ack(struct mxfs_dlm_ctx *ctx,
 	mxfs_pal_free(found);
 }
 
+/* A cancellation whose resource is now mastered here: retire its record, if it
+ * is still on the list.  Found by identity under rel_lock, never by an address
+ * kept from an earlier hold of the lock: the CANCEL_ACK on the receive path,
+ * or a concurrent tick's give-up, may have freed that record meanwhile. */
+static void dlm_cancel_pending_retire_local(struct mxfs_dlm_ctx *ctx,
+					    const struct mxfs_dlm_pending_cancel *c)
+{
+	struct mxfs_dlm_pending_cancel **pp, *found = NULL;
+
+	mxfs_pal_mutex_lock(ctx->rel_lock);
+	for (pp = &ctx->cancel_pending; *pp; pp = &(*pp)->next) {
+		if ((*pp)->acq_seq == c->acq_seq && (*pp)->cancel_id == c->cancel_id &&
+		    resource_equal(&(*pp)->resource, &c->resource)) {
+			found = *pp;
+			*pp = found->next;
+			break;
+		}
+	}
+	mxfs_pal_mutex_unlock(ctx->rel_lock);
+	if (found)
+		mxfs_pal_free(found);
+}
+
 /* Re-send unacknowledged cancellations; give up after the release send
- * budget.  Called from the release retry tick. */
+ * budget.  Called from the release retry tick.  As there, the records chosen
+ * are copied under rel_lock and sent from the copies: the CANCEL_ACK frees a
+ * record under that lock, and so does a concurrent tick's give-up. */
 static void dlm_cancel_retry_tick(struct mxfs_dlm_ctx *ctx, uint64_t now)
 {
-	struct mxfs_dlm_pending_cancel *resend[16];
+	struct mxfs_dlm_pending_cancel *resend;
 	struct mxfs_dlm_pending_cancel **pp;
 	int n = 0, i;
 
 	if (!ctx->cancel_pending)
+		return;
+	resend = mxfs_pal_alloc(sizeof(*resend) * 16);
+	if (!resend)
 		return;
 	mxfs_pal_mutex_lock(ctx->rel_lock);
 	pp = &ctx->cancel_pending;
@@ -7858,32 +7897,27 @@ static void dlm_cancel_retry_tick(struct mxfs_dlm_ctx *ctx, uint64_t now)
 		}
 		pc->sends++;
 		pc->sent_ms = now;
-		resend[n++] = pc;
+		resend[n] = *pc;
+		resend[n].next = NULL;
+		n++;
 		pp = &pc->next;
 	}
 	mxfs_pal_mutex_unlock(ctx->rel_lock);
 	for (i = 0; i < n; i++) {
-		struct mxfs_dlm_pending_cancel *pc = resend[i];
+		const struct mxfs_dlm_pending_cancel *pc = &resend[i];
 		mxfs_node_id_t master = mxfs_dlm_resource_master(ctx, &pc->resource);
 
 		ctx->cancel_resends++;
 		if (master == ctx->local_node) {
 			/* remastered onto us: whatever the old master held is gone
 			 * with its view, and a re-send cannot reach us — done */
-			mxfs_pal_mutex_lock(ctx->rel_lock);
-			for (pp = &ctx->cancel_pending; *pp; pp = &(*pp)->next) {
-				if (*pp == pc) {
-					*pp = pc->next;
-					break;
-				}
-			}
-			mxfs_pal_mutex_unlock(ctx->rel_lock);
-			mxfs_pal_free(pc);
+			dlm_cancel_pending_retire_local(ctx, pc);
 			continue;
 		}
 		dlm_send_cancel_msg(ctx, master, &pc->resource, pc->acq_seq,
 				    pc->cancel_id, pc->mode);
 	}
+	mxfs_pal_free(resend);
 }
 
 /*
