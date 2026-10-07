@@ -69,7 +69,8 @@ resource mxfs {
         fencing resource-and-stonith;
         c-fill-target 4M;       # DRBD 8.4's default keeps ~50 KB in flight
         c-max-rate    110M;     # and resyncs at ~9 MB/s on gigabit; this
-        c-min-rate    20M;      # runs near link speed (set to your link)
+        c-min-rate    20M;      # lets it run at the link's speed or the
+                                # slower disk's (set c-max-rate to your link)
     }
     handlers {
         fence-peer "/usr/sbin/mxfs-drbd-fence-peer";
@@ -110,7 +111,10 @@ drbdadm create-md mxfs && drbdadm up mxfs        # both nodes
 drbdadm primary --force mxfs                     # node A only, this one time
 ```
 
-Wait until `cat /proc/drbd` shows `ds:UpToDate/UpToDate` on both nodes, then:
+Wait until `cat /proc/drbd` shows `ds:UpToDate/UpToDate` on both nodes. The
+first sync copies the whole device, so it takes as long as the slower of the
+link and the receiving disk needs: on `pve1`/`pve2` (gigabit, older SATA SSDs
+under a thin volume) 40 GiB took 22 minutes, at 31 MB/s. Then:
 
 ```
 drbdadm primary mxfs                             # node B

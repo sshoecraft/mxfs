@@ -1,3 +1,57 @@
+## 2026-10-06 — 0.90.83 — a lock release is sent until its master acknowledges it, and a re-send no longer reads a record another thread may have freed
+
+**A re-send could read freed memory.** `mxfs_dlm_release_retry_tick` chose the
+releases to send again under the pending list's lock, dropped the lock, and
+then read each record to find its master and build the message. The ACK on
+the receive path frees a record under that same lock, and a re-send is chosen
+exactly when an ACK is late, so the record could be gone by the time it was
+read; a second tick (the unmount's wait for acknowledgements beside the TCP
+death worker's) could free one too. Each record chosen is now copied under the
+lock and sent from the copy.
+
+**A slow acknowledgement was logged as an error and the release dropped.** A
+master acknowledges a release only once its retirement is durable, and a
+duplicate that arrives meanwhile gets no answer. On the physical DRBD pair a
+large `du` or tree walk left acknowledgements more than 10 s behind, and after
+ten sends a second apart each such release was dropped and logged at error
+level (`P-TAUTH-RELEASE-UNACKED ... record stays a ledger blocker`), 32-38
+lines per host per scan.
+- A release is sent until it is acknowledged, the interval doubling from 1 s
+  to 16 s, so a slow master gets one duplicate per 16 s rather than one a
+  second.
+- A release still unacknowledged after a minute is named once, as a warning.
+- A release whose resource has been remastered onto this node goes to the
+  local table, and the record is retired by that answer: nothing acknowledges
+  a release a node sends itself, so before this such a record was re-sent ten
+  times and then logged as unacknowledged.
+
+**`scripts/pve_pair_from_guide.sh` (new) sets the physical pair up from
+`docs/drbd-setup.md` alone, from a fresh clone of the public repository, and
+checks it.** `teardown` takes both hosts back to Proxmox with no MXFS on them,
+`guide` runs sections 1-6 with the guide's own commands (each checked against
+the guide's text first), `finish` resumes after the first sync, and `verify`
+requires both hosts mounted, Primary/Primary, UpToDate, the units and guard
+active and one build. It passed on pve1/pve2 with 0.90.81.
+
+**`docs/drbd-setup.md`: the first sync runs at the slower of the link and the
+receiving disk.** It said the resync settings run it near link speed; on
+pve1/pve2 (gigabit, older SATA SSDs under a thin volume) 40 GiB took 22
+minutes at 31 MB/s. The guide now says so.
+
+**Tests and helpers:** `tests/pve_tree_walk.sh` (timed walks and small-file
+seeds on one host and both at once, with the walkers' kernel stacks sampled),
+`tests/pve_release_ack_trace.sh` (traces release acknowledgements on a pair),
+`scripts/pve_pair_guests.sh` (parks the owner's guests off the shared storage
+for destructive tests and brings them back). The failover suite, the replay
+gate test and the DRBD rig now count only refusals as recovery-blocked
+operations, not the release a node skips to a master that just died.
+- The failover suite's answering-restart step syncs participant 1's unit mask
+  to disk before resetting it. Unsynced, the mask was lost with the reset on
+  the physical pair, participant 1 came back with DRBD connected, and
+  participant 0 was never alone, so the step failed on the test, not on MXFS.
+- `tests/pve_pair_profile.sh` profiles one host when `PVE_PAIR` names one: a
+  host a crash step resets cannot be read while it is down.
+
 ## 2026-10-06 — 0.90.81 — a DRBD host no longer withdraws its mount, and kills its guests, because its peer's disk is slow
 
 **One host's overloaded disk shut the other host's mount down.** On the

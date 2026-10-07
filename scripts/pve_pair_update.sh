@@ -27,9 +27,11 @@
 #                  program's ordering, twice over)
 #   CHECK_BUDGET   seconds for chk_mxfs (default 600)
 #
-# Refuses to start while any guest is running on either host: stopping the
-# unit unmounts the filesystem their disks are on.  Prints each step with its
-# wall time; exits non-zero at the first step that fails, saying what it left.
+# Refuses to start while anything holds the mount on either host, a running
+# guest whose disk is on it above all: stopping the unit unmounts it.  Guests
+# whose disks are on other storage (local, local-lvm) keep running; nothing
+# here touches them.  Prints each step with its wall time; exits non-zero at
+# the first step that fails, saying what it left.
 set -u
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 SSHP="$REPO/tools/mxfs_sshpass.sh"
@@ -57,8 +59,9 @@ STATE_CMD='echo "unit=$(systemctl is-active mxfs-drbd@'"$RES"') mnt=$(awk '\''$2
 state() { on "$1" "$STATE_CMD" 20 | grep '^unit='; }
 
 for h in "$P0" "$P1"; do
-    run=$(on "$h" "qm list 2>/dev/null | awk 'NR > 1 && \$3 == \"running\" {print \$1}' | tr '\n' ' '" 30)
-    [ -z "${run// /}" ] || die "$h is running guests ($run); stop them before the update"
+    # every process with a file open on the mount, by pid and name
+    held=$(on "$h" "awk '\$2 == \"$MNT\" && \$3 == \"mxfs\"' /proc/mounts | grep -q . || exit 0; fuser -m $MNT 2>/dev/null | tr -s ' ' '\n' | grep -E '^[0-9]+' | tr -dc '0-9\n' | while read -r p; do echo \"\$p:\$(cat /proc/\$p/comm 2>/dev/null)\"; done | tr '\n' ' '" 30)
+    [ -z "${held// /}" ] || die "$h: processes hold $MNT ($held); stop them (qm stop for a guest whose disk is there) before the update"
     say "$h before: $(state "$h")"
 done
 

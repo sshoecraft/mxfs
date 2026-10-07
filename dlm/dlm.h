@@ -167,8 +167,10 @@ struct mxfs_dlm_pending_release {
 	uint64_t                lineage;
 	uint8_t                 mode;
 	int8_t                  open_op;    /* 0.89.0: the mark change every re-send carries */
+	bool                    warned;     /* named once as long unacknowledged */
 	int                     sends;
 	uint64_t                sent_ms;
+	uint64_t                first_ms;   /* the first send */
 };
 
 struct mxfs_tauth_ledger;       /* dlm/tauth_ledger.h */

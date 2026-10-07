@@ -71,6 +71,11 @@ STAMP=$(date -u +%Y%m%dT%H%M%SZ)
 EVID="$REPO/tests/evidence/pve_replay_gate_lag/$STAMP-${PAIR[0]}-$ARM"
 mkdir -p "$EVID" || exit 1
 PARAMS=/sys/module/mxfs/parameters
+# The module's lines for an operation refused or failed because a dead node's
+# recovery is blocked.  Not P-RBLK-RELEASE-SKIP-DEAD-MASTER: that is a release
+# not sent to a master that just died (its recovery purge retires the grant),
+# and it refuses nothing.
+RBLK_REFUSED='P-RBLK-(COVERS|DENY)-[A-Z-]+|P-RBLK-TERMINAL|P240-RBLK-[A-Z-]+'
 
 say() { echo "[$(date +%H:%M:%S)] $*" | tee -a "$EVID/log"; }
 LEFT=""
@@ -134,8 +139,8 @@ on "$P1" "echo 1 > /proc/sys/kernel/sysrq; nohup setsid sh -c 'sleep 1; echo b >
 say "  $P1 reset"
 rec=""
 while [ $(( $(date +%s) - t0 )) -lt "$RECOVER_BUDGET" ]; do
-    rec=$(on "$P0" "journalctl -k --no-pager -o cat --since @$t0 | grep -aoE 'P163-RECOVERY-COMPLETE|P-RBLK-[A-Z-]+' | sort | uniq -c | tr '\n' ' '" 30)
-    grep -q -E 'P163-RECOVERY-COMPLETE|P-RBLK' <<<"$rec" && break
+    rec=$(on "$P0" "journalctl -k --no-pager -o cat --since @$t0 | grep -aoE 'P163-RECOVERY-COMPLETE|P-RBLK-[A-Z-]+|P240-RBLK-[A-Z-]+' | sort | uniq -c | tr '\n' ' '" 30)
+    grep -q -E "P163-RECOVERY-COMPLETE|$RBLK_REFUSED" <<<"$rec" && break
     sleep 3
 done
 say "  $P0 after the reset ($(( $(date +%s) - t0 )) s): ${rec:-no recovery lines}"
@@ -154,7 +159,7 @@ say "  $P0's churn: $(tr '\n' ' ' <<<"$(cat "$EVID/churn.$P0")")"
 
 FAIL=0
 grep -q P163-RECOVERY-COMPLETE <<<"$rec" || { say "FAIL: $P0 did not complete the recovery of $P1 within ${RECOVER_BUDGET}s"; FAIL=1; }
-grep -q P-RBLK <<<"$rec" && { say "FAIL: $P0 refused operations as RECOVERY_BLOCKED"; FAIL=1; }
+grep -qE "$RBLK_REFUSED" <<<"$rec" && { say "FAIL: $P0 refused operations as RECOVERY_BLOCKED"; FAIL=1; }
 [ "$inj" -gt 0 ] || { say "FAIL: INVALID RUN: the lag was never injected (no foreign inode image reached the gate)"; FAIL=1; }
 grep -q -E '^(append|create|remove|sync) ' "$EVID/churn.$P0" && { say "FAIL: $P0's churn failed: $(head -1 "$EVID/churn.$P0")"; FAIL=1; }
 [ "$stale_apply" = 0 ] || { say "FAIL: the gate applied $stale_apply images the platter had moved past"; FAIL=1; }

@@ -5982,6 +5982,7 @@ static void dlm_rel_pending_add(struct mxfs_dlm_ctx *ctx,
 	pr->open_op = (int8_t)open_op;
 	pr->sends = 1;
 	pr->sent_ms = mxfs_pal_time_ms();
+	pr->first_ms = pr->sent_ms;
 	mxfs_pal_mutex_lock(ctx->rel_lock);
 	pr->next = ctx->rel_pending;
 	ctx->rel_pending = pr;
@@ -6430,9 +6431,68 @@ static bool dlm_refuse_release_while_poisoned(struct mxfs_dlm_ctx *ctx,
 
 static void dlm_cancel_retry_tick(struct mxfs_dlm_ctx *ctx, uint64_t now);
 
+/*
+ * A release the master has not acknowledged is sent again until it is.  The
+ * master acknowledges a release once its retirement is durable, and a
+ * duplicate that arrives while that commit is in flight gets no answer of its
+ * own (mxfs_dlm_process_remote_release), so under a slow commit the late ACK
+ * is the only answer there will be.  On the physical DRBD pair (0.90.81) a
+ * stat/readdir scan left acks more than 10 s behind, and the old bound of ten
+ * sends dropped those releases and logged each one as an error.  The interval
+ * doubles from 1 s to 16 s, so a slow master takes one duplicate per 16 s per
+ * release rather than one a second, and a release still unacknowledged after
+ * a minute is named once.
+ *
+ * The records chosen are copied under rel_lock and sent from the copies: the
+ * ACK on the receive path frees a record under that lock, and so does a
+ * concurrent tick (mxfs_dlm_wait_release_acks beside the TCP death worker's),
+ * so a record's address must not be used once the lock is dropped.
+ *
+ * A release whose resource is now mastered here, after a remaster, goes to the
+ * local table.  Nothing acknowledges a release a node sends itself, so the
+ * record is retired here on any answer but a refusal to act yet: retired, in
+ * flight or re-driven (0), nothing of this node's to retire (-ENOENT), or a
+ * record of another incarnation of it (-EPERM).
+ */
+#define MXFS_DLM_RELEASE_RESEND_BATCH   16
+#define MXFS_DLM_RELEASE_BACKOFF_MAX    4       /* 1 s << 4 = 16 s */
+#define MXFS_DLM_RELEASE_WARN_MS        60000
+
+static uint64_t dlm_release_resend_interval(int sends)
+{
+	int shift = sends - 1;
+
+	if (shift < 0)
+		shift = 0;
+	if (shift > MXFS_DLM_RELEASE_BACKOFF_MAX)
+		shift = MXFS_DLM_RELEASE_BACKOFF_MAX;
+	return (uint64_t)MXFS_DLM_RELEASE_RETRY_MS << shift;
+}
+
+static void dlm_rel_pending_retire_local(struct mxfs_dlm_ctx *ctx,
+					 const struct mxfs_resource_id *res,
+					 uint32_t rel_id)
+{
+	struct mxfs_dlm_pending_release **pp, *found = NULL;
+
+	mxfs_pal_mutex_lock(ctx->rel_lock);
+	for (pp = &ctx->rel_pending; *pp; pp = &(*pp)->next) {
+		if ((*pp)->rel_id == rel_id && resource_equal(&(*pp)->resource, res)) {
+			found = *pp;
+			*pp = found->next;
+			break;
+		}
+	}
+	mxfs_pal_mutex_unlock(ctx->rel_lock);
+	if (found) {
+		ctx->release_acks++;
+		mxfs_pal_free(found);
+	}
+}
+
 void mxfs_dlm_release_retry_tick(struct mxfs_dlm_ctx *ctx)
 {
-	struct mxfs_dlm_pending_release *resend[16];
+	struct mxfs_dlm_pending_release *resend;
 	struct mxfs_dlm_pending_release **pp;
 	uint64_t now;
 	int n = 0, i;
@@ -6451,43 +6511,49 @@ void mxfs_dlm_release_retry_tick(struct mxfs_dlm_ctx *ctx)
 	if (dlm_refuse_release_while_poisoned(ctx, "release_retry",
 					      &ctx->rel_pending->resource))
 		return;
+	resend = mxfs_pal_alloc(sizeof(*resend) * MXFS_DLM_RELEASE_RESEND_BATCH);
+	if (!resend)
+		return;
 	mxfs_pal_mutex_lock(ctx->rel_lock);
 	pp = &ctx->rel_pending;
-	while (*pp && n < 16) {
+	while (*pp && n < MXFS_DLM_RELEASE_RESEND_BATCH) {
 		struct mxfs_dlm_pending_release *pr = *pp;
 
-		if (now - pr->sent_ms < MXFS_DLM_RELEASE_RETRY_MS) {
-			pp = &pr->next;
+		pp = &pr->next;
+		if (now - pr->sent_ms < dlm_release_resend_interval(pr->sends))
 			continue;
-		}
-		if (pr->sends >= MXFS_DLM_RELEASE_MAX_SENDS) {
-			*pp = pr->next;
+		if (!pr->warned && now - pr->first_ms >= MXFS_DLM_RELEASE_WARN_MS) {
+			pr->warned = true;
 			ctx->release_unacked++;
-			mxfs_pal_log(MXFS_LOG_ERR,
-				     "mxfs: P-TAUTH-RELEASE-UNACKED type=%u ino=%llu ag=%u rel_id=%u "
-				     "grant_id={%llu,%llu} sends=%d — record stays a ledger blocker "
-				     "until re-request or recovery purge",
-				     pr->resource.type, (unsigned long long)pr->resource.ino,
-				     pr->resource.ag_number, pr->rel_id,
-				     (unsigned long long)pr->auth_epoch,
-				     (unsigned long long)pr->grant_seq, pr->sends);
-			mxfs_pal_free(pr);
-			continue;
+			mxfs_pal_log_repeating(MXFS_LOG_WARN,
+					       "mxfs: P-TAUTH-RELEASE-UNACKED type=%u ino=%llu ag=%u "
+					       "rel_id=%u grant_id={%llu,%llu} sends=%d age_ms=%llu — "
+					       "the master has not acknowledged this release; it is "
+					       "still being sent, %llu ms apart",
+					       pr->resource.type,
+					       (unsigned long long)pr->resource.ino,
+					       pr->resource.ag_number, pr->rel_id,
+					       (unsigned long long)pr->auth_epoch,
+					       (unsigned long long)pr->grant_seq, pr->sends,
+					       (unsigned long long)(now - pr->first_ms),
+					       (unsigned long long)dlm_release_resend_interval(pr->sends + 1));
 		}
 		pr->sends++;
 		pr->sent_ms = now;
-		resend[n++] = pr;
-		pp = &pr->next;
+		resend[n] = *pr;
+		resend[n].next = NULL;
+		n++;
 	}
 	mxfs_pal_mutex_unlock(ctx->rel_lock);
 	for (i = 0; i < n; i++) {
-		struct mxfs_dlm_pending_release *pr = resend[i];
+		const struct mxfs_dlm_pending_release *pr = &resend[i];
 		mxfs_node_id_t master = mxfs_dlm_resource_master(ctx, &pr->resource);
 
 		ctx->release_resends++;
 		if (master == ctx->local_node) {
 			/* remastered onto us: the imported record is ours to retire */
 			struct mxfs_dlm_lock_release rel;
+			int rc;
 
 			memset(&rel, 0, sizeof(rel));
 			rel.resource = pr->resource;
@@ -6500,13 +6566,16 @@ void mxfs_dlm_release_retry_tick(struct mxfs_dlm_ctx *ctx)
 			rel.lineage = pr->lineage;
 			rel.mode = pr->mode;
 			rel.open_op = pr->open_op;
-			mxfs_dlm_process_remote_release(ctx, ctx->local_node, &rel);
+			rc = mxfs_dlm_process_remote_release(ctx, ctx->local_node, &rel);
+			if (rc == 0 || rc == -ENOENT || rc == -EPERM)
+				dlm_rel_pending_retire_local(ctx, &pr->resource, pr->rel_id);
 		} else {
 			dlm_send_release_msg(ctx, master, &pr->resource, pr->grant_gen,
 					     pr->rel_id, pr->auth_epoch, pr->grant_seq,
 					     pr->lineage, pr->mode, pr->open_op);
 		}
 	}
+	mxfs_pal_free(resend);
 }
 
 int mxfs_dlm_wait_release_acks(struct mxfs_dlm_ctx *ctx, uint64_t timeout_ms)

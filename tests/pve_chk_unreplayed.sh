@@ -15,7 +15,7 @@
 #     and sync it: both journals hold allocations the platter's metadata and
 #     superblock counters may not have yet.
 #  2. Both guards are stopped (they would rejoin a withdrawn mount, which
-#     replays it), and both heartbeats are paused past the 30 s authority
+#     replays it), and both heartbeats are paused past the 60 s authority
 #     lease: both mounts withdraw, leaving their slices unreplayed.
 #  3. Both units stop (unmount, step down, DRBD down).  DRBD comes up on both,
 #     participant 0 is made Primary alone, and on it:
@@ -36,7 +36,9 @@
 #        /mnt/shared), NFILES (default 300)
 # Evidence: tests/evidence/pve_chk_unreplayed/<UTC stamp>-<participant 0>/.
 #
-# Refuses to start while any guest runs on either host: the units stop.
+# Refuses to start while anything holds the mount on either host (a guest
+# whose disk is on it above all): the units stop.  Guests on other storage
+# keep running.
 set -u
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 SSHP="$REPO/tools/mxfs_sshpass.sh"
@@ -45,9 +47,9 @@ read -r -a PAIR <<<"${PVE_PAIR:-192.168.1.80 192.168.1.81}"
 RES=${RES:-mxfs}
 MNT=${MNT:-/mnt/shared}
 NFILES=${NFILES:-300}
-# The pause outlasts the 30 s authority lease by 15 s; the withdrawal shows
-# within a few seconds of the lease running out.
-PAUSE_MS=45000
+# The pause outlasts the authority lease by 15 s (on DRBD the lease is 60 s,
+# dlm/disklock.h); the withdrawal shows within a few seconds of it running out.
+PAUSE_MS=75000
 WITHDRAW_BUDGET=60
 # A unit stop: an unmount and DRBD down, measured at 3-12 s; twice the worst.
 STOP_BUDGET=30
@@ -83,8 +85,8 @@ bad() { say "FAIL: $*"; FAIL=1; }
 
 say "chk_mxfs on unreplayed journals: participant 0 $P0, participant 1 $P1; evidence $EVID"
 for h in "$P0" "$P1"; do
-    run=$(on "$h" "qm list 2>/dev/null | awk 'NR > 1 && \$3 == \"running\" {print \$1}' | tr '\n' ' '" 30)
-    [ -z "${run// /}" ] || die "$h is running guests ($run); stop them first"
+    held=$(on "$h" "fuser -m $MNT 2>/dev/null | tr -s ' ' '\n' | grep -E '^[0-9]+' | tr -dc '0-9\n' | while read -r p; do echo \"\$p:\$(cat /proc/\$p/comm 2>/dev/null)\"; done | tr '\n' ' '" 30)
+    [ -z "${held// /}" ] || die "$h: processes hold $MNT ($held); stop them first"
     s=$(on "$h" "$STATE" 20)
     case "$s" in *"mnt=$MNT role=Primary/Primary cs=Connected ds=UpToDate/UpToDate"*) ;;
         *) die "$h is not mounted Primary/Primary, Connected, UpToDate: $s" ;; esac

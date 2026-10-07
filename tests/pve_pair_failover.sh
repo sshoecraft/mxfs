@@ -14,7 +14,12 @@
 #   p1-crash   participant 1 is reset (sysrq b: no sync, no unmount).  The
 #              survivor's load must see no I/O error; it excludes the dead
 #              host, certifies the exclusion and replays its journal; the dead
-#              host reboots, is released, resyncs and mounts by itself.
+#              host reboots, is released, resyncs and mounts by itself.  At the
+#              reset the survivor also starts a VM-like load on the image the
+#              dead host's VM was writing (an HA restart of that VM): it must
+#              see no I/O error, and neither its first I/O nor any other may
+#              wait longer than TAKEOVER_WAIT (30 s, a guest's own I/O timeout)
+#              while the dead host's grants on that image are recovered.
 #   p0-crash   participant 0 is reset.  Participant 1 cannot tell that from a
 #              cut link, so it freezes and restarts itself; both come back
 #              through their boot programs and mount by themselves.
@@ -153,7 +158,7 @@ WITHDRAW_PAUSE_MS=75000
 # 28 s on a 30 s lease, under 58 s on the DRBD one.  29 s fails the first and
 # passes the second with 29 s to spare.
 SLOW_BEAT_MS=29000
-# From the pause to a withdrawn host mounted again: the lease runs out (30 s),
+# From the pause to a withdrawn host mounted again: the lease runs out (60 s),
 # the guard sees the shutdown (5 s poll) and unmounts, and the unit's boot
 # program mounts as after a pair outage (OUTAGE_BUDGET) -- the pause's length
 # plus that.
@@ -170,6 +175,11 @@ HELD_BUDGET=$(( 180 + BOOT_BUDGET ))
 # the step-down into I/O errors 120 s after the death (fence_blocked_after_ms).
 GUESTS=${GUESTS:-3}
 STEPDOWN_BUDGET=15
+# The module's lines for an operation refused or failed because a dead node's
+# recovery is blocked.  Not P-RBLK-RELEASE-SKIP-DEAD-MASTER: that is a release
+# not sent to a master that just died (its recovery purge retires the grant),
+# and it refuses nothing.
+RBLK_REFUSED='P-RBLK-(COVERS|DENY)-[A-Z-]+|P-RBLK-TERMINAL|P240-RBLK-[A-Z-]+'
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
 # Named for the pair too: two pairs' runs started in the same second shared
 # one directory, and their logs interleaved.
@@ -360,8 +370,8 @@ wait_recovered() {
     local t0 out
     t0=$(date +%s)
     while [ $(( $(date +%s) - t0 )) -lt "$3" ]; do
-        out=$(on "$1" "journalctl -k --no-pager -o cat --since @$2 | grep -aoE 'P163-RECOVERY-COMPLETE|P-RBLK-[A-Z-]+' | sort | uniq -c | tr '\n' ' '" 30)
-        grep -q P-RBLK <<<"$out" && { say "  $1 refused operations as RECOVERY_BLOCKED: $out"; return 1; }
+        out=$(on "$1" "journalctl -k --no-pager -o cat --since @$2 | grep -aoE 'P163-RECOVERY-COMPLETE|P-RBLK-[A-Z-]+|P240-RBLK-[A-Z-]+' | sort | uniq -c | tr '\n' ' '" 30)
+        grep -qE "$RBLK_REFUSED" <<<"$out" && { say "  $1 refused operations as RECOVERY_BLOCKED: $out"; return 1; }
         grep -q P163-RECOVERY-COMPLETE <<<"$out" && { echo $(( $(date +%s) - $2 )); return 0; }
         sleep 3
     done
@@ -404,24 +414,84 @@ collect() {  # <step> <since epoch>
     done
 }
 
+# A guest's image for the takeover: written through once by its host (an
+# installed guest's disk), then a VM-like load on it, detached, its launch time
+# and a per-second IOPS log kept so the first I/O can be timed from the launch:
+# fio's own clock starts only once its open returns, and an open blocked on a
+# dead host's grants is spent there.
+image_fill() {  # <host> <image>
+    on "$1" "fio --name=fill --filename=$2 --size=256M --bs=1M --rw=write --direct=1 --ioengine=psync --output=/dev/null >/dev/null 2>&1 && echo FILL_OK" 120 | grep -q FILL_OK \
+        || die "$1 could not write the image $2"
+}
+image_load() {  # <host> <image> <seconds> <tag>
+    on "$1" "e=io_uring; fio --enghelp 2>/dev/null | grep -q io_uring || e=libaio
+        rm -f /root/pvefail_$4.json /root/pvefail_$4_iops.*.log
+        date +%s%3N > /root/pvefail_$4.launch
+        nohup setsid fio --name=vm --filename=$2 --direct=1 --ioengine=\$e --rw=randrw --rwmixread=60 --bs=4k --iodepth=16 \
+            --size=256M --time_based --runtime=$3 --log_avg_msec=1000 --write_iops_log=/root/pvefail_$4 \
+            --output-format=json --output=/root/pvefail_$4.json >/dev/null 2>/root/pvefail_$4.err < /dev/null &
+        echo IMAGE_LOAD_UP" 30 | grep -q IMAGE_LOAD_UP || die "could not start the load on $2 on $1"
+}
+# image_result <host> <tag> <wait budget>: waits for that load to end, then its
+# error, I/O counts, worst latency, and wait_s, the launch to its first second
+# with I/O completing
+image_result() {
+    on "$1" "for i in \$(seq 1 $3); do [ -s /root/pvefail_$2.json ] && break; sleep 1; done
+        python3 -I - <<'PY'
+import glob, json
+tag = '$2'
+try:
+    j = json.load(open('/root/pvefail_%s.json' % tag))['jobs'][0]
+except Exception as e:
+    print('IMAGE NO_RESULT %s' % e); raise SystemExit
+t = sorted(set(int(p[0]) for f in glob.glob('/root/pvefail_%s_iops.*.log' % tag) for p in (l.split(',') for l in open(f))
+               if len(p) >= 2 and p[1].strip().isdigit() and int(p[1]) > 0))
+launch = int(open('/root/pvefail_%s.launch' % tag).read())
+wait = (j['job_start'] - launch + t[0]) / 1000.0 if t else -1
+print('IMAGE err=%d read_ios=%d write_ios=%d lat_max_ms=%.0f wait_s=%.1f' % (j.get('error', 0), j['read']['total_ios'],
+      j['write']['total_ios'], max(j['read']['lat_ns']['max'], j['write']['lat_ns']['max']) / 1e6, wait))
+PY" $(( $3 + 60 )) | grep '^IMAGE '
+}
+# TAKEOVER_LOAD_S: the recovery's budget, then 30 s of I/O after it.
+TAKEOVER_LOAD_S=$(( RECOVER_BUDGET + 30 ))
+TAKEOVER_WAIT=30
+
 step_p1_crash() {
-    local b1 t0 s out
+    local b1 t0 s out img
+    img=$MNT/pvefail/$STAMP/img.${NAME[$P1]}.raw
+    out=$(on "$P1" "mkdir -p $MNT/pvefail/$STAMP && echo MK_OK" 30)
+    grep -q MK_OK <<<"$out" || die "could not make $MNT/pvefail/$STAMP on $P1"
+    image_fill "$P1" "$img"
     write_sets p1-crash; start_loads p1-crash
+    image_load "$P1" "$img" "$LOAD_S" v1
     sleep 10
     b1=$(boot_id "$P1")
-    say "p1-crash: resetting $P1 (participant 1) under load on both"
+    say "p1-crash: resetting $P1 (participant 1) under load on both, its VM-like load on ${img##*/} among them"
     t0=$(date +%s); reset_host "$P1"
+    # an HA restart of the dead host's VM on the survivor: its first I/O waits
+    # for the recovery of the dead host's grants on the image, and none fails
+    image_load "$P0" "$img" "$TAKEOVER_LOAD_S" t1
+    say "  takeover load started on $P0 on ${img##*/} (${TAKEOVER_LOAD_S}s)"
     s=$(wait_rebooted "$P1" "$b1" "$BOOT_BUDGET") || die "$P1 did not come back within ${BOOT_BUDGET}s of its reset"
     say "  $P1 answered again $s s after the reset"
-    out=$(on "$P0" "journalctl -k --no-pager -o cat --since @$t0 | grep -aoE 'P238-DRBD-FENCE-WITNESSED|P236-FENCE-CERTIFIED|P163-RECOVERY-COMPLETE|P-RBLK-[A-Z-]+' | sort | uniq -c | tr '\n' ' '" 30)
+    out=$(on "$P0" "journalctl -k --no-pager -o cat --since @$t0 | grep -aoE 'P238-DRBD-FENCE-WITNESSED|P236-FENCE-CERTIFIED|P163-RECOVERY-COMPLETE|P-RBLK-[A-Z-]+|P240-RBLK-[A-Z-]+' | sort | uniq -c | tr '\n' ' '" 30)
     grep -q P163-RECOVERY-COMPLETE <<<"$out" || die "$P0 did not complete the recovery of $P1: ${out:-no recovery lines}"
-    grep -q P-RBLK <<<"$out" && die "$P0 refused operations as RECOVERY_BLOCKED: $out"
+    grep -qE "$RBLK_REFUSED" <<<"$out" && die "$P0 refused operations as RECOVERY_BLOCKED: $out"
     say "  $P0: $out"
     s=$(wait_mounted "$P1" "$REJOIN_BUDGET") || die "$P1 did not mount again within ${REJOIN_BUDGET}s of answering"
     say "  $P1 mounted again $s s after answering"
     out=$(load_result "$P0")
     [ "$(sed -n 's/.*err=\([0-9]*\).*/\1/p' <<<"$out")" = 0 ] || die "the survivor's load saw an error: ${out:-no result}"
     say "  survivor $P0: $out"
+    out=$(image_result "$P0" t1 "$TAKEOVER_LOAD_S")
+    say "  survivor $P0's takeover load on ${img##*/}: ${out:-no result}"
+    [ "$(sed -n 's/.*err=\([0-9]*\).*/\1/p' <<<"$out")" = 0 ] || die "the takeover load on the dead host's image saw an error: ${out:-no result}"
+    # an open held on the dead host's grants shows in wait_s, an I/O held
+    # there in lat_max_ms: a guest times either out the same way
+    awk -v w="$(sed -n 's/.*wait_s=\([0-9.-]*\).*/\1/p' <<<"$out")" -v b="$TAKEOVER_WAIT" 'BEGIN { exit !(w >= 0 && w <= b) }' \
+        || die "the takeover load's first I/O came $(sed -n 's/.*wait_s=\([0-9.-]*\).*/\1/p' <<<"$out") s after its launch (a guest's own I/O timeout is ${TAKEOVER_WAIT}s)"
+    awk -v l="$(sed -n 's/.*lat_max_ms=\([0-9]*\).*/\1/p' <<<"$out")" -v b="$TAKEOVER_WAIT" 'BEGIN { exit !(l != "" && l <= b * 1000) }' \
+        || die "one I/O of the takeover load took $(sed -n 's/.*lat_max_ms=\([0-9]*\).*/\1/p' <<<"$out") ms (a guest's own I/O timeout is ${TAKEOVER_WAIT}s)"
     collect p1-crash "$t0"
     verify_sets p1-crash
 }
@@ -472,7 +542,7 @@ step_reboot() {
     on "$P1" "nohup setsid sh -c 'sleep 1; systemctl reboot' >/dev/null 2>&1 < /dev/null & echo REBOOTING" 15 | grep -q REBOOTING || die "could not reboot $P1"
     s=$(wait_rebooted "$P1" "$b1" "$BOOT_BUDGET") || die "$P1 did not come back within ${BOOT_BUDGET}s"
     say "  $P1 answered again $s s after the reboot began"
-    out=$(on "$P0" "journalctl -k --no-pager -o cat --since @$t0 | grep -aoE 'P238-DRBD-FENCE-WITNESSED|P236-FENCE-CERTIFIED|P-RBLK-[A-Z-]+' | sort | uniq -c | tr '\n' ' '" 30)
+    out=$(on "$P0" "journalctl -k --no-pager -o cat --since @$t0 | grep -aoE 'P238-DRBD-FENCE-WITNESSED|P236-FENCE-CERTIFIED|P-RBLK-[A-Z-]+|P240-RBLK-[A-Z-]+' | sort | uniq -c | tr '\n' ' '" 30)
     [ -z "$out" ] || die "a clean reboot of $P1 was handled as a loss on $P0: $out"
     s=$(wait_mounted "$P1" "$REJOIN_BUDGET") || die "$P1 did not mount again within ${REJOIN_BUDGET}s of answering"
     say "  $P1 mounted again $s s after answering"
@@ -570,7 +640,11 @@ step_answering_restart() {
     local b0 b1 t0 s out tm tr
     write_sets answering-restart; start_loads answering-restart
     sleep 10
-    on "$P1" "systemctl mask mxfs-drbd@$RES >/dev/null 2>&1 && echo MASKED" 20 | grep -q MASKED \
+    # The reset below syncs nothing, so the mask is synced first: unsynced, it
+    # was lost with the reset on the physical pair (2026-10-06), participant 1
+    # came back with its unit running and DRBD connected, and participant 0 was
+    # never alone.
+    on "$P1" "systemctl mask mxfs-drbd@$RES >/dev/null 2>&1 && sync -f /etc/systemd/system && echo MASKED" 20 | grep -q MASKED \
         || die "could not mask mxfs-drbd@$RES on $P1"
     LEFT="$P1 has mxfs-drbd@$RES masked: systemctl unmask mxfs-drbd@$RES there, then start it"
     b1=$(boot_id "$P1")
@@ -707,7 +781,7 @@ withdraw() {
     # The guard allows 3 rejoins an hour and keeps their times on disk, across
     # restarts; earlier steps and runs must not spend this step's.
     for h in "$@"; do on "$h" "rm -f /var/lib/mxfs/drbd-rejoin.$RES" 15 >/dev/null; done
-    say "$step: pausing the MXFS heartbeat of $* for $(( WITHDRAW_PAUSE_MS / 1000 )) s under load on both, past the 30 s authority lease"
+    say "$step: pausing the MXFS heartbeat of $* for $(( WITHDRAW_PAUSE_MS / 1000 )) s under load on both, past the 60 s authority lease"
     t0=$(date +%s)
     for h in "$@"; do
         on "$h" "echo $WITHDRAW_PAUSE_MS > /sys/module/mxfs/parameters/dl_inject_hb_pause_ms && echo ARMED" 15 | grep -q ARMED \
@@ -728,8 +802,8 @@ withdraw() {
         out=$(load_result "$h")
         [ "$(sed -n 's/.*err=\([0-9]*\).*/\1/p' <<<"$out")" = 0 ] || die "$h, which did not withdraw, saw an I/O error: ${out:-no result}"
         say "  $h carried on: $out"
-        out=$(on "$h" "journalctl -k --no-pager -o cat --since @$t0 | grep -aoE 'P163-RECOVERY-COMPLETE|P-RBLK-[A-Z-]+' | sort | uniq -c | tr '\n' ' '" 30)
-        grep -q P-RBLK <<<"$out" && die "$h refused operations as RECOVERY_BLOCKED: $out"
+        out=$(on "$h" "journalctl -k --no-pager -o cat --since @$t0 | grep -aoE 'P163-RECOVERY-COMPLETE|P-RBLK-[A-Z-]+|P240-RBLK-[A-Z-]+' | sort | uniq -c | tr '\n' ' '" 30)
+        grep -qE "$RBLK_REFUSED" <<<"$out" && die "$h refused operations as RECOVERY_BLOCKED: $out"
         say "  $h: ${out:-no recovery lines}"
     done
     LEFT=""
@@ -767,9 +841,9 @@ step_withdraw_held() {
     say "  $P1's rejoin before the restart: $(tr '\n' '|' <<<"$out" | cut -c1-400)"
     s=$(wait_mounted "$P1" "$REJOIN_BUDGET") || die "$P1 did not mount again within ${REJOIN_BUDGET}s of answering"
     say "  $P1 mounted again $s s after answering"
-    out=$(on "$P0" "journalctl -k --no-pager -o cat --since @$t0 | grep -aoE 'P163-RECOVERY-COMPLETE|P-RBLK-[A-Z-]+' | sort | uniq -c | tr '\n' ' '" 30)
+    out=$(on "$P0" "journalctl -k --no-pager -o cat --since @$t0 | grep -aoE 'P163-RECOVERY-COMPLETE|P-RBLK-[A-Z-]+|P240-RBLK-[A-Z-]+' | sort | uniq -c | tr '\n' ' '" 30)
     grep -q P163-RECOVERY-COMPLETE <<<"$out" || die "$P0 did not complete the recovery of $P1: ${out:-no recovery lines}"
-    grep -q P-RBLK <<<"$out" && die "$P0 refused operations as RECOVERY_BLOCKED: $out"
+    grep -qE "$RBLK_REFUSED" <<<"$out" && die "$P0 refused operations as RECOVERY_BLOCKED: $out"
     say "  $P0: $out"
     out=$(load_result "$P0")
     [ "$(sed -n 's/.*err=\([0-9]*\).*/\1/p' <<<"$out")" = 0 ] || die "$P0, which did not withdraw, saw an I/O error: ${out:-no result}"
@@ -830,7 +904,7 @@ step_withdraw_guests() {
     sd=$(python3 -I -c 'import sys; print("%.1f" % (float(sys.argv[2]) - float(sys.argv[1])))' "$tr" "$tu")
     say "  $P1's rejoin: unmounted $sd s after it started"
     [ "$(boot_id "$P1")" = "$b1" ] || die "$P1 restarted: a withdrawn mount must rejoin without a host restart"
-    out=$(on "$P0" "journalctl -k --no-pager -o short-unix --since @$t0 | grep -a -E 'P236-FENCE-CERTIFIED|P163-RECOVERY-COMPLETE|P238-FENCE-BLOCKED|P-RBLK-' | head -4 | cut -c1-200; journalctl -k --no-pager -o cat --since @$t0 | grep -aoE 'P163-RECOVERY-COMPLETE|P238-FENCE-BLOCKED[A-Z-]*|P-RBLK-[A-Z-]+' | sort | uniq -c | tr '\n' ' '" 30)
+    out=$(on "$P0" "journalctl -k --no-pager -o short-unix --since @$t0 | grep -a -E 'P236-FENCE-CERTIFIED|P163-RECOVERY-COMPLETE|P238-FENCE-BLOCKED|P-RBLK-' | head -4 | cut -c1-200; journalctl -k --no-pager -o cat --since @$t0 | grep -aoE 'P163-RECOVERY-COMPLETE|P238-FENCE-BLOCKED[A-Z-]*|P-RBLK-[A-Z-]+|P240-RBLK-[A-Z-]+' | sort | uniq -c | tr '\n' ' '" 30)
     sed 's/^/    /' <<<"$out" | tee -a "$EVID/log"
     for h in "$P0" "$P1"; do
         s=$(wait_mounted "$h" "$OUTAGE_BUDGET") || die "$h is not a full half of the pair again within ${OUTAGE_BUDGET}s"
@@ -843,9 +917,9 @@ step_withdraw_guests() {
 print(\"THIN err=%d write_ios=%d lat_max_ms=%.0f\" % (j[\"error\"], j[\"write\"][\"total_ios\"], j[\"write\"][\"lat_ns\"][\"max\"] / 1e6))'; rm -f $MNT/pvefail/thin.\$(hostname)" $((LOAD_S + 60)) | grep '^THIN ')
     say "  $P0's sparse-file writer: ${out:-no result}"
     [ "$(sed -n 's/.*err=\([0-9]*\).*/\1/p' <<<"$out")" = 0 ] || die "$P0's sparse-file writer saw an I/O error: ${out:-no result}"
-    out=$(on "$P0" "journalctl -k --no-pager -o cat --since @$t0 | grep -aoE 'P163-RECOVERY-COMPLETE|P-RBLK-[A-Z-]+' | sort | uniq -c | tr '\n' ' '" 30)
+    out=$(on "$P0" "journalctl -k --no-pager -o cat --since @$t0 | grep -aoE 'P163-RECOVERY-COMPLETE|P-RBLK-[A-Z-]+|P240-RBLK-[A-Z-]+' | sort | uniq -c | tr '\n' ' '" 30)
     grep -q P163-RECOVERY-COMPLETE <<<"$out" || die "$P0 did not complete the recovery of $P1: ${out:-no recovery lines}"
-    grep -q P-RBLK <<<"$out" && die "$P0 refused operations as RECOVERY_BLOCKED: $out"
+    grep -qE "$RBLK_REFUSED" <<<"$out" && die "$P0 refused operations as RECOVERY_BLOCKED: $out"
     for id in $ids; do
         out=$(on "$P1" "qm status $id; qm destroy $id --purge 1 --destroy-unreferenced-disks 1 >/dev/null 2>&1; echo DESTROY_RC=\$?" 120)
         grep -q 'DESTROY_RC=0' <<<"$out" || die "could not destroy test VM $id on $P1: $(tr '\n' ' ' <<<"$out")"
@@ -888,7 +962,7 @@ step_slow_beat() {
     sleep 8
     bad=""
     for h in "$P0" "$P1"; do
-        out=$(on "$h" "journalctl -k --no-pager -o cat --since @$t0 | grep -aoE 'P290-AUTH-CLOSED|P290-AUTH-HB-STOP|P290-AUTH-WITHDRAW|P131-SELF-FENCE|P163-WITHDRAW-STAMP|P163-WITHDRAW-SEEN|P-RBLK-[A-Z-]+' | sort | uniq -c | tr '\n' ' '" 30)
+        out=$(on "$h" "journalctl -k --no-pager -o cat --since @$t0 | grep -aoE 'P290-AUTH-CLOSED|P290-AUTH-HB-STOP|P290-AUTH-WITHDRAW|P131-SELF-FENCE|P163-WITHDRAW-STAMP|P163-WITHDRAW-SEEN|P-RBLK-[A-Z-]+|P240-RBLK-[A-Z-]+' | sort | uniq -c | tr '\n' ' '" 30)
         [ -z "$out" ] || bad="$bad; $h: $out"
     done
     [ -z "$bad" ] || { collect slow-beat "$t0"; die "a late heartbeat on $P1 withdrew a mount its peer could not have fenced$bad"; }

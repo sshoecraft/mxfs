@@ -830,6 +830,11 @@ install_self_authority() {
 # production log carries; so is the repeat limit a production module runs
 # with (the verdict reads those lines for presence, never for a count).
 SELF_TAGS='P163- P238- P236- P-DRBD- P239- P240- P-RBLK- P912-ACQ P-LKWAIT P958- P-ACQ-LADDER P960- P-TAUTH-IMPORT-RETAINED'
+# The module's lines for an operation refused or failed because a dead node's
+# recovery is blocked.  Not P-RBLK-RELEASE-SKIP-DEAD-MASTER: that is a release
+# not sent to a master that just died (its recovery purge retires the grant),
+# and it refuses nothing.
+RBLK_REFUSED='P-RBLK-(COVERS|DENY)-[A-Z-]+|P-RBLK-TERMINAL|P240-RBLK-[A-Z-]+'
 self_dyndbg() {  # <node> <narrow|all>
     local f cmd='c=/proc/dynamic_debug/control; l=/sys/module/mxfs/parameters/log_repeat_limit; '
     if [ "$2" = narrow ]; then
@@ -964,8 +969,8 @@ step_self_death_test() {
     grep -q 'result=EXCLUDED .*agent=self participant=0' "$EVID/sdeath_authority" \
         || die "self death test: no EXCLUDED receipt from the built-in authority on $surv: $(head -3 "$EVID/sdeath_authority" | tr '\n' ' ')"
     grep -q 'P238-DRBD-FENCE-WITNESSED' "$EVID/sdeath_kernlog" || die "self death test: recovery completed without a DRBD witness"
-    if grep -q 'P-RBLK-' "$EVID/sdeath_kernlog"; then
-        die "self death test: $surv refused operations as RECOVERY_BLOCKED: $(grep -m2 'P-RBLK-' "$EVID/sdeath_kernlog" | cut -c1-200 | tr '\n' ' ')"
+    if grep -qE "$RBLK_REFUSED" "$EVID/sdeath_kernlog"; then
+        die "self death test: $surv refused operations as RECOVERY_BLOCKED: $(grep -m2 -E "$RBLK_REFUSED" "$EVID/sdeath_kernlog" | cut -c1-200 | tr '\n' ' ')"
     fi
 
     wait "${pids[@]}"
@@ -1166,7 +1171,7 @@ step_self_outage_test() {
     done
     say "  DRBD Connected with both disks UpToDate at +${synced_at:-never} s"
     for n in "${NODES[@]}"; do
-        ssh_n "$n" "grep -aE 'mxfs-test|P-BOOT-|P-DRBD-|P236-FENCE|P238-|P163-|P239-|P-RBLK-|mxfs-drbd-fence|P-DBG-DRBD|P-LOG-MOUNT-CANCEL|P-RMAN-|P-TAUTH-(IMPORT-RESIDUE|RETENTION|IMPORT-RETIRE|IMPORT-RETAINED|RETAINED-RELEASE)|Starting recovery|Ending recovery|Ending clean mount' /root/dmesg.stream | sed 's/^\\(\\[[ 0-9.]*\\]\\).*\\(mxfs[-:]\\|XFS\\)/\\1 \\2/' | cut -c1-300" 30 > "$EVID/sout_kernlog.$n"
+        ssh_n "$n" "grep -aE 'mxfs-test|P-BOOT-|P-DRBD-|P236-FENCE|P238-|P163-|P239-|P-RBLK-|P240-RBLK-|mxfs-drbd-fence|P-DBG-DRBD|P-LOG-MOUNT-CANCEL|P-RMAN-|P-TAUTH-(IMPORT-RESIDUE|RETENTION|IMPORT-RETIRE|IMPORT-RETAINED|RETAINED-RELEASE)|Starting recovery|Ending recovery|Ending clean mount' /root/dmesg.stream | sed 's/^\\(\\[[ 0-9.]*\\]\\).*\\(mxfs[-:]\\|XFS\\)/\\1 \\2/' | cut -c1-300" 30 > "$EVID/sout_kernlog.$n"
         # base64: ssh_n filters lines, which a gzip stream would not survive
         ssh_n "$n" "gzip -c /root/dmesg.stream | base64 -w 76" 60 | base64 -d > "$EVID/sout_dmesg_stream.$n.gz"
         ssh_n "$n" "journalctl -b 0 --no-pager -o short-iso -u mxfs-rig-boot -t mxfs-drbd-fence | cut -c1-300 | tail -60; tail -5 /var/lib/mxfs/drbd-fence.$RES 2>/dev/null" 30 > "$EVID/sout_bootlog.$n"
@@ -1210,8 +1215,8 @@ step_self_outage_test() {
             || die "self outage test: $m mounted without resuming the term the fail point left"
         say "  $m failed after K's replay was recorded, then resumed the term in the same boot and finished it: $(grep -o 'P-LOG-MOUNT-CANCEL [^—]*' "$EVID/sout_kernlog.$m" | head -1)"
     fi
-    if grep -q 'P-RBLK-' "$EVID"/sout_kernlog.*; then
-        die "self outage test: an operation was refused as RECOVERY_BLOCKED: $(grep -ah 'P-RBLK-' "$EVID"/sout_kernlog.* | head -2 | cut -c1-200 | tr '\n' ' ')"
+    if grep -qE "$RBLK_REFUSED" "$EVID"/sout_kernlog.*; then
+        die "self outage test: an operation was refused as RECOVERY_BLOCKED: $(grep -ahE "$RBLK_REFUSED" "$EVID"/sout_kernlog.* | head -2 | cut -c1-200 | tr '\n' ' ')"
     fi
     # A sealed record found gone before a replay is a refused volume, even
     # when a later attempt mounted.
@@ -1332,10 +1337,10 @@ step_self_restart_test() {
             sleep 5
         done; echo NOT_MOUNTED" $((SELF_RESTART_BUDGET + 30)))
     ssh_n "$surv" "journalctl -b 0 --no-pager -o short-iso -u mxfs-rig-boot -u mxfs-rig-guard -t mxfs-drbd-fence | cut -c1-400 | tail -40; tail -5 /var/lib/mxfs/drbd-fence.$RES" 30 > "$EVID/srestart_bootlog.$surv"
-    ssh_n "$surv" "grep -aE 'mxfs-test|P-BOOT-|P-DRBD-|P236-FENCE|P238-|P163-|P-RBLK-|mxfs-drbd-fence' /root/dmesg.stream | sed 's/^\\(\\[[ 0-9.]*\\]\\).*\\(mxfs[-:]\\|XFS\\)/\\1 \\2/' | cut -c1-300" 30 > "$EVID/srestart_kernlog.$surv"
+    ssh_n "$surv" "grep -aE 'mxfs-test|P-BOOT-|P-DRBD-|P236-FENCE|P238-|P163-|P-RBLK-|P240-RBLK-|mxfs-drbd-fence' /root/dmesg.stream | sed 's/^\\(\\[[ 0-9.]*\\]\\).*\\(mxfs[-:]\\|XFS\\)/\\1 \\2/' | cut -c1-300" 30 > "$EVID/srestart_kernlog.$surv"
     grep -q '^MOUNTED' <<<"$out" || die "self restart test: $surv did not mount alone within ${SELF_RESTART_BUDGET}s of its boot program's start ($(tail -1 <<<"$out")): $(grep -a 'mxfs-drbd-fence' "$EVID/srestart_bootlog.$surv" | tail -2 | cut -c1-300 | tr '\n' ' ') (evidence $EVID)"
     say "  $surv mounted alone $(( $(date +%s) - t0 ))s after its boot program started: $(grep -aoE 'P-DRBD-STARTUP-[A-Z-]+ [^—]*' "$EVID/srestart_kernlog.$surv" | head -1 | cut -c1-160)"
-    grep -q 'P-RBLK-' "$EVID/srestart_kernlog.$surv" && die "self restart test: $surv refused operations as RECOVERY_BLOCKED"
+    grep -qE "$RBLK_REFUSED" "$EVID/srestart_kernlog.$surv" && die "self restart test: $surv refused operations as RECOVERY_BLOCKED"
     out=$(ssh_n "$surv" "for d in s v a; do cd $MNT/srestart/\$d && md5sum f* | sort -k2 | md5sum | cut -c1-32; done; touch $MNT/srestart/after && rm $MNT/srestart/after && echo FS_OK" 60)
     [ "$(sed -n 1p <<<"$out")" = "$ssum" ] && [ "$(sed -n 2p <<<"$out")" = "$vsum" ] && [ "$(sed -n 3p <<<"$out")" = "$asum" ] \
         || die "self restart test: $surv alone reads different data: $out (written $ssum $vsum $asum)"

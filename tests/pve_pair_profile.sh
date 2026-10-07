@@ -19,7 +19,8 @@
 # Usage: tests/pve_pair_profile.sh [seconds]
 #        Without seconds it runs until the local file STOP_FILE exists.
 # Env:
-#   PVE_PAIR    "<addr> <addr>" (default "192.168.1.80 192.168.1.81")
+#   PVE_PAIR    "<addr> <addr>" (default "192.168.1.80 192.168.1.81"), or one
+#               address to profile that host alone
 #   FNS         the functions (default below: the write and read entry points,
 #               fsync and the log force, direct-write allocation and unwritten
 #               conversion, transaction alloc/commit, the cluster inode and AG
@@ -37,7 +38,9 @@ set -u
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 SSHP="$REPO/tools/mxfs_sshpass.sh"
 read -r -a PAIR <<<"${PVE_PAIR:-192.168.1.80 192.168.1.81}"
-[ "${#PAIR[@]}" = 2 ] || { echo "pve_pair_profile: PVE_PAIR must name two hosts"; exit 2; }
+# One host is allowed: a host about to be reset (a crash step) cannot be read
+# while it is down, and its profile dies with it.
+[ "${#PAIR[@]}" = 1 ] || [ "${#PAIR[@]}" = 2 ] || { echo "pve_pair_profile: PVE_PAIR must name one or two hosts"; exit 2; }
 RUN_S=${1:-}
 FNS=${FNS:-xfs_file_write_iter xfs_file_read_iter xfs_file_fsync xfs_log_force_seq xfs_log_force xfs_log_force_inode xlog_cil_force_seq xlog_wait_on_iclog xfs_iomap_write_direct xfs_iomap_write_unwritten xfs_dio_write_end_io xfs_bmapi_write xfs_trans_alloc xfs_trans_commit mxfs_ilock_fallible mxfs_ag_dlm_lock mxfs_ag_dlm_unlock mxfs_trans_preacquire_inode_ags mxfs_dlm_ag_bast_work_fn mxfs_dlm_bast_work_fn mxfs_pal_ioq_admit mxfs_ioq_admit_one mxfs_pal_drbd_cas_emulate mxfs_drbd_reg_put xfs_create xfs_remove xfs_setattr_size xfs_alloc_vextent_start_ag xfs_alloc_vextent_near_bno}
 SLOW_MS=${SLOW_MS:-1000}
@@ -142,7 +145,9 @@ for h in "${PAIR[@]}"; do
 done
 say "profiled for $(( $(date +%s) - T0 ))s, $n snapshots"
 
-python3 -I - "$EVID" "$n" "${NAME[${PAIR[0]}]}" "${NAME[${PAIR[1]}]}" <<'PY' | tee -a "$SUM"
+HOSTNAMES=()
+for h in "${PAIR[@]}"; do HOSTNAMES+=("${NAME[$h]}"); done
+python3 -I - "$EVID" "$n" "${HOSTNAMES[@]}" <<'PY' | tee -a "$SUM"
 import collections, re, sys
 evid, last, names = sys.argv[1], sys.argv[2], sys.argv[3:]
 unit = {"ns": 1e-6, "us": 1e-3, "ms": 1.0, "s": 1e3}
