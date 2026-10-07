@@ -1,3 +1,28 @@
+## 2026-10-07 — 0.90.89 — the DRBD host that excludes its peer resumes its own I/O, outside the driver's RCU bug
+
+**Every exclusion of a peer logged a kernel WARNING on the survivor.** When the
+fence handler answers DRBD 8.4 that the peer is fenced, the driver resumes the
+I/O it froze at the link's loss and writes a new current UUID to its metadata
+from inside an RCU read section. The write sleeps: "Voluntary context switch
+within RCU read-side critical section!", stack through
+`drbd_uuid_new_current`, once per boot on both pairs, and while the metadata
+write lasts every RCU grace period of the host waits on it.
+- The winner of the tie-break now runs `drbdadm resume-io` itself, after the
+  peer is isolated and the exclusion is durable and before it answers DRBD.
+  That command makes the same UUID rotation outside RCU, ends the freeze and
+  restarts the requests the lost link held, so the answer only records the
+  peer Outdated. It is bounded (10 s) and never fatal: if it fails or hangs,
+  DRBD resumes the I/O on the answer as before.
+
+**Diagnostics:** `tools/tauth_page_auth.py` finds the authority ledger from the
+device's own superblock, prints the routing seed and volume id, lists the pages
+still owned by a given node (`--auth-node`) and routes inode numbers to their
+pages (`--route-inodes`), checking its routing against the records on the
+platter. `tests/pve_takeover_census.sh` powers participant 1 off, slows the
+survivor's takeover of its pages, times a mkdir and the stats of two probe
+trees on those pages while it runs, and checks that no page is left under the
+dead incarnation afterwards.
+
 ## 2026-10-07 — 0.90.88 — a stalled page transition also names the last on-demand takeover's result
 
 **Diagnostics only.** `P960-STALLED-PAGE`, logged when a lock request's wait

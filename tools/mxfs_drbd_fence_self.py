@@ -113,6 +113,10 @@ NFT_TABLE_FMT = "mxfs_fence_%s"
 MXFS_TCP_PORTS = "7600"
 MXFS_UDP_PORTS = "7601-7603"
 RESTART_DELAY_S = 10
+# The longest the winner waits for its own `drbdadm resume-io` before it
+# answers DRBD anyway (resume_frozen_io).  The command is one state change on
+# a device whose I/O is frozen: milliseconds.
+RESUME_IO_WAIT_S = 10
 GUARD_INTERVAL_S = 5
 # A shut-down MXFS mount never serves again: its authority lease expired, a
 # heartbeat detector or a peer fenced it, or it was forced down for another
@@ -387,6 +391,55 @@ def exclude(res, peer, peer_addr, drbd_port, detail):
 
 # --------------------------------------------------------------- fence-peer
 
+def resume_frozen_io(res):
+    """Resume the resource's frozen I/O ourselves, once the peer is excluded
+    and before DRBD has the exit code.
+
+    On an exit of 4 or 7 DRBD 8.4 resumes I/O frozen by fencing in its state
+    machine (drbd_state.c, after_conn_state_ch: "the outdate peer handler is
+    successful"), and that path writes the new current UUID to the metadata
+    inside rcu_read_lock().  The write sleeps, and every exclusion logged a
+    kernel WARNING, "Voluntary context switch within RCU read-side critical
+    section!", with a stack through drbd_uuid_new_current, on both pairs; a
+    sleep there on a slow disk also holds up every RCU grace period of the
+    host for as long as the metadata write takes.  `drbdadm resume-io` makes
+    the same UUID rotation outside RCU (drbd_nl.c drbd_adm_resume_io), clears
+    the freeze and restarts the requests the lost link held, so that when the
+    exit code arrives nothing is frozen and DRBD only records the peer
+    Outdated.
+
+    Safe here only: DRBD runs this handler for a Primary that lost its link
+    from its own drbd_async_h thread, which holds none of the locks the
+    command takes.  A promotion runs it inside drbdadm primary, under the
+    resource's admin mutex, and is never resumed from here.  Bounded and never
+    fatal: a resume-io that fails, or has not returned in RESUME_IO_WAIT_S, is
+    logged and left, and DRBD resumes the I/O itself on the exit code as
+    before."""
+    try:
+        p = subprocess.Popen(["drbdadm", "resume-io", res], stdin=subprocess.DEVNULL,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                             start_new_session=True)
+    except OSError as e:
+        log("fence-peer: drbdadm resume-io %s could not start (%s); DRBD resumes "
+            "the I/O on the exit code" % (res, e), crit=True)
+        return False
+    t0 = time.time()
+    while p.poll() is None and time.time() - t0 < RESUME_IO_WAIT_S:
+        time.sleep(0.05)
+    if p.returncode is None:
+        # not waited on: a command stuck in the kernel cannot be killed, and
+        # DRBD's own resume after the exit code releases whatever holds it
+        log("fence-peer: drbdadm resume-io %s has not returned after %d s; DRBD "
+            "resumes the I/O on the exit code" % (res, RESUME_IO_WAIT_S), crit=True)
+        return False
+    err = p.stderr.read().decode(errors="replace").strip() if p.stderr else ""
+    if p.returncode != 0:
+        log("fence-peer: drbdadm resume-io %s exited %d (%s); DRBD resumes the I/O "
+            "on the exit code" % (res, p.returncode, err), crit=True)
+        return False
+    return True
+
+
 def cmd_fence_peer():
     res = os.environ.get("DRBD_RESOURCE", "")
     ep = drbd_endpoints(res) if res else None
@@ -499,6 +552,7 @@ def cmd_fence_peer():
         "resource goes StandAlone, and %s is held out (episode %s) until it reports no "
         "live MXFS and DRBD not Primary (a restart does that). I/O resumes now."
         % (res, peer, peer_addr, me, peer, peer, episode), crit=True)
+    resume_frozen_io(res)
     # StandAlone after DRBD has the answer: disconnecting from inside the
     # handler would wait on the state machine the handler is holding.  The
     # isolation already keeps the old peer from reconnecting meanwhile, and

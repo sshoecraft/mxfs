@@ -10,11 +10,15 @@ The page-selection rule is the store's (highest valid seq wins); the crc32c is
 NOT checked here, so a torn copy with a plausible header could be miscounted —
 this is a census tool for a quiescent LUN, not a repair tool.
 
-Usage:  tauth_page_auth.py <dev> <base_bytes> [--pages N] [--page P ...] [--entries]
-                                               [--holders [--limit N]]
+Usage:  tauth_page_auth.py <dev> [base_bytes] [--pages N] [--page P ...] [--entries]
+                                                 [--holders [--limit N]]
         base_bytes is the region base printed by P-TAUTH-LEDGER-OPEN
         (mxfs: tauth: P-TAUTH-LEDGER-OPEN ... base=<bytes>) or the super's
-        tauth_offset from chk_mxfs -v.  --page prints one page's tuple;
+        tauth_offset from chk_mxfs -v; left out, it is read from the device's
+        own superblock.  The first line names the base, the page count and
+        the hash seed a resource's page is routed by (tests/tauth/pageof
+        <type> <ino> <ag> <npages> <seed> maps a resource to its page).
+        --page prints one page's tuple;
         --entries adds that page's non-EMPTY records (exclusive holder
         node/incarnation, shared-holder slot bitmap).
         --holders is the census of what a later import would install: every
@@ -78,14 +82,54 @@ PAGE_MAGIC = 0x47504154
 STATE = {0: "UNOWNED", 1: "ACTIVE", 2: "PREPARED"}
 
 
-def region_npages(f, base):
+SUPER_MAGIC = 0x5346584D
+SUPER_UUID_OFFSET = 16      # struct mxfs_ondisk_super: fs_uuid, the XFS sb_uuid
+SUPER_TAUTH_OFFSET = 128    # struct mxfs_ondisk_super: tauth_offset
+LTYPE_INODE = 1
+
+
+def super_fields(f):
+    """(region base, volume id) from the device's own MXFS superblock (its
+    first 4 KiB), so a census needs nothing from a kernel log or another tool.
+    The volume id is the one every lock resource carries: fnv1a-64 of the
+    16-byte uuid (mxfs_uuid_to_volume_id)."""
+    f.seek(0)
+    sb = f.read(PAGE)
+    (magic,) = struct.unpack_from("<I", sb, 0)
+    if magic != SUPER_MAGIC:
+        return 0, 0
+    (base,) = struct.unpack_from("<Q", sb, SUPER_TAUTH_OFFSET)
+    vid = 0xcbf29ce484222325
+    for b in sb[SUPER_UUID_OFFSET:SUPER_UUID_OFFSET + 16]:
+        vid = ((vid ^ b) * 0x100000001b3) & 0xFFFFFFFFFFFFFFFF
+    return base, vid
+
+
+def inode_page(vid, ino, seed, npages):
+    """The ledger page an inode's lock is routed to: mxfs_tauth_res_hash over
+    the 32-byte struct mxfs_resource_id {volume, ino, offset 0, ag 0, type 1},
+    then hash % npages (mxfs_tauth_home_page)."""
+    res = struct.pack("<QQQIB3x", vid, ino, 0, 0, LTYPE_INODE)
+    h = (2166136261 ^ (seed & 0xFFFFFFFF) ^ (seed >> 32)) & 0xFFFFFFFF
+    for b in res:
+        h = ((h ^ b) * 16777619) & 0xFFFFFFFF
+    h ^= h >> 16
+    h = (h * 0x7feb352d) & 0xFFFFFFFF
+    h ^= h >> 15
+    return h % npages
+
+
+def region_geometry(f, base):
+    """(npages, hash_seed) from the first sane region header copy.  The seed is
+    what a resource's page is routed by (tests/tauth/pageof takes both)."""
     for copy in (0, 1):
         f.seek(base + copy * PAGE)
         hdr = f.read(PAGE)
         magic, _ver, _epp, npages = struct.unpack_from("<IHHI", hdr, 0)
         if magic == REGION_MAGIC and npages:
-            return npages
-    return 0
+            (seed,) = struct.unpack_from("<Q", hdr, 64)
+            return npages, seed
+    return 0, 0
 
 
 ENTRY_STATE = {0: "EMPTY", 1: "ACTIVE", 2: "FREE", 3: "UNKNOWN"}
@@ -155,7 +199,8 @@ def holder_records(buf):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("dev")
-    ap.add_argument("base", type=int)
+    ap.add_argument("base", type=int, nargs="?", default=0,
+                    help="region base in bytes (default: the device super's tauth_offset)")
     ap.add_argument("--holders", action="store_true",
                     help="census of every record that still names a holder")
     ap.add_argument("--limit", type=int, default=40,
@@ -167,13 +212,41 @@ def main():
     ap.add_argument("--chunk", type=int, default=256, help="pages per read")
     ap.add_argument("--entries", action="store_true",
                     help="with --page: also list the page's non-EMPTY records")
+    ap.add_argument("--auth-node", type=int, default=0,
+                    help="list every page whose authority (or PREPARED target) "
+                         "is this node id, one AUTHPAGE line each")
+    ap.add_argument("--route-inodes", metavar="FILE",
+                    help="print, for each inode number in FILE (one per line), "
+                         "the page its lock routes to and that page's authority")
     a = ap.parse_args()
 
     with DirectDev(a.dev) as f:
-        npages = a.pages or region_npages(f, a.base)
+        sb_base, vid = super_fields(f)
+        if not a.base:
+            a.base = sb_base
+            if not a.base:
+                print("no MXFS superblock on %s; pass the region base" % a.dev,
+                      file=sys.stderr)
+                return 2
+        hdr_pages, seed = region_geometry(f, a.base)
+        npages = a.pages or hdr_pages
         if not npages:
             print("no valid region header at base %d" % a.base, file=sys.stderr)
             return 2
+        print("region base=%d npages=%d seed=%#018x volume=%#018x" %
+              (a.base, npages, seed, vid))
+        route = {}
+        if a.route_inodes:
+            with open(a.route_inodes) as rf:
+                for line in rf:
+                    line = line.strip()
+                    if line.isdigit():
+                        route.setdefault(inode_page(vid, int(line), seed, npages),
+                                         []).append(int(line))
+        tuples = {}
+        # every inode record a page carries routes to that page; a record that
+        # does not says this tool's routing is not the module's
+        r_ok = r_bad = 0
         # mxfs_tauth_page_off: 2 header copies, then 3 control pages (view
         # slot A, view slot B, root), then copy A, then copy B.
         off_a = a.base + (2 + 3) * PAGE
@@ -202,6 +275,19 @@ def main():
                 best = max((d for d in (da, db) if d is not None),
                            key=lambda d: d[0])
                 hist[best[1]] += 1
+                if route or a.auth_node:
+                    tuples[pid] = (best[0],) + best[1]
+                if route:
+                    for (_i, _st, rtype, _ag, ino, *_rest) in holder_records(best[2]):
+                        if rtype == LTYPE_INODE and ino:
+                            if inode_page(vid, ino, seed, npages) == pid:
+                                r_ok += 1
+                            else:
+                                r_bad += 1
+                if a.auth_node and (best[1][1] == a.auth_node or
+                                    (best[1][0] == "PREPARED" and best[1][3] == a.auth_node)):
+                    print("AUTHPAGE page=%d seq=%d state=%s auth=%d/%d target=%d/%d" %
+                          ((pid, best[0]) + best[1]))
                 if pid in want:
                     print("page %d seq=%d state=%s auth=%d/%d target=%d/%d" %
                           ((pid, best[0]) + best[1]))
@@ -233,6 +319,14 @@ def main():
                                    rtype, ag, ino, ex_node, ex_inc, ex_slot,
                                    ex_mode, shared_mode,
                                    ",".join(str(s) for s in slots) or "-"))
+        for page in sorted(route):
+            t = tuples.get(page)
+            desc = ("seq=%d state=%s auth=%d/%d target=%d/%d" % t) if t else "unreadable"
+            for ino in route[page]:
+                print("ROUTE ino=%d page=%d %s" % (ino, page, desc))
+        if route:
+            print("ROUTING_CHECK inode_records_on_their_page=%d elsewhere=%d" %
+                  (r_ok, r_bad))
         print("pages=%d one_copy_invalid=%d both_invalid=%d" %
               (npages, invalid, both_invalid))
         for tup, n in hist.most_common():
