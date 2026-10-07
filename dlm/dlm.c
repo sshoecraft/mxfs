@@ -6686,15 +6686,31 @@ int mxfs_dlm_wait_release_acks(struct mxfs_dlm_ctx *ctx, uint64_t timeout_ms)
 
 /* ── attach / purge (mount-layer entry points) ── */
 
-/* (D-0347): may the store take over a commit ticket left by
- * {node, inc}?  Only a recovery-purged incarnation — the purge follows the
- * SCSI-PR fence, so that incarnation can issue no further LUN command. */
+/*
+ * (D-0347): may the store take over a commit ticket left by {node, inc}?
+ * Only one that can issue no further command to the device: an incarnation
+ * that is dead by the same durable judgement a takeover of its pages rests on
+ * (dlm_authority_dead) — recovery-purged by this mount, settled by name, or
+ * of a previous era, its heartbeat slot moved on and not in this mount's
+ * view.  A slot moves on only after its tenant's recovery has fenced it or
+ * the tenant has left cleanly; an incarnation still occupying a slot, alive
+ * or dead and not yet recovered, keeps its ticket and the commit is -EBUSY.
+ *
+ * This used to accept only an incarnation this mount had itself purged.  A
+ * writer that died between its ticket swap and its publish left its ticket on
+ * the page's spare copy for good once the mount that purged it was gone:
+ * every later commit on the page was refused -EBUSY, so no takeover could
+ * move the page off its dead authority, and every lock on a resource routed
+ * to it failed.  Measured on the physical DRBD pair (0.90.91): page 13005
+ * PREPARED by one previous-era incarnation to another, a ticket of the target
+ * on copy 0 proposing seq 19 over the committed 18, P960-STALLED-PAGE
+ * ondemand_last{page=13005 rc=-16}, and the survivor's mkdir failed EAGAIN.
+ */
 static bool dlm_store_fenced_cb(void *data, uint32_t node, uint64_t inc)
 {
 	struct mxfs_dlm_ctx *ctx = data;
 
-	(void)inc;
-	return ctx && node && dlm_owner_purged(ctx, node, -1);
+	return ctx && node && dlm_authority_dead(ctx, node, inc);
 }
 
 void mxfs_dlm_set_ledger_geometry(struct mxfs_dlm_ctx *ctx, uint32_t npages,

@@ -1,3 +1,50 @@
+## 2026-10-07 — 0.90.92 — a ledger page whose writer died mid-commit no longer refuses every later write
+
+**A writer that died between claiming a lock-ledger page's spare copy and
+publishing it left its claim there, and once the mount that recovered it was
+gone, no mount could write that page again.** A ledger commit first claims
+the page's spare copy with a ticket (a compare-and-swap of its first sector),
+writes the new image under it, then publishes. A ticket left by another
+writer refuses the commit, so two writers never write one copy, unless that
+writer is fenced, and "fenced" meant only "recovered and purged by this
+mount". On the physical DRBD pair (0.90.91), after pve1 recovered pve2 in the
+failover suite's answering-restart step, a `mkdir` on pve1 failed with
+EAGAIN. Page 13005 was PREPARED by one incarnation of an earlier era to
+another, and the target's ticket stood on copy 0 proposing seq 19 over the
+committed 18. Every takeover of the page was refused -EBUSY
+(`P960-STALLED-PAGE ... ondemand_last{page=13005 rc=-16}`), and every lock on
+a file or directory routed to the page failed. Pages 9762 and 10942 carried
+tickets of dead writers too, and after both hosts rebooted all three did.
+- A ticket is taken over when its writer is dead by the judgement the page
+  takeover itself rests on: purged by this mount, settled by name, or an
+  incarnation of an earlier era whose heartbeat slot has moved on and that is
+  not in this mount's view. A writer that is a live member, or dead and still
+  the occupant of its slot until its recovery runs, keeps its ticket as
+  before.
+- `tests/tauth/abandoned_ticket.sh` has a writer die mid-commit (the store's
+  own knob: the ticket swap is issued and its answer lost), then the next
+  mount, which never recovered it, asks for a lock on the page. On the
+  writer's own ACTIVE page, and on a PREPARED page (the measured shape), the
+  lock is granted past the ticket in 30-45 ms. A live member's ticket and an
+  unrecovered writer's are refused, and taken over once this mount purges the
+  writer. Against the 0.90.91 callback (`abandoned_ticket.sh control`) both
+  dead-writer arms fail with the field's signature: not granted, 50 refusals,
+  no takeover, the on-demand takeover's last answer -16, the ticket still on
+  the platter.
+
+**Also:**
+- `tools/tauth_page_auth.py --tickets` lists every page copy that holds a
+  ticket, with its writer's incarnation, read from the device.
+- `tests/tauth/cancel_race.sh control` also runs the release re-send as it was
+  before 0.90.83 (`control/release_retry_tick_0.90.82.c`); the sanitizer stops
+  both halves of the control, and the current engine passes both.
+- `tests/pve_churn_fairness.sh` runs the replay-gate test's two-host churn,
+  started on both hosts at one instant, timing each operation per loop and
+  sampling each loop's kernel stack, to measure how long participant 1 waits.
+- `scripts/drbd_write_latency_probe.sh` reads the mount's own log counters
+  (log writes, log blocks, log forces) before and after its writer, the same
+  way on MXFS and on XFS.
+
 ## 2026-10-07 — 0.90.91 — a lock cancellation's re-send no longer reads or frees a record another thread has freed
 
 **0.90.83 made the release re-send copy its records under the lock; the

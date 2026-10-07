@@ -29,6 +29,13 @@ Usage:  tauth_page_auth.py <dev> [base_bytes] [--pages N] [--page P ...] [--entr
         the next mount's takeover imports it as a holder nobody can ask to
         let go.  Prints one HOLDERS summary line (the last line of output)
         and up to --limit records (default 40).
+        --tickets lists every page copy whose first sector is a commit ticket
+        (struct mxfs_tauth_ticket): a writer that swapped its ticket onto the
+        spare copy and had not published when the read was made.  On a
+        quiescent LUN a ticket is a commit its writer abandoned, and the store
+        refuses every later commit on that page (-EBUSY) unless it judges the
+        writer fenced.  One TICKET line per copy, then a TICKETS summary by
+        writer.
 Runs on a node (python3, read access to the device) or anywhere the LUN is
 visible.  Layout: [region hdr A][region hdr B][3 control pages][pages copy A]
 [pages copy B], 4 KiB each (mxfs_tauth_page_off in include/mxfs/mxfs_tauth.h).
@@ -79,6 +86,7 @@ class DirectDev:
         return data
 REGION_MAGIC = 0x48545541
 PAGE_MAGIC = 0x47504154
+TICKET_MAGIC = 0x4b545441
 STATE = {0: "UNOWNED", 1: "ACTIVE", 2: "PREPARED"}
 
 
@@ -147,6 +155,19 @@ def decode(buf, page_id):
     (target_inc,) = struct.unpack_from("<Q", buf, 112)
     return seq, (STATE.get(auth_state, str(auth_state)), auth_node, auth_epoch,
                  target_node, target_inc), buf
+
+
+def ticket(buf, page_id):
+    """A commit ticket in this copy's first sector, as struct mxfs_tauth_ticket
+    lays it out: (writer_node, writer_inc, proposed_seq, base_seq, stamp_ms,
+    fs_gen), or None.  The crc32c is not checked (see the module note)."""
+    magic, _ver, _pad, pid, fs_gen = struct.unpack_from("<IHHII", buf, 0)
+    if magic != TICKET_MAGIC or pid != page_id:
+        return None
+    proposed, base = struct.unpack_from("<QQ", buf, 16)
+    (writer_node,) = struct.unpack_from("<I", buf, 40)
+    writer_inc, stamp_ms = struct.unpack_from("<QQ", buf, 48)
+    return writer_node, writer_inc, proposed, base, stamp_ms, fs_gen
 
 
 def entries(buf):
@@ -218,6 +239,9 @@ def main():
     ap.add_argument("--route-inodes", metavar="FILE",
                     help="print, for each inode number in FILE (one per line), "
                          "the page its lock routes to and that page's authority")
+    ap.add_argument("--tickets", action="store_true",
+                    help="list every page copy that holds a commit ticket, and "
+                         "a summary by writer")
     a = ap.parse_args()
 
     with DirectDev(a.dev) as f:
@@ -257,6 +281,7 @@ def main():
         h_records = h_pages = h_shared = h_ex = h_unknown = h_free = 0
         h_slots = Counter()
         h_shown = 0
+        t_writers = Counter()
         for start in range(0, npages, a.chunk):
             n = min(a.chunk, npages - start)
             f.seek(off_a + start * PAGE)
@@ -267,6 +292,20 @@ def main():
                 pid = start + i
                 da = decode(ca[i * PAGE:(i + 1) * PAGE], pid)
                 db = decode(cb[i * PAGE:(i + 1) * PAGE], pid)
+                if a.tickets or pid in want:
+                    for copy, buf, d in ((0, ca[i * PAGE:(i + 1) * PAGE], da),
+                                         (1, cb[i * PAGE:(i + 1) * PAGE], db)):
+                        t = ticket(buf, pid)
+                        if t:
+                            t_writers[(t[0], t[1])] += 1
+                            print("TICKET page=%d copy=%d writer=%d/%d proposed_seq=%d "
+                                  "base_seq=%d stamp_ms=%d fs_gen=%d" %
+                                  ((pid, copy) + t))
+                        elif pid in want:
+                            print("page %d copy=%d %s" %
+                                  (pid, copy, ("image seq=%d state=%s auth=%d/%d "
+                                               "target=%d/%d" % ((d[0],) + d[1]))
+                                   if d else "neither an image nor a ticket"))
                 if da is None and db is None:
                     both_invalid += 1
                     continue
@@ -331,6 +370,11 @@ def main():
               (npages, invalid, both_invalid))
         for tup, n in hist.most_common():
             print("%7d  state=%-8s auth=%u/%u target=%u/%u" % ((n,) + tup))
+        if a.tickets:
+            print("TICKETS copies=%d by_writer=%s" %
+                  (sum(t_writers.values()),
+                   ",".join("%d/%d:%d" % (w[0], w[1], c)
+                            for w, c in t_writers.most_common()) or "-"))
         if a.holders:
             print("HOLDERS records=%d pages=%d shared_bits=%d ex=%d unknown=%d "
                   "free_with_holder=%d by_slot=%s scanned=%d" %

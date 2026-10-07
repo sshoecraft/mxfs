@@ -296,6 +296,34 @@ static uint64_t vnode_inc(void *data, mxfs_node_id_t node)
 }
 
 /*
+ * The mount layer's occupant_cb (v5_occupant_cb) over the slot table above:
+ * is {node, inc} the current occupant of some heartbeat slot?  inc 0 is
+ * undecidable and answers yes.  It is what lets the DLM judge an incarnation
+ * of a previous era dead (dlm_authority_dead): one whose slot has moved on
+ * and that is not in the view.  A test that needs that judgement sets
+ * vocc_on before node_up; the tests written before it never set it, and
+ * their DLMs have no slot map to ask (they never take over by it).
+ */
+static volatile int vocc_on;
+
+static bool voccupant(void *data, mxfs_node_id_t node, uint64_t inc)
+{
+    int slot;
+
+    if (!node)
+        return false;
+    if (!inc)
+        return true;
+    for (slot = 0; slot < 64; slot++) {
+        uint64_t sinc = 0;
+
+        if (vslot_node(data, slot, &sinc) == node && sinc == inc)
+            return true;
+    }
+    return false;
+}
+
+/*
  * The heartbeat table AS THE PLATTER HOLDS IT, for the settled-owner oracle
  * (owners_settled_cb): what each slot's sector says, which outlives the mount
  * that wrote it.  vslot_node above is the other thing, the monitor's view of
@@ -444,6 +472,8 @@ static struct vnode *node_up(int idx, mxfs_node_id_t id, uint64_t inc, uint16_t 
     n->dlm->slot_node_cb = vslot_node;
     if (vhb_oracle)
         n->dlm->owners_settled_cb = vowners_settled;
+    if (vocc_on)
+        n->dlm->occupant_cb = voccupant;
     n->dlm->ledger_required = true;
     if (with_ledger) {
         int rc = mxfs_tauth_ledger_open(&n->ledger, dev, base, MXFS_TAUTH_REGION_BYTES,

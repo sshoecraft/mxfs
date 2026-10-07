@@ -274,11 +274,19 @@ run_vmio() {
             setsid iostat -x -d -t $DISK 1 $((VMIO_S + LVTIME + 30)) > /tmp/$RES-iostat.log 2>/dev/null </dev/null &
             echo started" 30 >/dev/null
     done
+    # the mount's own counters (/sys/fs/<xfs|mxfs>/<dev>/stats/stats) before
+    # and after the writer: how many log writes, log blocks and log forces
+    # its syncs cost, the same way on MXFS and on XFS
     out=$(on "$HA" "$pre
         f=$dir/vmio.\$(uname -n); rm -f \$f; truncate -s 3G \$f || { echo TRUNC_FAIL; exit; }
+        st=/sys/fs/\$(findmnt -n -o FSTYPE --target $dir)/\$(basename \$(readlink -f \$(findmnt -n -o SOURCE --target $dir)))/stats/stats
+        cat \$st > /tmp/$RES-stats.before 2>/dev/null
         fio --name=$name --filename=\$f $VMIO_JOB --output-format=json > /tmp/$RES-vmio.json 2>/tmp/$RES-vmio.err
-        echo FIO_RC=\$?; rm -f \$f; $post" $((VMIO_S + LVTIME + 180)))
+        echo FIO_RC=\$?; cat \$st > /tmp/$RES-stats.after 2>/dev/null; rm -f \$f; $post" $((VMIO_S + LVTIME + 180)))
     on "$HA" "cat /tmp/$RES-vmio.json" 30 > "$OUT/$name.$NA.vmio.json"
+    for f in before after; do
+        on "$HA" "cat /tmp/$RES-stats.$f 2>/dev/null" 30 > "$OUT/$name.$NA.stats.$f"
+    done
     for h in "$HA" "$HB"; do
         n=$(on "$h" 'uname -n')
         for f in iostat.log drbd.log; do
@@ -298,6 +306,28 @@ s = j.get("sync", {}); sl = s.get("lat_ns", {}); spc = sl.get("percentile", {})
 print(f"  {name}: writes={w['total_ios']} MiB/s={w['bw_bytes'] / 2**20:.1f} write_ms mean={c['mean'] / 1e6:.1f} "
       f"p99={pc.get('99.000000', 0) / 1e6:.1f} max={c['max'] / 1e6:.1f} | syncs={s.get('total_ios', 0)} "
       f"sync_ms mean={sl.get('mean', 0) / 1e6:.1f} p99={spc.get('99.000000', 0) / 1e6:.1f} max={sl.get('max', 0) / 1e6:.1f}")
+def stats(which):
+    r = {}
+    try:
+        for l in open(os.path.join(out, "%s.%s.stats.%s" % (name, ha, which))):
+            f = l.split()
+            if len(f) > 1:
+                r[f[0]] = [int(x) for x in f[1:] if x.isdigit()]
+    except OSError:
+        pass
+    return r
+b, a = stats("before"), stats("after")
+def d(k, i):
+    return a[k][i] - b[k][i] if k in a and k in b and len(a[k]) > i and len(b[k]) > i else None
+# log: writes blocks noiclogs force force_sleep; trans: sync async empty
+lw, lb, lf, lfs = d("log", 0), d("log", 1), d("log", 3), d("log", 4)
+ns = s.get("total_ios", 0) or 1
+if lw is None:
+    print(f"    {ha} mount counters: not read")
+else:
+    print(f"    {ha} mount log: iclog_writes={lw} blocks={lb} ({lb * 512 / 2**20:.1f} MiB) forces={lf} forces_slept={lfs} "
+          f"| per sync: writes={lw / ns:.2f} KiB={lb * 512 / 1024 / ns:.1f} forces={lf / ns:.2f} "
+          f"| trans sync/async/empty={d('trans', 0)}/{d('trans', 1)}/{d('trans', 2)}")
 for h in (ha, hb):
     rows = []
     hdr = None
