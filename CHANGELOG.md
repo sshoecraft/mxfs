@@ -1,3 +1,43 @@
+## 2026-10-07 — 0.90.87 — files a host creates while mounted alone survive that host's crash
+
+**A host mounted alone lost the files it created in reused inodes when it
+crashed.** Recovery applies a logged inode image only when its change count is
+above the one on disk: each host has a journal of its own, and their sequence
+numbers cannot be compared. A file created in an inode that a deleted file
+used before must therefore carry on that inode's count, and on a mount shared
+by two hosts it did. On a host mounted alone, the survivor of a pair or one
+whose peer was stopped, the count started again at 1. When that host then
+crashed, its next mount replayed its own journal, found the deleted file's
+higher count on disk and skipped each new file's inode, while the directory
+entry and the allocation were applied: the file was listed and could not be
+opened. The physical pair lost six fsynced files of the failover suite this
+way (`chk_mxfs` found them). Reproduced on the nested pair on 0.90.81: all 32
+fsynced files that participant 0 wrote alone into reused inodes were gone
+after its reset, each logged by the replay as `disk_cc=19 log_cc=5
+disk_mode=00 log_mode=0100644 verdict=SKIP`.
+- A create carries on the freed inode's count on every clustered mount, a
+  host mounted alone included.
+
+**Failover suite:** a new step, alone-restart. Participant 1's unit is stopped,
+participant 0 writes a set into inodes it freed just before and is reset, and
+it must mount again holding every fsynced file. The sets the survivor steps
+write alone also reuse freed inodes now, and a run whose set reuses none is
+reported invalid instead of passing.
+
+**Diagnostics:** a lock request whose wait on a page transition stops
+advancing for 30 s now also logs that page's ownership record and every term
+its acquire is decided on (`P960-STALLED-PAGE`). A survivor's `mkdir` failed
+with EAGAIN that way on the nested pair after its peer died, and the line that
+reported it named only the directory.
+
+**Tools:** `scripts/pve_pair_update.sh` keeps the check's whole report, not
+only its last lines, and `tools/mxfs_dinode.py --entries` lists a directory's
+entries.
+
+**Defect queue:**
+
+- **the built-in fence-peer handler answers a promotion of a Consistent (possibly stale) disk as it answers a lost link: participant 0 excludes the peer and exits 7 unconditionally, participant 1 does when the peer answers not Primary and unmounted, so drbdadm primary on a stale node while the up-to-date peer waits at boot promotes stale data** — FIXED AND VERIFIED. Cause shown live: the built-in fence-peer handler granted a promotion of a disconnected node with exit 7 (nested pair 2026-10-06, promotion-race on the 0.90.68 handler: a plain drbdadm primary on a disconnected Secondary returned ROLE=Primary/Unknown and wrote its own inhibit, tests/evidence/pve_pair_failover/20261006T152844Z), and DRBD 8.4 drbd_set_role turns that exit into UpToDate+Primary for a Consistent disk. Fix 0.90.69, tools/mxfs_drbd_fence_self.py cmd_fence_peer: a handler run for a node that is not Primary is a promotion, granted only under participant 0's own standing inhibit naming the peer, else refused with 1; a Primary whose disk is not UpToDate is refused with 1. Verified by tests/pve_pair_failover.sh stale-promotion (participant 1 powered off, participant 0 writes and steps down, participant 1 returns Consistent/DUnknown with the link down, plain drbdadm primary on it): refused on the nested pair twice (20261006T153717Z, 20261006T172854Z) and on the physical pair 2026-10-07 01:42-01:47 CDT on 0.90.86 EE3EBC1B08391702B27AD36 (tests/evidence/pve_pair_failover/20261007T064242Z-192.168.1.80): DISK_BEFORE=Consistent/DUnknown ROLE=Secondary/Unknown DISK=Consistent/DUnknown, both hosts mounted again 49 s after participant 0's unit started, every fsynced file of both hosts intact on both.
+
 ## 2026-10-07 — 0.90.86 — a DRBD host mounting after a pair outage no longer waits two minutes for heartbeats that cannot move
 
 **Two dead windows of waiting with nothing to wait for.** The first mount

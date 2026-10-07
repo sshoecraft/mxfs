@@ -1423,8 +1423,7 @@ xfs_iget_recycle(
 	 */
 	if (!error && create) {
 		ip->i_mxfs_prev_changecount = 0;
-		if (mxfs_ccprev_enable && mp->m_mxfs_dlm &&
-		    !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm)) {
+		if (mxfs_ccprev_enable && mp->m_mxfs_dlm) {
 			uint64_t	incore_cc = inode_peek_iversion(inode);
 
 			error = mxfs_iget_create_prev_changecount(mp, pag, tp, ip);
@@ -2221,8 +2220,7 @@ xfs_iget_cache_hit(
 		 */
 		if (flags & XFS_IGET_CREATE) {
 			ip->i_mxfs_prev_changecount = 0;
-			if (mxfs_ccprev_enable && mp->m_mxfs_dlm &&
-			    !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm)) {
+			if (mxfs_ccprev_enable && mp->m_mxfs_dlm) {
 				uint64_t incore_cc = inode_peek_iversion(inode);
 
 				error = mxfs_iget_create_prev_changecount(mp,
@@ -2584,8 +2582,16 @@ xfs_iget_cache_miss(
 	if (xfs_has_v3inodes(mp) && (flags & XFS_IGET_CREATE)) {
 		VFS_I(ip)->i_generation = get_random_u32();
 		ip->i_mxfs_prev_changecount = 0;
-		if (mxfs_ccprev_enable && mp->m_mxfs_dlm &&
-		    !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm)) {
+		/*
+		 * A single-node mount continues the count too: its journal is
+		 * replayed under the changecount gate when the node dies alone
+		 * (the bootstrap adopts its slot) or a peer that joined later
+		 * recovers it, and a creation restarted at 1 reads older than the
+		 * freed core it reused there.  The physical pair lost six fsynced
+		 * files that way: directory entries and allocation bits replayed,
+		 * cores left free.
+		 */
+		if (mxfs_ccprev_enable && mp->m_mxfs_dlm) {
 			error = mxfs_iget_create_prev_changecount(mp, pag, tp, ip);
 			if (error)
 				goto out_release_dlm;

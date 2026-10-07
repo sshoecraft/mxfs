@@ -47,6 +47,13 @@
 #              mount alone, and its guard must not release participant 1
 #              before that mount is done; then participant 1's unit starts and
 #              the pair is whole.  Resets only: no host is powered off.
+#   alone-restart
+#              participant 1's unit is stopped (it unmounts and steps down; its
+#              host and DRBD stay up), so participant 0 is mounted alone with
+#              no peer lost and nothing to recover.  It writes a set into inode
+#              cores it freed just before and is reset seconds later.  It must
+#              mount again holding every fsynced file; then participant 1's
+#              unit starts and the pair is whole.  Resets only.
 #   stale-promotion
 #              participant 1 is powered off; participant 0 carries on and
 #              writes, then its unit is stopped (up, not Primary, unmounted).
@@ -235,6 +242,13 @@ alone_ok() {  # <state line>
         && [ "${role%%/*}" = Primary ] && [ "$(field "$1" cs)" != Connected ] \
         && [ "${ds%%/*}" = UpToDate ]
 }
+# Mounted, whatever its peer is doing: Primary on an UpToDate disk.
+mounted_ok() {  # <state line>
+    local role ds
+    role=$(field "$1" role); ds=$(field "$1" ds)
+    [ "$(field "$1" unit)" = active ] && [ "$(field "$1" mnt)" = "$MNT" ] \
+        && [ "${role%%/*}" = Primary ] && [ "${ds%%/*}" = UpToDate ]
+}
 # Each host's name, read while both answer: a host that is off is still
 # named in the paths its files were written under.
 declare -A NAME
@@ -286,6 +300,18 @@ wait_alone() {
     on "$1" "journalctl -b --no-pager -o short-iso -t mxfs-drbd-fence | tail -4; journalctl -k -b --no-pager -o short-iso | grep -aE 'P-BOOT|P238|P-DRBD-ARM|refus' | tail -6" 30 | cut -c1-400 | sed 's/^/    /' | tee -a "$EVID/log"
     return 1
 }
+# wait_mounted_any <host> <budget>: the host is mounted, its peer up or not
+wait_mounted_any() {
+    local t0 s
+    t0=$(date +%s)
+    while [ $(( $(date +%s) - t0 )) -lt "$2" ]; do
+        s=$(state "$1")
+        mounted_ok "$s" && { echo $(( $(date +%s) - t0 )); return 0; }
+        sleep 5
+    done
+    say "  $1 at the bound: ${s:-no answer}"
+    return 1
+}
 
 # Each host writes and fsyncs 32 files of 64 KiB; the md5 of the set is kept.
 declare -A SUMS WS_MS
@@ -300,6 +326,25 @@ write_set() {  # <step> <host>
 write_sets() {
     write_set "$1" "$P0"; write_set "$1" "$P1"
     say "  fsynced sets written: $P0 in ${WS_MS[$P0]} ms, $P1 in ${WS_MS[$P1]} ms"
+}
+# The set a survivor writes alone, into inode cores freed just before.  A create
+# that reuses a freed core must carry the core's change count on: when the
+# survivor dies, its journal is replayed by a replay that keeps a logged inode
+# only if its count is above the platter's.  On a single-node mount the count
+# restarted at 1, so the creations of reused inodes were dropped while their
+# directory entries and allocation bits were replayed (physical pair,
+# 2026-10-06: six fsynced files of answering-restart.alone lost, found by
+# chk_mxfs).  So 64 files are created, modified eight times each and removed in
+# the set's own directory first, and a run whose set reuses none of their cores
+# proves nothing about that.
+write_alone_set() {  # <step> <host>
+    local out
+    out=$(on "$2" "d=$MNT/pvefail/$STAMP/$1/\$(hostname); mkdir -p \$d && cd \$d && for i in \$(seq 1 64); do head -c 4096 /dev/urandom > c\$i && for k in 1 2 3 4 5 6 7 8; do touch c\$i; done; done && sync -f . && ls -i c* | awk '{print \$1}' | sort -u > /root/pvefail_churn.inos && rm -f c* && sync -f . && echo CHURN_OK" 120)
+    grep -q CHURN_OK <<<"$out" || die "$2 could not churn the directory of its set $1: $out"
+    write_set "$1" "$2"
+    out=$(on "$2" "cd $MNT/pvefail/$STAMP/$1/\$(hostname) && ls -i f* | awk '{print \$1}' | sort -u | comm -12 - /root/pvefail_churn.inos | wc -l" 30)
+    [ "${out:-0}" -gt 0 ] 2>/dev/null || die "INVALID RUN: no file of $2's set $1 reuses an inode core freed before it (reused: ${out:-no answer})"
+    say "  $2's set $1: $out of 32 files reuse an inode core freed just before"
 }
 check_set() {  # <step> <reader> <writer>: the reader holds the writer's set as written
     local out
@@ -589,7 +634,7 @@ p1_off_survivor_recovers() {  # <step>
 # peer still off, and must mount alone holding every fsynced file.
 survivor_reset_mounts_alone() {  # <step>
     local b0 s
-    write_set "$1.alone" "$P0"
+    write_alone_set "$1.alone" "$P0"
     b0=$(boot_id "$P0")
     say "  resetting $P0, the survivor, with $P1 still off"
     reset_host "$P0"
@@ -676,7 +721,7 @@ step_answering_restart() {
     s=$(wait_rebooted "$P1" "$b1" "$BOOT_BUDGET") || die "$P1 did not come back within ${BOOT_BUDGET}s of its reset"
     s=$(wait_released "$P0" "$t0" "$RELEASE_BUDGET") || die "$P0 did not release $P1 within ${RELEASE_BUDGET}s of its answering with DRBD down"
     say "  $P0 released $P1 ${s}s after it answered with DRBD down"
-    write_set answering-restart.alone "$P0"
+    write_alone_set answering-restart.alone "$P0"
     b0=$(boot_id "$P0")
     say "  resetting $P0 (participant 0) with $P1 up and answering, DRBD down"
     reset_host "$P0"
@@ -711,6 +756,37 @@ step_answering_restart() {
     collect answering-restart "$t0"
     verify_sets answering-restart
     check_set answering-restart.alone "$P1" "$P0"
+}
+
+# alone-restart: the creations a host makes while mounted alone are replayed,
+# when it dies alone, by its own next mount, a whole-cluster bootstrap that
+# adopts its journal.  The physical pair lost six fsynced files written that
+# way (2026-10-06) after a peer death; here nothing dies first, so the step
+# measures that replay and nothing a recovery of a peer does.
+step_alone_restart() {
+    local b0 s t0
+    write_sets alone-restart
+    t0=$(date +%s)
+    say "alone-restart: stopping $P1's unit: it unmounts and steps down; its host and DRBD stay up"
+    on "$P1" "systemctl stop mxfs-drbd@$RES && echo STOPPED" 200 | grep -q STOPPED || die "could not stop mxfs-drbd@$RES on $P1"
+    LEFT="$P1's mxfs-drbd@$RES is stopped: systemctl start mxfs-drbd@$RES there"
+    write_alone_set alone-restart.alone "$P0"
+    b0=$(boot_id "$P0")
+    say "  resetting $P0, mounted alone, with $P1 up and Secondary"
+    reset_host "$P0"
+    s=$(wait_rebooted "$P0" "$b0" "$BOOT_BUDGET") || die "$P0 did not come back within ${BOOT_BUDGET}s of its reset"
+    s=$(wait_mounted_any "$P0" "$ALONE_BUDGET") || die "$P0 did not mount within ${ALONE_BUDGET}s of answering ($P1's unit stopped)"
+    say "  $P0 mounted $s s after answering"
+    check_set alone-restart "$P0" "$P0"; check_set alone-restart "$P0" "$P1"; check_set alone-restart.alone "$P0" "$P0"
+    check_writes alone-restart "$P0"
+    say "  $P0 holds every fsynced file of both hosts, and its own since, and writes"
+    on "$P1" "systemctl start --no-block mxfs-drbd@$RES && echo STARTED" 30 | grep -q STARTED || die "could not start mxfs-drbd@$RES on $P1"
+    LEFT=""
+    s=$(wait_mounted "$P1" "$REJOIN_BUDGET") || die "$P1 did not mount again within ${REJOIN_BUDGET}s of its unit starting"
+    say "  $P1 mounted again $s s after its unit started"
+    collect alone-restart "$t0"
+    verify_sets alone-restart
+    check_set alone-restart.alone "$P1" "$P0"
 }
 
 step_stale_promotion() {
@@ -1007,7 +1083,7 @@ STEPS=("$@")
 [ "${#STEPS[@]}" -gt 0 ] || STEPS=(p1-crash reboot power-cut p0-crash)
 for s in "${STEPS[@]}"; do
     case "$s" in
-        p1-crash|p0-crash|power-cut|reboot|promotion-race|withdraw-both|withdraw-p1|withdraw-held|withdraw-guests|answering-restart|slow-beat) ;;
+        p1-crash|p0-crash|power-cut|reboot|promotion-race|withdraw-both|withdraw-p1|withdraw-held|withdraw-guests|answering-restart|alone-restart|slow-beat) ;;
         survivor-restart|released-restart|stale-promotion)
             [ -n "${PVE_POWER_ON:-}" ] || { echo "$s keeps a host powered off: set PVE_POWER_ON to the command that powers one on"; exit 2; } ;;
         *) echo "unknown step: $s"; exit 2 ;;

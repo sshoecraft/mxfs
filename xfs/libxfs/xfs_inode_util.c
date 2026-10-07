@@ -378,9 +378,10 @@ xfs_inode_init(
 	if (xfs_has_v3inodes(mp)) {
 		/*
 		 * continue di_changecount from the freed core this
-		 * allocation reincarnates (fresh read at iget CREATE, multi-node;
-		 * 0 on single-node / new chunk), so it stays monotonic across
-		 * incarnations — foreign replay's apply/skip rule needs that.
+		 * allocation reincarnates (fresh read at iget CREATE on any
+		 * clustered mount, a single-node one included; 0 on a new chunk),
+		 * so it stays monotonic across incarnations — the apply/skip rule
+		 * of a foreign or adopted replay needs that.
 		 * A restart at 1 made the reincarnation's creation image look
 		 * older than the previous incarnation's freed image.
 		 */

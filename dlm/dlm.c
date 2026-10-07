@@ -3910,6 +3910,55 @@ static int dlm_page_ensure_mine(struct mxfs_dlm_ctx *ctx, uint32_t page, uint64_
 	return dlm_page_acquire(ctx, page, gen);
 }
 
+/*
+ * Every term dlm_page_acquire decides a page on, read fresh, for the line that
+ * reports a transition wait that stopped advancing.  That line named only the
+ * resource, so nothing said which branch kept answering "in transition": on
+ * the nested PVE pair (2026-10-07) a survivor's mkdir waited 30 s past the end
+ * of its departed peer's page takeover and then failed with EAGAIN.
+ */
+static void dlm_page_explain(struct mxfs_dlm_ctx *ctx,
+			     const struct mxfs_resource_id *resource)
+{
+	struct mxfs_tauth_page_auth a;
+	uint32_t page;
+	int rc;
+
+	if (!ctx->ledger || !ctx->page_state)
+		return;
+	page = dlm_res_page(ctx, resource);
+	if (page >= ctx->page_count)
+		return;
+	memset(&a, 0, sizeof(a));
+	rc = mxfs_tauth_ledger_page_auth(ctx->ledger, page, true, &a);
+	pr_warn("mxfs: P960-STALLED-PAGE page=%u rc=%d ps=%u owner=%u bn=%u we=%u/%llu "
+		"state=%u auth=%u/%llu target=%u/%llu writer=%u/%llu seq=%llu "
+		"auth{dead=%d settled=%d purged=%d occupant=%d in_view=%d judging=%d blocked=%d} "
+		"target{dead=%d purged=%d in_view=%d} takeover_done=%llu progress_rx=%llu "
+		"— the terms this page's acquire is decided on, read at the stall\n",
+		page, rc, ctx->page_state[page], dlm_page_owner(ctx, page),
+		dlm_bootstrap_node(ctx), ctx->local_node,
+		(unsigned long long)ctx->local_inc, a.state, a.auth_node,
+		(unsigned long long)a.auth_inc, a.target_node,
+		(unsigned long long)a.target_inc, a.writer_node,
+		(unsigned long long)a.writer_inc, (unsigned long long)a.seq,
+		dlm_authority_dead(ctx, a.auth_node, a.auth_inc) ? 1 : 0,
+		dlm_authority_settled(ctx, a.auth_node, a.auth_inc) ? 1 : 0,
+		dlm_owner_purged(ctx, a.auth_node, -1) ? 1 : 0,
+		ctx->occupant_cb ?
+			(ctx->occupant_cb(ctx->cb_data, a.auth_node, a.auth_inc) ? 1 : 0) : -1,
+		dlm_node_in_view(ctx, a.auth_node) ? 1 : 0,
+		ctx->recovery_judging_cb ?
+			(ctx->recovery_judging_cb(ctx->cb_data, a.auth_node, a.auth_inc) ? 1 : 0) : -1,
+		ctx->recovery_blocked_cb ?
+			(ctx->recovery_blocked_cb(ctx->cb_data, a.auth_node) ? 1 : 0) : -1,
+		dlm_authority_dead(ctx, a.target_node, a.target_inc) ? 1 : 0,
+		dlm_owner_purged(ctx, a.target_node, -1) ? 1 : 0,
+		dlm_node_in_view(ctx, a.target_node) ? 1 : 0,
+		(unsigned long long)ctx->takeover_pages_done,
+		(unsigned long long)ctx->transition_progress_rx);
+}
+
 /* freeze + PREPARE one of our pages to {target, inc}; tells the target.
  * 0 = prepared (or already), -EAGAIN = drain not complete, else error. */
 static int dlm_page_hand_to(struct mxfs_dlm_ctx *ctx, uint32_t page,
@@ -9676,6 +9725,7 @@ int mxfs_dlm_lock_retries(struct mxfs_dlm_ctx *ctx,
 					     fallible ? 1 : 0, dlm_cur_comm(),
 					     fallible ? "failing THIS operation (retryable), not the mount" :
 							"this caller cannot be failed; waiting on");
+				dlm_page_explain(ctx, resource);
 				if (fallible) {
 					/* the caller that must classify this: the first stalls
 					 * of a boot dump their wait site */

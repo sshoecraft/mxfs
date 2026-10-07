@@ -26,6 +26,9 @@
 #                  the mount's heartbeat scan ~64 s, DRBD connect and the boot
 #                  program's ordering, twice over)
 #   CHECK_BUDGET   seconds for chk_mxfs (default 600)
+#   CHECK_OUT      where the check's whole report is kept (default
+#                  tests/evidence/pve_pair_update/chk-<UTC stamp>-<participant 0>.txt);
+#                  only its last lines are printed, and a finding needs all of it
 #
 # Refuses to start while anything holds the mount on either host, a running
 # guest whose disk is on it above all: stopping the unit unmounts it.  Guests
@@ -114,7 +117,10 @@ if [ "${CHECK:-0}" = 1 ]; then
     dev=$(on "$P0" "drbdadm sh-dev $RES" 20)
     on "$P0" "drbdadm primary $RES && echo PRIMARY_OK" 60 | grep -q PRIMARY_OK || die "$P0: could not be made Primary for the check (both units are stopped, DRBD up)"
     out=$(on "$P0" "chk_mxfs -n $dev; echo CHK_RC=\$?" "$CHECK_BUDGET")
+    CHECK_OUT=${CHECK_OUT:-$REPO/tests/evidence/pve_pair_update/chk-$(date -u +%Y%m%dT%H%M%SZ)-$P0.txt}
+    mkdir -p "$(dirname -- "$CHECK_OUT")" && echo "$out" > "$CHECK_OUT"
     echo "$out" | tail -15 | sed "s/^/  chk_mxfs: /"
+    say "the check's whole report: $CHECK_OUT"
     crc=$(sed -n 's/^CHK_RC=//p' <<<"$out")
     on "$P0" "drbdadm secondary $RES" 60 >/dev/null
     for h in "$P1" "$P0"; do
