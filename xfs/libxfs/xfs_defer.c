@@ -760,7 +760,7 @@ out_shutdown:
 	 */
 	if (error == -ETIMEDOUT)
 		xfs_alert((*tp)->t_mountp,
-	"mxfs: deferred-op finish rc=-110 (cluster AG DLM acquire outwaited) — escalating to shutdown");
+	"mxfs: deferred-op finish rc=-110 (cluster AG DLM acquire outwaited) -- escalating to shutdown");
 	(*tp)->t_mxfs_ag_relsafe = MXFS_AG_RELSAFE_NOTDEFER;
 	list_splice_tail_init(&dop_paused, &dop_pending);
 	xfs_defer_trans_abort(*tp, &dop_pending);

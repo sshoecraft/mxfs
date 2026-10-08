@@ -89,6 +89,13 @@ if python3 -I -c 'import ipaddress, sys; sys.exit(0 if ipaddress.ip_address(sys.
 else
     P0=${PAIR[1]}; P1=${PAIR[0]}
 fi
+# Resets and reboots run on virtual machines only: the physical pair are
+# workstations over ten years old, and repeated resets killed one of them
+# (2026-10-07).  Both hosts must say they are VMs before anything else runs.
+for h in "$P0" "$P1"; do
+    v=$(on "$h" "systemd-detect-virt --vm" 15 | tail -1)
+    case "$v" in ""|none) die "refusing to run: this test resets a host, and $h is not a virtual machine (systemd-detect-virt: ${v:-no answer}); run it on the nested pair" ;; esac
+done
 STATE_CMD='echo "unit=$(systemctl is-active mxfs-drbd@'"$RES"') mnt=$(awk '\''$2 == "'"$MNT"'" && $3 == "mxfs" {print $2}'\'' /proc/mounts | head -1) role=$(drbdadm role '"$RES"' 2>/dev/null) cs=$(drbdadm cstate '"$RES"' 2>/dev/null) ds=$(drbdadm dstate '"$RES"' 2>/dev/null) build=$(cat /sys/module/mxfs/srcversion 2>/dev/null) boot=$(cat /proc/sys/kernel/random/boot_id)"'
 state() { on "$1" "$STATE_CMD" 20 | grep '^unit='; }
 pair_ok() { case "$1" in *"mnt=$MNT role=Primary/Primary cs=Connected ds=UpToDate/UpToDate"*) return 0 ;; esac; return 1; }

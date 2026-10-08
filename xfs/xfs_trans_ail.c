@@ -569,7 +569,7 @@ xfsaild_push(
 							ili_item);
 
 					p129f_last = now;
-					mxfs_probe("mxfs: P129-FLUSHING-SKIP ino=%llu lsn=0x%llx liflags=0x%lx fields=0x%x last=0x%x flush_lsn=0x%llx — AIL min is FLUSHING; xfsaild cannot push it, only its buffer's delwri write can retire it\n",
+					mxfs_probe("mxfs: P129-FLUSHING-SKIP ino=%llu lsn=0x%llx liflags=0x%lx fields=0x%x last=0x%x flush_lsn=0x%llx -- AIL min is FLUSHING; xfsaild cannot push it, only its buffer's delwri write can retire it\n",
 						(unsigned long long)(fiip->ili_inode ?
 							fiip->ili_inode->i_ino : 0),
 						(unsigned long long)lip->li_lsn,
@@ -891,7 +891,7 @@ xfs_ail_push_all_sync(
 			 * costs a stack every ~100 s rather than every 30.
 			 */
 			if (ailp->ail_task && ((iter / 3000) % 3) == 1) {
-				pr_warn("mxfs: P128-AILSTUCK xfsaild pid=%d — its state and stack follow\n",
+				pr_warn("mxfs: P128-AILSTUCK xfsaild pid=%d -- its state and stack follow\n",
 					ailp->ail_task->pid);
 				sched_show_task(ailp->ail_task);
 			}
@@ -1308,7 +1308,7 @@ xfs_ail_push_ag_sync_bounded(
 										    time_after(jiffies,
 											mxfs_stalldump_j + 30 * HZ)) {
 											mxfs_stalldump_j = jiffies;
-											pr_warn("mxfs: P67-STALL-OWNER-STACK agno=%u ino=%llu owner=%s/%d rd=%d state=0x%x nvcsw=%lu/%lu — dumping holder stack\n",
+											pr_warn("mxfs: P67-STALL-OWNER-STACK agno=%u ino=%llu owner=%s/%d rd=%d state=0x%x nvcsw=%lu/%lu -- dumping holder stack\n",
 												agno,
 												(unsigned long long)stuck_ino,
 												stuck_owner_comm,
@@ -1422,7 +1422,7 @@ xfs_ail_push_ag_sync_bounded(
 			if (last_count == UINT_MAX || total < last_count)
 				last_count = total;
 			if (max_iters && iter >= max_iters) {
-				mxfs_probe_ratelimited("mxfs: P67-INSTR AG-AIL-PUSH-CAP agno=%u iter=%u total=%u(buf=%u inode=%u other=%u pinned=%u) — hard cap reached, push advisory\n",
+				mxfs_probe_ratelimited("mxfs: P67-INSTR AG-AIL-PUSH-CAP agno=%u iter=%u total=%u(buf=%u inode=%u other=%u pinned=%u) -- hard cap reached, push advisory\n",
 					agno, iter, total, n_buf, n_inode,
 					n_other, n_pinned_buf);
 				return -EAGAIN;

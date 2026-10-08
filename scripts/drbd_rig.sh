@@ -26,6 +26,8 @@
 #   scripts/drbd_rig.sh death-test          destroy node 2 with MXFS mounted: node 1 must fence it,
 #                                              certify, replay its slice and keep every fsynced file;
 #                                              node 2 then rejoins and reads the same; cold chk clean
+#                                              (DEATH_FORCE_REFUSE=1: node 1 refuses the replay instead,
+#                                              and every refused transaction must report its images)
 #   scripts/drbd_rig.sh self-death-test     the physical PVE pair's setup: no node fence (agent=self).
 #                                              The node with the higher DRBD address dies under VM-like
 #                                              loads on the survivor, which must exclude it, certify,
@@ -65,6 +67,12 @@
 #
 # Env:
 #   MXFS_GROUP        the rig group whose two nodes are used (default g2)
+#   MXFS_NODES        two rig nodes by name instead of a group ("test17 test18"),
+#                     so pairs beyond the two-node groups can run side by side
+#   MXFS_NODE_REPO    the tree the nodes load mxfs.ko and run the tools from, as
+#                     they see it over NFS (default /src/mxfs); it must hold the
+#                     same build as this script's tree, so a second tree under
+#                     /src can be measured without touching /src/mxfs
 #   DRBD_RIG_NO_BASELINE=1   skip the backing-LUN fio legs in `up`
 #
 # Evidence: tests/evidence/drbd_rig/<UTC stamp>-<subcommand>/ (one log per step,
@@ -104,7 +112,17 @@ APT_BUDGET=120      # one ~1 MB package and its dependencies from the Ubuntu mir
 FIO_LEG_S=20        # ramp 5 + runtime 15, time_based
 FIO_LEG_BUDGET=60   # the leg, fio's setup and the ssh round trip, twice over
 
-read -r -a NODES <<<"$("$REPO/tools/mxfs_lab.sh" group "$GROUP")"
+NODE_REPO=${MXFS_NODE_REPO:-/src/mxfs}
+if [ -n "${MXFS_NODES:-}" ]; then
+    read -r -a NODES <<<"$MXFS_NODES"
+    GROUP="nodes-${NODES[0]:-none}"
+    # run.sh knows nodes only by group
+    case "${1:-}" in
+    suite|fio|all) echo "drbd_rig: $1 runs run.sh, which takes a group; MXFS_NODES pairs cannot run it"; exit 2 ;;
+    esac
+else
+    read -r -a NODES <<<"$("$REPO/tools/mxfs_lab.sh" group "$GROUP")"
+fi
 [ "${#NODES[@]}" = 2 ] || { echo "drbd_rig: group $GROUP has ${#NODES[@]} nodes; DRBD dual-primary is exactly two"; exit 2; }
 N1=${NODES[0]}; N2=${NODES[1]}
 
@@ -150,8 +168,15 @@ take_locks() {
         lock_one "/tmp/mxfs_node.$n.lock" exclusive "$what" \
             || die "$n is held by another run: $(runlock_holder "/tmp/mxfs_node.$n.lock")"
     done
-    lock_one "/tmp/mxfs_config.$SLUG.lock" exclusive "$what" \
-        || die "configuration $CONFIG is held by another run: $(runlock_holder "/tmp/mxfs_config.$SLUG.lock")"
+    # The configuration's lock guards its trial board, which only fio and all
+    # write (suite goes through run.sh, which takes the lock itself); a step on
+    # one pair never touches another pair's nodes, LUNs or DRBD, so two pairs
+    # run their other steps side by side.
+    case "$CMD" in
+    fio|all)
+        lock_one "/tmp/mxfs_config.$SLUG.lock" exclusive "$what" \
+            || die "configuration $CONFIG is held by another run: $(runlock_holder "/tmp/mxfs_config.$SLUG.lock")" ;;
+    esac
 }
 release_locks() {
     local fd
@@ -356,6 +381,20 @@ step_up() {
     stop_nodes
     say "step 1/3: one pool LUN per node, logged in on that node alone"
     hold_luns fresh
+    # A pool LUN a finished cluster run left behind can still carry that
+    # run's SCSI persistent reservation, with this node not registered: every
+    # write then fails RESERVATION CONFLICT (EBADE, "Invalid exchange") and the
+    # baseline, create-md and the sync all fail on it.  Register a scratch key
+    # and CLEAR, which drops every key and the reservation (prep_fs.sh does the
+    # same before a mkfs).
+    for n in "${NODES[@]}"; do
+        out=$(ssh_n "$n" "command -v sg_persist >/dev/null || { echo PR_FAIL no sg_persist; exit 0; }
+            sg_persist --out --register-ignore --param-sark=0x5eed ${LUN_DEV[$n]} >/dev/null 2>&1
+            sg_persist --out --clear --param-rk=0x5eed ${LUN_DEV[$n]} >/dev/null 2>&1 || { echo PR_FAIL clear; exit 0; }
+            echo PR_OK" 30)
+        echo "$n $out" >> "$EVID/prclear"
+        grep -q '^PR_OK' <<<"$out" || die "$n: could not clear ${LUN_DEV[$n]}'s persistent reservation: $out"
+    done
 
     if [ "${DRBD_RIG_NO_BASELINE:-0}" != 1 ]; then
         say "baseline: fio on each backing LUN before DRBD owns it (destructive; DRBD's initial sync overwrites it)"
@@ -384,9 +423,21 @@ step_up() {
     install_fencing
 
     # Fresh metadata on both disks, then up: they connect as Secondary/Inconsistent.
+    # A pool LUN last used by a shared-LUN MXFS group still carries that
+    # group's SCSI persistent reservation (Write Exclusive, all registrants;
+    # APTPL keeps it across logins), and every write of this node, which is not
+    # a registrant, is refused: create-md's first write fails with
+    # 'Invalid exchange' (2026-10-07, test17/test18 on lun04/lun08).  Clear it
+    # first, on this node's own backing disk, as the shared-LUN setup does.
     both createmd "
         echo '$(base64 -w0 <<<"$res")' | base64 -d > /etc/drbd.d/$RES.res
         drbdadm sh-nop >/dev/null 2>&1 || { echo \"MD_FAIL config: \$(drbdadm sh-nop 2>&1 | tail -1)\"; exit 1; }
+        ll=\$(drbdadm sh-ll-dev $RES 2>/dev/null)
+        [ -b \"\$ll\" ] || { echo \"MD_FAIL no backing disk: \$ll\"; exit 1; }
+        sg_persist --out --register-ignore --param-sark=0x5eed \"\$ll\" >/dev/null 2>&1
+        sg_persist --out --clear --param-rk=0x5eed \"\$ll\" >/dev/null 2>&1
+        sg_persist --in -r -d \"\$ll\" 2>&1 | grep -q 'NO reservation held' \
+            || { echo \"MD_FAIL a SCSI reservation on \$ll could not be cleared: \$(sg_persist --in -r -d \"\$ll\" 2>&1 | tr '\n' ' ')\"; exit 1; }
         drbdadm -- --force create-md $RES </dev/null >/tmp/drbd_rig_md.log 2>&1 \
             || { echo \"MD_FAIL \$(tail -1 /tmp/drbd_rig_md.log)\"; exit 1; }
         drbdadm up $RES >/tmp/drbd_rig_up.log 2>&1 || { echo \"MD_FAIL up: \$(tail -1 /tmp/drbd_rig_up.log)\"; exit 1; }
@@ -458,13 +509,13 @@ step_mxfs() {
     done
     both src 'mountpoint -q /src || { mkdir -p /src; timeout 20 mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp; }; mountpoint -q /src && echo SRC_OK' 40
     for n in "${NODES[@]}"; do grep -aq '^SRC_OK' "$EVID/src.$n" || die "$n: /src (NFS) not mounted"; done
-    out=$(ssh_n "$N1" "MXFS_DEV=$DRBD_DEV MXFS_LOG_SLICES=$LOG_SLICES bash /src/mxfs/tests/setup/prep_fs.sh 2>&1" 60)
+    out=$(ssh_n "$N1" "MXFS_DEV=$DRBD_DEV MXFS_LOG_SLICES=$LOG_SLICES MXFS_REPO=$NODE_REPO bash $NODE_REPO/tests/setup/prep_fs.sh 2>&1" 60)
     echo "$out" > "$EVID/mkfs"
     grep -q '^FS_PREP_OK' <<<"$out" || die "mkfs on $N1: $(tail -1 <<<"$out")"
     say "  mkfs on $N1: $(grep -a '^chk_mxfs' <<<"$out" | head -1)"
     local KO_MD5; KO_MD5=$(md5sum "$REPO/mxfs.ko" | awk '{print $1}')
     for n in "${NODES[@]}"; do
-        ssh_n "$n" "dmesg -C; MXFS_DEV=$DRBD_DEV MXFS_KO_MD5=$KO_MD5 MXFS_REPO=/src/mxfs bash /src/mxfs/tests/setup/prep_node.sh tcp 2>&1" 150 > "$EVID/mount.$n"
+        ssh_n "$n" "dmesg -C; MXFS_DEV=$DRBD_DEV MXFS_KO_MD5=$KO_MD5 MXFS_REPO=$NODE_REPO bash $NODE_REPO/tests/setup/prep_node.sh tcp 2>&1" 150 > "$EVID/mount.$n"
         if ! grep -aq '^NODE_PREP_OK' "$EVID/mount.$n"; then
             # The kernel's reason, by its probe name, and the prep's.  Only the
             # refusal lines leave the node: a whole kernel log is not evidence
@@ -620,6 +671,7 @@ step_fence_test() {
     local out t0 secs
     need_dual_primary
     say "fence test: dropping the replication link on $N2"
+    ssh_n "$N1" "dmesg -C" 10 >/dev/null
     t0=$(date +%s)
     ssh_n "$N2" "iptables -I INPUT -p tcp --dport $DRBD_PORT -j DROP; iptables -I INPUT -p tcp --sport $DRBD_PORT -j DROP; echo CUT" 15 > "$EVID/cut"
     grep -q CUT "$EVID/cut" || die "could not cut the link on $N2"
@@ -651,6 +703,7 @@ step_fence_test() {
         die "fence test: lab_power started $N2 while it was inhibited"
     fi
     say "  lab_power refuses to start $N2: $(grep -a inhibited "$EVID/inhibited_start" | head -1 | cut -c1-100)"
+    wait_mxfs_recovered "$N1" "fence test"
     out=$("$REPO/tools/rig_fence_virsh.sh" release "$N2" "$ep" "$N1")
     [ "$out" = "RELEASED $N2 episode=$ep" ] || die "fence test: release: $out"
 
@@ -672,6 +725,36 @@ step_fence_test() {
 # inhibit (the survivor's recovery is complete — the caller established that),
 # boot the node, bring DRBD up so it resyncs from the survivor, promote it once
 # UpToDate, and mount MXFS on it.
+wait_mxfs_recovered() {  # <survivor> <test name>
+    # The fence and split tests run with MXFS mounted whenever the step before
+    # them mounted it (the release verification does, before every test).
+    # The survivor's MXFS recovers the loser's slice only once its witness has
+    # seen the loser off AND inhibited under the fence's episode.  Released
+    # earlier, the loser boots and reconnects, that exclusion can never be
+    # shown, and the survivor keeps the dead slot unreplayed with its locks
+    # frozen, so its next unmount waits on them: measured 2026-10-08, the
+    # inhibit released 2 s after the fence, every witness answer 'running,
+    # inhibit none', the survivor's unmount never finished.  So the inhibit is
+    # released only after that recovery, as rejoin_node expects of its callers.
+    local surv=$1 what=$2 out
+    out=$(ssh_n "$surv" "
+        grep -q ' $MNT mxfs ' /proc/mounts || { echo NOT_MOUNTED; exit 0; }
+        for i in \$(seq 1 $RECOVER_BUDGET); do
+            dmesg | grep -q 'P163-RECOVERY-COMPLETE' && break
+            sleep 1
+        done
+        dmesg | grep -q 'P163-RECOVERY-COMPLETE' && echo RECOVERED || echo NOT_RECOVERED
+        dmesg | grep -q 'P238-DRBD-FENCE-WITNESSED' && echo WITNESSED || echo NOT_WITNESSED" $((RECOVER_BUDGET + 20)))
+    echo "$out" > "$EVID/recovery.${what// /_}"
+    case "$(sed -n 1p <<<"$out")" in
+        NOT_MOUNTED) return 0 ;;
+        RECOVERED) ;;
+        *) die "$what: $surv's MXFS did not recover the fenced peer's slice within ${RECOVER_BUDGET}s: $(tr '\n' ' ' <<<"$out")" ;;
+    esac
+    grep -q '^WITNESSED' <<<"$out" || die "$what: $surv's MXFS recovered without a DRBD witness"
+    say "  $surv's MXFS recovered the fenced peer's slice under the DRBD witness; releasing the inhibit"
+}
+
 rejoin_node() {
     local node=$1 surv=$2 out ep
     out=$(timeout 30 "$REPO/tools/rig_fence_virsh.sh" status "$node")
@@ -689,7 +772,7 @@ rejoin_node() {
         done
         echo \"REJOIN_TIMEOUT \$(drbdadm dstate $RES) \$(drbdadm cstate $RES)\"" $((REJOIN_BUDGET + 20)))
     grep -q '^REJOIN_OK Primary/Primary' <<<"$out" || die "rejoin: $node did not rejoin DRBD: $(tail -1 <<<"$out")"
-    ssh_n "$node" "mountpoint -q /src || { mkdir -p /src; timeout 20 mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp; }; MXFS_DEV=$DRBD_DEV MXFS_KO_MD5=$(md5sum "$REPO/mxfs.ko" | awk '{print $1}') MXFS_REPO=/src/mxfs bash /src/mxfs/tests/setup/prep_node.sh tcp 2>&1" 180 > "$EVID/rejoin_mount.$node"
+    ssh_n "$node" "mountpoint -q /src || { mkdir -p /src; timeout 20 mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp; }; MXFS_DEV=$DRBD_DEV MXFS_KO_MD5=$(md5sum "$REPO/mxfs.ko" | awk '{print $1}') MXFS_REPO=$NODE_REPO bash $NODE_REPO/tests/setup/prep_node.sh tcp 2>&1" 180 > "$EVID/rejoin_mount.$node"
     grep -aq '^NODE_PREP_OK' "$EVID/rejoin_mount.$node" || die "rejoin: $node did not remount: $(grep -a FAIL "$EVID/rejoin_mount.$node" | tail -1)"
 }
 
@@ -700,6 +783,37 @@ rejoin_node() {
 # which is the attachment's rejoin, and reads exactly what the survivor reads.
 # A cold chk_mxfs closes it.
 RECOVER_BUDGET=120  # heartbeat dead window 62 s + DRBD fence, witness, certificate, replay ~30 s
+
+# DEATH_FORCE_REFUSE=1: the survivor refuses every transaction of more than
+# one item in the dead node's slice (dbg_fr_taint_items_over=1; 0 turns the
+# injection off), so the replay ends in a terminal
+# quarantine of that slot, as an unauthorised image would.  What is checked is
+# the refusal's own report: every skipped transaction must say which images
+# kept it from applying (P227-FR-REFUSED-WHY) and nothing may oops.  The pair
+# is left with the volume quarantined and the dead node fenced and off; the
+# next `scripts/drbd_rig.sh mxfs` formats it again.
+death_refusal_report() {
+    local out skips whys
+    out=$(ssh_n "$N1" "
+        for i in \$(seq 1 $RECOVER_BUDGET); do
+            dmesg | grep -q 'P227-FR-ATOMIC-SKIP' && break
+            sleep 1
+        done
+        sleep 10
+        echo 0 > /sys/module/mxfs/parameters/dbg_fr_taint_items_over
+        echo KNOB=\$(cat /sys/module/mxfs/parameters/dbg_fr_taint_items_over)
+        echo SKIPS=\$(dmesg | grep -ac 'P227-FR-ATOMIC-SKIP')
+        echo WHYS=\$(dmesg | grep -ac 'P227-FR-REFUSED-WHY')
+        echo IMAGES=\$(dmesg | grep -ac 'P227-FR-REFUSED-IMAGE')
+        echo OOPS=\$(dmesg | grep -acE 'BUG:|Oops|general protection|UBSAN|KASAN')" $((RECOVER_BUDGET + 40)))
+    echo "$out" > "$EVID/death_refusal_counts"
+    ssh_n "$N1" "dmesg | grep -aE 'P227-FR-ATOMIC-SKIP|P227-FR-REFUSED|P-DBG-FR-TAINT|BUG:|Oops' | sed 's/^.*XFS ([^)]*): //' | cut -c1-400" 30 > "$EVID/death_refusal_kernlog"
+    skips=$(sed -n 's/^SKIPS=//p' <<<"$out"); whys=$(sed -n 's/^WHYS=//p' <<<"$out")
+    grep -q '^OOPS=0$' <<<"$out" || die "death test: an oops on $N1 during the refused replay: $out"
+    [ "${skips:-0}" -ge 1 ] 2>/dev/null || die "death test: $N1 refused nothing in ${RECOVER_BUDGET}s: $(tr '\n' ' ' <<<"$out")"
+    [ "$whys" = "$skips" ] || die "death test: $skips refused transactions but $whys refusal reports: $(tr '\n' ' ' <<<"$out")"
+    say "  $N1 refused $skips transaction(s), each with its report: $(tr '\n' ' ' <<<"$out")"
+}
 step_death_test() {
     local out t0 ep n1sum n2sum
     need_dual_primary
@@ -722,8 +836,18 @@ step_death_test() {
         grep -q HOLDING <<<"$out" || die "death test: $N2 never took the lock to hold it: $out"
         say "  $N2 holds the swap lock (test hold); destroying it now"
     fi
+    if [ "${DEATH_FORCE_REFUSE:-0}" = 1 ]; then
+        out=$(ssh_n "$N1" "echo 1 > /sys/module/mxfs/parameters/dbg_fr_taint_items_over && cat /sys/module/mxfs/parameters/dbg_fr_taint_items_over" 20)
+        [ "$out" = 1 ] || die "death test: could not arm the forced refusal on $N1: $out"
+        say "  $N1 refuses every transaction of over one item in $N2's slice it replays (dbg_fr_taint_items_over=1)"
+    fi
     t0=$(date +%s)
     timeout 60 virsh -c qemu:///system destroy "$N2" >/dev/null 2>&1 || die "death test: virsh destroy $N2 failed"
+
+    if [ "${DEATH_FORCE_REFUSE:-0}" = 1 ]; then
+        death_refusal_report
+        return
+    fi
 
     out=$(ssh_n "$N1" "
         for i in \$(seq 1 $RECOVER_BUDGET); do
@@ -760,7 +884,7 @@ step_death_test() {
     say "  $N2 rejoined and remounted in $(( $(date +%s) - t0 ))s, and reads both sets identically"
 
     both stop "$NODE_UNMOUNT; echo STOP_OK" 120
-    out=$(ssh_n "$N1" "/src/mxfs/tools/chk_mxfs $DRBD_DEV 2>&1 | tail -3; echo CHK_RC=\${PIPESTATUS[0]}" 120)
+    out=$(ssh_n "$N1" "$NODE_REPO/tools/chk_mxfs $DRBD_DEV 2>&1 | tail -3; echo CHK_RC=\${PIPESTATUS[0]}" 120)
     echo "$out" > "$EVID/death_chk"
     grep -q 'CHK_RC=0' <<<"$out" || die "death test: chk_mxfs after the recovery: $(tail -3 <<<"$out" | tr '\n' ' ')"
     say "  cold chk_mxfs clean"
@@ -1016,7 +1140,7 @@ step_self_death_test() {
 
     self_dyndbg "$surv" all
     both stop "$NODE_UNMOUNT; echo STOP_OK" 120
-    out=$(ssh_n "$surv" "/src/mxfs/tools/chk_mxfs $DRBD_DEV 2>&1 | tail -3; echo CHK_RC=\${PIPESTATUS[0]}" 120)
+    out=$(ssh_n "$surv" "$NODE_REPO/tools/chk_mxfs $DRBD_DEV 2>&1 | tail -3; echo CHK_RC=\${PIPESTATUS[0]}" 120)
     echo "$out" > "$EVID/sdeath_chk"
     grep -q 'CHK_RC=0' <<<"$out" || die "self death test: chk_mxfs after the recovery: $(tail -3 <<<"$out" | tr '\n' ' ')"
     say "  cold chk_mxfs clean"
@@ -1109,7 +1233,7 @@ step_self_outage_test() {
     both soutprep "$NODE_DRBD_UP
         mountpoint -q /src || { mkdir -p /src; timeout 20 mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp; }
         x=; [ \"\$(hostname)\" = $p0 ] && x='$resume_args'
-        MXFS_EXTRA_MODARGS=\$x MXFS_NO_MOUNT=1 MXFS_DEV=$DRBD_DEV MXFS_KO_MD5=$KO_MD5 MXFS_REPO=/src/mxfs bash /src/mxfs/tests/setup/prep_node.sh tcp 2>&1 | grep -a NODE_PREP" 150
+        MXFS_EXTRA_MODARGS=\$x MXFS_NO_MOUNT=1 MXFS_DEV=$DRBD_DEV MXFS_KO_MD5=$KO_MD5 MXFS_REPO=$NODE_REPO bash $NODE_REPO/tests/setup/prep_node.sh tcp 2>&1 | grep -a NODE_PREP" 150
     for n in "${NODES[@]}"; do
         grep -aq '^NODE_PREP_OK' "$EVID/soutprep.$n" || die "self outage test: $n: $(tail -1 "$EVID/soutprep.$n")"
         self_dyndbg "$n" narrow || die "self outage test: cannot narrow the debug sites on $n"
@@ -1232,7 +1356,7 @@ step_self_outage_test() {
     say "  every fsynced file of both nodes intact on both, and both write"
     both soutstop "systemctl stop mxfs-rig-boot 2>/dev/null; systemctl reset-failed mxfs-rig-boot 2>/dev/null; $NODE_UNMOUNT; echo STOP_OK" 120
     for n in "${NODES[@]}"; do grep -aq '^STOP_OK' "$EVID/soutstop.$n" || die "self outage test: $n would not release mxfs: $(tail -1 "$EVID/soutstop.$n")"; done
-    out=$(ssh_n "$N1" "/src/mxfs/tools/chk_mxfs $DRBD_DEV 2>&1 | tail -3; echo CHK_RC=\${PIPESTATUS[0]}" 120)
+    out=$(ssh_n "$N1" "$NODE_REPO/tools/chk_mxfs $DRBD_DEV 2>&1 | tail -3; echo CHK_RC=\${PIPESTATUS[0]}" 120)
     echo "$out" > "$EVID/sout_chk"
     grep -q 'CHK_RC=0' <<<"$out" || die "self outage test: chk_mxfs after the recovery: $(tail -3 <<<"$out" | tr '\n' ' ')"
     say "  cold chk_mxfs clean"
@@ -1320,7 +1444,7 @@ step_self_restart_test() {
     out=$(ssh_n "$surv" "systemd-run --unit=mxfs-rig-guard --collect /usr/sbin/mxfs-drbd-fence-self guard >/dev/null 2>&1 && echo GUARD_OK
         $NODE_DRBD_UP
         mountpoint -q /src || { mkdir -p /src; timeout 20 mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp; }
-        MXFS_NO_MOUNT=1 MXFS_DEV=$DRBD_DEV MXFS_KO_MD5=$KO_MD5 MXFS_REPO=/src/mxfs bash /src/mxfs/tests/setup/prep_node.sh tcp 2>&1 | grep -a NODE_PREP" 150)
+        MXFS_NO_MOUNT=1 MXFS_DEV=$DRBD_DEV MXFS_KO_MD5=$KO_MD5 MXFS_REPO=$NODE_REPO bash $NODE_REPO/tests/setup/prep_node.sh tcp 2>&1 | grep -a NODE_PREP" 150)
     echo "$out" > "$EVID/srestart_prep.$surv"
     grep -q GUARD_OK <<<"$out" && grep -aq '^NODE_PREP_OK' <<<"$out" || die "self restart test: $surv's boot: $(tail -2 <<<"$out" | tr '\n' ' ')"
     self_dyndbg "$surv" narrow || die "self restart test: cannot narrow the debug sites on $surv"
@@ -1357,7 +1481,7 @@ step_self_restart_test() {
     fi
     out=$(ssh_n "$vict" "$NODE_DRBD_UP
         mountpoint -q /src || { mkdir -p /src; timeout 20 mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp; }
-        MXFS_NO_MOUNT=1 MXFS_DEV=$DRBD_DEV MXFS_KO_MD5=$KO_MD5 MXFS_REPO=/src/mxfs bash /src/mxfs/tests/setup/prep_node.sh tcp 2>&1 | grep -a NODE_PREP
+        MXFS_NO_MOUNT=1 MXFS_DEV=$DRBD_DEV MXFS_KO_MD5=$KO_MD5 MXFS_REPO=$NODE_REPO bash $NODE_REPO/tests/setup/prep_node.sh tcp 2>&1 | grep -a NODE_PREP
         systemctl reset-failed mxfs-rig-boot 2>/dev/null
         systemd-run --unit=mxfs-rig-boot --property=RemainAfterExit=yes --setenv=GUEST_WAIT=0 /usr/sbin/mxfs-drbd-fence-self boot $RES $MNT 2>&1 | tail -1
         echo BOOT_STARTED" 180)
@@ -1375,7 +1499,7 @@ step_self_restart_test() {
 
     both srestop "systemctl stop mxfs-rig-guard 2>/dev/null; systemctl stop mxfs-rig-boot 2>/dev/null; systemctl reset-failed mxfs-rig-boot 2>/dev/null; $NODE_UNMOUNT; echo STOP_OK" 120
     for n in "${NODES[@]}"; do grep -aq '^STOP_OK' "$EVID/srestop.$n" || die "self restart test: $n would not release mxfs: $(tail -1 "$EVID/srestop.$n")"; done
-    out=$(ssh_n "$surv" "/src/mxfs/tools/chk_mxfs $DRBD_DEV 2>&1 | tail -3; echo CHK_RC=\${PIPESTATUS[0]}" 120)
+    out=$(ssh_n "$surv" "$NODE_REPO/tools/chk_mxfs $DRBD_DEV 2>&1 | tail -3; echo CHK_RC=\${PIPESTATUS[0]}" 120)
     echo "$out" > "$EVID/srestart_chk"
     grep -q 'CHK_RC=0' <<<"$out" || die "self restart test: chk_mxfs: $(tail -3 <<<"$out" | tr '\n' ' ')"
     say "  cold chk_mxfs clean"
@@ -1451,7 +1575,7 @@ step_promotion_race_test() {
     for n in "$p0" "$p1"; do
         out=$(ssh_n "$n" "$NODE_DRBD_UP
             mountpoint -q /src || { mkdir -p /src; timeout 20 mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp; }
-            MXFS_NO_MOUNT=1 MXFS_DEV=$DRBD_DEV MXFS_KO_MD5=$KO_MD5 MXFS_REPO=/src/mxfs bash /src/mxfs/tests/setup/prep_node.sh tcp 2>&1 | grep -a NODE_PREP
+            MXFS_NO_MOUNT=1 MXFS_DEV=$DRBD_DEV MXFS_KO_MD5=$KO_MD5 MXFS_REPO=$NODE_REPO bash $NODE_REPO/tests/setup/prep_node.sh tcp 2>&1 | grep -a NODE_PREP
             systemctl reset-failed mxfs-rig-boot 2>/dev/null
             systemd-run --unit=mxfs-rig-boot --property=RemainAfterExit=yes --setenv=GUEST_WAIT=0 /usr/sbin/mxfs-drbd-fence-self boot $RES $MNT 2>&1 | tail -1
             echo BOOT_STARTED" 180)
@@ -1473,7 +1597,7 @@ step_promotion_race_test() {
     say "  both mounted again through their boot programs; every fsynced file of both intact on both"
     both pracestop "systemctl stop mxfs-rig-boot 2>/dev/null; systemctl reset-failed mxfs-rig-boot 2>/dev/null; $NODE_UNMOUNT; echo STOP_OK" 120
     for n in "${NODES[@]}"; do grep -aq '^STOP_OK' "$EVID/pracestop.$n" || die "promotion race test: $n would not release mxfs: $(tail -1 "$EVID/pracestop.$n")"; done
-    out=$(ssh_n "$p0" "/src/mxfs/tools/chk_mxfs $DRBD_DEV 2>&1 | tail -3; echo CHK_RC=\${PIPESTATUS[0]}" 120)
+    out=$(ssh_n "$p0" "$NODE_REPO/tools/chk_mxfs $DRBD_DEV 2>&1 | tail -3; echo CHK_RC=\${PIPESTATUS[0]}" 120)
     echo "$out" > "$EVID/prace_chk"
     grep -q 'CHK_RC=0' <<<"$out" || die "promotion race test: chk_mxfs: $(tail -3 <<<"$out" | tr '\n' ' ')"
     say "  cold chk_mxfs clean"
@@ -1490,6 +1614,7 @@ step_split_test() {
     need_dual_primary
     both nodelay "sed -i 's/^delay=.*/delay=0/' /etc/mxfs/drbd-fence.conf && grep -c '^delay=0' /etc/mxfs/drbd-fence.conf" 15
     say "split test: delay 0 on both nodes; cutting the replication link on both sides at once"
+    both dmesgclear "dmesg -C; echo CLEARED" 10
     t0=$(date +%s)
     both cut "iptables -I INPUT -p tcp --dport $DRBD_PORT -j DROP; iptables -I INPUT -p tcp --sport $DRBD_PORT -j DROP; echo CUT" 15
     surv=""
@@ -1519,6 +1644,7 @@ step_split_test() {
     grep -q copied <<<"$out" || die "split test: survivor $surv cannot write: $out"
     grep -q "result=STONITHED .*episode=$ep" <<<"$out" || die "split test: survivor has no STONITHED record for $ep: $out"
     say "  $surv: Primary/Unknown UpToDate/Outdated, writes, fence record names episode $ep"
+    wait_mxfs_recovered "$surv" "split test"
     out=$("$REPO/tools/rig_fence_virsh.sh" release "$loser" "$ep" "$surv")
     [ "$out" = "RELEASED $loser episode=$ep" ] || die "split test: release: $out"
     "$REPO/scripts/lab_power.sh" up "$loser" > "$EVID/split_rejoin_power" 2>&1 || die "$loser did not boot"
@@ -1606,7 +1732,7 @@ step_resolve_test() {
     ssh_n "$N1" "timeout 20 dmsetup remove mxfs_rt_drbd; rmmod scsi_debug && echo SCSI_DEBUG_UNLOADED" 40 >> "$EVID/resolve_scsi_debug_setup"
     [ "$(sed -n 's/.* dev=\([0-9:]*\) .*/\1/p' <<<"$out" | tail -1)" = "$devt_scsi" ] \
         || die "resolve test: dm over $DRBD_DEV did not reuse $devt_scsi, so the stale-cache case was not exercised: $out"
-    grep -q 'is not one of its slaves — re-resolving' <<<"$out" || die "resolve test: the cache entry for $devt_scsi was not refused: $out"
+    grep -q 'is not one of its slaves -- re-resolving' <<<"$out" || die "resolve test: the cache entry for $devt_scsi was not refused: $out"
     grep -q 'P-MPATH-RESOLVE-REJECT' <<<"$out" || die "resolve test: dm over $DRBD_DEV was not refused by the slave check: $out"
     grep -q SCSI_DEBUG_UNLOADED "$EVID/resolve_scsi_debug_setup" || die "resolve test: scsi_debug is still referenced after the stale entry was dropped: $(tail -2 "$EVID/resolve_scsi_debug_setup")"
     grep -q -- '-> none (bio path)' <<<"$out" || die "resolve test: dm over $DRBD_DEV resolves to a SCSI disk: $out"
@@ -1617,10 +1743,10 @@ step_resolve_test() {
         local o
         o=$(ssh_n "$N1" "
             lsmod | grep -q '^mxfs ' && rmmod mxfs
-            insmod /src/mxfs/mxfs.ko $2 || { echo INSMOD_FAIL; exit 0; }
+            insmod $NODE_REPO/mxfs.ko $2 || { echo INSMOD_FAIL; exit 0; }
             truncate -s 2G /root/mxfs_cas_test.img
             L=\$(losetup -f --show /root/mxfs_cas_test.img)
-            if ! m=\$(/src/mxfs/tools/mkfs_mxfs -f -n $LOG_SLICES \$L 2>&1); then
+            if ! m=\$($NODE_REPO/tools/mkfs_mxfs -f -n $LOG_SLICES \$L 2>&1); then
                 losetup -d \$L; rm -f /root/mxfs_cas_test.img
                 echo \"MKFS_FAIL \$(echo \"\$m\" | tail -1)\"; exit 0
             fi
@@ -1673,7 +1799,7 @@ step_misconfig_test() {
     a1=$(lab_addr "$N1"); a2=$(lab_addr "$N2")
     both mmum "$NODE_UNMOUNT; echo UM_OK" 120
     for n in "${NODES[@]}"; do grep -q UM_OK "$EVID/mmum.$n" || die "misconfig test: $n would not unmount: $(tail -1 "$EVID/mmum.$n")"; done
-    out=$(ssh_n "$N1" "insmod /src/mxfs/mxfs.ko $(grep -v -E '^\s*(#|$)' "$REPO/packaging/mxfs-modprobe.conf" | sed 's/^options mxfs //' | tr '\n' ' ') && cat /sys/module/mxfs/srcversion" 30)
+    out=$(ssh_n "$N1" "insmod $NODE_REPO/mxfs.ko $(grep -v -E '^\s*(#|$)' "$REPO/packaging/mxfs-modprobe.conf" | sed 's/^options mxfs //' | tr '\n' ' ') && cat /sys/module/mxfs/srcversion" 30)
     [ "$out" = "$(modinfo -F srcversion "$REPO/mxfs.ko")" ] || die "misconfig test: could not load the tree's module with the shipped options on $N1: $out"
     say "misconfig test on $N1 (build $out, shipped module options)"
     for spec in "${MISCONFIG_ARMS[@]}"; do
@@ -1688,7 +1814,7 @@ step_misconfig_test() {
         out=$(ssh_n "$N1" "truncate -s 2G /root/mxfs_mis.img; L=\$(losetup -f --show /root/mxfs_mis.img)
             echo '$(base64 -w0 <<<"$res")' | base64 -d | sed \"s|LOOPDEV|\$L|\" > /etc/drbd.d/mxfsmis.res
             if drbdadm -- --force create-md mxfsmis </dev/null >/dev/null 2>&1 && drbdadm up mxfsmis 2>/root/mxfs_mis.err && drbdadm primary --force mxfsmis 2>>/root/mxfs_mis.err; then
-                /src/mxfs/tools/mkfs_mxfs -f -n $LOG_SLICES /dev/drbd1 >/dev/null 2>&1 || echo MKFS_FAIL
+                $NODE_REPO/tools/mkfs_mxfs -f -n $LOG_SLICES /dev/drbd1 >/dev/null 2>&1 || echo MKFS_FAIL
                 mkdir -p /mnt/mxfs_mis; dmesg -C
                 if timeout 60 mount -t mxfs /dev/drbd1 /mnt/mxfs_mis 2>/dev/null; then echo MIS_MOUNTED; timeout 30 umount /mnt/mxfs_mis; else echo MIS_REFUSED; fi
                 dmesg | grep -a -m1 'P-DRBD-ARM-REFUSED' | sed 's/^.*mxfs: //'
@@ -1789,7 +1915,7 @@ step_remount_test() {
     both stalled "dmesg | grep -ac 'P304-RETIRE-UNKNOWN-STALLED\|P-ADMIT-RETIRE-PENDING-HELD'" 15
     for n in "${NODES[@]}"; do [ "$(cat "$EVID/stalled.$n")" = 0 ] || die "remount test: $n logged $(cat "$EVID/stalled.$n") stalled-retirement lines"; done
     both stop "$NODE_UNMOUNT; echo STOP_OK" 120
-    out=$(ssh_n "$N1" "/src/mxfs/tools/chk_mxfs $DRBD_DEV 2>&1 | tail -3; echo CHK_RC=\${PIPESTATUS[0]}" 120)
+    out=$(ssh_n "$N1" "$NODE_REPO/tools/chk_mxfs $DRBD_DEV 2>&1 | tail -3; echo CHK_RC=\${PIPESTATUS[0]}" 120)
     echo "$out" > "$EVID/remount_chk"
     grep -q 'CHK_RC=0' <<<"$out" || die "remount test: chk_mxfs: $(tail -3 <<<"$out" | tr '\n' ' ')"
     say "remount test: passed (no stalled retirement on either node; cold chk_mxfs clean)"
@@ -1837,7 +1963,7 @@ step_outage_test() {
     need_dual_primary
     say "  both booted; DRBD Primary/Primary UpToDate/UpToDate Connected"
     local KO_MD5; KO_MD5=$(md5sum "$REPO/mxfs.ko" | awk '{print $1}')
-    local PREP="MXFS_DEV=$DRBD_DEV MXFS_KO_MD5=$KO_MD5 MXFS_REPO=/src/mxfs bash /src/mxfs/tests/setup/prep_node.sh tcp 2>&1"
+    local PREP="MXFS_DEV=$DRBD_DEV MXFS_KO_MD5=$KO_MD5 MXFS_REPO=$NODE_REPO bash $NODE_REPO/tests/setup/prep_node.sh tcp 2>&1"
     # ── A ──
     h0=$(ssh_n "$N1" "$HASH" 30)
     out=$(ssh_n "$N1" "dmesg -C; MXFS_EXTRA_MODARGS=dbg_cas_nocaw_ops=28672 $PREP | grep -a NODE_PREP | tail -1
@@ -1899,7 +2025,7 @@ step_outage_test() {
     done
     say "  B: $N1 recovered the pair, $N2 joined; every fsynced file of both nodes intact on both"
     both stop "$NODE_UNMOUNT; echo STOP_OK" 120
-    out=$(ssh_n "$N1" "/src/mxfs/tools/chk_mxfs $DRBD_DEV 2>&1 | tail -3; echo CHK_RC=\${PIPESTATUS[0]}" 120)
+    out=$(ssh_n "$N1" "$NODE_REPO/tools/chk_mxfs $DRBD_DEV 2>&1 | tail -3; echo CHK_RC=\${PIPESTATUS[0]}" 120)
     echo "$out" > "$EVID/outage_chk"
     grep -q 'CHK_RC=0' <<<"$out" || die "outage test: chk_mxfs: $(tail -3 <<<"$out" | tr '\n' ' ')"
     say "outage test: passed (cold chk_mxfs clean; MXFS left unmounted)"
@@ -1954,7 +2080,7 @@ step_takeover_test() {
         mountpoint -q /src || { mkdir -p /src; timeout 20 mount -t nfs 192.168.120.1:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp; }" $((REJOIN_BUDGET + 40))
     need_dual_primary
     local KO_MD5; KO_MD5=$(md5sum "$REPO/mxfs.ko" | awk '{print $1}')
-    local PREP="MXFS_DEV=$DRBD_DEV MXFS_KO_MD5=$KO_MD5 MXFS_REPO=/src/mxfs bash /src/mxfs/tests/setup/prep_node.sh tcp"
+    local PREP="MXFS_DEV=$DRBD_DEV MXFS_KO_MD5=$KO_MD5 MXFS_REPO=$NODE_REPO bash $NODE_REPO/tests/setup/prep_node.sh tcp"
     # ── the owner: claims (its startup fence holds $N2 off), seals, adopts K
     if [ "$arm" = self ]; then
         out=$(ssh_n "$owner" "dmesg -C; nohup env MXFS_EXTRA_MODARGS=bootstrap_inject=13 $PREP > /run/tk_owner.log 2>&1 < /dev/null &
@@ -2059,7 +2185,7 @@ step_takeover_test() {
     done
     say "  both mounted; every fsynced file of both nodes intact on both"
     both stop "$NODE_UNMOUNT; echo STOP_OK" 120
-    out=$(ssh_n "$N1" "/src/mxfs/tools/chk_mxfs $DRBD_DEV 2>&1 | tail -3; echo CHK_RC=\${PIPESTATUS[0]}" 120)
+    out=$(ssh_n "$N1" "$NODE_REPO/tools/chk_mxfs $DRBD_DEV 2>&1 | tail -3; echo CHK_RC=\${PIPESTATUS[0]}" 120)
     echo "$out" > "$EVID/takeover_chk"
     grep -q 'CHK_RC=0' <<<"$out" || die "takeover test: chk_mxfs: $(tail -3 <<<"$out" | tr '\n' ' ')"
     say "takeover test ($arm): passed (cold chk_mxfs clean; MXFS left unmounted)"

@@ -148,6 +148,9 @@ struct mxfs_dlm_pending {
 	int                     status;         /* 0 or negative errno */
 	mxfs_epoch_t            request_epoch;  /* epoch when request was sent */
 	uint32_t                req_id;         /* idempotent retry id */
+	uint32_t                flags;          /* the request's MXFS_LKF_*: a would-block
+						 * deny answers only a request that asked
+						 * not to queue */
 };
 
 /*
@@ -908,6 +911,7 @@ struct mxfs_dlm_ctx {
 	uint64_t                acq_grant_released; /* no claimant; handed back */
 	uint64_t                acq_grant_bounced;  /* no wait at all; bounced */
 	uint64_t                grant_below_want;   /* a grant below a wait's mode left it pending */
+	uint64_t                deny_not_asked;     /* a would-block deny left a blocking wait pending */
 	uint64_t                ledger_deny_waits;  /* ledger-error denies from a master, waited
 						     * out as unanswered instead of failed */
 	uint64_t                unlock_fallback_inflight_skips; /* a release with no granted

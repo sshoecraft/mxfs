@@ -174,7 +174,7 @@ mxfs_evict_relmark(
 	if (rearm && atomic_inc_return(&p_rearm_n) <= 400)
 		print = true;
 	if (print)
-		mxfs_probe("mxfs: P-RELMARK-EVICT ino=%llu res=%llu gepoch=%llu lineage=%llu freed=%d rc=%d us=%llu marked=%lld failed=%lld nostamp=%lld down=%lld src=%s rearm=%lld comm=%s — clean-release marker before the grant leaves through reclaim\n",
+		mxfs_probe("mxfs: P-RELMARK-EVICT ino=%llu res=%llu gepoch=%llu lineage=%llu freed=%d rc=%d us=%llu marked=%lld failed=%lld nostamp=%lld down=%lld src=%s rearm=%lld comm=%s -- clean-release marker before the grant leaves through reclaim\n",
 			(unsigned long long)ip->i_ino,
 			(unsigned long long)res,
 			(unsigned long long)epoch,
@@ -225,7 +225,7 @@ mxfs_dlm_evict(
 			       ip->i_dlm_bast_pending;
 
 		if (suspect && atomic_inc_return(&p125_n) <= 5000)
-			mxfs_probe("mxfs: P125-EVICT-SUSPECT ino=%llu mode=%u state=%u ex=%u pr=%u pin=%u demoter=%d bast_pending=%d stale=%d i_count=%d i_state=0x%lx comm=%s exh_pid=%d exh_comm=%s exh_age_ms=%lld — evict() entered with mxfs bookkeeping still non-quiescent\n",
+			mxfs_probe("mxfs: P125-EVICT-SUSPECT ino=%llu mode=%u state=%u ex=%u pr=%u pin=%u demoter=%d bast_pending=%d stale=%d i_count=%d i_state=0x%lx comm=%s exh_pid=%d exh_comm=%s exh_age_ms=%lld -- evict() entered with mxfs bookkeeping still non-quiescent\n",
 				(unsigned long long)ip->i_ino,
 				ip->i_dlm_mode, ip->i_dlm_state,
 				ip->i_dlm_ex_holders, ip->i_dlm_pr_holders,
@@ -284,7 +284,7 @@ mxfs_dlm_evict(
 			static atomic_t p237_n = ATOMIC_INIT(0);
 
 			if (atomic_inc_return(&p237_n) <= 400)
-				pr_err("mxfs: P237-EVICT-OBLIGATION ino=%llu mode=%u state=%u pend=%llu dur=%llu flush=%llu ili_f=0x%x pin=%d in_ail=%d nlink=%u imode=0%o comm=%s — evicting a fork whose committed change never reached home; acknowledged data would be lost cluster-wide%s\n",
+				pr_err("mxfs: P237-EVICT-OBLIGATION ino=%llu mode=%u state=%u pend=%llu dur=%llu flush=%llu ili_f=0x%x pin=%d in_ail=%d nlink=%u imode=0%o comm=%s -- evicting a fork whose committed change never reached home; acknowledged data would be lost cluster-wide%s\n",
 					(unsigned long long)ip->i_ino,
 					ip->i_dlm_mode, ip->i_dlm_state,
 					(unsigned long long)ip->i_mxfs_pub_pending_seq,
@@ -301,7 +301,7 @@ mxfs_dlm_evict(
 			if (mxfs_evict_obligation_shutdown)
 				xfs_force_shutdown(mp, SHUTDOWN_META_IO_ERROR);
 		} else {
-			mxfs_probe("mxfs: P237-EVICT-LANDED ino=%llu — open obligation landed by the evict-side last-chance publish (EX still held)\n",
+			mxfs_probe("mxfs: P237-EVICT-LANDED ino=%llu -- open obligation landed by the evict-side last-chance publish (EX still held)\n",
 				(unsigned long long)ip->i_ino);
 		}
 	}
@@ -335,7 +335,7 @@ mxfs_dlm_evict(
 		    mxfs_v5_dlm_inode_granted_mode(mp->m_mxfs_dlm,
 						   ip->i_ino) !=
 			MXFS_LOCK_NL) {
-			mxfs_probe_ratelimited("mxfs: P-UNPUB-WIRE-DESYNC ino=%llu mode=%u — unpublished bookkeeping but a live wire grant exists; running the real release\n",
+			mxfs_probe_ratelimited("mxfs: P-UNPUB-WIRE-DESYNC ino=%llu mode=%u -- unpublished bookkeeping but a live wire grant exists; running the real release\n",
 				(unsigned long long)ip->i_ino,
 				ip->i_dlm_mode);
 		} else {
@@ -400,7 +400,7 @@ mxfs_dlm_evict(
 			static atomic_t p204n = ATOMIC_INIT(0);
 
 			if (atomic_inc_return(&p204n) <= 2000)
-				mxfs_probe("mxfs: P204-CANCEL-ARMED-REF ino=%llu work=%d dwork=%d icount=%d mode=%u state=%u bastq_src=%u release=%d — cancelled a QUEUED bast arm; its igrab ref is dropped by nobody\n",
+				mxfs_probe("mxfs: P204-CANCEL-ARMED-REF ino=%llu work=%d dwork=%d icount=%d mode=%u state=%u bastq_src=%u release=%d -- cancelled a QUEUED bast arm; its igrab ref is dropped by nobody\n",
 					(unsigned long long)ip->i_ino,
 					c_w ? 1 : 0, c_d ? 1 : 0,
 					atomic_read(&VFS_I(ip)->i_count),
@@ -419,7 +419,7 @@ mxfs_dlm_evict(
 					unsigned long st = mxfs_istate(VFS_I(ip));
 
 					if (cnt < 1 || (st & (I_FREEING | I_CLEAR))) {
-						mxfs_probe("mxfs: P204-CANCEL-BADREF ino=%llu i_count=%d i_state=0x%lx — NOT releasing\n",
+						mxfs_probe("mxfs: P204-CANCEL-BADREF ino=%llu i_count=%d i_state=0x%lx -- NOT releasing\n",
 							(unsigned long long)ip->i_ino,
 							cnt, st);
 						break;
@@ -487,7 +487,7 @@ mxfs_dlm_evict(
 
 			evict_precensus_flagged = true;
 			if (atomic_inc_return(&p491e_n) <= 400)
-				mxfs_probe("mxfs: P491-EVICT-UNDEST ino=%llu fmt=%d mode=%u gmode=%u state=%u rc=%d undest=%d inail=%d locked=%d cached=%d f4_open=%ld f4_unknown=%d first_daddr=%lld lseq=%llu wseq=%llu has_bli=%d done=%d drain_arm=%d comm=%s — directory grant leaving through inode reclaim with committed-unwritten data blocks cached\n",
+				mxfs_probe("mxfs: P491-EVICT-UNDEST ino=%llu fmt=%d mode=%u gmode=%u state=%u rc=%d undest=%d inail=%d locked=%d cached=%d f4_open=%ld f4_unknown=%d first_daddr=%lld lseq=%llu wseq=%llu has_bli=%d done=%d drain_arm=%d comm=%s -- directory grant leaving through inode reclaim with committed-unwritten data blocks cached\n",
 					(unsigned long long)ip->i_ino,
 					ip->i_df.if_format, ip->i_dlm_mode,
 					mxfs_v5_dlm_inode_granted_mode(mp->m_mxfs_dlm,
@@ -553,7 +553,7 @@ mxfs_dlm_evict(
 					 (left || pc.undest || pc.inail);
 
 			if (atomic_inc_return(&p491d_n) <= 400)
-				mxfs_probe("mxfs: P491-EVICT-DRAINED ino=%llu fmt=%d mode=%u landed=%d left=%d rc=%d undest=%d inail=%d locked=%d cached=%d f4_open=%ld f4_unknown=%d first_daddr=%lld lseq=%llu wseq=%llu undrained=%d comm=%s — reclaim-exit drain of the directory's committed-unwritten blocks before the grant leaves\n",
+				mxfs_probe("mxfs: P491-EVICT-DRAINED ino=%llu fmt=%d mode=%u landed=%d left=%d rc=%d undest=%d inail=%d locked=%d cached=%d f4_open=%ld f4_unknown=%d first_daddr=%lld lseq=%llu wseq=%llu undrained=%d comm=%s -- reclaim-exit drain of the directory's committed-unwritten blocks before the grant leaves\n",
 					(unsigned long long)ip->i_ino,
 					ip->i_df.if_format, ip->i_dlm_mode,
 					landed, left, pcrc,
@@ -564,7 +564,7 @@ mxfs_dlm_evict(
 					(unsigned long long)pc.first_wseq,
 					undrained ? 1 : 0, current->comm);
 			if (undrained) {
-				pr_err("mxfs: P491-EVICT-UNDRAINED ino=%llu left=%d undest=%d inail=%d — committed directory blocks still unwritten after the reclaim-exit drain; releasing EX now would lose them cluster-wide%s\n",
+				pr_err("mxfs: P491-EVICT-UNDRAINED ino=%llu left=%d undest=%d inail=%d -- committed directory blocks still unwritten after the reclaim-exit drain; releasing EX now would lose them cluster-wide%s\n",
 					(unsigned long long)ip->i_ino,
 					left, pc.undest, pc.inail,
 					mxfs_evict_obligation_shutdown ?
@@ -607,7 +607,7 @@ mxfs_dlm_evict(
 		int	terc = mxfs_bmbt_tenure_end_evict(ip, "reclaim");
 
 		if (terc) {
-			pr_err("mxfs: P975-EVICT-WEDGE ino=%llu rc=%d mode=%u — cached extent-tree blocks could not be retired before the grant leaves through reclaim%s\n",
+			pr_err("mxfs: P975-EVICT-WEDGE ino=%llu rc=%d mode=%u -- cached extent-tree blocks could not be retired before the grant leaves through reclaim%s\n",
 				(unsigned long long)ip->i_ino, terc,
 				ip->i_dlm_mode,
 				mxfs_evict_obligation_shutdown ?
@@ -767,11 +767,11 @@ mxfs_dlm_evict(
 			 */
 			if (unlikely(READ_ONCE(ip->i_mxfs_auth_state) !=
 				     MXFS_AUTH_NONE))
-				mxfs_probe_ratelimited("mxfs: P248-RETAIN-CERT-ANOMALY ino=%llu auth_state=%u — PR retain arm reached with a non-NONE authority certificate; EX-class tenure coexisted with PR mode\n",
+				mxfs_probe_ratelimited("mxfs: P248-RETAIN-CERT-ANOMALY ino=%llu auth_state=%u -- PR retain arm reached with a non-NONE authority certificate; EX-class tenure coexisted with PR mode\n",
 					(unsigned long long)ip->i_ino,
 					READ_ONCE(ip->i_mxfs_auth_state));
 			if (p6r_n++ < 2000)
-				mxfs_probe("mxfs: P6R-RETAIN ino=%llu — clean PR grant retained across evict (demand-released via noino BAST)\n",
+				mxfs_probe("mxfs: P6R-RETAIN ino=%llu -- clean PR grant retained across evict (demand-released via noino BAST)\n",
 					(unsigned long long)ip->i_ino);
 		} else {
 			mxfs_inode_authority_check_published(ip, MXFS_SITE);
@@ -813,7 +813,7 @@ mxfs_dlm_evict(
 	    !xfs_iflags_test(ip, MXFS_IF_FREE_COMMITTED)) {
 		if (mxfs_v5_dlm_open_clear_rides_release(mp->m_mxfs_dlm))
 			mxfs_probe_ratelimited(
-			    "mxfs: P977-EVICT-MARK-LEFT ino=%llu dlm_mode=%u — evicted with a published mark and no release to carry the clear\n",
+			    "mxfs: P977-EVICT-MARK-LEFT ino=%llu dlm_mode=%u -- evicted with a published mark and no release to carry the clear\n",
 				(unsigned long long)ip->i_ino, ip->i_dlm_mode);
 		else
 			mxfs_v5_dlm_inode_open_clear(mp->m_mxfs_dlm, ip->i_ino);
@@ -915,7 +915,7 @@ void mxfs_reap_sched(struct xfs_mount *mp, unsigned int delay_ms,
 			    const char *why)
 {
 	if (READ_ONCE(mp->m_mxfs_reap_dead)) {
-		mxfs_probe_ratelimited("mxfs: P89-REAP-SCHED-AFTER-DESTROY (%s) — reap work is torn down; durable bucket state carries the duty\n",
+		mxfs_probe_ratelimited("mxfs: P89-REAP-SCHED-AFTER-DESTROY (%s) -- reap work is torn down; durable bucket state carries the duty\n",
 				    why);
 		return;
 	}
@@ -936,7 +936,7 @@ void mxfs_reap_sched(struct xfs_mount *mp, unsigned int delay_ms,
 			(unsigned long long)mp->m_mxfs_foreign_dead_slots[0]);
 	}
 #ifdef MXFS_TEST_REPLAY_RETRY_BY_REAP
-	mxfs_probe_ratelimited("mxfs: P-FREPLAY-RETRY-DISABLED why=%s — CONTROL BUILD: a replay's retry is left to the reap worker\n",
+	mxfs_probe_ratelimited("mxfs: P-FREPLAY-RETRY-DISABLED why=%s -- CONTROL BUILD: a replay's retry is left to the reap worker\n",
 		why);
 #else
 	if (test_bit(MXFS_REAPF_FREPLAY, &mp->m_mxfs_reap_duties))
@@ -985,7 +985,7 @@ void mxfs_defer_reap_add_mode(struct xfs_mount *mp, uint64_t ino,
 		spin_unlock(&mp->m_mxfs_reap_lock);
 		set_bit(MXFS_REAPF_OWN_RESCAN, &mp->m_mxfs_reap_duties);
 		mxfs_reap_sched(mp, MXFS_REAP_RETRY_MS, "add-enomem");
-		mxfs_probe("mxfs: P87-REAP-ADD-ENOMEM ino=%llu — own-bucket rescan armed\n",
+		mxfs_probe("mxfs: P87-REAP-ADD-ENOMEM ino=%llu -- own-bucket rescan armed\n",
 			(unsigned long long)ino);
 		return;
 	}
@@ -1091,7 +1091,7 @@ void mxfs_reap_worker(struct work_struct *work)
 		mxfs_dbg_reap_wait_dead_ms = 0;		/* one-shot */
 		mxfs_reap_duty(mp, "test-wait");
 		xfs_alert(mp,
-			"MXFS P-DBG-REAP-WAIT budget_ms=%d dead_slots=0x%llx — TEST ONLY: the reap worker waits for a node to die and for its recovery to complete, as a duty waiting on that node's grant does",
+			"MXFS P-DBG-REAP-WAIT budget_ms=%d dead_slots=0x%llx -- TEST ONLY: the reap worker waits for a node to die and for its recovery to complete, as a duty waiting on that node's grant does",
 			budget,
 			(unsigned long long)mp->m_mxfs_foreign_dead_slots[0]);
 		while (waited < budget && !xfs_is_shutdown(mp) &&
@@ -1210,7 +1210,7 @@ void mxfs_reap_worker(struct work_struct *work)
 			mp->m_mxfs_reap_count--;
 			spin_unlock(&mp->m_mxfs_reap_lock);
 			mxfs_probe_ratelimited(
-			    "mxfs: P92-REAP-RETIRE ino=%llu gen=%u — opener alias pruned post-last-close\n",
+			    "mxfs: P92-REAP-RETIRE ino=%llu gen=%u -- opener alias pruned post-last-close\n",
 				(unsigned long long)e->ino, e->gen);
 			kfree(e);
 			xfs_irele(ip);
@@ -1264,7 +1264,7 @@ int mxfs_lru_sweep_enable;	/* DEFAULT 0.  The sweep was built
 				 * an opt-in diagnostic only. */
 module_param_named(lru_sweep, mxfs_lru_sweep_enable, int, 0644);
 MODULE_PARM_DESC(lru_sweep,
-		 "opt-in repatriation sweep (default 0 — see note; page-held inodes are off-LRU by upstream design)");
+		 "opt-in repatriation sweep (default 0 -- see note; page-held inodes are off-LRU by upstream design)");
 
 /*
  * The sweep's batch, off the stack (1 KB).  Only mxfs_lru_sweep_fn touches it,
@@ -1349,7 +1349,7 @@ EXPORT_SYMBOL(mxfs_lru_sweep_stop);
 int mxfs_force_coherent;
 module_param_named(force_coherent, mxfs_force_coherent, int, 0644);
 MODULE_PARM_DESC(force_coherent,
-                 "NEWARCH Phase 0 measurement instrument — force every "
+                 "NEWARCH Phase 0 measurement instrument -- force every "
                  "metadata acquire to slow path and every cached dir "
                  "block to be re-read: 0=off (default), 1=force fully "
                  "synchronous (deliberately slow, measurement only).");

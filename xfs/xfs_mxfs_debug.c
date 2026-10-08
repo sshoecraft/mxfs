@@ -45,6 +45,7 @@ atomic64_t mxfs_p6_repeat_max;
 
 atomic64_t mxfs_dem_punt_retain;		/* claims retained by the punt */
 atomic64_t mxfs_dem_punt_owner_clear;	/* retention ended by its own owner at ilock_end */
+atomic64_t mxfs_dem_punt_wipe;		/* retention's record dropped by a task that does not hold it */
 
 atomic64_t mxfs_dem_strand_n;		/* inodes named as stranded */
 
@@ -153,7 +154,7 @@ MODULE_PARM_DESC(dbg_sb_inject_unheld_agno,
  */
 static unsigned long long mxfs_dbg_bast_pause_ino;
 module_param_named(dbg_bast_pause_ino, mxfs_dbg_bast_pause_ino, ullong, 0644);
-MODULE_PARM_DESC(dbg_bast_pause_ino, "DEBUG one-shot: park the BAST release drain of this inode before its reg-durable loop for dbg_bast_pause_ms (D-0532 arm)");
+MODULE_PARM_DESC(dbg_bast_pause_ino, "DEBUG one-shot: park the BAST release drain of this inode before its reg-durable loop for dbg_bast_pause_ms (D-0532 arm); 18446744073709551615 parks every drain until cleared");
 static int mxfs_dbg_bast_pause_ms = 4000;
 module_param_named(dbg_bast_pause_ms, mxfs_dbg_bast_pause_ms, int, 0644);
 MODULE_PARM_DESC(dbg_bast_pause_ms, "DEBUG: hold length for dbg_bast_pause_ino (ms)");
@@ -187,10 +188,17 @@ mxfs_dbg_bast_pause(struct xfs_inode *ip)
 {
 	int ms;
 
-	if (!mxfs_dbg_ino_take(&mxfs_dbg_bast_pause_ino, ip->i_ino))
+	/*
+	 * All-ones parks EVERY release drain, and is not consumed: a test that
+	 * needs a whole set of releases to reach their master only after it has
+	 * been frozen (tests/pve_released_grant_ghost.sh RELEASE_BY=pause) sets
+	 * it, lets the peer's requests arrive, freezes the peer and clears it.
+	 */
+	if (READ_ONCE(mxfs_dbg_bast_pause_ino) != ~0ULL &&
+	    !mxfs_dbg_ino_take(&mxfs_dbg_bast_pause_ino, ip->i_ino))
 		return;
 	ms = READ_ONCE(mxfs_dbg_bast_pause_ms);
-	mxfs_probe("mxfs: P-BAST-PAUSE ino=%llu ms=%d ex_h=%u pr_h=%u mode=%u state=%u — INJECTED: parking the release drain before its reg-durable loop\n",
+	mxfs_probe("mxfs: P-BAST-PAUSE ino=%llu ms=%d ex_h=%u pr_h=%u mode=%u state=%u -- INJECTED: parking the release drain before its reg-durable loop\n",
 		(unsigned long long)ip->i_ino, ms, ip->i_dlm_ex_holders,
 		ip->i_dlm_pr_holders, ip->i_dlm_mode, ip->i_dlm_state);
 	mxfs_dbg_sliced_sleep(ms);
@@ -220,7 +228,7 @@ mxfs_dbg_bast_defer(struct xfs_inode *ip, const char *who)
 	if (!mxfs_dbg_ino_take(&mxfs_dbg_bast_defer_ino, ip->i_ino))
 		return;
 	ms = READ_ONCE(mxfs_dbg_bast_defer_ms);
-	mxfs_probe("mxfs: P-BAST-DEFER ino=%llu who=%s ms=%d pending=%d mode=%u state=%u ex_h=%u pr_h=%u — INJECTED: parking the BAST work before it runs\n",
+	mxfs_probe("mxfs: P-BAST-DEFER ino=%llu who=%s ms=%d pending=%d mode=%u state=%u ex_h=%u pr_h=%u -- INJECTED: parking the BAST work before it runs\n",
 		(unsigned long long)ip->i_ino, who, ms,
 		ip->i_dlm_bast_pending ? 1 : 0, ip->i_dlm_mode, ip->i_dlm_state,
 		ip->i_dlm_ex_holders, ip->i_dlm_pr_holders);
@@ -229,6 +237,64 @@ mxfs_dbg_bast_defer(struct xfs_inode *ip, const char *who)
 		(unsigned long long)ip->i_ino, ip->i_dlm_bast_pending ? 1 : 0,
 		ip->i_dlm_mode, ip->i_dlm_state, VFS_I(ip)->i_nlink,
 		VFS_I(ip)->i_mode);
+}
+
+/*
+ * Park the next SB summary lock taken by a workqueue worker (the log worker's
+ * runtime cover), once, after it has read the DLM context and before it
+ * acquires through it — where a log worker that faulted on a freed mount
+ * context was, inside a 20 s acquire.  An unmount of a shut-down mount run
+ * inside the park decides whether put_super can free the context under it.
+ */
+static int mxfs_dbg_sb_cover_park_ms;
+module_param_named(dbg_sb_cover_park_ms, mxfs_dbg_sb_cover_park_ms, int, 0644);
+MODULE_PARM_DESC(dbg_sb_cover_park_ms, "DEBUG one-shot: park the next runtime SB cover this many ms before it takes the summary lock (0=off)");
+
+void
+mxfs_dbg_sb_cover_park(struct xfs_mount *mp)
+{
+	int ms = READ_ONCE(mxfs_dbg_sb_cover_park_ms);
+
+	if (likely(ms <= 0) || cmpxchg(&mxfs_dbg_sb_cover_park_ms, ms, 0) != ms)
+		return;
+	pr_warn("mxfs: P-SB-COVER-PARK slot=%u ms=%d pid=%d -- INJECTED: a worker's SB summary lock parked holding the DLM context\n",
+		mp->m_mxfs_node_slot, ms, current->pid);
+	mxfs_dbg_sliced_sleep(ms);
+	pr_warn("mxfs: P-SB-COVER-PARK-END slot=%u dlm=%d shutdown=%d -- the cover resumes into the summary lock\n",
+		mp->m_mxfs_node_slot, READ_ONCE(mp->m_mxfs_dlm) ? 1 : 0,
+		xfs_is_shutdown(mp) ? 1 : 0);
+}
+
+/*
+ * Park xfs_setfilesize for this inode, once, after it has taken ILOCK_EXCL and
+ * before it commits.  A peer request arriving in the park finds a live holder,
+ * so the commit's unlock defers the release onto the transaction and the
+ * transaction's free punts it from ioend context — tests/pve_append_release_race.sh
+ * with HOLD_MS set.
+ */
+static unsigned long long mxfs_dbg_sfs_hold_ino;
+module_param_named(dbg_sfs_hold_ino, mxfs_dbg_sfs_hold_ino, ullong, 0644);
+MODULE_PARM_DESC(dbg_sfs_hold_ino, "DEBUG one-shot: park this inode's next xfs_setfilesize (ioend worker, ILOCK_EXCL held) for dbg_sfs_hold_ms before its commit");
+static int mxfs_dbg_sfs_hold_ms = 3000;
+module_param_named(dbg_sfs_hold_ms, mxfs_dbg_sfs_hold_ms, int, 0644);
+MODULE_PARM_DESC(dbg_sfs_hold_ms, "DEBUG: park length for dbg_sfs_hold_ino (ms)");
+
+void
+mxfs_dbg_sfs_hold(struct xfs_inode *ip)
+{
+	int ms;
+
+	if (!mxfs_dbg_ino_take(&mxfs_dbg_sfs_hold_ino, ip->i_ino))
+		return;
+	ms = READ_ONCE(mxfs_dbg_sfs_hold_ms);
+	pr_warn("mxfs: P-SFS-HOLD ino=%llu ms=%d pid=%d comm=%s ioend=%d mode=%u state=%u ex_h=%u -- INJECTED: parking setfilesize with ILOCK_EXCL held\n",
+		(unsigned long long)ip->i_ino, ms, current->pid, current->comm,
+		xfs_task_in_ioend() ? 1 : 0, ip->i_dlm_mode, ip->i_dlm_state,
+		ip->i_dlm_ex_holders);
+	mxfs_dbg_sliced_sleep(ms);
+	pr_warn("mxfs: P-SFS-HOLD-END ino=%llu mode=%u state=%u pending=%d ex_h=%u\n",
+		(unsigned long long)ip->i_ino, ip->i_dlm_mode, ip->i_dlm_state,
+		ip->i_dlm_bast_pending ? 1 : 0, ip->i_dlm_ex_holders);
 }
 
 /*
@@ -252,7 +318,7 @@ mxfs_dbg_relog_force_take(struct xfs_inode *ip)
 {
 	if (!mxfs_dbg_ino_take(&mxfs_dbg_relog_force_ino, ip->i_ino))
 		return false;
-	mxfs_probe("mxfs: P146V-FORCE ino=%llu ex_h=%u pr_h=%u mode=%u state=%u — INJECTED: treating the dinode as clean-but-unlanded\n",
+	mxfs_probe("mxfs: P146V-FORCE ino=%llu ex_h=%u pr_h=%u mode=%u state=%u -- INJECTED: treating the dinode as clean-but-unlanded\n",
 		(unsigned long long)ip->i_ino, ip->i_dlm_ex_holders,
 		ip->i_dlm_pr_holders, ip->i_dlm_mode, ip->i_dlm_state);
 	return true;
@@ -266,7 +332,7 @@ mxfs_dbg_iolock_hold(struct xfs_inode *ip)
 	if (!mxfs_dbg_ino_take(&mxfs_dbg_iolock_hold_ino, ip->i_ino))
 		return;
 	ms = READ_ONCE(mxfs_dbg_iolock_hold_ms);
-	mxfs_probe("mxfs: P-IOLOCK-HOLD ino=%llu ms=%d ex_h=%u pr_h=%u mode=%u state=%u bast_pending=%d comm=%s — INJECTED: genuine IOLOCK_EXCL holder parked after DLM admission\n",
+	mxfs_probe("mxfs: P-IOLOCK-HOLD ino=%llu ms=%d ex_h=%u pr_h=%u mode=%u state=%u bast_pending=%d comm=%s -- INJECTED: genuine IOLOCK_EXCL holder parked after DLM admission\n",
 		(unsigned long long)ip->i_ino, ms, ip->i_dlm_ex_holders,
 		ip->i_dlm_pr_holders, ip->i_dlm_mode, ip->i_dlm_state,
 		ip->i_dlm_bast_pending ? 1 : 0, current->comm);
@@ -398,7 +464,7 @@ mxfs_dbg_rel_pause(
 	    READ_ONCE(mxfs_dbg_rel_pause_stage) != stage ||
 	    READ_ONCE(mxfs_dbg_rel_pause_ino) != ip->i_ino)
 		return;
-	mxfs_probe("mxfs: P-D512-RELPAUSE ino=%llu stage=%u ms=%u — holding release drain\n",
+	mxfs_probe("mxfs: P-D512-RELPAUSE ino=%llu stage=%u ms=%u -- holding release drain\n",
 		(unsigned long long)ip->i_ino, stage, ms);
 	msleep(ms);
 	mxfs_probe("mxfs: P-D512-RELPAUSE-END ino=%llu stage=%u\n",
@@ -477,7 +543,7 @@ mxfs_dbg_rel_fail(
 	    READ_ONCE(mxfs_dbg_rel_fail_ino) != ip->i_ino)
 		return false;
 	WRITE_ONCE(mxfs_dbg_rel_fail_kind, 0);
-	mxfs_probe("mxfs: P-D512-INJECT ino=%llu kind=%u — synthetic release failure injected (T8)\n",
+	mxfs_probe("mxfs: P-D512-INJECT ino=%llu kind=%u -- synthetic release failure injected (T8)\n",
 		(unsigned long long)ip->i_ino, kind);
 	return true;
 }
@@ -508,7 +574,7 @@ mxfs_drain_watch_fire(
 	struct mxfs_drain_watch	*w = container_of(t, struct mxfs_drain_watch, timer);
 
 	w->fires++;
-	pr_warn("mxfs: P-DRAINWB-STALL ino=%llu site=%d pid=%d waited_ms=%llu fire=%d realns=%llu — release drain still inside its page flush; drain task stack follows\n",
+	pr_warn("mxfs: P-DRAINWB-STALL ino=%llu site=%d pid=%d waited_ms=%llu fire=%d realns=%llu -- release drain still inside its page flush; drain task stack follows\n",
 		(unsigned long long)w->ino, w->site, w->pid,
 		(unsigned long long)((ktime_get_ns() - w->t0) / NSEC_PER_MSEC),
 		w->fires, (unsigned long long)ktime_get_real_ns());
@@ -689,9 +755,10 @@ mxfs_demoter_dump_set(const char *val, const struct kernel_param *kp)
 	 * unpaired) and is knob-INDEPENDENT, so the negative-control arm
 	 * provably enters the same state; `reclaim` is the fix firing.
 	 */
-	mxfs_probe("mxfs: P213-PUNT retain=%lld owner_clear=%lld reclaim=%lld selfclear=%lld stranded=%lld\n",
+	pr_warn("mxfs: P213-PUNT retain=%lld owner_clear=%lld wipe=%lld reclaim=%lld selfclear=%lld stranded=%lld\n",
 		(long long)atomic64_read(&mxfs_dem_punt_retain),
 		(long long)atomic64_read(&mxfs_dem_punt_owner_clear),
+		(long long)atomic64_read(&mxfs_dem_punt_wipe),
 		(long long)atomic64_read(&mxfs_dem_punt_reclaim_n),
 		(long long)atomic64_read(&mxfs_dem_punt_selfclear),
 		(long long)atomic64_read(&mxfs_dem_strand_n));
@@ -865,7 +932,7 @@ int mxfs_dataclobber;	/* default 0 */
 module_param_named(dataclobber, mxfs_dataclobber, int, 0644);
 MODULE_PARM_DESC(dataclobber,
                  "Tenure-gated dir DATA-block stale-RMW clobber DETECTOR: "
-                 "0=off (default), 1=detect-only, 2=enforce (REFUTED — ghost reuse)");
+                 "0=off (default), 1=detect-only, 2=enforce (REFUTED -- ghost reuse)");
 
 /*
  * ROOT FIX for 4/tcp dir_reuse_coherency durable loss.
@@ -910,7 +977,7 @@ MODULE_PARM_DESC(dir_relepoch_reread,
                  "Re-read (FUA) a CLEAN cached dir DATA/leaf buffer at read time "
                  "when its b_mxfs_relepoch < owner i_dlm_epoch (the cached image "
                  "predates a grant release by this node, so a peer may have "
-                 "superseded the block — using it as an addname RMW base overwrites "
+                 "superseded the block -- using it as an addname RMW base overwrites "
                  "the peer's dirent).  Reliable local release-epoch; clean-only so "
                  "no current-tenure work is tossed (1=on default, 0=off)");
 module_param_named(dir_relepoch_skip, mxfs_dir_relepoch_skip, int, 0644);
@@ -918,7 +985,7 @@ MODULE_PARM_DESC(dir_relepoch_skip,
                  "Skip an xfsaild reflush of a CLEAN dir DATA/leaf buffer whose "
                  "b_mxfs_relepoch < owner i_dlm_epoch (the image predates a grant "
                  "release by this node, so a peer may have superseded the block on "
-                 "the shared LUN — reflushing it durably reverts the peer's add). "
+                 "the shared LUN -- reflushing it durably reverts the peer's add). "
                  "Reliable local release-epoch gate; clean buffer = already durable "
                  "so nothing is lost (1=on default, 0=off)");
 
@@ -1505,7 +1572,7 @@ mxfs_inject_unheld_agmeta_dirty(struct xfs_mount *mp, unsigned int agno)
 	cached = READ_ONCE(pag->pag_dlm_cached);
 	holders = READ_ONCE(pag->pag_dlm_holders);
 	if (epoch || cached || holders > 0) {
-		pr_warn("mxfs: P-INJECT-UNHELD-AGMETA-REFUSED agno=%u epoch=%llu cached=%d holders=%d — this node holds the AG; an injected image here would be authorized\n",
+		pr_warn("mxfs: P-INJECT-UNHELD-AGMETA-REFUSED agno=%u epoch=%llu cached=%d holders=%d -- this node holds the AG; an injected image here would be authorized\n",
 			agno, (unsigned long long)epoch, cached ? 1 : 0, holders);
 		xfs_perag_put(pag);
 		return -EBUSY;
@@ -1522,7 +1589,7 @@ mxfs_inject_unheld_agmeta_dirty(struct xfs_mount *mp, unsigned int agno)
 	if (error) {
 		xfs_trans_cancel(tp);
 		xfs_perag_put(pag);
-		mxfs_probe("mxfs: P-INJECT-UNHELD-AGMETA agno=%u daddr=%lld — AGI read failed rc=%d; nothing injected\n",
+		mxfs_probe("mxfs: P-INJECT-UNHELD-AGMETA agno=%u daddr=%lld -- AGI read failed rc=%d; nothing injected\n",
 			agno, (long long)daddr, error);
 		return error;
 	}
@@ -1530,7 +1597,7 @@ mxfs_inject_unheld_agmeta_dirty(struct xfs_mount *mp, unsigned int agno)
 	xfs_trans_log_buf(tp, bp, 0, sizeof(struct xfs_agi) - 1);
 	error = xfs_trans_commit(tp);
 	xfs_log_force(mp, XFS_LOG_SYNC);
-	mxfs_probe("mxfs: P-INJECT-UNHELD-AGMETA agno=%u daddr=%lld commit_rc=%d epoch_now=%llu cached=%d holders=%d — INJECTED: committed an unchanged AGI image for a grant this node does not hold; a correct push must never write it home\n",
+	mxfs_probe("mxfs: P-INJECT-UNHELD-AGMETA agno=%u daddr=%lld commit_rc=%d epoch_now=%llu cached=%d holders=%d -- INJECTED: committed an unchanged AGI image for a grant this node does not hold; a correct push must never write it home\n",
 		agno, (long long)daddr, error,
 		(unsigned long long)READ_ONCE(pag->pag_mxfs_grant_epoch),
 		READ_ONCE(pag->pag_dlm_cached) ? 1 : 0,
@@ -1585,7 +1652,7 @@ mxfs_dbg_ail_push_write(
 	if (!mp || !mp->m_ail || xfs_is_shutdown(mp))
 		return -EIO;
 	xfs_ail_push_all(mp->m_ail);
-	mxfs_probe("mxfs: P963-AIL-PUSH n=%d — whole-AIL push requested through debugfs\n",
+	mxfs_probe("mxfs: P963-AIL-PUSH n=%d -- whole-AIL push requested through debugfs\n",
 		atomic_inc_return(&mxfs_dbg_ail_push_n));
 	return count;
 }

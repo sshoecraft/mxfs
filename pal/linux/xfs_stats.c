@@ -143,6 +143,9 @@ static int xqmstat_proc_show(struct seq_file *m, void *v)
 }
 #endif /* CONFIG_XFS_QUOTA */
 
+/* pal/linux/xfs_buf.c: the inode-cluster write slot record (lab) */
+int mxfs_slot_ring_show(struct seq_file *m, void *v);
+
 int
 xfs_init_procfs(void)
 {
@@ -151,6 +154,9 @@ xfs_init_procfs(void)
 
 	if (!proc_symlink("fs/mxfs/stat", NULL,
 			  "/sys/fs/mxfs/stats/stats"))
+		goto out;
+	if (!proc_create_single("fs/mxfs/slot_ring", 0400, NULL,
+				mxfs_slot_ring_show))
 		goto out;
 
 #ifdef CONFIG_XFS_QUOTA

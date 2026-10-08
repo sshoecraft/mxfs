@@ -95,7 +95,7 @@ mxfs_ag_dlm_wait_demote(
 		atomic64_add(ms, &mxfs_dlm_stat_demote_wait_ms);
 		mxfs_stat_max64(&mxfs_dlm_stat_demote_wait_max, ms);
 		if (ms >= 2000)
-			mxfs_probe_ratelimited("mxfs: P12-DEMOTE-WAIT-LONG ag=%u comm=%s pid=%d ms=%lld trans=%d dirty=%d — blocking acquirer slept through a local AG handoff\n",
+			mxfs_probe_ratelimited("mxfs: P12-DEMOTE-WAIT-LONG ag=%u comm=%s pid=%d ms=%lld trans=%d dirty=%d -- blocking acquirer slept through a local AG handoff\n",
 				pag_agno(pag), current->comm, current->pid,
 				(long long)ms, had_trans ? 1 : 0,
 				had_dirty ? 1 : 0);
@@ -293,7 +293,7 @@ mxfs_ag_pubwrite_quiesce(struct xfs_perag *pag)
 	smp_mb();
 	while (atomic_read(&pag->pag_mxfs_pubwrite) > 0) {
 		if (++spins > 20000) {	/* ~2 s: a copy-in cannot take this long */
-			pr_warn("mxfs: P-FREEOB-GATE-STUCK ag=%u writers=%d — publication-write gate did not drain before the release drain\n",
+			pr_warn("mxfs: P-FREEOB-GATE-STUCK ag=%u writers=%d -- publication-write gate did not drain before the release drain\n",
 				pag_agno(pag),
 				atomic_read(&pag->pag_mxfs_pubwrite));
 			break;
@@ -932,7 +932,7 @@ mxfs_ag_meta_invalidate_stale(struct xfs_mount *mp, struct xfs_perag *pag,
 			 */
 			xfs_buf_stale(cbp);
 			cbp->b_flags &= ~(XBF_DONE | _XBF_FUA_FRESH);
-			mxfs_probe_ratelimited("mxfs: P117-INAIL-STALE-ARTIFACT daddr=%lld %s buf_gen=%llu pag_gen=%llu — discarded prev-epoch in-AIL log-tail artifact\n",
+			mxfs_probe_ratelimited("mxfs: P117-INAIL-STALE-ARTIFACT daddr=%lld %s buf_gen=%llu pag_gen=%llu -- discarded prev-epoch in-AIL log-tail artifact\n",
 				(long long)cbp->b_maps[0].bm_bn,
 				cbp->b_ops == &xfs_bnobt_buf_ops ? "bnobt" :
 				cbp->b_ops == &xfs_cntbt_buf_ops ? "cntbt" :
@@ -1006,7 +1006,7 @@ mxfs_ag_meta_invalidate_stale(struct xfs_mount *mp, struct xfs_perag *pag,
 				int ptu_seq = atomic_inc_return(&ptu_n);
 
 				if (ptu_seq <= 200)
-					pr_warn("mxfs: P-AGMETA-PRIORTENURE-UNDESTAGED-INAIL agno=%u daddr=%lld ops=%s buf_tenure=%llu cur_tenure=%llu buf_gen=%llu pag_gen=%llu holders=%d comm=%s realns=%llu — committed-unwritten AG-meta image from a PRIOR tenure survived its release: an un-tenured AG-meta writer exists (premise violation)\n",
+					pr_warn("mxfs: P-AGMETA-PRIORTENURE-UNDESTAGED-INAIL agno=%u daddr=%lld ops=%s buf_tenure=%llu cur_tenure=%llu buf_gen=%llu pag_gen=%llu holders=%d comm=%s realns=%llu -- committed-unwritten AG-meta image from a PRIOR tenure survived its release: an un-tenured AG-meta writer exists (premise violation)\n",
 						pag_agno(pag),
 						(long long)cbp->b_maps[0].bm_bn,
 						mxfs_agmeta_name(cbp),
@@ -1219,7 +1219,7 @@ mxfs_ag_meta_coldread_discard(struct xfs_perag *pag, bool fresh_peer)
 				discarded++;
 				if (ail_ok) {
 					ail_discarded++;
-					pr_warn_ratelimited("mxfs: P121-COLDREAD-AIL-ARTIFACT agno=%u daddr=%lld %s — discarded destaged prev-epoch in-AIL free-space buf (xfsaild revert-clobber prevented)\n",
+					pr_warn_ratelimited("mxfs: P121-COLDREAD-AIL-ARTIFACT agno=%u daddr=%lld %s -- discarded destaged prev-epoch in-AIL free-space buf (xfsaild revert-clobber prevented)\n",
 						pag_agno(pag),
 						(long long)bp->b_maps[0].bm_bn,
 						bp->b_ops == &xfs_bnobt_buf_ops ?

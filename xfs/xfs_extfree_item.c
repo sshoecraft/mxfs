@@ -550,7 +550,7 @@ mxfs_dbg_efd_hold(
 	if (cmpxchg(&mxfs_dbg_efd_hold_ms, hold, 0) != hold)
 		return;
 	xfs_log_force(mp, XFS_LOG_SYNC);
-	mxfs_probe("mxfs: P-EFD-HOLD start=%u len=%u hold_ms=%d comm=%s — EFI forced durable, EFD transaction held\n",
+	mxfs_probe("mxfs: P-EFD-HOLD start=%u len=%u hold_ms=%d comm=%s -- EFI forced durable, EFD transaction held\n",
 		(unsigned)xefi->xefi_startblock, xefi->xefi_blockcount, hold,
 		current->comm);
 	while (slept < hold && !xfs_is_shutdown(mp)) {
@@ -613,7 +613,7 @@ xfs_extent_free_finish_item(
 	 */
 	if (error == -ETIMEDOUT && xefi->xefi_agwait < mxfs_efi_agwait_max) {
 		xefi->xefi_agwait++;
-		mxfs_probe("mxfs: P-EFI-AGWAIT ag=%u len=%u try=%u/%u comm=%s — AG DLM busy past CAW wait; requeueing extent-free intent\n",
+		mxfs_probe("mxfs: P-EFI-AGWAIT ag=%u len=%u try=%u/%u comm=%s -- AG DLM busy past CAW wait; requeueing extent-free intent\n",
 			pag_agno(to_perag(xefi->xefi_group)),
 			xefi->xefi_blockcount, xefi->xefi_agwait,
 			mxfs_efi_agwait_max, current->comm);

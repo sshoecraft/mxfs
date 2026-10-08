@@ -141,7 +141,7 @@ static bool v5_bootstrap_inject_fire(int point)
 		while (mxfs_bootstrap_inject == point + 10) {
 			if (n++ % 5 == 0)
 				mxfs_pal_log(MXFS_LOG_ERR,
-					     "mxfs: P-BOOT-INJECT-HOLD point=%d — TEST ONLY "
+					     "mxfs: P-BOOT-INJECT-HOLD point=%d -- TEST ONLY "
 					     "hold; the owner is parked at this durable shape "
 					     "(clear mxfs.bootstrap_inject to continue)",
 					     point + 10);
@@ -153,7 +153,7 @@ static bool v5_bootstrap_inject_fire(int point)
 		return false;
 	mxfs_bootstrap_inject = 0;
 	mxfs_pal_log(MXFS_LOG_ERR,
-		     "mxfs: P-BOOT-INJECT point=%d — TEST ONLY fail point fired; "
+		     "mxfs: P-BOOT-INJECT point=%d -- TEST ONLY fail point fired; "
 		     "this mount is refused so the next one must RESUME", point);
 	return true;
 }
@@ -625,13 +625,13 @@ static void v5_dbg_fence_cut(int cut, const char *phase, int slot,
 	hold = mxfs_dbg_fence_crash_hold_ms > 0 ? mxfs_dbg_fence_crash_hold_ms : 0;
 	mxfs_pal_log(MXFS_LOG_ERR,
 		     "mxfs: P-DBG-FENCE-CUT cut=%d phase=%s slot=%d victim=%u/%llu "
-		     "— parking the fence prover for %d ms (crash-cut arm: "
+		     "-- parking the fence prover for %d ms (crash-cut arm: "
 		     "destroy the VM now)",
 		     cut, phase, slot, victim, (unsigned long long)victim_epoch,
 		     hold);
 	mxfs_pal_sleep_ms(hold);
 	mxfs_pal_log(MXFS_LOG_ERR,
-		     "mxfs: P-DBG-FENCE-CUT cut=%d phase=%s slot=%d — hold expired "
+		     "mxfs: P-DBG-FENCE-CUT cut=%d phase=%s slot=%d -- hold expired "
 		     "without a crash; continuing the prover",
 		     cut, phase, slot);
 }
@@ -1843,7 +1843,7 @@ static void v5_bast_dispatch(struct mxfs_v5_dlm *ctx,
 		ag_fn(fn_data, res->ag_number, mode);
 	} else if (parked) {
 		mxfs_pal_log(MXFS_LOG_DEBUG,
-			     "mxfs: P-BAST-PARKED type=%u ino=%llu ag=%u mode=%u parked=%u — "
+			     "mxfs: P-BAST-PARKED type=%u ino=%llu ag=%u mode=%u parked=%u -- "
 			     "no handler is installed for this resource type yet (the "
 			     "mount has not reached its post-mountfs setup); kept for "
 			     "the replay at installation",
@@ -1851,7 +1851,7 @@ static void v5_bast_dispatch(struct mxfs_v5_dlm *ctx,
 			     mode, n);
 	} else if (overflow) {
 		mxfs_pal_log(MXFS_LOG_WARN,
-			     "mxfs: P-BAST-PARK-FULL type=%u ino=%llu ag=%u mode=%u parked=%u — "
+			     "mxfs: P-BAST-PARK-FULL type=%u ino=%llu ag=%u mode=%u parked=%u -- "
 			     "the parking table is full; this notification waits for "
 			     "the master's re-send",
 			     res->type, (unsigned long long)res->ino, res->ag_number,
@@ -1880,7 +1880,7 @@ static void v5_bast_replay(struct mxfs_v5_dlm *ctx, uint32_t type,
 	take = mxfs_pal_alloc(sizeof(*take) * MXFS_V5_BAST_PARK_MAX);
 	if (!take) {
 		mxfs_pal_log(MXFS_LOG_WARN,
-			     "mxfs: P-BAST-REPLAY-NOMEM type=%u — the parked "
+			     "mxfs: P-BAST-REPLAY-NOMEM type=%u -- the parked "
 			     "notifications wait for the masters' re-sends", type);
 		return;
 	}
@@ -1900,7 +1900,7 @@ static void v5_bast_replay(struct mxfs_v5_dlm *ctx, uint32_t type,
 
 	for (i = 0; i < n; i++) {
 		mxfs_pal_log(MXFS_LOG_DEBUG,
-			     "mxfs: P-BAST-REPLAY type=%u ino=%llu ag=%u mode=%u (%u of %u) — "
+			     "mxfs: P-BAST-REPLAY type=%u ino=%llu ag=%u mode=%u (%u of %u) -- "
 			     "a notification parked during the mount, handed to the "
 			     "handler at its installation",
 			     take[i].res.type, (unsigned long long)take[i].res.ino,
@@ -1988,7 +1988,7 @@ static void v5_peer_msg_cb_tcp(void *data, mxfs_node_id_t sender,
 	    hdr->type != MXFS_MSG_LOCK_RELEASE_ACK &&
 	    hdr->type != MXFS_MSG_LOCK_RELEASE) {
 		mxfs_pal_log(MXFS_LOG_DEBUG,
-			     "mxfs: P-TEARDOWN-MSG-DROP type=%u from node %u — "
+			     "mxfs: P-TEARDOWN-MSG-DROP type=%u from node %u -- "
 			     "DLM session is tearing down",
 			     hdr->type, sender);
 		return;
@@ -2099,7 +2099,7 @@ static void v5_peer_msg_cb_tcp(void *data, mxfs_node_id_t sender,
 		     mxfs_disklock_recovery_is_pending(ctx->disklock,
 			 mxfs_disklock_find_node_slot(ctx->disklock, sender)))) {
 			mxfs_pal_log(MXFS_LOG_WARN,
-				     "mxfs: P-GOODBYE-DEAD-IGNORED node %u — goodbye from "
+				     "mxfs: P-GOODBYE-DEAD-IGNORED node %u -- goodbye from "
 				     "a retired/recovery-pending identity; grants stay "
 				     "FROZEN until its slice is replayed", sender);
 			if (ctx->member_lock)
@@ -2202,7 +2202,7 @@ static void v5_note_dead_inc(struct mxfs_v5_dlm *ctx, mxfs_node_id_t node,
 	ctx->dead_incs[i].node = node;
 	ctx->dead_incs[i].epoch = epoch;
 	mxfs_pal_log(MXFS_LOG_DEBUG,
-		     "mxfs: P-DEAD-INC node=%u inc=%llu — incarnation certified "
+		     "mxfs: P-DEAD-INC node=%u inc=%llu -- incarnation certified "
 		     "fenced; its recovery descriptors are takeable", node,
 		     (unsigned long long)epoch);
 }
@@ -2348,7 +2348,7 @@ static void v5_note_dead_node_locked(struct mxfs_v5_dlm *ctx,
 		return;
 	ctx->dead_nodes[ctx->dead_next++ % MXFS_V5_DEAD_SET] = node_id;
 	mxfs_pal_log(MXFS_LOG_DEBUG,
-		     "mxfs: P164-DEAD-NOTE node=%u — identity retired; its "
+		     "mxfs: P164-DEAD-NOTE node=%u -- identity retired; its "
 		     "announces/connects are ignored from now on", node_id);
 }
 
@@ -2762,7 +2762,7 @@ static void v5_recov_retention_released(struct mxfs_v5_dlm *ctx,
 	ctx->quar_release_inc = inc;
 	mxfs_pal_log(MXFS_LOG_WARN,
 	    "mxfs: P-TAUTH-RETENTION-RELEASED-TERMINAL node=%u inc=%llu slot=%d "
-	    "stage=%u via=%s — this incarnation's slice replay ended in a "
+	    "stage=%u via=%s -- this incarnation's slice replay ended in a "
 	    "TERMINAL refusal (QUARANTINED); the judgement it was protecting "
 	    "records for has been made and no further replay of the slice can "
 	    "be authorised, so its ledger pages are takeover-eligible.  The "
@@ -2869,7 +2869,7 @@ static bool v5_recovery_judging_cb(void *data, mxfs_node_id_t node, uint64_t inc
 		if (k) {
 			mxfs_pal_log(MXFS_LOG_WARN,
 			    "mxfs: P-TAUTH-RETENTION-BOOT-K node=%u inc=%llu slot=%d "
-			    "escrow=%s — the adopted victim of this mount's open "
+			    "escrow=%s -- the adopted victim of this mount's open "
 			    "bootstrap term; its ledger records are kept until "
 			    "RECOVERY_COMPLETE (a resume or takeover verifies K "
 			    "against them again)",
@@ -2938,7 +2938,7 @@ static bool v5_recovery_judging_cb(void *data, mxfs_node_id_t node, uint64_t inc
 		if (hb->flags == MXFS_DISKLOCK_FLAG_ACTIVE) {
 			if (hb->node_id == node && (uint64_t)hb->epoch == inc) {
 				mxfs_pal_log(MXFS_LOG_WARN,
-				    "mxfs: P-TAUTH-RETENTION-ACTIVE node=%u inc=%llu slot=%d — "
+				    "mxfs: P-TAUTH-RETENTION-ACTIVE node=%u inc=%llu slot=%d -- "
 				    "the platter still carries this incarnation's ACTIVE "
 				    "record; it is not dead for reclamation, its pages are kept",
 				    node, (unsigned long long)inc, slot);
@@ -2965,7 +2965,7 @@ static bool v5_recovery_judging_cb(void *data, mxfs_node_id_t node, uint64_t inc
 		if (d.stage < MXFS_RECOV_STAGE_IMAGES_REPLAYED) {
 			mxfs_pal_log(MXFS_LOG_WARN,
 			    "mxfs: P-TAUTH-RETENTION-PLATTER node=%u inc=%llu slot=%d "
-			    "stage=%u owner=%u — a recovery descriptor below "
+			    "stage=%u owner=%u -- a recovery descriptor below "
 			    "IMAGES_REPLAYED names this incarnation as its victim; its "
 			    "ledger records are kept for the replay's judgement "
 			    "(no local marker names it)",
@@ -2979,7 +2979,7 @@ static bool v5_recovery_judging_cb(void *data, mxfs_node_id_t node, uint64_t inc
 		return true;
 	if (unknown) {
 		mxfs_pal_log(MXFS_LOG_WARN,
-		    "mxfs: P-TAUTH-RETENTION-UNKNOWN node=%u inc=%llu — a slot could "
+		    "mxfs: P-TAUTH-RETENTION-UNKNOWN node=%u inc=%llu -- a slot could "
 		    "not be classified while looking for this incarnation's recovery "
 		    "obligation; its pages are kept until the table can be read",
 		    node, (unsigned long long)inc);
@@ -3037,7 +3037,7 @@ static void v5_handoff_takeover(struct mxfs_v5_dlm *ctx, mxfs_node_id_t node,
 		return;
 	if (!inc) {
 		mxfs_pal_log(MXFS_LOG_WARN,
-			     "mxfs: P-TAUTH-TAKEOVER-NOINC node=%u why=%s — departed "
+			     "mxfs: P-TAUTH-TAKEOVER-NOINC node=%u why=%s -- departed "
 			     "incarnation unknown; its pages (if any) wait for the "
 			     "next survivor that can name it", node, why);
 		return;
@@ -3050,7 +3050,7 @@ static void v5_handoff_takeover(struct mxfs_v5_dlm *ctx, mxfs_node_id_t node,
 		 * are re-examined on the next departure of this incarnation. */
 		if (settled)
 			mxfs_pal_log(MXFS_LOG_WARN,
-				     "mxfs: P-TAUTH-TAKEOVER-NOTBOOT node=%u inc=%llu why=%s — "
+				     "mxfs: P-TAUTH-TAKEOVER-NOTBOOT node=%u inc=%llu why=%s -- "
 				     "this mount settled the record but is not the bootstrap "
 				     "node; the departed authority's pages (if any) stay "
 				     "parked until a bootstrap node names it",
@@ -3207,7 +3207,7 @@ static void v5_depart_run(struct mxfs_v5_dlm *ctx, const struct v5_depart_req *r
 	 */
 	if (mxfs_pal_flag_get(&ctx->depart_stop)) {
 		mxfs_pal_log(MXFS_LOG_DEBUG,
-			     "mxfs: P-DEPART-WORK-REFUSED node=%u inc=%llu why=%s — "
+			     "mxfs: P-DEPART-WORK-REFUSED node=%u inc=%llu why=%s -- "
 			     "this mount is leaving; the departed authority's pages "
 			     "stay frozen for the next bootstrap node's orphan sweep",
 			     r->node, (unsigned long long)r->inc, r->why);
@@ -3229,7 +3229,7 @@ static void v5_depart_run(struct mxfs_v5_dlm *ctx, const struct v5_depart_req *r
 		v5_handoff_takeover(ctx, r->node, r->inc, r->why, false);
 		mxfs_pal_log(MXFS_LOG_WARN,
 			     "mxfs: P-DEPART-WORK-RECOVERY-TAKEOVER node=%u inc=%llu why=%s "
-			     "queued_ms=%llu total_ms=%llu — the dead peer's page takeover "
+			     "queued_ms=%llu total_ms=%llu -- the dead peer's page takeover "
 			     "ran here, off the recovery completion's critical path",
 			     r->node, (unsigned long long)r->inc, r->why,
 			     (unsigned long long)(t0 - r->queued_ms),
@@ -3247,7 +3247,7 @@ static void v5_depart_run(struct mxfs_v5_dlm *ctx, const struct v5_depart_req *r
 	}
 	if (mxfs_depart_purge_delay_ms > 0) {
 		mxfs_pal_log(MXFS_LOG_WARN,
-			     "mxfs: P-DEPART-PURGE-DELAY node=%u inc=%llu slot=%d ms=%d — "
+			     "mxfs: P-DEPART-PURGE-DELAY node=%u inc=%llu slot=%d ms=%d -- "
 			     "DEBUG hold before the ledger purge",
 			     r->node, (unsigned long long)r->inc, r->slot,
 			     mxfs_depart_purge_delay_ms);
@@ -3256,7 +3256,7 @@ static void v5_depart_run(struct mxfs_v5_dlm *ctx, const struct v5_depart_req *r
 	t1 = mxfs_pal_time_ms();
 	if (r->takeover_only) {
 		mxfs_pal_log(MXFS_LOG_WARN,
-			     "mxfs: P-DEPART-TAKEOVER-ONLY node=%u inc=%llu why=%s — the "
+			     "mxfs: P-DEPART-TAKEOVER-ONLY node=%u inc=%llu why=%s -- the "
 			     "departed incarnation carries this mount's own node id; "
 			     "the id-keyed purges are skipped, only the incarnation-"
 			     "keyed page takeover runs",
@@ -3286,7 +3286,7 @@ static void v5_depart_run(struct mxfs_v5_dlm *ctx, const struct v5_depart_req *r
 		}
 		mxfs_pal_log(MXFS_LOG_WARN,
 			     "mxfs: P-DEPART-REFUSED node=%u inc=%llu slot=%d fswide=%d "
-			     "ag_mask=0x%llx purge_rc=%d — the refused victim leaves the "
+			     "ag_mask=0x%llx purge_rc=%d -- the refused victim leaves the "
 			     "view; out-of-domain records retired, in-domain ones frozen",
 			     r->node, (unsigned long long)r->inc, r->slot, fswide ? 1 : 0,
 			     (unsigned long long)((r->slot >= 0 && r->slot < MXFS_DISKLOCK_HB_SLOTS) ?
@@ -3396,7 +3396,7 @@ static int v5_depart_queue2(struct mxfs_v5_dlm *ctx, mxfs_node_id_t node,
 		if (ctx->depart_done[i].node == node && ctx->depart_done[i].inc == inc) {
 			mxfs_pal_mutex_unlock(ctx->depart_lock);
 			mxfs_pal_log(MXFS_LOG_INFO,
-				     "mxfs: P-DEPART-DONE-ALREADY node=%u inc=%llu why=%s — "
+				     "mxfs: P-DEPART-DONE-ALREADY node=%u inc=%llu why=%s -- "
 				     "this mount already ran that incarnation's departure",
 				     node, (unsigned long long)inc, why);
 			return 0;
@@ -3408,7 +3408,7 @@ static int v5_depart_queue2(struct mxfs_v5_dlm *ctx, mxfs_node_id_t node,
 	if (ctx->depart_cur_node == node && ctx->depart_cur_inc == inc) {
 		mxfs_pal_mutex_unlock(ctx->depart_lock);
 		mxfs_pal_log(MXFS_LOG_INFO,
-			     "mxfs: P-DEPART-COALESCED node=%u inc=%llu why=%s — a "
+			     "mxfs: P-DEPART-COALESCED node=%u inc=%llu why=%s -- a "
 			     "departure of this incarnation is in flight",
 			     node, (unsigned long long)inc, why);
 		return 0;
@@ -3419,7 +3419,7 @@ static int v5_depart_queue2(struct mxfs_v5_dlm *ctx, mxfs_node_id_t node,
 				ctx->depart_q[i].slot = slot;
 			mxfs_pal_mutex_unlock(ctx->depart_lock);
 			mxfs_pal_log(MXFS_LOG_INFO,
-				     "mxfs: P-DEPART-COALESCED node=%u inc=%llu why=%s — a "
+				     "mxfs: P-DEPART-COALESCED node=%u inc=%llu why=%s -- a "
 				     "departure of this incarnation is already queued",
 				     node, (unsigned long long)inc, why);
 			return 0;
@@ -3469,7 +3469,7 @@ static void v5_settled_incarnation(struct mxfs_v5_dlm *ctx, mxfs_node_id_t node,
 		return;
 	if (ctx->mounted && ctx->tauth_open && ctx->dlm) {
 		mxfs_pal_log(MXFS_LOG_DEBUG,
-			     "mxfs: P-SETTLED-INCARNATION node=%u inc=%llu slot=%d why=%s — "
+			     "mxfs: P-SETTLED-INCARNATION node=%u inc=%llu slot=%d why=%s -- "
 			     "its ledger pages are taken over now",
 			     node, (unsigned long long)inc, slot, why);
 		v5_depart_queue2(ctx, node, inc, slot, why, takeover_only, true, false);
@@ -3489,7 +3489,7 @@ static void v5_settled_incarnation(struct mxfs_v5_dlm *ctx, mxfs_node_id_t node,
 	ctx->settled_q[ctx->settled_qn].settled = true;
 	ctx->settled_qn++;
 	mxfs_pal_log(MXFS_LOG_DEBUG,
-		     "mxfs: P-SETTLED-INCARNATION-DEFERRED node=%u inc=%llu slot=%d why=%s — "
+		     "mxfs: P-SETTLED-INCARNATION-DEFERRED node=%u inc=%llu slot=%d why=%s -- "
 		     "its ledger pages are taken over once this mount's DLM is up",
 		     node, (unsigned long long)inc, slot, why);
 }
@@ -3504,7 +3504,7 @@ static void v5_settled_flush(struct mxfs_v5_dlm *ctx)
 		struct v5_depart_req *r = &ctx->settled_q[i];
 
 		mxfs_pal_log(MXFS_LOG_DEBUG,
-			     "mxfs: P-SETTLED-INCARNATION node=%u inc=%llu slot=%d why=%s — "
+			     "mxfs: P-SETTLED-INCARNATION node=%u inc=%llu slot=%d why=%s -- "
 			     "its ledger pages are taken over now (deferred from mount init)",
 			     r->node, (unsigned long long)r->inc, r->slot, r->why);
 		v5_depart_queue2(ctx, r->node, r->inc, r->slot, r->why,
@@ -3593,7 +3593,7 @@ static int v5_depart_worker_start(struct mxfs_v5_dlm *ctx)
 	ctx->depart_thread = mxfs_pal_thread_create(v5_depart_worker_fn, ctx);
 	if (!ctx->depart_thread) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-DEPART-WORKER-NOTHREAD — departures run on the "
+			     "mxfs: P-DEPART-WORKER-NOTHREAD -- departures run on the "
 			     "membership threads");
 		return -ENOMEM;
 	}
@@ -3645,7 +3645,7 @@ static int v5_depart_worker_stop(struct mxfs_v5_dlm *ctx, bool bounded)
 			waited_ms += V5_DEPART_JOIN_MS;
 			mxfs_pal_log(MXFS_LOG_WARN,
 				     "mxfs: P-DEPART-WORKER-SLOW pid=%d waited_ms=%u cur_node=%u "
-				     "cur_inc=%llu queued=%d — the departure worker has not "
+				     "cur_inc=%llu queued=%d -- the departure worker has not "
 				     "returned; the unmount waits for it (nothing it reaches "
 				     "is freed before it does)",
 				     mxfs_pal_thread_pid(ctx->depart_thread), waited_ms,
@@ -3654,7 +3654,7 @@ static int v5_depart_worker_stop(struct mxfs_v5_dlm *ctx, bool bounded)
 		}
 		if (waited_ms)
 			mxfs_pal_log(MXFS_LOG_WARN,
-				     "mxfs: P-DEPART-WORKER-JOINED waited_ms=%u — the "
+				     "mxfs: P-DEPART-WORKER-JOINED waited_ms=%u -- the "
 				     "departure worker returned after the first bound",
 				     waited_ms);
 		ctx->depart_thread = NULL;
@@ -3669,7 +3669,7 @@ static int v5_depart_worker_stop(struct mxfs_v5_dlm *ctx, bool bounded)
 	mxfs_pal_module_pin();
 	v5_quarantine_add(ctx);
 	mxfs_pal_log(MXFS_LOG_ERR,
-		     "mxfs: P-DEPART-WORKER-STUCK pid=%d — the departure worker did "
+		     "mxfs: P-DEPART-WORKER-STUCK pid=%d -- the departure worker did "
 		     "not exit within %u ms (parked in a ledger read on a wedged "
 		     "path); the DLM context is QUARANTINED (module pinned, nothing "
 		     "it can reach is freed)",
@@ -3765,7 +3765,7 @@ static int v5_retire_validate(void *data)
 			     "mxfs: P-DBG-SETTLE-DOUBLE-CONSUME second consume rc=%d "
 			     "(%s)", second,
 			     second ? "refused as required" :
-			     "ACCEPTED — the token is NOT single-use (defect)");
+			     "ACCEPTED -- the token is NOT single-use (defect)");
 	}
 	return rc;
 }
@@ -3857,7 +3857,7 @@ static void v5_retire_worker_fn(void *arg)
 
 	img = mxfs_pal_alloc(sizeof(*img));
 	if (!img) {
-		mxfs_pal_log(MXFS_LOG_ERR, "mxfs: P304-RETIRE-WORKER-NOMEM — no "
+		mxfs_pal_log(MXFS_LOG_ERR, "mxfs: P304-RETIRE-WORKER-NOMEM -- no "
 			     "RETIRE_PENDING record settles from this node's monitor");
 		return;
 	}
@@ -3942,7 +3942,7 @@ static int v5_retire_worker_start(struct mxfs_v5_dlm *ctx)
 	ctx->retire_thread = mxfs_pal_thread_create(v5_retire_worker_fn, ctx);
 	if (!ctx->retire_thread) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P304-RETIRE-WORKER-NOTHREAD — no RETIRE_PENDING "
+			     "mxfs: P304-RETIRE-WORKER-NOTHREAD -- no RETIRE_PENDING "
 			     "record settles from this node's monitor");
 		return -ENOMEM;
 	}
@@ -3974,7 +3974,7 @@ static void v5_quarantine_add(struct mxfs_v5_dlm *ctx)
 	for (c = v5_quar_head; c; c = c->quarantine_next) {
 		if (c == ctx) {
 			mxfs_pal_log(MXFS_LOG_ERR,
-				     "mxfs: P304-RETIRE-QUARANTINE-DUP ctx=%p — already "
+				     "mxfs: P304-RETIRE-QUARANTINE-DUP ctx=%p -- already "
 				     "quarantined; refusing to link it a second time",
 				     ctx);
 			mxfs_pal_mutex_unlock(v5_quar_lock);
@@ -4043,7 +4043,7 @@ static int v5_quarantine_reap(void)
 			c->retire_thread = NULL;
 			c->depart_thread = NULL;
 			mxfs_pal_log(MXFS_LOG_WARN,
-				     "mxfs: P304-RETIRE-WORKER-REAPED ctx=%p — the "
+				     "mxfs: P304-RETIRE-WORKER-REAPED ctx=%p -- the "
 				     "quarantined retire worker exited; context freed", c);
 			v5_quarantine_free(c);
 		} else {
@@ -4079,7 +4079,7 @@ static int v5_retire_worker_stop(struct mxfs_v5_dlm *ctx)
 	 */
 	if (ctx->retire_quarantined) {
 		mxfs_pal_log(MXFS_LOG_WARN,
-			     "mxfs: P304-RETIRE-QUARANTINE-AGAIN ctx=%p pid=%d — the "
+			     "mxfs: P304-RETIRE-QUARANTINE-AGAIN ctx=%p pid=%d -- the "
 			     "worker is already quarantined; not re-pinning, not "
 			     "re-linking", ctx,
 			     mxfs_pal_thread_pid(ctx->retire_thread));
@@ -4095,7 +4095,7 @@ static int v5_retire_worker_stop(struct mxfs_v5_dlm *ctx)
 	mxfs_pal_module_pin();
 	v5_quarantine_add(ctx);
 	mxfs_pal_log(MXFS_LOG_ERR,
-		     "mxfs: P304-RETIRE-WORKER-STUCK pid=%d — the retire settle "
+		     "mxfs: P304-RETIRE-WORKER-STUCK pid=%d -- the retire settle "
 		     "worker did not exit within %u ms (parked in a PR IN or a "
 		     "record CAS on a wedged path); the DLM context is QUARANTINED "
 		     "(module pinned, nothing it can reach is freed) and this "
@@ -4179,7 +4179,7 @@ static int v5_p305_settle_retire_pending(struct mxfs_v5_dlm *ctx)
 			npend++;
 	if (npend > 1)
 		mxfs_pal_log(MXFS_LOG_DEBUG,
-			     "mxfs: P305-RETIRE-MULTI mask=0x%llx count=%d — more "
+			     "mxfs: P305-RETIRE-MULTI mask=0x%llx count=%d -- more "
 			     "than one RETIRE_PENDING record of this boot; each is "
 			     "settled on its own proof",
 			     (unsigned long long)ctx->p305_retire_mask, npend);
@@ -4206,7 +4206,7 @@ static int v5_p305_settle_retire_pending(struct mxfs_v5_dlm *ctx)
 				if (rs) {
 					mxfs_pal_log(MXFS_LOG_ERR,
 						     "mxfs: P305-RETIRE-OWN-UNPROVEN slot=%d "
-						     "node=%u inc=%llu key=0x%llx rc=%d — this "
+						     "node=%u inc=%llu key=0x%llx rc=%d -- this "
 						     "boot's RETIRE_PENDING record names our "
 						     "derived key but no fresh coherent bracket "
 						     "shows our registration live inside the "
@@ -4230,7 +4230,7 @@ static int v5_p305_settle_retire_pending(struct mxfs_v5_dlm *ctx)
 				if (!ctx->single_node_exclusive) {
 					mxfs_pal_log(MXFS_LOG_ERR,
 						     "mxfs: P305-RETIRE-KEY0-UNSETTLEABLE slot=%d "
-						     "node=%u inc=%llu — this boot's RETIRE_PENDING "
+						     "node=%u inc=%llu -- this boot's RETIRE_PENDING "
 						     "record names key 0 (no registration to "
 						     "prove absent); a clustered mount cannot "
 						     "settle it.  Refusing (remedy: "
@@ -4241,7 +4241,7 @@ static int v5_p305_settle_retire_pending(struct mxfs_v5_dlm *ctx)
 				}
 				mxfs_pal_log(MXFS_LOG_DEBUG,
 					     "mxfs: P305-RETIRE-KEY0-TOPOLOGY slot=%d node=%u "
-					     "inc=%llu — key-0 record settled under the "
+					     "inc=%llu -- key-0 record settled under the "
 					     "operator's single_node_exclusive assertion "
 					     "(exclusion by topology, not by reservation)",
 					     slot, node, (unsigned long long)epoch);
@@ -4258,7 +4258,7 @@ static int v5_p305_settle_retire_pending(struct mxfs_v5_dlm *ctx)
 			case MXFS_DISKLOCK_RETIRE_EMPTY:
 				mxfs_pal_log(MXFS_LOG_DEBUG,
 					     "mxfs: P305-RETIRE-SETTLED slot=%d node=%u inc=%llu "
-					     "key=0x%llx — this boot's previous incarnation "
+					     "key=0x%llx -- this boot's previous incarnation "
 					     "released cleanly; record published EMPTY, "
 					     "mount proceeds",
 					     slot, node, (unsigned long long)epoch,
@@ -4270,7 +4270,7 @@ static int v5_p305_settle_retire_pending(struct mxfs_v5_dlm *ctx)
 			case MXFS_DISKLOCK_RETIRE_WITHDRAWN:
 				mxfs_pal_log(MXFS_LOG_ERR,
 					     "mxfs: P305-RETIRE-KEY-FOREIGN-PRESENT slot=%d "
-					     "node=%u inc=%llu key=0x%llx — this boot's "
+					     "node=%u inc=%llu key=0x%llx -- this boot's "
 					     "RETIRE_PENDING record names a key that is "
 					     "registered and is NOT this mount's; stamped "
 					     "WITHDRAWN for the cluster to fence. Refusing to "
@@ -4281,7 +4281,7 @@ static int v5_p305_settle_retire_pending(struct mxfs_v5_dlm *ctx)
 			case MXFS_DISKLOCK_RETIRE_WAITING:
 				mxfs_pal_log(MXFS_LOG_ERR,
 					     "mxfs: P305-RETIRE-UNSETTLED slot=%d node=%u "
-					     "inc=%llu key=0x%llx — this boot's RETIRE_PENDING "
+					     "inc=%llu key=0x%llx -- this boot's RETIRE_PENDING "
 					     "record cannot be settled: the key state is "
 					     "UNKNOWN (READ KEYS failing, view truncated, "
 					     "generation moved, our registration or the "
@@ -4313,7 +4313,7 @@ static int v5_p305_settle_retire_pending(struct mxfs_v5_dlm *ctx)
 	if (!ctx->p305_retire_mask)
 		return 0;
 	mxfs_pal_log(MXFS_LOG_ERR,
-		     "mxfs: P305-RETIRE-UNSETTLED mask=0x%llx — the record(s) kept "
+		     "mxfs: P305-RETIRE-UNSETTLED mask=0x%llx -- the record(s) kept "
 		     "changing under the settlement; refusing to mount",
 		     (unsigned long long)ctx->p305_retire_mask);
 	return -EBUSY;
@@ -4346,7 +4346,7 @@ static int v5_bootstrap_setup(struct mxfs_v5_dlm *ctx)
 
 	if (!ctx->bootstrap_offset) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-BOOT-NO-REGION — this volume carries no "
+			     "mxfs: P-BOOT-NO-REGION -- this volume carries no "
 			     "bootstrap record region (MXFS_FORMAT_F_BOOTSTRAP); "
 			     "protocol gen %u requires it.  Re-mkfs (chk_mxfs cannot "
 			     "create a region).  Refusing to mount",
@@ -4365,7 +4365,7 @@ static int v5_bootstrap_setup(struct mxfs_v5_dlm *ctx)
 	rc = mxfs_bootstrap_read(ctx->bootstrap, r);
 	if (rc) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-BOOT-READ-REFUSED rc=%d — the bootstrap record "
+			     "mxfs: P-BOOT-READ-REFUSED rc=%d -- the bootstrap record "
 			     "could not be validated (see the P-BOOT-* line above); "
 			     "refusing to mount", rc);
 		goto out;
@@ -4424,7 +4424,7 @@ static int v5_bootstrap_setup(struct mxfs_v5_dlm *ctx)
 		 */
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P-BOOT-ADMISSION-REFUSED state=%s term=%llu "
-			     "owner=%u/%llu — a whole-cluster bootstrap recovery is in "
+			     "owner=%u/%llu -- a whole-cluster bootstrap recovery is in "
 			     "progress on this volume; ACTIVE admission is refused "
 			     "until its RECOVERY_COMPLETE record exists",
 			     mxfs_bootstrap_state_name(r->state),
@@ -4462,14 +4462,14 @@ static void v5_boot_hb_fn(void *arg)
 		if (rc == -ESTALE) {
 			ctx->boot_hb_lost = 1;
 			mxfs_pal_log(MXFS_LOG_ERR,
-				     "mxfs: P-BOOT-HB-LOST — the bootstrap record no "
+				     "mxfs: P-BOOT-HB-LOST -- the bootstrap record no "
 				     "longer names this owner (taken over); every "
 				     "further bootstrap step on this node is refused");
 			break;
 		}
 		if (rc)
 			mxfs_pal_log(MXFS_LOG_DEBUG,
-				     "mxfs: P-BOOT-HB-RC rc=%d — bootstrap heartbeat "
+				     "mxfs: P-BOOT-HB-RC rc=%d -- bootstrap heartbeat "
 				     "did not land this cycle", rc);
 		mxfs_pal_sleep_ms(MXFS_BOOTSTRAP_REFRESH_MS);
 	}
@@ -4527,7 +4527,7 @@ static void v5_bootstrap_unwind(struct mxfs_v5_dlm *ctx)
 	if (ctx->scsipr)
 		mxfs_scsipr_retain_key(ctx->scsipr);
 	mxfs_pal_log(MXFS_LOG_ERR,
-		     "mxfs: P-BOOT-UNWIND state=%s escrow=%s K=%d hb_lost=%d — the "
+		     "mxfs: P-BOOT-UNWIND state=%s escrow=%s K=%d hb_lost=%d -- the "
 		     "mount is unwinding under an unfinished bootstrap term; the "
 		     "owner key is retained and the record stands as shown "
 		     "(a same-boot remount RESUMES the term)",
@@ -4590,7 +4590,7 @@ static int v5_bootstrap_peek(struct mxfs_v5_dlm *ctx)
 			ctx->boot_resume_state = r->state;
 			mxfs_pal_log(MXFS_LOG_DEBUG,
 				     "mxfs: P-BOOT-RESUME-CANDIDATE state=%s term=%llu "
-				     "node=%u epoch=%llu key=0x%llx escrow=%s K=%u — this "
+				     "node=%u epoch=%llu key=0x%llx escrow=%s K=%u -- this "
 				     "boot's own earlier claim; the mount will RESUME it",
 				     mxfs_bootstrap_state_name(r->state),
 				     (unsigned long long)r->term, r->owner_node,
@@ -4620,7 +4620,7 @@ static int v5_bootstrap_peek(struct mxfs_v5_dlm *ctx)
 			ctx->boot_takeover_pending = true;
 			mxfs_pal_log(MXFS_LOG_WARN,
 				     "mxfs: P-BOOT-TAKEOVER-CANDIDATE state=%s term=%llu "
-				     "owner=%u/%llu key=0x%llx escrow=%s K=%u lineage=%u — "
+				     "owner=%u/%llu key=0x%llx escrow=%s K=%u lineage=%u -- "
 				     "a bootstrap term owned by another boot; registering "
 				     "as a takeover contender (the owner is replaced only "
 				     "after its key is fenced)",
@@ -4636,7 +4636,7 @@ static int v5_bootstrap_peek(struct mxfs_v5_dlm *ctx)
 		   r->state != MXFS_BOOTSTRAP_RECOVERY_COMPLETE) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P-BOOT-ADMISSION-REFUSED-PREREGISTER state=%s "
-			     "term=%llu owner=%u/%llu — a whole-cluster bootstrap "
+			     "term=%llu owner=%u/%llu -- a whole-cluster bootstrap "
 			     "term is claimed on this volume; not registering a PR "
 			     "key under it (a registrant would have to be fenced by "
 			     "the owner).  Retry after RECOVERY_COMPLETE",
@@ -4646,7 +4646,7 @@ static int v5_bootstrap_peek(struct mxfs_v5_dlm *ctx)
 		rc = -EBUSY;
 	} else if (rc) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-BOOT-READ-REFUSED rc=%d (pre-register) — the "
+			     "mxfs: P-BOOT-READ-REFUSED rc=%d (pre-register) -- the "
 			     "bootstrap record could not be validated; refusing to "
 			     "register", rc);
 	}
@@ -4686,13 +4686,13 @@ static int v5_boot_classify_keys(struct mxfs_v5_dlm *ctx,
 				   &total);
 	if (rc) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-BOOT-READ-KEYS rc=%d — cannot enumerate the "
+			     "mxfs: P-BOOT-READ-KEYS rc=%d -- cannot enumerate the "
 			     "registrant set; bootstrap refused", rc);
 		goto out;
 	}
 	if (total > nkeys) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-BOOT-READ-KEYS total=%d > %d — registrant set "
+			     "mxfs: P-BOOT-READ-KEYS total=%d > %d -- registrant set "
 			     "truncated; bootstrap refused", total, nkeys);
 		rc = -EOVERFLOW;
 		goto out;
@@ -4716,7 +4716,7 @@ static int v5_boot_classify_keys(struct mxfs_v5_dlm *ctx,
 		if (e[i].pr_key == ctx->pr_key) {
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "mxfs: P-BOOT-KEY-UNCLASSIFIED victim slot=%u node=%u "
-				     "publishes OUR key 0x%llx — a same-boot predecessor "
+				     "publishes OUR key 0x%llx -- a same-boot predecessor "
 				     "inside a total outage cannot be preempted by us; "
 				     "bootstrap refused (fail closed)",
 				     e[i].slot, e[i].node_id,
@@ -4743,7 +4743,7 @@ static int v5_boot_classify_keys(struct mxfs_v5_dlm *ctx,
 		rc = mxfs_prledger_find_by_key(ctx->prledger, key, le);
 		if (rc == -ENOENT) {
 			mxfs_pal_log(MXFS_LOG_ERR,
-				     "mxfs: P-BOOT-KEY-UNCLASSIFIED key=0x%llx — READ KEYS "
+				     "mxfs: P-BOOT-KEY-UNCLASSIFIED key=0x%llx -- READ KEYS "
 				     "holds a key no heartbeat record and no ledger entry "
 				     "explains; it can write under WE-AR and cannot be "
 				     "attributed, so the bootstrap is refused (ruling Q3 "
@@ -4782,7 +4782,7 @@ static int v5_boot_classify_keys(struct mxfs_v5_dlm *ctx,
 			(*nreg)++;
 		mxfs_pal_log(MXFS_LOG_DEBUG,
 			     "mxfs: P-BOOT-KEY-CLASS key=0x%llx node=%u gen=%u "
-			     "class=%u%s — ledger registrant %s",
+			     "class=%u%s -- ledger registrant %s",
 			     (unsigned long long)key, le->node_id, le->key_gen,
 			     me->cls, me->cls == MXFS_BOOT_MF_SELF_SUCCESSOR ?
 				 " (self-successor)" : " (slotless)",
@@ -4828,7 +4828,7 @@ static int v5_boot_fence_registrant(struct mxfs_v5_dlm *ctx,
 			    mxfs_scsipr_key_present(ctx->scsipr, e[j].pr_key)) {
 				mxfs_pal_log(MXFS_LOG_DEBUG,
 					     "mxfs: P-BOOT-REG-SUCCEEDED key=0x%llx node=%u "
-					     "successor=0x%llx — absent key explained by a "
+					     "successor=0x%llx -- absent key explained by a "
 					     "durable self-successor present on the target",
 					     (unsigned long long)e[i].pr_key, e[i].node_id,
 					     (unsigned long long)e[j].pr_key);
@@ -4837,7 +4837,7 @@ static int v5_boot_fence_registrant(struct mxfs_v5_dlm *ctx,
 		}
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P-BOOT-FENCE-UNPROVEN key=0x%llx node=%u slot=%u "
-			     "— the key was in the sealed manifest but is absent now "
+			     "-- the key was in the sealed manifest but is absent now "
 			     "with no successor to explain it; nothing certifies its "
 			     "removal", (unsigned long long)e[i].pr_key, e[i].node_id,
 			     e[i].slot);
@@ -4901,7 +4901,7 @@ static int v5_bootstrap_adopt(struct mxfs_v5_dlm *ctx)
 						      &ctx->boot_adopt_mptr);
 	if (rc) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-BOOT-ADOPT-NODESC slot=%d rc=%d — the certified "
+			     "mxfs: P-BOOT-ADOPT-NODESC slot=%d rc=%d -- the certified "
 			     "descriptor / manifest pointer could not be read back for "
 			     "escrow; not adopting", k, rc);
 		goto out;
@@ -4933,7 +4933,7 @@ static int v5_bootstrap_adopt(struct mxfs_v5_dlm *ctx)
 					     &ctx->boot_adopt_desc, &old_crc);
 	if (rc < 0) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-BOOT-ADOPT-FAILED slot=%d rc=%d — escrow is "
+			     "mxfs: P-BOOT-ADOPT-FAILED slot=%d rc=%d -- escrow is "
 			     "PREPARED, K unclaimed; the term stands for a resume or "
 			     "takeover", k, rc);
 		goto out;
@@ -4950,7 +4950,7 @@ static int v5_bootstrap_adopt(struct mxfs_v5_dlm *ctx)
 					   MXFS_BOOT_ESCROW_K_CLAIMED, 0);
 	mxfs_pal_log(rc ? MXFS_LOG_ERR : MXFS_LOG_WARN,
 		     "mxfs: P-BOOT-ADOPT slot=%d victim=%u/%llu key=0x%llx "
-		     "old_crc=0x%08x rc=%d — %s", k, me->node_id,
+		     "old_crc=0x%08x rc=%d -- %s", k, me->node_id,
 		     (unsigned long long)me->epoch,
 		     (unsigned long long)me->pr_key, old_crc, rc,
 		     rc ? "K is claimed but the escrow did not advance; the mount "
@@ -4999,7 +4999,7 @@ static int v5_bootstrap_adopt_resume(struct mxfs_v5_dlm *ctx)
 
 		if (esc->state != MXFS_BOOT_ESCROW_PREPARED) {
 			mxfs_pal_log(MXFS_LOG_ERR,
-				     "mxfs: P-BOOT-RESUME-K-GUARDED slot=%d escrow=%s — "
+				     "mxfs: P-BOOT-RESUME-K-GUARDED slot=%d escrow=%s -- "
 				     "the escrow says K was claimed but the sector is a "
 				     "guard; refusing (record left as it stands)", k,
 				     mxfs_bootstrap_escrow_name(esc->state));
@@ -5057,7 +5057,7 @@ static int v5_bootstrap_adopt_resume(struct mxfs_v5_dlm *ctx)
 						   MXFS_BOOT_ESCROW_K_CLAIMED, 0);
 	mxfs_pal_log(rc ? MXFS_LOG_ERR : MXFS_LOG_WARN,
 		     "mxfs: P-BOOT-ADOPT slot=%d victim=%u/%llu key=0x%llx "
-		     "old_crc=0x%08x rc=%d — resumed: %s", k, esc->victim_node,
+		     "old_crc=0x%08x rc=%d -- resumed: %s", k, esc->victim_node,
 		     (unsigned long long)esc->victim_epoch,
 		     (unsigned long long)esc->victim_key, old_crc, rc,
 		     rc ? "K is ours but the escrow did not advance; refused" :
@@ -5102,7 +5102,7 @@ static int v5_bootstrap_resume_prepare(struct mxfs_v5_dlm *ctx,
 				   ctx->pr_key_gen, &node, &epoch);
 	if (rc) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-BOOT-RESUME-LOST rc=%d — the record no longer "
+			     "mxfs: P-BOOT-RESUME-LOST rc=%d -- the record no longer "
 			     "names this boot's claim; refusing this mount attempt",
 			     rc);
 		return rc;
@@ -5118,7 +5118,7 @@ static int v5_bootstrap_resume_prepare(struct mxfs_v5_dlm *ctx,
 		/* nothing durable happened: hand the claim back, start over */
 		rc = mxfs_bootstrap_release_claim(ctx->bootstrap);
 		mxfs_pal_log(MXFS_LOG_DEBUG,
-			     "mxfs: P-BOOT-RESUME-RELEASED rc=%d — the resumed term "
+			     "mxfs: P-BOOT-RESUME-RELEASED rc=%d -- the resumed term "
 			     "was only CLAIMED; released, the ordinary path decides",
 			     rc);
 		return rc ? rc : 1;
@@ -5142,7 +5142,7 @@ static int v5_bootstrap_resume_prepare(struct mxfs_v5_dlm *ctx,
 					  &n);
 	if (rc) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-BOOT-RESUME-MANIFEST rc=%d term=%llu — the sealed "
+			     "mxfs: P-BOOT-RESUME-MANIFEST rc=%d term=%llu -- the sealed "
 			     "manifest does not validate; refusing", rc,
 			     (unsigned long long)img->term);
 		return rc;
@@ -5162,7 +5162,7 @@ static int v5_bootstrap_resume_prepare(struct mxfs_v5_dlm *ctx,
 	if (ctx->boot_victims != img->victim_bitmap) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P-BOOT-RESUME-MANIFEST victims=0x%016llx "
-			     "record=0x%016llx — disagree; refusing",
+			     "record=0x%016llx -- disagree; refusing",
 			     (unsigned long long)ctx->boot_victims,
 			     (unsigned long long)img->victim_bitmap);
 		return -EUCLEAN;
@@ -5230,7 +5230,7 @@ static int v5_bootstrap_resume_prepare(struct mxfs_v5_dlm *ctx,
 					if (rc) {
 						mxfs_pal_log(MXFS_LOG_ERR,
 							     "mxfs: P-BOOT-INHERIT-UNPROVEN slot=%u node=%u "
-							     "inc=%llu rc=%d — completion bit set, sector "
+							     "inc=%llu rc=%d -- completion bit set, sector "
 							     "zeroed, and no tombstone proves the "
 							     "obligation; refusing (fail closed)",
 							     me->slot, me->node_id,
@@ -5243,7 +5243,7 @@ static int v5_bootstrap_resume_prepare(struct mxfs_v5_dlm *ctx,
 					done[i] = 1;
 					mxfs_pal_log(MXFS_LOG_DEBUG,
 						     "mxfs: P-BOOT-RESUME-SLOT-DONE slot=%u node=%u "
-						     "— completed and zeroed by the earlier attempt "
+						     "-- completed and zeroed by the earlier attempt "
 						     "(tombstone %s term=%llu)",
 						     me->slot, me->node_id,
 						     mxfs_bootstrap_tomb_kind_name(tomb.kind),
@@ -5251,7 +5251,7 @@ static int v5_bootstrap_resume_prepare(struct mxfs_v5_dlm *ctx,
 				} else {
 					mxfs_pal_log(MXFS_LOG_DEBUG,
 						     "mxfs: P-BOOT-RESUME-SLOT-TAIL slot=%u node=%u "
-						     "— completion bit set but the sector is still "
+						     "-- completion bit set but the sector is still "
 						     "guarded; the ladder tail runs again",
 						     me->slot, me->node_id);
 				}
@@ -5285,7 +5285,7 @@ static int v5_bootstrap_resume_prepare(struct mxfs_v5_dlm *ctx,
 	mxfs_pal_log(MXFS_LOG_DEBUG,
 		     "mxfs: P-BOOT-RESUMED term=%llu state=%s entries=%u victims=0x%016llx "
 		     "complete=0x%016llx registrants=%u/%u escrow=%s K=%u k_resumed=%d "
-		     "— continuing at phase 3",
+		     "-- continuing at phase 3",
 		     (unsigned long long)img->term,
 		     mxfs_bootstrap_state_name(img->state), n,
 		     (unsigned long long)img->victim_bitmap,
@@ -5367,7 +5367,7 @@ static int v5_boot_lineage_load(struct mxfs_v5_dlm *ctx)
 						 img->episode_term, &ctx->boot_lin[i]);
 		if (rc) {
 			mxfs_pal_log(MXFS_LOG_ERR,
-				     "mxfs: P-BOOT-LINEAGE-BROKEN idx=%u of %u rc=%d — the "
+				     "mxfs: P-BOOT-LINEAGE-BROKEN idx=%u of %u rc=%d -- the "
 				     "episode's lineage does not validate; K's provenance "
 				     "chain cannot be proven (fail closed)",
 				     i, img->lineage_count, rc);
@@ -5434,7 +5434,7 @@ static int v5_tk_advance(struct mxfs_v5_dlm *ctx,
 		if (!valid || cur->nonce != ctx->boot_tk_nonce) {
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "mxfs: P-BOOT-TK-LOST at=%s stage=%s contender=%u/%llu "
-				     "— the takeover journal no longer names this "
+				     "-- the takeover journal no longer names this "
 				     "contender; ceasing", tag,
 				     valid ? mxfs_bootstrap_takeover_stage_name(cur->stage) :
 					     "invalid",
@@ -5563,7 +5563,7 @@ static int v5_drbd_tk_fence(struct mxfs_v5_dlm *ctx,
 	    memcmp(who->boot_uuid, hid->boot_uuid, 16) == 0) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P-BOOT-TAKEOVER-DRBD-OWN-BOOT what=%s node=%u "
-			     "inc=%llu — the identity to exclude is this boot's own; "
+			     "inc=%llu -- the identity to exclude is this boot's own; "
 			     "the peer's fence says nothing about it, so the takeover "
 			     "is refused (record left as it stands)",
 			     what, who->node_id, (unsigned long long)who->epoch);
@@ -5583,7 +5583,7 @@ static int v5_drbd_tk_fence(struct mxfs_v5_dlm *ctx,
 			 * frozen). */
 			mxfs_pal_log(MXFS_LOG_WARN,
 				     "mxfs: P-BOOT-TAKEOVER-FENCE-DRBD what=%s node=%u "
-				     "inc=%llu key=0x%llx waited_ms=%llu — ended: the "
+				     "inc=%llu key=0x%llx waited_ms=%llu -- ended: the "
 				     "peer is Secondary on a Connected link (kind 27)",
 				     what, who->node_id, (unsigned long long)who->epoch,
 				     (unsigned long long)who->pr_key,
@@ -5594,7 +5594,7 @@ static int v5_drbd_tk_fence(struct mxfs_v5_dlm *ctx,
 		if (fres.kind == MXFS_FENCE_KIND_DRBD_STONITH_WITNESSED_V1) {
 			mxfs_pal_log(MXFS_LOG_WARN,
 				     "mxfs: P-BOOT-TAKEOVER-FENCE-DRBD what=%s node=%u "
-				     "inc=%llu key=0x%llx waited_ms=%llu — excluded by "
+				     "inc=%llu key=0x%llx waited_ms=%llu -- excluded by "
 				     "the attachment's fence (kind 25)", what,
 				     who->node_id, (unsigned long long)who->epoch,
 				     (unsigned long long)who->pr_key,
@@ -5609,7 +5609,7 @@ static int v5_drbd_tk_fence(struct mxfs_v5_dlm *ctx,
 			 * off (kind 25).  Refused, with nothing written. */
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "mxfs: P-BOOT-TAKEOVER-DRBD-EXCLUDED-ONLY what=%s "
-				     "node=%u inc=%llu — the peer is excluded from this "
+				     "node=%u inc=%llu -- the peer is excluded from this "
 				     "replica but not proven off; a bootstrap takeover "
 				     "needs a node fence (IPMI/PDU) in "
 				     "/etc/mxfs/drbd-fence.conf, so it is refused",
@@ -5628,7 +5628,7 @@ static int v5_drbd_tk_fence(struct mxfs_v5_dlm *ctx,
 	}
 	mxfs_pal_log(MXFS_LOG_ERR,
 		     "mxfs: P-BOOT-TAKEOVER-FENCE-DRBD-UNPROVEN what=%s node=%u "
-		     "inc=%llu rc=%d waited_ms=%llu — the peer is not provably "
+		     "inc=%llu rc=%d waited_ms=%llu -- the peer is not provably "
 		     "excluded; the takeover is refused (record left as it stands)",
 		     what, who->node_id, (unsigned long long)who->epoch, rc,
 		     (unsigned long long)(mxfs_pal_time_ms() - t0));
@@ -5787,7 +5787,7 @@ static int v5_boot_tk_fence_key(struct mxfs_v5_dlm *ctx,
 	if (lrc) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P-BOOT-TAKEOVER-FENCE-LURESET-UNASKED what=%s "
-			     "key=0x%llx node=%u rc=%d — the witnessed LU-reset route "
+			     "key=0x%llx node=%u rc=%d -- the witnessed LU-reset route "
 			     "could not be asked at all; NO verdict was reached and "
 			     "the takeover is refused (record left as it stands)",
 			     what, (unsigned long long)who->pr_key, who->node_id, lrc);
@@ -5801,7 +5801,7 @@ static int v5_boot_tk_fence_key(struct mxfs_v5_dlm *ctx,
 		     "node=%u inc=%llu contender=%d certified=%d verdict=%s "
 		     "issued=%d kind=%s(%d) gen=%u krel=%s total_ms=%u "
 		     "ledger_rc=%d state=%u antecedent=%s same_host=%d "
-		     "boot_moved=%d ours_present=%d — %s: %s", what,
+		     "boot_moved=%d ours_present=%d -- %s: %s", what,
 		     (unsigned long long)who->pr_key, who->node_id,
 		     (unsigned long long)who->epoch, contender ? 1 : 0,
 		     certified ? 1 : 0,
@@ -5853,7 +5853,7 @@ static void v5_boot_tk_refuse(struct mxfs_v5_dlm *ctx,
 	a.refused_reason = reason;
 	rc = mxfs_bootstrap_reseal(ctx->bootstrap, r1, id, &a);
 	mxfs_pal_log(MXFS_LOG_ERR,
-		     "mxfs: P-BOOT-TAKEOVER-REFUSED slot=%u reason=%s rc=%d — the "
+		     "mxfs: P-BOOT-TAKEOVER-REFUSED slot=%u reason=%s rc=%d -- the "
 		     "old owner is fenced but the term cannot be inherited; ended "
 		     "REFUSED for the operator (chk_mxfs --clear-bootstrap)", slot,
 		     mxfs_bootstrap_refuse_name(reason), rc);
@@ -5938,7 +5938,7 @@ static int v5_bootstrap_takeover_run(struct mxfs_v5_dlm *ctx,
 		if (r->state == MXFS_BOOTSTRAP_IDLE ||
 		    r->state == MXFS_BOOTSTRAP_RECOVERY_COMPLETE) {
 			mxfs_pal_log(MXFS_LOG_DEBUG,
-				     "mxfs: P-BOOT-CONTENDER-ENDED state=%s term=%llu — the "
+				     "mxfs: P-BOOT-CONTENDER-ENDED state=%s term=%llu -- the "
 				     "term ended while we watched; the ordinary path decides",
 				     mxfs_bootstrap_state_name(r->state),
 				     (unsigned long long)r->term);
@@ -5961,7 +5961,7 @@ static int v5_bootstrap_takeover_run(struct mxfs_v5_dlm *ctx,
 			if (++windows > 3) {
 				mxfs_pal_log(MXFS_LOG_WARN,
 					     "mxfs: P-BOOT-CONTENDER-OWNER-ALIVE term=%llu "
-					     "owner=%u/%llu seq=%llu — the record keeps moving; "
+					     "owner=%u/%llu seq=%llu -- the record keeps moving; "
 					     "its owner is alive; this mount is refused (retry "
 					     "after RECOVERY_COMPLETE)",
 					     (unsigned long long)r->term, r->owner_node,
@@ -5981,7 +5981,7 @@ static int v5_bootstrap_takeover_run(struct mxfs_v5_dlm *ctx,
 			if (++windows > 3) {
 				mxfs_pal_log(MXFS_LOG_WARN,
 					     "mxfs: P-BOOT-CONTENDER-BUSY stage=%s contender=%u/%llu "
-					     "key=0x%llx seq=%llu — another contender is at work "
+					     "key=0x%llx seq=%llu -- another contender is at work "
 					     "on this term; this mount is refused",
 					     mxfs_bootstrap_takeover_stage_name(tk->stage),
 					     tk->us.node_id, (unsigned long long)tk->us.epoch,
@@ -6011,7 +6011,7 @@ static int v5_bootstrap_takeover_run(struct mxfs_v5_dlm *ctx,
 	    memcmp(tk->us.boot_uuid, hid->boot_uuid, 16) == 0) {
 		mxfs_pal_log(MXFS_LOG_WARN,
 			     "mxfs: P-BOOT-CONTENDER-OWN-BOOT stage=%s contender=%u/%llu "
-			     "seq=%llu — the stale contender is an earlier attempt of "
+			     "seq=%llu -- the stale contender is an earlier attempt of "
 			     "this boot, returned and still for the abandon window; "
 			     "superseded without a fence",
 			     mxfs_bootstrap_takeover_stage_name(tk->stage),
@@ -6021,7 +6021,7 @@ static int v5_bootstrap_takeover_run(struct mxfs_v5_dlm *ctx,
 	}
 	mxfs_pal_log(MXFS_LOG_DEBUG,
 		     "mxfs: P-BOOT-CONTENDER-ABANDONED term=%llu state=%s owner=%u/%llu "
-		     "key=0x%llx seq=%llu escrow=%s K=%u journal=%s%s — record and "
+		     "key=0x%llx seq=%llu escrow=%s K=%u journal=%s%s -- record and "
 		     "journal unchanged for %u ms on our clock; contending",
 		     (unsigned long long)r->term,
 		     mxfs_bootstrap_state_name(r->state), r->owner_node,
@@ -6071,7 +6071,7 @@ static int v5_bootstrap_takeover_run(struct mxfs_v5_dlm *ctx,
 	rc = mxfs_bootstrap_takeover_cas(ctx->bootstrap, tk, want);
 	if (rc) {
 		mxfs_pal_log(MXFS_LOG_WARN,
-			     "mxfs: P-BOOT-CONTENDER-LOST rc=%d — the election CAW did "
+			     "mxfs: P-BOOT-CONTENDER-LOST rc=%d -- the election CAW did "
 			     "not land (another contender won); this mount is refused",
 			     rc);
 		if (rc == -EAGAIN)
@@ -6089,7 +6089,7 @@ static int v5_bootstrap_takeover_run(struct mxfs_v5_dlm *ctx,
 	}
 	mxfs_pal_log(MXFS_LOG_WARN,
 		     "mxfs: P-BOOT-CONTENDER-ELECTED term=%llu us=%u/%llu key=0x%llx "
-		     "pred=%u/%llu key=0x%llx — the takeover journal names this "
+		     "pred=%u/%llu key=0x%llx -- the takeover journal names this "
 		     "contender", (unsigned long long)r->term, id.node_id,
 		     (unsigned long long)id.epoch, (unsigned long long)id.pr_key,
 		     pred.node_id, (unsigned long long)pred.epoch,
@@ -6147,7 +6147,7 @@ static int v5_bootstrap_takeover_run(struct mxfs_v5_dlm *ctx,
 		} else {
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "mxfs: P-BOOT-TAKEOVER-K-UNEXPECTED slot=%u magic=0x%08x "
-				     "flags=%u node=%u inc=%llu — the PREPARED escrow's K is "
+				     "flags=%u node=%u inc=%llu -- the PREPARED escrow's K is "
 				     "neither the victim's guard nor the owner's record; "
 				     "refusing (record left as it stands)",
 				     r->escrow.slot, hb->magic, hb->flags, hb->node_id,
@@ -6158,7 +6158,7 @@ static int v5_bootstrap_takeover_run(struct mxfs_v5_dlm *ctx,
 		break;
 	case MXFS_BOOT_ESCROW_K_REPLAY_REFUSED:
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-BOOT-TAKEOVER-K-REFUSED slot=%u rc=%d — the term's "
+			     "mxfs: P-BOOT-TAKEOVER-K-REFUSED slot=%u rc=%d -- the term's "
 			     "adopted slice ended terminal; never a takeover replay "
 			     "(operator)", r->escrow.slot, r->escrow.replay_rc);
 		rc = -EPERM;
@@ -6191,7 +6191,7 @@ static int v5_bootstrap_takeover_run(struct mxfs_v5_dlm *ctx,
 			rc = mxfs_disklock_recovery_read(ctx->disklock, k, &desc);
 		mxfs_pal_log(rc ? MXFS_LOG_ERR : MXFS_LOG_WARN,
 			     "mxfs: P-BOOT-TAKEOVER-FENCE-K slot=%d owner=%u/%llu key=0x%llx "
-			     "kind=%s stage=%u rc=%d — %s", k, owner.node_id,
+			     "kind=%s stage=%u rc=%d -- %s", k, owner.node_id,
 			     (unsigned long long)owner.epoch,
 			     (unsigned long long)owner.pr_key,
 			     rc ? "?" : mxfs_fence_kind_name(desc.fence_kind),
@@ -6209,7 +6209,7 @@ static int v5_bootstrap_takeover_run(struct mxfs_v5_dlm *ctx,
 				    desc.fence_kind, &kwhy)) {
 				mxfs_pal_log(MXFS_LOG_ERR,
 					     "mxfs: P-BOOT-TAKEOVER-KIND-REFUSED slot=%d "
-					     "owner=%u kind=%s(%u) — the old owner's "
+					     "owner=%u kind=%s(%u) -- the old owner's "
 					     "certificate is not one this build can classify "
 					     "into a supported proof contract, so it does not "
 					     "authorise the takeover: %s",
@@ -6268,7 +6268,7 @@ static int v5_bootstrap_takeover_run(struct mxfs_v5_dlm *ctx,
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P-BOOT-TAKEOVER-MOVED seq=%llu->%llu "
 			     "term=%llu->%llu state=%s->%s "
-			     "escrow=%s->%s — the record changed across the "
+			     "escrow=%s->%s -- the record changed across the "
 			     "fence; refusing this attempt",
 			     (unsigned long long)r0->seq, (unsigned long long)r->seq,
 			     (unsigned long long)r0->term, (unsigned long long)r->term,
@@ -6329,7 +6329,7 @@ static int v5_bootstrap_takeover_run(struct mxfs_v5_dlm *ctx,
 		v5_boot_tk_stop(ctx);
 		mxfs_bootstrap_takeover_clear(ctx->bootstrap, &ctx->boot_tk);
 		mxfs_pal_log(MXFS_LOG_DEBUG,
-			     "mxfs: P-BOOT-INHERIT term=%llu state=CLAIMED — nothing "
+			     "mxfs: P-BOOT-INHERIT term=%llu state=CLAIMED -- nothing "
 			     "was sealed; the fresh scan seals T+1",
 			     (unsigned long long)r->term);
 		rc = 2;
@@ -6340,7 +6340,7 @@ static int v5_bootstrap_takeover_run(struct mxfs_v5_dlm *ctx,
 					  e, MXFS_BOOT_MF_MAX, &n);
 	if (rc) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-BOOT-INHERIT-UNPROVEN term=%llu rc=%d — the sealed "
+			     "mxfs: P-BOOT-INHERIT-UNPROVEN term=%llu rc=%d -- the sealed "
 			     "manifest does not validate; nothing can be inherited",
 			     (unsigned long long)r->term, rc);
 		v5_boot_tk_refuse(ctx, r, &id, fence_kind, MXFS_BOOT_MF_NO_SLOT,
@@ -6399,7 +6399,7 @@ static int v5_bootstrap_takeover_run(struct mxfs_v5_dlm *ctx,
 					mxfs_pal_log(MXFS_LOG_ERR,
 						     "mxfs: P-BOOT-INHERIT-UNPROVEN slot=%u node=%u "
 						     "inc=%llu rc=%d guard owner=%u/%llu victim=%u/%llu "
-						     "stage=%u — completion bit set but the guard "
+						     "stage=%u -- completion bit set but the guard "
 						     "does not prove it at GRANTS_RELEASED under the "
 						     "fenced owner", me->slot, me->node_id,
 						     (unsigned long long)me->epoch, rc,
@@ -6447,7 +6447,7 @@ static int v5_bootstrap_takeover_run(struct mxfs_v5_dlm *ctx,
 				if (rc) {
 					mxfs_pal_log(MXFS_LOG_ERR,
 						     "mxfs: P-BOOT-INHERIT-UNPROVEN slot=%u node=%u "
-						     "inc=%llu rc=%d — completion bit set, sector "
+						     "inc=%llu rc=%d -- completion bit set, sector "
 						     "zeroed, no tombstone proves the obligation",
 						     me->slot, me->node_id,
 						     (unsigned long long)me->epoch, rc);
@@ -6531,7 +6531,7 @@ static int v5_bootstrap_takeover_run(struct mxfs_v5_dlm *ctx,
 				explained = true;
 		if (!explained) {
 			mxfs_pal_log(MXFS_LOG_ERR,
-				     "mxfs: P-BOOT-KEY-UNCLASSIFIED key=0x%llx — READ KEYS "
+				     "mxfs: P-BOOT-KEY-UNCLASSIFIED key=0x%llx -- READ KEYS "
 				     "holds a key T's manifest, the fenced owner and this "
 				     "contender do not explain; the takeover is refused",
 				     (unsigned long long)keys[i]);
@@ -6594,7 +6594,7 @@ keys_explained:
 	mxfs_pal_log(MXFS_LOG_DEBUG,
 		     "mxfs: P-BOOT-INHERIT term=%llu->%llu entries=%u victims=0x%016llx "
 		     "complete=%u (receipts=%u guarded=%u) registrants=%u/%u K=%d "
-		     "on_k=%d — T's sealed set imported with every completion "
+		     "on_k=%d -- T's sealed set imported with every completion "
 		     "proven; continuing at phase 3 under T+1",
 		     (unsigned long long)r->term, (unsigned long long)(r->term + 1),
 		     n, (unsigned long long)ctx->boot_victims,
@@ -6682,7 +6682,7 @@ static int v5_drbd_startup_fence(struct mxfs_v5_dlm *ctx)
 		if (rc == 0) {
 			mxfs_pal_log(MXFS_LOG_WARN,
 				     "mxfs: P-DRBD-STARTUP-FENCED peer=%s episode=%s asked=%d "
-				     "waited_ms=%llu — the pair's other endpoint is off and "
+				     "waited_ms=%llu -- the pair's other endpoint is off and "
 				     "inhibited; every recorded incarnation is excluded",
 				     r->peer_host, r->receipt_episode, asked ? 1 : 0,
 				     (unsigned long long)(mxfs_pal_time_ms() - t0));
@@ -6692,7 +6692,7 @@ static int v5_drbd_startup_fence(struct mxfs_v5_dlm *ctx)
 		    mxfs_drbd_judge_peer_secondary(r, whyq, sizeof(whyq)) == 0) {
 			mxfs_pal_log(MXFS_LOG_WARN,
 				     "mxfs: P-DRBD-STARTUP-PEER-SECONDARY peer=%s roles=%s/%s "
-				     "disks=%s/%s asked=%d waited_ms=%llu — the pair's other "
+				     "disks=%s/%s asked=%d waited_ms=%llu -- the pair's other "
 				     "endpoint is Secondary on a Connected link: no "
 				     "incarnation is alive on it, so no recorded one can "
 				     "write; nothing is fenced",
@@ -6711,7 +6711,7 @@ static int v5_drbd_startup_fence(struct mxfs_v5_dlm *ctx)
 			rc = mxfs_pal_drbd_witness(ctx->dev, MXFS_PAL_DRBD_STARTFENCE, r);
 			mxfs_pal_log(MXFS_LOG_WARN,
 				     "mxfs: P-DRBD-STARTUP-FENCE-ASKED rc=%d peer=%s why_not_yet='%s' "
-				     "— total outage on a DRBD attachment: the fence authority "
+				     "-- total outage on a DRBD attachment: the fence authority "
 				     "is asked to hold the peer off before the bootstrap claims",
 				     rc, r->peer_host, why);
 			continue;
@@ -6719,7 +6719,7 @@ static int v5_drbd_startup_fence(struct mxfs_v5_dlm *ctx)
 		if (mxfs_pal_time_ms() - t0 > V5_DRBD_STARTUP_FENCE_MS) {
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "mxfs: P-DRBD-STARTUP-FENCE-UNPROVEN waited_ms=%llu why='%s' "
-				     "— the peer is not provably excluded; the bootstrap cannot "
+				     "-- the peer is not provably excluded; the bootstrap cannot "
 				     "proceed", (unsigned long long)(mxfs_pal_time_ms() - t0), why);
 			rc = -ETIMEDOUT;
 			break;
@@ -6785,7 +6785,7 @@ static uint32_t v5_boot_scan_window(struct mxfs_v5_dlm *ctx, uint32_t full,
 	if (what)
 		mxfs_pal_log(MXFS_LOG_WARN,
 			     "mxfs: P-BOOT-SCAN-DRBD-ONE-POLL when=%s peer=%s cstate=%s "
-			     "roles=%s/%s disks=%s/%s window_ms=%u — the pair's other "
+			     "roles=%s/%s disks=%s/%s window_ms=%u -- the pair's other "
 			     "endpoint is %s, so no member can move a record on this "
 			     "replica: the scan reads once instead of waiting %u ms",
 			     when, r->peer_host, r->cstate, r->role_local, r->role_peer,
@@ -6815,7 +6815,7 @@ static int v5_bootstrap_run(struct mxfs_v5_dlm *ctx)
 		/* Silent until 0.89.19, and it is the one early return that means
 		 * the whole-cluster path was never consulted at all. */
 		mxfs_pal_log(MXFS_LOG_DEBUG,
-			     "mxfs: P-BOOT-SKIPPED bootstrap=%d disklock=%d — no "
+			     "mxfs: P-BOOT-SKIPPED bootstrap=%d disklock=%d -- no "
 			     "bootstrap or disklock context; the whole-cluster path "
 			     "does not run and the ordinary claim follows",
 			     ctx->bootstrap ? 1 : 0, ctx->disklock ? 1 : 0);
@@ -6874,14 +6874,14 @@ static int v5_bootstrap_run(struct mxfs_v5_dlm *ctx)
 					  &unread, &noident);
 	if (rc) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-BOOT-SCAN-FAILED rc=%d — refusing to mount "
+			     "mxfs: P-BOOT-SCAN-FAILED rc=%d -- refusing to mount "
 			     "(cannot tell a live cluster from a total outage)", rc);
 		goto out;
 	}
 	if (unread) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P-BOOT-SCAN-UNREAD %u heartbeat sector(s) "
-			     "unreadable — refusing to mount (fail closed)", unread);
+			     "unreadable -- refusing to mount (fail closed)", unread);
 		rc = -EIO;
 		goto out;
 	}
@@ -6898,7 +6898,7 @@ static int v5_bootstrap_run(struct mxfs_v5_dlm *ctx)
 	 */
 	mxfs_pal_log(MXFS_LOG_DEBUG,
 		     "mxfs: P-BOOT-SCAN-VERDICT victims=%u moved=%u unread=%u "
-		     "noident=%u window_ms=%u — %s", n, moved, unread, noident,
+		     "noident=%u window_ms=%u -- %s", n, moved, unread, noident,
 		     window,
 		     moved ? "a record advanced: a member is live, ordinary path" :
 		     n == 0 ? "no victim record: nothing to bootstrap, ordinary path" :
@@ -6910,7 +6910,7 @@ static int v5_bootstrap_run(struct mxfs_v5_dlm *ctx)
 	if (noident && ctx->drbd_minor < 0) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P-BOOT-KEY-UNCLASSIFIED %u victim record(s) carry "
-			     "no identity block — a victim without a key cannot be "
+			     "no identity block -- a victim without a key cannot be "
 			     "fenced; bootstrap refused", noident);
 		rc = -EPERM;
 		goto out;
@@ -6952,7 +6952,7 @@ static int v5_bootstrap_run(struct mxfs_v5_dlm *ctx)
 			mxfs_pal_log(MXFS_LOG_DEBUG,
 				     "mxfs: P-BOOT-SCAN-OWN-BOOT %u frozen record(s) all "
 				     "belong to this host's current boot and the target "
-				     "holds no foreign key — same-boot dirty predecessor, "
+				     "holds no foreign key -- same-boot dirty predecessor, "
 				     "not a whole-cluster outage; the P305 path decides "
 				     "admission", n);
 			rc = 0;
@@ -6961,7 +6961,7 @@ static int v5_bootstrap_run(struct mxfs_v5_dlm *ctx)
 		mxfs_pal_log(MXFS_LOG_WARN,
 			     "mxfs: P-BOOT-SCAN-OWN-BOOT-FOREIGN-KEYS %u frozen "
 			     "record(s) are ours but READ KEYS holds %d foreign key(s) "
-			     "— treating as a total outage (they must be classified "
+			     "-- treating as a total outage (they must be classified "
 			     "and fenced)", n, foreign);
 	}
 	if (ctx->drbd_minor >= 0) {
@@ -6970,7 +6970,7 @@ static int v5_bootstrap_run(struct mxfs_v5_dlm *ctx)
 			goto out;
 	} else if (!ctx->scsipr || !ctx->prledger || !ctx->pr_key) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-BOOT-NOPR — total outage detected (%u victims) "
+			     "mxfs: P-BOOT-NOPR -- total outage detected (%u victims) "
 			     "but this mount holds no PR context/key: nothing can "
 			     "fence the victims; refusing to mount", n);
 		rc = -EPERM;
@@ -6995,7 +6995,7 @@ static int v5_bootstrap_run(struct mxfs_v5_dlm *ctx)
 	}
 	if (rc) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-BOOT-CLAIM-LOST rc=%d — total outage seen but "
+			     "mxfs: P-BOOT-CLAIM-LOST rc=%d -- total outage seen but "
 			     "the record could not be claimed (another claimant, or "
 			     "I/O); this mount attempt is refused, retry later", rc);
 		goto out;
@@ -7013,7 +7013,7 @@ static int v5_bootstrap_run(struct mxfs_v5_dlm *ctx)
 	}
 	mxfs_pal_log(MXFS_LOG_WARN,
 		     "mxfs: P-BOOT-CLAIMED node=%u epoch=%llu key=0x%llx victims=%u "
-		     "— provisional bootstrap owner; no slot, no grant, no "
+		     "-- provisional bootstrap owner; no slot, no grant, no "
 		     "filesystem write until RECOVERY_COMPLETE",
 		     id.node_id, (unsigned long long)id.epoch,
 		     (unsigned long long)id.pr_key, n);
@@ -7034,7 +7034,7 @@ sealscan:
 			n == 0)) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P-BOOT-RESCAN-CHANGED moved=%u unread=%u noident=%u "
-			     "victims=%u — the post-claim scan disagrees with the "
+			     "victims=%u -- the post-claim scan disagrees with the "
 			     "first; releasing the claim (nothing durable happened)",
 			     moved, unread, noident, n);
 		rc = moved ? -EAGAIN : -EIO;
@@ -7054,7 +7054,7 @@ sealscan:
 		int rrc = mxfs_bootstrap_release_claim(ctx->bootstrap);
 
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-BOOT-ABORTED-BEFORE-SEAL rc=%d release_rc=%d — "
+			     "mxfs: P-BOOT-ABORTED-BEFORE-SEAL rc=%d release_rc=%d -- "
 			     "mount refused", rc, rrc);
 		goto stop;
 	}
@@ -7135,7 +7135,7 @@ phase3:
 					if (!nwait++)
 						mxfs_pal_log(MXFS_LOG_WARN,
 							     "mxfs: P-BOOT-FENCE-WAIT slot=%u node=%u "
-							     "rc=%d — the victim's fence submitted no "
+							     "rc=%d -- the victim's fence submitted no "
 							     "command and is being retried; waiting "
 							     "for its certificate (BLOCKED after %d ms "
 							     "ends the wait)",
@@ -7160,7 +7160,7 @@ phase3:
 					/* nothing was consumed: a later mount resumes */
 					mxfs_pal_log(MXFS_LOG_ERR,
 						     "mxfs: P-BOOT-FENCE-BLOCKED slot=%u node=%u "
-						     "inc=%llu rc=%d — every fence attempt for "
+						     "inc=%llu rc=%d -- every fence attempt for "
 						     "this victim returned before submitting a "
 						     "command; the mount is refused and the term "
 						     "stays RECOVERING for a resume",
@@ -7174,7 +7174,7 @@ phase3:
 				} else {
 					mxfs_pal_log(MXFS_LOG_ERR,
 						     "mxfs: P-BOOT-FENCE-UNPROVEN slot=%u node=%u "
-						     "inc=%llu rc=%d — no certificate for this "
+						     "inc=%llu rc=%d -- no certificate for this "
 						     "victim; the bootstrap cannot proceed",
 						     me->slot, me->node_id,
 						     (unsigned long long)me->epoch, rc);
@@ -7213,7 +7213,7 @@ phase3:
 		for (i = 0; i < n; i++) {
 			if (!done[i]) {
 				mxfs_pal_log(MXFS_LOG_ERR,
-					     "mxfs: P-BOOT-FENCE-UNPROVEN slot=%u node=%u — "
+					     "mxfs: P-BOOT-FENCE-UNPROVEN slot=%u node=%u -- "
 					     "still unfenced after two passes",
 					     ctx->boot_mf[i].slot, ctx->boot_mf[i].node_id);
 				refuse_reason = MXFS_BOOT_REFUSE_FENCE_UNPROVEN;
@@ -7228,14 +7228,14 @@ phase3:
 			mxfs_bootstrap_refuse(ctx->bootstrap, refuse_slot, refuse_reason);
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P-BOOT-PHASE3-FAILED rc=%d certs=%u registrants=%u/%u "
-			     "— mount refused; the record is %s",
+			     "-- mount refused; the record is %s",
 			     rc, ncert, nregdone, nreg,
 			     refuse_reason ? "REFUSED (operator: chk_mxfs)" :
 					     "left as it stands");
 		goto stop;
 	}
 	mxfs_pal_log(MXFS_LOG_WARN,
-		     "mxfs: P-BOOT-PHASE3-COMPLETE certs=%u registrants=%u/%u — "
+		     "mxfs: P-BOOT-PHASE3-COMPLETE certs=%u registrants=%u/%u -- "
 		     "every manifest entry is fenced and certified; the sealed "
 		     "set may now be replayed", ncert, nregdone, nreg);
 	if (v5_bootstrap_inject_fire(1)) {
@@ -7246,7 +7246,7 @@ phase3:
 		/* nothing with a slice to adopt (every victim was class 3): there is
 		 * no journal for this owner to mount; refuse rather than guess */
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-BOOT-NO-ADOPTABLE-SLICE — no certified class-2 "
+			     "mxfs: P-BOOT-NO-ADOPTABLE-SLICE -- no certified class-2 "
 			     "victim in the manifest; the owner has no slice to mount");
 		mxfs_bootstrap_refuse(ctx->bootstrap, MXFS_BOOT_MF_NO_SLOT,
 				      MXFS_BOOT_REFUSE_TERMINAL_SLICE);
@@ -7327,7 +7327,7 @@ static int v5_prkey_setup(struct mxfs_v5_dlm *ctx)
 
 	if (!ctx->prkey_offset) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-PRKEY-NO-LEDGER — this volume carries no PR "
+			     "mxfs: P-PRKEY-NO-LEDGER -- this volume carries no PR "
 			     "registrant ledger region (MXFS_FORMAT_F_PRKEY64); "
 			     "protocol gen %u cannot register a key it cannot record. "
 			     "Re-mkfs with this build's mkfs_mxfs",
@@ -7336,7 +7336,7 @@ static int v5_prkey_setup(struct mxfs_v5_dlm *ctx)
 	}
 	if (!hid || !hid->host_valid || !hid->boot_valid) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-PRKEY-NO-IDENTITY host_valid=%d boot_valid=%d — "
+			     "mxfs: P-PRKEY-NO-IDENTITY host_valid=%d boot_valid=%d -- "
 			     "a per-boot PR key needs both identities (see P-HOSTID); "
 			     "refusing to register",
 			     hid ? hid->host_valid : 0, hid ? hid->boot_valid : 0);
@@ -7358,7 +7358,7 @@ static int v5_prkey_setup(struct mxfs_v5_dlm *ctx)
 				  &key, &gen);
 	if (rc) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-PRKEY-SELECT-FAILED rc=%d — no key recorded, so "
+			     "mxfs: P-PRKEY-SELECT-FAILED rc=%d -- no key recorded, so "
 			     "none is registered; refusing mount", rc);
 		mxfs_scsipr_destroy(ctx->scsipr);
 		ctx->scsipr = NULL;
@@ -7440,7 +7440,7 @@ static int v5_self_succession_clone_scan(struct mxfs_v5_dlm *ctx,
 		    b->epoch == r->epoch && b->timestamp_ms != r->timestamp_ms) {
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "mxfs: P305-PR-HOST-DUPLICATE-LIVE slot=%u node=%u "
-				     "inc=%llu — a heartbeating record carries THIS host's "
+				     "inc=%llu -- a heartbeating record carries THIS host's "
 				     "host_uuid under another boot (cloned VM / duplicate "
 				     "machine-id); self-succession refused",
 				     slot, r->node_id, (unsigned long long)r->epoch);
@@ -7449,7 +7449,7 @@ static int v5_self_succession_clone_scan(struct mxfs_v5_dlm *ctx,
 		}
 	}
 	mxfs_pal_log(MXFS_LOG_WARN,
-		     "mxfs: P305-PR-HOST-SCAN records_with_our_host=%d — none "
+		     "mxfs: P305-PR-HOST-SCAN records_with_our_host=%d -- none "
 		     "advanced across 2.5 s (advisory: refusal evidence only)",
 		     seen);
 out:
@@ -7517,7 +7517,7 @@ static int v5_same_boot_scan(struct mxfs_v5_dlm *ctx,
 		if (r->flags == MXFS_DISKLOCK_FLAG_RETIRE_PENDING) {
 			mxfs_pal_log(MXFS_LOG_DEBUG,
 				     "mxfs: P305-PR-SAME-BOOT-RETIRE-PENDING slot=%u node=%u "
-				     "inc=%llu key=0x%llx — this boot's previous incarnation "
+				     "inc=%llu key=0x%llx -- this boot's previous incarnation "
 				     "released cleanly but its key retirement was never "
 				     "proven; will settle it after the disklock is up",
 				     slot, r->node_id, (unsigned long long)r->epoch,
@@ -7541,7 +7541,7 @@ static int v5_same_boot_scan(struct mxfs_v5_dlm *ctx,
 		    r->epoch == ctx->boot_resume_epoch &&
 		    mxfs_hb_feature_bootstrap_pending(r)) {
 			mxfs_pal_log(MXFS_LOG_DEBUG,
-				     "mxfs: P-BOOT-RESUME-OWN-K slot=%u node=%u inc=%llu — "
+				     "mxfs: P-BOOT-RESUME-OWN-K slot=%u node=%u inc=%llu -- "
 				     "our resumed term's adopted record; not a dirty "
 				     "predecessor", slot, r->node_id,
 				     (unsigned long long)r->epoch);
@@ -7549,7 +7549,7 @@ static int v5_same_boot_scan(struct mxfs_v5_dlm *ctx,
 		}
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P305-PR-SAME-BOOT-DIRTY-PREDECESSOR slot=%u node=%u "
-			     "inc=%llu flags=0x%x key=0x%llx — a record of THIS boot "
+			     "inc=%llu flags=0x%x key=0x%llx -- a record of THIS boot "
 			     "is still %s: our previous incarnation departed dirty in "
 			     "this same kernel (no boot boundary excludes its I/O).  %s",
 			     slot, r->node_id, (unsigned long long)r->epoch, r->flags,
@@ -7584,7 +7584,7 @@ static int v5_self_succeed(struct mxfs_v5_dlm *ctx)
 					    ctx, &old_key, old_boot, &old_gen);
 	if (rc) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P305-PR-SELF-SUCCESSION-REFUSED rc=%d — %s; the "
+			     "mxfs: P305-PR-SELF-SUCCESSION-REFUSED rc=%d -- %s; the "
 			     "registration on this nexus cannot be classified as a "
 			     "previous boot of this host.  Refusing (remedies: a "
 			     "peer's PREEMPT AND ABORT of the key, or "
@@ -7649,7 +7649,7 @@ v5_retire_observation(struct mxfs_v5_dlm *ctx, int slot, mxfs_node_id_t victim,
 
 		mxfs_pal_log(MXFS_LOG_DEBUG,
 			     "mxfs: P238-RETIRE-OBS-INJECTED slot=%d victim=%u obs=%s "
-			     "— TEST ONLY: the registration transition is forced, not "
+			     "-- TEST ONLY: the registration transition is forced, not "
 			     "observed",
 			     slot, victim, mxfs_retire_observation_name((uint8_t)inj));
 		if (wit)
@@ -7751,7 +7751,7 @@ static void v5_self_succession_consume(struct mxfs_v5_dlm *ctx, int slot,
 	if (rc) {
 		mxfs_pal_log(MXFS_LOG_WARN,
 			     "mxfs: P238-FENCE-ABSENT-NO-SUCCESSOR slot=%d victim=%u "
-			     "key=0x%llx rc=%d — the victim's key is absent and no "
+			     "key=0x%llx rc=%d -- the victim's key is absent and no "
 			     "single ledger entry names it as a replaced predecessor; "
 			     "stays KEY_ABSENT_UNPROVEN (retry)",
 			     slot, victim, (unsigned long long)fres->victim_key, rc);
@@ -7762,7 +7762,7 @@ static void v5_self_succession_consume(struct mxfs_v5_dlm *ctx, int slot,
 	if (rc || present != 0) {
 		mxfs_pal_log(MXFS_LOG_WARN,
 			     "mxfs: P238-FENCE-ABSENT-UNCONFIRMED slot=%d victim=%u "
-			     "old=0x%llx full_status rc=%d present=%d — cannot confirm "
+			     "old=0x%llx full_status rc=%d present=%d -- cannot confirm "
 			     "the old key absent; stays KEY_ABSENT_UNPROVEN",
 			     slot, victim, (unsigned long long)fres->victim_key, rc,
 			     present);
@@ -7773,7 +7773,7 @@ static void v5_self_succession_consume(struct mxfs_v5_dlm *ctx, int slot,
 	if (rc || present != 1) {
 		mxfs_pal_log(MXFS_LOG_WARN,
 			     "mxfs: P238-FENCE-SUCCESSOR-UNCONFIRMED slot=%d victim=%u "
-			     "new=0x%llx node=%u full_status rc=%d present=%d — the "
+			     "new=0x%llx node=%u full_status rc=%d present=%d -- the "
 			     "successor record is not corroborated by the target; "
 			     "stays KEY_ABSENT_UNPROVEN",
 			     slot, victim, (unsigned long long)new_key, new_node, rc,
@@ -7823,7 +7823,7 @@ static void v5_self_succession_consume(struct mxfs_v5_dlm *ctx, int slot,
 	 */
 	mxfs_pal_log(MXFS_LOG_WARN,
 		     "mxfs: P238-SELFSUCC-NO-RETIRE-BASIS slot=%d victim=%u "
-		     "old=0x%llx new=0x%llx successor_node=%u gen=%u — the old key "
+		     "old=0x%llx new=0x%llx successor_node=%u gen=%u -- the old key "
 		     "was replaced on its own host's nexus and the target "
 		     "corroborates it, which is ADMISSION.  Nothing establishes "
 		     "RETIREMENT: a key replacement forces no session outcome, so "
@@ -7926,7 +7926,7 @@ static void v5_boot_succession_consume(struct mxfs_v5_dlm *ctx, int slot,
 	if (!mxfs_disklock_victim_identity(ctx->disklock, slot, victim,
 					   victim_epoch, host, boot)) {
 		mxfs_pal_log(MXFS_LOG_WARN,
-			     "mxfs: P238-BOOTSUCC-NOIDENT slot=%d victim=%u inc=%llu — "
+			     "mxfs: P238-BOOTSUCC-NOIDENT slot=%d victim=%u inc=%llu -- "
 			     "no identity frozen for the dead incarnation; stays "
 			     "KEY_ABSENT_UNPROVEN",
 			     slot, victim, (unsigned long long)victim_epoch);
@@ -7936,7 +7936,7 @@ static void v5_boot_succession_consume(struct mxfs_v5_dlm *ctx, int slot,
 						&live_node, &live_slot)) {
 		mxfs_pal_log(MXFS_LOG_DEBUG,
 			     "mxfs: P238-BOOTSUCC-HOST-NOT-LIVE slot=%d victim=%u "
-			     "inc=%llu host=%02x%02x%02x%02x boot=%02x%02x%02x%02x — "
+			     "inc=%llu host=%02x%02x%02x%02x boot=%02x%02x%02x%02x -- "
 			     "the victim's host is not heartbeating under a later boot; "
 			     "stays KEY_ABSENT_UNPROVEN (retry)",
 			     slot, victim, (unsigned long long)victim_epoch,
@@ -7948,7 +7948,7 @@ static void v5_boot_succession_consume(struct mxfs_v5_dlm *ctx, int slot,
 	if (rc || advancing) {
 		mxfs_pal_log(MXFS_LOG_WARN,
 			     "mxfs: P238-BOOTSUCC-BOOT-ADVANCING slot=%d victim=%u "
-			     "inc=%llu rc=%d advancing=%d records=%d — the victim's boot "
+			     "inc=%llu rc=%d advancing=%d records=%d -- the victim's boot "
 			     "is still heartbeating somewhere, or the table could not "
 			     "be read; stays KEY_ABSENT_UNPROVEN",
 			     slot, victim, (unsigned long long)victim_epoch, rc,
@@ -7960,7 +7960,7 @@ static void v5_boot_succession_consume(struct mxfs_v5_dlm *ctx, int slot,
 	if (rc == 0 && mxfs_fence_bootsucc_inject_refuse) {
 		mxfs_pal_log(MXFS_LOG_WARN,
 			     "mxfs: P238-BOOTSUCC-INJECT-REFUSED slot=%d victim=%u "
-			     "inc=%llu — TEST ONLY: every condition held; the proof is "
+			     "inc=%llu -- TEST ONLY: every condition held; the proof is "
 			     "refused by injection and the attempt stays "
 			     "KEY_ABSENT_UNPROVEN",
 			     slot, victim, (unsigned long long)victim_epoch);
@@ -7969,7 +7969,7 @@ static void v5_boot_succession_consume(struct mxfs_v5_dlm *ctx, int slot,
 	if (rc) {
 		mxfs_pal_log(MXFS_LOG_WARN,
 			     "mxfs: P238-BOOTSUCC-TABLE slot=%d victim=%u inc=%llu "
-			     "key=0x%llx rc=%d kind=%s(%d) resv_type=0x%x — the "
+			     "key=0x%llx rc=%d kind=%s(%d) resv_type=0x%x -- the "
 			     "registration table does not exclude the old nexus; stays "
 			     "KEY_ABSENT_UNPROVEN",
 			     slot, victim, (unsigned long long)victim_epoch,
@@ -7997,7 +7997,7 @@ static void v5_boot_succession_consume(struct mxfs_v5_dlm *ctx, int slot,
 	if (basis == MXFS_RETIRE_BASIS_NONE) {
 		mxfs_pal_log(MXFS_LOG_WARN,
 			     "mxfs: P238-BOOTSUCC-NO-RETIRE-BASIS slot=%d victim=%u "
-			     "inc=%llu key=0x%llx obs=%s — REFUSED, and no retry, "
+			     "inc=%llu key=0x%llx obs=%s -- REFUSED, and no retry, "
 			     "interval or configuration value changes it: this "
 			     "recovery route needs a witnessed task retirement that "
 			     "this build has no way to obtain, and the deployment "
@@ -8015,13 +8015,13 @@ static void v5_boot_succession_consume(struct mxfs_v5_dlm *ctx, int slot,
 		     "mxfs: P238-FENCE-BOOT-SUCCESSION slot=%d victim=%u inc=%llu "
 		     "key=0x%llx host=%02x%02x%02x%02x boot=%02x%02x%02x%02x "
 		     "live_node=%u live_slot=%d boot_records=%d resv_type=0x%x "
-		     "gen=%u — the victim is a previous boot of a host that is live "
+		     "gen=%u -- the victim is a previous boot of a host that is live "
 		     "again, no copy of that boot heartbeats, and the reservation "
 		     "excludes its unregistered nexus: certifying "
 		     "BOOT_SUCCESSION_ABSENT.  This certificate proves ADMISSION "
 		     "(the old incarnation cannot obtain permission for a new "
-		     "write); its RETIREMENT half — that the target finished the "
-		     "writes it had already accepted from that nexus — is not "
+		     "write); its RETIREMENT half -- that the target finished the "
+		     "writes it had already accepted from that nexus -- is not "
 		     "witnessed here but rests on retire_basis=%s claim=%s obs=%s "
 		     "(%s)",
 		     slot, victim, (unsigned long long)victim_epoch,
@@ -8103,7 +8103,7 @@ static int v5_pr_fence_dead_node_rc(struct mxfs_v5_dlm *ctx,
 	if (fret == -ESTALE) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P-PR-SELFFENCE own PR key gone while fencing "
-			     "node %u — freezing this node (no auto-re-register)",
+			     "node %u -- freezing this node (no auto-re-register)",
 			     dead_node);
 		if (ctx->fence_notify_fn)
 			ctx->fence_notify_fn(ctx->fence_notify_data,
@@ -8112,7 +8112,7 @@ static int v5_pr_fence_dead_node_rc(struct mxfs_v5_dlm *ctx,
 	}
 	if (fret) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P227-FENCEFAIL node=%u rc=%d — the preempt did "
+			     "mxfs: P227-FENCEFAIL node=%u rc=%d -- the preempt did "
 			     "not provably happen, so this node is NOT fenced and "
 			     "its slice must not be replayed",
 			     dead_node, fret);
@@ -8639,7 +8639,7 @@ static void v5_pr_worker_start(struct mxfs_v5_dlm *ctx)
 	    mxfs_pal_thread_create(v5_fence_retry_worker_fn, ctx);
 	if (!ctx->fence_retry_thread)
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P304-PR-WORKER-NOTHREAD — could not start the "
+			     "mxfs: P304-PR-WORKER-NOTHREAD -- could not start the "
 			     "PR-plane worker.  Fencing attempts that submit no "
 			     "command will NOT be retried automatically, and the "
 			     "reservation invariant will NOT be re-checked after "
@@ -8658,7 +8658,7 @@ static void v5_fence_retry_disarm(struct mxfs_v5_dlm *ctx, int slot)
 		mxfs_atomic32_dec(&ctx->recovery_blocked_n);
 		mxfs_pal_log(MXFS_LOG_WARN,
 			     "mxfs: P238-FENCE-UNBLOCKED slot=%d victim=%u attempts=%u "
-			     "blocked_for_ms=%llu imported=%d — the standing attempt is "
+			     "blocked_for_ms=%llu imported=%d -- the standing attempt is "
 			     "no longer ours to re-drive; RECOVERY_BLOCKED is lifted and "
 			     "path operations on this node's grants no longer fail fast",
 			     slot, ctx->fence_retry[slot].victim,
@@ -8725,7 +8725,7 @@ static void v5_fence_block_ambiguous(struct mxfs_v5_dlm *ctx, int slot,
 	mxfs_atomic32_inc(&ctx->recovery_blocked_n);
 	mxfs_pal_log(MXFS_LOG_ERR,
 		     "mxfs: P238-FENCE-BLOCKED-AMBIGUOUS slot=%d victim=%u "
-		     "epoch=%llu — a PREEMPT-family command may have reached the "
+		     "epoch=%llu -- a PREEMPT-family command may have reached the "
 		     "target and its outcome was never established, so this slice "
 		     "may not be replayed and its grants may not be released.  "
 		     "RECOVERY of this slice is BLOCKED: path operations that need "
@@ -8778,7 +8778,7 @@ static void v5_fence_block_unpublished(struct mxfs_v5_dlm *ctx, int slot,
 	mxfs_atomic32_inc(&ctx->recovery_blocked_n);
 	mxfs_pal_log(MXFS_LOG_ERR,
 		     "mxfs: P238-FENCE-BLOCKED-UNPUBLISHED slot=%d victim=%u "
-		     "epoch=%llu rc=%d — exclusion was PROVED for this attempt but "
+		     "epoch=%llu rc=%d -- exclusion was PROVED for this attempt but "
 		     "no certificate was confirmed durable, so this slice may not "
 		     "be replayed and the victim's grants may not be released.  "
 		     "RECOVERY of this slice is BLOCKED: path operations that need "
@@ -8831,7 +8831,7 @@ static int v5_fence_retry_arm(struct mxfs_v5_dlm *ctx, int slot,
 			mxfs_atomic32_inc(&ctx->recovery_blocked_n);
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "mxfs: P238-FENCE-BLOCKED slot=%d victim=%u epoch=%llu "
-				     "attempts=%u series_ms=%llu last=%s(%u) — every "
+				     "attempts=%u series_ms=%llu last=%s(%u) -- every "
 				     "fencing attempt in this series returned before "
 				     "submitting a command and proved nothing; RECOVERY "
 				     "of this slice is BLOCKED.  Its grants stay frozen "
@@ -8873,7 +8873,7 @@ static int v5_fence_retry_arm(struct mxfs_v5_dlm *ctx, int slot,
 	v5_pr_worker_start(ctx);
 	if (!ctx->fence_retry_thread)
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P304-FENCE-RETRY-NOTHREAD slot=%d victim=%u — no "
+			     "mxfs: P304-FENCE-RETRY-NOTHREAD slot=%d victim=%u -- no "
 			     "PR-plane worker, so this attempt will NOT be retried "
 			     "automatically and the slice stays blocked until a peer "
 			     "or a remount drives it",
@@ -8951,7 +8951,7 @@ static void v5_fence_blocked_import(struct mxfs_v5_dlm *ctx, uint64_t now)
 				       desc.victim_epoch, 0, NULL);
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "mxfs: P238-FENCE-BLOCKED-IMPORTED slot=%d victim=%u "
-				     "epoch=%llu prover=%u term=%u — the survivor holding "
+				     "epoch=%llu prover=%u term=%u -- the survivor holding "
 				     "the attempt lease has declared this slice's recovery "
 				     "BLOCKED (its bounded series proved nothing) and made "
 				     "it durable; this node adopts the verdict: path "
@@ -8969,7 +8969,7 @@ static void v5_fence_blocked_import(struct mxfs_v5_dlm *ctx, uint64_t now)
 			v5_blocked_clear(ctx, slot);
 			mxfs_pal_log(MXFS_LOG_WARN,
 				     "mxfs: P238-FENCE-UNBLOCKED-IMPORTED slot=%d victim=%u "
-				     "blocked_for_ms=%llu pending=%d — the prover's blocked "
+				     "blocked_for_ms=%llu pending=%d -- the prover's blocked "
 				     "verdict is gone from the descriptor (certified, taken "
 				     "over, or the slice is no longer pending); the imported "
 				     "RECOVERY_BLOCKED is lifted on this node",
@@ -9041,7 +9041,7 @@ void mxfs_v5_dlm_recovery_refused(struct mxfs_v5_dlm *ctx, int slot,
 	ctx->refused_victim[slot] = victim;
 	mxfs_pal_log(MXFS_LOG_WARN,
 		     "mxfs: P-RBLK-TERMINAL slot=%d victim=%u inc=%llu fswide=%d "
-		     "ag_mask=0x%llx — slice replay terminally refused; every "
+		     "ag_mask=0x%llx -- slice replay terminally refused; every "
 		     "resource this dead node holds now fails fast (-EHOSTDOWN) "
 		     "instead of retrying against it for the acquire budget",
 		     slot, victim, (unsigned long long)victim_inc,
@@ -9147,6 +9147,16 @@ int mxfs_v5_dlm_any_recovery_pending(struct mxfs_v5_dlm *ctx)
 	if (!ctx || !ctx->disklock)
 		return 0;
 	return mxfs_disklock_recovery_pending_iter(ctx->disklock, -1, &node) >= 0;
+}
+
+/* Slots other than this node's that its heartbeat monitor still counts (live,
+ * or dead with the recovery still owed): the sysfs other_slots_held a DRBD
+ * node reads from its peer before it promotes. */
+int mxfs_v5_dlm_other_slots_held(struct mxfs_v5_dlm *ctx)
+{
+	if (!ctx || !ctx->disklock)
+		return 0;
+	return mxfs_disklock_other_slots_held(ctx->disklock);
 }
 
 /*
@@ -9288,7 +9298,7 @@ static void v5_fence_retry_one(struct mxfs_v5_dlm *ctx, int slot)
 		}
 		mxfs_pal_log_repeating(MXFS_LOG_WARN,
 			     "mxfs: P304-FENCE-RETRY-ARMLANDED slot=%d victim=%u "
-			     "epoch=%llu term=%u attempt=%u — the standing attempt is "
+			     "epoch=%llu term=%u attempt=%u -- the standing attempt is "
 			     "ours and its submission boundary is durable, but no "
 			     "attempt of this incarnation ever returned having crossed "
 			     "it: the arm's own answer was lost, no command was issued "
@@ -9299,7 +9309,7 @@ static void v5_fence_retry_one(struct mxfs_v5_dlm *ctx, int slot)
 	} else {
 		mxfs_pal_log_repeating(MXFS_LOG_WARN,
 			     "mxfs: P304-FENCE-RETRY slot=%d victim=%u epoch=%llu "
-			     "attempt=%u — the standing attempt is ours and re-drivable "
+			     "attempt=%u -- the standing attempt is ours and re-drivable "
 			     "(FENCING with may_have_run=0, or SNAPSHOTTING), so "
 			     "re-driving it",
 			     slot, victim, (unsigned long long)epoch,
@@ -9315,7 +9325,7 @@ static void v5_fence_retry_one(struct mxfs_v5_dlm *ctx, int slot)
 		 */
 		v5_fence_retry_disarm(ctx, slot);
 		mxfs_pal_log(MXFS_LOG_WARN,
-			     "mxfs: P304-FENCE-RETRY-OK slot=%d victim=%u — the retried "
+			     "mxfs: P304-FENCE-RETRY-OK slot=%d victim=%u -- the retried "
 			     "fence CERTIFIED exclusion; waking the slice recovery that "
 			     "was blocked on it",
 			     slot, victim);
@@ -9359,7 +9369,7 @@ static void v5_fence_retry_one(struct mxfs_v5_dlm *ctx, int slot)
 			 * this retry, leases and replays it itself */
 		} else if (!ctx->dead_node_notify_fn) {
 			mxfs_pal_log(MXFS_LOG_WARN,
-				     "mxfs: P567-FENCE-RETRY-DEFER slot=%d victim=%u — the "
+				     "mxfs: P567-FENCE-RETRY-DEFER slot=%d victim=%u -- the "
 				     "fence certified while the slice-replay hook is not yet "
 				     "registered (we are still inside our own mount); the "
 				     "slice stays frozen and recovery-pending and the slot is "
@@ -9438,7 +9448,7 @@ static bool v5_resv_health_tick(struct mxfs_v5_dlm *ctx, uint64_t now)
 		mxfs_dbg_resv_health_pause_ms = 0;              /* one-shot */
 		ctx->resv_health_paused_until_ms = now + (uint64_t)ms;
 		mxfs_pal_log(MXFS_LOG_WARN,
-			     "mxfs: P-DBG-RESV-HEALTH-PAUSE node=%u ms=%d — TEST: the "
+			     "mxfs: P-DBG-RESV-HEALTH-PAUSE node=%u ms=%d -- TEST: the "
 			     "proactive reservation-health check is held off, so this "
 			     "node can only learn it was fenced from a write that "
 			     "bounces",
@@ -9448,7 +9458,7 @@ static bool v5_resv_health_tick(struct mxfs_v5_dlm *ctx, uint64_t now)
 		if (now < ctx->resv_health_paused_until_ms)
 			return false;
 		mxfs_pal_log(MXFS_LOG_DEBUG,
-			     "mxfs: P-DBG-RESV-HEALTH-PAUSE-END node=%u — TEST: the "
+			     "mxfs: P-DBG-RESV-HEALTH-PAUSE-END node=%u -- TEST: the "
 			     "health check resumes",
 			     ctx->node_id);
 		ctx->resv_health_paused_until_ms = 0;
@@ -9551,7 +9561,7 @@ static bool v5_resv_health_tick(struct mxfs_v5_dlm *ctx, uint64_t now)
 		 */
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P305-RESV-REPAIRED role=%s rank=%d gen=%u "
-			     "registrants=%d — SAFETY EVENT: the persistent reservation "
+			     "registrants=%d -- SAFETY EVENT: the persistent reservation "
 			     "every MXFS exclusion proof depends on was ABSENT while %d "
 			     "registrant(s) were live, and this node re-established it. "
 			     "That restores FUTURE exclusion ONLY: for the interval "
@@ -9563,7 +9573,7 @@ static bool v5_resv_health_tick(struct mxfs_v5_dlm *ctx, uint64_t now)
 			     took_over ? ".  This node is NOT the elected maintainer: "
 					 "it repaired because the reservation stayed "
 					 "absent past the head start, which means the "
-					 "elected node is gone or is not acting — that "
+					 "elected node is gone or is not acting -- that "
 					 "is a second thing to find out"
 							   : "");
 		ctx->resv_health_reported = false;
@@ -9574,7 +9584,7 @@ static bool v5_resv_health_tick(struct mxfs_v5_dlm *ctx, uint64_t now)
 		if (ctx->resv_health_reported)
 			mxfs_pal_log(MXFS_LOG_WARN,
 				     "mxfs: P305-RESV-RESTORED role=%s gen=%u "
-				     "registrants=%d — the exclusion invariant is in force "
+				     "registrants=%d -- the exclusion invariant is in force "
 				     "again.  This restores FUTURE exclusion only: nothing "
 				     "here establishes that the unprotected interval was "
 				     "harmless",
@@ -9593,7 +9603,7 @@ static bool v5_resv_health_tick(struct mxfs_v5_dlm *ctx, uint64_t now)
 	if (!ctx->resv_health_reported || h != ctx->resv_health_last)
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P305-RESV-HEALTH state=%s role=%s gen=%u "
-			     "registrants=%d — SAFETY EVENT: the persistent "
+			     "registrants=%d -- SAFETY EVENT: the persistent "
 			     "reservation every MXFS exclusion proof depends on is not "
 			     "in the expected state while this node is registered and "
 			     "mounted.  Until it is, a peer death cannot be fenced and "
@@ -9628,7 +9638,7 @@ static bool v5_resv_health_tick(struct mxfs_v5_dlm *ctx, uint64_t now)
 	 */
 	if (h == MXFS_RESV_HEALTH_SELF_GONE) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P305-RESV-SELF-GONE-INSPECT node %u gen=%u — the "
+			     "mxfs: P305-RESV-SELF-GONE-INSPECT node %u gen=%u -- the "
 			     "target reports this node's PR key is NOT registered "
 			     "while mounted; launching the fenced-self inspection "
 			     "(P277) rather than waiting for data-path conflicts",
@@ -9672,7 +9682,7 @@ static void v5_pr_fill_tick(struct mxfs_v5_dlm *ctx, uint64_t now)
 		return;
 	if (mxfs_scsipr_fill_paths(ctx->scsipr) == -ESTALE) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-PR-FILL-FENCED node=%u — a path was not "
+			     "mxfs: P-PR-FILL-FENCED node=%u -- a path was not "
 			     "registered because this node's key is registered "
 			     "nowhere else; asking the target whether this node "
 			     "has been fenced", ctx->node_id);
@@ -9789,7 +9799,7 @@ static void v5_fence_retry_worker_fn(void *arg)
 			ctx->fence_resume_ms[slot] = mxfs_pal_time_ms();
 			mxfs_pal_log(MXFS_LOG_WARN,
 				     "mxfs: P238-FENCE-RESUME-BOOTLIVE-FAST slot=%d "
-				     "node=%u epoch=%llu — the victim's host is "
+				     "node=%u epoch=%llu -- the victim's host is "
 				     "heartbeating again under a different boot.  Taking "
 				     "the read-only revisit NOW, from the worker, instead "
 				     "of waiting for the next acquire pass: the peer that "
@@ -9815,7 +9825,7 @@ static void v5_fence_retry_worker_fn(void *arg)
 						     &pres);
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "mxfs: P-DBG-FENCE-PROBE key=0x%llx kind=%s(%d) "
-				     "proves_excl=%d rc=%d — one injected fence attempt",
+				     "proves_excl=%d rc=%d -- one injected fence attempt",
 				     (unsigned long long)pk,
 				     mxfs_fence_kind_name(pres.kind), (int)pres.kind,
 				     mxfs_fence_kind_proves_exclusion(pres.kind) ? 1 : 0,
@@ -9854,7 +9864,7 @@ static void v5_fence_retry_worker_fn(void *arg)
 			if (!auth_pump_until_ms) {
 				auth_pump_until_ms = now + (uint64_t)mxfs_dbg_auth_pump_pause_ms;
 				mxfs_pal_log(MXFS_LOG_ERR,
-					     "mxfs: P-DBG-AUTH-PUMP-PAUSE node=%u ms=%d — "
+					     "mxfs: P-DBG-AUTH-PUMP-PAUSE node=%u ms=%d -- "
 					     "TEST: the periodic evaluation of the authority "
 					     "lease is held off, so only a mutating "
 					     "submission can discover that it has expired",
@@ -9865,7 +9875,7 @@ static void v5_fence_retry_worker_fn(void *arg)
 			mxfs_dbg_auth_pump_pause_ms = 0;
 			auth_pump_until_ms = 0;
 			mxfs_pal_log(MXFS_LOG_ERR,
-				     "mxfs: P-DBG-AUTH-PUMP-PAUSE-END node=%u — TEST: the "
+				     "mxfs: P-DBG-AUTH-PUMP-PAUSE-END node=%u -- TEST: the "
 				     "periodic evaluation resumes", ctx->node_id);
 		}
 		if (ctx->scsipr && mxfs_v5_dlm_write_admitted(ctx)) {
@@ -9889,7 +9899,7 @@ static void v5_fence_retry_worker_fn(void *arg)
 				auth_withdraw_until_ms = now +
 				    (uint64_t)mxfs_dbg_auth_withdraw_pause_ms;
 				mxfs_pal_log(MXFS_LOG_ERR,
-					     "mxfs: P-DBG-AUTH-WITHDRAW-PAUSE node=%u ms=%d — "
+					     "mxfs: P-DBG-AUTH-WITHDRAW-PAUSE node=%u ms=%d -- "
 					     "TEST: the withdrawal pump is held off; the "
 					     "authority lease is still evaluated on this tick, "
 					     "so a closure lands on time and nothing converts "
@@ -9901,7 +9911,7 @@ static void v5_fence_retry_worker_fn(void *arg)
 			mxfs_dbg_auth_withdraw_pause_ms = 0;
 			auth_withdraw_until_ms = 0;
 			mxfs_pal_log(MXFS_LOG_ERR,
-				     "mxfs: P-DBG-AUTH-WITHDRAW-PAUSE-END node=%u — TEST: "
+				     "mxfs: P-DBG-AUTH-WITHDRAW-PAUSE-END node=%u -- TEST: "
 				     "the withdrawal pump resumes", ctx->node_id);
 		}
 		v5_authority_withdraw_pump(ctx, "pr-worker");
@@ -9936,7 +9946,7 @@ auth_pump_held:
 				     !v5_fence_boundary_crossed(ctx, slot, v, e, t))) {
 					mxfs_pal_log(MXFS_LOG_WARN,
 						     "mxfs: P304-FENCE-RETRY-FOUND slot=%d victim=%u "
-						     "— a retryable standing fencing attempt was "
+						     "-- a retryable standing fencing attempt was "
 						     "found by the descriptor sweep, not by the "
 						     "in-memory latch",
 						     slot, v);
@@ -10154,7 +10164,7 @@ static void v5_complete_classify(struct mxfs_v5_dlm *ctx, uint32_t slot,
 				v5_recovered_cb(ctx, (int)slot, victim);
 			mxfs_pal_log(MXFS_LOG_WARN,
 			    "mxfs: P234-COMPLETE-SUPERSEDED slot=%u victim=%u site=%s "
-			    "rc=%d status=%s — the recovery was published by another "
+			    "rc=%d status=%s -- the recovery was published by another "
 			    "survivor (or the victim rejoined) while our step failed; "
 			    "our identity is cancelled, nothing re-armed",
 			    slot, victim, res->site, res->rc,
@@ -10179,7 +10189,7 @@ static void v5_complete_classify(struct mxfs_v5_dlm *ctx, uint32_t slot,
 		if (d.owner_node == MXFS_RECOV_OWNER_NONE) {
 			mxfs_pal_log(MXFS_LOG_WARN,
 			    "mxfs: P234-COMPLETE-UNOWNED slot=%u victim=%u site=%s rc=%d "
-			    "stage=%u — the descriptor is UNOWNED (a departed owner gave "
+			    "stage=%u -- the descriptor is UNOWNED (a departed owner gave "
 			    "it back); re-acquiring now",
 			    slot, victim, res->site, res->rc, d.stage);
 			mxfs_v5_dlm_recovery_release(ctx, slot);
@@ -10194,7 +10204,7 @@ static void v5_complete_classify(struct mxfs_v5_dlm *ctx, uint32_t slot,
 			ctx->blocked[slot].owner_node = d.owner_node;
 			mxfs_pal_log(MXFS_LOG_ERR,
 			    "mxfs: P234-COMPLETE-TAKEOVER slot=%u victim=%u site=%s rc=%d "
-			    "— descriptor owner=%u/%llu gen=%llu term=%u stage=%u; we are "
+			    "-- descriptor owner=%u/%llu gen=%llu term=%u stage=%u; we are "
 			    "%u/%llu holding gen=%llu term=%u.  Our recovery identity is "
 			    "cancelled; the current owner continues; nothing re-armed",
 			    slot, victim, res->site, res->rc,
@@ -10212,7 +10222,7 @@ static void v5_complete_classify(struct mxfs_v5_dlm *ctx, uint32_t slot,
 				       victim, vepoch, res->rc, NULL);
 			mxfs_pal_log(MXFS_LOG_ERR,
 			    "mxfs: P234-COMPLETE-QUARANTINED slot=%u victim=%u site=%s "
-			    "— the descriptor is QUARANTINED (terminal by design, "
+			    "-- the descriptor is QUARANTINED (terminal by design, "
 			    "operator action); the ladder is not re-armed",
 			    slot, victim, res->site);
 			res->outcome = MXFS_RECOV_COMPLETE_SUPERSEDED;
@@ -10221,7 +10231,7 @@ static void v5_complete_classify(struct mxfs_v5_dlm *ctx, uint32_t slot,
 		if (intended_stage && d.stage >= intended_stage) {
 			mxfs_pal_log(MXFS_LOG_DEBUG,
 			    "mxfs: P234-COMPLETE-COMMITTED slot=%u victim=%u site=%s "
-			    "rc=%d observed_stage=%u intended=%u — the milestone is on "
+			    "rc=%d observed_stage=%u intended=%u -- the milestone is on "
 			    "the platter although the CAS reported failure; continuing "
 			    "from the durable state",
 			    slot, victim, res->site, res->rc, d.stage, intended_stage);
@@ -10237,7 +10247,7 @@ static void v5_complete_classify(struct mxfs_v5_dlm *ctx, uint32_t slot,
 			mxfs_v5_dlm_recovery_release(ctx, slot);
 			mxfs_pal_log(MXFS_LOG_ERR,
 			    "mxfs: P234-COMPLETE-INVARIANT slot=%u victim=%u site=%s "
-			    "intended=%u — INVARIANT VIOLATION: descriptor {owner=%u/%llu "
+			    "intended=%u -- INVARIANT VIOLATION: descriptor {owner=%u/%llu "
 			    "gen=%llu term=%u vslot=%u vnode=%u vepoch=%llu stage=%u "
 			    "seq=%llu flags=0x%x fence_term=%u prover=%u} is ours and "
 			    "unchanged, yet our auth {gen=%llu term=%u vslot=%u vnode=%u "
@@ -10273,7 +10283,7 @@ static void v5_complete_classify(struct mxfs_v5_dlm *ctx, uint32_t slot,
 		mxfs_pal_log(MXFS_LOG_ERR,
 		    "mxfs: P234-COMPLETE-RETRY slot=%u victim=%u site=%s rc=%d "
 		    "reread_rc=%d attempt=%u next_ms=%u deadline_in_ms=%llu "
-		    "abs_cap_in_ms=%llu — transient completion failure; bounded retry",
+		    "abs_cap_in_ms=%llu -- transient completion failure; bounded retry",
 		    slot, victim, res->site, res->rc, rrc, res->attempts,
 		    res->retry_ms,
 		    (unsigned long long)(ctx->complete_retry[slot].first_fail_ms +
@@ -10299,7 +10309,7 @@ static void v5_complete_classify(struct mxfs_v5_dlm *ctx, uint32_t slot,
 		mxfs_pal_log(MXFS_LOG_ERR,
 		    "mxfs: P234-COMPLETE-DEADLINE slot=%u victim=%u site=%s rc=%d "
 		    "attempts=%u since_first_fail_ms=%llu since_acquire_ms=%llu "
-		    "relinquish_rc=%d — the completion ladder could not be advanced "
+		    "relinquish_rc=%d -- the completion ladder could not be advanced "
 		    "within the bounded deadline; lease %s; this filesystem is being "
 		    "WITHDRAWN so a survivor is elected and the recovery proceeds",
 		    slot, victim, res->site, res->rc, res->attempts,
@@ -10475,7 +10485,7 @@ static int v5_rman_snapshot(struct mxfs_v5_dlm *ctx, int slot,
 
 	if (inject == 1) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-RMAN-INJECT slot=%d victim=%u mode=1 — failing "
+			     "mxfs: P-RMAN-INJECT slot=%d victim=%u mode=1 -- failing "
 			     "the snapshot before the manifest write (TEST ONLY)",
 			     slot, victim);
 		return -EIO;
@@ -10496,7 +10506,7 @@ static int v5_rman_snapshot(struct mxfs_v5_dlm *ctx, int slot,
 		int i;
 
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-RMAN-INJECT slot=%d victim=%u mode=4 — holding "
+			     "mxfs: P-RMAN-INJECT slot=%d victim=%u mode=4 -- holding "
 			     "the prover 12 s before the scan and forcing the fence-"
 			     "retry sweep (TEST ONLY)", slot, victim);
 		ctx->fence_retry_scan_now = 1;
@@ -10546,7 +10556,7 @@ static int v5_rman_snapshot(struct mxfs_v5_dlm *ctx, int slot,
 			led = NULL;
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "mxfs: P-RMAN-SNAPSHOT-FAIL slot=%d victim=%u "
-				     "step=boot-ledger-open rc=%d ms=%llu — the bootstrap "
+				     "step=boot-ledger-open rc=%d ms=%llu -- the bootstrap "
 				     "owner could not read the authority ledger, so no "
 				     "manifest can be taken; the attempt stays at "
 				     "SNAPSHOTTING and is re-driven",
@@ -10557,7 +10567,7 @@ static int v5_rman_snapshot(struct mxfs_v5_dlm *ctx, int slot,
 		led_temp = true;
 		mxfs_pal_log(MXFS_LOG_DEBUG,
 			     "mxfs: P-RMAN-BOOT-LEDGER slot=%d victim=%u node=%u "
-			     "epoch=%llu — a slotless bootstrap owner opened the "
+			     "epoch=%llu -- a slotless bootstrap owner opened the "
 			     "authority ledger read-only for this snapshot; the "
 			     "victim's grants are collected from the platter",
 			     slot, victim, ctx->node_id,
@@ -10591,7 +10601,7 @@ static int v5_rman_snapshot(struct mxfs_v5_dlm *ctx, int slot,
 		if (rc) {
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "mxfs: P-RMAN-SNAPSHOT-FAIL slot=%d victim=%u "
-				     "step=collect rc=%d ms=%llu — fence-time manifest "
+				     "step=collect rc=%d ms=%llu -- fence-time manifest "
 				     "NOT taken; the attempt stays at SNAPSHOTTING and is "
 				     "re-driven",
 				     slot, victim, rc,
@@ -10622,7 +10632,7 @@ static int v5_rman_snapshot(struct mxfs_v5_dlm *ctx, int slot,
 		if (rc) {
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "mxfs: P-RMAN-SNAPSHOT-FAIL slot=%d victim=%u "
-				     "step=seal rc=%d ms=%llu — fence-time manifest NOT "
+				     "step=seal rc=%d ms=%llu -- fence-time manifest NOT "
 				     "taken; the attempt stays at SNAPSHOTTING and is "
 				     "re-driven",
 				     slot, victim, rc,
@@ -10643,7 +10653,7 @@ static int v5_rman_snapshot(struct mxfs_v5_dlm *ctx, int slot,
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "mxfs: P-RMAN-SNAPSHOT-FAIL slot=%d victim=%u "
 				     "step=ledger-collect scanned=%u entries=%u rc=%d "
-				     "ms=%llu — fence-time manifest NOT taken; the "
+				     "ms=%llu -- fence-time manifest NOT taken; the "
 				     "attempt stays at SNAPSHOTTING and is re-driven",
 				     slot, victim, scanned, c.n, rc,
 				     (unsigned long long)(mxfs_pal_time_ms() - t0));
@@ -10674,7 +10684,7 @@ static int v5_rman_snapshot(struct mxfs_v5_dlm *ctx, int slot,
 		if (rc != -EEXIST)
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "mxfs: P-RMAN-SNAPSHOT-FAIL slot=%d victim=%u "
-				     "step=write entries=%u rc=%d ms=%llu — manifest NOT "
+				     "step=write entries=%u rc=%d ms=%llu -- manifest NOT "
 				     "sealed; the attempt stays at SNAPSHOTTING and is "
 				     "re-driven",
 				     slot, victim, count, rc,
@@ -10683,7 +10693,7 @@ static int v5_rman_snapshot(struct mxfs_v5_dlm *ctx, int slot,
 	}
 	if (inject == 2) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-RMAN-INJECT slot=%d victim=%u mode=2 — manifest "
+			     "mxfs: P-RMAN-INJECT slot=%d victim=%u mode=2 -- manifest "
 			     "sealed (seq=%llu); failing before the pointer CAS (TEST "
 			     "ONLY)", slot, victim, (unsigned long long)mp.seq);
 		rc = -EIO;
@@ -10693,7 +10703,7 @@ static int v5_rman_snapshot(struct mxfs_v5_dlm *ctx, int slot,
 	if (rc == 0)
 		mxfs_pal_log(MXFS_LOG_DEBUG,
 			     "mxfs: P-RMAN-SNAPSHOT slot=%d victim=%u epoch=%llu "
-			     "entries=%u scanned=%u flags=0x%x seq=%llu ms=%llu — "
+			     "entries=%u scanned=%u flags=0x%x seq=%llu ms=%llu -- "
 			     "fence-time manifest sealed and certified (FENCED)",
 			     slot, victim, (unsigned long long)victim_epoch, count,
 			     scanned, flags, (unsigned long long)mp.seq,
@@ -10701,7 +10711,7 @@ static int v5_rman_snapshot(struct mxfs_v5_dlm *ctx, int slot,
 	else if (rc != -EEXIST)
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P-RMAN-SNAPSHOT-FAIL slot=%d victim=%u step=seal "
-			     "rc=%d — manifest sealed but FENCED not published; the "
+			     "rc=%d -- manifest sealed but FENCED not published; the "
 			     "attempt stays at SNAPSHOTTING and is re-driven",
 			     slot, victim, rc);
 out:
@@ -10862,7 +10872,7 @@ static int v5_drbd_fence(struct mxfs_v5_dlm *ctx, int dead_slot,
 			mxfs_pal_log(MXFS_LOG_WARN,
 				     "mxfs: P238-DRBD-FENCE-PEER-SECONDARY slot=%d node=%u "
 				     "epoch=%llu peer=%s cstate=%s roles=%s/%s disks=%s/%s "
-				     "kind=%d — the victim was %s: no attachment is alive "
+				     "kind=%d -- the victim was %s: no attachment is alive "
 				     "on the peer and every write of an earlier one is on "
 				     "this disk, so it has ended (a death certificate, not "
 				     "a fence)",
@@ -10878,7 +10888,7 @@ static int v5_drbd_fence(struct mxfs_v5_dlm *ctx, int dead_slot,
 	if (rc) {
 		mxfs_pal_log_repeating(MXFS_LOG_WARN,
 			     "mxfs: P238-DRBD-FENCE-NOT-YET slot=%d node=%u "
-			     "epoch=%llu — %s.  Nothing was issued; the attempt is "
+			     "epoch=%llu -- %s.  Nothing was issued; the attempt is "
 			     "retried",
 			     dead_slot, dead_node, (unsigned long long)dead_epoch,
 			     why);
@@ -10896,7 +10906,7 @@ static int v5_drbd_fence(struct mxfs_v5_dlm *ctx, int dead_slot,
 	mxfs_pal_log(MXFS_LOG_WARN,
 		     "mxfs: P238-DRBD-FENCE-WITNESSED slot=%d node=%u epoch=%llu "
 		     "peer=%s cstate=%s peer_disk=%s episode=%s authority=%s "
-		     "kind=%d — %s, and DRBD has drained every write it "
+		     "kind=%d -- %s, and DRBD has drained every write it "
 		     "accepted from it",
 		     dead_slot, dead_node, (unsigned long long)dead_epoch,
 		     r->peer_host, r->cstate, r->disk_peer, r->receipt_episode,
@@ -10935,7 +10945,7 @@ static int v5_pr_fence_prove_locked(struct mxfs_v5_dlm *ctx,
 	 */
 	if (!dead_epoch) {
 		mxfs_pal_log(MXFS_LOG_WARN,
-			     "mxfs: P238-FENCE-NOINC slot=%d node=%u — this detector "
+			     "mxfs: P238-FENCE-NOINC slot=%d node=%u -- this detector "
 			     "never observed an incarnation stop, so it is not a "
 			     "fencing authority for this victim: no PREEMPT AND ABORT "
 			     "is issued and no certificate can be produced.  The "
@@ -10963,7 +10973,7 @@ static int v5_pr_fence_prove_locked(struct mxfs_v5_dlm *ctx,
 		 * no operation to establish that, so there is no certificate to mint.
 		 */
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P238-FENCE-NOPR slot=%d node=%u — no SCSI PR "
+			     "mxfs: P238-FENCE-NOPR slot=%d node=%u -- no SCSI PR "
 			     "context, so exclusion cannot be proved and this slice "
 			     "cannot be replayed by anyone.  Recovery is BLOCKED, not "
 			     "silently skipped",
@@ -10993,7 +11003,7 @@ static int v5_pr_fence_prove_locked(struct mxfs_v5_dlm *ctx,
 		 * the no-PR case above.
 		 */
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P238-FENCE-NOSLICE slot=%d node=%u — slot is "
+			     "mxfs: P238-FENCE-NOSLICE slot=%d node=%u -- slot is "
 			     "beyond the log slice count %u, so it owns no journal "
 			     "slice and no fence intent can name one for it.  "
 			     "Recovery is BLOCKED, not silently skipped",
@@ -11025,7 +11035,7 @@ static int v5_pr_fence_prove_locked(struct mxfs_v5_dlm *ctx,
 				     dead_epoch, NULL);
 	if (!intent_key) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-PRKEY-FENCE-REFUSED slot=%d node=%u inc=%llu — "
+			     "mxfs: P-PRKEY-FENCE-REFUSED slot=%d node=%u inc=%llu -- "
 			     "no PR key frozen for this incarnation on this node; "
 			     "laying no fencing intent (NO_VICTIM_KEY)",
 			     dead_slot, dead_node, (unsigned long long)dead_epoch);
@@ -11058,7 +11068,7 @@ static int v5_pr_fence_prove_locked(struct mxfs_v5_dlm *ctx,
 		 * decision when something destructive is attempted.
 		 */
 		mxfs_pal_log(MXFS_LOG_WARN,
-			     "mxfs: P238-FENCE-DONE slot=%d node=%u — this victim is "
+			     "mxfs: P238-FENCE-DONE slot=%d node=%u -- this victim is "
 			     "already certified fenced by another prover; issuing no "
 			     "second PREEMPT AND ABORT.  Authorisation is still "
 			     "decided by the replay gate, not by this result",
@@ -11092,7 +11102,7 @@ static int v5_pr_fence_prove_locked(struct mxfs_v5_dlm *ctx,
 		v5_blocked_clear(ctx, dead_slot);
 		mxfs_pal_log(MXFS_LOG_WARN,
 			     "mxfs: P237-FENCE-SUPERSEDED-RETIRED slot=%d node=%u "
-			     "inc=%llu clear=%d — no intent laid, no PREEMPT AND "
+			     "inc=%llu clear=%d -- no intent laid, no PREEMPT AND "
 			     "ABORT issued; the pending recovery for this incarnation "
 			     "is discharged by the successor's own mount recovery",
 			     dead_slot, dead_node, (unsigned long long)dead_epoch, rc);
@@ -11106,7 +11116,7 @@ static int v5_pr_fence_prove_locked(struct mxfs_v5_dlm *ctx,
 		 */
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P238-FENCE-NOINTENT slot=%d node=%u epoch=%llu "
-			     "rc=%d — the fencing intent is not durable, so no "
+			     "rc=%d -- the fencing intent is not durable, so no "
 			     "PREEMPT AND ABORT is issued (an unrecordable preempt "
 			     "consumes the victim key and leaves the slice provably "
 			     "unrecoverable)",
@@ -11144,7 +11154,7 @@ static int v5_pr_fence_prove_locked(struct mxfs_v5_dlm *ctx,
 		 * rest of this function with an empty fence result.
 		 */
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P238-FENCE-NOPR-LATE slot=%d node=%u epoch=%llu — "
+			     "mxfs: P238-FENCE-NOPR-LATE slot=%d node=%u epoch=%llu -- "
 			     "reached the fencing leg with no SCSI PR context, so no "
 			     "operation can establish exclusion or retirement.  The "
 			     "intent stays durable and uncertified and the slice stays "
@@ -11193,7 +11203,7 @@ static int v5_pr_fence_prove_locked(struct mxfs_v5_dlm *ctx,
 				 */
 				mxfs_pal_log(MXFS_LOG_WARN,
 					     "mxfs: P238-FENCE-OWN-KEY slot=%d node=%u "
-					     "epoch=%llu key=0x%llx — the victim holds THIS "
+					     "epoch=%llu key=0x%llx -- the victim holds THIS "
 					     "boot's key; no PREEMPT AND ABORT issued "
 					     "(exclusion by topology only)",
 					     dead_slot, dead_node,
@@ -11220,7 +11230,7 @@ static int v5_pr_fence_prove_locked(struct mxfs_v5_dlm *ctx,
 				fret = 0;
 				mxfs_pal_log(MXFS_LOG_WARN,
 					     "mxfs: P238-FENCE-RESUME slot=%d node=%u "
-					     "epoch=%llu key=0x%llx left=%s — revisiting an "
+					     "epoch=%llu key=0x%llx left=%s -- revisiting an "
 					     "attempt this incarnation did not finish.  No "
 					     "command is issued and no retry is armed; the "
 					     "only questions asked are the ones whose answers "
@@ -11312,7 +11322,7 @@ static int v5_pr_fence_prove_locked(struct mxfs_v5_dlm *ctx,
 						if (rbasis == MXFS_RETIRE_BASIS_NONE) {
 							mxfs_pal_log(MXFS_LOG_WARN,
 								     "mxfs: P238-FENCE-REPUBLISH-NOBASIS "
-								     "slot=%d node=%u key=0x%llx obs=%s — "
+								     "slot=%d node=%u key=0x%llx obs=%s -- "
 								     "the gate this attempt proved is "
 								     "still held under our key, but its "
 								     "retirement half cannot be "
@@ -11335,13 +11345,13 @@ static int v5_pr_fence_prove_locked(struct mxfs_v5_dlm *ctx,
 						fres.retire_obs    = (uint8_t)robs;
 						mxfs_pal_log(MXFS_LOG_WARN,
 							     "mxfs: P238-FENCE-REPUBLISH slot=%d "
-							     "node=%u key=0x%llx resv=0x%02x gen=%u — "
+							     "node=%u key=0x%llx resv=0x%02x gen=%u -- "
 							     "the exclusive-write gate this attempt "
 							     "installed is STILL HELD under our key, so "
 							     "the exclusion it proved is still in "
 							     "force; publishing the certificate that "
 							     "was lost.  No command was issued and no "
-							     "new proof was made — this is the same "
+							     "new proof was made -- this is the same "
 							     "kind, re-read from the target",
 							     dead_slot, dead_node,
 							     (unsigned long long)vkey,
@@ -11350,7 +11360,7 @@ static int v5_pr_fence_prove_locked(struct mxfs_v5_dlm *ctx,
 						mxfs_pal_log(MXFS_LOG_WARN,
 							     "mxfs: P238-FENCE-REPUBLISH-NOGATE slot=%d "
 							     "node=%u rc=%d held=%d type=0x%02x "
-							     "holder=0x%llx ours=0x%llx — this attempt "
+							     "holder=0x%llx ours=0x%llx -- this attempt "
 							     "proved the gate but it is no longer in "
 							     "force under our key, so there is nothing "
 							     "to republish; the blocked verdict stands "
@@ -11379,7 +11389,7 @@ republish_done:
 				 */
 				mxfs_pal_log(MXFS_LOG_WARN,
 					     "mxfs: P238-FENCE-BOUNDARY-HELD slot=%d node=%u "
-					     "epoch=%llu term=%u — an attempt of this "
+					     "epoch=%llu term=%u -- an attempt of this "
 					     "incarnation already crossed the command boundary "
 					     "under this term and its outcome is not "
 					     "established; issuing nothing under the same arm.  "
@@ -11442,7 +11452,7 @@ republish_done:
 			if (mxfs_fence_gate_inject_refuse) {
 				mxfs_pal_log(MXFS_LOG_WARN,
 					     "mxfs: P238-FENCE-GATE-INJECT-REFUSED slot=%d "
-					     "node=%u nlive=%d other_live=%d — TEST ONLY: the "
+					     "node=%u nlive=%d other_live=%d -- TEST ONLY: the "
 					     "sole-survivor gate is refused by injection; the "
 					     "absent-key attempt stays non-proving",
 					     dead_slot, dead_node, nlive, other_live);
@@ -11508,7 +11518,7 @@ republish_done:
 				if (gbasis == MXFS_RETIRE_BASIS_NONE) {
 					mxfs_pal_log(MXFS_LOG_DEBUG,
 						     "mxfs: P238-GATE-NO-RETIRE-BASIS slot=%d "
-						     "node=%u epoch=%llu key=0x%llx obs=%s — this "
+						     "node=%u epoch=%llu key=0x%llx obs=%s -- this "
 						     "node is the only live member and the "
 						     "victim's key is already absent, so the "
 						     "sole-survivor gate would prove ADMISSION and "
@@ -11571,7 +11581,7 @@ republish_done:
 						if (!lf) {
 							mxfs_pal_log(MXFS_LOG_ERR,
 								     "mxfs: P238-FENCE-LURESET-NOMEM "
-								     "slot=%d node=%u — the witnessed "
+								     "slot=%d node=%u -- the witnessed "
 								     "LU-reset route could not be asked "
 								     "for want of memory; the attempt "
 								     "stays KEY_ABSENT_UNPROVEN and is "
@@ -11595,7 +11605,7 @@ republish_done:
 							mxfs_pal_log(MXFS_LOG_ERR,
 								     "mxfs: P238-FENCE-LURESET-UNASKED "
 								     "slot=%d node=%u epoch=%llu "
-								     "key=0x%llx rc=%d — the witnessed "
+								     "key=0x%llx rc=%d -- the witnessed "
 								     "LU-reset route could not be asked at "
 								     "all; NO verdict was reached, nothing "
 								     "was issued, and the attempt stays "
@@ -11611,7 +11621,7 @@ republish_done:
 									 "mxfs: P238-FENCE-LURESET slot=%d node=%u "
 									 "epoch=%llu key=0x%llx certified=%d "
 									 "verdict=%s issued=%d kind=%d phase=%d "
-									 "basis=%s obs=%s krel=%s total_ms=%u — %s",
+									 "basis=%s obs=%s krel=%s total_ms=%u -- %s",
 									 dead_slot, dead_node,
 									 (unsigned long long)dead_epoch,
 									 (unsigned long long)vkey,
@@ -11638,7 +11648,7 @@ republish_done:
 
 				mxfs_pal_log(MXFS_LOG_WARN,
 					     "mxfs: P238-FENCE-GATE-TRY slot=%d node=%u "
-					     "epoch=%llu key=0x%llx nlive=%d other_live=%d — "
+					     "epoch=%llu key=0x%llx nlive=%d other_live=%d -- "
 					     "victim key already absent and this node is the "
 					     "only live member: attempting the sole-survivor "
 					     "exclusive-write gate",
@@ -11675,13 +11685,13 @@ republish_done:
 						mxfs_pal_log(MXFS_LOG_WARN,
 							     "mxfs: P238-FENCE-GATE-BASIS slot=%d "
 							     "node=%u epoch=%llu key=0x%llx resv=0x%x "
-							     "gen=%u — the gate is installed and proves "
+							     "gen=%u -- the gate is installed and proves "
 							     "ADMISSION (while this single-holder "
 							     "reservation stands, no other initiator "
 							     "may write the LUN).  Its RETIREMENT half "
-							     "— that the target finished the writes it "
+							     "-- that the target finished the writes it "
 							     "had already accepted from the victim's "
-							     "nexus — is not witnessed here but rests "
+							     "nexus -- is not witnessed here but rests "
 							     "on retire_basis=%s claim=%s obs=%s (%s)",
 							     dead_slot, dead_node,
 							     (unsigned long long)dead_epoch,
@@ -11699,7 +11709,7 @@ gate_done:
 			} else {
 				mxfs_pal_log(MXFS_LOG_WARN,
 					     "mxfs: P238-FENCE-GATE-NOTSOLE slot=%d node=%u "
-					     "nlive=%d other_live=%d key=0x%llx — victim key "
+					     "nlive=%d other_live=%d key=0x%llx -- victim key "
 					     "absent but this node is not provably the only "
 					     "live member (or the key is unusable); the "
 					     "exclusive-write gate is not attempted",
@@ -11719,7 +11729,7 @@ gate_done:
 		if (fret == -ESTALE) {
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "mxfs: P-PR-SELFFENCE own PR key gone while fencing "
-				     "node %u — freezing this node (no auto-re-register)",
+				     "node %u -- freezing this node (no auto-re-register)",
 				     dead_node);
 			v5_blocked_set(ctx, dead_slot, MXFS_RBLK_SELF_FENCED, dead_node,
 				       dead_epoch, -ESTALE, &fres);
@@ -11773,7 +11783,7 @@ gate_done:
 	    fres.retire_basis == MXFS_RETIRE_BASIS_NONE) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P238-FENCE-NO-RETIREMENT slot=%d node=%u "
-			     "epoch=%llu kind=%s obs=%s — exclusion was proved but no "
+			     "epoch=%llu kind=%s obs=%s -- exclusion was proved but no "
 			     "retirement proof is attached to it, so the certificate "
 			     "would authorise replaying a slice whose already-accepted "
 			     "writes may still land.  Not certifying; the slice stays "
@@ -11818,7 +11828,7 @@ gate_done:
 			mxfs_dbg_cert_fail_n--;
 			rc = -EIO;
 			mxfs_pal_log(MXFS_LOG_DEBUG,
-				     "mxfs: P-DBG-CERT-FAIL slot=%d try=%d left=%d — TEST "
+				     "mxfs: P-DBG-CERT-FAIL slot=%d try=%d left=%d -- TEST "
 				     "ONLY: the certificate CAS is reported failed without "
 				     "being issued",
 				     dead_slot, cert_try, mxfs_dbg_cert_fail_n);
@@ -11835,7 +11845,7 @@ gate_done:
 			if (rc == 0 && mxfs_dbg_cert_lost > 0) {
 				mxfs_dbg_cert_lost--;
 				mxfs_pal_log(MXFS_LOG_WARN,
-					     "mxfs: P-DBG-CERT-LOST slot=%d try=%d — TEST "
+					     "mxfs: P-DBG-CERT-LOST slot=%d try=%d -- TEST "
 					     "ONLY: the certificate CAS COMPLETED and its "
 					     "result is withheld; the next attempt must "
 					     "reconcile it rather than write it twice",
@@ -11898,7 +11908,7 @@ gate_done:
 		if (cert_try < MXFS_CERT_PUBLISH_TRIES) {
 			mxfs_pal_log(MXFS_LOG_WARN,
 				     "mxfs: P238-FENCE-CERT-RETRY slot=%d node=%u rc=%d "
-				     "try=%d/%d backoff=%ums — exclusion is PROVED and the "
+				     "try=%d/%d backoff=%ums -- exclusion is PROVED and the "
 				     "certificate did not commit; retrying the PUBLICATION "
 				     "of that same proof.  No command is re-issued and "
 				     "nothing is re-derived: if the CAS in fact landed, "
@@ -11924,7 +11934,7 @@ gate_done:
 		 */
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P238-FENCE-UNRECORDED slot=%d node=%u rc=%d "
-			     "tries=%d — exclusion was PROVED for this attempt and the "
+			     "tries=%d -- exclusion was PROVED for this attempt and the "
 			     "certificate's DURABILITY is unconfirmed after the "
 			     "publication window.  Replay stays BLOCKED until the "
 			     "commit is reconciled or an independent proof "
@@ -11962,7 +11972,7 @@ snapshot:
 	v5_fence_retry_arm(ctx, dead_slot, dead_node, dead_epoch, false, 0);
 	mxfs_pal_log(MXFS_LOG_ERR,
 		     "mxfs: P-RMAN-SNAPSHOT-PENDING slot=%d node=%u epoch=%llu "
-		     "rc=%d retry=automatic next_retry_ms=%llu attempt=%u — "
+		     "rc=%d retry=automatic next_retry_ms=%llu attempt=%u -- "
 		     "exclusion is proved (stage=SNAPSHOTTING) but the fence-time "
 		     "manifest is not sealed; this slice may not be replayed YET",
 		     dead_slot, dead_node, (unsigned long long)dead_epoch, rc,
@@ -12013,7 +12023,7 @@ unproven:
 		 */
 		mxfs_pal_log_repeating(MXFS_LOG_WARN,
 			     "mxfs: P238-FENCE-RESUME-NOPROOF slot=%d node=%u "
-			     "epoch=%llu kind=%s(%d) — no proof independent of the "
+			     "epoch=%llu kind=%s(%d) -- no proof independent of the "
 			     "unanswered command is available yet; nothing was issued, "
 			     "nothing was armed and nothing durable changed.  The slice "
 			     "stays blocked and this node will look again",
@@ -12033,7 +12043,7 @@ unproven:
 									    : MXFS_LOG_ERR,
 					 "mxfs: P238-FENCE-PENDING slot=%d node=%u epoch=%llu "
 					 "kind=%s(%d) phase=%s command_may_have_run=no rc=%d "
-					 "retry=automatic next_retry_ms=%llu attempt=%u — the "
+					 "retry=automatic next_retry_ms=%llu attempt=%u -- the "
 					 "fencing attempt submitted NO command, so nothing was "
 					 "consumed and the victim key is intact.  This slice may "
 					 "not be replayed YET; the fence will be re-driven "
@@ -12056,7 +12066,7 @@ unproven:
 		v5_fence_block_ambiguous(ctx, dead_slot, dead_node, dead_epoch);
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P238-FENCE-UNPROVEN slot=%d node=%u epoch=%llu "
-			     "kind=%s(%d) phase=%s command_may_have_run=YES rc=%d — a "
+			     "kind=%s(%d) phase=%s command_may_have_run=YES rc=%d -- a "
 			     "PREEMPT-family command may have reached the target and "
 			     "its outcome was not established, so this slice may not "
 			     "be replayed, its grants may not be released and its "
@@ -12104,7 +12114,7 @@ static int v5_pr_fence_prove_guarded(struct mxfs_v5_dlm *ctx,
 	if (mxfs_atomic32_inc(&ctx->fence_prove_busy[dead_slot]) != 1) {
 		mxfs_atomic32_dec(&ctx->fence_prove_busy[dead_slot]);
 		mxfs_pal_log(MXFS_LOG_WARN,
-			     "mxfs: P304-FENCE-PROVE-BUSY slot=%d node=%u — another "
+			     "mxfs: P304-FENCE-PROVE-BUSY slot=%d node=%u -- another "
 			     "thread on this node is already proving this slot; not "
 			     "issuing a second PREEMPT AND ABORT under the same "
 			     "attempt lease",
@@ -12224,7 +12234,7 @@ static void v5_tcp_declare_dead(struct mxfs_v5_dlm *ctx, mxfs_node_id_t node_id)
 	if (slot >= 0 && nlive > 1) {
 		v5_note_dead_node(ctx, node_id);
 		mxfs_pal_log(MXFS_LOG_WARN,
-			     "mxfs: P-TCPDEATH-DEFERRED node=%u slot=%d nlive=%d — "
+			     "mxfs: P-TCPDEATH-DEFERRED node=%u slot=%d nlive=%d -- "
 			     "death declared, no lease-less fence: with more than "
 			     "one live member the PREEMPT AND ABORT is issued only "
 			     "by the survivor holding the attempt lease, so that "
@@ -12239,7 +12249,7 @@ static void v5_tcp_declare_dead(struct mxfs_v5_dlm *ctx, mxfs_node_id_t node_id)
 	v5_note_dead_node(ctx, node_id);      /* fenced = retired */
 	if (slot >= 0) {
 		mxfs_pal_log(MXFS_LOG_DEBUG,
-			     "mxfs: P-TCPDEATH-DEFERRED node=%u slot=%d nlive=%d — "
+			     "mxfs: P-TCPDEATH-DEFERRED node=%u slot=%d nlive=%d -- "
 			     "fenced as the sole other member; grants and mastership "
 			     "stay FROZEN until its journal slice is replayed "
 			     "(recovery completion purges)",
@@ -12341,7 +12351,7 @@ static bool v5_join_sighting_retired(struct mxfs_v5_dlm *ctx,
 	if (!v5_node_is_dead(ctx, s->node_id))
 		return false;
 	mxfs_pal_log(MXFS_LOG_WARN,
-		     "mxfs: P961-JOIN-SIGHTING-RETIRED node=%u peer=%u at=%s — the "
+		     "mxfs: P961-JOIN-SIGHTING-RETIRED node=%u peer=%u at=%s -- the "
 		     "sighted peer departed before it was installed; the sighting "
 		     "is dropped, no view names it",
 		     ctx->node_id, s->node_id, where);
@@ -12423,7 +12433,7 @@ static void v5_join_transition(struct mxfs_v5_dlm *ctx,
 				return;
 			mxfs_pal_log(MXFS_LOG_WARN,
 				     "mxfs: P-JOIN-INSTALLED node=%u peer=%u attempts=%u "
-				     "ms=%llu — single→multi transition complete; the "
+				     "ms=%llu -- single->multi transition complete; the "
 				     "peer's first grant waits on this view's beacon",
 				     ctx->node_id, s->node_id, attempt,
 				     (unsigned long long)(mxfs_pal_time_ms() - t0));
@@ -12432,7 +12442,7 @@ static void v5_join_transition(struct mxfs_v5_dlm *ctx,
 		if (attempt == 1 || (attempt % 25) == 0)
 			mxfs_pal_log(MXFS_LOG_WARN,
 				     "mxfs: P-JOIN-PREPARE-RETRY node=%u peer=%u attempt=%u "
-				     "rc=%d ms=%llu — peer stays unadmitted until this "
+				     "rc=%d ms=%llu -- peer stays unadmitted until this "
 				     "node's dirty state is landed and its views dropped",
 				     ctx->node_id, s->node_id, attempt, rc,
 				     (unsigned long long)(mxfs_pal_time_ms() - t0));
@@ -12510,13 +12520,13 @@ static void v5_join_queue(struct mxfs_v5_dlm *ctx,
 	if (old)
 		mxfs_pal_thread_join(old);      /* the previous worker has exited */
 	mxfs_pal_log(MXFS_LOG_DEBUG,
-		     "mxfs: P-JOIN-QUEUED node=%u peer=%u — single→multi "
+		     "mxfs: P-JOIN-QUEUED node=%u peer=%u -- single->multi "
 		     "transition queued to the join worker",
 		     ctx->node_id, s->node_id);
 	ctx->join_thread = mxfs_pal_thread_create(v5_join_worker_fn, ctx);
 	if (!ctx->join_thread) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-JOIN-WORKER-FAIL node=%u — join worker thread "
+			     "mxfs: P-JOIN-WORKER-FAIL node=%u -- join worker thread "
 			     "create failed; the peer's next announce retries",
 			     ctx->node_id);
 		mxfs_pal_mutex_lock(ctx->join_lock);
@@ -12553,7 +12563,7 @@ static void v5_peer_connect_cb_tcp(void *data, mxfs_node_id_t node_id)
 	 * not re-register or cancel a pending death. */
 	if (v5_node_is_dead(ctx, node_id)) {
 		pr_warn_ratelimited(
-		    "mxfs: P164-DEAD-REJECT connect node=%u — retired identity ignored\n",
+		    "mxfs: P164-DEAD-REJECT connect node=%u -- retired identity ignored\n",
 		    node_id);
 		return;
 	}
@@ -12591,7 +12601,7 @@ static void v5_peer_connect_cb_tcp(void *data, mxfs_node_id_t node_id)
 		s.node_id = node_id;
 		s.connect = false;      /* already connected: registration + view */
 		mxfs_pal_log(MXFS_LOG_WARN,
-			     "mxfs: TCP peer %u connected while SINGLE-NODE — queuing the single→multi transition (inbound-connect-first join)",
+			     "mxfs: TCP peer %u connected while SINGLE-NODE -- queuing the single->multi transition (inbound-connect-first join)",
 			     node_id);
 		v5_join_queue(ctx, &s);
 		queued = true;
@@ -12626,7 +12636,7 @@ static void v5_peer_connect_cb_tcp(void *data, mxfs_node_id_t node_id)
 			if (ctx->dlm)
 				ctx->dlm->last_memb_change_ms = mxfs_pal_time_ms();
 			mxfs_pal_log(MXFS_LOG_WARN,
-				     "mxfs: TCP peer %u reconnected — cancelling "
+				     "mxfs: TCP peer %u reconnected -- cancelling "
 				     "pending death (transient flap absorbed); "
 				     "EX frozen memb_settle_ms (reconverge)",
 				     node_id);
@@ -12639,6 +12649,25 @@ static void v5_peer_connect_cb_tcp(void *data, mxfs_node_id_t node_id)
 	if (ctx->lease)
 		mxfs_lease_register_node(ctx->lease, node_id);
 	v5_refresh_active_nodes(ctx);
+}
+
+/* How long `node`'s TCP reconnect grace has been running, or -1 when none is
+ * open for it (never disconnected, reconnected, or already decided). */
+static long long v5_tcp_grace_age_ms(struct mxfs_v5_dlm *ctx,
+				     mxfs_node_id_t node)
+{
+	int slot = (int)(node % MXFS_MAX_NODES);
+	long long age = -1;
+
+	if (!ctx || !ctx->tcp_suspect_lock)
+		return -1;
+	mxfs_pal_mutex_lock(ctx->tcp_suspect_lock);
+	if (ctx->tcp_suspect_since[slot] != 0 &&
+	    ctx->tcp_suspect_node[slot] == node)
+		age = (long long)(mxfs_pal_time_ms() -
+				  ctx->tcp_suspect_since[slot]);
+	mxfs_pal_mutex_unlock(ctx->tcp_suspect_lock);
+	return age;
 }
 
 static void v5_peer_disconnect_cb_tcp(void *data, mxfs_node_id_t node_id)
@@ -12654,7 +12683,7 @@ static void v5_peer_disconnect_cb_tcp(void *data, mxfs_node_id_t node_id)
 	 * for real failures. */
 	if (ctx->lease && !mxfs_lease_has_node(ctx->lease, node_id)) {
 		mxfs_pal_log(MXFS_LOG_INFO,
-			     "mxfs: TCP peer %u closed after clean departure — no death grace",
+			     "mxfs: TCP peer %u closed after clean departure -- no death grace",
 			     node_id);
 		return;
 	}
@@ -12662,7 +12691,7 @@ static void v5_peer_disconnect_cb_tcp(void *data, mxfs_node_id_t node_id)
 	 * exclusion already armed (v5_drbd_exclusion_check): no second grace. */
 	if (node_id == READ_ONCE(ctx->drbd_excluded_node)) {
 		mxfs_pal_log(MXFS_LOG_INFO,
-			     "mxfs: TCP peer %u closed after DRBD's authority excluded it — its death is already declared",
+			     "mxfs: TCP peer %u closed after DRBD's authority excluded it -- its death is already declared",
 			     node_id);
 		return;
 	}
@@ -12697,7 +12726,7 @@ static void v5_peer_disconnect_cb_tcp(void *data, mxfs_node_id_t node_id)
 		if (ctx->dlm)
 			ctx->dlm->last_memb_change_ms = mxfs_pal_time_ms();
 		mxfs_pal_log(MXFS_LOG_WARN,
-			     "mxfs: TCP peer %u disconnected — deferring death "
+			     "mxfs: TCP peer %u disconnected -- deferring death "
 			     "%d ms (transient-flap tolerance); EX frozen (self-fence)",
 			     node_id, mxfs_tcp_death_grace_ms);
 		return;
@@ -12756,7 +12785,7 @@ static void v5_drbd_exclusion_check(struct mxfs_v5_dlm *ctx)
 	}
 	if (now - since > 30000) {
 		mxfs_pal_log(MXFS_LOG_WARN,
-			     "mxfs: P-DRBD-EXCL-UNCONFIRMED minor=%d — the witness did "
+			     "mxfs: P-DRBD-EXCL-UNCONFIRMED minor=%d -- the witness did "
 			     "not show the peer excluded within 30 s of the handler's "
 			     "notice; the TCP link's timeout and grace decide the death",
 			     ctx->drbd_minor);
@@ -12776,7 +12805,7 @@ static void v5_drbd_exclusion_check(struct mxfs_v5_dlm *ctx)
 	}
 	if (others != 1) {
 		mxfs_pal_log(MXFS_LOG_WARN,
-			     "mxfs: P-DRBD-EXCL-NOPEER minor=%d members=%d — a DRBD pair "
+			     "mxfs: P-DRBD-EXCL-NOPEER minor=%d members=%d -- a DRBD pair "
 			     "names one peer and this mount has %d; the notice is dropped "
 			     "and the TCP link decides",
 			     ctx->drbd_minor, n, others);
@@ -12797,7 +12826,7 @@ static void v5_drbd_exclusion_check(struct mxfs_v5_dlm *ctx)
 	mxfs_pal_free(r);
 	if (rc) {
 		mxfs_pal_log_repeating(MXFS_LOG_INFO,
-				       "mxfs: P-DRBD-EXCL-NOT-YET node=%u — %s; asked "
+				       "mxfs: P-DRBD-EXCL-NOT-YET node=%u -- %s; asked "
 				       "again in a second", peer, why);
 		return;
 	}
@@ -12815,7 +12844,7 @@ static void v5_drbd_exclusion_check(struct mxfs_v5_dlm *ctx)
 		mxfs_disklock_post_excluded(ctx->disklock, peer);
 	mxfs_pal_log(MXFS_LOG_WARN,
 		     "mxfs: P-DRBD-EXCL-DEATH node=%u minor=%d notice_age_ms=%llu "
-		     "how=%s — DRBD's fence authority excluded the peer and this "
+		     "how=%s -- DRBD's fence authority excluded the peer and this "
 		     "node's witness shows it; the death is declared now instead "
 		     "of after the TCP link's timeout and grace, and the heartbeat "
 		     "monitor's stale window",
@@ -12833,10 +12862,11 @@ static void v5_tcp_death_worker_fn(void *arg)
 {
 	struct mxfs_v5_dlm *ctx = arg;
 	int selfcheck_ticks = 0;
+	uint64_t held_logged_ms = 0;
 
 	while (!ctx->tcp_death_stop) {
-		int i;
-		uint64_t now;
+		int i, open = 0;
+		uint64_t now, t_pass, t_release, t_handoff, t_selfcheck;
 
 		/* INTERRUPTIBLE: this worker is always-on for the life of a TCP
 		 * mount and idle for almost all of it.  The plain msleep() parked it
@@ -12849,12 +12879,19 @@ static void v5_tcp_death_worker_fn(void *arg)
 		if (ctx->tcp_death_stop)
 			break;
 
+		/* The lock-ledger work below runs on this thread ahead of the
+		 * grace check, so a pass that waits on ledger commits holds every
+		 * death decision with it; the walls name what held it. */
+		t_pass = mxfs_pal_time_ms();
+		t_release = t_handoff = t_pass;
 		/* (step 3e): re-send un-ACKed LOCK_RELEASEs */
 		if (ctx->dlm) {
 			mxfs_dlm_release_retry_tick(ctx->dlm);
+			t_release = mxfs_pal_time_ms();
 			/* (step 4): eager PREPARE of pages that moved away at
 			 * the last view change, FREEZE_REQ retries, retargets */
 			mxfs_dlm_handoff_tick(ctx->dlm);
+			t_handoff = mxfs_pal_time_ms();
 		}
 
 		/* v0.11.80 (D8): periodic PR self-check (~30s).  READ KEYS is a
@@ -12887,7 +12924,7 @@ static void v5_tcp_death_worker_fn(void *arg)
 				if (scret == -ESTALE) {
 					mxfs_pal_log(MXFS_LOG_ERR,
 						     "mxfs: P-PR-SELFFENCE self-check found own "
-						     "PR key preempted — freezing this node "
+						     "PR key preempted -- freezing this node "
 						     "(no auto-re-register)");
 					if (ctx->fence_notify_fn)
 						ctx->fence_notify_fn(ctx->fence_notify_data,
@@ -12896,6 +12933,7 @@ static void v5_tcp_death_worker_fn(void *arg)
 				}
 			}
 		}
+		t_selfcheck = mxfs_pal_time_ms();
 
 		if (!ctx->tcp_suspect_lock)
 			continue;
@@ -12907,6 +12945,8 @@ static void v5_tcp_death_worker_fn(void *arg)
 			mxfs_node_id_t dead = 0;
 
 			mxfs_pal_mutex_lock(ctx->tcp_suspect_lock);
+			if (ctx->tcp_suspect_since[i] != 0)
+				open++;
 			if (ctx->tcp_suspect_since[i] != 0 &&
 			    (now - ctx->tcp_suspect_since[i]) >=
 				    (uint64_t)mxfs_tcp_death_grace_ms) {
@@ -12934,7 +12974,7 @@ static void v5_tcp_death_worker_fn(void *arg)
 				 * and the next grace cycle reaps it. */
 				mxfs_pal_log(MXFS_LOG_WARN,
 					     "mxfs: TCP peer %u suspect grace expired but "
-					     "peer socket is ACTIVE — cancelling death "
+					     "peer socket is ACTIVE -- cancelling death "
 					     "(late/silent reconnect)", dead);
 				dead = 0;
 			}
@@ -12956,7 +12996,7 @@ static void v5_tcp_death_worker_fn(void *arg)
 				 * recover.
 				 */
 				mxfs_pal_log(MXFS_LOG_INFO,
-					     "mxfs: P-TCP-SUSPECT-DEPARTED peer %u — its "
+					     "mxfs: P-TCP-SUSPECT-DEPARTED peer %u -- its "
 					     "reconnect grace expired, and it has left the "
 					     "cluster since; nothing is declared", dead);
 				dead = 0;
@@ -12964,10 +13004,26 @@ static void v5_tcp_death_worker_fn(void *arg)
 			if (dead != 0) {
 				mxfs_pal_log(MXFS_LOG_WARN,
 					     "mxfs: TCP peer %u did not reconnect within "
-					     "%d ms — declaring dead, recovering locks",
+					     "%d ms -- declaring dead, recovering locks",
 					     dead, mxfs_tcp_death_grace_ms);
 				v5_tcp_declare_dead(ctx, dead);
 			}
+		}
+		/* at most once per 10 s: a pass held a second or more before it
+		 * reached the grace check (0.90.78 withdraw-guests on the physical
+		 * pair logged its grace end 11 s past disconnect + grace) */
+		if (now - t_pass >= 1000 && now - held_logged_ms >= 10000) {
+			held_logged_ms = now;
+			mxfs_pal_log(MXFS_LOG_INFO,
+				     "mxfs: P-TCP-DEATH-PASS-HELD ms=%llu release=%llu "
+				     "handoff=%llu selfcheck=%llu excl=%llu open_graces=%d "
+				     "-- the grace check ran this late in its pass; every "
+				     "TCP death decision waited with it",
+				     (unsigned long long)(now - t_pass),
+				     (unsigned long long)(t_release - t_pass),
+				     (unsigned long long)(t_handoff - t_release),
+				     (unsigned long long)(t_selfcheck - t_handoff),
+				     (unsigned long long)(now - t_selfcheck), open);
 		}
 	}
 }
@@ -13020,7 +13076,7 @@ static void v5_bast_cb(struct mxfs_dlm_ctx *dlm_ctx,
 	if (resource->type == MXFS_LTYPE_INODE &&
 	    READ_ONCE(ctx->samenode_bast_guard) &&
 	    resource->ino == READ_ONCE(ctx->samenode_bast_ino)) {
-		mxfs_probe_ratelimited("mxfs: P275-SAMENODE-BAST-HELD ino=%llu mode=%u — BAST not dispatched while the exerciser holds\n",
+		mxfs_probe_ratelimited("mxfs: P275-SAMENODE-BAST-HELD ino=%llu mode=%u -- BAST not dispatched while the exerciser holds\n",
 				    (unsigned long long)resource->ino,
 				    requested_mode);
 		return;
@@ -13046,7 +13102,7 @@ static void v5_discovery_peer_cb(void *data,
 	 * never let it back into the lease or the peer mesh. */
 	if (v5_node_is_dead(ctx, ann->node_id)) {
 		pr_warn_ratelimited(
-		    "mxfs: P164-DEAD-REJECT announce node=%u — retired identity ignored\n",
+		    "mxfs: P164-DEAD-REJECT announce node=%u -- retired identity ignored\n",
 		    ann->node_id);
 		return;
 	}
@@ -13058,7 +13114,7 @@ static void v5_discovery_peer_cb(void *data,
 	if ((ann->dlm_transport ? 1 : 0) !=
 	    (ctx->transport == MXFS_V5_TRANSPORT_TCP ? 1 : 0)) {
 		mxfs_probe_ratelimited(
-		    "mxfs: P-TRANSPORT-MISMATCH-PEER announce node=%u transport=%s ours=%s — ignored (two lock managers over one filesystem exclude nothing)\n",
+		    "mxfs: P-TRANSPORT-MISMATCH-PEER announce node=%u transport=%s ours=%s -- ignored (two lock managers over one filesystem exclude nothing)\n",
 		    ann->node_id, ann->dlm_transport ? "tcp" : "caw",
 		    ctx->transport == MXFS_V5_TRANSPORT_TCP ? "tcp" : "caw");
 		return;
@@ -13173,7 +13229,7 @@ static void v5_self_fence_cb(void *data, int reason)
 	struct mxfs_v5_dlm *ctx = data;
 
 	mxfs_pal_log(MXFS_LOG_ERR,
-		     "mxfs: P131-SELF-FENCE node %u reason=%s — %s; forcing "
+		     "mxfs: P131-SELF-FENCE node %u reason=%s -- %s; forcing "
 		     "filesystem shutdown",
 		     ctx->node_id, mxfs_self_fence_reason_name(reason),
 		     mxfs_self_fence_reason_desc(reason));
@@ -13242,7 +13298,7 @@ static void v5_authority_withdraw_pump(struct mxfs_v5_dlm *ctx, const char *via)
 	if (!mxfs_authority_take_withdraw(ctx->authority, &reason))
 		return;
 	mxfs_pal_log(MXFS_LOG_ERR,
-		     "mxfs: P290-AUTH-WITHDRAW node %u reason=%s via=%s — "
+		     "mxfs: P290-AUTH-WITHDRAW node %u reason=%s via=%s -- "
 		     "authority is closed and every mutation is already being "
 		     "refused; withdrawing the mount so its locks and journal "
 		     "slice are resolved under the ordinary recovery rules",
@@ -13285,7 +13341,7 @@ static void v5_auth_withdraw_worker_fn(void *arg)
 				hold_until_ms = now +
 				    (uint64_t)mxfs_dbg_auth_withdraw_thread_pause_ms;
 				mxfs_pal_log(MXFS_LOG_ERR,
-					     "mxfs: P-DBG-AUTH-WITHDRAW-THREAD-PAUSE node=%u ms=%d — "
+					     "mxfs: P-DBG-AUTH-WITHDRAW-THREAD-PAUSE node=%u ms=%d -- "
 					     "TEST: the withdraw thread is held off; a closure "
 					     "is converted only by the PR worker's pump, if "
 					     "that is not held too",
@@ -13297,7 +13353,7 @@ static void v5_auth_withdraw_worker_fn(void *arg)
 			mxfs_dbg_auth_withdraw_thread_pause_ms = 0;
 			hold_until_ms = 0;
 			mxfs_pal_log(MXFS_LOG_ERR,
-				     "mxfs: P-DBG-AUTH-WITHDRAW-THREAD-PAUSE-END node=%u — "
+				     "mxfs: P-DBG-AUTH-WITHDRAW-THREAD-PAUSE-END node=%u -- "
 				     "TEST: the withdraw thread resumes", ctx->node_id);
 		}
 		v5_authority_withdraw_pump(ctx, "withdraw-thread");
@@ -13323,7 +13379,7 @@ static void v5_auth_withdraw_thread_start(struct mxfs_v5_dlm *ctx)
 	    mxfs_pal_thread_create(v5_auth_withdraw_worker_fn, ctx);
 	if (!ctx->auth_withdraw_thread) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P290-AUTH-WITHDRAW-NOTHREAD node %u — the "
+			     "mxfs: P290-AUTH-WITHDRAW-NOTHREAD node %u -- the "
 			     "withdraw thread failed to start; a closure's withdrawal "
 			     "will be driven by the PR worker's tick alone, and a task "
 			     "parked in the log waits for that tick",
@@ -13333,7 +13389,7 @@ static void v5_auth_withdraw_thread_start(struct mxfs_v5_dlm *ctx)
 	WRITE_ONCE(mxfs_auth_withdraw_threads,
 		   READ_ONCE(mxfs_auth_withdraw_threads) + 1);
 	mxfs_pal_log(MXFS_LOG_DEBUG,
-		     "mxfs: P290-AUTH-WITHDRAW-THREAD node %u transport=%d — the "
+		     "mxfs: P290-AUTH-WITHDRAW-THREAD node %u transport=%d -- the "
 		     "withdraw thread is running; a closure is converted within "
 		     "100 ms whatever the PR worker is doing",
 		     ctx->node_id, (int)ctx->transport);
@@ -13350,7 +13406,7 @@ static void v5_resv_conflict_withdraw(struct mxfs_v5_dlm *ctx, const char *why)
 	mxfs_authority_close(ctx->authority,
 			     MXFS_SELF_FENCE_PR_CONFLICT_FENCED, why);
 	mxfs_pal_log(MXFS_LOG_ERR,
-		     "mxfs: P277-FENCED-SELF-WITHDRAW node %u conflicts=%d — %s; "
+		     "mxfs: P277-FENCED-SELF-WITHDRAW node %u conflicts=%d -- %s; "
 		     "withdrawing this mount (%s)",
 		     ctx->node_id, mxfs_atomic32_get(&ctx->resv_conflict_count),
 		     why,
@@ -13392,7 +13448,7 @@ static void v5_resv_inspect_worker(void *arg)
 		if (reg_streak < 3) {
 			v5_resv_conflict_withdraw(ctx,
 			    "inspection could not prove registration (all tries "
-			    "errored/ambiguous) — bounded fallback");
+			    "errored/ambiguous) -- bounded fallback");
 			return;
 		}
 
@@ -13401,11 +13457,11 @@ static void v5_resv_inspect_worker(void *arg)
 		    MXFS_RESV_CONFLICT_AMBIGUOUS_CAP) {
 			v5_resv_conflict_withdraw(ctx,
 			    "PR IN says registered but conflicts exceeded the "
-			    "ambiguity cap — node unusable");
+			    "ambiguity cap -- node unusable");
 			return;
 		}
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P277-RESV-ANOMALY node %u conflicts=%d errs=%d — "
+			     "mxfs: P277-RESV-ANOMALY node %u conflicts=%d errs=%d -- "
 			     "PR IN says our key IS registered yet data-path writes "
 			     "hit RESERVATION CONFLICT; re-inspecting if conflicts "
 			     "continue",
@@ -13445,7 +13501,7 @@ static void v5_resv_inspect_launch(struct mxfs_v5_dlm *ctx, const char *why)
 	    mxfs_pal_thread_create(v5_resv_inspect_worker, ctx);
 	if (!ctx->resv_inspect_thread) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P277-RESV-INSPECT node %u — inspection thread "
+			     "mxfs: P277-RESV-INSPECT node %u -- inspection thread "
 			     "create FAILED (%s); will retry on the next trigger",
 			     ctx->node_id, why);
 		mxfs_atomic32_set(&ctx->resv_inspect_latch, 0);
@@ -13462,7 +13518,7 @@ void mxfs_v5_dlm_note_resv_conflict(struct mxfs_v5_dlm *ctx)
 	n = mxfs_atomic32_inc(&ctx->resv_conflict_count);
 	if (n <= 10 || (n % 50) == 0)
 		mxfs_pal_log(MXFS_LOG_WARN,
-			     "mxfs: P277-RESV-CONFLICT node %u count=%d — data-path "
+			     "mxfs: P277-RESV-CONFLICT node %u count=%d -- data-path "
 			     "write bounced with SCSI RESERVATION CONFLICT",
 			     ctx->node_id, n);
 	if (n < MXFS_RESV_CONFLICT_INSPECT_THRESHOLD)
@@ -13487,7 +13543,7 @@ static int v5_dbg_purge_hook(void *data, int point, int victim_slot)
 
 		mxfs_dbg_purge_pause_ms = 0;
 		mxfs_pal_log(MXFS_LOG_DEBUG,
-			     "mxfs: P-DBG-PURGE-PAUSE slot=%d ms=%d — TEST: owner "
+			     "mxfs: P-DBG-PURGE-PAUSE slot=%d ms=%d -- TEST: owner "
 			     "parked after the phase-0 freeze gate, nothing zeroed yet",
 			     victim_slot, ms);
 		while (slept < ms) {
@@ -13506,7 +13562,7 @@ static int v5_dbg_purge_hook(void *data, int point, int victim_slot)
 		mxfs_dbg_purge_refreeze = 0;
 		if (victim_slot < 0) {
 			mxfs_pal_log(MXFS_LOG_WARN,
-				     "mxfs: P-DBG-PURGE-REFREEZE point=%d — no covering "
+				     "mxfs: P-DBG-PURGE-REFREEZE point=%d -- no covering "
 				     "recovery descriptor; nothing to transition", point);
 			return 0;
 		}
@@ -13516,7 +13572,7 @@ static int v5_dbg_purge_hook(void *data, int point, int victim_slot)
 		rc = mxfs_v5_dlm_recovery_publish_refusal(ctx, victim_slot, &info,
 							  NULL);
 		mxfs_pal_log(MXFS_LOG_WARN,
-			     "mxfs: P-DBG-PURGE-REFREEZE point=%d slot=%d rc=%d — "
+			     "mxfs: P-DBG-PURGE-REFREEZE point=%d slot=%d rc=%d -- "
 			     "TEST: quarantine published through the normal refusal "
 			     "path under the owner's own purge; the re-derived gate "
 			     "must now refuse and nothing may be published",
@@ -13631,7 +13687,7 @@ static void v5_dispatch_slice_recovery(struct mxfs_v5_dlm *ctx, int dead_slot,
 		 * and the FS is being withdrawn; do not re-elect ourselves. */
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P234-DISPATCH-TERMINAL-REFUSED slot=%d node=%u "
-			     "reason=%s — not re-entering the recovery we already "
+			     "reason=%s -- not re-entering the recovery we already "
 			     "terminated; withdrawal in progress",
 			     dead_slot, dead_node,
 			     mxfs_recov_blocked_reason(ctx->blocked[dead_slot].reason));
@@ -13644,7 +13700,7 @@ static void v5_dispatch_slice_recovery(struct mxfs_v5_dlm *ctx, int dead_slot,
 	} else {
 		mxfs_pal_log(MXFS_LOG_INFO,
 			     "mxfs: not elected for dead-slice replay "
-			     "(lowest live slot %d, local %d) — deferring "
+			     "(lowest live slot %d, local %d) -- deferring "
 			     "local purge until the slot is reclaimed",
 			     low, ctx->disklock->local_slot);
 	}
@@ -13666,7 +13722,7 @@ static void v5_dispatch_slice_recovery(struct mxfs_v5_dlm *ctx, int dead_slot,
 		    v5_complete_terminal_for(ctx, p, NULL)) {
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "mxfs: P234-DISPATCH-TERMINAL-REFUSED slot=%d node=%u "
-				     "reason=%s — re-election skipped; withdrawal in "
+				     "reason=%s -- re-election skipped; withdrawal in "
 				     "progress", p, pn,
 				     mxfs_recov_blocked_reason(ctx->blocked[p].reason));
 			continue;
@@ -13775,7 +13831,7 @@ static void v5_defer_slice_recovery(struct mxfs_v5_dlm *ctx, int dead_slot,
 	if (first)
 		mxfs_pal_log(MXFS_LOG_WARN,
 			     "mxfs: P233-MPHASE-DEATH slot=%d node=%u died during "
-			     "our mount — fenced and marked recovery-pending, but "
+			     "our mount -- fenced and marked recovery-pending, but "
 			     "the slice-replay hook does not exist yet.  Its grants "
 			     "stay FROZEN (nothing purged) until the mount barrier "
 			     "or the post-mount settle recovers the slice; a "
@@ -13937,7 +13993,7 @@ static void v5_death_fence_handoff(struct mxfs_v5_dlm *ctx,
 	if (why) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P309-DEATH-FENCE-INLINE slot=%d victim=%u "
-			     "epoch=%llu — %s, so the fence runs on the DETECTOR's "
+			     "epoch=%llu -- %s, so the fence runs on the DETECTOR's "
 			     "thread.  If that is the heartbeat thread it can stall "
 			     "the lease this fence is running under; leaving the "
 			     "slice unfenced would abandon it, so it runs",
@@ -13953,7 +14009,7 @@ static void v5_death_fence_handoff(struct mxfs_v5_dlm *ctx,
 	(void)mxfs_atomic32_xchg(&ctx->death_fence_pending[dead_slot], 1);
 	mxfs_pal_log(MXFS_LOG_DEBUG,
 		     "mxfs: P309-DEATH-FENCE-QUEUED slot=%d victim=%u epoch=%llu "
-		     "— the death is declared; the fence, the reset and the "
+		     "-- the death is declared; the fence, the reset and the "
 		     "post-reset barrier run on the PR worker so this thread can "
 		     "go on renewing the authority lease they depend on",
 		     dead_slot, dead_node, (unsigned long long)dead_epoch);
@@ -13984,7 +14040,7 @@ static void v5_death_fence_drain(struct mxfs_v5_dlm *ctx)
 			continue;
 		mxfs_pal_log(MXFS_LOG_DEBUG,
 			     "mxfs: P309-DEATH-FENCE-RUN slot=%d victim=%u epoch=%llu "
-			     "— taking the handed-over death on the PR worker",
+			     "-- taking the handed-over death on the PR worker",
 			     slot, victim, (unsigned long long)epoch);
 		v5_node_death_fence_and_recover(ctx, victim, slot, epoch);
 	}
@@ -13999,7 +14055,7 @@ static void v5_handle_node_death(struct mxfs_v5_dlm *ctx,
 				 mxfs_epoch_t dead_epoch)
 {
 	mxfs_pal_log(MXFS_LOG_WARN,
-		     "mxfs: node %u (slot %d inc %llu) lease expired/died — "
+		     "mxfs: node %u (slot %d inc %llu) lease expired/died -- "
 		     "fencing; recovery starting",
 		     dead_node, dead_slot, (unsigned long long)dead_epoch);
 
@@ -14325,7 +14381,7 @@ static uint64_t v5_settle_resolve(struct mxfs_v5_dlm *ctx, bool dispatch)
 		if (ctx->mount_stale_node[slot] == 0) {
 			mxfs_pal_log(MXFS_LOG_WARN,
 				     "mxfs: P225-SETTLE-NOID slot=%d frozen but its node "
-				     "id was unreadable at mount — cannot fence an "
+				     "id was unreadable at mount -- cannot fence an "
 				     "unknown node, leaving its grants frozen", slot);
 			continue;
 		}
@@ -14377,7 +14433,7 @@ static uint64_t v5_settle_resolve(struct mxfs_v5_dlm *ctx, bool dispatch)
 						     ctx->mount_stale_epoch);
 		if (rc < 0) {
 			mxfs_pal_log(MXFS_LOG_ERR,
-				     "mxfs: P225-SETTLE-VERIFYFAIL rc=%d — deferred slots "
+				     "mxfs: P225-SETTLE-VERIFYFAIL rc=%d -- deferred slots "
 				     "stay frozen, unreplayed", rc);
 			return 0;
 		}
@@ -14385,7 +14441,7 @@ static uint64_t v5_settle_resolve(struct mxfs_v5_dlm *ctx, bool dispatch)
 		if (ctx->settle_stop && !confirmed && !wd) {
 			mxfs_pal_log(MXFS_LOG_DEBUG,
 				     "mxfs: P225-SETTLE-CANCELLED unmount during the "
-				     "confirmation window — deferred slots stay frozen");
+				     "confirmation window -- deferred slots stay frozen");
 			return 0;
 		}
 	}
@@ -14405,13 +14461,13 @@ static uint64_t v5_settle_resolve(struct mxfs_v5_dlm *ctx, bool dispatch)
 		if (!(confirmed & (1ULL << slot))) {
 			mxfs_pal_log(MXFS_LOG_WARN,
 				     "mxfs: P225-SETTLE-ALIVE slot=%d node=%u did not "
-				     "stay frozen as that incarnation — not dead, "
+				     "stay frozen as that incarnation -- not dead, "
 				     "leaving it alone", slot, was);
 			continue;
 		}
 
 		mxfs_pal_log(MXFS_LOG_WARN,
-			     "mxfs: P225-SETTLE-RECOVER slot=%d node=%u %s — "
+			     "mxfs: P225-SETTLE-RECOVER slot=%d node=%u %s -- "
 			     "fencing and starting slice recovery (its grants stay "
 			     "frozen until replay completes)", slot, was,
 			     (wd & (1ULL << slot)) ?
@@ -14459,7 +14515,7 @@ static uint64_t v5_settle_resolve(struct mxfs_v5_dlm *ctx, bool dispatch)
 			if (frc) {
 				mxfs_pal_log(MXFS_LOG_ERR,
 					     "mxfs: P225-SETTLE-FENCEFAIL slot=%d node=%u "
-					     "rc=%d after %d attempt(s) — cannot fence, so "
+					     "rc=%d after %d attempt(s) -- cannot fence, so "
 					     "its slice must NOT be replayed (it may still "
 					     "be writing).  Grants left frozen.",
 					     slot, was, frc, tries);
@@ -14587,7 +14643,7 @@ int mxfs_v5_dlm_settle_own_slot(struct mxfs_v5_dlm *ctx)
 	 */
 	if (ctx->disklock && !mxfs_disklock_slice_adopted(ctx->disklock)) {
 		mxfs_pal_log(MXFS_LOG_WARN,
-			     "mxfs: P226-SETTLE-PASS1-NOPURGE slot=%u — own-stamp "
+			     "mxfs: P226-SETTLE-PASS1-NOPURGE slot=%u -- own-stamp "
 			     "reclaim path (previous incarnation's slice replayed "
 			     "as our own log): un-adopted authority bits are LEFT "
 			     "IN PLACE, not purged (unproven path, ruling"
@@ -14614,7 +14670,7 @@ int mxfs_v5_dlm_settle_own_slot(struct mxfs_v5_dlm *ctx)
 		 */
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P226-SETTLE-DEGRADED own-slot reclaim refused "
-			     "(%d) — retained authority bits from the previous "
+			     "(%d) -- retained authority bits from the previous "
 			     "incarnation are LEAKED for this mount; peers will "
 			     "block on them until this node unmounts", npurged);
 		rc = npurged;
@@ -14625,7 +14681,7 @@ int mxfs_v5_dlm_settle_own_slot(struct mxfs_v5_dlm *ctx)
 		 * before the slot was zeroed: still released (untracked bits on
 		 * our own slot are dead by construction), but named an anomaly. */
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P226-SETTLE-FRESH-LEFTOVER slot=%u purged=%d — "
+			     "mxfs: P226-SETTLE-FRESH-LEFTOVER slot=%u purged=%d -- "
 			     "a FRESH slot claim found un-adopted authority bits on "
 			     "our slot index (ANOMALY: a prior tenant's recovery "
 			     "published without purging them); released",
@@ -14829,7 +14885,7 @@ uint64_t mxfs_v5_dlm_mount_resolved_elsewhere(struct mxfs_v5_dlm *ctx,
 						     &why)) {
 			mxfs_pal_log(MXFS_LOG_DEBUG,
 				     "mxfs: P233-MPHASE-NOT-TERMINAL slot=%d node=%u "
-				     "inc=%llu sector=%s — witnessed reclaimed but the "
+				     "inc=%llu sector=%s -- witnessed reclaimed but the "
 				     "sector is not in a terminal state; bit kept",
 				     slot, node, (unsigned long long)epoch, why);
 			continue;
@@ -14837,7 +14893,7 @@ uint64_t mxfs_v5_dlm_mount_resolved_elsewhere(struct mxfs_v5_dlm *ctx,
 		resolved |= (1ULL << slot);
 		mxfs_pal_log(MXFS_LOG_WARN,
 			     "mxfs: P233-MPHASE-RESOLVED-ELSEWHERE slot=%d node=%u "
-			     "inc=%llu sector=%s — a survivor completed this slice's "
+			     "inc=%llu sector=%s -- a survivor completed this slice's "
 			     "recovery while this mount waited (P163-RECOVERED "
 			     "witnessed for this identity, marker cleared, no "
 			     "requires-recovery evidence, terminal sector); retired "
@@ -14916,7 +14972,7 @@ static void v5_mark_pending_from_record(struct mxfs_v5_dlm *ctx, int slot,
 			else {
 				mxfs_pal_log(MXFS_LOG_WARN,
 					     "mxfs: P-ADMIT-VICTIM-FROZEN slot=%d node=%u "
-					     "inc=%llu key=0x%llx gen=%u flags=%u — victim "
+					     "inc=%llu key=0x%llx gen=%u flags=%u -- victim "
 					     "identity frozen from its own record found at "
 					     "admission; a fence of it from this node can "
 					     "name the key",
@@ -14935,7 +14991,7 @@ static void v5_mark_pending_from_record(struct mxfs_v5_dlm *ctx, int slot,
 	mxfs_pal_free(hb);
 	mxfs_pal_log(MXFS_LOG_WARN,
 		     "mxfs: P-ADMIT-VICTIM-UNFROZEN slot=%d node=%u inc=%llu rc=%d "
-		     "— %s; no PR key frozen, so a fence of this victim from this "
+		     "-- %s; no PR key frozen, so a fence of this victim from this "
 		     "node will be REFUSED (NO_VICTIM_KEY)",
 		     slot, node, (unsigned long long)epoch, rc, why);
 	mxfs_disklock_mark_recovery_pending(ctx->disklock, slot, node, epoch);
@@ -14991,7 +15047,7 @@ int mxfs_v5_dlm_mount_pending_recovery(struct mxfs_v5_dlm *ctx,
 		if (!(ctx->barrier_retire_held & (1ULL << slot))) {
 			ctx->barrier_retire_held |= (1ULL << slot);
 			mxfs_pal_log(MXFS_LOG_ERR,
-				     "mxfs: P-ADMIT-RETIRE-PENDING-HELD slot=%d rc=%d — a "
+				     "mxfs: P-ADMIT-RETIRE-PENDING-HELD slot=%d rc=%d -- a "
 				     "clean release whose PR key retirement is unproven "
 				     "holds admission; this mount will not go writable "
 				     "beside a possibly write-capable registration",
@@ -15030,7 +15086,7 @@ int mxfs_v5_dlm_mount_pending_recovery(struct mxfs_v5_dlm *ctx,
 			owed &= ~(1ULL << ctx->boot_adopt_slot);
 		if (owed & ~mask)
 			mxfs_pal_log(MXFS_LOG_WARN,
-				     "mxfs: P-BOOT-COMPLETION-OWED mask=0x%016llx — sealed "
+				     "mxfs: P-BOOT-COMPLETION-OWED mask=0x%016llx -- sealed "
 				     "victims past their replay whose completion bit the "
 				     "bootstrap record does not carry; they stay in the "
 				     "recovery cut until the ladder writes it",
@@ -15098,7 +15154,7 @@ static void v5_dispatch_late_deaths(struct mxfs_v5_dlm *ctx)
 		pn = mxfs_disklock_pending_node(ctx->disklock, slot);
 		mxfs_pal_log(MXFS_LOG_WARN,
 			     "mxfs: P233-MPHASE-DISPATCH slot=%d node=%u (recorded "
-			     "as %u) — peer died during our mount and its slice is "
+			     "as %u) -- peer died during our mount and its slice is "
 			     "still unreplayed; electing a replayer now that the "
 			     "mount is live",
 			     slot, pn, nodes[slot]);
@@ -15123,7 +15179,7 @@ int mxfs_v5_dlm_mount_settle(struct mxfs_v5_dlm *ctx)
 	if (!ctx->dead_node_notify_fn) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P225-SETTLE-NOREPLAY stale mask 0x%llx but no "
-			     "slice-replay hook registered — deferred slots stay "
+			     "slice-replay hook registered -- deferred slots stay "
 			     "frozen (grants NOT reclaimed, which is the safe "
 			     "direction: nothing may read them unreplayed)",
 			     (unsigned long long)ctx->mount_stale_mask);
@@ -15137,7 +15193,7 @@ int mxfs_v5_dlm_mount_settle(struct mxfs_v5_dlm *ctx)
 	if (!ctx->settle_thread) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P225-SETTLE-NOTHREAD stale mask 0x%llx but the "
-			     "settle worker could not be started — deferred slots "
+			     "settle worker could not be started -- deferred slots "
 			     "stay frozen (grants NOT reclaimed)",
 			     (unsigned long long)ctx->mount_stale_mask);
 		ctx->mount_stale_mask = 0;
@@ -15287,7 +15343,7 @@ static int v5_gate_reprove(struct mxfs_v5_dlm *ctx, mxfs_node_id_t victim,
 	    d.stage < MXFS_RECOV_STAGE_SNAPSHOTTING || !d.fence_victim_key) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P239-GATE-REPROVE-NOCERT site=%s slot=%u victim=%u "
-			     "read_rc=%d kind=%u stage=%u vkey=0x%llx — the platter "
+			     "read_rc=%d kind=%u stage=%u vkey=0x%llx -- the platter "
 			     "descriptor does not carry a durable gate certificate "
 			     "with a victim key; the lapse stands",
 			     site, dead_slot, victim, rc, (unsigned)d.fence_kind,
@@ -15310,7 +15366,7 @@ static int v5_gate_reprove(struct mxfs_v5_dlm *ctx, mxfs_node_id_t victim,
 	if (nlive != 1 || other_live >= 0 || d.fence_victim_key == ctx->pr_key) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P239-GATE-REPROVE-NOTSOLE site=%s slot=%u victim=%u "
-			     "nlive=%d other_live=%d vkey=0x%llx — the gate this "
+			     "nlive=%d other_live=%d vkey=0x%llx -- the gate this "
 			     "certificate rests on is not held by our key and this "
 			     "node is not provably the only live member; the lapse "
 			     "stands (nothing issued)",
@@ -15320,7 +15376,7 @@ static int v5_gate_reprove(struct mxfs_v5_dlm *ctx, mxfs_node_id_t victim,
 	}
 	mxfs_pal_log(MXFS_LOG_WARN,
 		     "mxfs: P239-GATE-REPROVE-TRY site=%s slot=%u victim=%u "
-		     "vkey=0x%llx prover=%u — the gate certificate's exclusion "
+		     "vkey=0x%llx prover=%u -- the gate certificate's exclusion "
 		     "lapsed with the node that held the gate; this node is the "
 		     "only live member: re-installing the sole-survivor "
 		     "exclusive-write gate under our key",
@@ -15335,7 +15391,7 @@ static int v5_gate_reprove(struct mxfs_v5_dlm *ctx, mxfs_node_id_t victim,
 	if (gres.kind != MXFS_FENCE_KIND_EXCLUSIVE_WRITE_GATE) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P239-GATE-REPROVE-FAIL site=%s slot=%u victim=%u "
-			     "kind=%s(%d) rc=%d — the gate could not be re-installed; "
+			     "kind=%s(%d) rc=%d -- the gate could not be re-installed; "
 			     "the lapse stands",
 			     site, dead_slot, victim, mxfs_fence_kind_name(gres.kind),
 			     (int)gres.kind, grc);
@@ -15344,7 +15400,7 @@ static int v5_gate_reprove(struct mxfs_v5_dlm *ctx, mxfs_node_id_t victim,
 	rc = mxfs_scsipr_gate_holds(ctx->scsipr, fres);
 	mxfs_pal_log(rc ? MXFS_LOG_ERR : MXFS_LOG_WARN,
 		     "mxfs: P239-GATE-REPROVED site=%s slot=%u victim=%u gen=%u "
-		     "recheck_rc=%d — the exclusive-write gate is held by our key "
+		     "recheck_rc=%d -- the exclusive-write gate is held by our key "
 		     "again; the taken-over recovery proceeds under it",
 		     site, dead_slot, victim, gres.pr_generation, rc);
 	return rc;
@@ -15373,7 +15429,7 @@ static int v5_exclusion_recheck(struct mxfs_v5_dlm *ctx, mxfs_node_id_t victim,
 			 * successor.  replay_authorized already logged the specifics. */
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "mxfs: P239-AUTH-STALE site=%s slot=%u victim=%u "
-				     "rc=%d — the execution lease this recheck was asked "
+				     "rc=%d -- the execution lease this recheck was asked "
 				     "under is no longer ours; NOTHING further is "
 				     "replayed, purged or published for this slice",
 				     site, dead_slot, victim, rc);
@@ -15405,7 +15461,7 @@ static int v5_exclusion_recheck(struct mxfs_v5_dlm *ctx, mxfs_node_id_t victim,
 		 * cutover has to avoid.
 		 */
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P239-SN-REVOKED site=%s slot=%u victim=%u — this "
+			     "mxfs: P239-SN-REVOKED site=%s slot=%u victim=%u -- this "
 			     "slice carries a kind-17 certificate, which rested on the "
 			     "operator's exclusive-access assertion and therefore "
 			     "carries no retirement proof for the writes the target "
@@ -15460,7 +15516,7 @@ static int v5_exclusion_recheck(struct mxfs_v5_dlm *ctx, mxfs_node_id_t victim,
 			return 0;
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P239-DRBD-EXCL-LAPSED site=%s slot=%u victim=%u "
-			     "kind=%s — %s.  NOTHING further is replayed, purged or "
+			     "kind=%s -- %s.  NOTHING further is replayed, purged or "
 			     "published for this slice; its grants stay frozen",
 			     site, dead_slot, victim,
 			     mxfs_fence_kind_name((enum mxfs_fence_kind)cert_kind), why);
@@ -15505,7 +15561,7 @@ static int v5_exclusion_recheck(struct mxfs_v5_dlm *ctx, mxfs_node_id_t victim,
 
 	mxfs_pal_log(MXFS_LOG_ERR,
 		     "mxfs: P239-EXCL-LAPSED site=%s slot=%u victim=%u kind=%s(%d) "
-		     "rc=%d — the exclusion this recovery was authorised by no "
+		     "rc=%d -- the exclusion this recovery was authorised by no "
 		     "longer holds.  NOTHING further is replayed, purged or "
 		     "published for this slice; its grants stay frozen",
 		     site, dead_slot, victim, mxfs_fence_kind_name(fres.kind),
@@ -15700,7 +15756,7 @@ verdict:
 		     "mxfs: P238-FENCE-HOLDER-SLOT slot=%u holder=%u/%llu "
 		     "desc_owner=%u desc_owner_slot=%u found_slot=%d read_rc=%d "
 		     "record{magic=0x%x flags=%u node=%u epoch=%llu} verdict=%s "
-		     "— %s\n",
+		     "-- %s\n",
 		     dead_slot, holder, (unsigned long long)hepoch,
 		     desc->owner_node, desc->owner_slot, hslot, rc,
 		     rc < 0 ? 0 : hb->magic, rc < 0 ? 0 : hb->flags,
@@ -15729,7 +15785,7 @@ static int v5_takeover_fits_budget(uint32_t budget_ms, uint32_t dead_slot,
 		return 1;
 	mxfs_pal_log(MXFS_LOG_WARN,
 		     "mxfs: P238-TAKEOVER-NOBUDGET slot=%u node=%u what=%s "
-		     "need_ms=%u left_ms=%u — the abandonment observation and "
+		     "need_ms=%u left_ms=%u -- the abandonment observation and "
 		     "its continuation cannot complete inside the caller's "
 		     "remaining admission budget; the takeover is not started "
 		     "and the slice stays where it is",
@@ -15823,7 +15879,7 @@ int mxfs_v5_dlm_recovery_acquire_bounded(struct mxfs_v5_dlm *ctx,
 			int frc;
 
 			mxfs_pal_log(MXFS_LOG_WARN,
-				     "mxfs: P238-FENCE-REDRIVE slot=%u node=%u inc=%llu — "
+				     "mxfs: P238-FENCE-REDRIVE slot=%u node=%u inc=%llu -- "
 				     "the victim's record is ACTIVE under the pending "
 				     "incarnation and carries no descriptor (the death-time "
 				     "fence never landed); re-driving the fence from the "
@@ -15873,7 +15929,7 @@ int mxfs_v5_dlm_recovery_acquire_bounded(struct mxfs_v5_dlm *ctx,
 		mxfs_disklock_protected_mask_add(ctx->disklock, (int)dead_slot);
 		mxfs_pal_log(MXFS_LOG_DEBUG,
 			     "mxfs: P238-RECOV-LEASE slot=%u node=%u inc=%llu stage=%u "
-			     "— execution lease acquired against a CERTIFIED fence and "
+			     "-- execution lease acquired against a CERTIFIED fence and "
 			     "the exclusion still holds; this slice may now be replayed",
 			     dead_slot, dead_node, (unsigned long long)dead_epoch,
 			     stage);
@@ -15930,7 +15986,7 @@ int mxfs_v5_dlm_recovery_acquire_bounded(struct mxfs_v5_dlm *ctx,
 		if (ost == V5_INC_REVOKED) {
 			mxfs_pal_log(MXFS_LOG_WARN,
 				     "mxfs: P238-RECOV-TAKEOVER slot=%u node=%u owner=%u/%llu "
-				     "term=%u stage=%u why='%s' — the owner incarnation "
+				     "term=%u stage=%u why='%s' -- the owner incarnation "
 				     "is revoked; attempting takeover (blocks %u ms "
 				     "re-proving the descriptor is abandoned)",
 				     dead_slot, dead_node, desc.owner_node,
@@ -15953,14 +16009,14 @@ int mxfs_v5_dlm_recovery_acquire_bounded(struct mxfs_v5_dlm *ctx,
 				}
 				mxfs_pal_log(MXFS_LOG_WARN,
 					     "mxfs: P238-RECOV-TAKEN slot=%u node=%u stage=%u "
-					     "— recovery taken over from a dead owner; RESUME "
+					     "-- recovery taken over from a dead owner; RESUME "
 					     "from this stage, do not re-run earlier ones",
 					     dead_slot, dead_node, stage);
 				return 0;
 			}
 			mxfs_pal_log(MXFS_LOG_WARN,
 				     "mxfs: P238-RECOV-TAKEOVER-REFUSED slot=%u node=%u "
-				     "rc=%d — the owner is not abandoned after all (it "
+				     "rc=%d -- the owner is not abandoned after all (it "
 				     "advanced the descriptor, or a third node took it); "
 				     "leaving the recovery to whoever holds it",
 				     dead_slot, dead_node, rc);
@@ -15969,7 +16025,7 @@ int mxfs_v5_dlm_recovery_acquire_bounded(struct mxfs_v5_dlm *ctx,
 		}
 		mxfs_pal_log(MXFS_LOG_DEBUG,
 			     "mxfs: P238-RECOV-OWNED slot=%u node=%u owner=%u/%llu "
-			     "term=%u why='%s' — that owner incarnation is not "
+			     "term=%u why='%s' -- that owner incarnation is not "
 			     "revoked; waiting rather than racing it",
 			     dead_slot, dead_node, desc.owner_node,
 			     (unsigned long long)desc.owner_epoch, desc.owner_term,
@@ -16047,7 +16103,7 @@ int mxfs_v5_dlm_recovery_acquire_bounded(struct mxfs_v5_dlm *ctx,
 				mxfs_pal_log_repeating(MXFS_LOG_WARN,
 				    "mxfs: P238-FENCE-HOLDER-STATE slot=%u node=%u stage=%u "
 				    "holder=%u/%llu holder_slot=%u fence_term=%u state=%s "
-				    "why='%s' — the attempt is held by an incarnation not "
+				    "why='%s' -- the attempt is held by an incarnation not "
 				    "proved revoked; not taking it over\n",
 				    dead_slot, dead_node, desc.stage, hnode,
 				    (unsigned long long)hepoch, desc.owner_slot,
@@ -16111,7 +16167,7 @@ int mxfs_v5_dlm_recovery_acquire_bounded(struct mxfs_v5_dlm *ctx,
 			ctx->fence_resume_bootseen[dead_slot] = true;
 			resume_due = true;
 			mxfs_pal_log(MXFS_LOG_WARN,
-				     "mxfs: P238-FENCE-RESUME-BOOTLIVE slot=%u node=%u — "
+				     "mxfs: P238-FENCE-RESUME-BOOTLIVE slot=%u node=%u -- "
 				     "the victim's host is heartbeating again under a "
 				     "different boot, which is the fact an ambiguous "
 				     "attempt was waiting for; revisiting now rather than "
@@ -16174,7 +16230,7 @@ int mxfs_v5_dlm_recovery_acquire_bounded(struct mxfs_v5_dlm *ctx,
 					v5_complete_retry_reset(ctx, dead_slot, &auth);
 					mxfs_pal_log(MXFS_LOG_DEBUG,
 						     "mxfs: P238-RECOV-LEASE slot=%u node=%u "
-						     "inc=%llu stage=%d — execution lease acquired "
+						     "inc=%llu stage=%d -- execution lease acquired "
 						     "after this node resumed proof of its own "
 						     "ambiguous attempt",
 						     dead_slot, dead_node,
@@ -16192,7 +16248,7 @@ int mxfs_v5_dlm_recovery_acquire_bounded(struct mxfs_v5_dlm *ctx,
 			mxfs_dbg_fence_takeover_decline--;
 			mxfs_pal_log(MXFS_LOG_WARN,
 				     "mxfs: P238-FENCE-TAKEOVER-DECLINED slot=%u node=%u "
-				     "holder=%u/%llu stage=%u why='%s' left=%d — TEST "
+				     "holder=%u/%llu stage=%u why='%s' left=%d -- TEST "
 				     "ONLY: the holder is proved revoked but the takeover "
 				     "is declined by dbg_fence_takeover_decline; the "
 				     "attempt stays standing",
@@ -16218,7 +16274,7 @@ int mxfs_v5_dlm_recovery_acquire_bounded(struct mxfs_v5_dlm *ctx,
 			if (desc.stage == MXFS_RECOV_STAGE_FENCING)
 				mxfs_pal_log(MXFS_LOG_WARN,
 					 "mxfs: P238-FENCE-TAKEOVER slot=%u node=%u prover=%u "
-					 "term=%u — the prover died holding the fencing "
+					 "term=%u -- the prover died holding the fencing "
 					 "attempt; taking the attempt lease over to issue a "
 					 "NEW PREEMPT AND ABORT (its result is ours to "
 					 "certify; the dead prover's never was)",
@@ -16227,7 +16283,7 @@ int mxfs_v5_dlm_recovery_acquire_bounded(struct mxfs_v5_dlm *ctx,
 			else
 				mxfs_pal_log(MXFS_LOG_WARN,
 					 "mxfs: P-RMAN-SNAPSHOT-TAKEOVER slot=%u node=%u "
-					 "owner=%u term=%u — the attempt-lease holder died at "
+					 "owner=%u term=%u -- the attempt-lease holder died at "
 					 "SNAPSHOTTING (exclusion proved, manifest unsealed); "
 					 "taking the lease over to redo the scan and seal",
 					 dead_slot, dead_node, desc.owner_node,
@@ -16252,7 +16308,7 @@ int mxfs_v5_dlm_recovery_acquire_bounded(struct mxfs_v5_dlm *ctx,
 				if (!vkey) {
 					mxfs_pal_log(MXFS_LOG_WARN,
 						     "mxfs: P238-FENCE-TAKEOVER-NOKEY slot=%u "
-						     "node=%u inc=%llu — the holder is revoked "
+						     "node=%u inc=%llu -- the holder is revoked "
 						     "but this node holds no frozen PR key for "
 						     "the victim; not taking the attempt over "
 						     "(it could lay no intent)",
@@ -16282,7 +16338,7 @@ int mxfs_v5_dlm_recovery_acquire_bounded(struct mxfs_v5_dlm *ctx,
 			} else if (frc != -EEXIST) {
 				mxfs_pal_log(MXFS_LOG_WARN,
 					     "mxfs: P238-FENCE-TAKEOVER-REFUSED slot=%u "
-					     "node=%u rc=%d — the fencing attempt is not "
+					     "node=%u rc=%d -- the fencing attempt is not "
 					     "abandoned after all; leaving it alone",
 					     dead_slot, dead_node, frc);
 				return -EPERM;
@@ -16298,7 +16354,7 @@ int mxfs_v5_dlm_recovery_acquire_bounded(struct mxfs_v5_dlm *ctx,
 				v5_complete_retry_reset(ctx, dead_slot, &auth); /* */
 				mxfs_pal_log(MXFS_LOG_DEBUG,
 					     "mxfs: P238-RECOV-LEASE slot=%u node=%u inc=%llu "
-					     "stage=%d — execution lease acquired after a "
+					     "stage=%d -- execution lease acquired after a "
 					     "fencing-attempt takeover",
 					     dead_slot, dead_node,
 					     (unsigned long long)dead_epoch, rc);
@@ -16473,7 +16529,7 @@ static int v5_dead_grants_retire(struct mxfs_v5_dlm *ctx, uint32_t dead_slot,
 			 */
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "mxfs: P-TAUTH-COMPLETE-LEDGER-PURGEFAIL slot=%u node=%u rc=%d "
-				     "— ledger records of the dead identity remain; recovery is "
+				     "-- ledger records of the dead identity remain; recovery is "
 				     "NOT published (the slot stays frozen until a complete purge)",
 				     dead_slot, dead_node, rc);
 			V5_COMPLETE_HELD_FAIL(res, rc, "ledger-purge",
@@ -16570,7 +16626,7 @@ static int v5_recovery_complete_ladder(struct mxfs_v5_dlm *ctx,
 		/* Not marked pending (legacy path already purged) — nothing to
 		 * complete. */
 		mxfs_pal_log(MXFS_LOG_DEBUG,
-			     "mxfs: P163-COMPLETE-NOPEND slot=%u pending=%d — "
+			     "mxfs: P163-COMPLETE-NOPEND slot=%u pending=%d -- "
 			     "no pending node recorded; completion skipped",
 			     dead_slot,
 			     mxfs_disklock_recovery_is_pending(ctx->disklock,
@@ -16612,7 +16668,7 @@ static int v5_recovery_complete_ladder(struct mxfs_v5_dlm *ctx,
 								     (int)dead_slot, dead_node,
 								     dead_epoch);
 				mxfs_pal_log(MXFS_LOG_WARN,
-					     "mxfs: P234-COMPLETE-ALREADY slot=%u node=%u — the "
+					     "mxfs: P234-COMPLETE-ALREADY slot=%u node=%u -- the "
 					     "slot is already CONSUMABLE; another survivor "
 					     "published this recovery",
 					     dead_slot, dead_node);
@@ -16638,7 +16694,7 @@ static int v5_recovery_complete_ladder(struct mxfs_v5_dlm *ctx,
 									  dead_node, dead_epoch);
 				mxfs_pal_log(MXFS_LOG_WARN,
 					     "mxfs: P237-COMPLETE-SUPERSEDED slot=%u node=%u "
-					     "inc=%llu clear=%d — the victim rejoined and "
+					     "inc=%llu clear=%d -- the victim rejoined and "
 					     "replayed its own slice; our pending recovery is "
 					     "discharged, nothing purged, nothing published",
 					     dead_slot, dead_node,
@@ -16647,7 +16703,7 @@ static int v5_recovery_complete_ladder(struct mxfs_v5_dlm *ctx,
 			}
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "mxfs: P238-COMPLETE-UNFENCED slot=%u node=%u inc=%llu "
-				     "state=%d — this slice carries NO fence certificate, "
+				     "state=%d -- this slice carries NO fence certificate, "
 				     "so nothing may be purged, released or published.  "
 				     "The slice replay that got us here was not authorised "
 				     "either; the pending marker and heartbeat record stay "
@@ -16660,7 +16716,7 @@ static int v5_recovery_complete_ladder(struct mxfs_v5_dlm *ctx,
 		if (rc < 0) {
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "mxfs: P238-COMPLETE-UNAUTHORIZED slot=%u node=%u "
-				     "rc=%d — no recovery execution lease against a proven "
+				     "rc=%d -- no recovery execution lease against a proven "
 				     "exclusion, so NOTHING is purged and nothing is "
 				     "published; the pending marker and heartbeat record "
 				     "stay set for a retry",
@@ -16674,7 +16730,7 @@ static int v5_recovery_complete_ladder(struct mxfs_v5_dlm *ctx,
 		if (v5_complete_terminal_for(ctx, (int)dead_slot, &auth)) {
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "mxfs: P234-COMPLETE-TERMINAL-REFUSED slot=%u node=%u "
-				     "reason=%s — a terminating completion outcome stands "
+				     "reason=%s -- a terminating completion outcome stands "
 				     "for this recovery identity; not re-entering",
 				     dead_slot, dead_node,
 				     mxfs_recov_blocked_reason(ctx->blocked[dead_slot].reason));
@@ -16700,7 +16756,7 @@ static int v5_recovery_complete_ladder(struct mxfs_v5_dlm *ctx,
 		if (rc < 0) {
 			mxfs_v5_dlm_recovery_release(ctx, dead_slot);
 			mxfs_pal_log(MXFS_LOG_ERR,
-				     "mxfs: P238-COMPLETE-REFUSED slot=%u node=%u rc=%d — "
+				     "mxfs: P238-COMPLETE-REFUSED slot=%u node=%u rc=%d -- "
 				     "the gate refused at the last point before the "
 				     "irreversible purge; nothing is published",
 				     dead_slot, dead_node, rc);
@@ -16726,14 +16782,14 @@ static int v5_recovery_complete_ladder(struct mxfs_v5_dlm *ctx,
 			mxfs_recov_complete_inject = 0;
 			auth.owner_term++;
 			mxfs_pal_log(MXFS_LOG_ERR,
-				     "mxfs: P234-COMPLETE-INJECT slot=%u node=%u kind=2 — "
+				     "mxfs: P234-COMPLETE-INJECT slot=%u node=%u kind=2 -- "
 				     "auth owner_term corrupted to %u (test)",
 				     dead_slot, dead_node, auth.owner_term);
 		}
 		if (mxfs_recov_complete_inject == 1 ||
 		    mxfs_recov_complete_inject == 3) {
 			mxfs_pal_log(MXFS_LOG_ERR,
-				     "mxfs: P234-COMPLETE-INJECT slot=%u node=%u kind=%d — "
+				     "mxfs: P234-COMPLETE-INJECT slot=%u node=%u kind=%d -- "
 				     "forcing -EIO at the IMAGES_REPLAYED advance (test)",
 				     dead_slot, dead_node, mxfs_recov_complete_inject);
 			if (mxfs_recov_complete_inject == 3)
@@ -16757,7 +16813,7 @@ static int v5_recovery_complete_ladder(struct mxfs_v5_dlm *ctx,
 				if (!ctx->obl_pend[dead_slot].set) {
 					mxfs_pal_log(MXFS_LOG_ERR,
 						     "mxfs: P234-COMPLETE-NOCENSUS slot=%u node=%u "
-						     "— the ladder was entered below IMAGES_REPLAYED "
+						     "-- the ladder was entered below IMAGES_REPLAYED "
 						     "with no census verdict parked; nothing is "
 						     "published (the replayer must decide the "
 						     "census before completing)",
@@ -16777,7 +16833,7 @@ static int v5_recovery_complete_ladder(struct mxfs_v5_dlm *ctx,
 					if (rc < 0) {
 						mxfs_pal_log(MXFS_LOG_ERR,
 							     "mxfs: P226-OBL-OPEN-WRITEFAIL slot=%u "
-							     "node=%u rc=%d — the OPEN obligation list "
+							     "node=%u rc=%d -- the OPEN obligation list "
 							     "is not durable; nothing is published",
 							     dead_slot, dead_node, rc);
 						V5_COMPLETE_HELD_FAIL(res, rc, "obl-list-write",
@@ -16799,7 +16855,7 @@ static int v5_recovery_complete_ladder(struct mxfs_v5_dlm *ctx,
 		if (rc < 0) {
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "mxfs: P234-COMPLETE-REPLAYEDFAIL slot=%u node=%u "
-				     "rc=%d — the replay milestone is not durable; "
+				     "rc=%d -- the replay milestone is not durable; "
 				     "recovery is NOT published",
 				     dead_slot, dead_node, rc);
 			V5_COMPLETE_HELD_FAIL(res, rc, "replayed-advance",
@@ -16835,7 +16891,7 @@ static int v5_recovery_complete_ladder(struct mxfs_v5_dlm *ctx,
 					 * reachable from a record another transport wrote) */
 					mxfs_pal_log(MXFS_LOG_ERR,
 						     "mxfs: P-OBL-OPEN-UNSUPPORTED slot=%u node=%u "
-						     "count=%u seq=%u fswide=%d tcp=%d — this "
+						     "count=%u seq=%u fswide=%d tcp=%d -- this "
 						     "build completes AG-scoped obligations on the "
 						     "TCP transport only; the ladder holds "
 						     "(nothing purged, nothing released)",
@@ -16866,7 +16922,7 @@ static int v5_recovery_complete_ladder(struct mxfs_v5_dlm *ctx,
 				} else {
 					mxfs_pal_log(MXFS_LOG_DEBUG,
 						     "mxfs: P-OBL-OPEN-RETIRED slot=%u node=%u/%llu "
-						     "seq=%u — grants of this case were retired on "
+						     "seq=%u -- grants of this case were retired on "
 						     "an earlier pass; not repeating the "
 						     "remaster/purge trio",
 						     dead_slot, dead_node,
@@ -16874,7 +16930,7 @@ static int v5_recovery_complete_ladder(struct mxfs_v5_dlm *ctx,
 				}
 				mxfs_pal_log(MXFS_LOG_WARN,
 					     "mxfs: P-OBL-OPEN slot=%u node=%u/%llu count=%u "
-					     "ag_mask=0x%llx seq=%u — OPEN obligation case: "
+					     "ag_mask=0x%llx seq=%u -- OPEN obligation case: "
 					     "the dead node's grants are retired, its "
 					     "obligation AGs are frozen; handing the case to "
 					     "the completion engine",
@@ -16890,7 +16946,7 @@ static int v5_recovery_complete_ladder(struct mxfs_v5_dlm *ctx,
 					      !(dnow.flags & MXFS_RECOV_F_CENSUS_ZERO))) {
 				mxfs_pal_log(MXFS_LOG_ERR,
 					     "mxfs: P-OBL-UNDECIDED slot=%u node=%u rc=%d "
-					     "flags=0x%x — the obligation record does not "
+					     "flags=0x%x -- the obligation record does not "
 					     "validate or the census was never decided; the "
 					     "ladder holds (nothing purged, nothing released)",
 					     dead_slot, dead_node, rc, dnow.flags);
@@ -16930,7 +16986,7 @@ static int v5_recovery_complete_ladder(struct mxfs_v5_dlm *ctx,
 								   &info, NULL);
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "mxfs: P-RMAN-MUTATED-TERMINAL slot=%u node=%u "
-				     "publish_rc=%d — the victim's fence-time authority "
+				     "publish_rc=%d -- the victim's fence-time authority "
 				     "was mutated after the seal; terminal FSWIDE "
 				     "quarantine published, NOTHING purged, slice stays "
 				     "frozen (operator action)",
@@ -16945,7 +17001,7 @@ static int v5_recovery_complete_ladder(struct mxfs_v5_dlm *ctx,
 		if (rc) {
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "mxfs: P-RMAN-PREPURGE-UNDECIDED slot=%u node=%u "
-				     "rc=%d — could not revalidate the sealed manifest "
+				     "rc=%d -- could not revalidate the sealed manifest "
 				     "against the live table; recovery NOT published, "
 				     "completion will be retried",
 				     dead_slot, dead_node, rc);
@@ -16961,7 +17017,7 @@ static int v5_recovery_complete_ladder(struct mxfs_v5_dlm *ctx,
 		if (rc < 0) {
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "mxfs: P230-COMPLETE-CAWFAIL slot=%u node=%u rc=%d "
-				     "— the dead node's CAW authority bits could not be "
+				     "-- the dead node's CAW authority bits could not be "
 				     "purged, so its recovery is NOT published; the "
 				     "pending marker and heartbeat record stay set and "
 				     "the completion will be retried",
@@ -16976,7 +17032,7 @@ static int v5_recovery_complete_ladder(struct mxfs_v5_dlm *ctx,
 	if (rc) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P230-COMPLETE-FLUSHFAIL slot=%u node=%u rc=%d "
-			     "— cannot certify the replayed slice and the CAW purge "
+			     "-- cannot certify the replayed slice and the CAW purge "
 			     "are on the platter, so the recovery is NOT published",
 			     dead_slot, dead_node, rc);
 		V5_COMPLETE_HELD_FAIL(res, rc, "flush", 0, false);
@@ -16998,7 +17054,7 @@ static int v5_recovery_complete_ladder(struct mxfs_v5_dlm *ctx,
 	if (rc < 0) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P234-COMPLETE-RELEASEDFAIL slot=%u node=%u rc=%d "
-			     "— the CAW purge is durable but the milestone that "
+			     "-- the CAW purge is durable but the milestone that "
 			     "authorises the broadcast is not; recovery is NOT "
 			     "published and the descriptor keeps the slot frozen",
 			     dead_slot, dead_node, rc);
@@ -17068,7 +17124,7 @@ static int v5_recovery_complete_ladder(struct mxfs_v5_dlm *ctx,
 		if (rc < 0) {
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "mxfs: P-BOOT-COMPLETE-CASFAIL slot=%u node=%u rc=%d "
-				     "— the bootstrap record did not take the slot's "
+				     "-- the bootstrap record did not take the slot's "
 				     "tombstone + completion bit; the sector is NOT zeroed",
 				     dead_slot, dead_node, rc);
 			V5_COMPLETE_HELD_FAIL(res, rc, "bootstrap-bit",
@@ -17108,7 +17164,7 @@ static int v5_recovery_complete_ladder(struct mxfs_v5_dlm *ctx,
 	if (rc < 0) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P230-COMPLETE-PURGEFAIL slot=%u node=%u rc=%d "
-			     "— the broadcast (dead heartbeat zero) could not be "
+			     "-- the broadcast (dead heartbeat zero) could not be "
 			     "proven complete; recovery stays pending and peers keep "
 			     "their deferred purges armed",
 			     dead_slot, dead_node, rc);
@@ -17138,7 +17194,7 @@ static int v5_recovery_complete_ladder(struct mxfs_v5_dlm *ctx,
 						  dead_node, dead_epoch);
 	if (rc == -ESTALE)
 		mxfs_pal_log(MXFS_LOG_WARN,
-			     "mxfs: P237-COMPLETE-REARMED slot=%u node=%u inc=%llu — "
+			     "mxfs: P237-COMPLETE-REARMED slot=%u node=%u inc=%llu -- "
 			     "this recovery published, but the slot was re-armed for "
 			     "another victim while it ran; that one is still owed and "
 			     "its marker is deliberately left standing",
@@ -17150,19 +17206,27 @@ static int v5_recovery_complete_ladder(struct mxfs_v5_dlm *ctx,
 		v5_recovery_takeover_queue(ctx, dead_node, (uint64_t)dead_epoch,
 					   dead_slot, "recovery-complete");
 	v5_membership_beacon_caw(ctx);
+	/*
+	 * tcp_grace: how long the victim's TCP reconnect grace had been running
+	 * when this recovery published, or -1 when no grace was open for it.  A
+	 * value under mxfs_tcp_death_grace_ms is direct proof the publication
+	 * did not wait for the grace (the completion has no dependency on it;
+	 * this makes every run show that rather than infer it from timestamps).
+	 */
 	mxfs_pal_log(MXFS_LOG_WARN,
-		     "mxfs: P163-RECOVERY-COMPLETE slot=%u node=%u — slice "
+		     "mxfs: P163-RECOVERY-COMPLETE slot=%u node=%u -- slice "
 		     "replayed, shared purges done, dead slot zeroed (peers "
 		     "will run their deferred purges); ms: total=%llu "
 		     "lease+milestones=%llu purge+flush=%llu grants=%llu "
-		     "(ledger=%u tables=%u handoff=%u) zero=%llu",
+		     "(ledger=%u tables=%u handoff=%u) zero=%llu tcp_grace=%lld",
 		     dead_slot, dead_node,
 		     (unsigned long long)(mxfs_pal_time_ms() - t_entry),
 		     (unsigned long long)(t_gated - t_entry),
 		     (unsigned long long)(t_flushed - t_gated),
 		     (unsigned long long)(t_retired - t_flushed),
 		     res->ledger_ms, res->tables_ms, res->handoff_ms,
-		     (unsigned long long)(t_zeroed - t_retired));
+		     (unsigned long long)(t_zeroed - t_retired),
+		     v5_tcp_grace_age_ms(ctx, dead_node));
 	memset(&ctx->complete_retry[dead_slot], 0,
 	       sizeof(ctx->complete_retry[dead_slot]));
 	/* the case is published: the next occupant of this slot starts with no
@@ -17335,7 +17399,7 @@ int mxfs_v5_dlm_mount_cohort_complete(struct mxfs_v5_dlm *ctx,
 	if (first_err)
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P230-COHORT-PARTIAL requested=0x%llx "
-			     "published=0x%llx first_err=%d — the unpublished "
+			     "published=0x%llx first_err=%d -- the unpublished "
 			     "slices stay pending and will be retried",
 			     (unsigned long long)slots,
 			     (unsigned long long)published, first_err);
@@ -17359,7 +17423,7 @@ void mxfs_v5_dlm_bootstrap_terminal(struct mxfs_v5_dlm *ctx, uint32_t slot)
 	if (ctx->bootstrap->img.state == MXFS_BOOTSTRAP_REFUSED)
 		return;
 	mxfs_pal_log(MXFS_LOG_ERR,
-		     "mxfs: P-BOOT-TERMINAL-SLICE slot=%u — a sealed victim's "
+		     "mxfs: P-BOOT-TERMINAL-SLICE slot=%u -- a sealed victim's "
 		     "replay verdict is terminal; the whole-cluster bootstrap is "
 		     "REFUSED (no RECOVERY_COMPLETE, admission stays closed)",
 		     slot);
@@ -17380,7 +17444,7 @@ void mxfs_v5_dlm_bootstrap_k_refused(struct mxfs_v5_dlm *ctx, int rc)
 	arc = mxfs_bootstrap_escrow_advance(ctx->bootstrap,
 					    MXFS_BOOT_ESCROW_K_REPLAY_REFUSED, rc);
 	mxfs_pal_log(MXFS_LOG_ERR,
-		     "mxfs: P-BOOT-K-REFUSED slot=%d rc=%d escrow_rc=%d — the "
+		     "mxfs: P-BOOT-K-REFUSED slot=%d rc=%d escrow_rc=%d -- the "
 		     "adopted slice's own-log replay returned a TYPED refusal; "
 		     "the term is terminal (never a fallback slot)",
 		     ctx->boot_adopt_slot, rc, arc);
@@ -17416,7 +17480,7 @@ int mxfs_v5_dlm_bootstrap_finish(struct mxfs_v5_dlm *ctx)
 		return -ESTALE;
 	if (ctx->bootstrap->img.state == MXFS_BOOTSTRAP_REFUSED) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-BOOT-FINISH-REFUSED slot=%u reason=%s — the "
+			     "mxfs: P-BOOT-FINISH-REFUSED slot=%u reason=%s -- the "
 			     "term is terminal; the mount is refused",
 			     ctx->bootstrap->img.refused_slot,
 			     mxfs_bootstrap_refuse_name(
@@ -17444,7 +17508,7 @@ int mxfs_v5_dlm_bootstrap_finish(struct mxfs_v5_dlm *ctx)
 			ctx->bootstrap->img.registrants) {
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "mxfs: P-BOOT-FINISH-INCOMPLETE victims=0x%016llx "
-				     "complete=0x%016llx (K=%d) registrants=%u/%u — not "
+				     "complete=0x%016llx (K=%d) registrants=%u/%u -- not "
 				     "every sealed entry is resolved; the mount is refused "
 				     "and the term stands",
 				     (unsigned long long)ctx->bootstrap->img.victim_bitmap,
@@ -17478,7 +17542,7 @@ int mxfs_v5_dlm_bootstrap_finish(struct mxfs_v5_dlm *ctx)
 			if (mxfs_drbd_judge_peer_secondary(r, whyq, sizeof(whyq)) == 0) {
 				mxfs_pal_log(MXFS_LOG_WARN,
 					     "mxfs: P-BOOT-RECONCILE-DRBD-PEER-SECONDARY peer=%s "
-					     "roles=%s/%s disks=%s/%s — the peer holds no "
+					     "roles=%s/%s disks=%s/%s -- the peer holds no "
 					     "incarnation at completion",
 					     r->peer_host, r->role_local, r->role_peer,
 					     r->disk_local, r->disk_peer);
@@ -17491,7 +17555,7 @@ int mxfs_v5_dlm_bootstrap_finish(struct mxfs_v5_dlm *ctx)
 		mxfs_pal_free(r);
 		if (rc) {
 			mxfs_pal_log(MXFS_LOG_ERR,
-				     "mxfs: P-BOOT-RECONCILE-DRBD-LAPSED rc=%d why='%s' — the "
+				     "mxfs: P-BOOT-RECONCILE-DRBD-LAPSED rc=%d why='%s' -- the "
 				     "peer is no longer provably excluded at completion; mount "
 				     "refused, record left as it stands", rc, why);
 			return -ESTALE;
@@ -17517,7 +17581,7 @@ int mxfs_v5_dlm_bootstrap_finish(struct mxfs_v5_dlm *ctx)
 		if (!ok) {
 			unexplained++;
 			mxfs_pal_log(MXFS_LOG_ERR,
-				     "mxfs: P-BOOT-RECONCILE-KEY key=0x%llx — a registrant "
+				     "mxfs: P-BOOT-RECONCILE-KEY key=0x%llx -- a registrant "
 				     "the sealed manifest does not explain is on the target "
 				     "at completion", (unsigned long long)keys[k]);
 		}
@@ -17534,7 +17598,7 @@ int mxfs_v5_dlm_bootstrap_finish(struct mxfs_v5_dlm *ctx)
 	if (rc == 0 && !own_seen) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P-BOOT-RECONCILE-OWN-KEY-ABSENT key=0x%llx keys=%d "
-			     "gen=%u — the owner's registration is gone at completion; "
+			     "gen=%u -- the owner's registration is gone at completion; "
 			     "this node no longer holds the term's authority; mount "
 			     "refused, record left as it stands",
 			     (unsigned long long)ctx->pr_key, nkeys, gen);
@@ -17543,7 +17607,7 @@ int mxfs_v5_dlm_bootstrap_finish(struct mxfs_v5_dlm *ctx)
 	if (rc || unexplained) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P-BOOT-RECONCILE-FAILED rc=%d unexplained=%u keys=%d "
-			     "gen=%u — REFUSED", rc, unexplained, nkeys, gen);
+			     "gen=%u -- REFUSED", rc, unexplained, nkeys, gen);
 		if (rc == 0)
 			mxfs_bootstrap_refuse(ctx->bootstrap, MXFS_BOOT_MF_NO_SLOT,
 					      MXFS_BOOT_REFUSE_RECONCILE);
@@ -17567,7 +17631,7 @@ complete:
 	ctx->bootstrap_owner = false;
 	mxfs_pal_log(MXFS_LOG_WARN,
 		     "mxfs: P-BOOT-RECOVERY-COMPLETE term=%llu K=%d keys=%d gen=%u "
-		     "— the whole-cluster bootstrap is complete; this node is an "
+		     "-- the whole-cluster bootstrap is complete; this node is an "
 		     "ordinary ACTIVE member and admission is open",
 		     (unsigned long long)ctx->bootstrap->img.term,
 		     ctx->boot_adopt_slot, nkeys, gen);
@@ -17651,7 +17715,7 @@ static int v5_fence_capability_admit(struct mxfs_v5_dlm *ctx,
 	if (ctx->fence_capability_override && !ctx->single_node_exclusive) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P303-FENCECAP-OVERRIDE-REFUSED-CLUSTERED "
-			     "transport=%s rc=%d — fence_capability_override=1 alone "
+			     "transport=%s rc=%d -- fence_capability_override=1 alone "
 			     "no longer admits a clustered read-write mount on a "
 			     "device that cannot produce fencing evidence; a member "
 			     "that cannot be fenced would block the cluster on its "
@@ -17662,7 +17726,7 @@ static int v5_fence_capability_admit(struct mxfs_v5_dlm *ctx,
 	}
 	if (!ctx->fence_capability_override) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: %s mount REFUSED (%d) — this device cannot "
+			     "mxfs: %s mount REFUSED (%d) -- this device cannot "
 			     "produce fencing evidence, so a peer death here would "
 			     "leave an unrecoverable slice and block the cluster.  "
 			     "See the P303-FENCECAP-* line above for which condition "
@@ -17673,7 +17737,7 @@ static int v5_fence_capability_admit(struct mxfs_v5_dlm *ctx,
 		return ret;
 	}
 	mxfs_pal_log(MXFS_LOG_ERR,
-		     "mxfs: P303-FENCECAP-OVERRIDE transport=%s rc=%d — admission "
+		     "mxfs: P303-FENCECAP-OVERRIDE transport=%s rc=%d -- admission "
 		     "proceeding WITHOUT validated fencing capability because the "
 		     "operator set fence_capability_override=1.  This mount has "
 		     "WEAKER THAN PRODUCTION recovery semantics: a peer death may "
@@ -17749,7 +17813,7 @@ static void v5_refused_mount_stop_workers(struct mxfs_v5_dlm *ctx)
 		mxfs_pal_log(MXFS_LOG_WARN,
 			     "mxfs: P-MOUNT-REFUSED-WORKERS-STOPPED node=%u mask=0x%x "
 			     "(1 withdraw, 2 fence-retry, 4 settle, 8 resv-inspect, "
-			     "16 join) — workers the refused mount had started are "
+			     "16 join) -- workers the refused mount had started are "
 			     "joined before its context is freed",
 			     ctx->node_id, stopped);
 }
@@ -17792,7 +17856,7 @@ static void v5_mount_postregister_hold(struct mxfs_v5_dlm *ctx)
 	if (mxfs_mount_postregister_pause_ms <= 0)
 		return;
 	mxfs_pal_log(MXFS_LOG_DEBUG,
-		     "mxfs: P238-POSTREG-PAUSE node=%u key=0x%llx ms=%d — TEST "
+		     "mxfs: P238-POSTREG-PAUSE node=%u key=0x%llx ms=%d -- TEST "
 		     "ONLY: registered and published, holding before the "
 		     "heartbeat-slot claim so this node is a registrant that no "
 		     "peer sees as live",
@@ -17804,7 +17868,7 @@ static void v5_mount_postregister_hold(struct mxfs_v5_dlm *ctx)
 	 * catch, and one no test knob should be able to create. */
 	mxfs_pal_sleep_ms_interruptible((uint32_t)mxfs_mount_postregister_pause_ms);
 	mxfs_pal_log(MXFS_LOG_DEBUG,
-		     "mxfs: P238-POSTREG-RESUME node=%u — proceeding to the "
+		     "mxfs: P238-POSTREG-RESUME node=%u -- proceeding to the "
 		     "heartbeat-slot claim", ctx->node_id);
 }
 
@@ -17851,7 +17915,7 @@ static int v5_tcp_dead_gate_holder(struct mxfs_v5_dlm *ctx,
 	if (rc) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P-PR-DEADGATE-UNATTRIBUTED key=0x%llx gen=%u rc=%d "
-			     "— a single-holder Write Exclusive reservation is in force "
+			     "-- a single-holder Write Exclusive reservation is in force "
 			     "and the PR ledger names no owner for its key; the mount "
 			     "cannot tell whose gate it is (refused at publish)",
 			     (unsigned long long)pre->key, pre->generation, rc);
@@ -17865,7 +17929,7 @@ static int v5_tcp_dead_gate_holder(struct mxfs_v5_dlm *ctx,
 		return 0;
 	mxfs_pal_log(MXFS_LOG_WARN,
 		     "mxfs: P-PR-DEADGATE-SCAN key=0x%llx gen=%u ledger_node=%u "
-		     "ledger_state=%u window_ms=%u — a single-holder Write "
+		     "ledger_state=%u window_ms=%u -- a single-holder Write "
 		     "Exclusive gate is in force; watching the heartbeat table for "
 		     "one dead window before deciding whether its holder is dead",
 		     (unsigned long long)pre->key, pre->generation, ent.node_id,
@@ -17879,7 +17943,7 @@ static int v5_tcp_dead_gate_holder(struct mxfs_v5_dlm *ctx,
 	if (rc || unread) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P-PR-DEADGATE-SCAN-FAILED rc=%d unread=%u "
-			     "wall_ms=%llu — the heartbeat table could not be read; "
+			     "wall_ms=%llu -- the heartbeat table could not be read; "
 			     "the gate holder's liveness is unknown (refused at publish)",
 			     rc, unread, (unsigned long long)(mxfs_pal_time_ms() - t0));
 		mxfs_pal_free(e);
@@ -17888,7 +17952,7 @@ static int v5_tcp_dead_gate_holder(struct mxfs_v5_dlm *ctx,
 	if (moved) {
 		mxfs_pal_log(MXFS_LOG_WARN,
 			     "mxfs: P-PR-DEADGATE-LIVE moved=%u frozen=%u wall_ms=%llu "
-			     "— a heartbeat record advanced inside the dead window: a "
+			     "-- a heartbeat record advanced inside the dead window: a "
 			     "member is live and the gate is legitimately held; not "
 			     "preempting (refused at publish until the gate lifts)",
 			     moved, n, (unsigned long long)(mxfs_pal_time_ms() - t0));
@@ -17905,7 +17969,7 @@ static int v5_tcp_dead_gate_holder(struct mxfs_v5_dlm *ctx,
 	if (hit == n) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P-PR-DEADGATE-NORECORD key=0x%llx frozen=%u "
-			     "noident=%u wall_ms=%llu — no frozen heartbeat record "
+			     "noident=%u wall_ms=%llu -- no frozen heartbeat record "
 			     "carries the gate holder's key; its liveness is unproven "
 			     "(refused at publish)",
 			     (unsigned long long)pre->key, n, noident,
@@ -17915,7 +17979,7 @@ static int v5_tcp_dead_gate_holder(struct mxfs_v5_dlm *ctx,
 	}
 	mxfs_pal_log(MXFS_LOG_WARN,
 		     "mxfs: P-PR-DEADGATE-DEAD key=0x%llx slot=%u node=%u "
-		     "epoch=%llu frozen=%u wall_ms=%llu — the gate holder's "
+		     "epoch=%llu frozen=%u wall_ms=%llu -- the gate holder's "
 		     "heartbeat record did not move for a full dead window and no "
 		     "record did: the holder is dead by the same detector the "
 		     "bootstrap survivor scan uses; its key is preempted once this "
@@ -17962,7 +18026,7 @@ static int v5_drbd_arm(struct mxfs_v5_dlm *ctx)
 		rc = mxfs_drbd_judge_arm(r, why, sizeof(why));
 	if (rc) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-DRBD-ARM-REFUSED minor=%d — %s; a DRBD "
+			     "mxfs: P-DRBD-ARM-REFUSED minor=%d -- %s; a DRBD "
 			     "device is admitted only with its fence evidence "
 			     "(set the resource up as docs/drbd-setup.md shows)",
 			     ctx->drbd_minor, why);
@@ -17972,7 +18036,7 @@ static int v5_drbd_arm(struct mxfs_v5_dlm *ctx)
 	index = mxfs_drbd_participant_index(r);
 	if (index < 0) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-DRBD-ARM-REFUSED minor=%d — no participant "
+			     "mxfs: P-DRBD-ARM-REFUSED minor=%d -- no participant "
 			     "index from local=%s peer=%s",
 			     ctx->drbd_minor, r->local_addr, r->peer_addr);
 		rc = -EPERM;
@@ -17980,7 +18044,7 @@ static int v5_drbd_arm(struct mxfs_v5_dlm *ctx)
 	}
 	if (!ctx->bootstrap_offset) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-DRBD-ARM-REFUSED minor=%d — the volume has no "
+			     "mxfs: P-DRBD-ARM-REFUSED minor=%d -- the volume has no "
 			     "bootstrap region, so no sectors for the compare-and-swap",
 			     ctx->drbd_minor);
 		rc = -EPERM;
@@ -17994,7 +18058,7 @@ static int v5_drbd_arm(struct mxfs_v5_dlm *ctx)
 				      r->local_addr, r->peer_addr);
 	if (rc) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-DRBD-ARM-REFUSED minor=%d — the compare-and-"
+			     "mxfs: P-DRBD-ARM-REFUSED minor=%d -- the compare-and-"
 			     "swap could not be attached (rc=%d)",
 			     ctx->drbd_minor, rc);
 		goto out;
@@ -18007,7 +18071,7 @@ static int v5_drbd_arm(struct mxfs_v5_dlm *ctx)
 	 * asks the witness then, not after the TCP link's grace */
 	if (mxfs_pal_drbd_exclusion_watch(ctx->dev, v5_drbd_exclusion_notice, ctx))
 		mxfs_pal_log(MXFS_LOG_WARN,
-			     "mxfs: P-DRBD-EXCL-NOWATCH minor=%d — the handler's "
+			     "mxfs: P-DRBD-EXCL-NOWATCH minor=%d -- the handler's "
 			     "exclusion notice cannot reach this mount; a peer's death "
 			     "waits out the TCP link's timeout and grace",
 			     ctx->drbd_minor);
@@ -18119,7 +18183,7 @@ struct mxfs_v5_dlm *mxfs_v5_dlm_init(const struct mxfs_v5_dlm_opts *opts)
 		ctx->transport = MXFS_V5_TRANSPORT_TCP;
 		/* the packaged configuration, reported once per mount */
 		mxfs_pal_log(MXFS_LOG_INFO,
-			     "mxfs: force_transport=1 → TCP transport");
+			     "mxfs: force_transport=1 -> TCP transport");
 	}
 #endif
 	ctx->disklock_offset = opts->disklock_offset;
@@ -18213,7 +18277,7 @@ struct mxfs_v5_dlm *mxfs_v5_dlm_init(const struct mxfs_v5_dlm_opts *opts)
 						   fs_gen, &cen);
 		if (trc < 0) {
 			mxfs_pal_log(MXFS_LOG_ERR,
-				     "mxfs: P-TRANSPORT-SCAN-FAIL rc=%d — the heartbeat "
+				     "mxfs: P-TRANSPORT-SCAN-FAIL rc=%d -- the heartbeat "
 				     "slot table could not be read, so the cluster's "
 				     "transport is unknown; refusing the mount",
 				     trc);
@@ -18222,7 +18286,7 @@ struct mxfs_v5_dlm *mxfs_v5_dlm_init(const struct mxfs_v5_dlm_opts *opts)
 		if (cen.n_tcp > 0 && cen.n_caw > 0) {
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "mxfs: P-TRANSPORT-MIXED-REFUSED tcp=%d (slot %d) "
-				     "caw=%d (slot %d) unknown=%d — the platter already "
+				     "caw=%d (slot %d) unknown=%d -- the platter already "
 				     "carries tenures on BOTH DLM transports; refusing "
 				     "the mount until every slot of one side is "
 				     "released or recovered",
@@ -18233,7 +18297,7 @@ struct mxfs_v5_dlm *mxfs_v5_dlm_init(const struct mxfs_v5_dlm_opts *opts)
 		if (forced && cen.n_caw > 0) {
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "mxfs: P-TRANSPORT-MISMATCH-REFUSED forced=tcp "
-				     "platter=caw votes=%d (slot %d) unknown=%d — "
+				     "platter=caw votes=%d (slot %d) unknown=%d -- "
 				     "force_transport=1 selects a transport only when "
 				     "FORMING a cluster; this volume already has CAW "
 				     "tenures, so a TCP mount would run a second lock "
@@ -18247,7 +18311,7 @@ struct mxfs_v5_dlm *mxfs_v5_dlm_init(const struct mxfs_v5_dlm_opts *opts)
 			ctx->transport = MXFS_V5_TRANSPORT_TCP;
 			mxfs_pal_log(MXFS_LOG_WARN,
 				     "mxfs: P-TRANSPORT-ADOPTED tcp votes=%d (slot %d) "
-				     "unknown=%d — joining the cluster on the platter's "
+				     "unknown=%d -- joining the cluster on the platter's "
 				     "transport (TCP) instead of the module default",
 				     cen.n_tcp, cen.first_tcp, cen.n_unknown);
 		} else if (cen.n_tcp > 0 || cen.n_caw > 0) {
@@ -18284,7 +18348,7 @@ struct mxfs_v5_dlm *mxfs_v5_dlm_init(const struct mxfs_v5_dlm_opts *opts)
 	 */
 	if (ctx->drbd_minor >= 0 && ctx->transport != MXFS_V5_TRANSPORT_TCP) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-DRBD-TRANSPORT-REFUSED minor=%d — a DRBD device "
+			     "mxfs: P-DRBD-TRANSPORT-REFUSED minor=%d -- a DRBD device "
 			     "mounts with the network lock manager (force_transport=1) "
 			     "only",
 			     ctx->drbd_minor);
@@ -18323,7 +18387,7 @@ struct mxfs_v5_dlm *mxfs_v5_dlm_init(const struct mxfs_v5_dlm_opts *opts)
 		if (ctx->boot_resume_pending) {
 			ctx->node_id = ctx->boot_resume_node;
 			mxfs_pal_log(MXFS_LOG_DEBUG,
-				     "mxfs: P-BOOT-RESUME-IDENTITY node=%u epoch=%llu — "
+				     "mxfs: P-BOOT-RESUME-IDENTITY node=%u epoch=%llu -- "
 				     "adopting the resumed term's provisional identity "
 				     "before the TCP DLM and peer are built",
 				     ctx->node_id,
@@ -18417,7 +18481,7 @@ struct mxfs_v5_dlm *mxfs_v5_dlm_init(const struct mxfs_v5_dlm_opts *opts)
 		} else if (!ctx->scsipr) {
 			if (v5_prkey_setup(ctx)) {      /* ledger-selected key */
 				mxfs_pal_log(MXFS_LOG_ERR,
-					     "mxfs: TCP mount: PR key selection failed — "
+					     "mxfs: TCP mount: PR key selection failed -- "
 					     "aborting mount");
 				v5_tcp_transport_unwind(ctx);           /* */
 				goto err_scsipr;
@@ -18432,7 +18496,7 @@ struct mxfs_v5_dlm *mxfs_v5_dlm_init(const struct mxfs_v5_dlm_opts *opts)
 			     ctx->pr_key_gen != ctx->boot_resume_key_gen)) {
 				mxfs_pal_log(MXFS_LOG_ERR,
 					     "mxfs: P-BOOT-RESUME-KEY-MISMATCH ours=0x%llx/%u "
-					     "record=0x%llx/%u — the claimed term carries this "
+					     "record=0x%llx/%u -- the claimed term carries this "
 					     "boot's identity but not its key; refusing (not a "
 					     "resume, not a takeover)",
 					     (unsigned long long)ctx->pr_key, ctx->pr_key_gen,
@@ -18471,7 +18535,7 @@ struct mxfs_v5_dlm *mxfs_v5_dlm_init(const struct mxfs_v5_dlm_opts *opts)
 				    mxfs_scsipr_quarantine_active() ||
 				    v5_quarantine_reap() > 0) {
 					mxfs_pal_log(MXFS_LOG_ERR,
-						     "mxfs: P-PR-QUARANTINE-REFUSED — a previous "
+						     "mxfs: P-PR-QUARANTINE-REFUSED -- a previous "
 						     "mount's PR probe/settle or departure worker "
 						     "is still quarantined on this host; refusing "
 						     "the clustered mount");
@@ -18501,7 +18565,7 @@ struct mxfs_v5_dlm *mxfs_v5_dlm_init(const struct mxfs_v5_dlm_opts *opts)
 										   pre.key);
 					mxfs_pal_log(rrc ? MXFS_LOG_ERR : MXFS_LOG_WARN,
 						     "mxfs: P-PR-DEADGATE-FENCE key=0x%llx node=%u "
-						     "rc=%d — %s",
+						     "rc=%d -- %s",
 						     (unsigned long long)pre.key, dead_gate_node,
 						     rrc,
 						     rrc ? "the dead gate holder could not be "
@@ -18512,7 +18576,7 @@ struct mxfs_v5_dlm *mxfs_v5_dlm_init(const struct mxfs_v5_dlm_opts *opts)
 				if (rrc) {
 					mxfs_pal_log(MXFS_LOG_ERR,
 						     "mxfs: TCP mount: SCSI PR register failed (%d)%s "
-						     "— aborting mount", rrc,
+						     "-- aborting mount", rrc,
 						     rrc == -EEXIST ? " (predecessor key present "
 						     "on this nexus, see P305 above)" : "");
 					v5_tcp_transport_unwind(ctx);
@@ -18531,7 +18595,7 @@ struct mxfs_v5_dlm *mxfs_v5_dlm_init(const struct mxfs_v5_dlm_opts *opts)
 					 * register (via -EOPNOTSUPP) and proceeds as
 					 * before. */
 					mxfs_pal_log(MXFS_LOG_ERR,
-						     "mxfs: TCP SCSI PR register failed — "
+						     "mxfs: TCP SCSI PR register failed -- "
 						     "aborting mount (node would be unfenced "
 						     "under a possible WE-RO reservation)");
 					/* a REGISTER that landed but whose ledger
@@ -18553,7 +18617,7 @@ struct mxfs_v5_dlm *mxfs_v5_dlm_init(const struct mxfs_v5_dlm_opts *opts)
 					 * means the LU carries a reservation this build does not
 					 * fence under. */
 					mxfs_pal_log(MXFS_LOG_ERR,
-						     "mxfs: TCP SCSI PR reserve failed — aborting "
+						     "mxfs: TCP SCSI PR reserve failed -- aborting "
 						     "mount (see the P304-RESV-* line above)");
 					v5_tcp_transport_unwind(ctx);       /* */
 					goto err_scsipr;
@@ -18626,14 +18690,14 @@ struct mxfs_v5_dlm *mxfs_v5_dlm_init(const struct mxfs_v5_dlm_opts *opts)
 				ret = v5_bootstrap_setup(ctx);
 				if (ret == -ENOENT) {
 					mxfs_pal_log(MXFS_LOG_ERR,
-						     "mxfs: P-BOOT-TCP-NOT-GATED — bootstrap "
+						     "mxfs: P-BOOT-TCP-NOT-GATED -- bootstrap "
 						     "record unavailable on the TCP transport; "
 						     "continuing without the owner-liveness view "
 						     "AND without whole-cluster recovery");
 					ret = 0;
 				} else if (ret) {
 					mxfs_pal_log(MXFS_LOG_ERR,
-						     "mxfs: P-BOOT-SETUP-REFUSED rc=%d — the bootstrap "
+						     "mxfs: P-BOOT-SETUP-REFUSED rc=%d -- the bootstrap "
 						     "record forbids an ordinary mount now (see the "
 						     "P-BOOT-* line above); refusing", ret);
 					v5_tcp_transport_unwind(ctx);
@@ -18683,7 +18747,7 @@ struct mxfs_v5_dlm *mxfs_v5_dlm_init(const struct mxfs_v5_dlm_opts *opts)
 					ret = v5_p305_settle_retire_pending(ctx);
 					if (ret) {
 						mxfs_pal_log(MXFS_LOG_ERR,
-							     "mxfs: TCP mount REFUSED (%d) — this "
+							     "mxfs: TCP mount REFUSED (%d) -- this "
 							     "boot's previous release could not be "
 							     "settled (see the P305-RETIRE-* line "
 							     "above)", ret);
@@ -18746,7 +18810,7 @@ tcp_bootstrap_again:
 					ret = v5_bootstrap_run(ctx);
 					if (ret) {
 						mxfs_pal_log(MXFS_LOG_ERR,
-							     "mxfs: P-BOOT-MOUNT-REFUSED rc=%d — see "
+							     "mxfs: P-BOOT-MOUNT-REFUSED rc=%d -- see "
 							     "the P-BOOT-* lines above", ret);
 						v5_tcp_transport_unwind(ctx);
 						goto err_disklock;
@@ -18769,7 +18833,7 @@ tcp_bootstrap_again:
 						boot_restarts++;
 						mxfs_pal_log(MXFS_LOG_DEBUG,
 							     "mxfs: P300-CLAIM-WAIT-RESTART-BOOTSTRAP "
-							     "attempt=%d/%d — every peer fell silent "
+							     "attempt=%d/%d -- every peer fell silent "
 							     "during the claim wait; re-running the "
 							     "whole-cluster bootstrap in this mount",
 							     boot_restarts,
@@ -18799,7 +18863,7 @@ tcp_bootstrap_again:
 						if (trc) {
 							mxfs_pal_log(MXFS_LOG_ERR,
 								     "mxfs: P-TAUTH-MOUNT-REFUSE ledger open "
-								     "rc=%d (offset=%llu) — refusing mount",
+								     "rc=%d (offset=%llu) -- refusing mount",
 								     trc, (unsigned long long)ctx->tauth_offset);
 							mxfs_disklock_destroy(ctx->disklock);
 							ctx->disklock = NULL;
@@ -18807,6 +18871,13 @@ tcp_bootstrap_again:
 							goto err_scsipr;
 						}
 						ctx->tauth_open = true;
+						/* a DRBD device's swaps and FUA writes are
+						 * durable on both replicas as they complete,
+						 * and its empty flush is local: the commit
+						 * needs no flush (tauth_store.h) */
+						ctx->tauth.store.fua_durable = ctx->drbd_minor >= 0;
+						/* and one swap there writes a whole page */
+						ctx->tauth.store.span_commit = ctx->drbd_minor >= 0;
 						ctx->dlm->slot_node_cb = v5_slot_node_cb;
 						ctx->dlm->bootstrap_cb = v5_bootstrap_cb;
 						ctx->dlm->bootstrap_node_cb = v5_bootstrap_node_cb;
@@ -18829,7 +18900,7 @@ tcp_bootstrap_again:
 					 * no journal, no mount. */
 					mxfs_pal_log(MXFS_LOG_ERR,
 						     "mxfs: claim_slot failed (%d) on a volume "
-						     "with %u log slices — refusing to derive an "
+						     "with %u log slices -- refusing to derive an "
 						     "unclaimed slot; aborting mount",
 						     node_slot, ctx->log_node_count);
 					mxfs_disklock_destroy(ctx->disklock);
@@ -18849,7 +18920,7 @@ tcp_bootstrap_again:
 					ctx->node_slot =
 					    (int)(ctx->node_id % MXFS_DISKLOCK_HB_SLOTS);
 					mxfs_pal_log(MXFS_LOG_WARN,
-						     "mxfs: claim_slot failed (%d) — fallback "
+						     "mxfs: claim_slot failed (%d) -- fallback "
 						     "node_slot=%d derived from node_id %u",
 						     node_slot, ctx->node_slot, ctx->node_id);
 				}
@@ -18891,7 +18962,7 @@ tcp_bootstrap_again:
 				ret = mxfs_disklock_join_gate(ctx->disklock, 0);
 				if (ret) {
 					mxfs_pal_log(MXFS_LOG_ERR,
-						     "mxfs: C7 version gate refused join (%d) — "
+						     "mxfs: C7 version gate refused join (%d) -- "
 						     "aborting cluster mount (tcp)", ret);
 					mxfs_disklock_stop_heartbeat(ctx->disklock);
 					mxfs_disklock_release_slot(ctx->disklock);
@@ -19047,7 +19118,7 @@ tcp_bootstrap_again:
 						     foreign, have, waited);
 				else
 					mxfs_pal_log(MXFS_LOG_WARN,
-						     "mxfs: P-MEMB-SETTLE-TIMEOUT %d active foreign slot(s) on LUN but lease sees only %d node(s) after %dms — proceeding (slots may be dead; monitor will evict)",
+						     "mxfs: P-MEMB-SETTLE-TIMEOUT %d active foreign slot(s) on LUN but lease sees only %d node(s) after %dms -- proceeding (slots may be dead; monitor will evict)",
 						     foreign, have, waited);
 			}
 		}
@@ -19088,7 +19159,7 @@ tcp_bootstrap_again:
 		    ctx->pr_key_gen != ctx->boot_resume_key_gen) {
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "mxfs: P-BOOT-RESUME-KEY-MISMATCH ours=0x%llx/%u "
-				     "record=0x%llx/%u — the claimed term carries this "
+				     "record=0x%llx/%u -- the claimed term carries this "
 				     "boot's identity but not its key; refusing (not a "
 				     "resume, not a takeover)",
 				     (unsigned long long)ctx->pr_key, ctx->pr_key_gen,
@@ -19098,7 +19169,7 @@ tcp_bootstrap_again:
 		}
 		ctx->node_id = ctx->boot_resume_node;
 		mxfs_pal_log(MXFS_LOG_DEBUG,
-			     "mxfs: P-BOOT-RESUME-IDENTITY node=%u epoch=%llu — "
+			     "mxfs: P-BOOT-RESUME-IDENTITY node=%u epoch=%llu -- "
 			     "adopting the resumed term's provisional identity",
 			     ctx->node_id, (unsigned long long)ctx->boot_resume_epoch);
 	}
@@ -19121,7 +19192,7 @@ tcp_bootstrap_again:
 		    mxfs_scsipr_quarantine_active() ||
 		    v5_quarantine_reap() > 0) {
 			mxfs_pal_log(MXFS_LOG_ERR,
-				     "mxfs: P-PR-QUARANTINE-REFUSED — a previous mount's "
+				     "mxfs: P-PR-QUARANTINE-REFUSED -- a previous mount's "
 				     "PR probe/settle thread is still quarantined on this "
 				     "host (see P-PR-PROBE-STUCK / P304-RETIRE-WORKER-"
 				     "STUCK); refusing the clustered mount");
@@ -19149,7 +19220,7 @@ tcp_bootstrap_again:
 		}
 		if (ret) {
 			mxfs_pal_log(MXFS_LOG_ERR,
-				     "mxfs: CAW mount: SCSI PR register failed (%d) — "
+				     "mxfs: CAW mount: SCSI PR register failed (%d) -- "
 				     "refusing to join unfenced%s", ret,
 				     ret == -EEXIST ? " (predecessor key present on "
 				     "this nexus, see P305 above)" : "");
@@ -19165,7 +19236,7 @@ tcp_bootstrap_again:
 					    ctx->pr_succeeded ? &ctx->pr_succ : NULL);
 		if (ret) {
 			mxfs_pal_log(MXFS_LOG_ERR,
-				     "mxfs: CAW mount: ledger publish failed (%d) — "
+				     "mxfs: CAW mount: ledger publish failed (%d) -- "
 				     "refusing to hold a registration the ledger does "
 				     "not own; unregistering", ret);
 			goto err_scsipr;
@@ -19177,7 +19248,7 @@ tcp_bootstrap_again:
 		ret = mxfs_scsipr_reserve(ctx->scsipr);
 		if (ret) {
 			mxfs_pal_log(MXFS_LOG_ERR,
-				     "mxfs: CAW mount: SCSI PR reserve failed (%d) — "
+				     "mxfs: CAW mount: SCSI PR reserve failed (%d) -- "
 				     "refusing to join without the reservation this build "
 				     "fences under (see the P304-RESV-* line above)", ret);
 			goto err_scsipr;
@@ -19241,7 +19312,7 @@ tcp_bootstrap_again:
 		ret = v5_p305_settle_retire_pending(ctx);
 		if (ret) {
 			mxfs_pal_log(MXFS_LOG_ERR,
-				     "mxfs: CAW mount REFUSED (%d) — this boot's previous "
+				     "mxfs: CAW mount REFUSED (%d) -- this boot's previous "
 				     "release could not be settled (see the P305-RETIRE-* "
 				     "line above)", ret);
 			goto err_disklock;
@@ -19277,7 +19348,7 @@ tcp_bootstrap_again:
 						 ctx->pr_key, ctx->pr_key_gen);
 		if (ret) {
 			mxfs_pal_log(MXFS_LOG_ERR,
-				     "mxfs: P-PRKEY-IDENTITY-INSTALL rc=%d — refusing to "
+				     "mxfs: P-PRKEY-IDENTITY-INSTALL rc=%d -- refusing to "
 				     "claim a slot whose records would carry no key", ret);
 			mxfs_disklock_destroy(ctx->disklock);
 			goto err_scsipr;
@@ -19302,7 +19373,7 @@ bootstrap_again:
 		ret = v5_bootstrap_run(ctx);
 		if (ret) {
 			mxfs_pal_log(MXFS_LOG_ERR,
-				     "mxfs: P-BOOT-MOUNT-REFUSED rc=%d — see the P-BOOT-* "
+				     "mxfs: P-BOOT-MOUNT-REFUSED rc=%d -- see the P-BOOT-* "
 				     "lines above", ret);
 			goto err_disklock;
 		}
@@ -19324,7 +19395,7 @@ bootstrap_again:
 			boot_restarts++;
 			mxfs_pal_log(MXFS_LOG_DEBUG,
 				     "mxfs: P300-CLAIM-WAIT-RESTART-BOOTSTRAP attempt=%d/%d "
-				     "— every peer fell silent during the claim wait; "
+				     "-- every peer fell silent during the claim wait; "
 				     "re-running the whole-cluster bootstrap in this "
 				     "mount", boot_restarts,
 				     MXFS_V5_CLAIM_BOOTSTRAP_RESTARTS);
@@ -19371,7 +19442,7 @@ bootstrap_again:
 		if (cap != MXFS_CAW_CAP_OK) {
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "mxfs: P311-CAW-ADMISSION-REFUSED cap=%s rc=%d "
-				     "slot=%d single_node_exclusive=%d — this device "
+				     "slot=%d single_node_exclusive=%d -- this device "
 				     "does not execute the lock-slot COMPARE AND WRITE "
 				     "%s; refusing the CAW-transport mount rather than "
 				     "admitting it and failing every lock acquire (-95). "
@@ -19382,14 +19453,14 @@ bootstrap_again:
 				     cap == MXFS_CAW_CAP_TRANSIENT ?
 					 "(ambiguous I/O outcome: retry the mount)" :
 				     cap == MXFS_CAW_CAP_FENCED ?
-					 "— NOT a device fault: the target refused this "
+					 "-- NOT a device fault: the target refused this "
 					 "node's I/O with RESERVATION CONFLICT, so its "
 					 "registration was preempted and it is FENCED; "
 					 "retrying will not help until the cluster has "
 					 "recovered it" :
 					 "(SEMANTIC VIOLATION: the target reported "
 					 "success on a mismatching compare or changed "
-					 "the record — unsuitable for a lock table)",
+					 "the record -- unsuitable for a lock table)",
 						 ctx->single_node_exclusive ?
 						 "The lone SNLOCAL_EXCLUSIVE authority mode for "
 						 "CAW-less devices is not implemented yet (D-0359 "
@@ -19470,7 +19541,7 @@ bootstrap_again:
 		if (retained > 0) {
 			mxfs_dlm_caw_set_adopt_window(ctx->dlm_caw, true);
 			mxfs_pal_log(MXFS_LOG_WARN,
-				     "mxfs: P225-ADOPT-WINDOW open (retained=%d) — "
+				     "mxfs: P225-ADOPT-WINDOW open (retained=%d) -- "
 				     "acquires will adopt retained authority by CAS "
 				     "until the post-recovery settle", retained);
 		}
@@ -19519,7 +19590,7 @@ bootstrap_again:
 	ret = mxfs_disklock_join_gate(ctx->disklock, 0);
 	if (ret) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: C7 version gate refused join (%d) — "
+			     "mxfs: C7 version gate refused join (%d) -- "
 			     "aborting cluster mount", ret);
 		mxfs_disklock_stop_heartbeat(ctx->disklock);
 		if (!ctx->bootstrap_owner)          /* K stays for the resume */
@@ -19581,7 +19652,7 @@ bootstrap_again:
 			}
 
 			mxfs_pal_log(MXFS_LOG_WARN,
-				     "mxfs: P225-STALE-DEFERRED mask=0x%llx — %d "
+				     "mxfs: P225-STALE-DEFERRED mask=0x%llx -- %d "
 				     "cross-instance slot(s) held authority at mount; "
 				     "deferring reclaim to post-recovery settle",
 				     (unsigned long long)stale_mask, nstale);
@@ -19610,7 +19681,7 @@ bootstrap_again:
 			if (wmask) {
 				ctx->mount_stale_mask |= wmask;
 				mxfs_pal_log(MXFS_LOG_WARN,
-					     "mxfs: P276-WITHDRAWN-AT-MOUNT mask=0x%llx — "
+					     "mxfs: P276-WITHDRAWN-AT-MOUNT mask=0x%llx -- "
 					     "voluntarily-withdrawn dirty slice(s) present; "
 					     "folding into the mount recovery cohort for "
 					     "inline replay",
@@ -19732,7 +19803,7 @@ bootstrap_again:
 					     foreign, have, waited);
 			else
 				mxfs_pal_log(MXFS_LOG_WARN,
-					     "mxfs: P-MEMB-SETTLE-TIMEOUT %d active foreign slot(s) on LUN but lease sees only %d node(s) after %dms — proceeding (slots may be dead; monitor will evict)",
+					     "mxfs: P-MEMB-SETTLE-TIMEOUT %d active foreign slot(s) on LUN but lease sees only %d node(s) after %dms -- proceeding (slots may be dead; monitor will evict)",
 					     foreign, have, waited);
 		}
 	}
@@ -19753,7 +19824,7 @@ err_disklock:
 	 * the same), so refuse to free under it. */
 	if (v5_retire_worker_stop(ctx) == -ETIMEDOUT) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P304-RETIRE-QUARANTINE at mount refusal — DLM "
+			     "mxfs: P304-RETIRE-QUARANTINE at mount refusal -- DLM "
 			     "context leaked with the stuck worker");
 		if (ctx->departure_locked) {
 			ctx->departure_locked = false;
@@ -19859,17 +19930,17 @@ bool mxfs_v5_dlm_poison(struct mxfs_v5_dlm *ctx, const char *why)
 	WRITE_ONCE(ctx->withdrawn, true);
 	if (prior == MXFS_V5_DEPART_CLEAN_LEAVE) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-POISON-AFTER-CLEAN-LEAVE node %u (%s) — a "
+			     "mxfs: P-POISON-AFTER-CLEAN-LEAVE node %u (%s) -- a "
 			     "poison source ran AFTER the teardown had committed a "
 			     "clean departure; the goodbye/slot release already "
 			     "published cannot be recalled.  Unreachable by design "
 			     "(every drain/producer is quiesced before the commit) "
-			     "— a DEFECT if seen",
+			     "-- a DEFECT if seen",
 			     ctx->node_id, why ? why : "?");
 		return false;
 	}
 	mxfs_pal_log(MXFS_LOG_WARN,
-		     "mxfs: P-SESSION-POISON node %u (%s) — departure state "
+		     "mxfs: P-SESSION-POISON node %u (%s) -- departure state "
 		     "POISONED: no goodbye, no clean slot release, no wire "
 		     "unlock; peers recover this node via fence + replay",
 		     ctx->node_id, why ? why : "?");
@@ -19893,7 +19964,7 @@ static int v5_tcp_release_gate(struct mxfs_v5_dlm *ctx, const char *what,
 	if (mxfs_atomic32_get(&ctx->depart_state) != MXFS_V5_DEPART_POISONED)
 		return 0;
 	mxfs_pal_log(MXFS_LOG_WARN,
-		     "mxfs: P-TCP-RELEASE-POISONED %s=%llu — wire release "
+		     "mxfs: P-TCP-RELEASE-POISONED %s=%llu -- wire release "
 		     "REFUSED: session poisoned (grant stays in the master's "
 		     "table until fence + replay)", what, id);
 	return -ESHUTDOWN;
@@ -19929,7 +20000,7 @@ static int v5_caw_release_gate(struct mxfs_v5_dlm *ctx, const char *what,
 	n = mxfs_atomic32_inc(&poisoned_refusals);
 	if (n <= 64 || (n & 1023) == 0)
 		mxfs_pal_log(MXFS_LOG_WARN,
-			     "mxfs: P306-CAW-RELEASE-POISONED %s=%llu — on-disk "
+			     "mxfs: P306-CAW-RELEASE-POISONED %s=%llu -- on-disk "
 			     "release REFUSED (%d so far): session poisoned, the "
 			     "grant stays held by this WITHDRAWN incarnation as "
 			     "manifest evidence until a survivor fences and replays "
@@ -19950,7 +20021,7 @@ static void v5_depart_race_inject(struct mxfs_v5_dlm *ctx, int point)
 		return;
 	mxfs_dbg_depart_race = 0;
 	mxfs_pal_log(MXFS_LOG_WARN,
-		     "mxfs: P-DEPART-RACE-INJECT point=%d node %u — poisoning "
+		     "mxfs: P-DEPART-RACE-INJECT point=%d node %u -- poisoning "
 		     "the session from inside the teardown", point, ctx->node_id);
 	mxfs_v5_dlm_poison(ctx, "inject");
 }
@@ -19971,7 +20042,7 @@ void mxfs_v5_dlm_shutdown_withdraw(struct mxfs_v5_dlm *ctx)
 	if (mxfs_atomic32_cmpxchg(&ctx->withdraw_once, 0, 1) != 0)
 		return;
 	mxfs_pal_log(MXFS_LOG_WARN,
-		     "mxfs: P-WITHDRAW — FS shut down; declaring voluntary "
+		     "mxfs: P-WITHDRAW -- FS shut down; declaring voluntary "
 		     "death (acquires fenced, grants FROZEN until peers "
 		     "replay our journal slice)");
 	/*
@@ -20148,7 +20219,7 @@ void mxfs_v5_dlm_shutdown_defer_release(struct mxfs_v5_dlm *ctx,
 
 			if (left)
 				mxfs_pal_log(MXFS_LOG_DEBUG,
-					     "mxfs: P-TAUTH-DEPART-LEFT node=%u pages=%d — "
+					     "mxfs: P-TAUTH-DEPART-LEFT node=%u pages=%d -- "
 					     "successor takeover on GOODBYE completes them",
 					     ctx->node_id, left);
 		}
@@ -20179,7 +20250,7 @@ void mxfs_v5_dlm_shutdown_defer_release(struct mxfs_v5_dlm *ctx,
 	 */
 	if (depart_clean && ctx->bootstrap_owner && !ctx->boot_finished) {
 		mxfs_pal_log(MXFS_LOG_WARN,
-			     "mxfs: P-BOOT-DEPART-UNFINISHED slot=%d K=%d — leaving "
+			     "mxfs: P-BOOT-DEPART-UNFINISHED slot=%d K=%d -- leaving "
 			     "the adopted record ACTIVE|BOOTSTRAP_PENDING under the "
 			     "unfinished term (no clean release, no GOODBYE)",
 			     ctx->node_slot, ctx->boot_adopt_slot);
@@ -20187,7 +20258,7 @@ void mxfs_v5_dlm_shutdown_defer_release(struct mxfs_v5_dlm *ctx,
 	}
 	if (!ctx->withdrawn && !depart_clean && !ctx->bootstrap_owner)
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P259-DEPART-UNCLEAN node %u — CAW teardown could "
+			     "mxfs: P259-DEPART-UNCLEAN node %u -- CAW teardown could "
 			     "not account for this node's slot bits; suppressing the "
 			     "GOODBYE and keeping the heartbeat record ACTIVE so peers "
 			     "fence and replay this node instead of reclaiming it",
@@ -20215,7 +20286,7 @@ void mxfs_v5_dlm_shutdown_defer_release(struct mxfs_v5_dlm *ctx,
 		if (prior != MXFS_V5_DEPART_ACTIVE) {
 			depart_clean = false;
 			mxfs_pal_log(MXFS_LOG_ERR,
-				     "mxfs: P-DEPART-POISON-WINS node %u state=%d — the "
+				     "mxfs: P-DEPART-POISON-WINS node %u state=%d -- the "
 				     "session was poisoned after the teardown's withdrawn "
 				     "read; clean departure REFUSED (no GOODBYE, heartbeat "
 				     "record stays ACTIVE) so peers fence and replay us",
@@ -20287,7 +20358,7 @@ void mxfs_v5_dlm_shutdown_defer_release(struct mxfs_v5_dlm *ctx,
 
 		mxfs_dbg_teardown_lease_hold_ms = 0;
 		mxfs_pal_log(MXFS_LOG_DEBUG,
-			     "mxfs: P-DBG-TEARDOWN-LEASE-HOLD node=%u hold_ms=%d — "
+			     "mxfs: P-DBG-TEARDOWN-LEASE-HOLD node=%u hold_ms=%d -- "
 			     "teardown held after the lease stop, peer transport live",
 			     ctx->node_id, hold);
 		mxfs_pal_sleep_ms(hold);
@@ -20441,7 +20512,7 @@ void mxfs_v5_dlm_shutdown_defer_release(struct mxfs_v5_dlm *ctx,
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P304-RETIRE-QUARANTINE DLM context %p leaked "
 			     "(disklock, scsipr, dev clone, queue%s) until the stuck "
-			     "worker exits; module pinned — no clustered mount is "
+			     "worker exits; module pinned -- no clustered mount is "
 			     "admitted on this host meanwhile", ctx,
 			     ctx->depart_quarantined ? ", engine, ledger" : "");
 		return;
@@ -20475,7 +20546,7 @@ void mxfs_v5_dlm_shutdown_defer_release(struct mxfs_v5_dlm *ctx,
 	if (ctx->mphase_dead_mask)
 		mxfs_pal_log(MXFS_LOG_WARN,
 			     "mxfs: P233-MPHASE-UNDISPATCHED mask=0x%llx at DLM "
-			     "teardown — peer(s) died during this mount and their "
+			     "teardown -- peer(s) died during this mount and their "
 			     "slices were never dispatched for replay.  They stay "
 			     "fenced, grant-frozen and recovery-pending on disk; "
 			     "the next mount or a survivor's re-election sweep "
@@ -20551,7 +20622,7 @@ bool mxfs_v5_dlm_slot_release_commit(struct mxfs_v5_dlm_slot_release *late,
 	if (!late || !late->disklock) {
 		mxfs_pal_log(MXFS_LOG_INFO,
 			     "mxfs: P278-LATE-RELEASE no deferred slot to commit "
-			     "(late=%d disklock=%d) — shutdown did not hand one out",
+			     "(late=%d disklock=%d) -- shutdown did not hand one out",
 			     late != NULL, late && late->disklock != NULL);
 		return false;
 	}
@@ -20571,7 +20642,7 @@ bool mxfs_v5_dlm_slot_release_commit(struct mxfs_v5_dlm_slot_release *late,
 		released = (rc == 0);
 	} else {
 		mxfs_pal_log(MXFS_LOG_WARN,
-			     "mxfs: P277-SLOT-RETAINED-UNMOUNT-DIRTY — the unmount "
+			     "mxfs: P277-SLOT-RETAINED-UNMOUNT-DIRTY -- the unmount "
 			     "record did not reach the platter (log shut down during "
 			     "xfs_unmountfs); keeping the heartbeat slot ACTIVE so "
 			     "peers fence and recover this node's journal slice "
@@ -20596,7 +20667,7 @@ int mxfs_v5_dlm_slot_retire_complete(struct mxfs_v5_dlm_slot_release *late)
 		return -ENOENT;
 	if (!late->self_retire_ok) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P304-RETIRE-SELF-REFUSED-CLUSTERED — this mount "
+			     "mxfs: P304-RETIRE-SELF-REFUSED-CLUSTERED -- this mount "
 			     "was admitted under a fence capability, so 'no PR key "
 			     "to retire' is not a proof it may write for itself; the "
 			     "released record stays RETIRE_PENDING until a node with "
@@ -21655,7 +21726,7 @@ join:
 		 * scope and nothing below is safe to assert */
 		mxfs_dlm_caw_test_arm(MXFS_CAW_TK_DOW_SLOT, 0);
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P275-SAMENODE FAIL run=%u mode=recycled ino=%llu step=join-stuck rc=%d — the attempt thread did not return within %u ms; leaking",
+			     "mxfs: P275-SAMENODE FAIL run=%u mode=recycled ino=%llu step=join-stuck rc=%d -- the attempt thread did not return within %u ms; leaking",
 			     run, (unsigned long long)ino, rc,
 			     MXFS_SAMENODE_JOIN_MS);
 		return -ETIMEDOUT;
@@ -22011,7 +22082,7 @@ join:
 		/* a thread never returned: nothing below is safe to assert
 		 * and the attempt structs must not go out of scope */
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P275-SAMENODE FAIL run=%u mode=%s ino=%llu step=join-stuck rc=%d — attempt thread(s) did not return within %u ms; leaking",
+			     "mxfs: P275-SAMENODE FAIL run=%u mode=%s ino=%llu step=join-stuck rc=%d -- attempt thread(s) did not return within %u ms; leaking",
 			     run, mode_name[mode], (unsigned long long)ino, rc,
 			     MXFS_SAMENODE_JOIN_MS);
 		WRITE_ONCE(ctx->samenode_bast_guard, false);
@@ -22471,7 +22542,7 @@ int mxfs_v5_dlm_inode_open_holders(struct mxfs_v5_dlm *ctx, uint64_t ino,
 		if (raw != eff)
 			mxfs_pal_log(MXFS_LOG_DEBUG,
 				     "mxfs: P977-OPEN-RESIDUE ino=%llu raw=0x%llx effective=0x%llx "
-				     "— marks in unoccupied heartbeat slots ignored",
+				     "-- marks in unoccupied heartbeat slots ignored",
 				     (unsigned long long)ino, (unsigned long long)raw,
 				     (unsigned long long)eff);
 		*oh_out = eff;
@@ -22840,7 +22911,7 @@ int mxfs_v5_dlm_lu_reset_barrier(struct mxfs_v5_dlm *ctx,
 		     "mxfs: P307-LURESET-BARRIER node %u victim=%u held=%d arm=%s "
 		     "beat_landed=%d beat_ms=%llu reset_issued_ms=%llu wait_ms=%u "
 		     "deadline_ms=%llu incarnation=%llu boot_hb_lost=%d "
-		     "boot_tk_lost=%d storage=%s — %s",
+		     "boot_tk_lost=%d storage=%s -- %s",
 		     dl->local_node, victim_node, (int)auth_live,
 		     boot_arm ? "bootstrap-term" : "disklock-slot",
 		     (int)beat_landed, (unsigned long long)beat_ms,
@@ -22854,7 +22925,7 @@ int mxfs_v5_dlm_lu_reset_barrier(struct mxfs_v5_dlm *ctx,
 		     "this node's command path has converged and the authority it "
 		     "would replay under is live; replay may proceed" :
 		     "the authority this node would replay under did not survive "
-		     "the reset — WRITE NO REPLAY AND NO RECOVERY COMMIT; the "
+		     "the reset -- WRITE NO REPLAY AND NO RECOVERY COMMIT; the "
 		     "durable reset intent stays on the platter for a later "
 		     "authority holder");
 	return auth_live ? 0 : -EPERM;
@@ -23150,7 +23221,7 @@ int mxfs_v5_dlm_recovery_obl_done_write(struct mxfs_v5_dlm *ctx, int dead_slot,
 		return -EINVAL;
 	if (!(ctx->recov_auth_mask & (1ULL << dead_slot))) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-		    "mxfs: P-OBL-DONE-NOAUTH slot=%d — proof write attempted without "
+		    "mxfs: P-OBL-DONE-NOAUTH slot=%d -- proof write attempted without "
 		    "the recovery execution lease; refusing", dead_slot);
 		return -EPERM;
 	}
@@ -23168,7 +23239,7 @@ int mxfs_v5_dlm_recovery_advance_obl_done(struct mxfs_v5_dlm *ctx, int dead_slot
 		return -EINVAL;
 	if (!(ctx->recov_auth_mask & (1ULL << dead_slot))) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-		    "mxfs: P-OBL-DONE-NOAUTH slot=%d — OBLIGATIONS_DONE attempted "
+		    "mxfs: P-OBL-DONE-NOAUTH slot=%d -- OBLIGATIONS_DONE attempted "
 		    "without the recovery execution lease; refusing", dead_slot);
 		return -EPERM;
 	}
@@ -23202,7 +23273,7 @@ int mxfs_v5_dlm_recovery_publish_refusal(struct mxfs_v5_dlm *ctx,
 		return -EINVAL;
 	if (!(ctx->recov_auth_mask & (1ULL << dead_slot))) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-		    "mxfs: P241-RECOV-TERMINAL-NOAUTH slot=%d — refusal publication "
+		    "mxfs: P241-RECOV-TERMINAL-NOAUTH slot=%d -- refusal publication "
 		    "attempted without the recovery execution lease; refusing",
 		    dead_slot);
 		return -EPERM;
@@ -23231,7 +23302,7 @@ int mxfs_v5_dlm_recovery_obl_write(struct mxfs_v5_dlm *ctx, int dead_slot,
 		return -EINVAL;
 	if (!(ctx->recov_auth_mask & (1ULL << dead_slot))) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-		    "mxfs: P226-OBL-NOAUTH slot=%d — obligation list write attempted "
+		    "mxfs: P226-OBL-NOAUTH slot=%d -- obligation list write attempted "
 		    "without the recovery execution lease; refusing", dead_slot);
 		return -EPERM;
 	}
@@ -23254,7 +23325,7 @@ int mxfs_v5_dlm_recovery_publish_refusal_obl(struct mxfs_v5_dlm *ctx,
 		return -EINVAL;
 	if (!(ctx->recov_auth_mask & (1ULL << dead_slot))) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-		    "mxfs: P241-RECOV-TERMINAL-NOAUTH slot=%d — refusal publication "
+		    "mxfs: P241-RECOV-TERMINAL-NOAUTH slot=%d -- refusal publication "
 		    "attempted without the recovery execution lease; refusing",
 		    dead_slot);
 		return -EPERM;
@@ -23292,7 +23363,7 @@ int mxfs_v5_dlm_dbg_purge_node(struct mxfs_v5_dlm *ctx, mxfs_node_id_t node_id)
 	if (!ctx || !ctx->disklock)
 		return -EINVAL;
 	mxfs_pal_log(MXFS_LOG_DEBUG,
-		     "mxfs: P-DBG-PURGE-TRIGGER-START node=%u — TEST: invoking the "
+		     "mxfs: P-DBG-PURGE-TRIGGER-START node=%u -- TEST: invoking the "
 		     "normal purge path from a non-elected survivor",
 		     node_id);
 	rc = mxfs_disklock_purge_node(ctx->disklock, node_id);
@@ -23394,7 +23465,7 @@ int mxfs_v5_dlm_recovery_purge_out_of_closure(struct mxfs_v5_dlm *ctx,
 		return -EINVAL;
 	if (!(ctx->recov_auth_mask & (1ULL << dead_slot))) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-		    "mxfs: P299-CLOSURE-NOAUTH slot=%d — out-of-closure purge "
+		    "mxfs: P299-CLOSURE-NOAUTH slot=%d -- out-of-closure purge "
 		    "attempted without the recovery execution lease; refusing",
 		    dead_slot);
 		return -EPERM;
@@ -23415,14 +23486,14 @@ int mxfs_v5_dlm_recovery_purge_out_of_closure(struct mxfs_v5_dlm *ctx,
 						 &victim, &ag_mask);
 	if (rc) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-		    "mxfs: P299-CLOSURE-GATE slot=%d rc=%d — selective purge refused "
+		    "mxfs: P299-CLOSURE-GATE slot=%d rc=%d -- selective purge refused "
 		    "at phase 0; every victim grant stays frozen", dead_slot, rc);
 		return rc;
 	}
 	if (victim != expect_victim || ag_mask != expect_ag_mask) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 		    "mxfs: P299-CLOSURE-MISMATCH slot=%d platter victim=%u "
-		    "ag_mask=0x%llx vs imported victim=%u ag_mask=0x%llx — the "
+		    "ag_mask=0x%llx vs imported victim=%u ag_mask=0x%llx -- the "
 		    "canonical verdict moved; nothing purged",
 		    dead_slot, victim, (unsigned long long)ag_mask,
 		    expect_victim, (unsigned long long)expect_ag_mask);
@@ -23603,7 +23674,7 @@ void mxfs_v5_dlm_recovery_scan_outcomes(struct mxfs_v5_dlm *ctx)
 			 */
 			mxfs_pal_log(MXFS_LOG_ERR,
 			    "mxfs: P241-RECOV-TERMINAL-SCAN slot=%d victim=%u/%llu "
-			    "reason=%u domain=%u ag_mask=0x%llx seq=%llu — terminal "
+			    "reason=%u domain=%u ag_mask=0x%llx seq=%llu -- terminal "
 			    "recovery state found at registration; validating",
 			    slot, oc.victim_node, (unsigned long long)oc.victim_epoch,
 			    oc.reason, oc.domain_kind, (unsigned long long)oc.ag_mask,
@@ -23615,7 +23686,7 @@ void mxfs_v5_dlm_recovery_scan_outcomes(struct mxfs_v5_dlm *ctx)
 		case -EBADMSG:
 		case -EPROTO:
 			mxfs_pal_log(MXFS_LOG_ERR,
-			    "mxfs: P241-RECOV-OUTCOME-BADCRC slot=%d rc=%d — PERSISTENT: "
+			    "mxfs: P241-RECOV-OUTCOME-BADCRC slot=%d rc=%d -- PERSISTENT: "
 			    "quarantined/guarded slot carries unreadable verdict state "
 			    "at registration; failing closed FSWIDE",
 			    slot, rc);
@@ -23645,7 +23716,7 @@ void mxfs_v5_dlm_recovery_scan_outcomes(struct mxfs_v5_dlm *ctx)
 	}
 	if (nstale)
 		mxfs_pal_log(MXFS_LOG_WARN,
-		    "mxfs: P241-RECOV-GHOST-GEN slots=%u first=%d fs_gen=0x%08x — "
+		    "mxfs: P241-RECOV-GHOST-GEN slots=%u first=%d fs_gen=0x%08x -- "
 		    "heartbeat sectors carrying recovery objects from a DIFFERENT "
 		    "mkfs generation; outside this filesystem's recovery namespace, "
 		    "ignored (this is expected after a re-mkfs on this target)",
@@ -23864,7 +23935,7 @@ void mxfs_v5_dlm_set_peer_joined_notify(struct mxfs_v5_dlm *ctx,
 		int rc;
 
 		mxfs_pal_log(MXFS_LOG_INFO,
-			     "mxfs: peer_joined cb registered post-multi — "
+			     "mxfs: peer_joined cb registered post-multi -- "
 			     "firing now to flush stale single-node state");
 		/* 0.83.4: the mount is still in progress here (cache_init), so
 		 * the prepare takes its unfrozen path; commit releases whatever
@@ -23874,7 +23945,7 @@ void mxfs_v5_dlm_set_peer_joined_notify(struct mxfs_v5_dlm *ctx,
 			commit(data);
 		if (rc)
 			mxfs_pal_log(MXFS_LOG_WARN,
-				     "mxfs: peer_joined post-multi flush rc=%d — cached "
+				     "mxfs: peer_joined post-multi flush rc=%d -- cached "
 				     "views not fully dropped at wire time", rc);
 	}
 }
@@ -24109,7 +24180,7 @@ int mxfs_v5_dlm_rman_verify_live(struct mxfs_v5_dlm *ctx, uint32_t slot,
 			    "mxfs: P-RMAN-POSTSEAL-MUTATION site=prepurge slot=%u victim=%u "
 			    "type=%u id=%llu manifest{mode=0x%x idx=%u lineage=%llu "
 			    "epoch=%llu} live{rc=%d holds=%d mode=0x%x idx=%u lineage=%llu "
-			    "epoch=%llu} — fence-time authority changed after the seal",
+			    "epoch=%llu} -- fence-time authority changed after the seal",
 			    slot, victim_node, e->type, (unsigned long long)e->id, e->mode,
 			    e->slot_idx, (unsigned long long)e->lineage,
 			    (unsigned long long)e->grant_epoch, lrc, lh ? 1 : 0, lm, lidx,
@@ -24167,7 +24238,7 @@ int mxfs_v5_dlm_victim_manifest_load(struct mxfs_v5_dlm *ctx, uint32_t slot,
 
 			if (!npages || out_ptr->scan_slots != npages) {
 				mxfs_pal_log(MXFS_LOG_ERR,
-					     "mxfs: P-RMAN-INVALID slot=%u victim=%u — ledger "
+					     "mxfs: P-RMAN-INVALID slot=%u victim=%u -- ledger "
 					     "manifest scanned %u pages, this region has %u "
 					     "(ledger %s): not a complete authority; the "
 					     "attempt aborts",
@@ -24342,7 +24413,7 @@ int mxfs_v5_dlm_victim_untagged_authority(struct mxfs_v5_dlm *ctx,
 	if (desc.stage >= MXFS_RECOV_STAGE_FENCED &&
 	    desc.fence_kind == MXFS_FENCE_KIND_SINGLE_NODE_EXCLUSIVE)
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P227-SN-CERT-REVOKED slot=%u victim=%u — the "
+			     "mxfs: P227-SN-CERT-REVOKED slot=%u victim=%u -- the "
 			     "recovery certificate on this slice is kind 17, whose "
 			     "class is revoked because an operator's exclusive-access "
 			     "assertion is not a retirement witness.  It confers NO "
@@ -24701,7 +24772,7 @@ enum mxfs_unlock_state mxfs_v5_dlm_ag_unlock(struct mxfs_v5_dlm *ctx,
 			st = MXFS_UNLOCK_RELEASED;
 		else
 			mxfs_probe_ratelimited(
-			    "mxfs: P274-AGUNLK-TCP-ERR ag=%u rc=%d — TCP AG release outcome UNKNOWN\n",
+			    "mxfs: P274-AGUNLK-TCP-ERR ag=%u rc=%d -- TCP AG release outcome UNKNOWN\n",
 			    agno, rc);
 	} else if (ctx->dlm_caw) {
 		/* (D-0357): STILL_HELD is the truthful state — the grant
@@ -24751,7 +24822,7 @@ bool mxfs_v5_dlm_is_single_node(struct mxfs_v5_dlm *ctx)
 		ctx->sole_survivor_noted = false;
 	} else if (ctx->ever_multi && !ctx->sole_survivor_noted) {
 		ctx->sole_survivor_noted = true;
-		mxfs_probe("mxfs: P-SOLE-SURVIVOR node=%u — single-node membership again after multi-node; pending peer invalidations stay honoured on the single-node fast paths\n",
+		mxfs_probe("mxfs: P-SOLE-SURVIVOR node=%u -- single-node membership again after multi-node; pending peer invalidations stay honoured on the single-node fast paths\n",
 			ctx->node_id);
 	}
 

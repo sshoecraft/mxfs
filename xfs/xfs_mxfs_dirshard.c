@@ -319,7 +319,7 @@ mxfs_dirshard_locator_set(
 	 */
 	if (!xfs_attr_is_shortform(dp)) {
 		xfs_alert(dp->i_mount,
-			"MXFS P-DIRSHARD-LOCATOR-FORK parent=%llu format=%d nextents=%llu — attr fork is not shortform-capable at the locator add; refusing",
+			"MXFS P-DIRSHARD-LOCATOR-FORK parent=%llu format=%d nextents=%llu -- attr fork is not shortform-capable at the locator add; refusing",
 			(unsigned long long)dp->i_ino, (int)dp->i_af.if_format,
 			(unsigned long long)dp->i_af.if_nextents);
 		return -EFSCORRUPTED;
@@ -343,12 +343,12 @@ mxfs_dirshard_locator_set(
 		return error;
 	if (list_count_nodes(&tp->t_dfops) != ndef)
 		xfs_alert(dp->i_mount,
-			"MXFS P-DIRSHARD-LOCATOR-DEFERRED parent=%llu dfops=%zu->%zu — shortform add queued a deferred attr intent despite the precondition; committing with the intent",
+			"MXFS P-DIRSHARD-LOCATOR-DEFERRED parent=%llu dfops=%zu->%zu -- shortform add queued a deferred attr intent despite the precondition; committing with the intent",
 			(unsigned long long)dp->i_ino, ndef,
 			list_count_nodes(&tp->t_dfops));
 	if (dp->i_af.if_format != XFS_DINODE_FMT_LOCAL)
 		xfs_alert(dp->i_mount,
-			"MXFS P-DIRSHARD-LOCATOR-FORK parent=%llu format=%d after the add — the locator did not land shortform; committing as is",
+			"MXFS P-DIRSHARD-LOCATOR-FORK parent=%llu format=%d after the add -- the locator did not land shortform; committing as is",
 			(unsigned long long)dp->i_ino, (int)dp->i_af.if_format);
 	return 0;
 }
@@ -578,13 +578,13 @@ mxfs_dirshard_probe_revalidate(
 	 */
 	if (dsz == (uint64_t)-1) {
 		xfs_alert(mp,
-			"MXFS P-DIRSHARD-SHELL-READFAIL owner=%llu ino=%llu want_gen=%u have_gen=%u flushed=%d — platter dinode unreadable; refusing (EIO, never 'gone')",
+			"MXFS P-DIRSHARD-SHELL-READFAIL owner=%llu ino=%llu want_gen=%u have_gen=%u flushed=%d -- platter dinode unreadable; refusing (EIO, never 'gone')",
 			(unsigned long long)owner->i_ino,
 			(unsigned long long)ip->i_ino, gen, have_gen, flushed ? 1 : 0);
 		return -EIO;
 	}
 	xfs_notice(mp,
-		"MXFS P-DIRSHARD-SHELL owner=%llu ino=%llu want_gen=%u have_gen=%u disk_gen=%u disk_mode=0%o incore_mode=0%o nlink=%u dlm_mode=%u stale=%d src=%u i_count=%d flushed=%d teardown=%d in_trans=%d — cached shell disagrees with the manifest",
+		"MXFS P-DIRSHARD-SHELL owner=%llu ino=%llu want_gen=%u have_gen=%u disk_gen=%u disk_mode=0%o incore_mode=0%o nlink=%u dlm_mode=%u stale=%d src=%u i_count=%d flushed=%d teardown=%d in_trans=%d -- cached shell disagrees with the manifest",
 		(unsigned long long)owner->i_ino, (unsigned long long)ip->i_ino,
 		gen, have_gen, dgen, dmode, VFS_I(ip)->i_mode,
 		VFS_I(ip)->i_nlink, ip->i_dlm_mode, ip->i_dlm_stale ? 1 : 0,
@@ -594,7 +594,7 @@ mxfs_dirshard_probe_revalidate(
 		return 0;	/* platter FREE: the member is gone */
 	if (dgen != gen) {
 		xfs_alert(mp,
-			"MXFS P-DIRSHARD-STRANGER-LIVE owner=%llu ino=%llu want_gen=%u have_gen=%u disk_gen=%u disk_mode=0%o — platter holds a LIVE inode of another generation under a live manifest entry; refusing (never 'gone')",
+			"MXFS P-DIRSHARD-STRANGER-LIVE owner=%llu ino=%llu want_gen=%u have_gen=%u disk_gen=%u disk_mode=0%o -- platter holds a LIVE inode of another generation under a live manifest entry; refusing (never 'gone')",
 			(unsigned long long)owner->i_ino,
 			(unsigned long long)ip->i_ino, gen, have_gen, dgen, dmode);
 		return -EFSCORRUPTED;
@@ -626,7 +626,7 @@ mxfs_dirshard_probe_revalidate(
 	 * type).  Neither "gone" nor corruption: transient, fail closed.
 	 */
 	xfs_alert(mp,
-		"MXFS P-DIRSHARD-SHELL-UNCONVERGED owner=%llu ino=%llu want_gen=%u have_gen=%u disk_gen=%u rounds=%d/%d stale=%d incore_mode=0%o disk_mode=0%o — stale shell would not adopt; refusing (EBUSY)",
+		"MXFS P-DIRSHARD-SHELL-UNCONVERGED owner=%llu ino=%llu want_gen=%u have_gen=%u disk_gen=%u rounds=%d/%d stale=%d incore_mode=0%o disk_mode=0%o -- stale shell would not adopt; refusing (EBUSY)",
 		(unsigned long long)owner->i_ino, (unsigned long long)ip->i_ino,
 		gen, mxfs_dirshard_igen(ip), dgen, rounds, max_rounds,
 		ip->i_dlm_stale ? 1 : 0, VFS_I(ip)->i_mode, dmode);
@@ -676,7 +676,7 @@ mxfs_dirshard_iget_probe(
 	 */
 	if (mxfs_dirshard_igen(ip) != gen || VFS_I(ip)->i_nlink == 0) {
 		xfs_notice(mp,
-			"MXFS P-DIRSHARD-STRANGER owner=%llu ino=%llu want_gen=%u have_gen=%u nlink=%u flags2=0x%llx mode=0%o — member gone",
+			"MXFS P-DIRSHARD-STRANGER owner=%llu ino=%llu want_gen=%u have_gen=%u nlink=%u flags2=0x%llx mode=0%o -- member gone",
 			(unsigned long long)owner->i_ino,
 			(unsigned long long)ino, gen, mxfs_dirshard_igen(ip),
 			VFS_I(ip)->i_nlink, (unsigned long long)ip->i_diflags2,
@@ -686,7 +686,7 @@ mxfs_dirshard_iget_probe(
 	}
 	if (!mxfs_is_dirshard_container(ip) || mxfs_is_dirshard_parent(ip)) {
 		xfs_alert(mp,
-			"MXFS P-DIRSHARD-STRANGER owner=%llu ino=%llu gen=%u nlink=%u flags2=0x%llx mode=0%o — live inode contradicts the manifest (not a container); refusing",
+			"MXFS P-DIRSHARD-STRANGER owner=%llu ino=%llu gen=%u nlink=%u flags2=0x%llx mode=0%o -- live inode contradicts the manifest (not a container); refusing",
 			(unsigned long long)owner->i_ino,
 			(unsigned long long)ino, gen, VFS_I(ip)->i_nlink,
 			(unsigned long long)ip->i_diflags2, VFS_I(ip)->i_mode);
@@ -801,13 +801,13 @@ mxfs_dirshard_blk_refresh(
 		return;
 	if (mxfs_buf_has_uncheckpointed_mods(sbp)) {
 		xfs_notice(mp,
-			"MXFS P-DIRSHARD-BLK-KEEP parent=%llu holder=%llu daddr=%lld flags=0x%x — cached manifest block carries our uncheckpointed modification; keeping",
+			"MXFS P-DIRSHARD-BLK-KEEP parent=%llu holder=%llu daddr=%lld flags=0x%x -- cached manifest block carries our uncheckpointed modification; keeping",
 			(unsigned long long)dp->i_ino,
 			(unsigned long long)holder->i_ino,
 			(long long)daddr, sbp->b_flags);
 	} else {
 		xfs_notice(mp,
-			"MXFS P-DIRSHARD-BLK-REFRESH parent=%llu gen=%u holder=%llu hgen=%u daddr=%lld flags=0x%x — staling the cached manifest block for a fresh read",
+			"MXFS P-DIRSHARD-BLK-REFRESH parent=%llu gen=%u holder=%llu hgen=%u daddr=%lld flags=0x%x -- staling the cached manifest block for a fresh read",
 			(unsigned long long)dp->i_ino, mxfs_dirshard_igen(dp),
 			(unsigned long long)holder->i_ino,
 			mxfs_dirshard_igen(holder),
@@ -1450,7 +1450,7 @@ mxfs_dirshard_mkdir(
 		 */
 		if (error != -ENOSPC && error != -EDQUOT)
 			xfs_alert(mp,
-				"MXFS P-DIRSHARD-STEPA-FAIL dir=%llu name=%.*s nshards=%u err=%d — set anchor not created (nothing committed)",
+				"MXFS P-DIRSHARD-STEPA-FAIL dir=%llu name=%.*s nshards=%u err=%d -- set anchor not created (nothing committed)",
 				(unsigned long long)dp->i_ino, name->len,
 				name->name, nshards, error);
 		return error;
@@ -1490,7 +1490,7 @@ out_abandon:
 	 * survivor's unlinked-bucket sweep does the same.
 	 */
 	xfs_alert(mp,
-		"MXFS P-DIRSHARD-ABANDON parent=%llu name=%.*s nshards=%u err=%d — unlinked set left for inactivation",
+		"MXFS P-DIRSHARD-ABANDON parent=%llu name=%.*s nshards=%u err=%d -- unlinked set left for inactivation",
 		(unsigned long long)parent->i_ino, name->len, name->name,
 		nshards, error);
 	xfs_irele(holder);
@@ -1554,7 +1554,7 @@ mxfs_dirshard_free_container(
 					 true, &c);
 	if (mxfs_dirshard_iget_gone(error)) {
 		xfs_notice(mp,
-			"MXFS P-DIRSHARD-GONE parent=%llu index=%u ino=%llu gen=%u err=%d — already freed; clearing entry",
+			"MXFS P-DIRSHARD-GONE parent=%llu index=%u ino=%llu gen=%u err=%d -- already freed; clearing entry",
 			(unsigned long long)parent->i_ino, index,
 			(unsigned long long)v->shard[index].ino,
 			v->shard[index].gen, error);
@@ -1669,7 +1669,7 @@ mxfs_dirshard_free_holder(
 	 */
 	if (!xfs_inode_has_attr_fork(parent) || !xfs_attr_is_shortform(parent)) {
 		xfs_alert(mp,
-			"MXFS P-DIRSHARD-LOCATOR-NOTSF parent=%llu forkoff=%u af_format=%d af_nextents=%llu af_bytes=%d df_format=%d — locator remove cannot take the shortform path; refusing before any dirty",
+			"MXFS P-DIRSHARD-LOCATOR-NOTSF parent=%llu forkoff=%u af_format=%d af_nextents=%llu af_bytes=%d df_format=%d -- locator remove cannot take the shortform path; refusing before any dirty",
 			(unsigned long long)parent->i_ino,
 			(unsigned)parent->i_forkoff,
 			xfs_inode_has_attr_fork(parent) ? (int)parent->i_af.if_format : -1,
@@ -1723,7 +1723,7 @@ mxfs_dirshard_free_holder(
 		goto out_cancel;
 	if (list_count_nodes(&tp->t_dfops) != ndef)
 		xfs_alert(mp,
-			"MXFS P-DIRSHARD-LOCATOR-DEFERRED parent=%llu dfops=%zu->%zu — locator remove queued a deferred attr intent despite the shortform precondition; committing with the intent",
+			"MXFS P-DIRSHARD-LOCATOR-DEFERRED parent=%llu dfops=%zu->%zu -- locator remove queued a deferred attr intent despite the shortform precondition; committing with the intent",
 			(unsigned long long)parent->i_ino, ndef,
 			list_count_nodes(&tp->t_dfops));
 	/* (D-0530): the holder was joined with XFS_ILOCK_EXCL —
@@ -1771,7 +1771,7 @@ mxfs_dirshard_inactive_parent(
 		 * locator with it — nothing to walk, free it as a
 		 * plain empty directory */
 		xfs_notice(mp,
-			"MXFS P-DIRSHARD-INACTIVE parent=%llu no locator — torn allocation or post-holder-free restart, freeing as plain directory",
+			"MXFS P-DIRSHARD-INACTIVE parent=%llu no locator -- torn allocation or post-holder-free restart, freeing as plain directory",
 			(unsigned long long)dp->i_ino);
 		xfs_iunlock(dp, XFS_ILOCK_EXCL);
 		return 0;
@@ -1798,7 +1798,7 @@ mxfs_dirshard_inactive_parent(
 					 XFS_DIR3_FT_REG_FILE, true, &holder);
 	if (mxfs_dirshard_iget_gone(error)) {
 		xfs_notice(mp,
-			"MXFS P-DIRSHARD-INACTIVE parent=%llu holder=%llu gen=%u gone (%d) — restart after holder free, freeing parent",
+			"MXFS P-DIRSHARD-INACTIVE parent=%llu holder=%llu gen=%u gone (%d) -- restart after holder free, freeing parent",
 			(unsigned long long)dp->i_ino, (unsigned long long)hino,
 			hgen, error);
 		error = 0;
@@ -1834,7 +1834,7 @@ out_unlock:
 	xfs_iunlock(dp, XFS_ILOCK_EXCL);
 	if (error)
 		xfs_alert(mp,
-			"MXFS P-DIRSHARD-INACTIVE parent=%llu err=%d — set left on the unlinked list for the next pass",
+			"MXFS P-DIRSHARD-INACTIVE parent=%llu err=%d -- set left on the unlinked list for the next pass",
 			(unsigned long long)dp->i_ino, error);
 	return error;
 }

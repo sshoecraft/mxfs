@@ -919,7 +919,7 @@ xfs_mountfs(
 	 */
 	if (mp->m_mxfs_dlm && !xfs_has_attr(mp)) {
 		xfs_warn(mp,
-	"MXFS: superblock lacks ATTRBIT (old mkfs_mxfs format); cluster mount refused — reformat with current mkfs_mxfs");
+	"MXFS: superblock lacks ATTRBIT (old mkfs_mxfs format); cluster mount refused -- reformat with current mkfs_mxfs");
 		return -EINVAL;
 	}
 
@@ -1211,7 +1211,7 @@ xfs_mountfs(
 			"Failed to read root inode 0x%llx, error %d%s",
 			sbp->sb_rootino, -error,
 			(error == -EREMCHG || error == -EAGAIN) ?
-			" — a cluster acquire was refused; the mount is refused, not shut down" : "");
+			" -- a cluster acquire was refused; the mount is refused, not shut down" : "");
 		goto out_free_metadir;
 	}
 

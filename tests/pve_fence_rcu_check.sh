@@ -45,6 +45,13 @@ on() {  # <host> <cmd> [timeout]
     timeout "${3:-60}" "$SSHP" "$1" "$2" </dev/null 2>&1 | grep -avE '^Warning:|^Unauthorized|^If you|^$'
     return "${PIPESTATUS[0]}"
 }
+# Resets and reboots run on virtual machines only: the physical pair are
+# workstations over ten years old, and repeated resets killed one of them
+# (2026-10-07).  Both hosts must say they are VMs before anything else runs.
+for h in "${PAIR[@]}"; do
+    v=$(on "$h" "systemd-detect-virt --vm" 15 | tail -1)
+    case "$v" in ""|none) die "refusing to run: this test resets or reboots a host, and $h is not a virtual machine (systemd-detect-virt: ${v:-no answer}); run it on the nested pair" ;; esac
+done
 STATE_CMD='echo "unit=$(systemctl is-active mxfs-drbd@'"$RES"') mnt=$(awk '\''$2 == "'"$MNT"'" && $3 == "mxfs" {print $2}'\'' /proc/mounts | head -1) role=$(drbdadm role '"$RES"' 2>/dev/null) cs=$(drbdadm cstate '"$RES"' 2>/dev/null) ds=$(drbdadm dstate '"$RES"' 2>/dev/null) boot=$(cat /proc/sys/kernel/random/boot_id)"'
 
 # 1. participant 0 restarted, so the warning is armed again

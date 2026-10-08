@@ -81,7 +81,7 @@ for h in "${NODES[@]}"; do
         echo REAP_WAITS=\$(dmesg | grep -a -c 'P-THREAD-REAP-WAIT')
         echo FAULTS=\$(dmesg | grep -a -c -E '$FAULTS')
         echo '== the unload as the ring has it, fields only'
-        dmesg | grep -a 'P-THREAD-' | sed -e 's/^\\[[^]]*\\] *//' -e 's/ — .*//' | cut -c1-200" > "$EV/node_$h.txt" ) &
+        dmesg | grep -a 'P-THREAD-' | sed -e 's/^\\[[^]]*\\] *//' -e 's/ -- .*//' | cut -c1-200" > "$EV/node_$h.txt" ) &
 done
 wait
 

@@ -113,7 +113,7 @@ xfs_iunlink_log_dinode(
 			if (fake == iup->next_agino)
 				fake++;
 			WRITE_ONCE(mxfs_iunl_mismatch_inject, inj - 1);
-			mxfs_probe("mxfs: P-IUNL-MISMATCH-INJECT ino=0x%llx old_ptr=0x%x fake=0x%x old_agino=0x%x next_agino=0x%x left=%d comm=%s — negative arm: the strict non-INSERT compare must now fire P53-IUNLINK-MISMATCH\n",
+			mxfs_probe("mxfs: P-IUNL-MISMATCH-INJECT ino=0x%llx old_ptr=0x%x fake=0x%x old_agino=0x%x next_agino=0x%x left=%d comm=%s -- negative arm: the strict non-INSERT compare must now fire P53-IUNLINK-MISMATCH\n",
 				(unsigned long long)ip->i_ino, old_ptr, fake,
 				iup->old_agino, iup->next_agino, inj - 1,
 				current->comm);
@@ -137,7 +137,7 @@ xfs_iunlink_log_dinode(
 		 * lock/brelse with no log traffic.
 		 */
 		if (iup->old_agino != NULLAGINO) {
-			mxfs_probe("mxfs: P-IUNL-PRECOMMIT-INSERT-BADOLD ino=0x%llx old_agino=0x%x next_agino=0x%x old_ptr=0x%x — INSERT item with a non-NULL captured old value; falling back to the strict check\n",
+			mxfs_probe("mxfs: P-IUNL-PRECOMMIT-INSERT-BADOLD ino=0x%llx old_agino=0x%x next_agino=0x%x old_ptr=0x%x -- INSERT item with a non-NULL captured old value; falling back to the strict check\n",
 				(unsigned long long)ip->i_ino, iup->old_agino,
 				iup->next_agino, old_ptr);
 		} else {
@@ -149,7 +149,7 @@ xfs_iunlink_log_dinode(
 				static atomic_t pif_n = ATOMIC_INIT(0);
 
 				if (atomic_inc_return(&pif_n) <= 4000)
-					pr_warn("mxfs: P-IUNL-PRECOMMIT-INSERT-FOSSIL ino=0x%llx site=%s agino=0x%x old_ptr=0x%x next_agino=0x%x dip_nlink=%u dip_gen=%u incore_gen=%u comm=%s — insert-path buffer dinode carried a dead chain value; overwritten by the insert transition at sorted precommit\n",
+					pr_warn("mxfs: P-IUNL-PRECOMMIT-INSERT-FOSSIL ino=0x%llx site=%s agino=0x%x old_ptr=0x%x next_agino=0x%x dip_nlink=%u dip_gen=%u incore_gen=%u comm=%s -- insert-path buffer dinode carried a dead chain value; overwritten by the insert transition at sorted precommit\n",
 						(unsigned long long)ip->i_ino,
 						iup->insert == 2 ? "create" : "unlink",
 						XFS_INO_TO_AGINO(tp->t_mountp, ip->i_ino),
@@ -238,7 +238,7 @@ xfs_iunlink_log_dinode(
 					ibp->b_maps[0].bm_bn,
 					ip->i_imap.im_boffset,
 					iup->old_agino)) {
-				mxfs_probe("mxfs: P-IUNL-PRECOMMIT-FOSSILFIX ino=0x%llx old_ptr=0x%x committed=old_agino=0x%x next_agino=0x%x incore=0x%x — buffer held a proven fossil; repairing via the normal transition\n",
+				mxfs_probe("mxfs: P-IUNL-PRECOMMIT-FOSSILFIX ino=0x%llx old_ptr=0x%x committed=old_agino=0x%x next_agino=0x%x incore=0x%x -- buffer held a proven fossil; repairing via the normal transition\n",
 					(unsigned long long)ip->i_ino, old_ptr,
 					iup->old_agino, iup->next_agino,
 					ip->i_next_unlinked);

@@ -48,6 +48,7 @@ struct mxfs_tauth_store {
                     ticket_resumes, /* our own abandoned ticket */
                     stolen,         /* publish CAW lost: protocol/fencing fault */
                     superseded,     /* readback shows a later commit: ours landed */
+                    span_commits,   /* single commits made in one swap (span_commit) */
                     target_refused; /* a write bounced RESERVATION CONFLICT:
                                      * this initiator's key is off the LUN.  A
                                      * bulk pass stops when this moves, rather
@@ -58,6 +59,36 @@ struct mxfs_tauth_store {
                     ph_publish_ms, ph_publish_max, ph_flush_ms, ph_flush_max,
                     ph_read_ms, ph_read_max, ph_commits;
     uint64_t        nonce_state;                /* write_nonce generator */
+    /*
+     * Every swap's target write and every FUA write on this device is durable
+     * on every replica when it completes, so a flush after one adds nothing.
+     * Set by the mount for a DRBD device (dlm/v5_mount.c): the emulated swap
+     * writes its target with FUA (pal/linux/drbd.c), DRBD replicates a FUA
+     * write as DP_FUA and completes it once the peer's disk holds it, and an
+     * empty flush there completes on the LOCAL flush alone
+     * (mxfs_pal_bdev_write_scatter_fua says why), so the commit's three
+     * flushes cost a local cache flush each, under guest load up to tens of
+     * ms, and made nothing durable that was not already.  Off everywhere
+     * else: a SCSI target may drop FUA (the LIO trap), and there the flushes
+     * are the durability.
+     */
+    bool            fua_durable;
+    /*
+     * Commit a single page in ONE swap that compares the spare's sector 0 and
+     * writes the whole image (mxfs_pal_bdev_compare_and_write_span), instead
+     * of ticket swap, body and publish swap.  The ticket exists because a
+     * SCSI COMPARE AND WRITE covers sector 0 alone, so the body has to land
+     * outside any swap and the copy has to read as invalid meanwhile; where
+     * every swap is emulated (the DRBD attachment), one swap covers the page,
+     * and a copy torn by a crash mid-write fails its CRC, leaving the other
+     * copy the truth, as an abandoned ticket does.  Mutual exclusion is the
+     * same compare on the same sector the ticket swap made: whoever changes
+     * the spare's sector 0 first wins, and a live ticket of an older writer
+     * still answers -EBUSY from step 2.  Set by the mount for a DRBD device;
+     * cleared by the first commit that is answered -EOPNOTSUPP.  A batched
+     * commit (page_write_many, the group commit) keeps the ticket protocol.
+     */
+    bool            span_commit;
     /*
      * TEST knob, set only by the usermode ledger tests: the next ticket swap
      * answers ticket_fail_once_rc.  With ticket_fail_landed the swap is
@@ -127,6 +158,45 @@ struct mxfs_tauth_wreq {
 };
 int  mxfs_tauth_page_write_many(struct mxfs_tauth_store *s, struct mxfs_tauth_wreq *w,
                                 int n, uint64_t config_epoch);
+
+/*
+ * THE BATCHED COMMIT IN THREE CALLS, for committers that each hold one page
+ * and share only the barriers (the ledger's group commit).  A commit is:
+ *
+ *   mxfs_tauth_page_write_base      steps 1-2 for one page: both copies read,
+ *                                   the caller's base token checked, the spare
+ *                                   and its ticket chosen (into *ws)
+ *   mxfs_tauth_page_write_barriers  steps 3-5 for every page of the batch
+ *                                   whose w[i].rc is 0: the ticket swaps
+ *                                   queued together, ONE flush, every body
+ *                                   written, ONE flush, the publish swaps
+ *                                   queued together, ONE flush
+ *   mxfs_tauth_page_write_readback  step 6 for one page
+ *
+ * which is mxfs_tauth_page_write_many with each page's reads in its own
+ * committer's thread, where they run in parallel as single commits' do: in
+ * one thread, a batch of N cost 3N reads in series.  `fua_body` writes the
+ * bodies FUA, as the single commit does; without it the body is made durable
+ * by the flush after it alone (what page_write_many does, except on a
+ * fua_durable device, where that flush is local and the bodies go FUA).  Each
+ * call returns what mxfs_tauth_page_write would have returned at that point.
+ */
+struct mxfs_tauth_wslot {
+    struct mxfs_tauth_ticket tk;
+    uint8_t  spare0[MXFS_TAUTH_TICKET_BYTES];   /* the spare's sector 0 as read:
+                                                 * the ticket swap's compare value */
+    uint64_t off;                               /* the spare copy */
+    uint64_t next;                              /* the seq this commit publishes */
+    unsigned target;                            /* which copy is the spare */
+};
+int  mxfs_tauth_page_write_base(struct mxfs_tauth_store *s, struct mxfs_tauth_page *pg,
+                                struct mxfs_tauth_wslot *ws);
+void mxfs_tauth_page_write_barriers(struct mxfs_tauth_store *s, struct mxfs_tauth_wreq *w,
+                                    struct mxfs_tauth_wslot *const *ws, int n,
+                                    uint64_t config_epoch, bool fua_body);
+int  mxfs_tauth_page_write_readback(struct mxfs_tauth_store *s,
+                                    const struct mxfs_tauth_page *pg,
+                                    const struct mxfs_tauth_wslot *ws);
 
 /* Sweep every page: counts pages with 2 / 1 / 0 valid copies.  Returns 0,
  * or -EUCLEAN when any page has no valid copy (the region cannot serve as

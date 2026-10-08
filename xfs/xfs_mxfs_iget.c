@@ -133,7 +133,7 @@ mxfs_dlm_iget_miss_reload(
 							static atomic_t p13sp =
 								ATOMIC_INIT(0);
 							if (atomic_inc_return(&p13sp) <= 400)
-								mxfs_probe("mxfs: P13-SLOTPATCH ino=%llu daddr=%lld boff=%u disk_mode=0%o — target slot FUA-patched into logged cluster buf\n",
+								mxfs_probe("mxfs: P13-SLOTPATCH ino=%llu daddr=%lld boff=%u disk_mode=0%o -- target slot FUA-patched into logged cluster buf\n",
 								    (unsigned long long)ino,
 								    (long long)imap.im_blkno,
 								    imap.im_boffset,
@@ -151,7 +151,7 @@ mxfs_dlm_iget_miss_reload(
 	if (ret) {
 		static atomic_t p12ig = ATOMIC_INIT(0);
 		if (atomic_inc_return(&p12ig) <= 400)
-			mxfs_probe("mxfs: P12-IGETMISS-RELOAD ino=%llu daddr=%lld — dirent-resolved ENOENT; cluster buf invalidated, retrying iget\n",
+			mxfs_probe("mxfs: P12-IGETMISS-RELOAD ino=%llu daddr=%lld -- dirent-resolved ENOENT; cluster buf invalidated, retrying iget\n",
 				(unsigned long long)ino,
 				(long long)imap.im_blkno);
 	}
@@ -215,7 +215,7 @@ mxfs_dlm_iget_visibility_nudge(
 		static atomic_t p13vn = ATOMIC_INIT(0);
 
 		if (atomic_inc_return(&p13vn) <= 400)
-			mxfs_probe("mxfs: P13-VISNUDGE ino=%llu lock_rc=%d — dirent-resolved iget failed; PR-nudged creator publish, retrying iget\n",
+			mxfs_probe("mxfs: P13-VISNUDGE ino=%llu lock_rc=%d -- dirent-resolved iget failed; PR-nudged creator publish, retrying iget\n",
 				(unsigned long long)ino, rc);
 	}
 	return 1;
@@ -288,7 +288,7 @@ mxfs_dlm_iget_shell_reload(
 
 		(void)xfs_inodegc_flush(mp);
 		if (atomic_inc_return(&p13gc) <= 400)
-			mxfs_probe("mxfs: P13-GCFLUSH ino=%llu — mid-teardown shell blocked iget; inodegc flushed, retrying\n",
+			mxfs_probe("mxfs: P13-GCFLUSH ino=%llu -- mid-teardown shell blocked iget; inodegc flushed, retrying\n",
 				(unsigned long long)ino);
 		/* daf50d34 (mkdir_storm r3 HIT root): return 2, not 1,
 		 * so the lookup retry loop can tell "waiting on guaranteed-
@@ -314,7 +314,7 @@ mxfs_dlm_iget_shell_reload(
 			static atomic_t p13sr = ATOMIC_INIT(0);
 
 			if (atomic_inc_return(&p13sr) <= 400)
-				pr_warn("mxfs: P13-SHELLRELOAD ino=%llu mode_after=0%o acted=%d — dead-shell reload for dirent-resolved iget\n",
+				pr_warn("mxfs: P13-SHELLRELOAD ino=%llu mode_after=0%o acted=%d -- dead-shell reload for dirent-resolved iget\n",
 					(unsigned long long)ino,
 					VFS_I(ip)->i_mode, acted);
 		}
@@ -332,7 +332,7 @@ mxfs_drain_ilock_read(struct xfs_inode *ip)
 		if (xfs_is_shutdown(ip->i_mount))
 			return false;
 		if (waited_ms >= MXFS_DRAIN_ILOCK_MAX_MS) {
-			pr_warn("mxfs: P132-ILOCK-TIMEOUT ino=%llu waited_ms=%u cnt=%ld — i_lock unacquirable in release drain; shutdown (lock NOT released stale)\n",
+			pr_warn("mxfs: P132-ILOCK-TIMEOUT ino=%llu waited_ms=%u cnt=%ld -- i_lock unacquirable in release drain; shutdown (lock NOT released stale)\n",
 				(unsigned long long)ip->i_ino, waited_ms,
 				atomic_long_read(&ip->i_lock.count));
 			xfs_force_shutdown(ip->i_mount,

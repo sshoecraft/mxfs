@@ -121,6 +121,11 @@ struct xlog_recover_item {
 	 * of a class whose tenure scope excludes any later writer (AG, INODE).
 	 */
 	uint8_t			ri_mxfs_class;
+	/*
+	 * MXFS: why a REFUSE verdict was reached (MXFS_RI_WHY_*), so a
+	 * refused transaction can name the terminal each of its images hit.
+	 */
+	uint8_t			ri_mxfs_why;
 };
 
 /*

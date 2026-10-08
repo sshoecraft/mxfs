@@ -3021,7 +3021,7 @@ xfs_da_get_buf(
 			}
 		}
 		if (inode_here)
-			mxfs_probe_ratelimited("mxfs: P55-DIRWRITE-OVER-INODE dir_ino=%llu dablk=%u daddr=0x%llx nmap=%d disk_di_mode=0%o bflags=0x%x cached=%d — stale dir extent-map maps a dir block onto a live inode cluster\n",
+			mxfs_probe_ratelimited("mxfs: P55-DIRWRITE-OVER-INODE dir_ino=%llu dablk=%u daddr=0x%llx nmap=%d disk_di_mode=0%o bflags=0x%x cached=%d -- stale dir extent-map maps a dir block onto a live inode cluster\n",
 				(unsigned long long)dp->i_ino,
 				(unsigned)bno,
 				(unsigned long long)mapp[0].bm_bn,
@@ -3463,7 +3463,7 @@ xfs_da_read_buf(
 								}
 							}
 							pr_warn_ratelimited(
-								"mxfs: P5R-TRANSREFRESH ino=%llu daddr=%lld len=%u ok=%d — self-trans-joined stale dir block %s (comm=%s realns=%llu)\n",
+								"mxfs: P5R-TRANSREFRESH ino=%llu daddr=%lld len=%u ok=%d -- self-trans-joined stale dir block %s (comm=%s realns=%llu)\n",
 								(unsigned long long)dp->i_ino,
 								(long long)mapp[0].bm_bn,
 								p5r_len, p5r_done ? 1 : 0,
@@ -3483,7 +3483,7 @@ xfs_da_read_buf(
 				 * out, bounded */
 				if (p5_try == 24) {
 					mxfs_probe_ratelimited(
-						"mxfs: P5D-STALE-SERVED ino=%llu daddr=%lld LOCKED plat_act=%d — deferred-stale block still locked after wait; serving stale view (trans=%d comm=%s realns=%llu)\n",
+						"mxfs: P5D-STALE-SERVED ino=%llu daddr=%lld LOCKED plat_act=%d -- deferred-stale block still locked after wait; serving stale view (trans=%d comm=%s realns=%llu)\n",
 						(unsigned long long)dp->i_ino,
 						(long long)mapp[0].bm_bn,
 						mxfs_dirblk_platter_active(mp,
@@ -3517,7 +3517,7 @@ xfs_da_read_buf(
 				pbp->b_mxfs_stale_pending = false;
 				spin_unlock(&pbp->b_lock);
 				mxfs_probe_ratelimited(
-					"mxfs: P5B-DEFERRED-STALE-KEPT ino=%llu daddr=%lld lseq=%u wseq=%u pin=%d — undestaged local adds, flag dropped (would have discarded committed dirents)\n",
+					"mxfs: P5B-DEFERRED-STALE-KEPT ino=%llu daddr=%lld lseq=%u wseq=%u pin=%d -- undestaged local adds, flag dropped (would have discarded committed dirents)\n",
 					(unsigned long long)dp->i_ino,
 					(long long)mapp[0].bm_bn,
 					pbp->b_mxfs_logged_seq,
@@ -3535,7 +3535,7 @@ xfs_da_read_buf(
 				pbp->b_mxfs_stale_pending = false;
 				spin_unlock(&pbp->b_lock);
 				mxfs_probe_ratelimited(
-					"mxfs: P5-DEFERRED-STALE ino=%llu daddr=%lld — force-invalidated acquire-reload-skipped stale dir block (coherent RMW base)\n",
+					"mxfs: P5-DEFERRED-STALE ino=%llu daddr=%lld -- force-invalidated acquire-reload-skipped stale dir block (coherent RMW base)\n",
 					(unsigned long long)dp->i_ino,
 					(long long)mapp[0].bm_bn);
 				xfs_buf_relse(pbp);
@@ -3545,7 +3545,7 @@ xfs_da_read_buf(
 			xfs_buf_relse(pbp);
 			if (p5_try == 24) {
 				mxfs_probe_ratelimited(
-					"mxfs: P5D-STALE-SERVED ino=%llu daddr=%lld dirty=%d plat_act=%d — deferred-stale block still busy after wait; serving stale view (trans=%d comm=%s realns=%llu)\n",
+					"mxfs: P5D-STALE-SERVED ino=%llu daddr=%lld dirty=%d plat_act=%d -- deferred-stale block still busy after wait; serving stale view (trans=%d comm=%s realns=%llu)\n",
 					(unsigned long long)dp->i_ino,
 					(long long)mapp[0].bm_bn, pdirty,
 					mxfs_dirblk_platter_active(mp,
@@ -3683,7 +3683,7 @@ xfs_da_read_buf(
 			    !mxfs_dir_data_buf_owner_mismatch(cbp, dp->i_ino)) {
 				cbp->b_flags |= XBF_DONE;
 				mxfs_probe_ratelimited(
-					"mxfs: P5-UNDEST-SALVAGE ino=%llu daddr=%lld — restored XBF_DONE on undestaged self-owned dir block (skip stale cold-read)\n",
+					"mxfs: P5-UNDEST-SALVAGE ino=%llu daddr=%lld -- restored XBF_DONE on undestaged self-owned dir block (skip stale cold-read)\n",
 					(unsigned long long)dp->i_ino,
 					(long long)mapp[0].bm_bn);
 			}
@@ -3873,7 +3873,7 @@ xfs_da_read_buf(
 			    !(cbp->b_flags & _XBF_DELWRI_Q)) {
 				if (unlikely(epoch_stale &&
 				    (mxfs_instr_enabled || mxfs_dirwr_enabled)))
-					mxfs_probe_ratelimited("mxfs: P16-PREREAD-EPOCHSTALE ino=%llu blk=%u daddr=%lld buf_epoch=%u master_epoch=%u in_ail=%d — invalidate stale prior-tenure read base\n",
+					mxfs_probe_ratelimited("mxfs: P16-PREREAD-EPOCHSTALE ino=%llu blk=%u daddr=%lld buf_epoch=%u master_epoch=%u in_ail=%d -- invalidate stale prior-tenure read base\n",
 						(unsigned long long)dp->i_ino,
 						(unsigned int)bno,
 						(long long)mapp[0].bm_bn,
@@ -3952,7 +3952,7 @@ xfs_da_read_buf(
 					xfs_buf_item_done(cbp, XFS_BLI_NO_IODONE);	/* ail_delete+relse */
 					if (unlikely(mxfs_instr_enabled ||
 						     mxfs_dirwr_enabled))
-						mxfs_probe_ratelimited("mxfs: P33-READ-RETIRE ino=%llu daddr=%lld — retired lingering destaged BLI before read-path invalidate (prevents stale reflush)\n",
+						mxfs_probe_ratelimited("mxfs: P33-READ-RETIRE ino=%llu daddr=%lld -- retired lingering destaged BLI before read-path invalidate (prevents stale reflush)\n",
 							(unsigned long long)dp->i_ino,
 							(long long)mapp[0].bm_bn);
 				}
@@ -4110,7 +4110,7 @@ xfs_da_read_buf(
 
 		if (r_stale && tp && rbli && rbli->bli_recur > 0) {
 			mxfs_probe_ratelimited(
-			    "mxfs: P72-SELFHOLD-STALE ino=%llu blk=%u daddr=%lld buf_gen=%u inode_gen=%llu recur=%d — txn re-read of own gen-stale dir buf; serving txn image\n",
+			    "mxfs: P72-SELFHOLD-STALE ino=%llu blk=%u daddr=%lld buf_gen=%u inode_gen=%llu recur=%d -- txn re-read of own gen-stale dir buf; serving txn image\n",
 			    (unsigned long long)dp->i_ino, (unsigned int)bno,
 			    (long long)mapp[0].bm_bn, bp->b_mxfs_dir_gen,
 			    (unsigned long long)dp->i_dlm_dir_gen,
@@ -4122,7 +4122,7 @@ xfs_da_read_buf(
 			extern int mxfs_dir_zombie_retire;
 
 			mxfs_probe_ratelimited(
-			    "mxfs: P72-POSTREAD-INVAL ino=%llu blk=%u daddr=%lld buf_gen=%u inode_gen=%llu owner_aba=%d incarn_aba=%d in_ail=%d tp=%d dlm_mode=%u comm=%s — trylock-skipped stale dir buf invalidated under read lock\n",
+			    "mxfs: P72-POSTREAD-INVAL ino=%llu blk=%u daddr=%lld buf_gen=%u inode_gen=%llu owner_aba=%d incarn_aba=%d in_ail=%d tp=%d dlm_mode=%u comm=%s -- trylock-skipped stale dir buf invalidated under read lock\n",
 			    (unsigned long long)dp->i_ino, (unsigned int)bno,
 			    (long long)mapp[0].bm_bn, bp->b_mxfs_dir_gen,
 			    (unsigned long long)dp->i_dlm_dir_gen,
@@ -4507,7 +4507,7 @@ xfs_da_read_buf(
 		    !(bp->b_flags & _XBF_DELWRI_Q) &&
 		    !mxfs_dir_buf_is_undestaged(bp)) {
 			mxfs_probe_ratelimited(
-			    "mxfs: P50-RELEPOCH-REREAD ino=%llu blk=%u daddr=%lld relepoch=%u i_dlm_epoch=%lu — CLEAN stale-by-release cache hit; FUA re-read peer's durable base before RMW\n",
+			    "mxfs: P50-RELEPOCH-REREAD ino=%llu blk=%u daddr=%lld relepoch=%u i_dlm_epoch=%lu -- CLEAN stale-by-release cache hit; FUA re-read peer's durable base before RMW\n",
 			    (unsigned long long)dp->i_ino, (unsigned int)bno,
 			    (long long)mapp[0].bm_bn, bp->b_mxfs_relepoch,
 			    dp->i_dlm_epoch);
@@ -4668,7 +4668,7 @@ xfs_da_read_buf(
 				uint32_t want = dp->i_dlm_dir_gen;
 
 				mxfs_probe_ratelimited(
-				    "mxfs: P67-POSTREAD-REREAD ino=%llu blk=%u daddr=%lld bufgen=%u inodegen=%u — stale clean cache-hit escaped pre-read inval; FUA re-read under held lock\n",
+				    "mxfs: P67-POSTREAD-REREAD ino=%llu blk=%u daddr=%lld bufgen=%u inodegen=%u -- stale clean cache-hit escaped pre-read inval; FUA re-read under held lock\n",
 				    (unsigned long long)dp->i_ino,
 				    (unsigned int)bno,
 				    (long long)mapp[0].bm_bn,

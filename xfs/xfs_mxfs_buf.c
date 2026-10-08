@@ -317,7 +317,7 @@ mxfs_dlm_invalidate_ag_meta(
 
 		if (pf_n) {
 			xfs_alert(pag_mount(pag),
-				"P131-INVAL-REFUSED agno=%u unlanded=%u first=%s@%lld — fresh acquire found this node's committed-but-unlanded AG metadata in cache; invalidating would discard it (silent lost update / double allocation). Nothing staled; shutting down",
+				"P131-INVAL-REFUSED agno=%u unlanded=%u first=%s@%lld -- fresh acquire found this node's committed-but-unlanded AG metadata in cache; invalidating would discard it (silent lost update / double allocation). Nothing staled; shutting down",
 				pag_agno(pag), pf_n, pf_ops, (long long)pf_daddr);
 			xfs_force_shutdown(pag_mount(pag),
 					   SHUTDOWN_CORRUPT_INCORE);
@@ -505,7 +505,7 @@ mxfs_dlm_invalidate_ag_meta(
 						    xfs_buf_ispinned(bp) ||
 						    (bp->b_flags & _XBF_DELWRI_Q);
 						if (p47_keep) {
-							mxfs_probe_ratelimited("mxfs: P47-INVAL-SKIP-INAIL agno=%u daddr=%lld ops=%s flags=0x%x (b_hold==0; un-destaged committed buf — NOT reverting)\n",
+							mxfs_probe_ratelimited("mxfs: P47-INVAL-SKIP-INAIL agno=%u daddr=%lld ops=%s flags=0x%x (b_hold==0; un-destaged committed buf -- NOT reverting)\n",
 								pag_agno(pag),
 								(long long)bp->b_maps[0].bm_bn,
 								p14_ops_name, bp->b_flags);
@@ -590,7 +590,7 @@ mxfs_dlm_invalidate_ag_meta(
 					if (p47_keep)
 						ag_pres++;
 					if (p47_keep)
-						mxfs_probe_ratelimited("mxfs: P47-INVAL-SKIP-INAIL agno=%u daddr=%lld ops=%s flags=0x%x (trylock-fail; un-destaged committed buf — NOT reverting)\n",
+						mxfs_probe_ratelimited("mxfs: P47-INVAL-SKIP-INAIL agno=%u daddr=%lld ops=%s flags=0x%x (trylock-fail; un-destaged committed buf -- NOT reverting)\n",
 							pag_agno(pag),
 							(long long)bp->b_maps[0].bm_bn,
 							p14_ops_name, bp->b_flags);
@@ -665,7 +665,7 @@ mxfs_dlm_invalidate_ag_meta(
 				    ((bp->b_flags & _XBF_DELWRI_Q) ||
 				     MXFS_WALK_KEEPS_ATTACHED(bp))) {
 					mxfs_probe_ratelimited(
-						"mxfs: P91-WALK-PROTECT agno=%u daddr=%lld flags=0x%x li_empty=%d pin=%d comm=%s — cluster buffer is queued for write or carries inode items; kept\n",
+						"mxfs: P91-WALK-PROTECT agno=%u daddr=%lld flags=0x%x li_empty=%d pin=%d comm=%s -- cluster buffer is queued for write or carries inode items; kept\n",
 						pag_agno(pag),
 						(long long)bp->b_maps[0].bm_bn,
 						bp->b_flags,
@@ -754,7 +754,7 @@ mxfs_dlm_invalidate_ag_meta(
 			if (p14_is_agmeta && mxfs_agmeta_buf_unlanded(bp)) {
 				if (!fresh_caller ||
 				    !READ_ONCE(mxfs_agmeta_inval_enforce)) {
-					mxfs_probe_ratelimited("mxfs: P47-INVAL-SKIP-INAIL agno=%u daddr=%lld ops=%s flags=0x%x (locked; un-destaged committed buf — retained, caller retries the destage)\n",
+					mxfs_probe_ratelimited("mxfs: P47-INVAL-SKIP-INAIL agno=%u daddr=%lld ops=%s flags=0x%x (locked; un-destaged committed buf -- retained, caller retries the destage)\n",
 						pag_agno(pag),
 						(long long)bp->b_maps[0].bm_bn,
 						p14_ops_name, bp->b_flags);
@@ -764,7 +764,7 @@ mxfs_dlm_invalidate_ag_meta(
 					continue;
 				}
 				xfs_alert(pag_mount(pag),
-					"P131-INVAL-REFUSED agno=%u daddr=%lld ops=%s pin=%d — committed-but-unlanded AG metadata reached the staling walk after a clean preflight; refusing to discard it; shutting down",
+					"P131-INVAL-REFUSED agno=%u daddr=%lld ops=%s pin=%d -- committed-but-unlanded AG metadata reached the staling walk after a clean preflight; refusing to discard it; shutting down",
 					pag_agno(pag),
 					(long long)bp->b_maps[0].bm_bn,
 					p14_ops_name,
@@ -854,7 +854,7 @@ mxfs_dlm_invalidate_ag_meta(
 	 */
 	if (ag_pres || ino_pres)
 		mxfs_probe_ratelimited(
-			"mxfs: P232-INVAL-INCOMPLETE agno=%u staled=%u retained: ag_meta=%u inode=%u — cached view survives this walk\n",
+			"mxfs: P232-INVAL-INCOMPLETE agno=%u staled=%u retained: ag_meta=%u inode=%u -- cached view survives this walk\n",
 			pag_agno(pag), staled, ag_pres, ino_pres);
 	if (ag_preserved)
 		*ag_preserved = ag_pres;
@@ -1279,7 +1279,7 @@ mxfs_dir_data_track(struct xfs_buf *bp)
 		 * (no I/O, under spinlock); gated by dirwr/instr. */
 		if (unlikely(mxfs_dirwr_enabled || mxfs_instr_enabled) &&
 		    !(bp->b_flags & XBF_DONE))
-			mxfs_probe_ratelimited("mxfs: P33-LOGSTALE owner=%llu daddr=%lld mode=%d dgen=%u incarn=%u comm=%s — dir buffer LOGGED with XBF_DONE clear (re-log on invalidated base)\n",
+			mxfs_probe_ratelimited("mxfs: P33-LOGSTALE owner=%llu daddr=%lld mode=%d dgen=%u incarn=%u comm=%s -- dir buffer LOGGED with XBF_DONE clear (re-log on invalidated base)\n",
 				(unsigned long long)owner,
 				(long long)bp->b_maps[0].bm_bn,
 				ip->i_dlm_mode, ip->i_dlm_dir_gen,
@@ -1295,7 +1295,7 @@ module_param_named(dir_zombie_push, mxfs_dir_zombie_push, int, 0644);
 MODULE_PARM_DESC(dir_zombie_push,
 		 "At xfs_buf_item_push (AIL), stale+retire (no I/O, no log-tail "
 		 "starvation) a COHERENCY-INVALIDATED (XBF_DONE clear) dir DATA "
-		 "buffer that is clean+destaged+in_ail — its content is on disk "
+		 "buffer that is clean+destaged+in_ail -- its content is on disk "
 		 "(destaged) but stale (a peer superseded it), so writing it would "
 		 "revert the peer's add (the dir_reuse readdir=799 zombie reflush). "
 		 "(1=on default, 0=off)");
@@ -1720,7 +1720,7 @@ mxfs_dir_ail_push_defer(struct xfs_buf *bp)
 	xfs_perag_put(pag);
 	if (defer)
 		mxfs_probe_ratelimited(
-		    "mxfs: P25-AILDEFER owner=%llu daddr=%lld ops=%s — EX-held contended dir block; deferring background destage to release-drain\n",
+		    "mxfs: P25-AILDEFER owner=%llu daddr=%lld ops=%s -- EX-held contended dir block; deferring background destage to release-drain\n",
 		    (unsigned long long)owner,
 		    (long long)bp->b_maps[0].bm_bn,
 		    bp->b_ops && bp->b_ops->name ? bp->b_ops->name : "?");
@@ -1874,7 +1874,7 @@ mxfs_dlm_ag_release_work_fn(
 		enum mxfs_unlock_state us = mxfs_v5_dlm_ag_unlock(dlm, agno);
 
 		if (us != MXFS_UNLOCK_RELEASED)
-			pr_warn("mxfs: P275-AGUNLK-DEFERRED-NOTREL ag=%u state=%d — deferred release did not prove the bit clear; rx watchdog/readopt is the recovery path\n",
+			pr_warn("mxfs: P275-AGUNLK-DEFERRED-NOTREL ag=%u state=%d -- deferred release did not prove the bit clear; rx watchdog/readopt is the recovery path\n",
 				agno, us);
 	}
 	atomic64_inc(&mxfs_dlm_stat_ag_release);
@@ -1919,7 +1919,7 @@ mxfs_dlm_ag_meta_iodone(
 	    atomic_read(&bp->b_mxfs_agmeta_hold) == 1) {
 		WRITE_ONCE(mxfs_dbg_agmeta_iodone_skip,
 			   READ_ONCE(mxfs_dbg_agmeta_iodone_skip) - 1);
-		mxfs_probe("mxfs: P-AGMETA-IODONE-SKIP daddr=%lld — TEST ONLY: callback leaving the token armed for the completion epilogue\n",
+		mxfs_probe("mxfs: P-AGMETA-IODONE-SKIP daddr=%lld -- TEST ONLY: callback leaving the token armed for the completion epilogue\n",
 			(long long)bp->b_maps[0].bm_bn);
 		return;
 	}
@@ -2011,7 +2011,7 @@ mxfs_dlm_ag_meta_iodone(
 					mxfs_pubob_unlock_census(pag, "iodone-fallback");
 					us = mxfs_v5_dlm_ag_unlock(dlm, agno);
 					if (us != MXFS_UNLOCK_RELEASED)
-						mxfs_probe("mxfs: P275-AGUNLK-IODONE-NOTREL ag=%u state=%d — fallback release did not prove the bit clear\n",
+						mxfs_probe("mxfs: P275-AGUNLK-IODONE-NOTREL ag=%u state=%d -- fallback release did not prove the bit clear\n",
 							agno, us);
 				}
 				atomic64_inc(&mxfs_dlm_stat_ag_release);
@@ -2086,7 +2086,7 @@ mxfs_ag_meta_reclaim(
 	 * hold that the OLD code leaked at this exact completion.
 	 */
 	if (why[0] == 's' && why[1] == 't') {
-		mxfs_probe_ratelimited("mxfs: P-AGMETA-RECLAIM daddr=%lld ops=%s flags=0x%x why=%s — dropped AG-meta track hold (no writeback; iodone never fires)\n",
+		mxfs_probe_ratelimited("mxfs: P-AGMETA-RECLAIM daddr=%lld ops=%s flags=0x%x why=%s -- dropped AG-meta track hold (no writeback; iodone never fires)\n",
 			(long long)bp->b_maps[0].bm_bn,
 			(bp->b_ops && bp->b_ops->name) ? bp->b_ops->name : "?",
 			bp->b_flags, why);
@@ -2094,7 +2094,7 @@ mxfs_ag_meta_reclaim(
 		static atomic_t rcl_n = ATOMIC_INIT(0);
 
 		if (atomic_inc_return(&rcl_n) <= 200)
-			mxfs_probe("mxfs: P-AGMETA-RECLAIM daddr=%lld ops=%s flags=0x%x why=%s — dropped AG-meta track hold (no writeback; iodone never fires)\n",
+			mxfs_probe("mxfs: P-AGMETA-RECLAIM daddr=%lld ops=%s flags=0x%x why=%s -- dropped AG-meta track hold (no writeback; iodone never fires)\n",
 				(long long)bp->b_maps[0].bm_bn,
 				(bp->b_ops && bp->b_ops->name) ? bp->b_ops->name : "?",
 				bp->b_flags, why);
@@ -2215,7 +2215,7 @@ mxfs_ag_meta_track(
 	if (bp->b_iodone && bp->b_iodone != mxfs_dlm_ag_meta_iodone) {
 		mxfs_pal_log(MXFS_LOG_WARN,
 			"mxfs: AG-meta buf agno=%u blkno=%llu has unexpected "
-			"b_iodone=%pS — overriding for deferred-release",
+			"b_iodone=%pS -- overriding for deferred-release",
 			(unsigned)agno,
 			(unsigned long long)bp->b_maps[0].bm_bn,
 			bp->b_iodone);
@@ -2335,7 +2335,7 @@ mxfs_buf_iodone_install(
 			mxfs_pal_log(MXFS_LOG_WARN,
 				"mxfs: P-AGMETA-IODONE-STOMP site=%s daddr=%lld "
 				"token=%d old=%pS new=%pS bli=%p flags=0x%x "
-				"n=%d — a writer is replacing the AG-meta write "
+				"n=%d -- a writer is replacing the AG-meta write "
 				"completion while its one-shot token is still "
 				"armed; if this buffer now writes back, nothing "
 				"consumes the token and the buffer hold plus the "

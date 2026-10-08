@@ -11586,8 +11586,17 @@
   fn mxfs_dbg_disk_di_mode(struct xfs_mount *mp, uint64_t ino, uint32_t *genp) -> uint16_t
   fn mxfs_dlm_claim_demoter(struct xfs_inode *ip) -> void
   fn mxfs_dlm_release_demoter(struct xfs_inode *ip) -> void
-  fn mxfs_statfs_perag_sums(struct xfs_mount *mp, uint64_t *icount, uint64_t *ifree, uint64_t *fdblocks) -> bool
   fn mxfs_init_all_perag_data(struct xfs_mount *mp) -> void
+  fn mxfs_pag_agf_reinit(struct xfs_perag *pag, struct xfs_agf *agf) -> bool
+    called_by: xfs_alloc_read_agf   (peer delta into m_free/m_allocbt_blks; xfs_mxfs_sb.c)
+  fn mxfs_pag_agi_reinit(struct xfs_perag *pag, struct xfs_agi *agi) -> void
+    called_by: xfs_read_agi, xfs_ialloc_read_agi
+  fn mxfs_pag_cnt_rebase(struct xfs_perag *pag, uint64_t fd_total, uint64_t icount, uint64_t ifree) -> void
+    called_by: xfs_initialize_perag_data, mxfs_sb_summary_recount_uncached
+  fn mxfs_freecount_refresh_statfs(struct xfs_mount *mp) -> void
+    called_by: xfs_fs_statfs
+  fn mxfs_freecount_refresh_enospc(struct xfs_mount *mp) -> void
+    called_by: xfs_trans_alloc, xfs_file_buffered_write
   fn mxfs_lru_sweep_start(void) -> void
   fn mxfs_lru_sweep_stop(void) -> void
   fn mxfs_defer_reap_add_mode(struct xfs_mount *mp, uint64_t ino, uint32_t gen, int16_t bucket, uint8_t kind) -> void

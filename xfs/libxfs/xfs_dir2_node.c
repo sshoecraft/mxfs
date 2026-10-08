@@ -2126,7 +2126,7 @@ restart:
 					if ((dbp->b_flags & XBF_DONE) && !dirty &&
 					    !in_ail && !pinned &&
 					    !(dbp->b_flags & _XBF_DELWRI_Q)) {
-						mxfs_probe_ratelimited("mxfs: P28-ADDNAME-EPOCHSTALE ino=%llu dbno=%d daddr=%lld buf_epoch=%u valid_epoch=%u master=%u fc=%d — stale bestfree base; refresh+restart\n",
+						mxfs_probe_ratelimited("mxfs: P28-ADDNAME-EPOCHSTALE ino=%llu dbno=%d daddr=%lld buf_epoch=%u valid_epoch=%u master=%u fc=%d -- stale bestfree base; refresh+restart\n",
 							(unsigned long long)dp->i_ino, dbno,
 							(long long)dbp->b_maps[0].bm_bn,
 							dbp->b_mxfs_dir_epoch,
@@ -2142,7 +2142,7 @@ restart:
 					else if (dp->i_ino <= 256) {
 						static atomic_t p54kg = ATOMIC_INIT(0);
 						if (atomic_inc_return(&p54kg) <= 50000)
-							mxfs_probe("mxfs: P54-KEEPGUARD-STALE ino=%llu dbno=%d daddr=%lld buf_epoch=%u valid_epoch=%u master=%u fc=%d done=%d dirty=%d in_ail=%d pinned=%d delwri=%d — stale base but keep-guard blocked refresh; RMW proceeds STALE\n",
+							mxfs_probe("mxfs: P54-KEEPGUARD-STALE ino=%llu dbno=%d daddr=%lld buf_epoch=%u valid_epoch=%u master=%u fc=%d done=%d dirty=%d in_ail=%d pinned=%d delwri=%d -- stale base but keep-guard blocked refresh; RMW proceeds STALE\n",
 								(unsigned long long)dp->i_ino, dbno,
 								(long long)dbp->b_maps[0].bm_bn,
 								dbp->b_mxfs_dir_epoch,
@@ -2192,7 +2192,7 @@ restart:
 				xfs_dir2_free_log_bests(args, &freehdr, fbp,
 							findex, findex);
 			}
-			mxfs_probe_ratelimited("mxfs: P22-FREESLOT-STALE ino=%llu dbno=%d findex=%d actual=%u need=%d retry=%d — stale freeindex summary, repaired+restart\n",
+			mxfs_probe_ratelimited("mxfs: P22-FREESLOT-STALE ino=%llu dbno=%d findex=%d actual=%u need=%d retry=%d -- stale freeindex summary, repaired+restart\n",
 				(unsigned long long)dp->i_ino, dbno, findex,
 				be16_to_cpu(bf[0].length), length, fs_retry);
 			if (++fs_retry <= 32) {
@@ -2282,7 +2282,7 @@ restart:
 					if (pcur && plive) {
 						uint32_t mep = mxfs_v5_dlm_inode_dir_epoch(
 							mpg->m_mxfs_dlm, dp->i_ino);
-						pr_warn_ratelimited("mxfs: P28W-CLOBBER ino=%llu dbno=%d daddr=%lld aoff=%u len=%d clean=%d dirty=%d in_ail=%d dir_gen=%llu loaded_gen=%u master_epoch=%u valid_epoch=%u bufepoch=%u pname=[%.*s] incarn=%u igen=%u — REAL read-side stale\n",
+						pr_warn_ratelimited("mxfs: P28W-CLOBBER ino=%llu dbno=%d daddr=%lld aoff=%u len=%d clean=%d dirty=%d in_ail=%d dir_gen=%llu loaded_gen=%u master_epoch=%u valid_epoch=%u bufepoch=%u pname=[%.*s] incarn=%u igen=%u -- REAL read-side stale\n",
 							(unsigned long long)dp->i_ino,
 							dbno,
 							(long long)dbp->b_maps[0].bm_bn,
@@ -2312,7 +2312,7 @@ restart:
 						}
 					} else if (ptag != cpu_to_be16(
 							XFS_DIR2_DATA_FREE_TAG)) {
-						mxfs_probe_ratelimited("mxfs: P28W-STALEALLOC ino=%llu dbno=%d daddr=%lld aoff=%u pmagic=0x%x powner=%llu pcur=%d plive=%d — benign (stale pre-alloc bytes at grown daddr)\n",
+						mxfs_probe_ratelimited("mxfs: P28W-STALEALLOC ino=%llu dbno=%d daddr=%lld aoff=%u pmagic=0x%x powner=%llu pcur=%d plive=%d -- benign (stale pre-alloc bytes at grown daddr)\n",
 							(unsigned long long)dp->i_ino,
 							dbno,
 							(long long)dbp->b_maps[0].bm_bn,

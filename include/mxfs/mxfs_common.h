@@ -216,25 +216,25 @@ static inline const char *mxfs_self_fence_reason_desc(int reason)
 		       "super fs_uuid no longer matches the mounted volume)";
 	case MXFS_SELF_FENCE_SLOT_TAKEOVER:
 		return "a surviving peer declared this node dead and is "
-		       "replaying its journal slice — this mount has been "
+		       "replaying its journal slice -- this mount has been "
 		       "fenced by the cluster, the device is intact";
 	case MXFS_SELF_FENCE_PR_KEY_LOST_FENCING:
 		return "this node's SCSI PR reservation key was already gone "
-		       "when it tried to fence a peer — it was preempted by "
+		       "when it tried to fence a peer -- it was preempted by "
 		       "the cluster, the device is intact";
 	case MXFS_SELF_FENCE_PR_KEY_PREEMPTED:
 		return "this node's SCSI PR reservation key was preempted by "
-		       "a peer — this mount has been fenced by the cluster, "
+		       "a peer -- this mount has been fenced by the cluster, "
 		       "the device is intact";
 	case MXFS_SELF_FENCE_PR_CONFLICT_FENCED:
 		return "data-path I/O hit repeated SCSI RESERVATION CONFLICT "
-		       "and PR IN confirmed this node's key is unregistered — "
+		       "and PR IN confirmed this node's key is unregistered -- "
 		       "this mount has been fenced by the cluster, the device "
 		       "is intact";
 	case MXFS_SELF_FENCE_AUTHORITY_LEASE_EXPIRED:
 		return "this node's own heartbeat has not landed for longer "
 		       "than the authority a landed heartbeat buys, so a peer "
-		       "may already have declared it dead and fenced it — this "
+		       "may already have declared it dead and fenced it -- this "
 		       "mount stops writing without waiting to be told, and "
 		       "the device is intact";
 	default:

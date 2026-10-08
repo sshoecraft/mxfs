@@ -32,6 +32,22 @@ static inline void atomic_set(atomic_t *v, int i)
     v->counter = i;
 }
 
+/* the kernel's: decrement unless that would go below zero; returns the
+ * decremented value, negative when nothing was taken */
+static inline int atomic_dec_if_positive(atomic_t *v)
+{
+    int c = v->counter;
+
+    while (c > 0) {
+        int seen = __sync_val_compare_and_swap(&v->counter, c, c - 1);
+
+        if (seen == c)
+            return c - 1;
+        c = seen;
+    }
+    return c - 1;
+}
+
 /*
  * Module parameters are the knobs the test harnesses arm at runtime; user
  * mode has no /sys, so the knobs are plain globals here and the

@@ -15,6 +15,14 @@
  *           heartbeat says.  A block device that does not answer PR cannot be
  *           proven exclusive, so the proof fails.  A regular file (an image)
  *           has no SCSI target and skips this half, saying so.
+ *   DRBD    a /dev/drbdN replica has no SCSI target either: the only writers
+ *           it can receive are this host (the LOCAL proof) and the peer, whose
+ *           writes arrive over the replication link.  The peer is excluded
+ *           when /proc/drbd shows it Secondary, or shows the link down — a
+ *           peer write cannot reach this replica then, and the peer cannot
+ *           become Primary-and-connected without the link coming back, which a
+ *           recheck sees.  A replica that is not itself Primary, or a minor
+ *           /proc/drbd does not describe, cannot be proven and fails.
  *
  * Header-only so every tool carries the same proof; chk_mxfs (offline
  * quarantine repair) and mxfs_admin both include it.
@@ -35,6 +43,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/ioctl.h>
+#include <sys/sysmacros.h>
 #include <scsi/sg.h>
 
 /* Heartbeat table layout (dlm/disklock.h) */
@@ -135,6 +144,111 @@ static inline int mxfs_off_pr_read_keys(int fd, uint64_t *keys, int max,
 }
 
 /*
+ * The DRBD minor behind `fd`, or -1 when it is not a DRBD device.  The major
+ * comes from /proc/devices ("147 drbd" on Linux), never from a constant.
+ */
+static inline int mxfs_off_drbd_minor(int fd)
+{
+    struct stat st;
+    FILE *f;
+    char line[128];
+    int major_nr = -1;
+
+    if (fstat(fd, &st) < 0 || !S_ISBLK(st.st_mode))
+        return -1;
+    f = fopen("/proc/devices", "re");
+    if (!f)
+        return -1;
+    while (fgets(line, sizeof(line), f)) {
+        int m;
+        char name[64];
+
+        if (sscanf(line, "%d %63s", &m, name) == 2 && strcmp(name, "drbd") == 0) {
+            major_nr = m;
+            break;
+        }
+    }
+    fclose(f);
+    if (major_nr < 0 || (int)major(st.st_rdev) != major_nr)
+        return -1;
+    return (int)minor(st.st_rdev);
+}
+
+/*
+ * The DRBD half of the proof for minor `minor`, read from /proc/drbd (the
+ * 8.4 per-minor line " N: cs:<conn> ro:<local>/<peer> ds:<local>/<peer>").
+ * 0 = the peer cannot write this replica now; -1 = it can, or it cannot be
+ * shown that it cannot.  `quiet` suppresses the success line, for the
+ * rechecks a repair makes before each destructive step.
+ */
+static inline int mxfs_off_drbd_prove(int minor, int quiet)
+{
+    /* connection states in which no peer write can reach this replica */
+    static const char *const link_down[] = {
+        "StandAlone", "Disconnecting", "Unconnected", "Timeout", "BrokenPipe",
+        "NetworkFailure", "ProtocolError", "TearDown", "WFConnection", NULL
+    };
+    FILE *f = fopen("/proc/drbd", "re");
+    char line[512], cs[64] = "", rl[128] = "", rp[128] = "", ds[64] = "";
+    int found = 0, down = 0, i;
+
+    if (!f) {
+        fprintf(stderr, "  CANNOT PROVE: /proc/drbd is not readable, so the "
+                "peer's role is unknown.  Refusing.\n");
+        return -1;
+    }
+    while (fgets(line, sizeof(line), f)) {
+        int m;
+        char ro[128];
+
+        if (sscanf(line, " %d: cs:%63s ro:%127s ds:%63s", &m, cs, ro, ds) == 4 &&
+            m == minor) {
+            char *slash = strchr(ro, '/');
+
+            if (!slash)
+                break;
+            *slash = 0;
+            snprintf(rl, sizeof(rl), "%s", ro);
+            snprintf(rp, sizeof(rp), "%s", slash + 1);
+            found = 1;
+            break;
+        }
+    }
+    fclose(f);
+    if (!found) {
+        fprintf(stderr, "  CANNOT PROVE: /proc/drbd describes no minor %d "
+                "(a DRBD 9 /proc/drbd carries no per-minor state).  "
+                "Refusing.\n", minor);
+        return -1;
+    }
+    if (strcmp(rl, "Primary") != 0) {
+        fprintf(stderr, "  CANNOT PROVE: drbd%d is %s here, not Primary — this "
+                "host cannot be the one writer.  Refusing.\n", minor, rl);
+        return -1;
+    }
+    for (i = 0; link_down[i]; i++)
+        if (strcmp(cs, link_down[i]) == 0)
+            down = 1;
+    if (strcmp(rp, "Secondary") == 0) {
+        if (!quiet)
+            printf("  DRBD: drbd%d cs:%s ro:%s/%s ds:%s — the peer is "
+                   "Secondary and cannot write\n", minor, cs, rl, rp, ds);
+        return 0;
+    }
+    if (down) {
+        if (!quiet)
+            printf("  DRBD: drbd%d cs:%s ro:%s/%s ds:%s — the replication link "
+                   "is down: no peer write can reach this replica\n",
+                   minor, cs, rl, rp, ds);
+        return 0;
+    }
+    fprintf(stderr, "  PEER CAN WRITE: drbd%d cs:%s ro:%s/%s ds:%s — the link "
+            "is up and the peer is %s.\n        Demote it (drbdadm secondary) "
+            "or take the link down, then re-run.\n", minor, cs, rl, rp, ds, rp);
+    return -1;
+}
+
+/*
  * The REMOTE and LUN proofs.  fd is the caller's O_EXCL descriptor (the LOCAL
  * proof), dfd an O_DIRECT descriptor on the same device.  Prints what it
  * proved and every reason it could not; returns 0 only when all proofs hold.
@@ -194,6 +308,9 @@ static inline int mxfs_off_prove_no_writer(int fd, int dfd,
         printf("  SCSI PR: not applicable to an image file\n");
         return 0;
     }
+    i = mxfs_off_drbd_minor(fd);
+    if (i >= 0)
+        return mxfs_off_drbd_prove(i, 0);
     nkeys = mxfs_off_pr_read_keys(fd, keys, MXFS_OFF_PR_MAX_KEYS, &unsupported);
     if (unsupported || nkeys < 0) {
         fprintf(stderr,
@@ -215,6 +332,33 @@ static inline int mxfs_off_prove_no_writer(int fd, int dfd,
     }
     printf("  SCSI PR: no registered initiator — nothing can write to this "
            "LUN\n");
+    return 0;
+}
+
+/*
+ * The device-level half again, without the heartbeat window: what a tool that
+ * holds the device for a long repair re-proves immediately before each
+ * destructive step.  A peer promoted, or an initiator registered, since the
+ * full proof is caught here instead of after the write.  0 = still excluded.
+ */
+static inline int mxfs_off_writer_recheck(int fd)
+{
+    uint64_t keys[MXFS_OFF_PR_MAX_KEYS];
+    struct stat st;
+    int m, n, unsupported;
+
+    if (fstat(fd, &st) == 0 && S_ISREG(st.st_mode))
+        return 0;
+    m = mxfs_off_drbd_minor(fd);
+    if (m >= 0)
+        return mxfs_off_drbd_prove(m, 1);
+    n = mxfs_off_pr_read_keys(fd, keys, MXFS_OFF_PR_MAX_KEYS, &unsupported);
+    if (unsupported || n != 0) {
+        fprintf(stderr, "  EXCLUSION LOST: %s\n", unsupported || n < 0 ?
+                "the LUN no longer answers PERSISTENT RESERVE IN" :
+                "an initiator registered on the LUN during the repair");
+        return -1;
+    }
     return 0;
 }
 

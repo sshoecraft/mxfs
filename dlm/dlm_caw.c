@@ -356,7 +356,7 @@ MODULE_PARM_DESC(caw_watch_caw_maxms,
 int mxfs_caw_watch_miscmp;
 module_param_named(caw_watch_miscmp, mxfs_caw_watch_miscmp, int, 0644);
 MODULE_PARM_DESC(caw_watch_miscmp,
-                 "of caw_watch_caws, how many MISCOMPAREd (-EAGAIN) — the "
+                 "of caw_watch_caws, how many MISCOMPAREd (-EAGAIN) -- the "
                  "wasted half of the optimistic-CAS amplification");
 
 int mxfs_caw_watch_err;
@@ -639,7 +639,7 @@ MODULE_PARM_DESC(caw_failstop_grace_ms,
                  "final grace, in ms, after a teardown phase blows its quiesce "
                  "budget; on expiry this node performs a non-returning local "
                  "fail-stop rather than free a mount its threads still touch. "
-                 "Clamped to [5000,300000] — it cannot be made infinite.");
+                 "Clamped to [5000,300000] -- it cannot be made infinite.");
 
 int mxfs_caw_inode_fastpoll = 1;
 module_param_named(caw_inode_fastpoll, mxfs_caw_inode_fastpoll, int, 0644);
@@ -1323,7 +1323,7 @@ static int caw_repair_slot(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_index,
 		ctx->guard_refused++;
 		mxfs_pal_log(MXFS_LOG_ERR,
 			"mxfs: P-RMAN-GUARD-REFUSED slot=%u type=%u ino=%llu ag=%u "
-			"protected=0x%llx old{ex=0x%llx pw=0x%llx} — corrupt-slot "
+			"protected=0x%llx old{ex=0x%llx pw=0x%llx} -- corrupt-slot "
 			"REPAIR refused: it would rewrite a fenced victim's EX/PW "
 			"authority outside the recovery owner's purge",
 			slot_index, corrupt->resource.type,
@@ -1398,7 +1398,7 @@ static int caw_repair_slot(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_index,
 	repaired.last_modified_ms = mxfs_pal_time_ms();
 
 	mxfs_pal_log(MXFS_LOG_WARN,
-		"mxfs: CAW slot %u corrupt — attempting repair "
+		"mxfs: CAW slot %u corrupt -- attempting repair "
 		"(corrupt: gm=%u wm=%u w=%llx yt=%llx h_cw=%llx h_cr=%llx; "
 		"repaired: gm=%u h_ex=%llx h_pw=%llx h_pr=%llx)",
 		slot_index, corrupt->granted_mode, corrupt->waiter_mode,
@@ -1801,7 +1801,7 @@ static int caw_slot_amb(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_index,
 					    "mxfs: P-RMAN-GUARD-REFUSED slot=%u type=%u "
 					    "ino=%llu ag=%u protected=0x%llx old{ex=0x%llx "
 					    "pw=0x%llx ep=%llu lin=%llu} new{magic=0x%x "
-					    "ex=0x%llx pw=0x%llx ep=%llu lin=%llu} — %s; "
+					    "ex=0x%llx pw=0x%llx ep=%llu lin=%llu} -- %s; "
 					    "the CAS is REFUSED (a fenced victim's "
 					    "fence-time authority is immutable until the "
 					    "recovery owner purges it)",
@@ -1855,7 +1855,7 @@ static int caw_slot_amb(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_index,
 		    mxfs_caw_inject_answer_lost_n > 0) {
 			mxfs_caw_inject_answer_lost_n--;
 			mxfs_pal_log(MXFS_LOG_WARN,
-			    "mxfs: P-CAW-ANSWER-LOST-INJECT slot=%u gen=%u->%u left=%d — TEST ONLY: the target applied this swap and its answer is reported lost",
+			    "mxfs: P-CAW-ANSWER-LOST-INJECT slot=%u gen=%u->%u left=%d -- TEST ONLY: the target applied this swap and its answer is reported lost",
 			    slot_index, compare->generation, write->generation,
 			    mxfs_caw_inject_answer_lost_n);
 			rc = -EIO;
@@ -1876,7 +1876,7 @@ static int caw_slot_amb(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_index,
 			    memcmp(now_slot, write, sizeof(*now_slot)) == 0) {
 				ctx->answer_lost_landed++;
 				mxfs_pal_log(MXFS_LOG_WARN,
-				    "mxfs: P-CAW-ANSWER-LOST-LANDED slot=%u gen=%u->%u attempt=%d resolve=%d n=%llu — an earlier copy of this swap ended in a transport error after the target applied it; the copy sent again met its own write",
+				    "mxfs: P-CAW-ANSWER-LOST-LANDED slot=%u gen=%u->%u attempt=%d resolve=%d n=%llu -- an earlier copy of this swap ended in a transport error after the target applied it; the copy sent again met its own write",
 				    slot_index, compare->generation,
 				    write->generation, attempt,
 				    mxfs_caw_answer_lost_resolve,
@@ -1888,7 +1888,7 @@ static int caw_slot_amb(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_index,
 				if (maybe_landed)
 					*maybe_landed = true;
 				mxfs_pal_log(MXFS_LOG_WARN,
-				    "mxfs: P-CAW-ANSWER-LOST-UNRESOLVED slot=%u gen=%u->%u now_gen=%u read_rc=%d attempt=%d n=%llu — a retried swap miscompared and the slot does not hold its image: it never landed, or it landed and a peer has written since",
+				    "mxfs: P-CAW-ANSWER-LOST-UNRESOLVED slot=%u gen=%u->%u now_gen=%u read_rc=%d attempt=%d n=%llu -- a retried swap miscompared and the slot does not hold its image: it never landed, or it landed and a peer has written since",
 				    slot_index, compare->generation,
 				    write->generation,
 				    rrc == 0 ? now_slot->generation : 0, rrc,
@@ -1921,7 +1921,7 @@ static int caw_slot_amb(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_index,
 				 * actually is.
 				 */
 				mxfs_pal_log(MXFS_LOG_DEBUG,
-					"mxfs: P250-CAW-VERIFY-IO slot=%u vrc=%d gen=%u — CAW succeeded but the persistence read failed; reporting ambiguous",
+					"mxfs: P250-CAW-VERIFY-IO slot=%u vrc=%d gen=%u -- CAW succeeded but the persistence read failed; reporting ambiguous",
 					slot_index, vrc, write->generation);
 				return vrc;
 			}
@@ -1933,7 +1933,7 @@ static int caw_slot_amb(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_index,
 			if (verify_slot.generation < write->generation) {
 				mxfs_pal_log(MXFS_LOG_DEBUG,
 					"mxfs: P72-INSTR caw gen-verify mismatch "
-					"slot=%u expected_gen>=%u got_gen=%u — "
+					"slot=%u expected_gen>=%u got_gen=%u -- "
 					"non-persist (root cause)",
 					slot_index, write->generation,
 					verify_slot.generation);
@@ -3435,7 +3435,7 @@ static void lreq_plan(struct mxfs_dlm_caw_ctx *ctx, struct mxfs_caw_lreq *e,
 				 * D-TEARDOWN-DRAIN-MOOT-TENURED-HOLDER-LEAK.
 				 */
 				ctx->lreq_frozen_defer++;
-				pr_warn_ratelimited("mxfs: P269-FROZEN-TENURE-ATTEMPTS type=%c id=%llu mode=%u attempts=%u tenure=%u gen=%llu/%llu — live local attempt contradicts the frozen-teardown premise on a tenured mode; holder clear deferred (fail closed), obligation stands\n",
+				pr_warn_ratelimited("mxfs: P269-FROZEN-TENURE-ATTEMPTS type=%c id=%llu mode=%u attempts=%u tenure=%u gen=%llu/%llu -- live local attempt contradicts the frozen-teardown premise on a tenured mode; holder clear deferred (fail closed), obligation stands\n",
 					e->resource.type == MXFS_LTYPE_INODE ? 'I' :
 					e->resource.type == MXFS_LTYPE_AG ? 'A' : 'O',
 					(unsigned long long)(e->resource.type ==
@@ -3552,7 +3552,7 @@ static void lreq_owed_retract(struct mxfs_dlm_caw_ctx *ctx,
 				 * gated separately and stay valid.
 				 */
 				ctx->lreq_owed_moot_refused++;
-				pr_warn_ratelimited("mxfs: P270-MOOT-RETRACT-REFUSED type=%c id=%llu mode=%u tenure=%u — moot verdict tried to retract a tenured holder obligation in the frozen world (stale pre-freeze plan or unhandled moot path); refused, obligation stands\n",
+				pr_warn_ratelimited("mxfs: P270-MOOT-RETRACT-REFUSED type=%c id=%llu mode=%u tenure=%u -- moot verdict tried to retract a tenured holder obligation in the frozen world (stale pre-freeze plan or unhandled moot path); refused, obligation stands\n",
 					e->resource.type == MXFS_LTYPE_INODE ? 'I' :
 					e->resource.type == MXFS_LTYPE_AG ? 'A' : 'O',
 					(unsigned long long)(e->resource.type ==
@@ -3581,7 +3581,7 @@ static void lreq_owed_retract(struct mxfs_dlm_caw_ctx *ctx,
 				 * only, so mid-run churn stays silent.
 				 */
 				if (lreq_world_frozen(ctx))
-					mxfs_probe_ratelimited("mxfs: P271-OWED-DISCHARGE type=%c id=%llu mode=%u tenure=%u — teardown drain discharged this holder mode on proof (CAS landed or bit already absent)\n",
+					mxfs_probe_ratelimited("mxfs: P271-OWED-DISCHARGE type=%c id=%llu mode=%u tenure=%u -- teardown drain discharged this holder mode on proof (CAS landed or bit already absent)\n",
 						e->resource.type == MXFS_LTYPE_INODE ? 'I' :
 						e->resource.type == MXFS_LTYPE_AG ? 'A' : 'O',
 						(unsigned long long)(e->resource.type ==
@@ -4019,7 +4019,7 @@ static int caw_slot_clearing(struct mxfs_dlm_caw_ctx *ctx,
 
 	if (lreq_clr_begin_wait(ctx, resource, ip, NULL, &gen0, &clr, 0) < 0) {
 		ctx->lreq_nomem++;
-		pr_warn_ratelimited("mxfs: P251-LREQ-DRY %s type=%u ino=%llu slot=%u dry=%llu — destructive clear REFUSED (retryable)\n",
+		pr_warn_ratelimited("mxfs: P251-LREQ-DRY %s type=%u ino=%llu slot=%u dry=%llu -- destructive clear REFUSED (retryable)\n",
 				    site, resource->type,
 				    (unsigned long long)resource->ino, slot_idx,
 				    (unsigned long long)ctx->lreq_reserve_dry);
@@ -4324,7 +4324,7 @@ static int find_slot_skip(struct mxfs_dlm_caw_ctx *ctx,
 
 				if (p93_n++ < 100)
 					mxfs_pal_log(MXFS_LOG_DEBUG,
-					    "mxfs: P93-SLOT-GARBAGE idx=%u magic=%x — unrecognised on fresh read; recyclable but not terminating the probe",
+					    "mxfs: P93-SLOT-GARBAGE idx=%u magic=%x -- unrecognised on fresh read; recyclable but not terminating the probe",
 					    idx, data_out->magic);
 				if (*empty_out == UINT32_MAX &&
 				    idx != skip_idx)
@@ -4494,7 +4494,7 @@ int mxfs_dlm_caw_victim_manifest_read_ex(struct mxfs_dlm_caw_ctx *ctx,
         if (atomic_inc_return(&vman_n) <= 400) {
             if (rc == 0)
                 mxfs_pal_log(MXFS_LOG_WARN,
-                    "mxfs: P-VMAN-NOTHELD kind=%u res=%llu victim_slot=%u idx=%u holders_ex=0x%llx holders_pw=0x%llx holders_pr=0x%llx open=0x%llx ex_epoch=%llu lineage=%llu gen=%llu — victim bit absent from the manifest slot at replay",
+                    "mxfs: P-VMAN-NOTHELD kind=%u res=%llu victim_slot=%u idx=%u holders_ex=0x%llx holders_pw=0x%llx holders_pr=0x%llx open=0x%llx ex_epoch=%llu lineage=%llu gen=%llu -- victim bit absent from the manifest slot at replay",
                     (unsigned int)resource->type,
                     (unsigned long long)(resource->type == MXFS_LTYPE_AG ?
                         resource->ag_number : resource->ino),
@@ -4508,7 +4508,7 @@ int mxfs_dlm_caw_victim_manifest_read_ex(struct mxfs_dlm_caw_ctx *ctx,
                     (unsigned long long)slot->generation);
             else
                 mxfs_pal_log(MXFS_LOG_DEBUG,
-                    "mxfs: P-VMAN-NOTHELD kind=%u res=%llu victim_slot=%u rc=%d — manifest slot lookup failed (counted not_held when -ENOENT)",
+                    "mxfs: P-VMAN-NOTHELD kind=%u res=%llu victim_slot=%u rc=%d -- manifest slot lookup failed (counted not_held when -ENOENT)",
                     (unsigned int)resource->type,
                     (unsigned long long)(resource->type == MXFS_LTYPE_AG ?
                         resource->ag_number : resource->ino),
@@ -4563,7 +4563,7 @@ void mxfs_dlm_caw_set_dir_block0(struct mxfs_dlm_caw_ctx *ctx,
 			continue;
 		if (rc == 0)
 			mxfs_probe_ratelimited(
-			    "mxfs: P-BLOCK0-PUBLISH ino=%llu fsb=%llu gen=%u — canonical dir block0 published\n",
+			    "mxfs: P-BLOCK0-PUBLISH ino=%llu fsb=%llu gen=%u -- canonical dir block0 published\n",
 			    (unsigned long long)resource->ino,
 			    (unsigned long long)fsb, gen);
 		break;
@@ -4650,7 +4650,7 @@ static int caw_count_resource_slots(struct mxfs_dlm_caw_ctx *ctx,
 	if (capped)
 		mxfs_pal_log(MXFS_LOG_DEBUG,
 			"mxfs: CAW-CLAIMRACE-SCAN capped at %d probes "
-			"(type=%u ag=%u ino=%llu) — chain longer than scan cap",
+			"(type=%u ag=%u ino=%llu) -- chain longer than scan cap",
 			MXFS_CAW_CLAIMRACE_SCAN_MAX, resource->type,
 			resource->ag_number,
 			(unsigned long long)resource->ino);
@@ -4697,7 +4697,7 @@ static bool track_held(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_index)
 
 	mxfs_pal_log(MXFS_LOG_ERR,
 		     "mxfs: P226-HELD-OVERFLOW disk lock table full (%d "
-		     "entries), slot=%u granted but NOT tracked — settle "
+		     "entries), slot=%u granted but NOT tracked -- settle "
 		     "purge disabled for this mount",
 		     ctx->max_held, slot_index);
 	return false;
@@ -5148,7 +5148,7 @@ static int caw_drop_own_waiter(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_idx,
 		if (lreq_clr_begin_wait(ctx, resource, &intent, NULL, &gen0,
 					&clr, 0) < 0) {
 			ctx->lreq_nomem++;
-			pr_warn_ratelimited("mxfs: P251-LREQ-DRY clear-window slot=%u mode=%u dry=%llu — give-up cleanup refused and owed (cannot linearize against local publication)\n",
+			pr_warn_ratelimited("mxfs: P251-LREQ-DRY clear-window slot=%u mode=%u dry=%llu -- give-up cleanup refused and owed (cannot linearize against local publication)\n",
 					    slot_idx, giveup_mode,
 					    (unsigned long long)ctx->lreq_reserve_dry);
 			/* The reserve is dry, so there is no entry to record
@@ -5359,7 +5359,7 @@ static int caw_drop_own_waiter(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_idx,
 		}
 
 		if (do_h)
-			pr_warn_ratelimited("mxfs: P6H-ABORT-RECONCILE slot=%u mode=%u gen=%llu — grant landed for an abandoned acquire (handoff race or ambiguous CAW); releasing in the abort's own cleanup CAS\n",
+			pr_warn_ratelimited("mxfs: P6H-ABORT-RECONCILE slot=%u mode=%u gen=%llu -- grant landed for an abandoned acquire (handoff race or ambiguous CAW); releasing in the abort's own cleanup CAS\n",
 				slot_idx, giveup_mode,
 				(unsigned long long)cur_slot->generation);
 
@@ -5456,7 +5456,7 @@ static int caw_drop_own_waiter(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_idx,
 	 */
 	if (rc) {
 		ctx->lreq_exhausted++;
-		mxfs_probe_ratelimited("mxfs: P245-RECONCILE-EXHAUST type=%c id=%llu slot=%u mode=%u attempts=%d rc=%d w=%d wx=%d h=%d — give-up cleanup never confirmed clear (rc=-110 is the wall-clock budget, not an attempt cap); obligation stands\n",
+		mxfs_probe_ratelimited("mxfs: P245-RECONCILE-EXHAUST type=%c id=%llu slot=%u mode=%u attempts=%d rc=%d w=%d wx=%d h=%d -- give-up cleanup never confirmed clear (rc=-110 is the wall-clock budget, not an attempt cap); obligation stands\n",
 			resource->type == MXFS_LTYPE_INODE ? 'I' :
 			resource->type == MXFS_LTYPE_AG ? 'A' : 'O',
 			(unsigned long long)(resource->type == MXFS_LTYPE_INODE ?
@@ -5466,7 +5466,7 @@ static int caw_drop_own_waiter(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_idx,
 	}
 	if (stale) {
 		ctx->lreq_slot_stale++;
-		pr_warn_ratelimited("mxfs: P277-DOW-STALE-INDEX type=%u ino=%llu ag=%u slot=%u mode=%u found_magic=%x found_type=%u found_ino=%llu discharged=%d — the slot a give-up remembered does not hold its resource\n",
+		pr_warn_ratelimited("mxfs: P277-DOW-STALE-INDEX type=%u ino=%llu ag=%u slot=%u mode=%u found_magic=%x found_type=%u found_ino=%llu discharged=%d -- the slot a give-up remembered does not hold its resource\n",
 				    resource->type,
 				    (unsigned long long)resource->ino,
 				    resource->ag_number, slot_idx, giveup_mode,
@@ -5659,7 +5659,7 @@ static bool caw_owed_dispatch(struct mxfs_dlm_caw_ctx *ctx,
 		return true;
 	}
 	if (rc) {
-		mxfs_probe_ratelimited("mxfs: P252-OWED-RESOLVE type=%c id=%llu hint=%u rc=%d — cannot resolve an owed resource to its slot (rc=-110 is the budget expiring mid-walk, NOT an I/O error and NOT proof of absence); obligation stands\n",
+		mxfs_probe_ratelimited("mxfs: P252-OWED-RESOLVE type=%c id=%llu hint=%u rc=%d -- cannot resolve an owed resource to its slot (rc=-110 is the budget expiring mid-walk, NOT an I/O error and NOT proof of absence); obligation stands\n",
 			resource.type == MXFS_LTYPE_INODE ? 'I' :
 			resource.type == MXFS_LTYPE_AG ? 'A' : 'O',
 			(unsigned long long)(resource.type == MXFS_LTYPE_INODE ?
@@ -5805,7 +5805,7 @@ static uint64_t caw_owed_release(struct mxfs_dlm_caw_ctx *ctx,
 	if (attempted && !pending && ctx->ops_closed && ctx->release_all_done) {
 		if (e->attempts != 0 ||
 		    ctx->lreq_finish_gen != ctx->stop_finish_gen) {
-			pr_err_ratelimited("mxfs: P266-RETIRE-REFUSED type=%c id=%llu attempts=%u gen=%llu/%llu — teardown completion coincides with a live attempt or a post-freeze publication; tenure kept (fail closed)\n",
+			pr_err_ratelimited("mxfs: P266-RETIRE-REFUSED type=%c id=%llu attempts=%u gen=%llu/%llu -- teardown completion coincides with a live attempt or a post-freeze publication; tenure kept (fail closed)\n",
 				resource.type == MXFS_LTYPE_INODE ? 'I' :
 				resource.type == MXFS_LTYPE_AG ? 'A' : 'O',
 				(unsigned long long)(resource.type ==
@@ -5823,7 +5823,7 @@ static uint64_t caw_owed_release(struct mxfs_dlm_caw_ctx *ctx,
 					any = true;
 			if (any) {
 				ctx->lreq_teardown_retired++;
-				mxfs_probe_ratelimited("mxfs: P263-OWED-TEARDOWN-RETIRE type=%c id=%llu tenure=%u/%u/%u/%u/%u/%u pub_seq=%llu — teardown obligation completed with no attempt or publication possible; local tenure record retired\n",
+				mxfs_probe_ratelimited("mxfs: P263-OWED-TEARDOWN-RETIRE type=%c id=%llu tenure=%u/%u/%u/%u/%u/%u pub_seq=%llu -- teardown obligation completed with no attempt or publication possible; local tenure record retired\n",
 					resource.type == MXFS_LTYPE_INODE ? 'I' :
 					resource.type == MXFS_LTYPE_AG ? 'A' : 'O',
 					(unsigned long long)(resource.type ==
@@ -5871,7 +5871,7 @@ static uint64_t caw_owed_release(struct mxfs_dlm_caw_ctx *ctx,
 	mxfs_pal_mutex_unlock(ctx->lreq_lock);
 
 	if (stuck)
-		pr_warn_ratelimited("mxfs: P253-OWED-STUCK type=%c id=%llu fails=%u mask=%x w=%d wx=%d — this node's bits on a resource have resisted %u collection passes; peers may be deferring behind them\n",
+		pr_warn_ratelimited("mxfs: P253-OWED-STUCK type=%c id=%llu fails=%u mask=%x w=%d wx=%d -- this node's bits on a resource have resisted %u collection passes; peers may be deferring behind them\n",
 			resource.type == MXFS_LTYPE_INODE ? 'I' :
 			resource.type == MXFS_LTYPE_AG ? 'A' : 'O',
 			(unsigned long long)(resource.type == MXFS_LTYPE_INODE ?
@@ -6237,7 +6237,7 @@ static void caw_owed_worker_fn(void *data)
 	left = caw_owed_count(ctx);
 	if (left) {
 		ctx->lreq_owed_left = left;
-		pr_warn("mxfs: P254-OWED-TEARDOWN left=%u drain_ms=%u disp=%llu stuck=%llu — obligations to clear this node's slot bits survived the teardown drain (drain_ms budgets the work STARTED, not in-flight block-layer I/O); they are reclaimed by peers only when this node's membership is withdrawn\n",
+		pr_warn("mxfs: P254-OWED-TEARDOWN left=%u drain_ms=%u disp=%llu stuck=%llu -- obligations to clear this node's slot bits survived the teardown drain (drain_ms budgets the work STARTED, not in-flight block-layer I/O); they are reclaimed by peers only when this node's membership is withdrawn\n",
 			left, budget_ms,
 			(unsigned long long)ctx->lreq_owed_disp,
 			(unsigned long long)ctx->lreq_owed_stuck);
@@ -6246,7 +6246,7 @@ static void caw_owed_worker_fn(void *data)
 	 * requires — retires that actually ran this teardown, printed whether
 	 * or not anything was left over. */
 	if (ctx->lreq_teardown_retired)
-		mxfs_probe("mxfs: P267-RETIRE-SUM node=%u retired=%llu — teardown obligations whose completion retired the local tenure record\n",
+		mxfs_probe("mxfs: P267-RETIRE-SUM node=%u retired=%llu -- teardown obligations whose completion retired the local tenure record\n",
 			ctx->local_node,
 			(unsigned long long)ctx->lreq_teardown_retired);
 }
@@ -6487,7 +6487,7 @@ static void caw_teardown_escalate_queue(struct mxfs_dlm_caw_ctx *ctx)
 	int rc = mxfs_pal_defer(caw_teardown_escalate_work, ctx);
 
 	if (rc < 0)
-		pr_err("mxfs: P261-ESCALATE-UNDELIVERED node=%u rc=%d — the DLM could not queue its force-shutdown request; the refusal to depart clean and the fail-stop deadline still stand, but the filesystem above will not be told to stop writing\n",
+		pr_err("mxfs: P261-ESCALATE-UNDELIVERED node=%u rc=%d -- the DLM could not queue its force-shutdown request; the refusal to depart clean and the fail-stop deadline still stand, but the filesystem above will not be told to stop writing\n",
 		       ctx->local_node, rc);
 }
 
@@ -6537,7 +6537,7 @@ static void caw_join_bounded(struct mxfs_dlm_caw_ctx *ctx,
 	}
 
 	grace = caw_failstop_grace_ms();
-	pr_err("mxfs: P262-TEARDOWN-JOIN-STUCK node=%u thread=%s — it has not exited within the teardown budget; requesting force-shutdown and starting the final %ums grace before this node fail-stops\n",
+	pr_err("mxfs: P262-TEARDOWN-JOIN-STUCK node=%u thread=%s -- it has not exited within the teardown budget; requesting force-shutdown and starting the final %ums grace before this node fail-stops\n",
 	       ctx->local_node, what, grace);
 	if (first)
 		caw_teardown_escalate_queue(ctx);
@@ -6555,11 +6555,11 @@ static void caw_join_bounded(struct mxfs_dlm_caw_ctx *ctx,
 	 * real `ret` at the end and costs nothing.
 	 */
 	if (mxfs_pal_thread_join_timeout(*slot, grace) != 0)
-		mxfs_pal_failstop("mxfs: CAW teardown: node %u thread %s never exited (quiesce budget + %ums grace); it still holds references into a mount that is being freed and can still write the shared LUN — fail-stopping this node rather than corrupting the cluster",
+		mxfs_pal_failstop("mxfs: CAW teardown: node %u thread %s never exited (quiesce budget + %ums grace); it still holds references into a mount that is being freed and can still write the shared LUN -- fail-stopping this node rather than corrupting the cluster",
 				  ctx->local_node, what, grace);
 
 	*slot = NULL;
-	pr_err("mxfs: P262-TEARDOWN-JOIN-LATE node=%u thread=%s — it exited inside the grace; teardown continues but the clean-departure refusal stands\n",
+	pr_err("mxfs: P262-TEARDOWN-JOIN-LATE node=%u thread=%s -- it exited inside the grace; teardown continues but the clean-departure refusal stands\n",
 	       ctx->local_node, what);
 }
 
@@ -6611,7 +6611,7 @@ static void caw_op_leave(struct mxfs_dlm_caw_ctx *ctx)
 		 * to UINT32_MAX and waiting forever, but the imbalance itself
 		 * breaks the census, so it is an error and says so.
 		 */
-		pr_err_ratelimited("mxfs: P255-CAW-OPS-UNBALANCED node=%u — caw_op_leave with ops_active==0; the teardown quiescence census is unreliable on this mount\n",
+		pr_err_ratelimited("mxfs: P255-CAW-OPS-UNBALANCED node=%u -- caw_op_leave with ops_active==0; the teardown quiescence census is unreliable on this mount\n",
 				   ctx->local_node);
 	}
 	drained = (ctx->ops_closed && ctx->ops_active == 0);
@@ -6664,7 +6664,7 @@ static void lreq_release_all(struct mxfs_dlm_caw_ctx *ctx,
 			memset(e->tenure, 0, sizeof(e->tenure));
 		} else {
 			ctx->lreq_rel_kept++;
-			mxfs_probe_ratelimited("mxfs: P248-LREQ-REL-KEPT type=%c id=%llu pub0=%llu pub=%llu — tenure published inside the release window; not retiring it\n",
+			mxfs_probe_ratelimited("mxfs: P248-LREQ-REL-KEPT type=%c id=%llu pub0=%llu pub=%llu -- tenure published inside the release window; not retiring it\n",
 				resource->type == MXFS_LTYPE_INODE ? 'I' :
 				resource->type == MXFS_LTYPE_AG ? 'A' : 'O',
 				(unsigned long long)(resource->type == MXFS_LTYPE_INODE ?
@@ -7146,7 +7146,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 			if (mxfs_pal_time_ms() - ext_last_log_ms > 10000) {
 				ext_last_log_ms = mxfs_pal_time_ms();
 				mxfs_pal_log(MXFS_LOG_DEBUG,
-				    "mxfs: P-WAIT-EXTEND type=%u ino=%llu ag=%u want=%u el_ms=%llu blockers=%llx — holders alive; extending past base timeout",
+				    "mxfs: P-WAIT-EXTEND type=%u ino=%llu ag=%u want=%u el_ms=%llu blockers=%llx -- holders alive; extending past base timeout",
 				    resource->type,
 				    (unsigned long long)resource->ino,
 				    resource->ag_number, mode,
@@ -7296,7 +7296,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 				if ((sod_h & ctx->node_bit) &&
 				    !(sod_h & ~ctx->node_bit))
 					pr_warn(
-				    "mxfs: P-ACQ-SELF-ORPHAN ino=%llu slot=%u myslot=%d el_ms=%llu gm=%u gen=%llu — sole wire holder is THIS node while this waiter starves (wire grant with no in-core consumer)\n",
+				    "mxfs: P-ACQ-SELF-ORPHAN ino=%llu slot=%u myslot=%d el_ms=%llu gm=%u gen=%llu -- sole wire holder is THIS node while this waiter starves (wire grant with no in-core consumer)\n",
 					    (unsigned long long)resource->ino,
 					    slot_idx, sod_myslot,
 					    (unsigned long long)el,
@@ -7409,7 +7409,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 				if (acw_n++ < 500)
 					mxfs_pal_log(MXFS_LOG_WARN,
 					    "mxfs: P292-ACQ-AUTH-CLOSED transport=caw "
-					    "type=%u ino=%llu ag=%u mode=%u el_ms=%llu — "
+					    "type=%u ino=%llu ag=%u mode=%u el_ms=%llu -- "
 					    "this incarnation's authority closed while "
 					    "the acquire was waiting; the wait is ENDED "
 					    "instead of waiting on the holder",
@@ -7424,7 +7424,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 				if (cancel == 1 && qwc_n++ < 500)
 					mxfs_pal_log(MXFS_LOG_WARN,
 					    "mxfs: P240-QUAR-WAITCANCEL type=%u "
-					    "ino=%llu ag=%u mode=%u el_ms=%llu — "
+					    "ino=%llu ag=%u mode=%u el_ms=%llu -- "
 					    "resource entered a quarantined victim "
 					    "domain while this acquire was already "
 					    "waiting; cancelling instead of waiting "
@@ -7472,7 +7472,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 				      cur_slot->holders_cr) & ctx->node_bit)) {
 					mxfs_pal_log(MXFS_LOG_WARN,
 					    "mxfs: P240-QUAR-WAITCANCEL-RACE "
-					    "type=%u ino=%llu ag=%u — a direct "
+					    "type=%u ino=%llu ag=%u -- a direct "
 					    "handoff granted us this resource "
 					    "while we were cancelling; adopting "
 					    "it so it is not orphaned on disk",
@@ -7653,7 +7653,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 					 * so a refusal costs nothing but a re-read.
 					 */
 					ctx->lreq_clr_refuse++;
-					pr_warn_ratelimited("mxfs: P250-LREQ-CLR-REFUSE type=%c id=%llu arm=adopt mode=%u held=%u — a destructive local clear ran under the handoff image; re-reading\n",
+					pr_warn_ratelimited("mxfs: P250-LREQ-CLR-REFUSE type=%c id=%llu arm=adopt mode=%u held=%u -- a destructive local clear ran under the handoff image; re-reading\n",
 						resource->type == MXFS_LTYPE_INODE ? 'I' :
 						resource->type == MXFS_LTYPE_AG ? 'A' : 'O',
 						(unsigned long long)(resource->type == MXFS_LTYPE_INODE ?
@@ -7692,7 +7692,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 								  probe->holders_cw) & ctx->node_bit) ? 1 : 0;
 						mxfs_pal_free(probe);
 						mxfs_pal_log(MXFS_LOG_WARN,
-							"mxfs: P250-INJECT-ADOPT-SETTLE type=%c id=%llu slot=%u held=%u purged=%d own_bit_after=%d — own-slot settle run between the adopt's validation and track_held",
+							"mxfs: P250-INJECT-ADOPT-SETTLE type=%c id=%llu slot=%u held=%u purged=%d own_bit_after=%d -- own-slot settle run between the adopt's validation and track_held",
 							resource->type == MXFS_LTYPE_INODE ? 'I' :
 							resource->type == MXFS_LTYPE_AG ? 'A' : 'O',
 							(unsigned long long)(resource->type == MXFS_LTYPE_INODE ?
@@ -7785,7 +7785,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 		    !is_compatible(cur_slot, mode)) {
 			if (resource->type == MXFS_LTYPE_INODE)
 				mxfs_probe_ratelimited(
-				    "mxfs: P-SELF-STALE-EDEADLK ino=%llu slot=%u want=%u held=%u hex=%llx hpr=%llx w=%llx — self-hold blocks own acquire; -EDEADLK to clear\n",
+				    "mxfs: P-SELF-STALE-EDEADLK ino=%llu slot=%u want=%u held=%u hex=%llx hpr=%llx w=%llx -- self-hold blocks own acquire; -EDEADLK to clear\n",
 				    (unsigned long long)resource->ino, slot_idx,
 				    mode,
 				    node_held_mode(cur_slot, ctx->node_bit),
@@ -7829,7 +7829,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 			if (caw_slot(ctx, slot_idx, cur_slot, new_slot) == 0) {
 				mxfs_caw_inject_wait_reg_lost--;
 				mxfs_pal_log(MXFS_LOG_WARN,
-				    "mxfs: P-WAIT-REG-LOST-INJECT ino=%llu slot=%u want=%u left=%d requeue=%d — TEST ONLY: this wait's waiter bit was cleared under it",
+				    "mxfs: P-WAIT-REG-LOST-INJECT ino=%llu slot=%u want=%u left=%d requeue=%d -- TEST ONLY: this wait's waiter bit was cleared under it",
 				    (unsigned long long)resource->ino, slot_idx,
 				    mode, mxfs_caw_inject_wait_reg_lost,
 				    mxfs_caw_wait_reg_requeue);
@@ -7841,7 +7841,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 		    node_held_mode(cur_slot, ctx->node_bit) == MXFS_LOCK_NL) {
 			ctx->wait_reg_lost++;
 			mxfs_pal_log(MXFS_LOG_WARN,
-			    "mxfs: P-WAIT-REG-LOST type=%u ino=%llu ag=%u slot=%u want=%u el_ms=%llu gen=%llu reg_gen=%llu hex=%llx hpr=%llx w=%llx yt=%llx reads=%d n=%llu — this wait's waiter bit is gone and it holds nothing; registering again",
+			    "mxfs: P-WAIT-REG-LOST type=%u ino=%llu ag=%u slot=%u want=%u el_ms=%llu gen=%llu reg_gen=%llu hex=%llx hpr=%llx w=%llx yt=%llx reads=%d n=%llu -- this wait's waiter bit is gone and it holds nothing; registering again",
 			    resource->type, (unsigned long long)resource->ino,
 			    resource->ag_number, slot_idx, mode,
 			    (unsigned long long)(mxfs_pal_time_ms() - start),
@@ -8281,7 +8281,7 @@ static int caw_wait_for_grant(struct mxfs_dlm_caw_ctx *ctx,
 		 */
 		if (deadline_ms && mxfs_pal_time_ms() >= deadline_ms) {
 			pr_warn_ratelimited(
-			    "mxfs: P-RESV-DEADLINE type=%u ino=%llu ag=%u mode=%u el_ms=%llu reads=%d — bounded acquire expired; cancelling waiter\n",
+			    "mxfs: P-RESV-DEADLINE type=%u ino=%llu ag=%u mode=%u el_ms=%llu reads=%d -- bounded acquire expired; cancelling waiter\n",
 				resource->type,
 				(unsigned long long)resource->ino,
 				resource->ag_number, mode,
@@ -8359,7 +8359,7 @@ out:
 		static int p_unset_n;
 
 		if (p_unset_n++ < 200)
-			mxfs_probe("mxfs: P242-GRANT-UNSET-WAIT type=%c id=%llu slot=%u mode=%u — success with no provenance (grant arm did not fill the result)\n",
+			mxfs_probe("mxfs: P242-GRANT-UNSET-WAIT type=%c id=%llu slot=%u mode=%u -- success with no provenance (grant arm did not fill the result)\n",
 				resource->type == MXFS_LTYPE_INODE ? 'I' :
 				resource->type == MXFS_LTYPE_AG ? 'A' : 'O',
 				(unsigned long long)(resource->type == MXFS_LTYPE_INODE ?
@@ -8814,7 +8814,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 	lreq = lreq_join(ctx, resource, mode);
 	if (!lreq) {
 		ctx->lreq_nomem++;
-		pr_warn_ratelimited("mxfs: P247-LREQ-NOMEM type=%c id=%llu mode=%u — acquisition refused: local request registry could not record the attempt\n",
+		pr_warn_ratelimited("mxfs: P247-LREQ-NOMEM type=%c id=%llu mode=%u -- acquisition refused: local request registry could not record the attempt\n",
 			resource->type == MXFS_LTYPE_INODE ? 'I' :
 			resource->type == MXFS_LTYPE_AG ? 'A' : 'O',
 			(unsigned long long)(resource->type == MXFS_LTYPE_INODE ?
@@ -8962,7 +8962,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 					mxfs_pal_log(MXFS_LOG_WARN,
 					    "mxfs: P-CLAIM-RACE-LOST type=%u ino=%llu "
 					    "slot=%u res_ino=%llu hex=%llx hpr=%llx "
-					    "gen=%u — live slot materialized at chosen "
+					    "gen=%u -- live slot materialized at chosen "
 					    "empty idx; re-probing",
 					    resource->type,
 					    (unsigned long long)resource->ino,
@@ -8997,7 +8997,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 			    memcmp(&cur_slot->resource, resource,
 				   sizeof(*resource)) != 0) {
 				mxfs_pal_log(MXFS_LOG_ERR,
-				    "mxfs: P-OPENBITS-TOMB-RESURRECT type=%u ino=%llu slot=%u tomb_ino=%llu oh=%llx — bit-carrying tombstone of another resource at chosen empty idx; resurrecting instead of wiping",
+				    "mxfs: P-OPENBITS-TOMB-RESURRECT type=%u ino=%llu slot=%u tomb_ino=%llu oh=%llx -- bit-carrying tombstone of another resource at chosen empty idx; resurrecting instead of wiping",
 				    resource->type,
 				    (unsigned long long)resource->ino,
 				    empty_idx,
@@ -9030,7 +9030,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 				new_slot->resource_lineage = caw_mint_lineage();
 				if (!new_slot->resource_lineage) {
 					mxfs_pal_log(MXFS_LOG_ERR,
-					    "dlm_caw: P275-LINEAGE-RNG-FAIL type=%u ino=%llu slot=%u — RNG returned all-zero draws; failing claim closed",
+					    "dlm_caw: P275-LINEAGE-RNG-FAIL type=%u ino=%llu slot=%u -- RNG returned all-zero draws; failing claim closed",
 					    resource->type,
 					    (unsigned long long)resource->ino,
 					    empty_idx);
@@ -9441,7 +9441,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 			 */
 			if (!lreq_clr_still_good(ctx, resource, &csnap)) {
 				ctx->lreq_clr_refuse++;
-				pr_warn_ratelimited("mxfs: P250-LREQ-CLR-REFUSE type=%c id=%llu arm=held mode=%u retry=%d — a destructive local clear ran under the image this shortcut would publish on; re-reading\n",
+				pr_warn_ratelimited("mxfs: P250-LREQ-CLR-REFUSE type=%c id=%llu arm=held mode=%u retry=%d -- a destructive local clear ran under the image this shortcut would publish on; re-reading\n",
 					resource->type == MXFS_LTYPE_INODE ? 'I' :
 					resource->type == MXFS_LTYPE_AG ? 'A' : 'O',
 					(unsigned long long)(resource->type == MXFS_LTYPE_INODE ?
@@ -9479,7 +9479,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 			    local_epoch != cur_slot->ex_grant_epoch) {
 				if (local_epoch != 0) {
 					mxfs_pal_log(MXFS_LOG_ERR,
-					    "mxfs: P294-REAFFIRM-EPOCH-MISMATCH type=%u ag=%u ino=%llu local=%llu slot=%llu mode=%u — attested published epoch disagrees with slot; failing closed",
+					    "mxfs: P294-REAFFIRM-EPOCH-MISMATCH type=%u ag=%u ino=%llu local=%llu slot=%llu mode=%u -- attested published epoch disagrees with slot; failing closed",
 					    resource->type, resource->ag_number,
 					    (unsigned long long)resource->ino,
 					    (unsigned long long)local_epoch,
@@ -9503,7 +9503,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 					 * mints AGAIN off the new image — Eold
 					 * is never restored either way. */
 					mxfs_pal_log(MXFS_LOG_ERR,
-					    "mxfs: P294-READOPT-MINT-FAIL type=%u ag=%u ino=%llu rc=%d Eold=%llu — mint CAS unproven, acquire fails closed",
+					    "mxfs: P294-READOPT-MINT-FAIL type=%u ag=%u ino=%llu rc=%d Eold=%llu -- mint CAS unproven, acquire fails closed",
 					    resource->type, resource->ag_number,
 					    (unsigned long long)resource->ino, rc,
 					    (unsigned long long)cur_slot->ex_grant_epoch);
@@ -9512,7 +9512,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 				if (!is_tracked_held(ctx, slot_idx))
 					track_held(ctx, slot_idx);
 				mxfs_pal_log(MXFS_LOG_DEBUG,
-				    "mxfs: P294-READOPT-MINT type=%u ag=%u ino=%llu Eold=%llu Enew=%llu gen=%u — stranded own bit readopted under a fresh minted epoch",
+				    "mxfs: P294-READOPT-MINT type=%u ag=%u ino=%llu Eold=%llu Enew=%llu gen=%u -- stranded own bit readopted under a fresh minted epoch",
 				    resource->type, resource->ag_number,
 				    (unsigned long long)resource->ino,
 				    (unsigned long long)cur_slot->ex_grant_epoch,
@@ -9642,7 +9642,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 			 * exact-mode arm above — same hazard, same remedy. */
 			if (!lreq_clr_still_good(ctx, resource, &csnap)) {
 				ctx->lreq_clr_refuse++;
-				pr_warn_ratelimited("mxfs: P250-LREQ-CLR-REFUSE type=%c id=%llu arm=held-hi mode=%u retry=%d — a destructive local clear ran under the image this shortcut would publish on; re-reading\n",
+				pr_warn_ratelimited("mxfs: P250-LREQ-CLR-REFUSE type=%c id=%llu arm=held-hi mode=%u retry=%d -- a destructive local clear ran under the image this shortcut would publish on; re-reading\n",
 					resource->type == MXFS_LTYPE_INODE ? 'I' :
 					resource->type == MXFS_LTYPE_AG ? 'A' : 'O',
 					(unsigned long long)(resource->type == MXFS_LTYPE_INODE ?
@@ -9663,7 +9663,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 			    !ctx->mount_adopt_window &&
 			    local_epoch != cur_slot->ex_grant_epoch) {
 				mxfs_pal_log(MXFS_LOG_ERR,
-				    "mxfs: P294-REAFFIRM-EPOCH-MISMATCH type=%u ag=%u ino=%llu local=%llu slot=%llu mode=%u arm=held-hi — failing closed",
+				    "mxfs: P294-REAFFIRM-EPOCH-MISMATCH type=%u ag=%u ino=%llu local=%llu slot=%llu mode=%u arm=held-hi -- failing closed",
 				    resource->type, resource->ag_number,
 				    (unsigned long long)resource->ino,
 				    (unsigned long long)local_epoch,
@@ -9887,7 +9887,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 								    &caw_stat_ticket_demand_override);
 								if (resource->type == MXFS_LTYPE_AG)
 									mxfs_probe_ratelimited(
-									    "mxfs: P-CAW-TICKET-DEMAND-OVERRIDE ag=%u req=%u yt=%llx waiters=%llx age_ms=%llu comm=%s — DEMAND trylock on a holderless slot overrides the courtesy ticket\n",
+									    "mxfs: P-CAW-TICKET-DEMAND-OVERRIDE ag=%u req=%u yt=%llx waiters=%llx age_ms=%llu comm=%s -- DEMAND trylock on a holderless slot overrides the courtesy ticket\n",
 									    resource->ag_number, mode,
 									    (unsigned long long)cur_slot->yield_to,
 									    (unsigned long long)cur_slot->waiters,
@@ -9946,7 +9946,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 									mxfs_atomic32_inc(
 									    &caw_stat_ybound_ag);
 									mxfs_probe_ratelimited(
-									    "mxfs: P221-YIELD-BOUND-AG ag=%u req=%u consec=%d reg_ms=%llu yt=%llx waiters=%llx wex=%llx yt_age_ms=%llu comm=%s — registered fresh AG acquire stops deferring; taking the compatible claim\n",
+									    "mxfs: P221-YIELD-BOUND-AG ag=%u req=%u consec=%d reg_ms=%llu yt=%llx waiters=%llx wex=%llx yt_age_ms=%llu comm=%s -- registered fresh AG acquire stops deferring; taking the compatible claim\n",
 									    resource->ag_number,
 									    mode, yield_consec,
 									    (unsigned long long)(mxfs_pal_time_ms() - yreg_t0),
@@ -9959,7 +9959,7 @@ static int caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx,
 									mxfs_atomic32_inc(
 									    &caw_stat_ybound_ino);
 									mxfs_probe_ratelimited(
-									    "mxfs: P221-YIELD-BOUND ino=%llu req=%u consec=%d yt=%llx wex=%llx hpr=%llx — registered fresh acquire stops deferring; taking the compatible claim\n",
+									    "mxfs: P221-YIELD-BOUND ino=%llu req=%u consec=%d yt=%llx wex=%llx hpr=%llx -- registered fresh acquire stops deferring; taking the compatible claim\n",
 									    (unsigned long long)resource->ino,
 									    mode, yield_consec,
 									    (unsigned long long)cur_slot->yield_to,
@@ -10598,7 +10598,7 @@ out:
 		static int p_unset_n;
 
 		if (p_unset_n++ < 200)
-			mxfs_probe("mxfs: P242-GRANT-UNSET-LOCK type=%c id=%llu slot=%u mode=%u retry=%d — durable grant with no provenance\n",
+			mxfs_probe("mxfs: P242-GRANT-UNSET-LOCK type=%c id=%llu slot=%u mode=%u retry=%d -- durable grant with no provenance\n",
 				resource->type == MXFS_LTYPE_INODE ? 'I' :
 				resource->type == MXFS_LTYPE_AG ? 'A' : 'O',
 				(unsigned long long)(resource->type == MXFS_LTYPE_INODE ?
@@ -10924,7 +10924,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 		if (lreq_clr_begin_wait(ctx, resource, NULL, &pub_seq0, NULL,
 					&unlk_clr, unlock_deadline) < 0) {
 			ctx->lreq_nomem++;
-			pr_warn_ratelimited("mxfs: P251-LREQ-DRY unlock-window type=%u ino=%llu dry=%llu — REFUSING the release, lock stays held (peer will re-BAST)\n",
+			pr_warn_ratelimited("mxfs: P251-LREQ-DRY unlock-window type=%u ino=%llu dry=%llu -- REFUSING the release, lock stays held (peer will re-BAST)\n",
 					    resource->type,
 					    (unsigned long long)resource->ino,
 					    (unsigned long long)ctx->lreq_reserve_dry);
@@ -10981,7 +10981,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 				rc = -EIO;
 			}
 			mxfs_pal_log(MXFS_LOG_DEBUG,
-				"mxfs: P470-UNLK-INJECT ag=%u site=find_slot forced_rc=%d slot=%u retry=%d — D-488 exit arm",
+				"mxfs: P470-UNLK-INJECT ag=%u site=find_slot forced_rc=%d slot=%u retry=%d -- D-488 exit arm",
 				resource->ag_number, rc, slot_idx, retry);
 		}
 		if (rc == -ENOENT) {
@@ -10997,7 +10997,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 			 */
 			if (resource->type == MXFS_LTYPE_AG)
 				mxfs_probe_ratelimited(
-				    "mxfs: P274-AGUNLK-NOSLOT ag=%u — unlock found no live slot for an AG we believed held (treated RELEASED)\n",
+				    "mxfs: P274-AGUNLK-NOSLOT ag=%u -- unlock found no live slot for an AG we believed held (treated RELEASED)\n",
 				    resource->ag_number);
 			ustate = MXFS_UNLOCK_RELEASED;
 			rc = 0; /* Not found — nothing to unlock */
@@ -11011,7 +11011,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 			 * either direction.
 			 */
 			mxfs_probe_ratelimited(
-			    "mxfs: P274-UNLK-FINDSLOT-ERR type=%u id=%llu rc=%d retry=%d — unlock outcome UNKNOWN\n",
+			    "mxfs: P274-UNLK-FINDSLOT-ERR type=%u id=%llu rc=%d retry=%d -- unlock outcome UNKNOWN\n",
 			    resource->type,
 			    (unsigned long long)(resource->type ==
 				MXFS_LTYPE_AG ? (uint64_t)resource->ag_number :
@@ -11086,7 +11086,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 					rc = read_slot(ctx, slot_idx, cur_slot);
 					if (rc) {
 						mxfs_probe_ratelimited(
-						    "mxfs: P274-UNLK-REREAD-ERR type=%u id=%llu rc=%d retry=%d — unlock outcome UNKNOWN\n",
+						    "mxfs: P274-UNLK-REREAD-ERR type=%u id=%llu rc=%d retry=%d -- unlock outcome UNKNOWN\n",
 						    resource->type,
 						    (unsigned long long)(resource->type ==
 							MXFS_LTYPE_AG ? (uint64_t)resource->ag_number :
@@ -11466,7 +11466,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 				new_slot->dir_epoch = 0;
 				new_slot->last_ex_slot = MXFS_CAW_EX_SLOT_NONE;
 				mxfs_probe_ratelimited(
-				    "mxfs: P144-EPOCH-FREE-RESET ino=%llu slot=%u — cleared stale dir_epoch/last_ex_slot at inode free (unlock piggyback)\n",
+				    "mxfs: P144-EPOCH-FREE-RESET ino=%llu slot=%u -- cleared stale dir_epoch/last_ex_slot at inode free (unlock piggyback)\n",
 				    (unsigned long long)resource->ino, slot_idx);
 			}
 		}
@@ -11507,7 +11507,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 			else
 				rc = 0;
 			mxfs_pal_log(MXFS_LOG_DEBUG,
-				"mxfs: P470-UNLK-INJECT ag=%u site=cas mode=%d real_rc=%d forced_rc=%d slot=%u retry=%d — D-488 exit arm",
+				"mxfs: P470-UNLK-INJECT ag=%u site=cas mode=%d real_rc=%d forced_rc=%d slot=%u retry=%d -- D-488 exit arm",
 				resource->ag_number, mode, rc, -EIO, slot_idx,
 				retry);
 			rc = -EIO;
@@ -11587,7 +11587,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 			 * verifies by read-back.
 			 */
 			mxfs_probe_ratelimited(
-			    "mxfs: P274-UNLK-CAS-ERR type=%u id=%llu rc=%d may_have_written=%d retry=%d — unlock outcome UNKNOWN\n",
+			    "mxfs: P274-UNLK-CAS-ERR type=%u id=%llu rc=%d may_have_written=%d retry=%d -- unlock outcome UNKNOWN\n",
 			    resource->type,
 			    (unsigned long long)(resource->type ==
 				MXFS_LTYPE_AG ? (uint64_t)resource->ag_number :
@@ -12140,7 +12140,7 @@ static int caw_open_set_dedup(struct mxfs_dlm_caw_ctx *ctx,
 			 * it standing (bits already merged below on a prior
 			 * lap or visible to the dup-aware probe) and shout. */
 			mxfs_pal_log(MXFS_LOG_ERR,
-			    "mxfs: P-OPENSET-DUP-HOLDERS ino=%llu mine=%u canon=%u hex=%llx hpr=%llx — locked dup left standing",
+			    "mxfs: P-OPENSET-DUP-HOLDERS ino=%llu mine=%u canon=%u hex=%llx hpr=%llx -- locked dup left standing",
 			    (unsigned long long)resource->ino, mine_idx,
 			    canon_idx,
 			    (unsigned long long)new_slot->holders_ex,
@@ -12258,7 +12258,7 @@ static int caw_open_set_body(struct mxfs_dlm_caw_ctx *ctx,
 			new_slot->resource_lineage = caw_mint_lineage();
 			if (!new_slot->resource_lineage) {
 				mxfs_pal_log(MXFS_LOG_ERR,
-				    "dlm_caw: P275-LINEAGE-RNG-FAIL type=%u ino=%llu slot=%u (open_set) — RNG returned all-zero draws; failing claim closed",
+				    "dlm_caw: P275-LINEAGE-RNG-FAIL type=%u ino=%llu slot=%u (open_set) -- RNG returned all-zero draws; failing claim closed",
 				    resource->type,
 				    (unsigned long long)resource->ino,
 				    empty_idx);
@@ -12602,7 +12602,7 @@ static int caw_forcerel_precondition(const struct mxfs_resource_id *resource,
 	const char *site = (att && att->site) ? att->site : "(unnamed)";
 
 	if (!att || att->basis == MXFS_FORCEREL_BASIS_NONE) {
-		pr_warn_ratelimited("mxfs: P252-FORCEREL-PRECOND site=%s type=%u ino=%llu — scan-based self-release REFUSED: no quiescence attestation (see struct mxfs_forcerel_attest)\n",
+		pr_warn_ratelimited("mxfs: P252-FORCEREL-PRECOND site=%s type=%u ino=%llu -- scan-based self-release REFUSED: no quiescence attestation (see struct mxfs_forcerel_attest)\n",
 				    site, resource->type,
 				    (unsigned long long)resource->ino);
 		return -EINVAL;
@@ -12617,7 +12617,7 @@ static int caw_forcerel_precondition(const struct mxfs_resource_id *resource,
 	if (att->basis != MXFS_FORCEREL_BASIS_QUIESCED ||
 	    !att->no_local_grant || !att->no_dependent_users ||
 	    !att->new_users_blocked || !att->writeback_drained) {
-		pr_warn_ratelimited("mxfs: P252-FORCEREL-PRECOND site=%s type=%u ino=%llu basis=%u grant=%d users=%d blocked=%d drained=%d — scan-based self-release REFUSED: incomplete quiescence attestation\n",
+		pr_warn_ratelimited("mxfs: P252-FORCEREL-PRECOND site=%s type=%u ino=%llu basis=%u grant=%d users=%d blocked=%d drained=%d -- scan-based self-release REFUSED: incomplete quiescence attestation\n",
 				    site, resource->type,
 				    (unsigned long long)resource->ino,
 				    att->basis, att->no_local_grant,
@@ -12692,7 +12692,7 @@ static int caw_force_release_self_body(struct mxfs_dlm_caw_ctx *ctx,
 		if (lreq_clr_begin_wait(ctx, resource, NULL, &pub_seq0, NULL,
 					&clr, 0) < 0) {
 			ctx->lreq_nomem++;
-			pr_warn_ratelimited("mxfs: P251-LREQ-DRY force-release-window type=%u ino=%llu dry=%llu — orphan reclaim REFUSED (retryable)\n",
+			pr_warn_ratelimited("mxfs: P251-LREQ-DRY force-release-window type=%u ino=%llu dry=%llu -- orphan reclaim REFUSED (retryable)\n",
 					    resource->type,
 					    (unsigned long long)resource->ino,
 					    (unsigned long long)ctx->lreq_reserve_dry);
@@ -12836,7 +12836,7 @@ static int caw_convert_body(struct mxfs_dlm_caw_ctx *ctx,
 	lreq = lreq_join(ctx, resource, new_mode);
 	if (!lreq) {
 		ctx->lreq_nomem++;
-		pr_warn_ratelimited("mxfs: P247-LREQ-NOMEM type=%c id=%llu mode=%u conv — conversion refused: local request registry could not record the attempt\n",
+		pr_warn_ratelimited("mxfs: P247-LREQ-NOMEM type=%c id=%llu mode=%u conv -- conversion refused: local request registry could not record the attempt\n",
 			resource->type == MXFS_LTYPE_INODE ? 'I' :
 			resource->type == MXFS_LTYPE_AG ? 'A' : 'O',
 			(unsigned long long)(resource->type == MXFS_LTYPE_INODE ?
@@ -13059,7 +13059,7 @@ out:
 		static int p_unset_n;
 
 		if (p_unset_n++ < 200)
-			mxfs_probe("mxfs: P242-GRANT-UNSET-CONV type=%c id=%llu slot=%u new_mode=%u — converted grant with no provenance\n",
+			mxfs_probe("mxfs: P242-GRANT-UNSET-CONV type=%c id=%llu slot=%u new_mode=%u -- converted grant with no provenance\n",
 				resource->type == MXFS_LTYPE_INODE ? 'I' :
 				resource->type == MXFS_LTYPE_AG ? 'A' : 'O',
 				(unsigned long long)(resource->type == MXFS_LTYPE_INODE ?
@@ -13204,7 +13204,7 @@ int mxfs_dlm_caw_pin_resource(struct mxfs_dlm_caw_ctx *ctx,
 	}
 out:
 	mxfs_pal_mutex_unlock(ctx->held.lock);
-	pr_err("mxfs: P-WEDGE-PIN node=%u type=%u id=%llu rc=%d — resource pinned against wholesale release; departure will not be clean until proven or fenced\n",
+	pr_err("mxfs: P-WEDGE-PIN node=%u type=%u id=%llu rc=%d -- resource pinned against wholesale release; departure will not be clean until proven or fenced\n",
 	       ctx->local_node, res->type,
 	       (unsigned long long)(res->type == MXFS_LTYPE_AG ?
 				    (uint64_t)res->ag_number : res->ino),
@@ -13282,7 +13282,7 @@ static void caw_release_all_body(struct mxfs_dlm_caw_ctx *ctx,
 		local_count = ctx->held.count;
 		mxfs_pal_mutex_unlock(ctx->held.lock);
 		n_lost = local_count > 0 ? (uint32_t)local_count : 1;
-		pr_err("mxfs: P257-RELEASEALL-NOMEM node=%u held=%d — release_all could not allocate its working buffers; NO slot was cleared and no obligation could be recorded for any of them\n",
+		pr_err("mxfs: P257-RELEASEALL-NOMEM node=%u held=%d -- release_all could not allocate its working buffers; NO slot was cleared and no obligation could be recorded for any of them\n",
 		       ctx->local_node, local_count);
 		mxfs_pal_free(local_slots);
 		mxfs_pal_free(cur_slot);
@@ -13503,7 +13503,7 @@ static void caw_release_all_body(struct mxfs_dlm_caw_ctx *ctx,
 			 */
 			if (pinned) {
 				n_lost++;
-				pr_err("mxfs: P-WEDGE-PIN-RELEASEALL node=%u slot=%u — pinned wedged-release resource left on disk; clean departure refused, peers must fence and recover\n",
+				pr_err("mxfs: P-WEDGE-PIN-RELEASEALL node=%u slot=%u -- pinned wedged-release resource left on disk; clean departure refused, peers must fence and recover\n",
 				       ctx->local_node, local_slots[i]);
 			} else if (!cleared) {
 				bool pubd = res_known &&
@@ -13514,7 +13514,7 @@ static void caw_release_all_body(struct mxfs_dlm_caw_ctx *ctx,
 					n_owed++;
 				} else {
 					n_lost++;
-					pr_err_ratelimited("mxfs: P257-RELEASEALL-LOST node=%u slot=%u rc=%d res_known=%d — release_all left this node's bits on the slot and could not record an obligation for them; clean departure refused\n",
+					pr_err_ratelimited("mxfs: P257-RELEASEALL-LOST node=%u slot=%u rc=%d res_known=%d -- release_all left this node's bits on the slot and could not record an obligation for them; clean departure refused\n",
 							   ctx->local_node,
 							   local_slots[i],
 							   last_rc, res_known);
@@ -13561,7 +13561,7 @@ static void caw_release_all_body(struct mxfs_dlm_caw_ctx *ctx,
 	}
 
 	if (n_owed || n_lost)
-		pr_warn("mxfs: P257-RELEASEALL-RESIDUE node=%u owed=%u lost=%u — slots release_all could not confirm clear; `owed` go to the teardown drain, `lost` have no record at all\n",
+		pr_warn("mxfs: P257-RELEASEALL-RESIDUE node=%u owed=%u lost=%u -- slots release_all could not confirm clear; `owed` go to the teardown drain, `lost` have no record at all\n",
 			ctx->local_node, n_owed, n_lost);
 	else
 		mxfs_pal_log(MXFS_LOG_DEBUG,
@@ -13572,7 +13572,7 @@ static void caw_release_all_body(struct mxfs_dlm_caw_ctx *ctx,
 	 * ran.  Context-cumulative, so a second release_all pass reprints the
 	 * running total rather than losing the first pass's count. */
 	if (ctx->lreq_rel_ioretry)
-		pr_warn("mxfs: P268-RELEASEALL-IORETRY node=%u n=%llu — release_all re-issued a slot CAS once after -ESHUTDOWN (transport UA absorbed in-line)\n",
+		pr_warn("mxfs: P268-RELEASEALL-IORETRY node=%u n=%llu -- release_all re-issued a slot CAS once after -ESHUTDOWN (transport UA absorbed in-line)\n",
 			ctx->local_node,
 			(unsigned long long)ctx->lreq_rel_ioretry);
 
@@ -13849,7 +13849,7 @@ static int caw_purge_dead_nodes_body(struct mxfs_dlm_caw_ctx *ctx,
 	if (skip_tracked && ctx->held_overflow) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P226-PURGE-REFUSED held-table overflowed "
-			     "on this mount — tracked set is incomplete, so "
+			     "on this mount -- tracked set is incomplete, so "
 			     "SKIP_TRACKED cannot distinguish a live hold from "
 			     "a dead one.  Manifest left intact.");
 		return -EOVERFLOW;
@@ -13979,7 +13979,7 @@ static int caw_purge_dead_nodes_body(struct mxfs_dlm_caw_ctx *ctx,
 
 					if (settle_live_n++ < 64)
 						mxfs_pal_log(MXFS_LOG_WARN,
-							"mxfs: P226-SETTLE-LIVE-SKIP slot=%u type=%u ino=%llu ag=%u — a local attempt or tenure is live on this resource; not a leftover, left in place",
+							"mxfs: P226-SETTLE-LIVE-SKIP slot=%u type=%u ino=%llu ag=%u -- a local attempt or tenure is live on this resource; not a leftover, left in place",
 							sidx, res.type,
 							(unsigned long long)res.ino,
 							res.ag_number);
@@ -14133,7 +14133,7 @@ static int caw_purge_dead_nodes_body(struct mxfs_dlm_caw_ctx *ctx,
 	if (unread || wfail) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P231-PURGE-INCOMPLETE mask=0x%llx flags=0x%x "
-			     "purged=%d unread=%d wfail=%d — the dead node's "
+			     "purged=%d unread=%d wfail=%d -- the dead node's "
 			     "authority bits may still be on disk; recovery "
 			     "MUST NOT be published as complete",
 			     (unsigned long long)dead_mask, flags,
@@ -14262,7 +14262,7 @@ static int caw_closure_strip_one(struct mxfs_dlm_caw_ctx *ctx,
 		    caw_inject_take(&mxfs_caw_inject_closure_pause_n)) {
 			mxfs_pal_log(MXFS_LOG_DEBUG,
 			    "mxfs: P299-INJECT-PAUSE slot=%u inv=%u who=%d "
-			    "where=1 ms=%d — hint->authoritative-read window "
+			    "where=1 ms=%d -- hint->authoritative-read window "
 			    "widened for this caller",
 			    slot_idx, inv, who,
 			    mxfs_caw_inject_closure_pause_ms);
@@ -14293,7 +14293,7 @@ static int caw_closure_strip_one(struct mxfs_dlm_caw_ctx *ctx,
 			    "mxfs: P299-HINT-MOVED slot=%u inv=%u who=%d "
 			    "hint_type=%u hint_ino=%llu found_type=%u "
 			    "found_ino=%llu gen=%u lineage=0x%llx "
-			    "vbit_present=%d — the authoritative re-read found "
+			    "vbit_present=%d -- the authoritative re-read found "
 			    "a DIFFERENT resource than the batch hint",
 			    slot_idx, inv, who, hint->type,
 			    (unsigned long long)hint->ino, cur->resource.type,
@@ -14328,7 +14328,7 @@ static int caw_closure_strip_one(struct mxfs_dlm_caw_ctx *ctx,
 				mxfs_pal_log(MXFS_LOG_DEBUG,
 				    "mxfs: P299-HINT-FLIPPED slot=%u inv=%u "
 				    "who=%d hint_ino=%llu found_ino=%llu "
-				    "gen=%u lineage=0x%llx — reused slot "
+				    "gen=%u lineage=0x%llx -- reused slot "
 				    "classified IN closure; stays frozen",
 				    slot_idx, inv, who,
 				    (unsigned long long)hint->ino,
@@ -14345,7 +14345,7 @@ static int caw_closure_strip_one(struct mxfs_dlm_caw_ctx *ctx,
 				/* let this one through — see the knob */
 			} else if (caw_inject_take(&mxfs_caw_inject_closure_gate)) {
 				mxfs_pal_log(MXFS_LOG_ERR,
-				    "mxfs: P299-INJECT-GATE slot=%u — per-CAS "
+				    "mxfs: P299-INJECT-GATE slot=%u -- per-CAS "
 				    "closure gate forced to -ESTALE",
 				    slot_idx);
 				return -ESTALE;
@@ -14372,7 +14372,7 @@ static int caw_closure_strip_one(struct mxfs_dlm_caw_ctx *ctx,
 		    caw_inject_take(&mxfs_caw_inject_closure_pause_n)) {
 			mxfs_pal_log(MXFS_LOG_DEBUG,
 			    "mxfs: P299-INJECT-PAUSE slot=%u inv=%u who=%d "
-			    "where=2 ms=%d — gate->CAS window widened for this "
+			    "where=2 ms=%d -- gate->CAS window widened for this "
 			    "caller", slot_idx, inv, who,
 			    mxfs_caw_inject_closure_pause_ms);
 			mxfs_pal_sleep_ms(mxfs_caw_inject_closure_pause_ms);
@@ -14380,7 +14380,7 @@ static int caw_closure_strip_one(struct mxfs_dlm_caw_ctx *ctx,
 
 		if (caw_inject_take(&mxfs_caw_inject_closure_cas)) {
 			mxfs_pal_log(MXFS_LOG_ERR,
-			    "mxfs: P299-INJECT-CAS slot=%u — closure-strip CAS "
+			    "mxfs: P299-INJECT-CAS slot=%u -- closure-strip CAS "
 			    "forced to miscompare", slot_idx);
 			rc = -EAGAIN;
 		} else {
@@ -14456,7 +14456,7 @@ static int caw_purge_victim_selective_body(struct mxfs_dlm_caw_ctx *ctx,
 		rc = gate(garg);
 		if (rc) {
 			mxfs_pal_log(MXFS_LOG_ERR,
-				"mxfs: P299-CLOSURE-GATE victim_slot=%u rc=%d — "
+				"mxfs: P299-CLOSURE-GATE victim_slot=%u rc=%d -- "
 				"selective purge refused at phase 0; every "
 				"victim grant stays frozen", victim_slot, rc);
 			return rc;
@@ -14561,7 +14561,7 @@ static int caw_purge_victim_selective_body(struct mxfs_dlm_caw_ctx *ctx,
 			abort_rc = rc;
 			mxfs_pal_log(MXFS_LOG_ERR,
 			    "mxfs: P299-CLOSURE-REFROZE victim_slot=%u scan=%u "
-			    "purged=%u rc=%d — authority/verdict moved or the "
+			    "purged=%u rc=%d -- authority/verdict moved or the "
 			    "slot could not be re-read; purge STOPPED "
 			    "(remaining grants stay frozen)",
 			    victim_slot, sidx, purged, rc);
@@ -14583,7 +14583,7 @@ static int caw_purge_victim_selective_body(struct mxfs_dlm_caw_ctx *ctx,
 
 	mxfs_pal_log(MXFS_LOG_WARN,
 	    "mxfs: P299-CLOSURE-PURGE victim_slot=%u purged=%u kept=%u "
-	    "unread=%d wfail=%d abort_rc=%d — out-of-closure CAW grants "
+	    "unread=%d wfail=%d abort_rc=%d -- out-of-closure CAW grants "
 	    "force-revoked; in-closure grants stay frozen",
 	    victim_slot, purged, kept, unread, wfail, abort_rc);
 
@@ -14606,7 +14606,7 @@ static int caw_purge_victim_selective_body(struct mxfs_dlm_caw_ctx *ctx,
 	if (unread || wfail) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 		    "mxfs: P299-CLOSURE-INCOMPLETE victim_slot=%u purged=%u "
-		    "unread=%d wfail=%d — victim state may still be on disk; "
+		    "unread=%d wfail=%d -- victim state may still be on disk; "
 		    "the closure purge MUST NOT be reported complete",
 		    victim_slot, purged, unread, wfail);
 		return -EIO;
@@ -14771,7 +14771,7 @@ static int caw_closure_scrub_slot(struct mxfs_dlm_caw_ctx *ctx,
 			stripped++;
 			mxfs_pal_log(MXFS_LOG_DEBUG,
 			    "mxfs: P299-SCRUB-STRIP slot=%u victim_slot=%d "
-			    "type=%u ino=%llu ag=%u vfoot=0x%x — blocking "
+			    "type=%u ino=%llu ag=%u vfoot=0x%x -- blocking "
 			    "out-of-closure state force-revoked on demand",
 			    slot_idx, bit, cur->resource.type,
 			    (unsigned long long)cur->resource.ino,
@@ -14789,7 +14789,7 @@ static int caw_closure_scrub_slot(struct mxfs_dlm_caw_ctx *ctx,
 		 */
 		hard_rc = rc;
 		mxfs_pal_log(MXFS_LOG_ERR,
-		    "mxfs: P299-SCRUB-ABORT slot=%u victim_slot=%d rc=%d — "
+		    "mxfs: P299-SCRUB-ABORT slot=%u victim_slot=%d rc=%d -- "
 		    "out-of-closure gate could not be evaluated; blocking "
 		    "state left frozen", slot_idx, bit, rc);
 	}
@@ -14906,7 +14906,7 @@ int mxfs_dlm_caw_footprint_scan(struct mxfs_dlm_caw_ctx *ctx,
 	if (nunread) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P227-FOOTPRINT-UNREAD mask=0x%llx %d slot(s) "
-			     "unreadable — census incomplete, caller must assume "
+			     "unreadable -- census incomplete, caller must assume "
 			     "the mask is still blocking",
 			     (unsigned long long)node_mask, nunread);
 		return -EIO;
@@ -15048,7 +15048,7 @@ int mxfs_dlm_caw_manifest_collect_dev(mxfs_bdev_t *dev,
 	if (nunread) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P-RMAN-COLLECT-UNREAD victim_slot=%u %u slot(s) "
-			     "unreadable — fence-time manifest INCOMPLETE; the "
+			     "unreadable -- fence-time manifest INCOMPLETE; the "
 			     "snapshot fails closed and is retried",
 			     victim_slot, nunread);
 		rc = -EIO;
@@ -15101,7 +15101,7 @@ int mxfs_dlm_caw_test_mutate_protected(struct mxfs_dlm_caw_ctx *ctx,
 				 mode == 2 ? MXFS_CAW_CAS_F_PURGE : 0, auth);
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P-RMAN-TEST-MUTATE mode=%d slot=%u type=%u "
-			     "ino=%llu ag=%u cleared=0x%llx rc=%d — TEST ONLY "
+			     "ino=%llu ag=%u cleared=0x%llx rc=%d -- TEST ONLY "
 			     "(mode 1 must be refused by the guard; mode 2 bypasses "
 			     "it and must be caught by the replayer)",
 			     mode, slot, cur->resource.type,
@@ -15210,7 +15210,7 @@ static int caw_bastq_init(struct mxfs_dlm_caw_ctx *ctx)
 	ctx->bq.cond = mxfs_pal_cond_create();
 	if (!ctx->bq.pool || !ctx->bq.hash || !ctx->bq.lock || !ctx->bq.cond) {
 		mxfs_pal_log(MXFS_LOG_WARN,
-			     "dlm_caw: BAST dispatch queue alloc failed — "
+			     "dlm_caw: BAST dispatch queue alloc failed -- "
 			     "falling back to inline callbacks on the "
 			     "producer threads");
 		caw_bastq_free(ctx);
@@ -15343,7 +15343,7 @@ static void caw_bast_submit(struct mxfs_dlm_caw_ctx *ctx,
 					    MXFS_CAW_BASTQ_FASTPOLL_MS;
 		mxfs_pal_mutex_unlock(ctx->bq.lock);
 		mxfs_probe_ratelimited(
-		    "mxfs: P264-BASTQ-FULL ino=%llu type=%u mode=%u — BAST dispatch queue exhausted (%u entries), hint dropped; disk poll pinned FAST for %ums\n",
+		    "mxfs: P264-BASTQ-FULL ino=%llu type=%u mode=%u -- BAST dispatch queue exhausted (%u entries), hint dropped; disk poll pinned FAST for %ums\n",
 			(unsigned long long)resource->ino, resource->type,
 			requested_mode, (unsigned)MXFS_CAW_BASTQ_ENTRIES,
 			(unsigned)MXFS_CAW_BASTQ_FASTPOLL_MS);
@@ -15670,7 +15670,7 @@ static void bast_poll_fn(void *data)
 			 */
 			if (slot.revoke && our_mode != MXFS_LOCK_NL &&
 			    !lock_compat[our_mode][MXFS_LOCK_EX]) {
-				mxfs_probe_ratelimited("mxfs: P280-REVOKE-RX type=%u ag=%u ino=%llu our_mode=%u h_ex=%llx waiters=%llx gen=%llu — sticky revoke; demoting\n",
+				mxfs_probe_ratelimited("mxfs: P280-REVOKE-RX type=%u ag=%u ino=%llu our_mode=%u h_ex=%llx waiters=%llx gen=%llu -- sticky revoke; demoting\n",
 					slot.resource.type,
 					slot.resource.ag_number,
 					(unsigned long long)slot.resource.ino,
@@ -16126,7 +16126,7 @@ struct mxfs_dlm_caw_ctx *mxfs_dlm_caw_create(mxfs_bdev_t *dev,
 		 * the unsound reading the whole mechanism exists to prevent.
 		 */
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "dlm_caw: local request registry could not be created — refusing to bring up the DLM context");
+			     "dlm_caw: local request registry could not be created -- refusing to bring up the DLM context");
 		goto err;
 	}
 
@@ -16223,7 +16223,7 @@ int mxfs_dlm_caw_start(struct mxfs_dlm_caw_ctx *ctx)
 		}
 		if (!nw) {
 			mxfs_pal_log(MXFS_LOG_WARN,
-				     "dlm_caw: no BAST dispatcher could be started — falling back to inline BAST callbacks");
+				     "dlm_caw: no BAST dispatcher could be started -- falling back to inline BAST callbacks");
 			caw_bastq_free(ctx);
 		} else if (nw < MXFS_CAW_BAST_WORKERS) {
 			mxfs_pal_log(MXFS_LOG_WARN,
@@ -16625,7 +16625,7 @@ void mxfs_dlm_caw_stop(struct mxfs_dlm_caw_ctx *ctx)
 					failstop_at = now +
 						caw_failstop_grace_ms();
 				next_gripe = now + MXFS_CAW_QUIESCE_GRIPE_MS;
-				pr_err("mxfs: P258-QUIESCE-STUCK node=%u active=%u waited_ms=%llu failstop_in_ms=%llu — %u operation(s) entered before teardown have not left; this mount cannot prove its slot bits are gone, will NOT claim a clean departure, and will fail-stop if they do not leave before the deadline\n",
+				pr_err("mxfs: P258-QUIESCE-STUCK node=%u active=%u waited_ms=%llu failstop_in_ms=%llu -- %u operation(s) entered before teardown have not left; this mount cannot prove its slot bits are gone, will NOT claim a clean departure, and will fail-stop if they do not leave before the deadline\n",
 				       ctx->local_node, ctx->ops_active,
 				       (unsigned long long)(now - t0),
 				       (unsigned long long)(failstop_at - now),
@@ -16648,7 +16648,7 @@ void mxfs_dlm_caw_stop(struct mxfs_dlm_caw_ctx *ctx)
 				uint32_t active = ctx->ops_active;
 
 				mxfs_pal_mutex_unlock(ctx->lreq_lock);
-				mxfs_pal_failstop("mxfs: CAW teardown: node %u still has %u operation(s) inside the DLM after %llums (quiesce budget + %ums grace); they hold references into a mount that is being freed and can still write the shared LUN — fail-stopping this node rather than corrupting the cluster",
+				mxfs_pal_failstop("mxfs: CAW teardown: node %u still has %u operation(s) inside the DLM after %llums (quiesce budget + %ums grace); they hold references into a mount that is being freed and can still write the shared LUN -- fail-stopping this node rather than corrupting the cluster",
 						  ctx->local_node, active,
 						  (unsigned long long)(now - t0),
 						  caw_failstop_grace_ms());
@@ -16661,7 +16661,7 @@ void mxfs_dlm_caw_stop(struct mxfs_dlm_caw_ctx *ctx)
 		mxfs_pal_mutex_unlock(ctx->lreq_lock);
 
 		if (!quiesced)
-			pr_err("mxfs: P258-QUIESCE-LATE node=%u waited_ms=%llu — the stuck operations left inside the fail-stop grace, so teardown continues; the clean-departure refusal stands\n",
+			pr_err("mxfs: P258-QUIESCE-LATE node=%u waited_ms=%llu -- the stuck operations left inside the fail-stop grace, so teardown continues; the clean-departure refusal stands\n",
 			       ctx->local_node,
 			       (unsigned long long)ctx->quiesce_ms);
 	} else {
@@ -16872,7 +16872,7 @@ void mxfs_dlm_caw_stop(struct mxfs_dlm_caw_ctx *ctx)
 	}
 
 	if (!ctx->departed_clean)
-		pr_err("mxfs: P259-DEPART-UNCLEAN node=%u quiesced=%d expired=%d released=%d rel_done=%d held=%d rel_owed=%u rel_lost=%u owed_left=%u quiesce_ms=%llu — this node cannot prove its CAW slot bits are gone; peers must fence and replay it rather than reclaim it as a clean leaver\n",
+		pr_err("mxfs: P259-DEPART-UNCLEAN node=%u quiesced=%d expired=%d released=%d rel_done=%d held=%d rel_owed=%u rel_lost=%u owed_left=%u quiesce_ms=%llu -- this node cannot prove its CAW slot bits are gone; peers must fence and replay it rather than reclaim it as a clean leaver\n",
 		       ctx->local_node, quiesced, expired, release_now,
 		       rel_done, held_now, rel_owed, rel_lost, left,
 		       (unsigned long long)ctx->quiesce_ms);
@@ -16927,7 +16927,7 @@ void mxfs_dlm_caw_destroy(struct mxfs_dlm_caw_ctx *ctx)
 	 * rather than enforced, and a refcount is the fix if that ever changes.
 	 */
 	if (mxfs_dlm_caw_unsafe_to_free(ctx)) {
-		pr_err("mxfs: P260-CAW-CTX-LEAKED node=%u active=%u — the DLM context is still referenced by an operation that never left teardown; it is deliberately NOT freed\n",
+		pr_err("mxfs: P260-CAW-CTX-LEAKED node=%u active=%u -- the DLM context is still referenced by an operation that never left teardown; it is deliberately NOT freed\n",
 		       ctx->local_node, ctx->ops_active);
 		return;
 	}
@@ -17046,7 +17046,7 @@ void mxfs_dlm_caw_destroy(struct mxfs_dlm_caw_ctx *ctx)
 		ctx->owed_q_n = 0;
 		if (leaked)
 			mxfs_pal_log(MXFS_LOG_WARN,
-			    "mxfs: P248-LREQ-LEAK entries=%u guard=%llu defer=%llu owed=%llu exhaust=%llu nomem=%llu — registry entries survived teardown",
+			    "mxfs: P248-LREQ-LEAK entries=%u guard=%llu defer=%llu owed=%llu exhaust=%llu nomem=%llu -- registry entries survived teardown",
 			    leaked,
 			    (unsigned long long)ctx->lreq_guard_hits,
 			    (unsigned long long)ctx->lreq_defer_hits,
@@ -17061,7 +17061,7 @@ void mxfs_dlm_caw_destroy(struct mxfs_dlm_caw_ctx *ctx)
 	 * registry entry, which is a sizing signal, not a normal event. */
 	if (ctx->lreq_reserve_dry)
 		mxfs_pal_log(MXFS_LOG_WARN,
-		    "mxfs: P251-LREQ-DRY total=%llu reserve_left=%u — destructive clears refused for want of a reserved registry entry",
+		    "mxfs: P251-LREQ-DRY total=%llu reserve_left=%u -- destructive clears refused for want of a reserved registry entry",
 		    (unsigned long long)ctx->lreq_reserve_dry,
 		    ctx->lreq_reserve_n);
 	while (ctx->lreq_reserve) {

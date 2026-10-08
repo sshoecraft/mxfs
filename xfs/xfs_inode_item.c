@@ -732,7 +732,7 @@ xfs_inode_item_pin(
 		    ip->i_dlm_ex_holders == 0 && ip->i_dlm_pin_count == 0) {
 			static atomic_t p58_dumped = ATOMIC_INIT(0);
 
-			mxfs_probe("mxfs: P58-DIRPIN-NONEX ino=%llu dlm_mode=%u state=%u ex_h=%d pr_h=%d dlm_pin=%d comm=%s realns=%llu — dir committed WITHOUT EX authority\n",
+			mxfs_probe("mxfs: P58-DIRPIN-NONEX ino=%llu dlm_mode=%u state=%u ex_h=%d pr_h=%d dlm_pin=%d comm=%s realns=%llu -- dir committed WITHOUT EX authority\n",
 				(unsigned long long)ip->i_ino,
 				ip->i_dlm_mode, ip->i_dlm_state,
 				ip->i_dlm_ex_holders, ip->i_dlm_pr_holders,
@@ -813,7 +813,7 @@ mxfs_dbg_ail_pinned(
 		return false;
 	n = atomic_inc_return(&mxfs_dbg_ail_pin_hits);
 	if (n <= 4 || (n & 1023) == 0)
-		mxfs_probe("mxfs: P-AILPIN-HOLD ino=%llu n=%d — dbg_ail_pin_ino keeps this inode item in the AIL (log tail pinned)\n",
+		mxfs_probe("mxfs: P-AILPIN-HOLD ino=%llu n=%d -- dbg_ail_pin_ino keeps this inode item in the AIL (log tail pinned)\n",
 			(unsigned long long)ip->i_ino, n);
 	return true;
 }
@@ -913,7 +913,7 @@ xfs_inode_item_push(
 		    mxfs_dbg_iflush_pause_ms) {
 			int n = atomic_inc_return(&mxfs_dbg_iflush_pause_n);
 
-			mxfs_probe("mxfs: P963-IFLUSH-PAUSE ino=%llu ms=%u n=%d fmt=%d size=%lld — holding xfsaild's cluster write after the copy-in\n",
+			mxfs_probe("mxfs: P963-IFLUSH-PAUSE ino=%llu ms=%u n=%d fmt=%d size=%lld -- holding xfsaild's cluster write after the copy-in\n",
 				(unsigned long long)ip->i_ino,
 				mxfs_dbg_iflush_pause_ms, n,
 				ip->i_df.if_format, (long long)ip->i_disk_size);
@@ -1204,7 +1204,7 @@ xfs_iflush_finish(
 				(unsigned long long)inode_peek_iversion(
 					VFS_I(iip->ili_inode)),
 				iip->ili_fields ? " (re-logged; will re-flush)"
-						: " (CLEAN DETACH — in-core state now sole copy)",
+						: " (CLEAN DETACH -- in-core state now sole copy)",
 				(unsigned long long)ktime_get_real_ns());
 		/* step-5 F3 (ruling item C): stamp the flush_epoch
 		 * observed at this discharge BEFORE advancing durable_seq —
@@ -1319,7 +1319,7 @@ xfs_buf_inode_iodone(
 			spin_unlock(&iip->ili_lock);
 			xfs_iflags_clear(sk_ip, XFS_IFLUSHING);
 			if (atomic_inc_return(&sk_n) <= 4000)
-				mxfs_probe("mxfs: P187-PUB-REARM ino=%llu pending=%llu durable=%llu fields=0x%x in_ail=%d — sector dropped from the partial write; item kept dirty and in the AIL instead of being completed\n",
+				mxfs_probe("mxfs: P187-PUB-REARM ino=%llu pending=%llu durable=%llu fields=0x%x in_ail=%d -- sector dropped from the partial write; item kept dirty and in the AIL instead of being completed\n",
 					(unsigned long long)sk_ip->i_ino,
 					(unsigned long long)sk_ip->i_mxfs_pub_pending_seq,
 					(unsigned long long)sk_ip->i_mxfs_pub_durable_seq,

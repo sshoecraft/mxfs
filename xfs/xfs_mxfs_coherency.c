@@ -68,7 +68,7 @@ mxfs_getattr_dlm_lock(struct xfs_inode *ip)
 	ret = mxfs_ilock_fallible(ip, XFS_ILOCK_SHARED);
 	if (ret) {
 		pr_warn_ratelimited(
-		    "mxfs: P958-GETATTR-REFUSED ino=%llu rc=%d comm=%s — stat refused: the cluster acquire was abandoned; failing the syscall instead of waiting on it\n",
+		    "mxfs: P958-GETATTR-REFUSED ino=%llu rc=%d comm=%s -- stat refused: the cluster acquire was abandoned; failing the syscall instead of waiting on it\n",
 			(unsigned long long)ip->i_ino, ret, current->comm);
 		return ret;
 	}
@@ -126,7 +126,7 @@ mxfs_read_coherency_envelope(struct xfs_inode *ip)
 	mxfs_acqfall_exit(&acqfall);
 	if (ret)
 		pr_warn_ratelimited(
-		    "mxfs: P958-READ-REFUSED ino=%llu rc=%d comm=%s — read refused: the cluster acquire was abandoned; failing the read instead of waiting on it\n",
+		    "mxfs: P958-READ-REFUSED ino=%llu rc=%d comm=%s -- read refused: the cluster acquire was abandoned; failing the read instead of waiting on it\n",
 			(unsigned long long)ip->i_ino, ret, current->comm);
 	return ret;
 }
@@ -545,7 +545,7 @@ mxfs_dlm_evict_inode_cb(void *data, uint64_t ino, uint32_t gen, uint32_t type)
 
 			if (live && igen != gen && igen + 1 != gen) {
 				mxfs_probe_ratelimited(
-					"mxfs: EVICT-RING-OTHER-INCARN ino=%llu incore_gen=%u freed_gen=%u opens=%d mapped=%d — the cached shell is another incarnation of the number, not the freed one; left alone\n",
+					"mxfs: EVICT-RING-OTHER-INCARN ino=%llu incore_gen=%u freed_gen=%u opens=%d mapped=%d -- the cached shell is another incarnation of the number, not the freed one; left alone\n",
 					(unsigned long long)ino, igen, gen,
 					atomic_read(&ip->i_mxfs_open_n),
 					mapping_mapped(VFS_I(ip)->i_mapping) ? 1 : 0);

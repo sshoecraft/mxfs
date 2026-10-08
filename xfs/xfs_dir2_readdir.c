@@ -1103,7 +1103,7 @@ xfs_readdir(
 					static atomic_t p212n = ATOMIC_INIT(0);
 
 					if (atomic_inc_return(&p212n) <= 400)
-						mxfs_probe("mxfs: P212-RDRETRY-SKIP ino=%llu fmt=%d — caller holds ILOCK_SHARED, so the reload retry can never land; skipping 200x msleep(1) (~1.2 s) and serving consistent-stale as the loop's own exhaustion path would\n",
+						mxfs_probe("mxfs: P212-RDRETRY-SKIP ino=%llu fmt=%d -- caller holds ILOCK_SHARED, so the reload retry can never land; skipping 200x msleep(1) (~1.2 s) and serving consistent-stale as the loop's own exhaustion path would\n",
 							(unsigned long long)dp->i_ino,
 							dp->i_df.if_format);
 					p48_try = 0;
@@ -1123,7 +1123,7 @@ xfs_readdir(
 			}
 			if (unlikely(p48_try) && !dp->i_dlm_stale)
 				mxfs_probe_ratelimited(
-				    "mxfs: P48-RDRELOAD-RETRY ino=%llu tries=%d — readdir extent-map reload landed after contention (stale first-view prevented)\n",
+				    "mxfs: P48-RDRELOAD-RETRY ino=%llu tries=%d -- readdir extent-map reload landed after contention (stale first-view prevented)\n",
 					(unsigned long long)dp->i_ino,
 					p48_try);
 			/* (instrumented): decisive readdir-reload probe (light, gated

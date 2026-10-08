@@ -200,7 +200,7 @@ mxfs_ag_dlm_lock_fallible_for(struct xfs_mount *mp, struct xfs_perag *pag,
 	mxfs_acqfall_exit(&acqfall);
 	if (error == -EREMCHG)
 		pr_warn(
-		    "mxfs: P960-AUTH-TRANSITION-FAIL ino=%llu ag=%u mode=%u laps=0 mounting=%d comm=%s — the takeover this AG acquire waits on stalled; failing THIS lookup with -EREMCHG, not the mount, and not shutting down\n",
+		    "mxfs: P960-AUTH-TRANSITION-FAIL ino=%llu ag=%u mode=%u laps=0 mounting=%d comm=%s -- the takeover this AG acquire waits on stalled; failing THIS lookup with -EREMCHG, not the mount, and not shutting down\n",
 			(unsigned long long)ino, pag_agno(pag), MXFS_LOCK_EX,
 			(!mp->m_super || !mp->m_super->s_root) ? 1 : 0,
 			current->comm);
@@ -217,13 +217,20 @@ mxfs_sb_summary_lock_fallible(struct xfs_mount *mp, uint64_t key,
 			      struct mxfs_grant_result *gres)
 {
 	struct mxfs_acqfallible	acqfall;
+	void			*dlm = READ_ONCE(mp->m_mxfs_dlm);
 	int			rc;
 
+	if (!dlm)
+		return -ENODEV;
+	/* test only: a log worker that has taken the context parks here, as one
+	 * inside a long acquire does */
+	if (current->flags & PF_WQ_WORKER)
+		mxfs_dbg_sb_cover_park(mp);
 	mxfs_acqfall_enter(&acqfall, key);
-	rc = mxfs_v5_dlm_inode_lock(mp->m_mxfs_dlm, key, MXFS_LOCK_EX, gres);
+	rc = mxfs_v5_dlm_inode_lock(dlm, key, MXFS_LOCK_EX, gres);
 	mxfs_acqfall_exit(&acqfall);
 	if (rc == -EREMCHG)
-		pr_warn("mxfs: P960-AUTH-TRANSITION-FAIL-SB slot=%u key=%llu rc=%d comm=%s — the takeover the SB summary lock waited on stalled; failing THIS lock (the caller covers nothing and never writes the SB unlocked), not the mount\n",
+		pr_warn("mxfs: P960-AUTH-TRANSITION-FAIL-SB slot=%u key=%llu rc=%d comm=%s -- the takeover the SB summary lock waited on stalled; failing THIS lock (the caller covers nothing and never writes the SB unlocked), not the mount\n",
 			mp->m_mxfs_node_slot, (unsigned long long)key, rc,
 			current->comm);
 	return rc;
@@ -375,7 +382,7 @@ int
 mxfs_readdir_refused(struct xfs_inode *dp, const char *stage, int rc)
 {
 	pr_warn_ratelimited(
-	    "mxfs: P958-READDIR-REFUSED ino=%llu stage=%s rc=%d comm=%s — readdir refused: the cluster acquire was abandoned; failing the listing instead of waiting on it\n",
+	    "mxfs: P958-READDIR-REFUSED ino=%llu stage=%s rc=%d comm=%s -- readdir refused: the cluster acquire was abandoned; failing the listing instead of waiting on it\n",
 		(unsigned long long)dp->i_ino, stage, rc, current->comm);
 	return rc;
 }
@@ -393,7 +400,7 @@ int
 mxfs_lookup_refused(struct xfs_inode *dp, const char *stage, int rc)
 {
 	pr_warn_ratelimited(
-	    "mxfs: P958-LOOKUP-REFUSED ino=%llu stage=%s rc=%d comm=%s — lookup refused: the directory's cluster acquire was abandoned; failing the name resolution instead of waiting on it\n",
+	    "mxfs: P958-LOOKUP-REFUSED ino=%llu stage=%s rc=%d comm=%s -- lookup refused: the directory's cluster acquire was abandoned; failing the name resolution instead of waiting on it\n",
 		(unsigned long long)dp->i_ino, stage, rc, current->comm);
 	return rc;
 }
@@ -432,7 +439,7 @@ mxfs_kiocb_modified_fallible(struct kiocb *iocb)
 	if (mxfs_acqfall_taken(&acqfall, &rc)) {
 		error = fatal_signal_pending(current) ? -EINTR : rc;
 		pr_warn_ratelimited(
-		    "mxfs: P958-WRITE-REFUSED ino=%llu stage=timestamp mode=excl rc=%d comm=%s — write refused: the cluster acquire was abandoned; failing the write with nothing held instead of waiting on it\n",
+		    "mxfs: P958-WRITE-REFUSED ino=%llu stage=timestamp mode=excl rc=%d comm=%s -- write refused: the cluster acquire was abandoned; failing the write with nothing held instead of waiting on it\n",
 			(unsigned long long)ip->i_ino, error, current->comm);
 	}
 	mxfs_acqfall_exit(&acqfall);
@@ -466,7 +473,7 @@ mxfs_trans_alloc_ichange_fallible(struct xfs_inode *ip, struct xfs_dquot *udqp,
 	if (mxfs_acqfall_taken(&acqfall, &rc)) {
 		error = fatal_signal_pending(current) ? -EINTR : rc;
 		pr_warn_ratelimited(
-		    "mxfs: P958-SETATTR-REFUSED ino=%llu op=%s rc=%d comm=%s — attribute change refused: the cluster acquire was abandoned; the clean reservation is cancelled instead of waiting on it\n",
+		    "mxfs: P958-SETATTR-REFUSED ino=%llu op=%s rc=%d comm=%s -- attribute change refused: the cluster acquire was abandoned; the clean reservation is cancelled instead of waiting on it\n",
 			(unsigned long long)ip->i_ino, op, error, current->comm);
 	}
 	mxfs_acqfall_exit(&acqfall);
@@ -502,7 +509,7 @@ mxfs_attr_trans_alloc_fallible(struct xfs_inode *ip, struct xfs_trans_res *resv,
 	if (mxfs_acqfall_taken(&acqfall, &rc)) {
 		error = fatal_signal_pending(current) ? -EINTR : rc;
 		pr_warn_ratelimited(
-		    "mxfs: P958-XATTRSET-REFUSED ino=%llu stage=%s rc=%d comm=%s — extended-attribute change refused: the cluster acquire was abandoned; the clean reservation is cancelled instead of waiting on it\n",
+		    "mxfs: P958-XATTRSET-REFUSED ino=%llu stage=%s rc=%d comm=%s -- extended-attribute change refused: the cluster acquire was abandoned; the clean reservation is cancelled instead of waiting on it\n",
 			(unsigned long long)ip->i_ino, stage, error, current->comm);
 	}
 	mxfs_acqfall_exit(&acqfall);
@@ -576,7 +583,7 @@ int
 mxfs_fault_refused(struct xfs_inode *ip, const char *stage, int rc)
 {
 	pr_warn_ratelimited(
-	    "mxfs: P958-FAULT-REFUSED ino=%llu stage=%s rc=%d comm=%s — page fault refused: the cluster acquire was abandoned; SIGBUS to the faulting task instead of waiting on it\n",
+	    "mxfs: P958-FAULT-REFUSED ino=%llu stage=%s rc=%d comm=%s -- page fault refused: the cluster acquire was abandoned; SIGBUS to the faulting task instead of waiting on it\n",
 		(unsigned long long)ip->i_ino, stage, rc, current->comm);
 	return rc;
 }
@@ -626,7 +633,7 @@ int
 mxfs_xattr_refused(struct xfs_inode *ip, const char *op, int rc)
 {
 	pr_warn_ratelimited(
-	    "mxfs: P958-XATTR-REFUSED ino=%llu op=%s rc=%d comm=%s — extended-attribute read refused: the cluster acquire was abandoned; failing the read with nothing held instead of waiting on it\n",
+	    "mxfs: P958-XATTR-REFUSED ino=%llu op=%s rc=%d comm=%s -- extended-attribute read refused: the cluster acquire was abandoned; failing the read with nothing held instead of waiting on it\n",
 		(unsigned long long)ip->i_ino, op, rc, current->comm);
 	return rc;
 }
@@ -636,7 +643,7 @@ int
 mxfs_namespace_refused(struct xfs_inode *dp, const char *op, int rc)
 {
 	pr_warn_ratelimited(
-	    "mxfs: P958-NAMESPACE-REFUSED op=%s ino=%llu rc=%d comm=%s — %s refused: the directory's cluster acquire was abandoned; cancelling the clean reservation and failing the operation instead of waiting on it\n",
+	    "mxfs: P958-NAMESPACE-REFUSED op=%s ino=%llu rc=%d comm=%s -- %s refused: the directory's cluster acquire was abandoned; cancelling the clean reservation and failing the operation instead of waiting on it\n",
 		op, (unsigned long long)dp->i_ino, rc, current->comm, op);
 	return rc;
 }

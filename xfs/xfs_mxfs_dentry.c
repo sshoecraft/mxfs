@@ -139,7 +139,7 @@ mxfs_drevalidate(struct inode *dir, const struct qstr *name,
 			static atomic_t p133_n = ATOMIC_INIT(0);
 
 			if (atomic_inc_return(&p133_n) <= 4000)
-				mxfs_probe("mxfs: P133-DREVAL-DYING ino=%llu i_count=%d i_state=0x%lx dlm_mode=%u pid=%d comm=%s — d_revalidate about to approve a dying cached inode\n",
+				mxfs_probe("mxfs: P133-DREVAL-DYING ino=%llu i_count=%d i_state=0x%lx dlm_mode=%u pid=%d comm=%s -- d_revalidate about to approve a dying cached inode\n",
 					(unsigned long long)ip->i_ino, icount,
 					istate, (unsigned)ip->i_dlm_mode,
 					current->pid, current->comm);

@@ -6,6 +6,7 @@
 
 /* see the declaration in tauth_ledger.h */
 int mxfs_tauth_pass_quiet;
+int mxfs_tauth_group_commit;
 
 #ifdef __KERNEL__
 #include <linux/errno.h>
@@ -14,6 +15,28 @@ int mxfs_tauth_pass_quiet;
 #include <errno.h>
 #include <string.h>
 #endif
+
+/*
+ * One committer waiting in the group commit (see gc_lock in tauth_ledger.h).
+ * Lives on the committer's stack for as long as it waits; the batch's writer
+ * sets rc and then done, under gc_lock.
+ */
+struct tauth_gc_ent {
+	struct tauth_gc_ent     *next;
+	struct mxfs_tauth_page  *img;
+	struct mxfs_tauth_wslot *ws;    /* its base, read by the committer itself */
+	int                      rc;
+	bool                     done;
+};
+
+/* The batch's vectors, kept with the ledger: only the writer of the batch in
+ * flight (gc_busy) uses them, and they are too big for a kernel stack frame
+ * this deep in the lock path. */
+struct tauth_gc_vec {
+	struct tauth_gc_ent     *batch[MXFS_TAUTH_WRITE_BATCH];
+	struct mxfs_tauth_wslot *wsp[MXFS_TAUTH_WRITE_BATCH];
+	struct mxfs_tauth_wreq   w[MXFS_TAUTH_WRITE_BATCH];
+};
 
 /* (D-0348 step 2): the seeded fnv1a-32 in mxfs_tauth.h over the
  * identity bytes of a resource id, routed by the region's page count.  The
@@ -107,6 +130,20 @@ int mxfs_tauth_ledger_open(struct mxfs_tauth_ledger *l, mxfs_bdev_t *dev,
 			return -ENOMEM;
 		}
 	}
+	/* the group commit's queue; without it every commit is written alone */
+	l->gc_lock = mxfs_pal_mutex_create();
+	l->gc_cond = mxfs_pal_cond_create();
+	l->gc_vec = mxfs_pal_alloc(sizeof(*l->gc_vec));
+	if (!l->gc_lock || !l->gc_cond || !l->gc_vec) {
+		if (l->gc_lock)
+			mxfs_pal_mutex_destroy(l->gc_lock);
+		if (l->gc_cond)
+			mxfs_pal_cond_destroy(l->gc_cond);
+		mxfs_pal_free(l->gc_vec);
+		l->gc_lock = NULL;
+		l->gc_cond = NULL;
+		l->gc_vec = NULL;
+	}
 	mxfs_pal_log(MXFS_LOG_DEBUG,
 		     "tauth: P-TAUTH-LEDGER-OPEN node=%u inc=%llu slot=%u pages=%u "
 		     "base=%llu",
@@ -124,7 +161,8 @@ void mxfs_tauth_ledger_stats(struct mxfs_tauth_ledger *l, const char *why)
 		     "avg_ms=%llu max_ms=%llu grants_ex=%llu grants_pr=%llu "
 		     "rel_ex=%llu rel_pr=%llu stale=%llu busy=%llu coll=%llu "
 		     "poison=%llu recon=%llu uncommitted=%llu purged=%llu "
-		     "genref=%llu authref=%llu prep=%llu act=%llu",
+		     "genref=%llu authref=%llu prep=%llu act=%llu "
+		     "gc_batches=%llu gc_pages=%llu gc_max=%llu",
 		     why, l->local_node, (unsigned long long)l->commits,
 		     (unsigned long long)l->noop_commits,
 		     (unsigned long long)(l->commits ? l->commit_ms_total / l->commits : 0),
@@ -136,7 +174,9 @@ void mxfs_tauth_ledger_stats(struct mxfs_tauth_ledger *l, const char *why)
 		     (unsigned long long)l->reconciled, (unsigned long long)l->uncommitted,
 		     (unsigned long long)l->purged, (unsigned long long)l->gen_refusals,
 		     (unsigned long long)l->authority_refusals,
-		     (unsigned long long)l->prepares, (unsigned long long)l->activates);
+		     (unsigned long long)l->prepares, (unsigned long long)l->activates,
+		     (unsigned long long)l->gc_batches, (unsigned long long)l->gc_pages,
+		     (unsigned long long)l->gc_max);
 	/* (D-0349): where a commit's milliseconds go, by phase */
 	{
 		struct mxfs_tauth_store *s = &l->store;
@@ -147,7 +187,7 @@ void mxfs_tauth_ledger_stats(struct mxfs_tauth_ledger *l, const char *why)
 			     "read_avg/max=%llu/%llu ticket=%llu/%llu body=%llu/%llu "
 			     "publish=%llu/%llu flush=%llu/%llu stale_base=%llu busy=%llu "
 			     "takeover=%llu resume=%llu stolen=%llu superseded=%llu "
-				 "page_full=%llu probes=%llu",
+				 "page_full=%llu probes=%llu span=%llu",
 				     why, l->local_node, (unsigned long long)s->ph_commits,
 				     (unsigned long long)(s->ph_read_ms / n),
 				     (unsigned long long)s->ph_read_max,
@@ -166,7 +206,8 @@ void mxfs_tauth_ledger_stats(struct mxfs_tauth_ledger *l, const char *why)
 				     (unsigned long long)s->stolen,
 				     (unsigned long long)s->superseded,
 				     (unsigned long long)l->page_full,
-				     (unsigned long long)l->probes);
+				     (unsigned long long)l->probes,
+				     (unsigned long long)s->span_commits);
 	}
 	l->commit_ms_last_report = l->commits;
 }
@@ -187,6 +228,14 @@ void mxfs_tauth_ledger_close(struct mxfs_tauth_ledger *l)
 	mxfs_pal_free(l->pages);
 	l->pages = NULL;
 	l->npages = 0;
+	if (l->gc_lock)
+		mxfs_pal_mutex_destroy(l->gc_lock);
+	if (l->gc_cond)
+		mxfs_pal_cond_destroy(l->gc_cond);
+	mxfs_pal_free(l->gc_vec);
+	l->gc_lock = NULL;
+	l->gc_cond = NULL;
+	l->gc_vec = NULL;
 }
 
 void mxfs_tauth_ledger_set_owner_gen(struct mxfs_tauth_ledger *l, uint64_t gen)
@@ -243,7 +292,7 @@ static int lpage_reconcile_locked(struct mxfs_tauth_ledger *l, uint32_t page_id,
 	if (rc) {
 		mxfs_pal_free(fresh);
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "tauth: P-TAUTH-RECONCILE-FAIL page=%u rc=%d — stays poisoned",
+			     "tauth: P-TAUTH-RECONCILE-FAIL page=%u rc=%d -- stays poisoned",
 			     page_id, rc);
 		return rc;
 	}
@@ -499,7 +548,7 @@ int mxfs_tauth_ledger_collect_ex_holder(struct mxfs_tauth_ledger *l,
 		rc = c.io_err ? -EIO : -EUCLEAN;
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "tauth: P-TAUTH-COLLECT-INCOMPLETE node=%u slot=%u pages=%u "
-			     "unknown=%u unreadable=%u first_bad=%u found=%u rc=%d — "
+			     "unknown=%u unreadable=%u first_bad=%u found=%u rc=%d -- "
 			     "fence-time manifest cannot be complete (fail closed)",
 			     node, slot, c.scanned, c.unknown, c.io_err, c.first_bad,
 			     c.found, rc);
@@ -760,7 +809,7 @@ int mxfs_tauth_ledger_prepare(struct mxfs_tauth_ledger *l, uint32_t page_id,
 		}
 		mxfs_pal_log(MXFS_LOG_DEBUG,
 			     "tauth: P-TAUTH-RETARGET page=%u old_target=%u/%llu new_target=%u/%llu "
-			     "— the old target's incarnation is recovery-purged",
+			     "-- the old target's incarnation is recovery-purged",
 			     page_id, img->hdr.target_node,
 			     (unsigned long long)img->hdr.target_inc, target_node,
 			     (unsigned long long)target_inc);
@@ -1028,7 +1077,7 @@ static int apply_op(struct mxfs_tauth_ledger *l, struct mxfs_tauth_page *img,
 				l->open_pinned++;
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "tauth: P-TAUTH-PAGE-FULL page=%u hash=%u type=%u ino=%llu ag=%u "
-				     "open_pinned=%d — no free entry among %u; requester waits",
+				     "open_pinned=%d -- no free entry among %u; requester waits",
 				     img->hdr.page_id, slot, op->res.type,
 				     (unsigned long long)op->res.ino, op->res.ag_number,
 				     pinned, MXFS_TAUTH_ENTRIES_PER_PAGE);
@@ -1044,7 +1093,7 @@ static int apply_op(struct mxfs_tauth_ledger *l, struct mxfs_tauth_page *img,
 	if (e->state == MXFS_TAUTH_ST_UNKNOWN) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "tauth: P-TAUTH-UNKNOWN-RECORD page=%u entry=%d hash=%u type=%u ino=%llu "
-			     "ag=%u op=%u — refused",
+			     "ag=%u op=%u -- refused",
 			     img->hdr.page_id, idx, slot, op->res.type,
 			     (unsigned long long)op->res.ino, op->res.ag_number, op->kind);
 		return -EUCLEAN;
@@ -1068,7 +1117,7 @@ static int apply_op(struct mxfs_tauth_ledger *l, struct mxfs_tauth_page *img,
 			l->collisions++;
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "tauth: P-TAUTH-COLLISION page=%u entry=%d held type=%u ino=%llu "
-				     "ag=%u vs req type=%u ino=%llu ag=%u — refused (fail closed)",
+				     "ag=%u vs req type=%u ino=%llu ag=%u -- refused (fail closed)",
 				     img->hdr.page_id, idx, e->res_type, (unsigned long long)e->ino,
 				     e->ag_number, op->res.type,
 				     (unsigned long long)op->res.ino, op->res.ag_number);
@@ -1084,7 +1133,7 @@ static int apply_op(struct mxfs_tauth_ledger *l, struct mxfs_tauth_page *img,
 				mxfs_pal_log(MXFS_LOG_ERR,
 					     "tauth: P-TAUTH-DOUBLE-GRANT page=%u entry=%d type=%u ino=%llu "
 					     "ag=%u req node=%u inc=%llu mode=%u vs record ex=%u/%llu "
-					     "holders=%#llx — the master decided a conflicting grant; refused",
+					     "holders=%#llx -- the master decided a conflicting grant; refused",
 					     img->hdr.page_id, idx, op->res.type, (unsigned long long)op->res.ino,
 					     op->res.ag_number, op->node,
 					     (unsigned long long)op->inc, op->mode, e->ex_node,
@@ -1124,7 +1173,7 @@ static int apply_op(struct mxfs_tauth_ledger *l, struct mxfs_tauth_page *img,
 			if (seq == 0 || seq == ~0ULL) {
 				l->exhausted++;
 				mxfs_pal_log(MXFS_LOG_ERR,
-					     "tauth: P-TAUTH-EXHAUST page=%u grant_seq_next=%llu — refused",
+					     "tauth: P-TAUTH-EXHAUST page=%u grant_seq_next=%llu -- refused",
 					     img->hdr.page_id, (unsigned long long)seq);
 				return -ENOSPC;
 			}
@@ -1276,7 +1325,7 @@ static int lpage_commit_settle_locked(struct mxfs_tauth_ledger *l,
 	pg->uncertain_seq = img->hdr.seq;
 	l->poisons++;
 	mxfs_pal_log(MXFS_LOG_ERR,
-		     "tauth: P-TAUTH-POISON page=%u seq=%llu write_rc=%d — outcome uncertain; reconciling",
+		     "tauth: P-TAUTH-POISON page=%u seq=%llu write_rc=%d -- outcome uncertain; reconciling",
 		     img->hdr.page_id, (unsigned long long)img->hdr.seq, rc);
 	if (lpage_reconcile_locked(l, img->hdr.page_id, pg) != 0)
 		return -ENOTRECOVERABLE;
@@ -1304,6 +1353,109 @@ static int lpage_commit_settle_locked(struct mxfs_tauth_ledger *l,
 	return -ESTALE;
 }
 
+/*
+ * Write `img` (its page's lock held by the caller) as part of whatever batch
+ * forms around it, and return what mxfs_tauth_page_write would have returned
+ * for it.
+ *
+ * Why: on a DRBD pair every page commit is two emulated compare-and-swaps
+ * (each a bakery acquisition of the pair-wide swap lock: three replicated
+ * register writes and a replicated FUA target write), three flushes and a FUA
+ * body write, all in series.  Measured on the physical pair (0.90.95): a
+ * commit alone takes ~70 ms, 85% of it the two swaps; when a peer's exclusive
+ * request makes a host release its idle read grants all at once, ~880
+ * releases each paid that whole sequence for themselves, about 30 of them in
+ * flight at a time, and a commit took 1.1-1.8 s — long enough that releasers
+ * re-sent and the peer's own commits waited behind them on the shared swap
+ * lock.  Committed together, N pages pay one ticket swap batch, one body
+ * write, one publish swap batch and three flushes between them.
+ *
+ * Only the barriers are shared.  Each committer reads its own page's base
+ * (both copies) before it queues and reads its published copy back after its
+ * batch, in its own thread, so those reads run in parallel exactly as single
+ * commits' do.  Measured on the rig's DRBD pair with the reads done by the
+ * batch's writer instead: a batch of N cost 3N reads in series, the release
+ * storm's commits took twice as long as committed one by one, and a walk
+ * running beside it slowed 2.4x.
+ *
+ * What stays exactly as it was: each page is still its own conditional commit
+ * (its own base token, ticket, body, publish and readback), its body is
+ * written FUA as a single commit's is, and each committer learns its own
+ * page's outcome before it returns, so nothing is delivered before its record
+ * is durable.  Two commits of one page can never share a batch: each
+ * committer holds its page's lock until it has its result.
+ */
+static int lpage_write_grouped(struct mxfs_tauth_ledger *l, struct mxfs_tauth_page *img)
+{
+	struct tauth_gc_ent me = { .img = img, .rc = -EINPROGRESS };
+	struct tauth_gc_vec *v = l->gc_vec;     /* the writer's alone: gc_busy */
+	int n, i, rc;
+
+	me.ws = mxfs_pal_alloc(sizeof(*me.ws));
+	if (!me.ws)
+		return -ENOMEM;
+	/* 1-2. this page's base, in this thread */
+	rc = mxfs_tauth_page_write_base(&l->store, img, me.ws);
+	if (rc) {
+		mxfs_pal_free(me.ws);
+		return rc;
+	}
+
+	mxfs_pal_mutex_lock(l->gc_lock);
+	if (l->gc_tail)
+		l->gc_tail->next = &me;
+	else
+		l->gc_head = &me;
+	l->gc_tail = &me;
+	while (!me.done) {
+		if (l->gc_busy) {
+			mxfs_pal_cond_wait(l->gc_cond, l->gc_lock);
+			continue;
+		}
+		/* nobody is writing: write everything queued, ours first in line
+		 * or behind the earlier arrivals it queued after */
+		l->gc_busy = true;
+		for (n = 0; n < (int)MXFS_TAUTH_WRITE_BATCH && l->gc_head; n++) {
+			v->batch[n] = l->gc_head;
+			l->gc_head = l->gc_head->next;
+		}
+		if (!l->gc_head)
+			l->gc_tail = NULL;
+		mxfs_pal_mutex_unlock(l->gc_lock);
+
+		/* 3-5. the barriers, once for the whole batch */
+		for (i = 0; i < n; i++) {
+			v->w[i].pg = v->batch[i]->img;
+			v->w[i].authority_epoch = v->batch[i]->img->hdr.authority_epoch;
+			v->w[i].rc = 0;
+			v->wsp[i] = v->batch[i]->ws;
+		}
+		mxfs_tauth_page_write_barriers(&l->store, v->w, v->wsp, n, l->config_id, true);
+
+		mxfs_pal_mutex_lock(l->gc_lock);
+		if (n > 1) {
+			l->gc_batches++;
+			l->gc_pages += (uint64_t)n;
+			if ((uint64_t)n > l->gc_max)
+				l->gc_max = (uint64_t)n;
+		}
+		for (i = 0; i < n; i++) {
+			v->batch[i]->rc = v->w[i].rc;
+			v->batch[i]->done = true;
+		}
+		l->gc_busy = false;
+		mxfs_pal_cond_broadcast(l->gc_cond);
+	}
+	mxfs_pal_mutex_unlock(l->gc_lock);
+
+	/* 6. this page's published copy, read back in this thread */
+	rc = me.rc;
+	if (rc == 0)
+		rc = mxfs_tauth_page_write_readback(&l->store, img, me.ws);
+	mxfs_pal_free(me.ws);
+	return rc;
+}
+
 /* Caller holds pg->lock; `img` is the patched scratch image.  Write it and
  * decide what happened.  Returns 0 (durable, cache updated), -EIO (proven
  * not committed, cache untouched), -ENOTRECOVERABLE (uncertain; poisoned). */
@@ -1319,9 +1471,15 @@ static int lpage_commit_locked(struct mxfs_tauth_ledger *l, struct mxfs_tauth_lp
 	l->torn_after_bytes = 0;
 	(void)config_epoch;
 	/* the page's authority fields ride unchanged: an entry transition is
-	 * only ever written by the ACTIVE authority itself */
-	rc = mxfs_tauth_page_write(&l->store, img, img->hdr.authority_epoch,
-				   l->config_id, torn);
+	 * only ever written by the ACTIVE authority itself.  A torn-write test
+	 * commit is written alone: the fault is the store's single-page one.  So
+	 * is every commit while the group commit is off (mxfs_tauth_group_commit,
+	 * tauth_ledger.h says why it is off by default). */
+	if (torn || !l->gc_lock || !mxfs_tauth_group_commit)
+		rc = mxfs_tauth_page_write(&l->store, img, img->hdr.authority_epoch,
+					   l->config_id, torn);
+	else
+		rc = lpage_write_grouped(l, img);
 	dt = mxfs_pal_time_ms() - t0;
 	l->commit_ms_total += dt;
 	if (dt > l->commit_ms_max)
@@ -1599,7 +1757,7 @@ static int tauth_purge_prepare(struct mxfs_tauth_ledger *l, uint32_t p, uint32_t
 			l->purge_inc_spared++;
 			mxfs_pal_log(MXFS_LOG_WARN,
 				     "tauth: P-TAUTH-PURGE-INC-SPARED page=%u ent=%d node=%u "
-				     "departed_inc=%llu record_inc=%llu mode=%u — the record "
+				     "departed_inc=%llu record_inc=%llu mode=%u -- the record "
 				     "carries the departed node id under another incarnation; "
 				     "it is a live or unproven tenure and is NOT retired",
 				     p, i, node, (unsigned long long)inc,
@@ -2057,7 +2215,7 @@ done:
 	if (rc) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "tauth: P-TAUTH-PURGE-PARTIAL node=%u slot=%d cleared=%d rc=%d "
-			     "at page=%u — blockers beyond this page remain",
+			     "at page=%u -- blockers beyond this page remain",
 			     node, slot, cleared, rc, fail_page);
 		return rc;
 	}

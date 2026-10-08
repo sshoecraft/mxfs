@@ -27,6 +27,8 @@
 #               lock acquires, the BAST workers, the DRBD write bound and the
 #               DRBD compare-and-swap)
 #   SLOW_MS     a call this long or longer is kept with its timestamp (default 1000)
+#   SLOW_TRACE  0 = the profile alone, no slow-call trace (default 1; a 6.8
+#               kernel cannot run both)
 #   INTERVAL_S  seconds between profile snapshots (default 300)
 #   STOP_FILE   default $EVID/stop
 #   EVID        default tests/evidence/pve_pair_profile/<UTC stamp>
@@ -44,6 +46,10 @@ read -r -a PAIR <<<"${PVE_PAIR:-192.168.1.80 192.168.1.81}"
 RUN_S=${1:-}
 FNS=${FNS:-xfs_file_write_iter xfs_file_read_iter xfs_file_fsync xfs_log_force_seq xfs_log_force xfs_log_force_inode xlog_cil_force_seq xlog_wait_on_iclog xfs_iomap_write_direct xfs_iomap_write_unwritten xfs_dio_write_end_io xfs_bmapi_write xfs_trans_alloc xfs_trans_commit mxfs_ilock_fallible mxfs_ag_dlm_lock mxfs_ag_dlm_unlock mxfs_trans_preacquire_inode_ags mxfs_dlm_ag_bast_work_fn mxfs_dlm_bast_work_fn mxfs_pal_ioq_admit mxfs_ioq_admit_one mxfs_pal_drbd_cas_emulate mxfs_drbd_reg_put xfs_create xfs_remove xfs_setattr_size xfs_alloc_vextent_start_ag xfs_alloc_vextent_near_bno}
 SLOW_MS=${SLOW_MS:-1000}
+# A kernel before 6.9 has one function-graph user at a time, and the profiler
+# is one: the rig's 6.8 guests refuse function_profile_enabled (EBUSY) once
+# the function_graph tracer is on.  SLOW_TRACE=0 runs the profile alone.
+SLOW_TRACE=${SLOW_TRACE:-1}
 INTERVAL_S=${INTERVAL_S:-300}
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
 EVID=${EVID:-$REPO/tests/evidence/pve_pair_profile/$STAMP}
@@ -79,6 +85,7 @@ restore() {
 trap restore EXIT
 
 slow_us=$(( SLOW_MS * 1000 ))
+[ "$SLOW_TRACE" = 1 ] || slow_us=0
 # The functions are selected by their line in available_filter_functions: a
 # name written to set_ftrace_filter is matched against every traceable
 # function in the kernel, which measured 7 s a name on pve1 (29 names, 196 s),
@@ -91,11 +98,13 @@ echo > $T/trace
 idx=$(awk -v want="$1" 'BEGIN {n = split(want, a, " "); for (i = 1; i <= n; i++) w[a[i] " [mxfs]"] = 1} ($0 in w) {print NR}' $T/available_filter_functions | tr '\n' ' ')
 [ -n "$idx" ] || { echo "NO_FUNCTION_FOUND"; exit 1; }
 echo $idx > $T/set_ftrace_filter || { echo "FILTER_WRITE_FAILED"; exit 1; }
+if [ "$3" = 1 ]; then
 echo 4096 > $T/buffer_size_kb
 echo "$2" > $T/tracing_thresh
 echo function_graph > $T/current_tracer || { echo "TRACER_FAILED"; exit 1; }
 echo funcgraph-abstime > $T/trace_options
 echo funcgraph-proc > $T/trace_options
+fi
 echo 1 > $T/function_profile_enabled && echo 1 > $T/tracing_on && echo "PROFILE_ON $(wc -l < $T/set_ftrace_filter)"
 cat $T/set_ftrace_filter
 EOF
@@ -105,7 +114,7 @@ for h in "${PAIR[@]}"; do
     # bounded on the host as well: ssh's own timeout here ends only the client,
     # and a setup left running there switched the tracer on after this script
     # had given up and put it back (pve1, 2026-10-06)
-    out=$(on "$h" "echo $SETUP64 | base64 -d | timeout 45 bash -s -- '$FNS' $slow_us" 60)
+    out=$(on "$h" "echo $SETUP64 | base64 -d | timeout 45 bash -s -- '$FNS' $slow_us $SLOW_TRACE" 60)
     echo "$out" > "$EVID/${NAME[$h]}.filter"
     case "$out" in
         *PROFILE_ON*) say "$h ${NAME[$h]}: profiling $(sed -n 's/.*PROFILE_ON \([0-9]*\).*/\1/p' <<<"$out") of $(wc -w <<<"$FNS") functions, calls of ${SLOW_MS} ms or more kept" ;;

@@ -20,7 +20,11 @@ breaks every proof made after it.
 ### An atomic CAS built from replicated plain I/O
 
 A two-party Lamport bakery lock on the device, then read-compare-write of the
-target sector, is **conditionally viable**. It needs:
+target sector, is **conditionally viable**. It needs the list below. The lock
+itself is now a two-party one-bit lock (`docs/attachment-methods.md`, "A
+compare-and-swap built on the device", says why): every requirement below is
+a property of the registers and the swap around the lock, and each still
+holds, with "a bounded ticket number" read as the lock's two one-bit fields.
 
 - each register in its own aligned sector, written by exactly one enrolled
   endpoint, each step waiting for protocol-C completion, direct I/O only;

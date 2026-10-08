@@ -225,7 +225,7 @@ say "CLAIM: which slot did the remount take?"
 CLAIM=$("$SSH" "$VICTIM" "dmesg | sed -n '/$MARK/,\$p' | grep -a 'claimed heartbeat slot' | tail -1" 2>/dev/null)
 echo "${CLAIM:-<no claim line after marker>}"
 NSLOT=$(printf '%s' "$CLAIM" | sed -n 's/.*claimed heartbeat slot \([0-9]*\) .*/\1/p')
-KIND=$(printf '%s' "$CLAIM" | grep -o 'own-stamp reclaim\|fresh claim — slice ADOPTED')
+KIND=$(printf '%s' "$CLAIM" | grep -o 'own-stamp reclaim\|fresh claim -- slice ADOPTED')
 
 echo
 echo "--- reader-side slot $VSLOT timeline (captured across the shutdown) ---"
@@ -254,7 +254,7 @@ rc=0
 if [ "${NSLOT:-}" = "$VSLOT" ]; then
     echo
     echo "STOLEN: the remount claimed the WITHDRAWN slot $VSLOT, not the free slot $FREE."
-    if [ "$KIND" = "fresh claim — slice ADOPTED" ]; then
+    if [ "$KIND" = "fresh claim -- slice ADOPTED" ]; then
         echo "ADOPTED: the slice that the withdraw contract says peers MUST replay was"
         echo "         taken as a pass-2 fresh claim, which sets XLOG_MXFS_ADOPTED_SLICE"
         echo "         and suppresses image replay of exactly those records."

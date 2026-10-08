@@ -178,7 +178,7 @@ MODULE_PARM_DESC(dir_wr_barrier,
 int mxfs_dir_bast_evict;
 module_param_named(dir_bast_evict, mxfs_dir_bast_evict, int, 0644);
 MODULE_PARM_DESC(dir_bast_evict,
-	"on a cross-node BAST release of a dir EX, eagerly evict clean cached dir DATA blocks (post-drain) so the next re-acquire cold-reads coherent — the reliable release-side sibling of the racy acquire-side invalidation; 1=on");
+	"on a cross-node BAST release of a dir EX, eagerly evict clean cached dir DATA blocks (post-drain) so the next re-acquire cold-reads coherent -- the reliable release-side sibling of the racy acquire-side invalidation; 1=on");
 
 /* D2: the per-dirop synchronous parent-durability
  * barrier (mxfs_dlm_dir_inode_durable at create/remove/rename) costs
@@ -500,7 +500,7 @@ static int mxfs_bast_release_queued_tenure(uint32_t p_rel_gen,
 			static atomic_t p6z_n = ATOMIC_INIT(0);
 			if (atomic_inc_return(&p6z_n) <= 4000)
 				mxfs_probe(
-			    "mxfs: P6Z-REL-NOTHING ino=%llu mode=%u state=%u ex=%u pr=%u — no held tenure at release decision; DLM unlock skipped\n",
+			    "mxfs: P6Z-REL-NOTHING ino=%llu mode=%u state=%u ex=%u pr=%u -- no held tenure at release decision; DLM unlock skipped\n",
 				(unsigned long long)ip->i_ino,
 				ip->i_dlm_mode, ip->i_dlm_state,
 				ip->i_dlm_ex_holders, ip->i_dlm_pr_holders);
@@ -549,7 +549,7 @@ static int mxfs_bast_release_queued_tenure(uint32_t p_rel_gen,
 					p6zm_rc = mxfs_v5_dlm_inode_unlock_genless(
 							mp->m_mxfs_dlm, ip->i_ino);
 					if (atomic_inc_return(&p6zm_n) <= 2000)
-						mxfs_probe("mxfs: P-REL-NOTHING-MIRROR-HELD ino=%llu mode=%u state=%u rc=%d — the mirror held a generation-less grant of ours (an imported record nobody adopted); adopted and released so the peer's request is served\n",
+						mxfs_probe("mxfs: P-REL-NOTHING-MIRROR-HELD ino=%llu mode=%u state=%u rc=%d -- the mirror held a generation-less grant of ours (an imported record nobody adopted); adopted and released so the peer's request is served\n",
 							(unsigned long long)ip->i_ino,
 							ip->i_dlm_mode, ip->i_dlm_state,
 							p6zm_rc);
@@ -558,7 +558,7 @@ static int mxfs_bast_release_queued_tenure(uint32_t p_rel_gen,
 					int p20_rc =
 					    mxfs_v5_dlm_inode_release_unconditional(
 						mp->m_mxfs_dlm, ip->i_ino);
-					mxfs_probe("mxfs: P-PHANTOM-RECONCILE-SENT ino=%llu rc=%d — mirror-bypassing release sent to master\n",
+					mxfs_probe("mxfs: P-PHANTOM-RECONCILE-SENT ino=%llu rc=%d -- mirror-bypassing release sent to master\n",
 						(unsigned long long)ip->i_ino,
 						p20_rc);
 				}
@@ -681,7 +681,7 @@ static int mxfs_bast_release_queued_tenure(uint32_t p_rel_gen,
 					p282c.cas_attempted = 0;
 					p282c.defer_kind = MXFS_RELDEFER_WEDGE;
 					p282c.defer_reason =
-						"wedged — CAS refused";
+						"wedged -- CAS refused";
 					p282c.drain_ns =
 						ktime_get_ns() - p282_t0;
 					mxfs_release_cert_emit(&p282c);
@@ -722,8 +722,8 @@ static int mxfs_bast_release_queued_tenure(uint32_t p_rel_gen,
 					ip->i_dlm_ex_holders,
 					ip->i_dlm_pr_holders,
 					p15h_reap ? 1 : 0, p6zc_now,
-					p6zc_now ? "live tenure — deferred" :
-						   "no tenure — unconditional unlock (in-loop guarded)");
+					p6zc_now ? "live tenure -- deferred" :
+						   "no tenure -- unconditional unlock (in-loop guarded)");
 		} else {
 			int p6u_rc;
 
@@ -824,7 +824,7 @@ static int mxfs_bast_release_queued_tenure(uint32_t p_rel_gen,
 				}
 				if (!rb_defer &&
 				    atomic_inc_return(&p15h_live_cap) <= 400)
-					mxfs_probe("mxfs: P15H-LIVE-SKIP ino=%llu mode=%u reap=%d — live tenure appeared before unlock; deferring\n",
+					mxfs_probe("mxfs: P15H-LIVE-SKIP ino=%llu mode=%u reap=%d -- live tenure appeared before unlock; deferring\n",
 						(unsigned long long)ip->i_ino,
 						ip->i_dlm_mode,
 						p15h_reap ? 1 : 0);
@@ -867,7 +867,7 @@ static int mxfs_bast_release_queued_tenure(uint32_t p_rel_gen,
 					static atomic_t p188_n = ATOMIC_INIT(0);
 
 					if (atomic_inc_return(&p188_n) <= 8000)
-						mxfs_probe("mxfs: P188-REL-OBLIGATION-AT-UNLOCK ino=%llu pending=%llu durable=%llu flush=%llu nlink=%u fmt=%d in_ail=%d pin=%d ili_fields=0x%x comm=%s realns=%llu — about to hand the grant to a peer with a committed change that is NOT at its home location\n",
+						mxfs_probe("mxfs: P188-REL-OBLIGATION-AT-UNLOCK ino=%llu pending=%llu durable=%llu flush=%llu nlink=%u fmt=%d in_ail=%d pin=%d ili_fields=0x%x comm=%s realns=%llu -- about to hand the grant to a peer with a committed change that is NOT at its home location\n",
 							(unsigned long long)ip->i_ino,
 							(unsigned long long)ip->i_mxfs_pub_pending_seq,
 							(unsigned long long)ip->i_mxfs_pub_durable_seq,
@@ -987,7 +987,7 @@ static int mxfs_bast_release_queued_tenure(uint32_t p_rel_gen,
 					p282c.cas_attempted = 0;
 					p282c.defer_kind = MXFS_RELDEFER_WEDGE;
 					p282c.defer_reason =
-						"wedged — CAS refused";
+						"wedged -- CAS refused";
 					p282c.drain_ns =
 						ktime_get_ns() - p282_t0;
 					mxfs_release_cert_emit(&p282c);
@@ -1044,7 +1044,7 @@ static int mxfs_bast_release_queued_tenure(uint32_t p_rel_gen,
 				 * shutdown) is a race tail — force the verdict
 				 * so the P6G arm decision below is exercised
 				 * deterministically on demand. */
-				mxfs_probe_ratelimited("mxfs: P6G-INJECT-STALE ino=%llu rc=%d — forcing teardown-era strand (test injector)\n",
+				mxfs_probe_ratelimited("mxfs: P6G-INJECT-STALE ino=%llu rc=%d -- forcing teardown-era strand (test injector)\n",
 					(unsigned long long)ip->i_ino, p6u_rc);
 				stranded = true;
 			}
@@ -1068,7 +1068,7 @@ static int mxfs_bast_release_queued_tenure(uint32_t p_rel_gen,
 				ip->i_dlm_state = MXFS_DLM_ISTATE_NONE;
 				mxfs_dlmtr_rec(ip, dtr_om, dtr_os, MXFS_SITE); }
 			spin_unlock(&ip->i_dlm_lock);
-			mxfs_probe("mxfs: P6G-REL-STALE ino=%llu rel_gen=%u — newer grant owns the resource; release deferred to bast dwork\n",
+			mxfs_probe("mxfs: P6G-REL-STALE ino=%llu rel_gen=%u -- newer grant owns the resource; release deferred to bast dwork\n",
 				(unsigned long long)ip->i_ino, p_rel_gen);
 			/*
 			 * D-DWORK-TEARDOWN-LASTREF-LEAK: during unmount
@@ -1088,7 +1088,7 @@ static int mxfs_bast_release_queued_tenure(uint32_t p_rel_gen,
 			if (mxfs_teardown_arm_gate &&
 			    (xfs_is_unmounting(mp) || xfs_is_shutdown(mp) ||
 			     !mp->m_mxfs_dlm)) {
-				pr_warn("mxfs: P6G-REL-STALE-TEARDOWN ino=%llu unmounting=%d shutdown=%d dlm=%d — stranded at teardown; no dwork arm (release_all sweep owns the slot)\n",
+				pr_warn("mxfs: P6G-REL-STALE-TEARDOWN ino=%llu unmounting=%d shutdown=%d dlm=%d -- stranded at teardown; no dwork arm (release_all sweep owns the slot)\n",
 					(unsigned long long)ip->i_ino,
 					xfs_is_unmounting(mp) ? 1 : 0,
 					xfs_is_shutdown(mp) ? 1 : 0,
@@ -1248,7 +1248,7 @@ static void mxfs_bast_dir_late_dirent_audit(struct inode *vip,
 					 * before unlock. */
 					p3b_reflush = true;
 					mxfs_probe_ratelimited(
-					    "mxfs: P3B-WRBARRIER ino=%llu waited=%dms inflight=%d — held DLM unlock for in-flight metadata write bios\n",
+					    "mxfs: P3B-WRBARRIER ino=%llu waited=%dms inflight=%d -- held DLM unlock for in-flight metadata write bios\n",
 					    (unsigned long long)ip->i_ino,
 					    p3b_wb * 2,
 					    atomic_read(&mp->m_mxfs_dir_wr_inflight));
@@ -1260,7 +1260,7 @@ static void mxfs_bast_dir_late_dirent_audit(struct inode *vip,
 			{
 				static atomic_t p3b_n = ATOMIC_INIT(0);
 				if (atomic_inc_return(&p3b_n) <= 2000)
-					mxfs_probe("mxfs: P3B-UNLOCK-UNDESTAGED ino=%llu try=%d data_durable=%d in_ail=%d pin=%d nx=%llu size=%lld comm=%s realns=%llu — re-draining before DLM unlock\n",
+					mxfs_probe("mxfs: P3B-UNLOCK-UNDESTAGED ino=%llu try=%d data_durable=%d in_ail=%d pin=%d nx=%llu size=%lld comm=%s realns=%llu -- re-draining before DLM unlock\n",
 						(unsigned long long)ip->i_ino,
 						p3b_try,
 						p3b_durable ? 1 : 0,
@@ -1273,7 +1273,7 @@ static void mxfs_bast_dir_late_dirent_audit(struct inode *vip,
 			}
 
 			if (p3b_try >= 5000) {
-				pr_warn("mxfs: P3B-RELFENCE-WEDGE ino=%llu — shutdown (un-durable dir lock NOT released)\n",
+				pr_warn("mxfs: P3B-RELFENCE-WEDGE ino=%llu -- shutdown (un-durable dir lock NOT released)\n",
 					(unsigned long long)ip->i_ino);
 				xfs_force_shutdown(mp, SHUTDOWN_META_IO_ERROR);
 				break;
@@ -1307,7 +1307,7 @@ static void mxfs_bast_dir_late_dirent_audit(struct inode *vip,
 			int p3b_frc = mxfs_blkdev_flush_epoch(mp);
 
 			mxfs_probe_ratelimited(
-			    "mxfs: P3B-REFLUSH ino=%llu rc=%d — device flush re-issued after post-H26 late drain/barrier work so the platter is coherent at unlock\n",
+			    "mxfs: P3B-REFLUSH ino=%llu rc=%d -- device flush re-issued after post-H26 late drain/barrier work so the platter is coherent at unlock\n",
 			    (unsigned long long)ip->i_ino, p3b_frc);
 		}
 	}
@@ -1405,7 +1405,7 @@ static void mxfs_bast_write_inode_core_home(int *rtry_io, struct xfs_mount *mp,
 				break;
 			}
 			mxfs_probe_ratelimited(
-				"mxfs: P31-RELFLUSH-SELF-SKIPPED ino=%llu try=%d pin=%d — cluster flushed without this dinode, retrying\n",
+				"mxfs: P31-RELFLUSH-SELF-SKIPPED ino=%llu try=%d pin=%d -- cluster flushed without this dinode, retrying\n",
 				(unsigned long long)ip->i_ino, rtry,
 				atomic_read(&ip->i_pincount));
 			msleep(2);
@@ -1506,7 +1506,7 @@ static void mxfs_bast_write_inode_core_home(int *rtry_io, struct xfs_mount *mp,
 						   ip->i_df.if_bytes)) {
 						v_behind = true;
 						mxfs_probe_ratelimited(
-						    "mxfs: P175-SFCONTENT-UNLANDED ino=%llu if_bytes=%lld dfork_dsize=%d — header fields match but SHORTFORM CONTENT differs from platter; publication still owed (drain would have released silently)\n",
+						    "mxfs: P175-SFCONTENT-UNLANDED ino=%llu if_bytes=%lld dfork_dsize=%d -- header fields match but SHORTFORM CONTENT differs from platter; publication still owed (drain would have released silently)\n",
 							(unsigned long long)ip->i_ino,
 							(long long)ip->i_df.if_bytes, dlen);
 					}
@@ -1578,7 +1578,7 @@ static void mxfs_bast_write_inode_core_home(int *rtry_io, struct xfs_mount *mp,
 						 * whole reason this defect hid.
 						 */
 						mxfs_probe_ratelimited(
-						    "mxfs: P176-OBLIGATION-OPEN ino=%llu cls=%s pending=%llu durable=%llu flush=%llu mode=%u fmt=%d size=%lld ili_f=0x%x ili_lf=0x%x in_ail=%d iflushing=%d pin=%d enforce=%d — drain declaring success with an UNLANDED committed change\n",
+						    "mxfs: P176-OBLIGATION-OPEN ino=%llu cls=%s pending=%llu durable=%llu flush=%llu mode=%u fmt=%d size=%lld ili_f=0x%x ili_lf=0x%x in_ail=%d iflushing=%d pin=%d enforce=%d -- drain declaring success with an UNLANDED committed change\n",
 							(unsigned long long)ip->i_ino,
 							(ip->i_mxfs_pub_flush_seq ==
 							 ip->i_mxfs_pub_pending_seq)
@@ -1651,7 +1651,7 @@ static void mxfs_bast_write_inode_core_home(int *rtry_io, struct xfs_mount *mp,
 				 * gens are diagnostics only. */
 				if (ip->i_mxfs_dead_incarn_gen) {
 					pr_warn_ratelimited(
-					    "mxfs: P146D-DEADINCARN ino=%llu incore_gen=%u disk_gen=%u poison_gen=%u incore_mode=0%o — write-poisoned dead incarnation; NOT re-logging over peer's live slot\n",
+					    "mxfs: P146D-DEADINCARN ino=%llu incore_gen=%u disk_gen=%u poison_gen=%u incore_mode=0%o -- write-poisoned dead incarnation; NOT re-logging over peer's live slot\n",
 						(unsigned long long)ip->i_ino,
 						VFS_I(ip)->i_generation,
 						v_dgen,
@@ -1696,7 +1696,7 @@ static void mxfs_bast_write_inode_core_home(int *rtry_io, struct xfs_mount *mp,
 				      vdip->di_format !=
 					XFS_DINODE_FMT_LOCAL))) {
 					pr_warn_ratelimited(
-					    "mxfs: P189-RELOG-BEHIND-DISK ino=%llu incore[nlink=%u chg=%llu size=%lld fmt=%d] disk[nlink=%u chg=%llu size=%lld fmt=%d] — in-core core is BEHIND the platter; refusing to re-log it over a peer's newer image\n",
+					    "mxfs: P189-RELOG-BEHIND-DISK ino=%llu incore[nlink=%u chg=%llu size=%lld fmt=%d] disk[nlink=%u chg=%llu size=%lld fmt=%d] -- in-core core is BEHIND the platter; refusing to re-log it over a peer's newer image\n",
 						(unsigned long long)ip->i_ino,
 						VFS_I(ip)->i_nlink,
 						(unsigned long long)inode_peek_iversion(VFS_I(ip)),
@@ -1732,7 +1732,7 @@ static void mxfs_bast_write_inode_core_home(int *rtry_io, struct xfs_mount *mp,
 					break;
 				}
 				mxfs_probe_ratelimited(
-				    "mxfs: P146V-UNLANDED ino=%llu try=%d incore[gen=%u mode=0%o nlink=%u size=%lld fmt=%d] disk[gen=%u mode=0%o nlink=%u size=%lld fmt=%d] — clean-but-unlanded dinode (phantom retire); re-logging core\n",
+				    "mxfs: P146V-UNLANDED ino=%llu try=%d incore[gen=%u mode=0%o nlink=%u size=%lld fmt=%d] disk[gen=%u mode=0%o nlink=%u size=%lld fmt=%d] -- clean-but-unlanded dinode (phantom retire); re-logging core\n",
 					(unsigned long long)ip->i_ino,
 					rtry,
 					VFS_I(ip)->i_generation,
@@ -1789,7 +1789,7 @@ static void mxfs_bast_write_inode_core_home(int *rtry_io, struct xfs_mount *mp,
 								ip->i_dlm_bast_pending ? 1 : 0);
 						} else {
 							mxfs_probe_ratelimited(
-							    "mxfs: P146V-RELOG-NOWAIT-BUSY ino=%llu ex_h=%u pr_h=%u — ILOCK_EXCL held elsewhere; re-log skipped this try\n",
+							    "mxfs: P146V-RELOG-NOWAIT-BUSY ino=%llu ex_h=%u pr_h=%u -- ILOCK_EXCL held elsewhere; re-log skipped this try\n",
 								(unsigned long long)ip->i_ino,
 								p_exb, p_prb);
 							xfs_trans_cancel(vtp);
@@ -1843,7 +1843,7 @@ static void mxfs_bast_drain_site_abba(struct inode *vip, struct xfs_inode *ip,
 		 * protected.  dirty= is the precondition: an already
 		 * clean mapping takes no folio locks at all. */
 		if (atomic_inc_return(&p28s2) <= 2000)
-			mxfs_probe("mxfs: P28-DRAINSITE2 ino=%llu dirty=%d writeback=%d — entering the post-mode-clear page flush (ABBA site)\n",
+			mxfs_probe("mxfs: P28-DRAINSITE2 ino=%llu dirty=%d writeback=%d -- entering the post-mode-clear page flush (ABBA site)\n",
 				(unsigned long long)ip->i_ino,
 				mapping_tagged(vip->i_mapping,
 					PAGECACHE_TAG_DIRTY) ? 1 : 0,
@@ -1887,7 +1887,7 @@ static void mxfs_bast_drain_site_abba(struct inode *vip, struct xfs_inode *ip,
 		 * check WEDGED pre-CAS), and force-shutdown.
 		 */
 		if (rel_drain_wb_err) {
-			pr_err("mxfs: P-D512-DRAIN2-WBFAIL ino=%llu rc=%d — post-NL data flush FAILED; wedging (unlock CAS will be refused)\n",
+			pr_err("mxfs: P-D512-DRAIN2-WBFAIL ino=%llu rc=%d -- post-NL data flush FAILED; wedging (unlock CAS will be refused)\n",
 				(unsigned long long)ip->i_ino,
 				rel_drain_wb_err);
 			mxfs_inode_wedge(ip, NULL, false);
@@ -2150,7 +2150,7 @@ static void mxfs_bast_flush_inode_core_for_release(struct inode *vip,
 			static atomic_t p_rfnt_n = ATOMIC_INIT(0);
 
 			if (atomic_inc_return(&p_rfnt_n) <= 2000)
-				pr_warn("mxfs: P-RELFLUSH-NOTENURE ino=%llu held_mode=%u dlm_mode=%u state=%u ex_h=%d pr_h=%d orph=%d gen=%u mode=0%o — durable loop entered with the RELFLUSH token after the tenure verify refused (detector)\n",
+				pr_warn("mxfs: P-RELFLUSH-NOTENURE ino=%llu held_mode=%u dlm_mode=%u state=%u ex_h=%d pr_h=%d orph=%d gen=%u mode=0%o -- durable loop entered with the RELFLUSH token after the tenure verify refused (detector)\n",
 					(unsigned long long)ip->i_ino, p_held_mode,
 					ip->i_dlm_mode, ip->i_dlm_state,
 					ip->i_dlm_ex_holders, ip->i_dlm_pr_holders,
@@ -2203,7 +2203,7 @@ reg_durable_done:
 					break;
 				if (ktime_get_ns() > bdeadline) {
 					atomic_inc(&mxfs_reg_bmbt_rel_wedge);
-					pr_err("mxfs: P974-REG-BMBT-WEDGE ino=%llu nx=%llu rounds=%d — extent tree not durable within 30 s; release wedged, not unlocked\n",
+					pr_err("mxfs: P974-REG-BMBT-WEDGE ino=%llu nx=%llu rounds=%d -- extent tree not durable within 30 s; release wedged, not unlocked\n",
 						(unsigned long long)ip->i_ino,
 						(unsigned long long)ip->i_df.if_nextents,
 						bw);
@@ -2235,7 +2235,7 @@ reg_durable_done:
 		    ip->i_itemp &&
 		    test_bit(XFS_LI_IN_AIL, &ip->i_itemp->ili_item.li_flags))
 			mxfs_probe_ratelimited(
-				"mxfs: P-REG-DURABLE-FAIL ino=%llu rerr=%d pin=%d size=%lld — released NOT durable\n",
+				"mxfs: P-REG-DURABLE-FAIL ino=%llu rerr=%d pin=%d size=%lld -- released NOT durable\n",
 				(unsigned long long)ip->i_ino, rerr,
 				atomic_read(&ip->i_pincount),
 				(long long)ip->i_disk_size);
@@ -2414,7 +2414,7 @@ static void mxfs_bast_close_dir_cil_ail_race(struct inode *vip,
 			 * ratelimited. */
 			if ((in_ail || pinned) && !pre_in_ail && !pre_pinned)
 				mxfs_probe_ratelimited(
-				    "mxfs: P57-DRAIN-RACE-CAUGHT ino=%llu w=%d in_ail=%d pinned=%d — commit landed during blocking ilock acquire (old code released stale)\n",
+				    "mxfs: P57-DRAIN-RACE-CAUGHT ino=%llu w=%d in_ail=%d pinned=%d -- commit landed during blocking ilock acquire (old code released stale)\n",
 				    (unsigned long long)ip->i_ino, w,
 				    in_ail, pinned);
 
@@ -2468,13 +2468,13 @@ static void mxfs_bast_close_dir_cil_ail_race(struct inode *vip,
 					 * default runs, not only under instr. */
 					if (wb * 2 >= 1000)
 						pr_warn_ratelimited(
-						    "mxfs: P40-WRBARRIER-LONG ino=%llu waited=%dms inflight=%d — leak-suspect: dir EX release stalled on the wr-count barrier\n",
+						    "mxfs: P40-WRBARRIER-LONG ino=%llu waited=%dms inflight=%d -- leak-suspect: dir EX release stalled on the wr-count barrier\n",
 						    (unsigned long long)ip->i_ino,
 						    wb * 2,
 						    atomic_read(&mp->m_mxfs_dir_wr_inflight));
 					else if (unlikely(mxfs_dirwr_enabled || mxfs_instr_enabled))
 						mxfs_probe_ratelimited(
-						    "mxfs: P40-WRBARRIER ino=%llu waited=%dms inflight=%d — dir EX release drained in-flight dir-block writes before handoff\n",
+						    "mxfs: P40-WRBARRIER ino=%llu waited=%dms inflight=%d -- dir EX release drained in-flight dir-block writes before handoff\n",
 						    (unsigned long long)ip->i_ino,
 						    wb * 2,
 						    atomic_read(&mp->m_mxfs_dir_wr_inflight));
@@ -2542,7 +2542,7 @@ static void mxfs_bast_close_dir_cil_ail_race(struct inode *vip,
 			mxfs_dir_flush_data_blocks_relsafe(ip);
 
 			if (w >= 15000) {
-				pr_warn_ratelimited("mxfs: P97-RELFENCE-WEDGE ino=%llu in_ail=%d pinned=%d data_durable=%d — shutdown (un-durable dir lock NOT released)\n",
+				pr_warn_ratelimited("mxfs: P97-RELFENCE-WEDGE ino=%llu in_ail=%d pinned=%d data_durable=%d -- shutdown (un-durable dir lock NOT released)\n",
 					(unsigned long long)ip->i_ino,
 					in_ail, pinned, data_durable);
 				xfs_force_shutdown(mp, SHUTDOWN_META_IO_ERROR);
@@ -2676,7 +2676,7 @@ static void mxfs_bast_close_dir_cil_ail_race(struct inode *vip,
 				static atomic_t p491r_n = ATOMIC_INIT(0);
 
 				if (atomic_inc_return(&p491r_n) <= 400)
-					mxfs_probe("mxfs: P491-REL-UNDEST ino=%llu fmt=%d held_mode=%u gmode=%u rc=%d undest=%d inail=%d locked=%d cached=%d f4_open=%ld f4_unknown=%d first_daddr=%lld lseq=%llu wseq=%llu has_bli=%d done=%d data_durable=%d comm=%s — release pipeline past its drain with committed-unwritten data blocks cached\n",
+					mxfs_probe("mxfs: P491-REL-UNDEST ino=%llu fmt=%d held_mode=%u gmode=%u rc=%d undest=%d inail=%d locked=%d cached=%d f4_open=%ld f4_unknown=%d first_daddr=%lld lseq=%llu wseq=%llu has_bli=%d done=%d data_durable=%d comm=%s -- release pipeline past its drain with committed-unwritten data blocks cached\n",
 						(unsigned long long)ip->i_ino,
 						ip->i_df.if_format, p_held_mode,
 						mxfs_v5_dlm_inode_granted_mode(
@@ -3078,7 +3078,7 @@ static int mxfs_bast_release_obligation_last_gate(struct inode *vip,
 			 * b=settle+ail-drain+flush, c=pagecache, d=durable loop,
 			 * t=entry->here; all us. */
 			if (atomic_inc_return(&p244_n) <= 2000)
-				mxfs_probe("mxfs: P244-REL-TERMINAL-DEFER ino=%llu pend=%llu dur=%llu flush=%llu pend_entry=%llu live=%d ili_f=0x%x t_us=%llu a=%llu b=%llu b1=%llu b2=%llu c=%llu c1=%llu c2=%llu d=%llu comm=%s realns=%llu — obligation landed between the pre-NL gate and the terminal store; release deferred at the last gate\n",
+				mxfs_probe("mxfs: P244-REL-TERMINAL-DEFER ino=%llu pend=%llu dur=%llu flush=%llu pend_entry=%llu live=%d ili_f=0x%x t_us=%llu a=%llu b=%llu b1=%llu b2=%llu c=%llu c1=%llu c2=%llu d=%llu comm=%s realns=%llu -- obligation landed between the pre-NL gate and the terminal store; release deferred at the last gate\n",
 					(unsigned long long)ip->i_ino,
 					(unsigned long long)ip->i_mxfs_pub_pending_seq,
 					(unsigned long long)ip->i_mxfs_pub_durable_seq,
@@ -3244,7 +3244,7 @@ static int mxfs_bast_nl_entry_cleanup(uint8_t p_held_mode, uint32_t p_rel_gen,
 			ip->i_dlm_orphan_gg = 0;
 			orphan_live = false;	/* proceed with the release */
 			p15h_reap = true;	/* tag for unlock-outcome forensics */
-			mxfs_probe("mxfs: P15H-STRANDED-RELEASE ino=%llu gen=%u state=%u — granted mirror entry never consumed across 280 samples (~7s); releasing stranded grant\n",
+			mxfs_probe("mxfs: P15H-STRANDED-RELEASE ino=%llu gen=%u state=%u -- granted mirror entry never consumed across 280 samples (~7s); releasing stranded grant\n",
 				(unsigned long long)ip->i_ino, p_rel_gen,
 				ip->i_dlm_state);
 		} else if ((ip->i_dlm_orphan_strikes % 70) == 0) {
@@ -3255,7 +3255,7 @@ static int mxfs_bast_nl_entry_cleanup(uint8_t p_held_mode, uint32_t p_rel_gen,
 			 * one gen; that had never been measured.  Four lines
 			 * per episode say whether they do, and on which gen.
 			 */
-			mxfs_probe_ratelimited("mxfs: P15H-STRIKES ino=%llu gen=%u strikes=%u state=%u — same-gen unconsumed samples accumulating toward the 280-sample escape\n",
+			mxfs_probe_ratelimited("mxfs: P15H-STRIKES ino=%llu gen=%u strikes=%u state=%u -- same-gen unconsumed samples accumulating toward the 280-sample escape\n",
 				(unsigned long long)ip->i_ino, p_rel_gen,
 				ip->i_dlm_orphan_strikes, ip->i_dlm_state);
 		}
@@ -3437,7 +3437,7 @@ static int mxfs_bast_nl_entry_cleanup(uint8_t p_held_mode, uint32_t p_rel_gen,
 
 			orphan_live = false;	/* proceed: anchored unlock below */
 			if (atomic_inc_return(&p15o_n) <= 100)
-				pr_warn("mxfs: P15-ORPH-PROCEED ino=%llu gen=%u age_ms=%llu — persistent idle orphan; proceeding to anchored release\n",
+				pr_warn("mxfs: P15-ORPH-PROCEED ino=%llu gen=%u age_ms=%llu -- persistent idle orphan; proceeding to anchored release\n",
 					(unsigned long long)ip->i_ino, p_rel_gen,
 					(unsigned long long)((ktime_get_ns() - p15o_rs) /
 							     NSEC_PER_MSEC));
@@ -3480,7 +3480,7 @@ static int mxfs_bast_nl_entry_cleanup(uint8_t p_held_mode, uint32_t p_rel_gen,
 			ip->i_dlm_orphan_gg = 0;
 			orphan_live = false;	/* proceed: anchored unlock below */
 			if (atomic_inc_return(&p15t_n) <= 200)
-				mxfs_probe("mxfs: P15-TCP-ORPH-PROCEED ino=%llu gen=%u — abandoned mirror grant (no local acquirer, %ums persistent); proceeding to anchored release\n",
+				mxfs_probe("mxfs: P15-TCP-ORPH-PROCEED ino=%llu gen=%u -- abandoned mirror grant (no local acquirer, %ums persistent); proceeding to anchored release\n",
 					(unsigned long long)ip->i_ino, p_rel_gen,
 					mxfs_tcp_orphan_force_ms);
 		}
@@ -3543,7 +3543,7 @@ static int mxfs_bast_nl_entry_cleanup(uint8_t p_held_mode, uint32_t p_rel_gen,
 		static atomic_t ctl_n = ATOMIC_INIT(0);
 
 		if (atomic_inc_return(&ctl_n) <= 200)
-			pr_err("mxfs: P-REL-IGNORES-ACQ control build: ino=%llu acq=%u ex=%u pr=%u pin=%u — a release commits under an acquire in flight\n",
+			pr_err("mxfs: P-REL-IGNORES-ACQ control build: ino=%llu acq=%u ex=%u pr=%u pin=%u -- a release commits under an acquire in flight\n",
 				(unsigned long long)ip->i_ino,
 				ip->i_dlm_acq_inflight, ip->i_dlm_ex_holders,
 				ip->i_dlm_pr_holders, ip->i_dlm_pin_count);
@@ -3656,7 +3656,7 @@ static int mxfs_bast_nl_entry_cleanup(uint8_t p_held_mode, uint32_t p_rel_gen,
 
 			atomic_inc(&mxfs_rel_acq_inflight_abort);
 			if (atomic_inc_return(&p15a_n) <= 400)
-				mxfs_probe("mxfs: P15-REL-ACQ-INFLIGHT ino=%llu held_mode=%u acq=%u ex=%u pr=%u pin=%u gen_moved=%d only=%d auth_state=%u unpub=%d entry_gen=%u now_gen=%u n=%d comm=%s — an acquire of this node is in flight; the release does not commit under it, the grant is kept\n",
+				mxfs_probe("mxfs: P15-REL-ACQ-INFLIGHT ino=%llu held_mode=%u acq=%u ex=%u pr=%u pin=%u gen_moved=%d only=%d auth_state=%u unpub=%d entry_gen=%u now_gen=%u n=%d comm=%s -- an acquire of this node is in flight; the release does not commit under it, the grant is kept\n",
 					(unsigned long long)ip->i_ino, p_held_mode,
 					ip->i_dlm_acq_inflight,
 					ip->i_dlm_ex_holders, ip->i_dlm_pr_holders,
@@ -3757,7 +3757,7 @@ static int mxfs_bast_nl_entry_cleanup(uint8_t p_held_mode, uint32_t p_rel_gen,
 
 			atomic64_inc(&mxfs_relbar_gate_defer);
 			if (atomic_inc_return(&p236_n) <= 2000)
-				mxfs_probe("mxfs: P236-REL-OBLIGATION-DEFER ino=%llu mode=%u pend=%llu dur=%llu flush=%llu ili_f=0x%x pin=%d in_ail=%d comm=%s realns=%llu — release deferred: committed change not yet at home (pre-NL gate)\n",
+				mxfs_probe("mxfs: P236-REL-OBLIGATION-DEFER ino=%llu mode=%u pend=%llu dur=%llu flush=%llu ili_f=0x%x pin=%d in_ail=%d comm=%s realns=%llu -- release deferred: committed change not yet at home (pre-NL gate)\n",
 					(unsigned long long)ip->i_ino,
 					ip->i_dlm_mode,
 					(unsigned long long)ip->i_mxfs_pub_pending_seq,
@@ -3779,7 +3779,7 @@ static int mxfs_bast_nl_entry_cleanup(uint8_t p_held_mode, uint32_t p_rel_gen,
 		 * disposed of through death/recovery (journal replay), never
 		 * through a silent unlock over missing data. */
 		if (drain_hard) {
-			pr_err("mxfs: P-D512-REL-DRAIN-WBFAIL ino=%llu mode=%u rc=%d dirty=%d wb=%d — release drain writeback FAILED; refusing on-disk unlock and wedging\n",
+			pr_err("mxfs: P-D512-REL-DRAIN-WBFAIL ino=%llu mode=%u rc=%d dirty=%d wb=%d -- release drain writeback FAILED; refusing on-disk unlock and wedging\n",
 				(unsigned long long)ip->i_ino, p_held_mode,
 				(*rel_drain_wb_err_ref),
 				mapping_tagged(vip->i_mapping,
@@ -3798,7 +3798,7 @@ static int mxfs_bast_nl_entry_cleanup(uint8_t p_held_mode, uint32_t p_rel_gen,
 			static atomic_t p34j_n = ATOMIC_INIT(0);
 
 			if (atomic_inc_return(&p34j_n) <= 2000)
-				mxfs_probe("mxfs: P-D512-REL-DRAIN-INVFAIL ino=%llu mode=%u rc=%d nrpages=%lu — residual pages survived the release invalidate; unlock refused, grant kept, dwork retry armed\n",
+				mxfs_probe("mxfs: P-D512-REL-DRAIN-INVFAIL ino=%llu mode=%u rc=%d nrpages=%lu -- residual pages survived the release invalidate; unlock refused, grant kept, dwork retry armed\n",
 					(unsigned long long)ip->i_ino,
 					p_held_mode, rel_drain_inv_err,
 					vip->i_mapping->nrpages);
@@ -3824,7 +3824,7 @@ static int mxfs_bast_nl_entry_cleanup(uint8_t p_held_mode, uint32_t p_rel_gen,
 				u64 age_starve_ms = ip->i_dlm_bast_starve_since_ns ?
 					(dbg_now - ip->i_dlm_bast_starve_since_ns) / NSEC_PER_MSEC : 0;
 				mxfs_probe(
-			    "mxfs: P15-REL-ABORT ino=%llu held_mode=%u ex=%u pr=%u pin=%u gen_moved=%d orph=%d entry_gen=%u now_gen=%u init_seq=%u age_orph_ms=%llu age_starve_ms=%llu — holder re-acquired during drain; release aborted, BAST re-armed (P58 averted)\n",
+			    "mxfs: P15-REL-ABORT ino=%llu held_mode=%u ex=%u pr=%u pin=%u gen_moved=%d orph=%d entry_gen=%u now_gen=%u init_seq=%u age_orph_ms=%llu age_starve_ms=%llu -- holder re-acquired during drain; release aborted, BAST re-armed (P58 averted)\n",
 				(unsigned long long)ip->i_ino, p_held_mode,
 				ip->i_dlm_ex_holders, ip->i_dlm_pr_holders,
 				ip->i_dlm_pin_count, gen_moved ? 1 : 0,
@@ -4050,7 +4050,7 @@ static int mxfs_bast_stale_inode_cluster_buf(struct xfs_mount *mp,
 			 */
 			if (mxfs_buf_has_uncheckpointed_mods(stale_bp)) {
 				mxfs_probe_ratelimited(
-				    "mxfs: P91-BAST-PROTECT ino=0x%llx blkno=0x%llx pin=%d li_empty=%d flags=0x%x comm=%s — keeping in-core authoritative cluster buffer (would-be iflush-strand averted)\n",
+				    "mxfs: P91-BAST-PROTECT ino=0x%llx blkno=0x%llx pin=%d li_empty=%d flags=0x%x comm=%s -- keeping in-core authoritative cluster buffer (would-be iflush-strand averted)\n",
 				    (unsigned long long)(*ip_ref)->i_ino,
 				    (unsigned long long)(*ip_ref)->i_imap.im_blkno,
 				    xfs_buf_ispinned(stale_bp) ? 1 : 0,
@@ -4413,7 +4413,7 @@ static void mxfs_bast_wait_own_log_item_off_ail(uint8_t p_held_mode,
 			}
 			up_read(&(*ip_ref)->i_lock);
 			if (zinail > 0)
-				mxfs_probe_ratelimited("mxfs: P38-POSTREL-ZOMBIE ino=%llu inail=%d first_daddr=%d held_mode=%u self_demote=%d clean_rel=%d skip_pr=%d — dir buffers STILL in_ail after release flush\n",
+				mxfs_probe_ratelimited("mxfs: P38-POSTREL-ZOMBIE ino=%llu inail=%d first_daddr=%d held_mode=%u self_demote=%d clean_rel=%d skip_pr=%d -- dir buffers STILL in_ail after release flush\n",
 					(unsigned long long)(*ip_ref)->i_ino, zinail,
 					zfirst, p_held_mode, p_self_demote ? 1 : 0,
 					clean_release ? 1 : 0, skip_pr_drain ? 1 : 0);
@@ -4635,18 +4635,18 @@ mxfs_dlm_bast_process(
 			     (unsigned long long)ip->i_ino)) {
 			unsigned int hg_n = 0;
 
-			pr_warn("mxfs: P384-HOLD-GRANT-FAULT ino=%llu mode=%u — INJECTED: holding the grant, refusing to release; node stays mounted and beating\n",
+			pr_warn("mxfs: P384-HOLD-GRANT-FAULT ino=%llu mode=%u -- INJECTED: holding the grant, refusing to release; node stays mounted and beating\n",
 				(unsigned long long)ip->i_ino, ip->i_dlm_mode);
 			while (READ_ONCE(mxfs_hold_grant_fault_ino) ==
 			       (unsigned long long)ip->i_ino &&
 			       !xfs_is_shutdown(mp)) {
 				mxfs_pal_sleep_ms_interruptible(200);
 				if (++hg_n % 50 == 0)
-					mxfs_probe("mxfs: P384-HOLD-GRANT-FAULT ino=%llu held_s=%u — still holding\n",
+					mxfs_probe("mxfs: P384-HOLD-GRANT-FAULT ino=%llu held_s=%u -- still holding\n",
 						(unsigned long long)ip->i_ino,
 						hg_n / 5);
 			}
-			mxfs_probe("mxfs: P384-HOLD-GRANT-FAULT ino=%llu — released after %u.%us\n",
+			mxfs_probe("mxfs: P384-HOLD-GRANT-FAULT ino=%llu -- released after %u.%us\n",
 				(unsigned long long)ip->i_ino,
 				hg_n / 5, (hg_n % 5) * 2);
 		}
@@ -4898,7 +4898,7 @@ mxfs_dlm_bast_process(
 			static atomic_t p971w = ATOMIC_INIT(0);
 
 			if (atomic_inc_return(&p971w) <= 200 || dwus > 1000000)
-				mxfs_probe("mxfs: P971-REL-DIO-WAIT ino=%llu mode=%u wait_us=%llu comm=%s — release waited for this node's outstanding direct I/O before draining\n",
+				mxfs_probe("mxfs: P971-REL-DIO-WAIT ino=%llu mode=%u wait_us=%llu comm=%s -- release waited for this node's outstanding direct I/O before draining\n",
 					(unsigned long long)ip->i_ino,
 					p_held_mode, (unsigned long long)dwus,
 					current->comm);
@@ -5350,7 +5350,7 @@ skip_bast_cluster_stale:
 			static atomic_t p95g_n = ATOMIC_INIT(0);
 
 			if (atomic_inc_return(&p95g_n) <= 2000)
-				mxfs_probe("mxfs: P95-OPEN-ADMIT-DEFER ino=%llu mode=%u admits=%d comm=%s realns=%llu — open admission in critical section; terminal demotion deferred\n",
+				mxfs_probe("mxfs: P95-OPEN-ADMIT-DEFER ino=%llu mode=%u admits=%d comm=%s realns=%llu -- open admission in critical section; terminal demotion deferred\n",
 					(unsigned long long)ip->i_ino,
 					ip->i_dlm_mode,
 					atomic_read(&ip->i_mxfs_open_admit_n),
@@ -5396,7 +5396,7 @@ skip_bast_cluster_stale:
 			static atomic_t p971d = ATOMIC_INIT(0);
 
 			if (atomic_inc_return(&p971d) <= 200)
-				mxfs_probe("mxfs: P971-REL-DIO-DEFER ino=%llu mode=%u dio=%d entry_holders=%u comm=%s — direct I/O still in flight at the terminal store; release deferred, grant kept\n",
+				mxfs_probe("mxfs: P971-REL-DIO-DEFER ino=%llu mode=%u dio=%d entry_holders=%u comm=%s -- direct I/O still in flight at the terminal store; release deferred, grant kept\n",
 					(unsigned long long)ip->i_ino,
 					ip->i_dlm_mode,
 					atomic_read(&vip->i_dio_count),
@@ -5426,7 +5426,7 @@ skip_bast_cluster_stale:
 
 		atomic_inc(&mxfs_rel_commit_under_acq);
 		if (atomic_inc_return(&rcua_n) <= 400)
-			pr_warn("mxfs: P-REL-COMMIT-UNDER-ACQ ino=%llu isdir=%d held_mode=%u mode=%u state=%u self_demote=%d acq=%u ex=%u pr=%u pin=%u acq_pid=%d acq_comm=%s auth_state=%u gen=%llu unpub=%d n=%d comm=%s — a release commits with an acquire of this node in flight\n",
+			pr_warn("mxfs: P-REL-COMMIT-UNDER-ACQ ino=%llu isdir=%d held_mode=%u mode=%u state=%u self_demote=%d acq=%u ex=%u pr=%u pin=%u acq_pid=%d acq_comm=%s auth_state=%u gen=%llu unpub=%d n=%d comm=%s -- a release commits with an acquire of this node in flight\n",
 				(unsigned long long)ip->i_ino,
 				S_ISDIR(vip->i_mode) ? 1 : 0,
 				p_held_mode, ip->i_dlm_mode, ip->i_dlm_state,
@@ -5486,7 +5486,7 @@ skip_bast_cluster_stale:
 
 		atomic64_inc(&mxfs_relmark_bast_rearm_owed);
 		if (atomic_inc_return(&owed_n) <= 200)
-			mxfs_probe("mxfs: P-RELMARK-OWED site=bast-rearm ino=%llu res=%llu gepoch=%llu lineage=%llu auth_state=%u mode=%u comm=%s — a grant whose certificate a re-arm reset is released with no clean-release marker\n",
+			mxfs_probe("mxfs: P-RELMARK-OWED site=bast-rearm ino=%llu res=%llu gepoch=%llu lineage=%llu auth_state=%u mode=%u comm=%s -- a grant whose certificate a re-arm reset is released with no clean-release marker\n",
 				(unsigned long long)ip->i_ino,
 				(unsigned long long)ip->i_mxfs_rearm_res,
 				(unsigned long long)ip->i_mxfs_rearm_epoch,
@@ -5514,7 +5514,7 @@ skip_bast_cluster_stale:
 
 		atomic_inc(&mxfs_rel_dio_inflight);
 		if (atomic_inc_return(&p_reldio_n) <= 64)
-			mxfs_probe("mxfs: P-REL-DIO-INFLIGHT ino=%llu dio=%d qsrc=%u comm=%s — release committed with direct I/O still in flight\n",
+			mxfs_probe("mxfs: P-REL-DIO-INFLIGHT ino=%llu dio=%d qsrc=%u comm=%s -- release committed with direct I/O still in flight\n",
 				(unsigned long long)ip->i_ino,
 				atomic_read(&vip->i_dio_count),
 				ip->i_dlm_bastq_src, current->comm);
@@ -5530,7 +5530,7 @@ skip_bast_cluster_stale:
 		static atomic_t p95p_n = ATOMIC_INIT(0);
 
 		if (atomic_inc_return(&p95p_n) <= 500)
-			mxfs_probe("mxfs: P95-OPEN-PARK ino=%llu park_ms=%d comm=%s realns=%llu — bast_process parked post-terminal-store (injection)\n",
+			mxfs_probe("mxfs: P95-OPEN-PARK ino=%llu park_ms=%d comm=%s realns=%llu -- bast_process parked post-terminal-store (injection)\n",
 				(unsigned long long)ip->i_ino, park,
 				current->comm,
 				(unsigned long long)ktime_get_real_ns());
@@ -5714,7 +5714,7 @@ skip_bast_cluster_stale:
 		int	terc = mxfs_bmbt_tenure_end_evict(ip, "release");
 
 		if (terc) {
-			pr_err("mxfs: P975-REL-WEDGE ino=%llu rc=%d mode=%u — cached extent-tree blocks could not be retired at the end of the tenure; release wedged, not unlocked\n",
+			pr_err("mxfs: P975-REL-WEDGE ino=%llu rc=%d mode=%u -- cached extent-tree blocks could not be retired at the end of the tenure; release wedged, not unlocked\n",
 				(unsigned long long)ip->i_ino, terc, p_held_mode);
 			mxfs_inode_wedge(ip, NULL, false);
 		}
@@ -5849,7 +5849,7 @@ skip_bast_cluster_stale:
 			/* unchanged: no publication while alone and protected */
 		} else if (mxfs_prot) {
 			mxfs_probe_ratelimited(
-			    "mxfs: P90-OPEN-PUBLISH ino=%llu opens=%d mapped=%d — releasing under BAST while still open here\n",
+			    "mxfs: P90-OPEN-PUBLISH ino=%llu opens=%d mapped=%d -- releasing under BAST while still open here\n",
 				(unsigned long long)ip->i_ino,
 				atomic_read(&ip->i_mxfs_open_n),
 				mapping_mapped(VFS_I(ip)->i_mapping) ? 1 : 0);
@@ -5910,7 +5910,7 @@ skip_bast_cluster_stale:
 				      &ip->i_itemp->ili_item.li_flags)) ||
 	     atomic_read(&ip->i_pincount) > 0))
 		mxfs_probe_ratelimited(
-		    "mxfs: P57-PREUNLOCK-DIRTY ino=%llu held_mode=%u in_ail=%d pinned=%d — releasing dir with committed change NOT durable\n",
+		    "mxfs: P57-PREUNLOCK-DIRTY ino=%llu held_mode=%u in_ail=%d pinned=%d -- releasing dir with committed change NOT durable\n",
 		    (unsigned long long)ip->i_ino, p_held_mode,
 		    (ip->i_itemp && test_bit(XFS_LI_IN_AIL,
 					     &ip->i_itemp->ili_item.li_flags)) ? 1 : 0,
@@ -6051,7 +6051,7 @@ skip_bast_cluster_stale:
 		mxfs_dlmtr_rec(ip, dtr_om, dtr_os, MXFS_SITE); }
 	else
 		mxfs_probe_ratelimited(
-		    "mxfs: P-BP-EXIT-KEEP ino=%llu state=%u mode=%u — pipeline exit leaving foreign state untouched\n",
+		    "mxfs: P-BP-EXIT-KEEP ino=%llu state=%u mode=%u -- pipeline exit leaving foreign state untouched\n",
 			(unsigned long long)ip->i_ino, ip->i_dlm_state,
 			ip->i_dlm_mode);
 	spin_unlock(&ip->i_dlm_lock);
@@ -6124,7 +6124,7 @@ mxfs_dlm_work_ident_ok(struct xfs_inode *ip, const char *which)
 	if (cur2 == ip) {
 		n = atomic_inc_return(&p142_rcumiss_n);
 		if (n <= 40)
-			mxfs_probe("mxfs: P142-%s-RCUMISS ino=%llu agno=%u agino=%u ip=%px (rcu lookup missed, locked lookup hit — proceeding)\n",
+			mxfs_probe("mxfs: P142-%s-RCUMISS ino=%llu agno=%u agino=%u ip=%px (rcu lookup missed, locked lookup hit -- proceeding)\n",
 				which, (unsigned long long)ino,
 				XFS_INO_TO_AGNO(mp, ino),
 				XFS_INO_TO_AGINO(mp, ino), ip);
@@ -6134,7 +6134,7 @@ mxfs_dlm_work_ident_ok(struct xfs_inode *ip, const char *which)
 stale:
 	n = atomic_inc_return(&p142_stale_n);
 	if (n <= 60) {
-		mxfs_probe("mxfs: P142-%s-STALE ip=%px ino=%llu rcu_cur=%px locked_cur=%px agno=%u agino=%u agcount=%u pag=%px pag_agno=%d src=%u i_count=%d i_state=0x%lx — work fired on non-current inode object; bailing (ref not dropped)\n",
+		mxfs_probe("mxfs: P142-%s-STALE ip=%px ino=%llu rcu_cur=%px locked_cur=%px agno=%u agino=%u agcount=%u pag=%px pag_agno=%d src=%u i_count=%d i_state=0x%lx -- work fired on non-current inode object; bailing (ref not dropped)\n",
 			which, ip, (unsigned long long)ino, cur, cur2,
 			mp ? XFS_INO_TO_AGNO(mp, ino) : (xfs_agnumber_t)-1,
 			mp ? XFS_INO_TO_AGINO(mp, ino) : (xfs_agino_t)-1,
@@ -6184,7 +6184,7 @@ mxfs_dlm_drain_defer(
 	if (rc < 0)
 		return false;
 	atomic64_inc(&mxfs_dem_drain_deferred);
-	mxfs_probe_ratelimited("mxfs: P-DEMOTER-DRAIN-DEFER ino=%llu state=%u mode=%u queued=%d s1_pid=%d s2_pid=%d comm=%s — no demoter slot; release handed to the dwork\n",
+	mxfs_probe_ratelimited("mxfs: P-DEMOTER-DRAIN-DEFER ino=%llu state=%u mode=%u queued=%d s1_pid=%d s2_pid=%d comm=%s -- no demoter slot; release handed to the dwork\n",
 		(unsigned long long)ip->i_ino, ip->i_dlm_state,
 		ip->i_dlm_mode, rc, ip->i_dlm_demoter_pid,
 		ip->i_dlm_demoter2_pid, current->comm);
@@ -6237,7 +6237,7 @@ mxfs_dlm_bast_work_fn(
 		 * iput would VFS-destroy an uninserted inode (the
 		 * inodegc radix-tag BUG this guard exists to prevent). */
 		if (!atomic_add_unless(&VFS_I(ip)->i_count, -1, 1))
-			pr_warn("mxfs: P142-BWORK-LASTREF ino=%llu — ref intentionally leaked\n",
+			pr_warn("mxfs: P142-BWORK-LASTREF ino=%llu -- ref intentionally leaked\n",
 				(unsigned long long)ip->i_ino);
 		return;
 	}
@@ -6308,7 +6308,7 @@ mxfs_dlm_bast_work_fn(
 		int cnt = atomic_read(&VFS_I(ip)->i_count);
 		unsigned long st = mxfs_istate(VFS_I(ip));
 		if (unlikely(cnt < 1 || (st & I_CLEAR)))
-			mxfs_probe("mxfs: P60-BWFN-BADREF ino=%llu i_count=%d i_state=0x%lx I_CLEAR=%d (phantom bast queue — NOT releasing)\n",
+			mxfs_probe("mxfs: P60-BWFN-BADREF ino=%llu i_count=%d i_state=0x%lx I_CLEAR=%d (phantom bast queue -- NOT releasing)\n",
 				(unsigned long long)ip->i_ino, cnt, st,
 				!!(st & I_CLEAR));
 		else {
@@ -6334,7 +6334,7 @@ mxfs_dlm_bast_work_fn(
 
 				atomic64_inc(&mxfs_dem_inject_unclaim);
 				if (atomic_inc_return(&p78n) <= 200)
-					mxfs_probe("mxfs: P78-UNCLAIM-INJECT ino=%llu me=%d i_count=%d state=%u — dropping own claim before trailing irele (TEST-ONLY)\n",
+					mxfs_probe("mxfs: P78-UNCLAIM-INJECT ino=%llu me=%d i_count=%d state=%u -- dropping own claim before trailing irele (TEST-ONLY)\n",
 						(unsigned long long)ip->i_ino,
 						current->pid, cnt,
 						ip->i_dlm_state);
@@ -6403,7 +6403,7 @@ mxfs_iclus_pi_reconcile(struct xfs_inode *ip, int clus_rc)
 		int pirc = mxfs_v5_dlm_inode_unlock_gen(mp->m_mxfs_dlm,
 							ip->i_ino, 0);
 
-		pr_warn("mxfs: P-ICLUS-PI-RECON ino=%llu rc=%d clus_rc=%d — routed inode's orphaned per-ino bit cleared post-drain\n",
+		pr_warn("mxfs: P-ICLUS-PI-RECON ino=%llu rc=%d clus_rc=%d -- routed inode's orphaned per-ino bit cleared post-drain\n",
 			(unsigned long long)ip->i_ino, pirc, clus_rc);
 	}
 }
@@ -6415,7 +6415,7 @@ mxfs_dlm_dwork_safe_irele(struct xfs_inode *ip, int site)
 	unsigned long st = mxfs_istate(VFS_I(ip));
 
 	if (unlikely(cnt < 1 || (st & (I_FREEING | I_CLEAR)))) {
-		mxfs_probe("mxfs: P124-DWFN-BADREF ino=%llu site=%d i_count=%d i_state=0x%lx (phantom dwork queue — NOT releasing)\n",
+		mxfs_probe("mxfs: P124-DWFN-BADREF ino=%llu site=%d i_count=%d i_state=0x%lx (phantom dwork queue -- NOT releasing)\n",
 			(unsigned long long)ip->i_ino, site, cnt, st);
 		return false;
 	}
@@ -6433,7 +6433,7 @@ mxfs_dlm_bast_dwork_fn(
 	if (unlikely(!mxfs_dlm_work_ident_ok(ip, "DWORK"))) {
 		/* See the BWORK sibling: drop the arm ref unless last. */
 		if (!atomic_add_unless(&VFS_I(ip)->i_count, -1, 1))
-			pr_warn("mxfs: P142-DWORK-LASTREF ino=%llu — ref intentionally leaked\n",
+			pr_warn("mxfs: P142-DWORK-LASTREF ino=%llu -- ref intentionally leaked\n",
 				(unsigned long long)ip->i_ino);
 		return;
 	}
@@ -6583,7 +6583,7 @@ mxfs_dlm_bast_dwork_fn(
 				spin_unlock(&ip->i_dlm_lock);
 			}
 			pr_warn_ratelimited(
-			    "mxfs: P382-RELDEFER-RELOAD ino=%llu n=%u/%u stale_src=%u pend=%llu->%llu dur=%llu->%llu closed=%d — release-side reload of a fence-abandoned publication\n",
+			    "mxfs: P382-RELDEFER-RELOAD ino=%llu n=%u/%u stale_src=%u pend=%llu->%llu dur=%llu->%llu closed=%d -- release-side reload of a fence-abandoned publication\n",
 				(unsigned long long)ip->i_ino, rl_n + 1,
 				MXFS_RELDEFER_RELOAD_MAX, ip->i_dlm_stale_src,
 				(unsigned long long)rl_p0,
@@ -6701,7 +6701,7 @@ mxfs_dlm_bast_dwork_fn(
 			 */
 			if (strikes < 2500 + 1800) {	/* ~30 min at 1s */
 				if ((strikes - 2500) % 60 == 0)
-					mxfs_probe("mxfs: P36-STRIKEOUT-SLOW ino=%llu ex=%u pr=%u pin=%u mode=%u state=%u strikes=%u — busy past strikeout; downshifted to 1s keep-alive (bast_pending stays set)\n",
+					mxfs_probe("mxfs: P36-STRIKEOUT-SLOW ino=%llu ex=%u pr=%u pin=%u mode=%u state=%u strikes=%u -- busy past strikeout; downshifted to 1s keep-alive (bast_pending stays set)\n",
 						(unsigned long long)ip->i_ino,
 						ip->i_dlm_ex_holders,
 						ip->i_dlm_pr_holders,
@@ -6713,7 +6713,7 @@ mxfs_dlm_bast_dwork_fn(
 				mxfs_dlm_dwork_safe_irele(ip, 3);
 				return;
 			}
-			mxfs_probe("mxfs: P36-STRIKEOUT ino=%llu ex=%u pr=%u pin=%u mode=%u state=%u strikes=%u — dwork giving up this episode (bast_pending stays set)\n",
+			mxfs_probe("mxfs: P36-STRIKEOUT ino=%llu ex=%u pr=%u pin=%u mode=%u state=%u strikes=%u -- dwork giving up this episode (bast_pending stays set)\n",
 				(unsigned long long)ip->i_ino,
 				ip->i_dlm_ex_holders, ip->i_dlm_pr_holders,
 				ip->i_dlm_pin_count, ip->i_dlm_mode,
@@ -6738,7 +6738,7 @@ mxfs_dlm_bast_dwork_fn(
 		 * persists. */
 		if (ip->i_dlm_ex_holders && ip->i_dlm_exh_pid &&
 		    (strikes == 200 || strikes % 5000 == 0)) {
-			mxfs_probe("mxfs: P36-EXH-STACK ino=%llu exh_pid=%d exh_comm=%s exh_ms=%llu strikes=%u — dumping blocked EX-admission holder\n",
+			mxfs_probe("mxfs: P36-EXH-STACK ino=%llu exh_pid=%d exh_comm=%s exh_ms=%llu strikes=%u -- dumping blocked EX-admission holder\n",
 				(unsigned long long)ip->i_ino,
 				ip->i_dlm_exh_pid, ip->i_dlm_exh_comm,
 				ip->i_dlm_exh_since_ns ?
@@ -6746,7 +6746,13 @@ mxfs_dlm_bast_dwork_fn(
 					 ip->i_dlm_exh_since_ns) /
 						NSEC_PER_MSEC : 0,
 				strikes);
-			mxfs_pal_dump_task_stack(ip->i_dlm_exh_pid);
+			/* Only with the probe: the line above is debug, and an
+			 * ungated dump put a bare 60-line stack of the holder on the
+			 * console with nothing naming it, every few seconds of a
+			 * peer's wait on a busy file (pve2, fallocate-heavy fio,
+			 * 2026-10-07: 4 dumps in 22 s). */
+			if (mxfs_probe_on())
+				mxfs_pal_dump_task_stack(ip->i_dlm_exh_pid);
 		}
 		if (mxfs_bast_arm_queue_delayed(ip, msecs_to_jiffies(4) + 1))
 			return;		/* re-armed — keep our iget ref */
@@ -7179,13 +7185,13 @@ __mxfs_dlm_bast_notify(
 
 				atomic_inc(&mxfs_noino_bast_reclaimable);
 				if (atomic_inc_return(&p_norc_n) <= 64)
-					mxfs_probe("mxfs: P-NOINO-RECLAIMABLE ino=%llu err=%d req=%u nlink=%u — BAST for a reclaimable in-core inode; served by the no-inode release\n",
+					mxfs_probe("mxfs: P-NOINO-RECLAIMABLE ino=%llu err=%d req=%u nlink=%u -- BAST for a reclaimable in-core inode; served by the no-inode release\n",
 						(unsigned long long)ino, error,
 						requested_mode, lnl);
 			}
 			if (active &&
 			    (unsigned)atomic_inc_return(&p_lc_n) <= 96)
-				mxfs_probe("mxfs: P-NOINO-LIFECYCLE ino=%llu err=%d class=%s iflags=0x%lx istate=0x%lx nlink=%u req=%u requeue=%d — BAST for an inode whose LOCAL lifecycle op is still running\n",
+				mxfs_probe("mxfs: P-NOINO-LIFECYCLE ino=%llu err=%d class=%s iflags=0x%lx istate=0x%lx nlink=%u req=%u requeue=%d -- BAST for an inode whose LOCAL lifecycle op is still running\n",
 					(unsigned long long)ino, error,
 					xfs_ino_lifecycle_name(lc), lfl, lst,
 					lnl, requested_mode,
@@ -7201,7 +7207,7 @@ __mxfs_dlm_bast_notify(
 		 * Inode not in cache — it was evicted but the DLM lock
 		 * wasn't released (race). Release the orphan lock now.
 		 */
-		mxfs_idbg("mxfs: MX-INSTR bast_notify ino=%llu NO_INODE error=%d — calling unlock",
+		mxfs_idbg("mxfs: MX-INSTR bast_notify ino=%llu NO_INODE error=%d -- calling unlock",
 			(unsigned long long)ino, error);
 		mxfs_idbg("mxfs: P-H22-CALL site=BAST_NOTIFY_NO_INODE ino=%llu\n",
 			(unsigned long long)ino);
@@ -7298,7 +7304,7 @@ __mxfs_dlm_bast_notify(
 				if (!mxfs_noino_drain_fence(mp, ino,
 							    landed_inl) &&
 				    !xfs_is_shutdown(mp)) {
-					pr_warn("mxfs: P-NOINO-RELFENCE-WEDGE ino=%llu (inline) — shutdown\n",
+					pr_warn("mxfs: P-NOINO-RELFENCE-WEDGE ino=%llu (inline) -- shutdown\n",
 						(unsigned long long)ino);
 					xfs_force_shutdown(mp,
 						SHUTDOWN_META_IO_ERROR);
@@ -7403,7 +7409,7 @@ __mxfs_dlm_bast_notify(
 		if (!p72_busy && ip->i_dlm_demoter != NULL) {
 			static atomic_t p126_n = ATOMIC_INIT(0);
 			if (atomic_inc_return(&p126_n) <= 3000)
-				mxfs_probe("mxfs: P126-DEMOTE-RACE ino=%llu mode=%u state=%u ex=%u pr=%u pin=%u bast_pending=%d work_busy=0 demoter_set=1 comm=%s dem_pid=%d dem_comm=%s dem_line=%u:%u dem_age_ms=%llu — live demoter with idle i_dlm_bast_work\n",
+				mxfs_probe("mxfs: P126-DEMOTE-RACE ino=%llu mode=%u state=%u ex=%u pr=%u pin=%u bast_pending=%d work_busy=0 demoter_set=1 comm=%s dem_pid=%d dem_comm=%s dem_line=%u:%u dem_age_ms=%llu -- live demoter with idle i_dlm_bast_work\n",
 					(unsigned long long)ino, ip->i_dlm_mode,
 					ip->i_dlm_state, ip->i_dlm_ex_holders,
 					ip->i_dlm_pr_holders, ip->i_dlm_pin_count,
@@ -7420,7 +7426,7 @@ __mxfs_dlm_bast_notify(
 		if (!p72_busy) {
 			static atomic_t p72_n = ATOMIC_INIT(0);
 			if (atomic_inc_return(&p72_n) <= 3000)
-				mxfs_probe("mxfs: P72-SWALLOW-DEAD ino=%llu state=DEMOTING work_busy=0 mode=%u ex=%u pr=%u pin=%u — BAST swallowed with no live demote instance\n",
+				mxfs_probe("mxfs: P72-SWALLOW-DEAD ino=%llu state=DEMOTING work_busy=0 mode=%u ex=%u pr=%u pin=%u -- BAST swallowed with no live demote instance\n",
 					(unsigned long long)ino,
 					ip->i_dlm_mode, ip->i_dlm_ex_holders,
 					ip->i_dlm_pr_holders,
@@ -7566,7 +7572,7 @@ __mxfs_dlm_bast_notify(
 							ATOMIC_INIT(0);
 
 						if (atomic_inc_return(&p72ov_n) <= 200)
-							pr_warn("mxfs: P72-DEMOTER-OVERRIDE ino=%llu dem_pid=%d dem_comm=%s dem_line=%u:%u dem_age_ms=%llu — leaked demoter overridden; reclaiming orphan\n",
+							pr_warn("mxfs: P72-DEMOTER-OVERRIDE ino=%llu dem_pid=%d dem_comm=%s dem_line=%u:%u dem_age_ms=%llu -- leaked demoter overridden; reclaiming orphan\n",
 								(unsigned long long)ino,
 								ip->i_dlm_demoter_pid,
 								ip->i_dlm_demoter_comm,
@@ -7618,7 +7624,7 @@ __mxfs_dlm_bast_notify(
 				{
 					static atomic_t p72f_n = ATOMIC_INIT(0);
 					if (atomic_inc_return(&p72f_n) <= 3000)
-						pr_warn("mxfs: P72-ORPHAN-FORCEREL ino=%llu mine=%d nslots=%d hex_or=%llx cleared=%d — stuck-DEMOTING orphan finished\n",
+						pr_warn("mxfs: P72-ORPHAN-FORCEREL ino=%llu mine=%d nslots=%d hex_or=%llx cleared=%d -- stuck-DEMOTING orphan finished\n",
 							(unsigned long long)ino,
 							mine, nslots,
 							(unsigned long long)hex_or,
@@ -7654,7 +7660,7 @@ __mxfs_dlm_bast_notify(
 				 */
 				static atomic_t p72w_n = ATOMIC_INIT(0);
 				if (atomic_inc_return(&p72w_n) <= 2000)
-					pr_warn_ratelimited("mxfs: P72-ORPHAN-WAIT ino=%llu strikes=%u/%d demoter_set=1 — awaiting stuck-drain proof\n",
+					pr_warn_ratelimited("mxfs: P72-ORPHAN-WAIT ino=%llu strikes=%u/%d demoter_set=1 -- awaiting stuck-drain proof\n",
 						(unsigned long long)ino,
 						ip->i_dlm_p72_strikes,
 						MXFS_P72_ORPHAN_STRIKES);
@@ -7687,7 +7693,7 @@ __mxfs_dlm_bast_notify(
 			    10ULL * NSEC_PER_SEC) {
 			static atomic64_t p72live_total = ATOMIC64_INIT(0);
 
-			pr_warn_ratelimited("mxfs: P72-REQUEUE-LIVE-DEMOTER ino=%llu mode=%u dem_pid=%d dem_comm=%s dem_line=%u:%u dem_age_ms=%llu total=%lld — a live demoter is releasing this inode; no second bast_process\n",
+			pr_warn_ratelimited("mxfs: P72-REQUEUE-LIVE-DEMOTER ino=%llu mode=%u dem_pid=%d dem_comm=%s dem_line=%u:%u dem_age_ms=%llu total=%lld -- a live demoter is releasing this inode; no second bast_process\n",
 				(unsigned long long)ino, ip->i_dlm_mode,
 				ip->i_dlm_demoter_pid, ip->i_dlm_demoter_comm,
 				MXFS_SITE_ARGS(ip->i_dlm_demoter_line),
@@ -7760,7 +7766,7 @@ __mxfs_dlm_bast_notify(
 				(ktime_get_ns() - ip->i_dlm_acq_set_ns) /
 					NSEC_PER_MSEC : 0;
 
-			pr_warn("mxfs: P-ACQ-ORPHAN-RECLAIM ino=%llu mode=%u ex=%u pr=%u pin=%u strikes=%u setter_pid=%d setter_comm=%s set_age_ms=%llu — leaked ACQUIRING (no acquire in flight); honoring BAST via release pipeline\n",
+			pr_warn("mxfs: P-ACQ-ORPHAN-RECLAIM ino=%llu mode=%u ex=%u pr=%u pin=%u strikes=%u setter_pid=%d setter_comm=%s set_age_ms=%llu -- leaked ACQUIRING (no acquire in flight); honoring BAST via release pipeline\n",
 				(unsigned long long)ino, ip->i_dlm_mode,
 				ip->i_dlm_ex_holders, ip->i_dlm_pr_holders,
 				ip->i_dlm_pin_count, ip->i_dlm_acq_strikes,
@@ -7798,7 +7804,7 @@ __mxfs_dlm_bast_notify(
 		ip->i_dlm_bast_during_acq = true;
 		spin_unlock(&ip->i_dlm_lock);
 		xfs_irele(ip);
-		mxfs_idbg("mxfs: MX-INSTR bast_notify ino=%llu BRANCH=ACQUIRING — defer via i_dlm_bast_during_acq",
+		mxfs_idbg("mxfs: MX-INSTR bast_notify ino=%llu BRANCH=ACQUIRING -- defer via i_dlm_bast_during_acq",
 			(unsigned long long)ino);
 		return;
 	}
@@ -7868,7 +7874,7 @@ __mxfs_dlm_bast_notify(
 					(unsigned long long)ino, ip->i_dlm_mode);
 				ip->i_dlm_bastq_src = 3;
 				if (!mxfs_bast_arm_queue(ip)) {
-					mxfs_probe("mxfs: P76-QW-FALSE ino=%llu site=none-held-idle — work already pending; DEMOTING set on top; extra ref dropped (P226)\n",
+					mxfs_probe("mxfs: P76-QW-FALSE ino=%llu site=none-held-idle -- work already pending; DEMOTING set on top; extra ref dropped (P226)\n",
 						(unsigned long long)ino);
 					/* see site=immediate — the
 					 * pending instance owns one ref;
@@ -8011,7 +8017,7 @@ __mxfs_dlm_bast_notify(
 				    (unsigned long long)ino);
 				ip->i_dlm_bastq_src = 4;
 				if (!mxfs_bast_arm_queue(ip)) {
-					pr_warn("mxfs: P76-QW-FALSE ino=%llu site=orphan-release — work already pending; DEMOTING set on top; extra ref dropped (P226)\n",
+					pr_warn("mxfs: P76-QW-FALSE ino=%llu site=orphan-release -- work already pending; DEMOTING set on top; extra ref dropped (P226)\n",
 						(unsigned long long)ino);
 					/* see site=immediate. */
 					xfs_irele(ip);
@@ -8072,10 +8078,10 @@ __mxfs_dlm_bast_notify(
 					ip->i_dlm_state =
 						MXFS_DLM_ISTATE_DEMOTING;
 					spin_unlock(&ip->i_dlm_lock);
-					mxfs_probe("mxfs: P-PHANTOM-RECONCILE ino=%llu — repeated no-mirror BAST; serialized reconcile release\n",
+					mxfs_probe("mxfs: P-PHANTOM-RECONCILE ino=%llu -- repeated no-mirror BAST; serialized reconcile release\n",
 						(unsigned long long)ino);
 					if (!mxfs_bast_arm_queue(ip)) {
-						mxfs_probe("mxfs: P76-QW-FALSE ino=%llu site=phantom-reconcile — work already pending; extra ref dropped (P226)\n",
+						mxfs_probe("mxfs: P76-QW-FALSE ino=%llu site=phantom-reconcile -- work already pending; extra ref dropped (P226)\n",
 							(unsigned long long)ino);
 						/* see site=immediate. */
 						xfs_irele(ip);
@@ -8087,7 +8093,7 @@ __mxfs_dlm_bast_notify(
 		}
 		mxfs_caw_orphan_forensic(ip, 1);
 		xfs_irele(ip);
-		mxfs_idbg("mxfs: MX-INSTR bast_notify ino=%llu BRANCH=NONE_mode_NL — no orphan, nothing to release", (unsigned long long)ino);
+		mxfs_idbg("mxfs: MX-INSTR bast_notify ino=%llu BRANCH=NONE_mode_NL -- no orphan, nothing to release", (unsigned long long)ino);
 		return;
 	}
 
@@ -8109,7 +8115,7 @@ __mxfs_dlm_bast_notify(
 		mxfs_dlmtr_rec(ip, dtr_om, dtr_os, MXFS_SITE); }
 		spin_unlock(&ip->i_dlm_lock);
 		xfs_irele(ip);
-		mxfs_idbg("mxfs: MX-INSTR bast_notify ino=%llu BRANCH=pinned (pin=%u) — set BAST, defer to unpin",
+		mxfs_idbg("mxfs: MX-INSTR bast_notify ino=%llu BRANCH=pinned (pin=%u) -- set BAST, defer to unpin",
 			(unsigned long long)ino, ip->i_dlm_pin_count);
 		return;
 	}
@@ -8156,7 +8162,7 @@ __mxfs_dlm_bast_notify(
 		ip->i_dlm_state = MXFS_DLM_ISTATE_DEMOTING;
 		mxfs_dlmtr_rec(ip, dtr_om, dtr_os, MXFS_SITE); }
 		spin_unlock(&ip->i_dlm_lock);
-		mxfs_idbg("mxfs: MX-INSTR bast_notify ino=%llu BRANCH=immediate — schedule work", (unsigned long long)ino);
+		mxfs_idbg("mxfs: MX-INSTR bast_notify ino=%llu BRANCH=immediate -- schedule work", (unsigned long long)ino);
 		/* dedicated inode-bast wq (flushable at unmount) */
 		ip->i_dlm_bastq_src = 5;
 		if (!mxfs_bast_arm_queue(ip)) {
@@ -8170,7 +8176,7 @@ __mxfs_dlm_bast_notify(
 			 * pending works — every historical capture).  Same
 			 * pattern as the ilock-end arm's queue-false drop.
 			 */
-			mxfs_probe("mxfs: P76-QW-FALSE ino=%llu site=immediate — work already pending; DEMOTING set on top; extra ref dropped (P226)\n",
+			mxfs_probe("mxfs: P76-QW-FALSE ino=%llu site=immediate -- work already pending; DEMOTING set on top; extra ref dropped (P226)\n",
 				(unsigned long long)ino);
 			xfs_irele(ip);
 		}
@@ -8188,7 +8194,7 @@ __mxfs_dlm_bast_notify(
 	mxfs_dlmtr_rec(ip, dtr_om, dtr_os, MXFS_SITE); }
 	spin_unlock(&ip->i_dlm_lock);
 	xfs_irele(ip);
-	mxfs_idbg("mxfs: MX-INSTR bast_notify ino=%llu BRANCH=deferred (active holders) — set BAST", (unsigned long long)ino);
+	mxfs_idbg("mxfs: MX-INSTR bast_notify ino=%llu BRANCH=deferred (active holders) -- set BAST", (unsigned long long)ino);
 }
 
 /*

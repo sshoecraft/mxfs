@@ -678,7 +678,7 @@ mxfs_dir_noino_land_scan(struct xfs_mount *mp, uint64_t ino, bool land)
 		content_ok = (bp->b_flags & XBF_DONE) ||
 			     (bp->b_addr && !bp->b_error);
 		if (!content_ok) {
-			pr_err("mxfs: P-NOINO-LAND-LOST ino=%llu daddr=%lld lseq=%llu wseq=%llu err=%d — undestaged dir block unrecoverable in core at noino release\n",
+			pr_err("mxfs: P-NOINO-LAND-LOST ino=%llu daddr=%lld lseq=%llu wseq=%llu err=%d -- undestaged dir block unrecoverable in core at noino release\n",
 				(unsigned long long)ino,
 				(long long)bp->b_maps[0].bm_bn,
 				(unsigned long long)bp->b_mxfs_logged_seq,
@@ -687,7 +687,7 @@ mxfs_dir_noino_land_scan(struct xfs_mount *mp, uint64_t ino, bool land)
 			xfs_buf_relse(bp);
 			continue;
 		}
-		mxfs_probe_ratelimited("mxfs: P-NOINO-LAND ino=%llu daddr=%lld lseq=%llu wseq=%llu done=%d — landing undestaged dir block at noino release\n",
+		mxfs_probe_ratelimited("mxfs: P-NOINO-LAND ino=%llu daddr=%lld lseq=%llu wseq=%llu done=%d -- landing undestaged dir block at noino release\n",
 			(unsigned long long)ino,
 			(long long)bp->b_maps[0].bm_bn,
 			(unsigned long long)bp->b_mxfs_logged_seq,
@@ -831,7 +831,7 @@ mxfs_dir_evict_owned_data_blocks(struct xfs_inode *ip)
 			 * single-dirent lost-update).  Log it to prove the gap. */
 			if (ip->i_ino <= 256)
 				mxfs_probe_ratelimited(
-					"mxfs: P48-OWNEREVICT-DIRTYSKIP ino=%llu daddr=%lld dirty=%d pin=%d delwri=%d done=%d inail=%d undest=%d lseq=%llu wseq=%llu — kept (in-flight or undestaged this-tenure work)\n",
+					"mxfs: P48-OWNEREVICT-DIRTYSKIP ino=%llu daddr=%lld dirty=%d pin=%d delwri=%d done=%d inail=%d undest=%d lseq=%llu wseq=%llu -- kept (in-flight or undestaged this-tenure work)\n",
 					(unsigned long long)ip->i_ino,
 					(long long)bp->b_maps[0].bm_bn,
 					(int)(bip && test_bit(XFS_LI_DIRTY, &bip->bli_item.li_flags)),
@@ -1000,7 +1000,7 @@ mxfs_iflush_force_bmbt_durable(struct xfs_inode *ip)
 	if (ncapped || nnotdone_needs) {
 		atomic_add(ncapped, &mxfs_iflush_bmbt_capped);
 		atomic_add(nnotdone_needs, &mxfs_iflush_bmbt_notdone_needs);
-		mxfs_probe_ratelimited("mxfs: P974-DESTAGE-GAP ino=%llu if_nextents=%llu held=%d capped=%d notdone=%d notdone_needs=%d need_iread=%d broot_lvl=%d comm=%s — owned bmbt blocks this flush will not destage\n",
+		mxfs_probe_ratelimited("mxfs: P974-DESTAGE-GAP ino=%llu if_nextents=%llu held=%d capped=%d notdone=%d notdone_needs=%d need_iread=%d broot_lvl=%d comm=%s -- owned bmbt blocks this flush will not destage\n",
 			(unsigned long long)ip->i_ino,
 			(unsigned long long)ip->i_df.if_nextents,
 			nheld, ncapped, nnotdone, nnotdone_needs,
@@ -1049,7 +1049,7 @@ mxfs_iflush_force_bmbt_durable(struct xfs_inode *ip)
 				continue;
 			}
 			atomic_inc(&mxfs_iflush_unread_local);
-			mxfs_probe_ratelimited("mxfs: P973-UNREAD-LOCAL ino=%llu daddr=%lld pin=%d undestaged=%d comm=%s — unread fork holds local bmbt work\n",
+			mxfs_probe_ratelimited("mxfs: P973-UNREAD-LOCAL ino=%llu daddr=%lld pin=%d undestaged=%d comm=%s -- unread fork holds local bmbt work\n",
 				(unsigned long long)ip->i_ino,
 				(long long)bp->b_maps[0].bm_bn,
 				xfs_buf_ispinned(bp),
@@ -1285,7 +1285,7 @@ mxfs_iflush_force_bmbt_durable(struct xfs_inode *ip)
 				    odip->di_format == XFS_DINODE_FMT_BTREE &&
 				    disk_nx > ip->i_df.if_nextents)
 					mxfs_probe_ratelimited(
-						"mxfs: P74-DINEXT-REGRESS ino=%llu about_to_write_nx=%llu disk_nx=%llu leafsum=%d disk_size=%lld incore_size=%lld comm=%s — WRITER reverting peer grow (torn pair)\n",
+						"mxfs: P74-DINEXT-REGRESS ino=%llu about_to_write_nx=%llu disk_nx=%llu leafsum=%d disk_size=%lld incore_size=%lld comm=%s -- WRITER reverting peer grow (torn pair)\n",
 						(unsigned long long)ip->i_ino,
 						(unsigned long long)ip->i_df.if_nextents,
 						disk_nx, leafsum,
@@ -1776,7 +1776,7 @@ again:
 
 			nlocal++;
 			if (atomic_inc_return(&p975l) <= 200)
-				pr_err("mxfs: P975-REL-LOCALWORK ino=%llu daddr=%lld why=%s dirty=%d in_ail=%d pin=%d delwri=%d undestaged=%d flags=0x%x mode=%u — cached extent-tree block still carries local work at the end of the tenure\n",
+				pr_err("mxfs: P975-REL-LOCALWORK ino=%llu daddr=%lld why=%s dirty=%d in_ail=%d pin=%d delwri=%d undestaged=%d flags=0x%x mode=%u -- cached extent-tree block still carries local work at the end of the tenure\n",
 					(unsigned long long)ip->i_ino,
 					(long long)bp->b_maps[0].bm_bn, why,
 					dirty, in_ail, pinned,
@@ -2035,7 +2035,7 @@ again:
 
 			nlocal++;
 			if (atomic_inc_return(&prl) <= 200)
-				pr_err("mxfs: P-RECOV-EVICT-LOCALWORK slot=%u daddr=%lld ops=%s dirty=%d in_ail=%d pin=%d delwri=%d undestaged=%d flags=0x%x — a recovery-written image still carries local work at the end of the recovery\n",
+				pr_err("mxfs: P-RECOV-EVICT-LOCALWORK slot=%u daddr=%lld ops=%s dirty=%d in_ail=%d pin=%d delwri=%d undestaged=%d flags=0x%x -- a recovery-written image still carries local work at the end of the recovery\n",
 					dead_slot, (long long)bp->b_maps[0].bm_bn,
 					bp->b_ops && bp->b_ops->name ?
 						bp->b_ops->name : "?",
@@ -2054,7 +2054,7 @@ again:
 		if (unlikely(mxfs_dbg_recov_evict_fail_after > 0 &&
 			     nevict >= mxfs_dbg_recov_evict_fail_after)) {
 			mxfs_dbg_recov_evict_fail_after = 0;
-			pr_warn("mxfs: P-RECOV-EVICT-INJECT slot=%u after=%d — injected retirement failure; the recovery must retry and retire the rest\n",
+			pr_warn("mxfs: P-RECOV-EVICT-INJECT slot=%u after=%d -- injected retirement failure; the recovery must retry and retire the rest\n",
 				dead_slot, nevict);
 			xfs_buf_rele(bp);
 			for (i++; i < nheld; i++)
@@ -2074,7 +2074,7 @@ out:
 	if (nlocal)
 		atomic_add(nlocal, &mxfs_recov_localwork);
 	mxfs_xfs_probe(mp,
-		"MXFS: P-RECOV-IMAGE-EVICT slot %u tagged_cached=%d bmbt=%d dir=%d agbt=%d noverifier=%d fixed=%d selected=%d evicted=%d local=%d busy=%d evict=%d — %s",
+		"MXFS: P-RECOV-IMAGE-EVICT slot %u tagged_cached=%d bmbt=%d dir=%d agbt=%d noverifier=%d fixed=%d selected=%d evicted=%d local=%d busy=%d evict=%d -- %s",
 		dead_slot, nseen, ncls[1], ncls[2], ncls[3], ncls[4], ncls[0],
 		nsel, nevict, nlocal, nbusy, mxfs_recov_evict,
 		(nlocal || nbusy) ? "NOT all retired; slice NOT published, will retry" :

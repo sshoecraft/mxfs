@@ -17,8 +17,8 @@ mxfs_dlm_peer_joined_flush(
 		return -EINVAL;
 
 	mxfs_pal_log(MXFS_LOG_DEBUG,
-		"mxfs: peer joined — flushing XFS dirty state before "
-		"single→multi transition");
+		"mxfs: peer joined -- flushing XFS dirty state before "
+		"single->multi transition");
 
 	/*
 	 * v0.3.126: same async-CIL-callback race as the inode bast
@@ -54,7 +54,7 @@ mxfs_dlm_peer_joined_flush(
 
 		xfs_warn(mp,
 			"mxfs: cached-view invalidation still incomplete after "
-			"flush round %u/%u — retrying the destage",
+			"flush round %u/%u -- retrying the destage",
 			round + 1, MXFS_INVAL_FLUSH_ROUNDS);
 	}
 
@@ -78,7 +78,7 @@ mxfs_dlm_peer_joined_flush(
 	 */
 	xfs_warn(mp,
 		"P232-INVAL-STUCK: cached-view invalidation did not complete "
-		"in %d flush rounds (%d) — the peer stays unadmitted; the "
+		"in %d flush rounds (%d) -- the peer stays unadmitted; the "
 		"transition will be retried",
 		MXFS_INVAL_FLUSH_ROUNDS, error);
 	return error;
@@ -196,7 +196,7 @@ mxfs_dlm_count_orphan_bmbt(
 			if (!granted) {
 				orphans++;
 				if (orphans <= 8)
-					pr_warn("mxfs: P-JOIN-BMBT-ORPHAN daddr=%lld owner=%llu incore=%d — clean cached extent-tree block whose owner holds no grant here\n",
+					pr_warn("mxfs: P-JOIN-BMBT-ORPHAN daddr=%lld owner=%llu incore=%d -- clean cached extent-tree block whose owner holds no grant here\n",
 						(long long)xfs_buf_daddr(bp),
 						(unsigned long long)owner,
 						oip ? 1 : 0);
@@ -332,7 +332,7 @@ mxfs_dlm_join_prepare(
 			 * sighting-to-freeze window so an unmount can be started
 			 * inside it */
 			mxfs_pal_log(MXFS_LOG_WARN,
-				"mxfs: P-JOIN-PREFREEZE-DELAY ms=%u — TEST: holding the join worker before its freeze",
+				"mxfs: P-JOIN-PREFREEZE-DELAY ms=%u -- TEST: holding the join worker before its freeze",
 				hold);
 			msleep(hold);
 		}
@@ -340,20 +340,20 @@ mxfs_dlm_join_prepare(
 	error = mxfs_join_sb_get(mp);
 	if (error) {
 		mxfs_pal_log(MXFS_LOG_DEBUG,
-			"mxfs: P-JOIN-FREEZE-BUSY — s_umount is held (a mount, "
+			"mxfs: P-JOIN-FREEZE-BUSY -- s_umount is held (a mount, "
 			"remount, sync or unmount in progress) or the superblock is "
 			"going away; the transition is retried, never waited for");
 		return error;
 	}
 	mxfs_pal_log(MXFS_LOG_DEBUG,
-		"mxfs: P-JOIN-FREEZE — peer sighted; freezing this mount for the "
-		"single→multi transition (data + log written back, cached views "
+		"mxfs: P-JOIN-FREEZE -- peer sighted; freezing this mount for the "
+		"single->multi transition (data + log written back, cached views "
 		"dropped, view installed, then thaw)");
 	error = mxfs_freeze_super(sb, FREEZE_HOLDER_KERNEL);
 	if (error) {
 		mxfs_join_sb_put(sb);
 		xfs_warn(mp,
-			"mxfs: P-JOIN-FREEZE-FAIL freeze_super rc=%d — the peer stays "
+			"mxfs: P-JOIN-FREEZE-FAIL freeze_super rc=%d -- the peer stays "
 			"unadmitted; the transition will be retried", error);
 		return error;
 	}
@@ -376,7 +376,7 @@ mxfs_dlm_join_prepare(
 
 			if (dly) {
 				mxfs_pal_log(MXFS_LOG_WARN,
-					"mxfs: P-JOIN-FLIP-DELAY ms=%u — TEST: holding between the cached-view drop and the view flip",
+					"mxfs: P-JOIN-FLIP-DELAY ms=%u -- TEST: holding between the cached-view drop and the view flip",
 					dly);
 				msleep(dly);
 			}
@@ -386,7 +386,7 @@ mxfs_dlm_join_prepare(
 	}
 	xfs_warn(mp,
 		"mxfs: P-JOIN-FREEZE-INVAL-INCOMPLETE rc=%d after %u walks under "
-		"freeze — thawing; the peer stays unadmitted and the transition "
+		"freeze -- thawing; the peer stays unadmitted and the transition "
 		"will be retried", error, walk);
 	mxfs_dlm_join_commit(mp);
 	return error ? error : -EBUSY;
@@ -411,7 +411,7 @@ mxfs_dlm_join_commit(
 		unsigned int	orph = mxfs_dlm_count_orphan_bmbt(mp, &seen);
 
 		mxfs_pal_log(MXFS_LOG_DEBUG,
-			"mxfs: P-JOIN-BMBT-CENSUS single=%d bmbt_cached=%u orphans=%u — clean cached extent-tree blocks at the join commit, and how many have an owner holding no grant",
+			"mxfs: P-JOIN-BMBT-CENSUS single=%d bmbt_cached=%u orphans=%u -- clean cached extent-tree blocks at the join commit, and how many have an owner holding no grant",
 			mp->m_mxfs_dlm ?
 				(int)mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm) : -1,
 			seen, orph);
@@ -421,10 +421,10 @@ mxfs_dlm_join_commit(
 	if (error)
 		xfs_warn(mp,
 			"mxfs: P-JOIN-THAW-FAIL thaw_super rc=%d after the "
-			"single→multi transition", error);
+			"single->multi transition", error);
 	else
 		mxfs_pal_log(MXFS_LOG_DEBUG,
-			"mxfs: P-JOIN-THAW — single→multi transition installed; "
+			"mxfs: P-JOIN-THAW -- single->multi transition installed; "
 			"mount thawed, every modification now takes a grant");
 	/* the freeze's reference (mxfs_join_sb_get); dropped last, off this
 	 * thread, because dropping it may run the teardown */
@@ -568,7 +568,7 @@ mxfs_orphan_scan(
 		return error;
 	}
 	if (ctx.overflow)
-		pr_warn("mxfs: P98-ORPHAN-OVERFLOW cand>%u — scan truncated, rerun at next recovery\n",
+		pr_warn("mxfs: P98-ORPHAN-OVERFLOW cand>%u -- scan truncated, rerun at next recovery\n",
 			MXFS_ORPHAN_MAX_CAND);
 
 	for (i = 0; i < ctx.n; i++) {
@@ -677,7 +677,7 @@ mxfs_orphan_scan(
 			} else {
 				xfs_iflags_set(ip, MXFS_IF_FOREIGN_ZOMBIE);
 			}
-			pr_warn("mxfs: P98-ORPHAN-MEMBER-LATE ino=%llu bucket=%d own_slot=%u foreign_zombie=%d rc=%d — member found after iget; inactivation %s\n",
+			pr_warn("mxfs: P98-ORPHAN-MEMBER-LATE ino=%llu bucket=%d own_slot=%u foreign_zombie=%d rc=%d -- member found after iget; inactivation %s\n",
 				(unsigned long long)ino, (int)fb,
 				mp->m_mxfs_node_slot,
 				xfs_iflags_test(ip, MXFS_IF_FOREIGN_ZOMBIE) ? 1 : 0,
@@ -703,7 +703,7 @@ mxfs_orphan_scan(
 		tp = NULL;
 		if (!error) {
 			adopted++;
-			pr_warn("mxfs: P98-ORPHAN-ADOPT ino=%llu gen=%u bucket=%d — bucketless zombie adopted for reap\n",
+			pr_warn("mxfs: P98-ORPHAN-ADOPT ino=%llu gen=%u bucket=%d -- bucketless zombie adopted for reap\n",
 				(unsigned long long)ino,
 				VFS_I(ip)->i_generation,
 				(int)ip->i_unlinked_bucket);
@@ -765,7 +765,7 @@ mxfs_sweep_step_report(
 	unsigned int		ms = jiffies_to_msecs(jiffies - t0);
 
 	if (ms >= 1000)
-		mxfs_probe("mxfs: P97-SWEEP-STEP agno=%u bucket=%d step=%s ms=%u rc=%d dead_slots=0x%llx — sweep step waited on a DLM acquire (D-0514 provenance)\n",
+		mxfs_probe("mxfs: P97-SWEEP-STEP agno=%u bucket=%d step=%s ms=%u rc=%d dead_slots=0x%llx -- sweep step waited on a DLM acquire (D-0514 provenance)\n",
 			pag_agno(pag), bucket, step, ms, rc,
 			(unsigned long long)pag_mount(pag)->m_mxfs_foreign_dead_slots[0]);
 }
@@ -800,7 +800,7 @@ mxfs_survivor_sweep_bucket_ag(
 				 XFS_IGET_UNTRUSTED, 0, &ip);
 		mxfs_sweep_step_report(pag, bucket, "iget", t0, error);
 		if (error) {
-			pr_warn("mxfs: P97-SWEEP-IGET-FAIL agno=%u bucket=%d agino=0x%x rc=%d — sweep pass aborted, stays pending\n",
+			pr_warn("mxfs: P97-SWEEP-IGET-FAIL agno=%u bucket=%d agino=0x%x rc=%d -- sweep pass aborted, stays pending\n",
 				pag_agno(pag), bucket, agino, error);
 			return error;
 		}
@@ -838,7 +838,7 @@ mxfs_survivor_sweep_bucket_ag(
 		agino = next;
 	}
 	if (walked)
-		pr_warn("mxfs: P97-SWEEP-AG agno=%u bucket=%d walked=%d — dead-slot zombies re-driven through inactivation\n",
+		pr_warn("mxfs: P97-SWEEP-AG agno=%u bucket=%d walked=%d -- dead-slot zombies re-driven through inactivation\n",
 			pag_agno(pag), bucket, walked);
 	return 0;
 }
@@ -855,7 +855,7 @@ mxfs_survivor_sweep_slot(
 
 	if (xfs_is_shutdown(mp) || xfs_is_unmounting(mp))
 		return -EAGAIN;
-	mxfs_probe("mxfs: P97-SWEEP-START slot=%u bucket=%d inv=%d dead_slots=0x%llx — elected survivor adopting dead slot's unlinked bucket\n",
+	mxfs_probe("mxfs: P97-SWEEP-START slot=%u bucket=%d inv=%d dead_slots=0x%llx -- elected survivor adopting dead slot's unlinked bucket\n",
 		dead_slot, bucket, atomic_read(&mxfs_freplay_work_inv),
 		(unsigned long long)mp->m_mxfs_foreign_dead_slots[0]);
 	if (unlikely(mxfs_dbg_sweep_hold_ms > 0)) {
@@ -870,7 +870,7 @@ mxfs_survivor_sweep_slot(
 			msleep(100);
 			waited += 100;
 		}
-		mxfs_probe("mxfs: P-DBG-SWEEP-HOLD slot=%u waited_ms=%d dead_slots=0x%llx inv=%d — TEST: sweep parked inside its work item; holding %d ms more\n",
+		mxfs_probe("mxfs: P-DBG-SWEEP-HOLD slot=%u waited_ms=%d dead_slots=0x%llx inv=%d -- TEST: sweep parked inside its work item; holding %d ms more\n",
 			dead_slot, waited,
 			(unsigned long long)mp->m_mxfs_foreign_dead_slots[0],
 			atomic_read(&mxfs_freplay_work_inv),
@@ -930,7 +930,7 @@ mxfs_own_bucket_rescan(
 			error = err2;
 	}
 	if (!error)
-		mxfs_probe("mxfs: P96-OWN-RESCAN slot=%d bucket=%d — own-bucket residue re-driven\n",
+		mxfs_probe("mxfs: P96-OWN-RESCAN slot=%d bucket=%d -- own-bucket residue re-driven\n",
 			slot, bucket);
 	return error;
 }
@@ -1026,12 +1026,12 @@ mxfs_unclaimed_bucket_scan(
 			continue;
 		if (mxfs_v5_dlm_guard_slot(dlm, b))
 			continue;	/* lost the race / busy: not ours */
-		mxfs_probe("mxfs: P99-UBSWEEP-START slot=%d — sweeping unclaimed slot's bucket under recovery guard\n",
+		mxfs_probe("mxfs: P99-UBSWEEP-START slot=%d -- sweeping unclaimed slot's bucket under recovery guard\n",
 			b);
 		if (mxfs_ubsweep_hold_ms > 0) {
 			int held = 0;
 
-			mxfs_probe("mxfs: P99-UBSWEEP-HOLD slot=%d ms=%d — debug guard hold\n",
+			mxfs_probe("mxfs: P99-UBSWEEP-HOLD slot=%d ms=%d -- debug guard hold\n",
 				b, mxfs_ubsweep_hold_ms);
 			while (held < mxfs_ubsweep_hold_ms && !src &&
 			       !xfs_is_shutdown(mp)) {
@@ -1044,7 +1044,7 @@ mxfs_unclaimed_bucket_scan(
 		if (mxfs_ubsweep_stall_ms > 0 && !src) {
 			int stalled = 0;
 
-			pr_warn("mxfs: P99-UBSWEEP-STALL slot=%d ms=%d — debug: holder stalls, no refresh\n",
+			pr_warn("mxfs: P99-UBSWEEP-STALL slot=%d ms=%d -- debug: holder stalls, no refresh\n",
 				b, mxfs_ubsweep_stall_ms);
 			while (stalled < mxfs_ubsweep_stall_ms &&
 			       !xfs_is_shutdown(mp)) {

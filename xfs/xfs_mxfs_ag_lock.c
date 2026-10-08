@@ -70,7 +70,7 @@ mxfs_ag_cached_phantom_drop(
 	atomic64_inc(&mxfs_dlm_stat_ag_cached_phantom);
 	WRITE_ONCE(mxfs_ag_cached_phantom_total,
 		   atomic64_read(&mxfs_dlm_stat_ag_cached_phantom));
-	pr_warn_ratelimited("mxfs: P-AGCACHED-PHANTOM ag=%u src=%s comm=%s total=%lld bast_pending=%d — cached AG hint with no grant in this node's table; hint dropped, acquiring from the master\n",
+	pr_warn_ratelimited("mxfs: P-AGCACHED-PHANTOM ag=%u src=%s comm=%s total=%lld bast_pending=%d -- cached AG hint with no grant in this node's table; hint dropped, acquiring from the master\n",
 		pag_agno(pag), src, current->comm,
 		(long long)atomic64_read(&mxfs_dlm_stat_ag_cached_phantom),
 		pag->pag_dlm_bast_pending ? 1 : 0);
@@ -124,7 +124,7 @@ __mxfs_ag_dlm_lock(
 
 			n = (unsigned int)atomic64_inc_return(&mxfs_dlm_stat_ag_nulldlm);
 			if (n <= 32)
-				mxfs_probe("mxfs: P483-AGLOCK-NULLDLM ag=%u n=%u comm=%s pid=%d — AG grant requested on a clustered mount whose DLM is already gone; the acquire reports success without acquiring anything\n",
+				mxfs_probe("mxfs: P483-AGLOCK-NULLDLM ag=%u n=%u comm=%s pid=%d -- AG grant requested on a clustered mount whose DLM is already gone; the acquire reports success without acquiring anything\n",
 					pag_agno(pag), n, current->comm,
 					current->pid);
 		}
@@ -144,7 +144,7 @@ __mxfs_ag_dlm_lock(
 		spin_lock(&mp->m_mxfs_acct->lock);
 		mp->m_mxfs_acct->aglock_after_agfree++;
 		spin_unlock(&mp->m_mxfs_acct->lock);
-		mxfs_probe_ratelimited("mxfs: P485-AGLOCK-AFTER-AGFREE ag=%u comm=%s pid=%d — AG grant requested after this mount published its grants at unmount; the grant it takes will be swept undrained\n",
+		mxfs_probe_ratelimited("mxfs: P485-AGLOCK-AFTER-AGFREE ag=%u comm=%s pid=%d -- AG grant requested after this mount published its grants at unmount; the grant it takes will be swept undrained\n",
 			pag_agno(pag), current->comm, current->pid);
 	}
 
@@ -156,7 +156,7 @@ __mxfs_ag_dlm_lock(
 	 */
 	if (unlikely(mxfs_quarantine_covers_agno(mp, pag_agno(pag)))) {
 		pr_warn_ratelimited(
-		    "mxfs: P240-QUAR-AG-EIO agno=%u comm=%s — AG in quarantined victim domain; failing acquire with EIO\n",
+		    "mxfs: P240-QUAR-AG-EIO agno=%u comm=%s -- AG in quarantined victim domain; failing acquire with EIO\n",
 			pag_agno(pag), current->comm);
 		return -EIO;
 	}
@@ -193,7 +193,7 @@ __mxfs_ag_dlm_lock(
 		if (nonblock) {
 			atomic64_inc(&mxfs_dlm_stat_oblf_eagain);
 			mxfs_probe_ratelimited(
-			    "mxfs: P-OBLF-AG-EAGAIN agno=%u comm=%s mask=0x%llx fswide=%d — AG frozen by an open obligation case; non-blocking acquire reports -EAGAIN\n",
+			    "mxfs: P-OBLF-AG-EAGAIN agno=%u comm=%s mask=0x%llx fswide=%d -- AG frozen by an open obligation case; non-blocking acquire reports -EAGAIN\n",
 				pag_agno(pag), current->comm,
 				(unsigned long long)READ_ONCE(mp->m_mxfs_oblf_mask),
 				READ_ONCE(mp->m_mxfs_oblf_fswide) ? 1 : 0);
@@ -201,7 +201,7 @@ __mxfs_ag_dlm_lock(
 		}
 		atomic64_inc(&mxfs_dlm_stat_oblf_wait);
 		mxfs_probe_ratelimited(
-		    "mxfs: P-OBLF-AG-WAIT agno=%u comm=%s pid=%d mask=0x%llx fswide=%d — AG frozen by an open obligation case; blocking acquire waits for OBLIGATIONS_DONE\n",
+		    "mxfs: P-OBLF-AG-WAIT agno=%u comm=%s pid=%d mask=0x%llx fswide=%d -- AG frozen by an open obligation case; blocking acquire waits for OBLIGATIONS_DONE\n",
 			pag_agno(pag), current->comm, current->pid,
 			(unsigned long long)READ_ONCE(mp->m_mxfs_oblf_mask),
 			READ_ONCE(mp->m_mxfs_oblf_fswide) ? 1 : 0);
@@ -213,7 +213,7 @@ __mxfs_ag_dlm_lock(
 		if (xfs_is_shutdown(mp))
 			return -EIO;
 		if (!left) {
-			pr_warn("mxfs: P-OBLF-AG-TIMEOUT agno=%u comm=%s pid=%d mask=0x%llx — the obligation freeze outlived the %u ms budget; acquire fails -ETIMEDOUT (the case is stuck: diagnose, never widen)\n",
+			pr_warn("mxfs: P-OBLF-AG-TIMEOUT agno=%u comm=%s pid=%d mask=0x%llx -- the obligation freeze outlived the %u ms budget; acquire fails -ETIMEDOUT (the case is stuck: diagnose, never widen)\n",
 				pag_agno(pag), current->comm, current->pid,
 				(unsigned long long)READ_ONCE(mp->m_mxfs_oblf_mask),
 				MXFS_OBLF_WAIT_BUDGET_MS);
@@ -261,7 +261,7 @@ __mxfs_ag_dlm_lock(
 		mxfs_pag_dlm_unlock(pag, MXFS_SITE);
 		atomic64_inc(&mxfs_dlm_stat_ag_trydemoting);
 		if ((unsigned)atomic_inc_return(&p_trydemote_n) <= 64)
-			mxfs_probe("mxfs: P-AGTRY-DEMOTING ag=%u comm=%s pid=%d — AG mid-demote (handoff to peer in progress); nonblock acquire reports -EAGAIN instead of parking in wait_demote with the caller's ILOCKs held\n",
+			mxfs_probe("mxfs: P-AGTRY-DEMOTING ag=%u comm=%s pid=%d -- AG mid-demote (handoff to peer in progress); nonblock acquire reports -EAGAIN instead of parking in wait_demote with the caller's ILOCKs held\n",
 				pag_agno(pag), current->comm, current->pid);
 		return -EAGAIN;
 	}
@@ -311,7 +311,7 @@ __mxfs_ag_dlm_lock(
 			/* keep the cached single-node tenure */
 		} else {
 			pag->pag_dlm_cached = false;
-			mxfs_probe("mxfs: P243-AGAUTH-UNBOUND ag=%u src=%s — epochless cached hint dropped; forcing fresh attested acquire\n",
+			mxfs_probe("mxfs: P243-AGAUTH-UNBOUND ag=%u src=%s -- epochless cached hint dropped; forcing fresh attested acquire\n",
 				pag_agno(pag),
 				pag->pag_mxfs_grant_single ? "single-era-ended-fast" : "cached-fast");
 			pag->pag_mxfs_grant_single = false;
@@ -379,7 +379,7 @@ __mxfs_ag_dlm_lock(
 		 * critical section that sets latched — must stay 0. */
 		if (unlikely(pag->pag_dlm_latched)) {
 			atomic64_inc(&mxfs_dlm_stat_postlatch_adopt);
-			WARN_ONCE(1, "mxfs: P12-POSTLATCH-ADOPT ag=%u comm=%s — cached hint observed while latched\n",
+			WARN_ONCE(1, "mxfs: P12-POSTLATCH-ADOPT ag=%u comm=%s -- cached hint observed while latched\n",
 				  pag_agno(pag), current->comm);
 		}
 		/*
@@ -418,7 +418,7 @@ __mxfs_ag_dlm_lock(
 				current->comm);
 		}
 		mxfs_pag_dlm_unlock(pag, MXFS_SITE);
-		mxfs_idbg("mxfs: P39-INSTR ag=%u FAST-PATH-ACQ cached=true→false holders=0→1 realns=%llu\n",
+		mxfs_idbg("mxfs: P39-INSTR ag=%u FAST-PATH-ACQ cached=true->false holders=0->1 realns=%llu\n",
 			pag_agno(pag),
 			(unsigned long long)ktime_get_real_ns());
 		atomic64_inc(&mxfs_dlm_stat_ag_nested);
@@ -437,7 +437,7 @@ __mxfs_ag_dlm_lock(
 		 */
 		if (mxfs_v5_dlm_is_caw(dlm) &&
 		    READ_ONCE(pag->pag_mxfs_grant_epoch) == 0)
-			mxfs_probe("mxfs: P243-AGAUTH-UNBOUND ag=%u src=relpend-fast — release_pending reclaim adopting tenure with NO published epoch\n",
+			mxfs_probe("mxfs: P243-AGAUTH-UNBOUND ag=%u src=relpend-fast -- release_pending reclaim adopting tenure with NO published epoch\n",
 				pag_agno(pag));
 		/*
 		 * Cached release in flight: BAST work fn committed (cleared
@@ -529,7 +529,7 @@ __mxfs_ag_dlm_lock(
 			static DEFINE_RATELIMIT_STATE(lb_rl, 30 * HZ, 6);
 
 			if (mxfs_probe_on() && __ratelimit(&lb_rl))
-				mxfs_probe("mxfs: P-AGTRY-LOCALBUSY ag=%u comm=%s pid=%d — sibling thread mid-CAW-poll holds pag_dlm_acquire_lock; nonblock acquire reports -EAGAIN instead of parking\n",
+				mxfs_probe("mxfs: P-AGTRY-LOCALBUSY ag=%u comm=%s pid=%d -- sibling thread mid-CAW-poll holds pag_dlm_acquire_lock; nonblock acquire reports -EAGAIN instead of parking\n",
 					pag_agno(pag), current->comm,
 					current->pid);
 			atomic64_inc(&mxfs_dlm_stat_agtry_localbusy);
@@ -566,7 +566,7 @@ __mxfs_ag_dlm_lock(
 			/* keep the cached single-node tenure */
 		} else {
 			pag->pag_dlm_cached = false;
-			mxfs_probe("mxfs: P243-AGAUTH-UNBOUND ag=%u src=%s — epochless cached hint dropped; forcing fresh attested acquire\n",
+			mxfs_probe("mxfs: P243-AGAUTH-UNBOUND ag=%u src=%s -- epochless cached hint dropped; forcing fresh attested acquire\n",
 				pag_agno(pag),
 				pag->pag_mxfs_grant_single ? "single-era-ended-slow" : "cached-slow");
 			pag->pag_mxfs_grant_single = false;
@@ -602,7 +602,7 @@ __mxfs_ag_dlm_lock(
 	if (pag->pag_dlm_cached) {
 		if (unlikely(pag->pag_dlm_latched)) {
 			atomic64_inc(&mxfs_dlm_stat_postlatch_adopt);
-			WARN_ONCE(1, "mxfs: P12-POSTLATCH-ADOPT ag=%u comm=%s src=slow — cached hint observed while latched\n",
+			WARN_ONCE(1, "mxfs: P12-POSTLATCH-ADOPT ag=%u comm=%s src=slow -- cached hint observed while latched\n",
 				  pag_agno(pag), current->comm);
 		}
 		pag->pag_dlm_cached = false;
@@ -628,7 +628,7 @@ __mxfs_ag_dlm_lock(
 		/* (P243 family, probe only): see the fast-path arm. */
 		if (mxfs_v5_dlm_is_caw(dlm) &&
 		    READ_ONCE(pag->pag_mxfs_grant_epoch) == 0)
-			mxfs_probe("mxfs: P243-AGAUTH-UNBOUND ag=%u src=relpend-slow — release_pending reclaim adopting tenure with NO published epoch\n",
+			mxfs_probe("mxfs: P243-AGAUTH-UNBOUND ag=%u src=relpend-slow -- release_pending reclaim adopting tenure with NO published epoch\n",
 				pag_agno(pag));
 		pag->pag_dlm_release_pending = false;
 		pag->pag_dlm_holders = 1;
@@ -775,7 +775,7 @@ __mxfs_ag_dlm_lock(
 
 					mxfs_fmt_trans_held_ags(p1_held,
 							sizeof(p1_held));
-					mxfs_probe("mxfs: P1-AGWAIT ag=%u comm=%s pid=%d trans_dirty=%d trans_held_ags=[%s] — blocking on peer-held AG\n",
+					mxfs_probe("mxfs: P1-AGWAIT ag=%u comm=%s pid=%d trans_dirty=%d trans_held_ags=[%s] -- blocking on peer-held AG\n",
 						pag_agno(pag), current->comm,
 						current->pid,
 						current->journal_info ?
@@ -839,7 +839,7 @@ __mxfs_ag_dlm_lock(
 				if (dtp && !(dtp->t_flags & XFS_TRANS_DIRTY) &&
 				    !list_empty(&dtp->t_mxfs_inode_unlocks)) {
 					mxfs_probe_ratelimited(
-						"mxfs: P5D-PREWAIT-DEFERRED-BAST ag=%u comm=%s — firing clean-trans deferred inode BASTs before blocking\n",
+						"mxfs: P5D-PREWAIT-DEFERRED-BAST ag=%u comm=%s -- firing clean-trans deferred inode BASTs before blocking\n",
 						pag_agno(pag), current->comm);
 					mxfs_trans_drain_inode_unlocks(dtp);
 				}
@@ -858,7 +858,7 @@ __mxfs_ag_dlm_lock(
 					mxfs_fmt_trans_held_ags(p292_held,
 							sizeof(p292_held));
 					mxfs_probe_ratelimited(
-						"mxfs: P292-DIRTY-AGWAIT ag=%u comm=%s pid=%d trans_held_ags=[%s] — dirty trans blocking on peer-held AG\n",
+						"mxfs: P292-DIRTY-AGWAIT ag=%u comm=%s pid=%d trans_held_ags=[%s] -- dirty trans blocking on peer-held AG\n",
 						pag_agno(pag), current->comm,
 						current->pid, p292_held);
 				}
@@ -953,7 +953,7 @@ __mxfs_ag_dlm_lock(
 				static atomic_t p243_n = ATOMIC_INIT(0);
 
 				if ((unsigned)atomic_inc_return(&p243_n) <= 200)
-					mxfs_probe("mxfs: P243-AGAUTH-UNBOUND ag=%u st=%u kind=%u res=%llu gep=%llu mode=%u reaff=%u — fresh EX acquire published NO authority epoch\n",
+					mxfs_probe("mxfs: P243-AGAUTH-UNBOUND ag=%u st=%u kind=%u res=%llu gep=%llu mode=%u reaff=%u -- fresh EX acquire published NO authority epoch\n",
 						pag_agno(pag), ag_gres.status,
 						ag_gres.kind,
 						(unsigned long long)ag_gres.resource,
@@ -1007,7 +1007,7 @@ __mxfs_ag_dlm_lock(
 			pag->pag_dlm_bast_pending = false;
 			pag->pag_dlm_prepass_done = false;
 			atomic64_inc(&mxfs_dlm_stat_stale_hint);
-			mxfs_probe_ratelimited("mxfs: P12-STALE-HINT ag=%u age_ms=%llu comm=%s — pre-acquire BAST hint dropped at fresh grant\n",
+			mxfs_probe_ratelimited("mxfs: P12-STALE-HINT ag=%u age_ms=%llu comm=%s -- pre-acquire BAST hint dropped at fresh grant\n",
 				pag_agno(pag),
 				(unsigned long long)((acq_t0 -
 					pag->pag_dlm_bast_rx_ns) / NSEC_PER_MSEC),
@@ -1123,7 +1123,7 @@ __mxfs_ag_dlm_lock(
 		if (READ_ONCE(mxfs_false_fresh_enforce)) {
 			struct xfs_mount *ff_mp = pag_mount(pag);
 
-			pr_err("mxfs: P130-FALSE-FRESH-REFUSED agno=%u — fresh grant over an OPEN lineage; refusing to invalidate un-landed local state; shutting down\n",
+			pr_err("mxfs: P130-FALSE-FRESH-REFUSED agno=%u -- fresh grant over an OPEN lineage; refusing to invalidate un-landed local state; shutting down\n",
 				pag_agno(pag));
 			mxfs_pag_dlm_unlock(pag, MXFS_SITE);
 			xfs_force_shutdown(ff_mp, SHUTDOWN_CORRUPT_INCORE);
@@ -1301,7 +1301,7 @@ mxfs_ag_dlm_lock_bounded(
 		msleep(100);
 	} while (--tries > 0);
 	mxfs_probe_ratelimited(
-		"mxfs: P5G-AGLOCK-BOUNDED-BUSY ag=%u comm=%s — peer-held past bound; skipping to next AG (dirty-trans grow path)\n",
+		"mxfs: P5G-AGLOCK-BOUNDED-BUSY ag=%u comm=%s -- peer-held past bound; skipping to next AG (dirty-trans grow path)\n",
 		pag_agno(pag), current->comm);
 	return -EAGAIN;
 }
@@ -1882,7 +1882,7 @@ static atomic64_t mxfs_agifc_audit_skip_multilevel = ATOMIC64_INIT(0);
 void
 mxfs_agifc_audit_coverage(const char *site)
 {
-	mxfs_probe("mxfs: P482-AGIFC-AUDIT-COVERAGE site=%s calls=%lld ran=%lld skip_off=%lld skip_singlenode=%lld skip_shutdown=%lld skip_readfail=%lld skip_multilevel=%lld — 'ran' is the denominator for any RELEASE-MISMATCH count; a zero against ran=0 measures nothing\n",
+	mxfs_probe("mxfs: P482-AGIFC-AUDIT-COVERAGE site=%s calls=%lld ran=%lld skip_off=%lld skip_singlenode=%lld skip_shutdown=%lld skip_readfail=%lld skip_multilevel=%lld -- 'ran' is the denominator for any RELEASE-MISMATCH count; a zero against ran=0 measures nothing\n",
 		site,
 		(long long)atomic64_read(&mxfs_agifc_audit_calls),
 		(long long)atomic64_read(&mxfs_agifc_audit_ran),
@@ -2087,7 +2087,7 @@ mxfs_agifc_release_audit(
 			xfs_buf_rele(bp);
 		}
 	}
-	mxfs_probe("mxfs: P-AGIFC-RELEASE-MISMATCH site=%s agno=%u platter_agi_freecount=%u core_agi_freecount=%d pagi_freecount=%u ibt_sum=%d/%drecs fin_sum=%d/%drecs agi_count=%u agi_lsn=%llx ibt_lsn=%llx fin_lsn=%llx tenure=%llu mgen=%llu comm=%s realns=%llu — the AGI image about to be published disagrees with the btrees on the medium\n",
+	mxfs_probe("mxfs: P-AGIFC-RELEASE-MISMATCH site=%s agno=%u platter_agi_freecount=%u core_agi_freecount=%d pagi_freecount=%u ibt_sum=%d/%drecs fin_sum=%d/%drecs agi_count=%u agi_lsn=%llx ibt_lsn=%llx fin_lsn=%llx tenure=%llu mgen=%llu comm=%s realns=%llu -- the AGI image about to be published disagrees with the btrees on the medium\n",
 		site, pag_agno(pag), be32_to_cpu(agi->agi_freecount), core_agi,
 		(unsigned)pag->pagi_freecount, ibt_sum, ibt_n, fin_sum, fin_n,
 		be32_to_cpu(agi->agi_count),
@@ -2226,7 +2226,7 @@ mxfs_p86_agi_unlinked_publish_audit(
 			 * another node left bad.  Report, do not touch.
 			 */
 			badhead++;
-			mxfs_probe("mxfs: P86-AGI-UNLINKED-BADHEAD ag=%u bucket=%u agino=0x%x ino=%llu disk_nlink=%u disk_next=0x%x core_nlink=%d disk_gen=%u disk_mode=0x%x — unlinked-list head reads LINKED on the medium and is NOT in this node's cache; we did not create it\n",
+			mxfs_probe("mxfs: P86-AGI-UNLINKED-BADHEAD ag=%u bucket=%u agino=0x%x ino=%llu disk_nlink=%u disk_next=0x%x core_nlink=%d disk_gen=%u disk_mode=0x%x -- unlinked-list head reads LINKED on the medium and is NOT in this node's cache; we did not create it\n",
 				pag_agno(pag), i, agino,
 				(unsigned long long)XFS_AGINO_TO_INO(mp,
 					pag_agno(pag), agino),
@@ -2268,13 +2268,13 @@ mxfs_p86_agi_unlinked_publish_audit(
 		if (disk_nl == 0) {
 			repaired++;
 			ok++;
-			mxfs_probe_ratelimited("mxfs: P87-PUBLISH-REPAIRED ag=%u bucket=%u agino=0x%x tries=%d — home dinode converted and written before unlock\n",
+			mxfs_probe_ratelimited("mxfs: P87-PUBLISH-REPAIRED ag=%u bucket=%u agino=0x%x tries=%d -- home dinode converted and written before unlock\n",
 				pag_agno(pag), i, agino, tries + 1);
 			continue;
 		}
 
 		split++;
-		pr_warn("mxfs: P86-AGI-UNLINKED-PUBLISH ag=%u bucket=%u agino=0x%x ino=%llu disk_nlink=%u disk_next=0x%x core_nlink=0 disk_gen=%u disk_mode=0x%x tries=%d — publishing an unlinked-list head whose HOME dinode still reads LINKED; the acquirer's xfs_iunlink_reload_next will call this AGI corruption\n",
+		pr_warn("mxfs: P86-AGI-UNLINKED-PUBLISH ag=%u bucket=%u agino=0x%x ino=%llu disk_nlink=%u disk_next=0x%x core_nlink=0 disk_gen=%u disk_mode=0x%x tries=%d -- publishing an unlinked-list head whose HOME dinode still reads LINKED; the acquirer's xfs_iunlink_reload_next will call this AGI corruption\n",
 			pag_agno(pag), i, agino,
 			(unsigned long long)XFS_AGINO_TO_INO(mp, pag_agno(pag),
 							     agino),
@@ -2283,7 +2283,7 @@ mxfs_p86_agi_unlinked_publish_audit(
 
 obligations:
 	if (headwalk_skip)
-		mxfs_probe_ratelimited("mxfs: P86-HEADWALK-SKIPPED ag=%u reason=%s pubob=%d — unlinked-list head walk skipped (no AGI snapshot); obligation enforcement runs regardless\n",
+		mxfs_probe_ratelimited("mxfs: P86-HEADWALK-SKIPPED ag=%u reason=%s pubob=%d -- unlinked-list head walk skipped (no AGI snapshot); obligation enforcement runs regardless\n",
 			pag_agno(pag), headwalk_skip, mp->m_mxfs_pubob_count);
 	/*
 	 * enforce publication obligations for THIS AG — the head walk
@@ -2413,7 +2413,7 @@ obligations:
 				spin_unlock(&mp->m_mxfs_pubob_lock);
 				rcu_read_unlock();
 				if (promoted) {
-					pr_err("mxfs: P-FREEOB-PENDING-COMMITTED ag=%u ino=%llu gen=%u epoch=%llu — FREE_PENDING at the release gate with the ifree already COMMITTED (D-0524 lost update); promoted to FREE and audited now\n",
+					pr_err("mxfs: P-FREEOB-PENDING-COMMITTED ag=%u ino=%llu gen=%u epoch=%llu -- FREE_PENDING at the release gate with the ifree already COMMITTED (D-0524 lost update); promoted to FREE and audited now\n",
 						pag_agno(pag), (unsigned long long)oino[k],
 						pgen, (unsigned long long)pend_ep);
 					okind[k] = MXFS_PUBOB_FREE;
@@ -2428,7 +2428,7 @@ obligations:
 					/* UNLINK: audited by the tail of this loop */
 				} else if (found && shell_ok && !committed) {
 					free_split++;
-					mxfs_probe_ratelimited("mxfs: P-FREEOB-PENDING ag=%u ino=%llu — ifree pending at AG release with no commit on the shell; deferring the unlock (should be unreachable: the ifree holds the AG EX)\n",
+					mxfs_probe_ratelimited("mxfs: P-FREEOB-PENDING ag=%u ino=%llu -- ifree pending at AG release with no commit on the shell; deferring the unlock (should be unreachable: the ifree holds the AG EX)\n",
 						pag_agno(pag), (unsigned long long)oino[k]);
 					continue;
 				} else {
@@ -2438,7 +2438,7 @@ obligations:
 					      "pending tenure is not the retiring tenure";
 					free_split++;
 					free_fatal++;
-					pr_err("mxfs: P-FREEOB-PENDING-FATAL ag=%u ino=%llu committed=%d pending_epoch=%llu rel_epoch=%llu — %s; FREE-PUBLISH bookkeeping violated, refusing the release without deferral\n",
+					pr_err("mxfs: P-FREEOB-PENDING-FATAL ag=%u ino=%llu committed=%d pending_epoch=%llu rel_epoch=%llu -- %s; FREE-PUBLISH bookkeeping violated, refusing the release without deferral\n",
 						pag_agno(pag), (unsigned long long)oino[k],
 						committed ? 1 : 0,
 						(unsigned long long)pend_ep,
@@ -2459,7 +2459,7 @@ obligations:
 
 				if (frc) {
 					free_split++;
-					mxfs_probe_ratelimited("mxfs: P-FREEOB-READ-FAIL ag=%u ino=%llu rc=%d — cannot verify the home dinode; deferring\n",
+					mxfs_probe_ratelimited("mxfs: P-FREEOB-READ-FAIL ag=%u ino=%llu rc=%d -- cannot verify the home dinode; deferring\n",
 						pag_agno(pag), (unsigned long long)oino[k], frc);
 					continue;
 				}
@@ -2492,7 +2492,7 @@ obligations:
 				       (ochain[k] && rel_ep && oepochv[k] == rel_ep)))) {
 					bool live = oip && VFS_I(oip)->i_mode != 0;
 
-					mxfs_probe("mxfs: P-FREEOB-FOREIGN ag=%u ino=%llu gen=%u disk_gen=%u disk_mode=0%o chain=%u ob_epoch=%llu rel_epoch=%llu live_shell=%d — home dinode is not the incarnation this node freed (FREE-PUBLISH crossed earlier); never writing; discharging\n",
+					mxfs_probe("mxfs: P-FREEOB-FOREIGN ag=%u ino=%llu gen=%u disk_gen=%u disk_mode=0%o chain=%u ob_epoch=%llu rel_epoch=%llu live_shell=%d -- home dinode is not the incarnation this node freed (FREE-PUBLISH crossed earlier); never writing; discharging\n",
 						pag_agno(pag), (unsigned long long)oino[k],
 						ogenv[k], ogen, omode, ochain[k],
 						(unsigned long long)oepochv[k],
@@ -2511,12 +2511,12 @@ obligations:
 					continue;
 				}
 				if (ochain[k] && ogen != (uint32_t)(ogenv[k] - 1u))
-					mxfs_probe_ratelimited("mxfs: P-FREEOB-CHAIN ag=%u ino=%llu gen=%u disk_gen=%u chain=%u — chained free: home holds an earlier own life; publishing under the retiring tenure\n",
+					mxfs_probe_ratelimited("mxfs: P-FREEOB-CHAIN ag=%u ino=%llu gen=%u disk_gen=%u chain=%u -- chained free: home holds an earlier own life; publishing under the retiring tenure\n",
 						pag_agno(pag), (unsigned long long)oino[k],
 						ogenv[k], ogen, ochain[k]);
 				if (!oip) {
 					free_split++;
-					mxfs_probe("mxfs: P-FREEOB-NOSHELL ag=%u ino=%llu gen=%u disk_gen=%u — committed free with no in-core shell (should be unreachable: P55C never launders a valid free); unrepairable from this node\n",
+					mxfs_probe("mxfs: P-FREEOB-NOSHELL ag=%u ino=%llu gen=%u disk_gen=%u -- committed free with no in-core shell (should be unreachable: P55C never launders a valid free); unrepairable from this node\n",
 						pag_agno(pag), (unsigned long long)oino[k],
 						ogenv[k], ogen);
 					continue;
@@ -2530,12 +2530,12 @@ obligations:
 					WRITE_ONCE(oip->i_mxfs_freeob, 0);
 					xfs_iflags_clear(oip, MXFS_IF_PUBOB |
 							 MXFS_IF_PUBOB_FLUSHED);
-					mxfs_probe_ratelimited("mxfs: P-FREEOB-PUBLISHED ag=%u ino=%llu gen=%u — free dinode written and verified before the unlock (FREE-PUBLISH)\n",
+					mxfs_probe_ratelimited("mxfs: P-FREEOB-PUBLISHED ag=%u ino=%llu gen=%u -- free dinode written and verified before the unlock (FREE-PUBLISH)\n",
 						pag_agno(pag), (unsigned long long)oino[k],
 						ogenv[k]);
 				} else {
 					free_split++;
-					mxfs_probe("mxfs: P-FREEOB-UNPUBLISHED ag=%u ino=%llu gen=%u disk_gen=%u disk_mode=0%o — free image still not at home after the mandatory target flush; deferring the unlock\n",
+					mxfs_probe("mxfs: P-FREEOB-UNPUBLISHED ag=%u ino=%llu gen=%u disk_gen=%u disk_mode=0%o -- free image still not at home after the mandatory target flush; deferring the unlock\n",
 						pag_agno(pag), (unsigned long long)oino[k],
 						ogenv[k], ogen, omode);
 				}
@@ -2564,7 +2564,7 @@ obligations:
 			rcu_read_unlock();
 			if (!shell) {
 				split++;
-				pr_warn("mxfs: P88-PUBOB-NOSHELL ag=%u agino=0x%x ino=%llu disk_nlink=%u disk_next=0x%x — obligation with no in-core inode; conversion is unrepairable from this node (inactivation-leak family), refusing counts it as a split\n",
+				pr_warn("mxfs: P88-PUBOB-NOSHELL ag=%u agino=0x%x ino=%llu disk_nlink=%u disk_next=0x%x -- obligation with no in-core inode; conversion is unrepairable from this node (inactivation-leak family), refusing counts it as a split\n",
 					pag_agno(pag), oag[k],
 					(unsigned long long)oino[k], onl, onext);
 				continue;
@@ -2576,12 +2576,12 @@ obligations:
 			    onl == 0) {
 				repaired++;
 				mxfs_pubob_drop_ino(mp, oino[k]);
-				mxfs_probe_ratelimited("mxfs: P88-PUBOB-REPAIRED ag=%u agino=0x%x ino=%llu — mid-chain conversion written before unlock\n",
+				mxfs_probe_ratelimited("mxfs: P88-PUBOB-REPAIRED ag=%u agino=0x%x ino=%llu -- mid-chain conversion written before unlock\n",
 					pag_agno(pag), oag[k],
 					(unsigned long long)oino[k]);
 			} else {
 				split++;
-				mxfs_probe("mxfs: P88-PUBOB-UNREPAIRED ag=%u agino=0x%x ino=%llu disk_nlink=%u — obligation still LINKED on the medium after the mandatory target flush\n",
+				mxfs_probe("mxfs: P88-PUBOB-UNREPAIRED ag=%u agino=0x%x ino=%llu disk_nlink=%u -- obligation still LINKED on the medium after the mandatory target flush\n",
 					pag_agno(pag), oag[k],
 					(unsigned long long)oino[k], onl);
 			}
@@ -2837,7 +2837,7 @@ mxfs_dlm_ag_drain_inode_buffers(
 
 				if (ferr && ferr != -EAGAIN) {
 					p85_ferr++;
-					mxfs_probe("mxfs: P87-PUBLISH-IFLUSH-FAIL ag=%u rc=%d — inode conversion failed; xfs_iflush_cluster has shut the filesystem down\n",
+					mxfs_probe("mxfs: P87-PUBLISH-IFLUSH-FAIL ag=%u rc=%d -- inode conversion failed; xfs_iflush_cluster has shut the filesystem down\n",
 						pag_agno(pag), ferr);
 					rhashtable_walk_start(&iter);
 					continue;
@@ -2872,7 +2872,7 @@ mxfs_dlm_ag_drain_inode_buffers(
 wrote:
 			if (werr) {
 				p85_werr++;
-				pr_warn("mxfs: P85-INODE-DRAIN-WRITE-FAIL ag=%u daddr=%lld rc=%d — AG release cannot publish this inode cluster; xfs_bwrite has forced a META_IO_ERROR shutdown\n",
+				pr_warn("mxfs: P85-INODE-DRAIN-WRITE-FAIL ag=%u daddr=%lld rc=%d -- AG release cannot publish this inode cluster; xfs_bwrite has forced a META_IO_ERROR shutdown\n",
 					pag_agno(pag),
 					(long long)bp->b_maps[0].bm_bn, werr);
 			} else {
@@ -2889,7 +2889,7 @@ wrote:
 	} while (pass_writes && ++passes < 8);
 
 	if (pass_writes && passes >= 8)
-		pr_warn("mxfs: P85-INODE-DRAIN-PASSCAP ag=%u passes=%u last_pass_writes=%u — inode drain did not quiesce within the pass cap; releasing (bounded Invariant-1 exposure)\n",
+		pr_warn("mxfs: P85-INODE-DRAIN-PASSCAP ag=%u passes=%u last_pass_writes=%u -- inode drain did not quiesce within the pass cap; releasing (bounded Invariant-1 exposure)\n",
 			pag_agno(pag), passes, pass_writes);
 
 	if (qd) {
@@ -3303,7 +3303,7 @@ mxfs_dlm_ag_drain_meta_buffers(
 	rhashtable_walk_exit(&iter);
 	} while (pass_writes && ++p40_passes < 8);
 	if (pass_writes && p40_passes >= 8)
-		pr_warn("mxfs: P-DRAIN-PASSCAP ag=%u passes=%u last_pass_writes=%u — meta drain did not quiesce within pass cap; releasing (bounded Invariant-1 exposure, was unbounded single-pass before)\n",
+		pr_warn("mxfs: P-DRAIN-PASSCAP ag=%u passes=%u last_pass_writes=%u -- meta drain did not quiesce within pass cap; releasing (bounded Invariant-1 exposure, was unbounded single-pass before)\n",
 			pag_agno(pag), p40_passes, pass_writes);
 
 	if (qd) {

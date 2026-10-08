@@ -144,7 +144,7 @@ xfs_trans_log_inode(
 		int p230 = atomic_inc_return(&p230_n);
 
 		if (p230 <= 200)
-			mxfs_probe("mxfs: P230-LOG-UNDER-ATOMIC-BYPASS ino=%llu pend=%llu age_us=%llu comm=%s n=%d — inode logged under a DLM-bypassed atomic trylock grant\n",
+			mxfs_probe("mxfs: P230-LOG-UNDER-ATOMIC-BYPASS ino=%llu pend=%llu age_us=%llu comm=%s n=%d -- inode logged under a DLM-bypassed atomic trylock grant\n",
 				(unsigned long long)ip->i_ino,
 				(unsigned long long)ip->i_mxfs_pub_pending_seq,
 				(unsigned long long)((ktime_get_ns() -

@@ -236,7 +236,7 @@ mxfs_bast_arm_queue(
 
 	spin_lock(&mp->m_mxfs_arm_lock);
 	if (unlikely(mp->m_mxfs_arms_off))
-		pr_warn_ratelimited("mxfs: P6S-ARM-REFUSED ino=%llu src=%u — bast-arm gate closed (teardown)\n",
+		pr_warn_ratelimited("mxfs: P6S-ARM-REFUSED ino=%llu src=%u -- bast-arm gate closed (teardown)\n",
 			(unsigned long long)ip->i_ino, ip->i_dlm_bastq_src);
 	else
 		queued = queue_work(mp->m_mxfs_inode_bast_wq,
@@ -274,7 +274,7 @@ mxfs_bast_arm_queue_delayed_gated(
 
 	spin_lock(&mp->m_mxfs_arm_lock);
 	if (unlikely(mp->m_mxfs_arms_off)) {
-		pr_warn_ratelimited("mxfs: P6S-ARM-REFUSED ino=%llu src=%u — bast-dwork gate closed (teardown)\n",
+		pr_warn_ratelimited("mxfs: P6S-ARM-REFUSED ino=%llu src=%u -- bast-dwork gate closed (teardown)\n",
 			(unsigned long long)ip->i_ino, ip->i_dlm_bastq_src);
 		rc = -1;
 	} else {
@@ -351,7 +351,7 @@ mxfs_relab_backoff_ms(
 	delay = 25U << ip->i_dlm_relab_streak;
 	if (delay > 1000) {
 		delay = 1000;
-		pr_warn_ratelimited("mxfs: P279-RELAB-BACKOFF ino=%llu gen=%u streak=%u — release-abort re-arm at 1s cap (no tenure-gen progress)\n",
+		pr_warn_ratelimited("mxfs: P279-RELAB-BACKOFF ino=%llu gen=%u streak=%u -- release-abort re-arm at 1s cap (no tenure-gen progress)\n",
 			(unsigned long long)ip->i_ino, now_gen,
 			ip->i_dlm_relab_streak);
 	}
@@ -710,7 +710,7 @@ mxfs_demoter_reap_dead(struct xfs_inode *ip)
 		atomic64_inc(&mxfs_dem_dead_reap_n);
 		mxfs_demev_rec(ip, 7, MXFS_SITE);
 		if (atomic_inc_return(&p_reap_n) <= 2000)
-			pr_err("mxfs: P-DEMOTER-DEAD-REAP ino=%llu slot=%d owner_pid=%d owner_comm=%s claim_line=%u:%u claim_age_ms=%llu state=%u mode=%u by_pid=%d by_comm=%s — demoter claim whose owner exited retired\n",
+			pr_err("mxfs: P-DEMOTER-DEAD-REAP ino=%llu slot=%d owner_pid=%d owner_comm=%s claim_line=%u:%u claim_age_ms=%llu depth=%d punt=0x%x punt_n=%u state=%u mode=%u by_pid=%d by_comm=%s -- demoter claim whose owner exited retired\n",
 			       (unsigned long long)ip->i_ino, slot + 1,
 			       slot ? ip->i_dlm_demoter2_pid :
 				      ip->i_dlm_demoter_pid,
@@ -720,6 +720,10 @@ mxfs_demoter_reap_dead(struct xfs_inode *ip)
 						     ip->i_dlm_demoter_line),
 			       set_ns ? (unsigned long long)((ktime_get_ns() -
 					set_ns) / NSEC_PER_MSEC) : 0ULL,
+			       slot ? ip->i_dlm_demoter2_depth :
+				      ip->i_dlm_demoter_depth,
+			       (unsigned int)READ_ONCE(ip->i_dlm_demoter_punt),
+			       (unsigned int)ip->i_dlm_punt_n[slot],
 			       ip->i_dlm_state, ip->i_dlm_mode,
 			       current->pid, current->comm);
 	}
@@ -839,7 +843,7 @@ mxfs_dlm_claim_demoter_wait(struct xfs_inode *ip)
 	}
 	atomic64_inc(&mxfs_dem_claim_wait_expired);
 	if (atomic_inc_return(&p_cw_n) <= 2000)
-		pr_err("mxfs: P-DEMOTER-CLAIM-WAIT-EXPIRED ino=%llu s1_pid=%d s1_comm=%s s2_pid=%d me=%d comm=%s — both demoter slots held past 50 ms; the drain is not run unclaimed\n",
+		pr_err("mxfs: P-DEMOTER-CLAIM-WAIT-EXPIRED ino=%llu s1_pid=%d s1_comm=%s s2_pid=%d me=%d comm=%s -- both demoter slots held past 50 ms; the drain is not run unclaimed\n",
 		       (unsigned long long)ip->i_ino, ip->i_dlm_demoter_pid,
 		       ip->i_dlm_demoter_comm, ip->i_dlm_demoter2_pid,
 		       current->pid, current->comm);
@@ -865,7 +869,7 @@ mxfs_dlm_claim_demoter_sync(struct xfs_inode *ip)
 		if (mxfs_is_demoter(ip))
 			break;
 		if (++n % 10000 == 0)
-			pr_err("mxfs: P-DEMOTER-CLAIM-SYNC-WAIT ino=%llu waited_ms=%llu s1_pid=%d s1_comm=%s s2_pid=%d s2_comm=%s me=%d comm=%s — still waiting for a demoter slot\n",
+			pr_err("mxfs: P-DEMOTER-CLAIM-SYNC-WAIT ino=%llu waited_ms=%llu s1_pid=%d s1_comm=%s s2_pid=%d s2_comm=%s me=%d comm=%s -- still waiting for a demoter slot\n",
 			       (unsigned long long)ip->i_ino,
 			       (unsigned long long)((ktime_get_ns() - t0) /
 						    NSEC_PER_MSEC),
@@ -876,7 +880,7 @@ mxfs_dlm_claim_demoter_sync(struct xfs_inode *ip)
 	}
 	if (n) {
 		atomic64_inc(&mxfs_dem_claim_sync_n);
-		mxfs_probe_ratelimited("mxfs: P-DEMOTER-CLAIM-SYNC ino=%llu waited_ms=%llu comm=%s — claimed after both slots were held\n",
+		mxfs_probe_ratelimited("mxfs: P-DEMOTER-CLAIM-SYNC ino=%llu waited_ms=%llu comm=%s -- claimed after both slots were held\n",
 			(unsigned long long)ip->i_ino,
 			(unsigned long long)((ktime_get_ns() - t0) /
 					     NSEC_PER_MSEC),
@@ -909,7 +913,7 @@ mxfs_dlm_inode_final_release(struct xfs_inode *ip)
 
 		atomic64_inc(&mxfs_dem_free_dirty);
 		if (atomic_inc_return(&p217n) <= 200)
-			mxfs_probe("mxfs: P217-FREE-DIRTY-CLAIM ino=%llu s1=%d s2=%d s1_pid=%d s1_comm=%s s1_line=%u:%u s1_depth=%d s1_age_ms=%llu s2_pid=%d s2_line=%u:%u — inode returning to the slab still claimed; cleared so the next allocation cannot inherit it\n",
+			mxfs_probe("mxfs: P217-FREE-DIRTY-CLAIM ino=%llu s1=%d s2=%d s1_pid=%d s1_comm=%s s1_line=%u:%u s1_depth=%d s1_age_ms=%llu s2_pid=%d s2_line=%u:%u -- inode returning to the slab still claimed; cleared so the next allocation cannot inherit it\n",
 				(unsigned long long)ip->i_ino,
 				!!ip->i_dlm_demoter, !!ip->i_dlm_demoter2,
 				ip->i_dlm_demoter_pid, ip->i_dlm_demoter_comm,
@@ -1087,7 +1091,7 @@ mxfs_demoter_punt_reclaim_check(struct xfs_inode *ip, int site)
 		atomic64_inc(&mxfs_dem_punt_reclaim_n);
 		mxfs_demev_rec(ip, 6, MXFS_SITE);
 		mxfs_probe_ratelimited(
-			"mxfs: P213-PUNT-RECLAIM ino=%llu slot=%d claim_pid=%d claim_comm=%s claim_line=%u:%u age_ms=%llu site=%d — trans-free-retained demoter claim released\n",
+			"mxfs: P213-PUNT-RECLAIM ino=%llu slot=%d claim_pid=%d claim_comm=%s claim_line=%u:%u age_ms=%llu site=%d -- trans-free-retained demoter claim released\n",
 			(unsigned long long)ip->i_ino, slot + 1,
 			ip->i_dlm_demoter_pid, ip->i_dlm_demoter_comm,
 			MXFS_SITE_ARGS(ip->i_dlm_demoter_line), age_ms, site);
@@ -1375,7 +1379,7 @@ mxfs_dlmtr_rec(struct xfs_inode *ip, u8 om, u8 os, u32 line)
 			atomic64_inc(&mxfs_auth_relclean_n);
 		} else {
 			atomic64_inc(&mxfs_auth_backstop_n);
-			mxfs_probe_ratelimited("mxfs: P246-AUTH-LATE-REVOKE ino=%llu auth_state=%u om=%u nm=%u os=%u L%u:%u — proving certificate dropped by a mode lowering that never announced release-begin\n",
+			mxfs_probe_ratelimited("mxfs: P246-AUTH-LATE-REVOKE ino=%llu auth_state=%u om=%u nm=%u os=%u L%u:%u -- proving certificate dropped by a mode lowering that never announced release-begin\n",
 				(unsigned long long)ip->i_ino,
 				ip->i_mxfs_auth_state, om, ip->i_dlm_mode,
 				os, MXFS_SITE_ARGS(line));
@@ -1520,7 +1524,7 @@ mxfs_caw_orphan_forensic(struct xfs_inode *ip, int site)
 	 * the snapshot. */
 	if (mine == 1 && ip->i_dlm_mode == MXFS_LOCK_NL &&
 	    atomic_cmpxchg(&ring_dumped, 0, 1) == 0) {
-		pr_warn("mxfs: P-ORPH-FORENSIC ino=%llu PROVEN-DISK-ORPHAN (scan_mine=1, incore NL) — dumping transition ring (watch=%llu)\n",
+		pr_warn("mxfs: P-ORPH-FORENSIC ino=%llu PROVEN-DISK-ORPHAN (scan_mine=1, incore NL) -- dumping transition ring (watch=%llu)\n",
 			(unsigned long long)ip->i_ino,
 			(unsigned long long)mxfs_watch_ino);
 		mxfs_dlmtr_dump();
@@ -1689,7 +1693,7 @@ mxfs_dlm_recycle_bast_note(struct xfs_inode *ip, uint8_t prev_state,
 		   outcome == 1 ? &mxfs_recycle_bast_dropped :
 		   &mxfs_recycle_bast_stale);
 	if (atomic_inc_return(&p_rcbd_n) <= 64)
-		mxfs_probe("mxfs: P-RECYCLE-BAST-%s ino=%llu prev_state=%u prev_mode=%u now_state=%u mode=%u pending=%d nlink=%u imode=0%o comm=%s — recycle met a delivered BAST: %s\n",
+		mxfs_probe("mxfs: P-RECYCLE-BAST-%s ino=%llu prev_state=%u prev_mode=%u now_state=%u mode=%u pending=%d nlink=%u imode=0%o comm=%s -- recycle met a delivered BAST: %s\n",
 			what[outcome],
 			(unsigned long long)ip->i_ino, prev_state, prev_mode,
 			ip->i_dlm_state, ip->i_dlm_mode,
@@ -2237,6 +2241,7 @@ mxfs_dlm_inode_init(
 	ip->i_mxfs_auth_try_gen = 0;
 	ip->i_mxfs_relmark_res = 0;	/* */
 	ip->i_mxfs_relmark_epoch = 0;
+	ip->i_mxfs_relmark_lineage = 0;
 	ip->i_mxfs_auth_stamp_epoch = 0;
 	ip->i_mxfs_auth_stamp_lineage = 0;
 	ip->i_mxfs_rearm_res = 0;
@@ -2377,7 +2382,7 @@ mxfs_dlm_inode_init(
 
 		atomic64_inc(&mxfs_dem_init_inherit);
 		if (atomic_inc_return(&p216n) <= 200)
-			mxfs_probe("mxfs: P216-INIT-INHERITED-CLAIM ino=%llu s1=%d s2=%d s1_pid=%d s1_comm=%s s1_line=%u:%u s1_depth=%d s2_pid=%d s2_line=%u:%u — fresh inode inherited a demoter claim from the recycled slab object; forced NULL\n",
+			mxfs_probe("mxfs: P216-INIT-INHERITED-CLAIM ino=%llu s1=%d s2=%d s1_pid=%d s1_comm=%s s1_line=%u:%u s1_depth=%d s2_pid=%d s2_line=%u:%u -- fresh inode inherited a demoter claim from the recycled slab object; forced NULL\n",
 				(unsigned long long)ip->i_ino,
 				!!ip->i_dlm_demoter, !!ip->i_dlm_demoter2,
 				ip->i_dlm_demoter_pid, ip->i_dlm_demoter_comm,
@@ -2487,61 +2492,10 @@ MODULE_PARM_DESC(watch_ino,
 EXPORT_SYMBOL(mxfs_watch_ino);
 
 /*
- * D-STATFS-IFREE-NEGATIVE-RANK1 fix, part 1: cluster-coherent statfs
- * sums.  The percpu lazy SB counters (m_icount/m_ifree/m_fdblocks) receive
- * only LOCAL transaction deltas — foreign nodes' creates/frees never land, so
- * any cross-node asymmetry drifts them monotonically (measured: rank1, which
- * does cluster-wide cleanup rm, reached used = -10851 inodes and +38MB
- * phantom free space within hours).  The per-AG summaries, by contrast, ARE
- * cluster-coherent: a fresh cross-node AG acquire with an advanced disk
- * generation clears AGF/AGI_INIT so the next header read re-initializes
- * the pagf and pagi summaries from the FUA-fresh buffer (P102-ACQ block).  Sum
- * those instead.  Residual staleness is bounded (AGs this node hasn't
- * acquired recently), structurally sane (never negative), and self-heals on
- * every acquire — versus unbounded drift.  Per the design review review the
- * percpu ADMISSION counters are left untouched: there is no safe external
- * adjustment (reserved-pool/set-aside semantics), and the cross-node
- * delalloc-overcommit question is a separate ledgered thread.
- *
- * Returns false on single-node / no-DLM mounts — caller uses the upstream
- * percpu path (upstream semantics preserved exactly).
- */
-bool
-mxfs_statfs_perag_sums(
-	struct xfs_mount	*mp,
-	uint64_t		*icount,
-	uint64_t		*ifree,
-	uint64_t		*fdblocks)
-{
-	struct xfs_perag	*pag = NULL;
-	uint64_t		ic = 0, ifr = 0, fdb = 0;
-
-	if (!mp->m_mxfs_dlm || mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm))
-		return false;
-	while ((pag = xfs_perag_next(mp, pag))) {
-		uint32_t	pi_c = READ_ONCE(pag->pagi_count);
-		uint32_t	pi_f = READ_ONCE(pag->pagi_freecount);
-
-		/* An AGI must satisfy free <= count; a violation means a torn
-		 * read against a concurrent re-init — degrade to count (sane)
-		 * rather than propagate an underflow into f_ffree. */
-		if (pi_f > pi_c)
-			pi_f = pi_c;
-		ic += pi_c;
-		ifr += pi_f;
-		fdb += READ_ONCE(pag->pagf_freeblks);
-	}
-	*icount = ic;
-	*ifree = ifr;
-	*fdblocks = fdb;
-	return true;
-}
-EXPORT_SYMBOL(mxfs_statfs_perag_sums);
-
-/*
- * part 2: mount-time init of every AGF+AGI so the statfs sums above
- * cover AGs this node never touches (uninitialized pagi and pagf fields read
- * as zero and would under-report).  ~2 reads per AG through the normal
+ * Mount-time read of every AGF+AGI whose in-core summary is not built (a
+ * fresh tenure taken during the mount phase clears it), so no AG is left
+ * with a zero summary.  A rebuilt summary folds the peer's changes into this
+ * node's counters (mxfs_pag_agf_reinit).  ~2 reads per AG through the normal
  * DLM-aware verified paths, once per mount.  Errors are non-fatal: the AG
  * just stays uninitialized until first use, exactly as before.
  */
@@ -2594,7 +2548,7 @@ mxfs_fua_disable_set(const char *val, const struct kernel_param *kp)
 	if (v && READ_ONCE(mxfs_foreign_replay_token_enforce) &&
 	    !mxfs_target_cache_protected) {
 		mutex_unlock(&mxfs_fr_cfg_lock);
-		pr_err("mxfs: fua_disable=%d REFUSED while foreign_replay_token_enforce is armed without target_cache_protected — it would invalidate the F2 domain the enforcement arming was validated against.  Disarm foreign_replay_token_enforce first\n",
+		pr_err("mxfs: fua_disable=%d REFUSED while foreign_replay_token_enforce is armed without target_cache_protected -- it would invalidate the F2 domain the enforcement arming was validated against.  Disarm foreign_replay_token_enforce first\n",
 		       v);
 		return -EBUSY;
 	}
@@ -2775,7 +2729,7 @@ module_param_named(foreign_replay_untagged_apply, mxfs_foreign_replay_untagged_a
 MODULE_PARM_DESC(foreign_replay_untagged_apply,
                  "apply untagged buf/dquot/icreate images during live "
                  "foreign-slice replay (0=skip-safe default, 1=legacy "
-                 "cross-slice-LSN apply — A/B control only)");
+                 "cross-slice-LSN apply -- A/B control only)");
 
 /*
  * (D-529 verification): fault-injection knob for the whole-txn
@@ -2809,7 +2763,7 @@ module_param_named(adopted_slice_full_replay, mxfs_adopted_slice_full_replay, in
 MODULE_PARM_DESC(adopted_slice_full_replay,
                  "fully replay an ADOPTED (fresh-claim) log slice at mount "
                  "(0=suppress untagged images+intents default, 1=legacy full "
-                 "replay — A/B control only)");
+                 "replay -- A/B control only)");
 
 /*
  * 0.85.0 (D-FOREIGN-SLICE-INTENTS-ABANDONED): the verdict flip.  1 (default)
@@ -2823,7 +2777,7 @@ EXPORT_SYMBOL(mxfs_obl_complete_enable);
 module_param_named(obl_complete_enable, mxfs_obl_complete_enable, int, 0644);
 MODULE_PARM_DESC(obl_complete_enable,
                  "complete a dead peer's open EFI obligations on the TCP "
-                 "transport (1=default, 0=terminal refusal — A/B control only)");
+                 "transport (1=default, 0=terminal refusal -- A/B control only)");
 
 /*
  * (#1 D-FOREIGN-REPLAY-UNGATED-IMAGES, ruling): recovery-
@@ -3159,7 +3113,7 @@ mxfs_dlm_admission_commit(
 			"MXFS mount ABORTED at admission: a terminal recovery "
 			"refusal quarantines the WHOLE filesystem (found "
 			"during DLM registration, after the recovery "
-			"barrier) — every operation this mount could admit "
+			"barrier) -- every operation this mount could admit "
 			"would fail with EIO.  Repair the refused slice "
 			"targets, clear the outcome record, and remount");
 		return -EIO;
@@ -3167,7 +3121,7 @@ mxfs_dlm_admission_commit(
 	if (ag_mask)
 		xfs_alert(mp,
 			"MXFS mount ADMITTED with AG mask 0x%llx quarantined "
-			"by a terminal recovery refusal — operations touching "
+			"by a terminal recovery refusal -- operations touching "
 			"those AGs fail with EIO until operator repair",
 			(unsigned long long)ag_mask);
 	return 0;

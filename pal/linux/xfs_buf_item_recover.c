@@ -1161,7 +1161,7 @@ mxfs_dirshard_replay_mgen_veto(
 	if (bit != 0 || item->ri_cnt < 2 || !item->ri_buf[1].iov_base ||
 	    item->ri_buf[1].iov_len < need) {
 		xfs_warn(mp,
-	"MXFS replay: P-DIRSHARD-MGEN-SHAPE blkno=%lld first_bit=%d regions=%d — manifest image does not start at offset 0; applying on the token verdict alone",
+	"MXFS replay: P-DIRSHARD-MGEN-SHAPE blkno=%lld first_bit=%d regions=%d -- manifest image does not start at offset 0; applying on the token verdict alone",
 			 (long long)buf_f->blf_blkno, bit, item->ri_cnt);
 		return false;
 	}
@@ -1178,7 +1178,7 @@ mxfs_dirshard_replay_mgen_veto(
 		return false;
 	if (atomic_inc_return(&veto_n) <= 2000)
 		xfs_notice(mp,
-	"MXFS %s replay: P-DIRSHARD-MGEN-VETO blkno=%lld parent=%llu image_mgen=%u disk_mgen=%u tokverdict=%u — image not newer than the on-disk manifest; skipped",
+	"MXFS %s replay: P-DIRSHARD-MGEN-VETO blkno=%lld parent=%llu image_mgen=%u disk_mgen=%u tokverdict=%u -- image not newer than the on-disk manifest; skipped",
 			   xlog_is_mxfs_foreign_replay(log) ? "foreign" :
 			   xlog_is_mxfs_untrusted_replay(log) ? "adopted" : "own",
 			   (long long)buf_f->blf_blkno,
@@ -1244,7 +1244,7 @@ xlog_recover_buf_commit_pass2(
 			 */
 			log->l_mxfs_cancel_put_miss++;
 			xfs_warn_ratelimited(log->l_mp,
-	"MXFS replay: P-FR-CANCEL-PUT-MISS blkno=%lld len=%u lsn=0x%llx — CANCEL record with no pass-1 table entry (n=%u)",
+	"MXFS replay: P-FR-CANCEL-PUT-MISS blkno=%lld len=%u lsn=0x%llx -- CANCEL record with no pass-1 table entry (n=%u)",
 				(long long)buf_f->blf_blkno,
 				(unsigned)buf_f->blf_len,
 				(unsigned long long)current_lsn,
@@ -1266,7 +1266,7 @@ xlog_recover_buf_commit_pass2(
 				log->l_mxfs_image_cancel_skips++;
 				if (log->l_mxfs_image_cancel_skips <= 400)
 					xfs_notice(mp,
-	"MXFS %s replay: P-FR-IMAGE-CANCELLED-SKIP blkno=%lld len=%u lsn=0x%llx (n=%u) — image suppressed by a later CANCEL in the pass-1 table",
+	"MXFS %s replay: P-FR-IMAGE-CANCELLED-SKIP blkno=%lld len=%u lsn=0x%llx (n=%u) -- image suppressed by a later CANCEL in the pass-1 table",
 						   xlog_is_mxfs_foreign_replay(log) ?
 						   "foreign" : "adopted",
 						   (long long)buf_f->blf_blkno,
@@ -1337,7 +1337,7 @@ xlog_recover_buf_commit_pass2(
 
 		if (atomic_inc_return(&fr_dino_n) <= 4000)
 			xfs_notice(mp,
-	"MXFS foreign replay: P-FR-DINO-BUF blkno=%lld len=%u txn_lsn=0x%llx disk_lsn=0x%llx verdict=%s inode_buf=%d cached_before=%d cflags=0x%x now_done=%d fua_fresh=%d ino0=%llu — inode-cluster buffer image through the replayer's cache (cached_before: 1=served from cache, 0=read from disk, 2=present+locked)",
+	"MXFS foreign replay: P-FR-DINO-BUF blkno=%lld len=%u txn_lsn=0x%llx disk_lsn=0x%llx verdict=%s inode_buf=%d cached_before=%d cflags=0x%x now_done=%d fua_fresh=%d ino0=%llu -- inode-cluster buffer image through the replayer's cache (cached_before: 1=served from cache, 0=read from disk, 2=present+locked)",
 				   (long long)buf_f->blf_blkno,
 				   (unsigned int)buf_f->blf_len,
 				   (unsigned long long)current_lsn,
@@ -1403,7 +1403,7 @@ xlog_recover_buf_commit_pass2(
 				log->l_mxfs_buflsn_skips++;
 			if (atomic_inc_return(&fr_buflsn_n) <= 4000)
 				xfs_notice(mp,
-	"MXFS %s replay: P-FR-BUF-LSN blkno=%lld len=%u magic=0x%08x blft=%u txn_lsn=0x%llx disk_lsn=0x%llx verdict=%s tokverdict=%u class=%u — on-disk LSN stamp vs dead slice LSN (cross-slice numbering; SKIP drops the image, OVERRIDE-APPLY applies it on the token's authority)",
+	"MXFS %s replay: P-FR-BUF-LSN blkno=%lld len=%u magic=0x%08x blft=%u txn_lsn=0x%llx disk_lsn=0x%llx verdict=%s tokverdict=%u class=%u -- on-disk LSN stamp vs dead slice LSN (cross-slice numbering; SKIP drops the image, OVERRIDE-APPLY applies it on the token's authority)",
 					   xlog_is_mxfs_foreign_replay(log) ?
 						"foreign" : "adopted",
 					   (long long)buf_f->blf_blkno,
@@ -1433,7 +1433,7 @@ xlog_recover_buf_commit_pass2(
 			log->l_mxfs_buflsn_skips++;
 			if (atomic_inc_return(&own_buflsn_n) <= 2000)
 				xfs_notice(mp,
-	"MXFS own recovery: P-OWN-BUF-LSN blkno=%lld len=%u magic=0x%08x blft=%u txn_lsn=0x%llx disk_lsn=0x%llx verdict=SKIP — on-disk LSN stamp vetoed this node's own slice image on a clustered mount (D-0521: the stamp may be another slice's number)",
+	"MXFS own recovery: P-OWN-BUF-LSN blkno=%lld len=%u magic=0x%08x blft=%u txn_lsn=0x%llx disk_lsn=0x%llx verdict=SKIP -- on-disk LSN stamp vetoed this node's own slice image on a clustered mount (D-0521: the stamp may be another slice's number)",
 					   (long long)buf_f->blf_blkno,
 					   (unsigned int)buf_f->blf_len,
 					   be32_to_cpu(*(__be32 *)bp->b_addr),

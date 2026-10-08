@@ -25,6 +25,12 @@
  *                 for this fs (foreign page = not valid, fail closed).
  *   7 ids         seq never regresses across 200 writes on one page; the
  *                 winning copy carries the highest seq.
+ *   9 span        with span_commit (the DRBD attachment's store) a commit is
+ *                 one swap that writes the whole page to the spare; a writer
+ *                 whose base predates another's commit loses that swap and
+ *                 writes nothing; a live foreign ticket still refuses it
+ *                 (-EBUSY); a span write torn by a crash fails its CRC, the
+ *                 other copy stays the truth, and the next commit repairs it.
  */
 #include <errno.h>
 #include <fcntl.h>
@@ -190,6 +196,86 @@ int main(int argc, char **argv)
             last = pg->hdr.seq;
         }
         CHECK(ok && last == 201, "7 200 writes: seq monotonic, final=%llu", (unsigned long long)last);
+    }
+
+    /* 9 span: a single commit in ONE swap that compares the spare's sector 0
+     * and writes the whole page (span_commit, the DRBD attachment's store) */
+    {
+        struct mxfs_tauth_page *other = calloc(1, sizeof(*other));
+        struct mxfs_tauth_ticket tk;
+        struct mxfs_tauth_wslot ws;
+        uint64_t w0 = s.writes, last;
+        int prev;
+
+        s.span_commit = true;
+        rc = mxfs_tauth_page_read(&s, P, pg, &copy);
+        last = pg->hdr.seq;
+        prev = copy;
+        pg->ent[2].state = MXFS_TAUTH_ST_ACTIVE; pg->ent[2].grant_seq64 = 9;
+        rc |= mxfs_tauth_page_write(&s, pg, 5, 9, 0);
+        rc |= mxfs_tauth_page_read(&s, P, pg, &copy);
+        CHECK(rc == 0 && pg->hdr.seq == last + 1 && pg->ent[2].grant_seq64 == 9 && copy != prev &&
+              s.span_commits == 1 && s.writes == w0 + 1,
+              "9 one-swap commit lands on the spare: seq=%llu copy=%d span=%llu writes=+%llu",
+              (unsigned long long)pg->hdr.seq, copy, (unsigned long long)s.span_commits,
+              (unsigned long long)(s.writes - w0));
+        raw_read(base + mxfs_tauth_page_off(MXFS_TAUTH_NPAGES, P, prev), raw, sizeof(*raw));
+        CHECK(mxfs_tauth_page_valid(raw, P, fs_gen, crc) && raw->hdr.seq == last,
+              "9 the other copy still holds the previous commit (seq %llu)", (unsigned long long)raw->hdr.seq);
+
+        /* 9b a writer that read its base before another's commit compares
+         * the spare's sector 0 as it read it, and loses: nothing written */
+        memcpy(other, pg, sizeof(*other));
+        rc = mxfs_tauth_page_write_base(&s, other, &ws);
+        pg->ent[2].grant_seq64 = 10;
+        rc |= mxfs_tauth_page_write(&s, pg, 5, 9, 0);
+        other->ent[2].grant_seq64 = 666;
+        other->hdr.seq = ws.next;
+        other->hdr.crc32c = mxfs_tauth_page_crc(other, crc);
+        rc |= mxfs_pal_bdev_compare_and_write_span(dev, ws.off, ws.spare0, other, MXFS_TAUTH_PAGE_BYTES) == -EAGAIN ? 0 : -1;
+        rc |= mxfs_tauth_page_read(&s, P, pg, &copy);
+        CHECK(rc == 0 && pg->ent[2].grant_seq64 == 10 && pg->hdr.seq == last + 2,
+              "9b the late writer's swap miscompares; the first commit stands (seq=%llu grant=%llu)",
+              (unsigned long long)pg->hdr.seq, (unsigned long long)pg->ent[2].grant_seq64);
+
+        /* 9c a live ticket of another writer on the spare still refuses it */
+        rc = mxfs_tauth_page_write_base(&s, pg, &ws);
+        memset(&tk, 0, sizeof(tk));
+        tk.magic = MXFS_TAUTH_TICKET_MAGIC; tk.version = MXFS_TAUTH_VERSION;
+        tk.page_id = P; tk.fs_gen = fs_gen; tk.proposed_seq = ws.next;
+        tk.base_seq = pg->hdr.seq; tk.base_nonce = pg->hdr.write_nonce;
+        tk.ticket_nonce = 77; tk.writer_node = 99; tk.writer_inc = 1;
+        tk.crc32c = mxfs_tauth_ticket_crc(&tk, crc);
+        raw_write(ws.off, &tk, sizeof(tk));
+        pg->ent[2].grant_seq64 = 11;
+        rc = mxfs_tauth_page_write(&s, pg, 5, 9, 0);
+        CHECK(rc == -EBUSY && s.span_commits == 2, "9c a live foreign ticket on the spare: rc=%d span=%llu",
+              rc, (unsigned long long)s.span_commits);
+        raw_write(ws.off, ws.spare0, sizeof(ws.spare0));
+
+        /* 9d a span write torn by a crash: the copy fails its CRC, the other
+         * copy stays the truth, and the next commit lands on the torn copy */
+        rc = mxfs_tauth_page_read(&s, P, pg, &copy);
+        last = pg->hdr.seq;
+        prev = copy;
+        rc |= mxfs_tauth_page_write_base(&s, pg, &ws);
+        memcpy(other, pg, sizeof(*other));
+        other->ent[30].state = MXFS_TAUTH_ST_ACTIVE; other->ent[30].grant_seq64 = 5;
+        other->hdr.seq = ws.next;
+        other->hdr.crc32c = mxfs_tauth_page_crc(other, crc);
+        raw_write(ws.off, other, 1024);     /* header and the first entries only */
+        rc |= mxfs_tauth_page_read(&s, P, pg, &copy);
+        CHECK(rc == 0 && pg->hdr.seq == last && copy == prev && pg->ent[30].state != MXFS_TAUTH_ST_ACTIVE,
+              "9d torn span copy does not validate: the truth stays seq=%llu copy=%d",
+              (unsigned long long)pg->hdr.seq, copy);
+        pg->ent[2].grant_seq64 = 12;
+        rc = mxfs_tauth_page_write(&s, pg, 5, 9, 0);
+        rc |= mxfs_tauth_page_read(&s, P, pg, &copy);
+        CHECK(rc == 0 && pg->hdr.seq == last + 1 && copy != prev && pg->ent[2].grant_seq64 == 12,
+              "9d the next one-swap commit repairs the torn copy (seq=%llu copy=%d)",
+              (unsigned long long)pg->hdr.seq, copy);
+        s.span_commit = false;
+        free(other);
     }
     /* region header: spare copy B invalid + copy A valid => open works; both zero => open fails */
     memset(raw, 0, sizeof(*raw));

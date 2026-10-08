@@ -148,7 +148,7 @@ mxfs_inact_cert_note_loss_locked(struct xfs_inode *ip, const char *what,
 	ip->i_mxfs_auth_inact = MXFS_INACT_CERT_LOST;
 	atomic64_inc(&mxfs_inact_cert_lost_n);
 	if (atomic_inc_return(&n) <= 200)
-		pr_err("mxfs: P-INACT-CERT-LOST ino=%llu by=%s L%u:%u auth_state=%u auth_epoch=%llu dlm_mode=%u dlm_state=%u comm=%s — a release-side actor moved an ACTIVE inactivation certificate under the raw EX\n",
+		pr_err("mxfs: P-INACT-CERT-LOST ino=%llu by=%s L%u:%u auth_state=%u auth_epoch=%llu dlm_mode=%u dlm_state=%u comm=%s -- a release-side actor moved an ACTIVE inactivation certificate under the raw EX\n",
 			(unsigned long long)ip->i_ino, what, MXFS_SITE_ARGS(line),
 			(unsigned)ip->i_mxfs_auth_state,
 			(unsigned long long)ip->i_mxfs_auth_epoch,
@@ -227,7 +227,7 @@ mxfs_inode_authority_check_published(struct xfs_inode *ip, u32 line)
 		   st != MXFS_AUTH_UNPUBLISHED_EX))
 		return;
 	atomic64_inc(&mxfs_auth_publive_n);
-	mxfs_probe_ratelimited("mxfs: P246-AUTH-PUB-LIVE ino=%llu auth_state=%u mode=%u dlm_state=%u L%u:%u — slot release published while the authority certificate still proves; release protocol bypassed\n",
+	mxfs_probe_ratelimited("mxfs: P246-AUTH-PUB-LIVE ino=%llu auth_state=%u mode=%u dlm_state=%u L%u:%u -- slot release published while the authority certificate still proves; release protocol bypassed\n",
 		(unsigned long long)ip->i_ino, st,
 		ip->i_dlm_mode, ip->i_dlm_state, MXFS_SITE_ARGS(line));
 }
@@ -254,7 +254,7 @@ mxfs_inode_authority_phantom_loss_locked(struct xfs_inode *ip, u32 line)
 	if (ip->i_mxfs_auth_state == MXFS_AUTH_DURABLE_EX ||
 	    ip->i_mxfs_auth_state == MXFS_AUTH_UNPUBLISHED_EX) {
 		atomic64_inc(&mxfs_auth_phantom_n);
-		pr_warn_ratelimited("mxfs: P247-AUTH-PHANTOM-LOSS ino=%llu auth_state=%u mode=%u dlm_state=%u L%u:%u — wire lost a grant the cache believed in while the certificate was proving; invalidated at detection\n",
+		pr_warn_ratelimited("mxfs: P247-AUTH-PHANTOM-LOSS ino=%llu auth_state=%u mode=%u dlm_state=%u L%u:%u -- wire lost a grant the cache believed in while the certificate was proving; invalidated at detection\n",
 			(unsigned long long)ip->i_ino,
 			ip->i_mxfs_auth_state, ip->i_dlm_mode,
 			ip->i_dlm_state, MXFS_SITE_ARGS(line));
@@ -322,6 +322,7 @@ mxfs_inode_relmark_before_unlock(
 	 */
 	WRITE_ONCE(ip->i_mxfs_relmark_res, rel_res);
 	WRITE_ONCE(ip->i_mxfs_relmark_epoch, rel_epoch);
+	WRITE_ONCE(ip->i_mxfs_relmark_lineage, rel_lineage);
 	rc = mxfs_relmark_publish(ip->i_mount, MXFS_AUTH_CLASS_INODE, rel_res,
 				  rel_lineage, rel_epoch, who);
 	*marked = true;
@@ -332,7 +333,7 @@ mxfs_inode_relmark_before_unlock(
 
 		atomic64_inc(&mxfs_relmark_ino_failed);
 		if (atomic_inc_return(&p_n) <= 2000)
-			pr_warn("mxfs: P-RELMARK-INO-UNMARKED ino=%llu res=%llu gepoch=%llu who=%s rc=%d — releasing WITHOUT a clean-release marker; this tenure's records will refuse at foreign replay\n",
+			pr_warn("mxfs: P-RELMARK-INO-UNMARKED ino=%llu res=%llu gepoch=%llu who=%s rc=%d -- releasing WITHOUT a clean-release marker; this tenure's records will refuse at foreign replay\n",
 				(unsigned long long)ip->i_ino,
 				(unsigned long long)rel_res,
 				(unsigned long long)rel_epoch, who, rc);
@@ -360,7 +361,7 @@ mxfs_ag_relmark_before_unlock(
 
 		atomic64_inc(&mxfs_relmark_ag_failed);
 		if (atomic_inc_return(&p_n) <= 2000)
-			pr_warn("mxfs: P-RELMARK-AG-UNMARKED ag=%u gepoch=%llu who=%s rc=%d — releasing WITHOUT a clean-release marker; this tenure's records will refuse at foreign replay\n",
+			pr_warn("mxfs: P-RELMARK-AG-UNMARKED ag=%u gepoch=%llu who=%s rc=%d -- releasing WITHOUT a clean-release marker; this tenure's records will refuse at foreign replay\n",
 				pag_agno(pag), (unsigned long long)rel_ep, who,
 				rc);
 	}
@@ -545,10 +546,16 @@ mxfs_inode_authority_install_durable_ex_locked(struct xfs_inode *ip,
 		mxfs_inode_authority_note_try_locked(ip, MXFS_AUTH_TRY_RELEASING,
 				gres->mode, gres->grant_epoch, line);
 		if (atomic_inc_return(&p_relmark_reinst_n) <= 2000)
-			pr_warn("mxfs: P-RELMARK-REINSTALL-REFUSED ino=%llu res=%llu gepoch=%llu L%u:%u — grant epoch already certified clean-released by this node's journal; not resurrecting it as authority\n",
+			pr_warn("mxfs: P-RELMARK-REINSTALL-REFUSED ino=%llu res=%llu gepoch=%llu lineage=%#llx relmark_lineage=%#llx gen=%u mode=%u kind=%u auth_state=%u L%u:%u -- grant epoch already certified clean-released by this node's journal; not resurrecting it as authority\n",
 				(unsigned long long)ip->i_ino,
 				(unsigned long long)gres->resource,
-				(unsigned long long)gres->grant_epoch, MXFS_SITE_ARGS(line));
+				(unsigned long long)gres->grant_epoch,
+				(unsigned long long)gres->resource_lineage,
+				(unsigned long long)READ_ONCE(ip->i_mxfs_relmark_lineage),
+				(unsigned int)gres->generation,
+				(unsigned int)gres->mode, (unsigned int)gres->kind,
+				(unsigned int)ip->i_mxfs_auth_state,
+				MXFS_SITE_ARGS(line));
 		return false;
 	}
 
@@ -841,7 +848,7 @@ mxfs_inact_cert_evict_check_locked(struct xfs_inode *ip, u32 line)
 		static atomic_t n = ATOMIC_INIT(0);
 
 		if (atomic_inc_return(&n) <= 200)
-			mxfs_probe("mxfs: P-INACT-CERT-EVICT ino=%llu cls=%d was=%u auth_state=%u auth_epoch=%llu incarn=%u gen=%u dlm_mode=%u free_committed=%d L%u:%u — deferred inactivation certificate is not the held tenure at evict\n",
+			mxfs_probe("mxfs: P-INACT-CERT-EVICT ino=%llu cls=%d was=%u auth_state=%u auth_epoch=%llu incarn=%u gen=%u dlm_mode=%u free_committed=%d L%u:%u -- deferred inactivation certificate is not the held tenure at evict\n",
 				(unsigned long long)ip->i_ino, cls, (unsigned)was,
 				(unsigned)st,
 				(unsigned long long)ip->i_mxfs_auth_epoch,
@@ -854,7 +861,7 @@ mxfs_inact_cert_evict_check_locked(struct xfs_inode *ip, u32 line)
 	 * inactivation left ACTIVE) is authority-state corruption — fail
 	 * closed before the release below becomes peer-visible. */
 	if (cls == 2 || cls == 3) {
-		pr_err("mxfs: P-INACT-CERT-EVICT-CORRUPT ino=%llu cls=%d — failing closed (shutdown)\n",
+		pr_err("mxfs: P-INACT-CERT-EVICT-CORRUPT ino=%llu cls=%d -- failing closed (shutdown)\n",
 			(unsigned long long)ip->i_ino, cls);
 		xfs_force_shutdown(ip->i_mount, SHUTDOWN_CORRUPT_INCORE);
 	}

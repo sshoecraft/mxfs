@@ -124,6 +124,25 @@ struct mxfs_tauth_ledger {
 	 * commits and at close.  The s422 rig run of step 3 hung a 30 s
 	 * workload with nothing measured; this names the cost per grant. */
 	uint64_t                commit_ms_total, commit_ms_max, commit_ms_last_report;
+	/*
+	 * GROUP COMMIT.  Single-page commits of DIFFERENT pages that are in
+	 * flight at the same moment are written as one batched store commit
+	 * (mxfs_tauth_page_write_many): each committer queues its patched image
+	 * on gc_queue and waits holding its own page lock; whichever of them
+	 * finds no batch in flight writes everything queued (up to
+	 * MXFS_TAUTH_WRITE_BATCH pages) and hands each committer its own result.
+	 * A commit that finds nobody else queued is written alone, exactly as
+	 * before.  gc_lock guards the queue and gc_busy; it is never held across
+	 * I/O.  NULL gc_lock (allocation failed at open) = every commit alone.
+	 */
+	mxfs_mutex_t           *gc_lock;
+	mxfs_cond_t            *gc_cond;
+	struct tauth_gc_ent    *gc_head, *gc_tail;
+	struct tauth_gc_vec    *gc_vec;         /* the batch writer's vectors */
+	bool                    gc_busy;
+	uint64_t                gc_batches,     /* store commits that carried 2+ pages */
+				gc_pages,       /* pages those batches carried */
+				gc_max;         /* largest batch */
 };
 
 void mxfs_tauth_ledger_stats(struct mxfs_tauth_ledger *l, const char *why);
@@ -444,6 +463,19 @@ int  mxfs_tauth_ledger_scan_auth(struct mxfs_tauth_ledger *l,
  * else, including the on-demand takeover of a single page.
  */
 extern int mxfs_tauth_pass_quiet;
+
+/*
+ * Nonzero = concurrent single-page commits of different pages share their
+ * barriers (gc_lock above, lpage_write_grouped).  OFF by default: on the rig's
+ * DRBD pair, whose disks flush in ~0.1 ms, sharing the barriers bought nothing
+ * a release storm's commits could use and the queueing cost showed — storm
+ * commits 73 and 122 ms against 68 and 66 ms committed one by one, A/B
+ * interleaved, while the flushes per commit fell from 3.0 to 0.2-1.1.  The
+ * cost it removes is the one the physical pair pays (a flush there measured
+ * 1.6-41 ms, three per commit), so it is a knob to A/B there, set from the
+ * tauth_group_commit module parameter (dlm/dlm.c).
+ */
+extern int mxfs_tauth_group_commit;
 
 int  mxfs_tauth_ledger_prepare(struct mxfs_tauth_ledger *l, uint32_t page_id,
 			       uint64_t gen, uint32_t target_node,

@@ -503,7 +503,7 @@ mxfs_dlm_yield_basted_cached_ags(
 			     WORK_BUSY_RUNNING) &&
 			    likely(!READ_ONCE(mxfs_ag_release_twin))) {
 				mxfs_probe_ratelimited(
-				    "mxfs: P67-NOWAIT-SKIP ag=%u yield-scan — in-flight bast work owns drain; not waiting (ILOCK deadlock guard)\n",
+				    "mxfs: P67-NOWAIT-SKIP ag=%u yield-scan -- in-flight bast work owns drain; not waiting (ILOCK deadlock guard)\n",
 					scan_agno);
 				xfs_perag_put(scan);
 				continue;
@@ -674,7 +674,7 @@ mxfs_ilock_admit_ioend(struct xfs_inode *ip, uint8_t mode)
 		 * under it is still cluster-safe (a granted PR excludes any
 		 * peer EX) and refusing would deadlock the wait. */
 		if (g2 != MXFS_LOCK_EX)
-			mxfs_probe_ratelimited("mxfs: P971-DIOEND-UNDER-PR ino=%llu g2=%u mode=%u state=%u comm=%s — a direct-write completion met a PR mirror\n",
+			mxfs_probe_ratelimited("mxfs: P971-DIOEND-UNDER-PR ino=%llu g2=%u mode=%u state=%u comm=%s -- a direct-write completion met a PR mirror\n",
 				(unsigned long long)ip->i_ino, g2,
 				ip->i_dlm_mode, ip->i_dlm_state, current->comm);
 	}
@@ -693,7 +693,7 @@ mxfs_ilock_admit_ioend(struct xfs_inode *ip, uint8_t mode)
 		static atomic_t p25io = ATOMIC_INIT(0);
 
 		if (atomic_inc_return(&p25io) <= 2000)
-			mxfs_probe("mxfs: P25-IOEND-ADMIT ino=%llu state=%u g2=%u req=%u now_ex=%u now_pr=%u src=%s — admitted during drain (deadlock breaker)\n",
+			mxfs_probe("mxfs: P25-IOEND-ADMIT ino=%llu state=%u g2=%u req=%u now_ex=%u now_pr=%u src=%s -- admitted during drain (deadlock breaker)\n",
 				(unsigned long long)ip->i_ino,
 				ip->i_dlm_state, g2, mode,
 				ip->i_dlm_ex_holders, ip->i_dlm_pr_holders,
@@ -735,7 +735,7 @@ mxfs_dlm_shutdown_withdraw(
 	 * (one xchg + printk).
 	 */
 	mxfs_v5_dlm_poison(mp->m_mxfs_dlm, "force-shutdown");
-	pr_warn("mxfs: P-WITHDRAW-QUEUE — FS shut down; scheduling cluster DLM withdrawal\n");
+	pr_warn("mxfs: P-WITHDRAW-QUEUE -- FS shut down; scheduling cluster DLM withdrawal\n");
 	schedule_work(&mp->m_mxfs_withdraw_work);
 }
 
@@ -848,7 +848,7 @@ mxfs_dlm_inode_lock_routed(struct xfs_inode *ip, uint8_t mode, uint64_t gen_snap
 				mxfs_v5_dlm_inode_unlock(
 					ip->i_mount->m_mxfs_dlm, ip->i_ino);
 				mxfs_probe_ratelimited(
-				    "mxfs: P-ICLUS-CONV ino=%llu mode=%u — mode-0-era per-inode grant dropped; coverage now cluster-backed\n",
+				    "mxfs: P-ICLUS-CONV ino=%llu mode=%u -- mode-0-era per-inode grant dropped; coverage now cluster-backed\n",
 					(unsigned long long)ip->i_ino,
 					ip->i_dlm_mode);
 			}
@@ -1029,7 +1029,7 @@ mxfs_ilock_redrive_stalegen(struct xfs_inode *ip, uint8_t mode,
 			static atomic_t nrd_n = ATOMIC_INIT(0);
 
 			if (atomic_inc_return(&nrd_n) <= 200)
-				pr_err("mxfs: P-ACQ-NO-REDRIVE control build: ino=%llu snap=%llu gen=%llu comm=%s — the stale-generation EX is handed to the caller\n",
+				pr_err("mxfs: P-ACQ-NO-REDRIVE control build: ino=%llu snap=%llu gen=%llu comm=%s -- the stale-generation EX is handed to the caller\n",
 					(unsigned long long)ip->i_ino,
 					(unsigned long long)gen_snap,
 					(unsigned long long)ip->i_mxfs_auth_gen,
@@ -1050,7 +1050,7 @@ mxfs_ilock_redrive_stalegen(struct xfs_inode *ip, uint8_t mode,
 
 			atomic_inc(&mxfs_acq_stalegen_redrive);
 			if (atomic_inc_return(&srd_n) <= 400)
-				mxfs_probe("mxfs: P-ACQ-STALEGEN-REDRIVE ino=%llu round=%d demoter_wait_ms=%d snap=%llu n=%d comm=%s — certificate refused for a moved generation; asking again with a fresh snapshot\n",
+				mxfs_probe("mxfs: P-ACQ-STALEGEN-REDRIVE ino=%llu round=%d demoter_wait_ms=%d snap=%llu n=%d comm=%s -- certificate refused for a moved generation; asking again with a fresh snapshot\n",
 					(unsigned long long)ip->i_ino, rd + 1, dw,
 					(unsigned long long)gen_snap,
 					atomic_read(&mxfs_acq_stalegen_redrive),
@@ -1085,7 +1085,7 @@ mxfs_unpub_owned_meta_note(
 	long long		n = atomic64_inc_return(&mxfs_unpub_owned_meta_n);
 
 	if (n <= 64 || (n & 1023) == 0)
-		pr_warn("mxfs: P-UNPUB-OWNED-META n=%lld ino=%llu fmt=%d nextents=%llu forkoff=%u af_fmt=%d af_nextents=%llu mode=%u comm=%s — unpublished inode owns metadata outside its core; taking a real grant before it can log an unreplayable image\n",
+		pr_warn("mxfs: P-UNPUB-OWNED-META n=%lld ino=%llu fmt=%d nextents=%llu forkoff=%u af_fmt=%d af_nextents=%llu mode=%u comm=%s -- unpublished inode owns metadata outside its core; taking a real grant before it can log an unreplayable image\n",
 			n, (unsigned long long)ip->i_ino,
 			(int)ip->i_df.if_format,
 			(unsigned long long)ip->i_df.if_nextents,
@@ -1198,7 +1198,7 @@ static void mxfs_ilock_batch_deferred_bast(bool batch_arm, struct xfs_inode *ip)
 			if (!mxfs_bast_arm_queue_delayed(ip, delay_j))
 				xfs_irele(ip);	/* dwork already armed — drop duplicate ref */
 		} else {
-			mxfs_probe_ratelimited("mxfs: P134-BASTQ-FREEING ino=%llu site=batch_arm i_state=0x%lx (inode evicting; skipping MHT dwork arm — eviction serves the parked BAST)\n",
+			mxfs_probe_ratelimited("mxfs: P134-BASTQ-FREEING ino=%llu site=batch_arm i_state=0x%lx (inode evicting; skipping MHT dwork arm -- eviction serves the parked BAST)\n",
 				(unsigned long long)ip->i_ino,
 				mxfs_istate(VFS_I(ip)));
 		}
@@ -1367,7 +1367,7 @@ static void mxfs_ilock_reload_storm_gate(struct xfs_inode *ip, uint8_t mode)
 					atomic64_inc_return(&mxfs_dir_slow_skip);
 
 				if ((sk & 255) == 0)
-					mxfs_probe("mxfs: DIR-SLOW-SKIP n=%lld ino=%llu — no peer handoff, cached dir kept (reload+FUA averted)\n",
+					mxfs_probe("mxfs: DIR-SLOW-SKIP n=%lld ino=%llu -- no peer handoff, cached dir kept (reload+FUA averted)\n",
 						sk, (unsigned long long)ip->i_ino);
 			}
 		}
@@ -1463,7 +1463,7 @@ static int mxfs_ilock_test_strand_inject(struct xfs_inode *ip, uint8_t mode)
 		uint32_t strand_gen = mxfs_v5_dlm_inode_grant_gen(
 					ip->i_mount->m_mxfs_dlm, ip->i_ino);
 
-		mxfs_probe("mxfs: P-DBG-STRAND-INJECT ino=%llu mode=%u gen=%u hold_ms=%d comm=%s — TEST ONLY: the DLM granted this acquire and the XFS layer is dropping it unconsumed: the mirror stays granted, the in-core mode stays NL, nothing is released.  This operation fails; the peer's BAST must free it through the abandoned-grant arm once no acquirer is in flight\n",
+		mxfs_probe("mxfs: P-DBG-STRAND-INJECT ino=%llu mode=%u gen=%u hold_ms=%d comm=%s -- TEST ONLY: the DLM granted this acquire and the XFS layer is dropping it unconsumed: the mirror stays granted, the in-core mode stays NL, nothing is released.  This operation fails; the peer's BAST must free it through the abandoned-grant arm once no acquirer is in flight\n",
 			(unsigned long long)ip->i_ino, mode, strand_gen,
 			strand_hold_ms, current->comm);
 		xfs_iflags_set(ip, MXFS_IF_ACQ_REFUSED);
@@ -1491,7 +1491,7 @@ static int mxfs_ilock_test_strand_inject(struct xfs_inode *ip, uint8_t mode)
 			if (ip->i_dlm_acq_inflight)
 				ip->i_dlm_acq_inflight--;
 			spin_unlock(&ip->i_dlm_lock);
-			mxfs_probe("mxfs: P-DBG-STRAND-INJECT-END ino=%llu gen=%u now_gen=%u mode=%u state=%u — TEST ONLY: the held acquirer exits without consuming; its in-flight count is dropped\n",
+			mxfs_probe("mxfs: P-DBG-STRAND-INJECT-END ino=%llu gen=%u now_gen=%u mode=%u state=%u -- TEST ONLY: the held acquirer exits without consuming; its in-flight count is dropped\n",
 				(unsigned long long)ip->i_ino, strand_gen,
 				mxfs_v5_dlm_inode_grant_gen(
 					ip->i_mount->m_mxfs_dlm, ip->i_ino),
@@ -1637,7 +1637,7 @@ static int mxfs_ilock_acquire_from_dlm(struct xfs_inode *ip,
 				static atomic_t p_acqw_cap = ATOMIC_INIT(0);
 
 				if (atomic_inc_return(&p_acqw_cap) <= 200)
-					mxfs_probe("mxfs: P-NOINO-ACQ-WAIT ino=%llu waited_ms=%d%s — fresh acquire serialized behind pending no-inode release\n",
+					mxfs_probe("mxfs: P-NOINO-ACQ-WAIT ino=%llu waited_ms=%d%s -- fresh acquire serialized behind pending no-inode release\n",
 						(unsigned long long)ip->i_ino,
 						nino_w,
 						nino_w >= 2000 ?
@@ -1650,7 +1650,7 @@ static int mxfs_ilock_acquire_from_dlm(struct xfs_inode *ip,
 		 * DLM acquisition — a replay task blocking here on a fenced
 		 * victim's grant is the proven cascade deadlock. */
 		WARN_ONCE(mxfs_task_recovery_phase() == MXFS_RECOV_PHASE_REPLAY,
-			  "mxfs: P-REPLAY-INODE-LOCK ino=%llu mode=%u comm=%s — replay context in inode DLM acquire\n",
+			  "mxfs: P-REPLAY-INODE-LOCK ino=%llu mode=%u comm=%s -- replay context in inode DLM acquire\n",
 			  (unsigned long long)ip->i_ino, mode, current->comm);
 
 		/*
@@ -1665,7 +1665,7 @@ static int mxfs_ilock_acquire_from_dlm(struct xfs_inode *ip,
 			unsigned int d = READ_ONCE(mxfs_dbg_publish_acq_delay_ms);
 
 			if (atomic_inc_return(&pad_n) <= 200)
-				mxfs_probe("mxfs: P-DBG-PUBLISH-ACQ-DELAY ino=%llu mode=%u ms=%u snap=%llu comm=%s — TEST ONLY: the publishing acquire waits before its request\n",
+				mxfs_probe("mxfs: P-DBG-PUBLISH-ACQ-DELAY ino=%llu mode=%u ms=%u snap=%llu comm=%s -- TEST ONLY: the publishing acquire waits before its request\n",
 					(unsigned long long)ip->i_ino, mode, d,
 					(unsigned long long)auth_gen_snap,
 					current->comm);
@@ -1786,7 +1786,7 @@ static int mxfs_ilock_acquire_from_dlm(struct xfs_inode *ip,
 			spin_unlock(&ip->i_dlm_lock);
 			if (phantom) {
 				pr_warn(
-				    "mxfs: P109-EDEADLK-NL ino=%llu req=%u lap=%d comm=%s — blocked-upgrade refusal while holding NL: the table entry is a phantom; releasing it via the DLM and retrying\n",
+				    "mxfs: P109-EDEADLK-NL ino=%llu req=%u lap=%d comm=%s -- blocked-upgrade refusal while holding NL: the table entry is a phantom; releasing it via the DLM and retrying\n",
 					(unsigned long long)ip->i_ino, mode,
 					relock_laps + 1, current->comm);
 				{
@@ -1819,7 +1819,7 @@ static int mxfs_ilock_acquire_from_dlm(struct xfs_inode *ip,
 				}
 				if (++relock_laps > 64) {
 					mxfs_pal_log(MXFS_LOG_ERR,
-						"mxfs: EDEADLK-NL retry livelock: ino=%llu mode=%u laps=%d comm=%s — shutting down filesystem",
+						"mxfs: EDEADLK-NL retry livelock: ino=%llu mode=%u laps=%d comm=%s -- shutting down filesystem",
 						(unsigned long long)ip->i_ino, mode,
 						relock_laps, current->comm);
 					spin_lock(&ip->i_dlm_lock);
@@ -1921,7 +1921,7 @@ static int mxfs_ilock_acquire_from_dlm(struct xfs_inode *ip,
 			 * release abort). */
 			if (++relock_laps > 64) {
 				mxfs_pal_log(MXFS_LOG_ERR,
-					"mxfs: EDEADLK retry livelock: ino=%llu mode=%u laps=%d comm=%s — shutting down filesystem",
+					"mxfs: EDEADLK retry livelock: ino=%llu mode=%u laps=%d comm=%s -- shutting down filesystem",
 					(unsigned long long)ip->i_ino, mode,
 					relock_laps, current->comm);
 				spin_lock(&ip->i_dlm_lock);
@@ -1977,7 +1977,7 @@ static int mxfs_ilock_acquire_from_dlm(struct xfs_inode *ip,
 			spin_unlock(&ip->i_dlm_lock);
 			wake_up_all(&ip->i_dlm_wait);
 			mxfs_probe_ratelimited(
-			    "mxfs: P-ABBA-BOUNDED-TIMEOUT ino=%llu mode=%u rc=%d comm=%s — bounded second-inode acquire; caller backs off\n",
+			    "mxfs: P-ABBA-BOUNDED-TIMEOUT ino=%llu mode=%u rc=%d comm=%s -- bounded second-inode acquire; caller backs off\n",
 				(unsigned long long)ip->i_ino, mode, rc,
 				current->comm);
 			{ block_outcome = MXFS_BLOCK_RETURN; goto mxfs_ilock_acquire_from_dlm_exit; }
@@ -2007,7 +2007,7 @@ static int mxfs_ilock_acquire_from_dlm(struct xfs_inode *ip,
 			wake_up_all(&ip->i_dlm_wait);
 			recov_laps++;
 			pr_warn_ratelimited(
-			    "mxfs: P-RECOV-ACQ-REQUEUE ino=%llu mode=%u rc=%d laps=%d pending=%d comm=%s — recovery-context acquire timeout; requeueing, not shutting down\n",
+			    "mxfs: P-RECOV-ACQ-REQUEUE ino=%llu mode=%u rc=%d laps=%d pending=%d comm=%s -- recovery-context acquire timeout; requeueing, not shutting down\n",
 				(unsigned long long)ip->i_ino, mode, rc,
 				recov_laps,
 				!bitmap_empty(ip->i_mount->m_mxfs_foreign_dead_slots, 64),
@@ -2075,14 +2075,14 @@ static int mxfs_ilock_acquire_from_dlm(struct xfs_inode *ip,
 			if (fallible) {
 				mxfs_acqfall_give_up_rc(ip->i_ino, -EAGAIN);
 				pr_warn(
-				    "mxfs: P960-AUTH-TRANSITION-FAIL ino=%llu mode=%u laps=%d mounting=%d comm=%s — the takeover this acquire waits on stalled; failing THIS OPERATION with -EAGAIN, not the mount, and not shutting down\n",
+				    "mxfs: P960-AUTH-TRANSITION-FAIL ino=%llu mode=%u laps=%d mounting=%d comm=%s -- the takeover this acquire waits on stalled; failing THIS OPERATION with -EAGAIN, not the mount, and not shutting down\n",
 					(unsigned long long)ip->i_ino, mode,
 					trans_laps, mounting ? 1 : 0,
 					current->comm);
 				{ block_outcome = MXFS_BLOCK_RETURN; goto mxfs_ilock_acquire_from_dlm_exit; }
 			}
 			pr_warn(
-			    "mxfs: P960-AUTH-TRANSITION-PARK ino=%llu mode=%u laps=%d mounting=%d comm=%s — the takeover this acquire waits on stalled; this caller cannot be failed, waiting again, NOT shutting down\n",
+			    "mxfs: P960-AUTH-TRANSITION-PARK ino=%llu mode=%u laps=%d mounting=%d comm=%s -- the takeover this acquire waits on stalled; this caller cannot be failed, waiting again, NOT shutting down\n",
 				(unsigned long long)ip->i_ino, mode, trans_laps,
 				mounting ? 1 : 0, current->comm);
 			msleep(min(500 * trans_laps, 5000));
@@ -2113,7 +2113,7 @@ static int mxfs_ilock_acquire_from_dlm(struct xfs_inode *ip,
 			wake_up_all(&ip->i_dlm_wait);
 			mxfs_acqfall_give_up_rc(ip->i_ino, -EAGAIN);
 			pr_warn(
-			    "mxfs: P-MPHASE-ACQ-GIVEUP ino=%llu mode=%u rc=%d comm=%s — a peer that died during this mount holds the grant and only the mount's barrier can replay it; failing THIS acquire with -EAGAIN so the mount re-runs its barrier, not shutting down\n",
+			    "mxfs: P-MPHASE-ACQ-GIVEUP ino=%llu mode=%u rc=%d comm=%s -- a peer that died during this mount holds the grant and only the mount's barrier can replay it; failing THIS acquire with -EAGAIN so the mount re-runs its barrier, not shutting down\n",
 				(unsigned long long)ip->i_ino, mode, rc,
 				current->comm);
 			mxfs_v5_dlm_inode_acq_abandon(ip->i_mount->m_mxfs_dlm,
@@ -2148,7 +2148,7 @@ static int mxfs_ilock_acquire_from_dlm(struct xfs_inode *ip,
 			if (mxfs_acqfall_armed_for(ip->i_ino))
 				mxfs_acqfall_give_up_rc(ip->i_ino, -EIO);
 			pr_warn_ratelimited(
-			    "mxfs: P240-RBLK-EIO-ABORT ino=%llu mode=%u comm=%s — grant held by a dead node in RECOVERY_BLOCKED; op fails EIO, NOT shutting down, NOT parking\n",
+			    "mxfs: P240-RBLK-EIO-ABORT ino=%llu mode=%u comm=%s -- grant held by a dead node in RECOVERY_BLOCKED; op fails EIO, NOT shutting down, NOT parking\n",
 				(unsigned long long)ip->i_ino, mode,
 				current->comm);
 			{ block_outcome = MXFS_BLOCK_RETURN; goto mxfs_ilock_acquire_from_dlm_exit; }
@@ -2165,7 +2165,7 @@ static int mxfs_ilock_acquire_from_dlm(struct xfs_inode *ip,
 			spin_unlock(&ip->i_dlm_lock);
 			wake_up_all(&ip->i_dlm_wait);
 			pr_warn_ratelimited(
-			    "mxfs: P240-QUAR-EIO-ABORT ino=%llu mode=%u rc=%d comm=%s — acquire timed out inside quarantined victim domain; op fails EIO, NOT shutting down\n",
+			    "mxfs: P240-QUAR-EIO-ABORT ino=%llu mode=%u rc=%d comm=%s -- acquire timed out inside quarantined victim domain; op fails EIO, NOT shutting down\n",
 				(unsigned long long)ip->i_ino, mode, rc,
 				current->comm);
 			{ block_outcome = MXFS_BLOCK_RETURN; goto mxfs_ilock_acquire_from_dlm_exit; }
@@ -2230,7 +2230,7 @@ static int mxfs_ilock_acquire_from_dlm(struct xfs_inode *ip,
 			wake_up_all(&ip->i_dlm_wait);
 			park_laps++;
 			pr_warn_ratelimited(
-			    "mxfs: P240-QUAR-PARK ino=%llu mode=%u rc=%d laps=%d duty=%d comm=%s — acquire timed out with peer recovery pending; parking until a verdict (replay/refusal) lands, NOT shutting down\n",
+			    "mxfs: P240-QUAR-PARK ino=%llu mode=%u rc=%d laps=%d duty=%d comm=%s -- acquire timed out with peer recovery pending; parking until a verdict (replay/refusal) lands, NOT shutting down\n",
 				(unsigned long long)ip->i_ino, mode, rc,
 				park_laps,
 				!bitmap_empty(ip->i_mount->m_mxfs_foreign_dead_slots, 64),
@@ -2282,7 +2282,7 @@ static int mxfs_ilock_acquire_from_dlm(struct xfs_inode *ip,
 			wake_up_all(&ip->i_dlm_wait);
 			mxfs_acqfall_give_up(ip->i_ino);
 			pr_warn(
-			    "mxfs: P958-ACQ-KILLED ino=%llu mode=%u comm=%s — a killed task at a fallible boundary abandons its lock wait; nothing installed, the operation returns -EINTR\n",
+			    "mxfs: P958-ACQ-KILLED ino=%llu mode=%u comm=%s -- a killed task at a fallible boundary abandons its lock wait; nothing installed, the operation returns -EINTR\n",
 				(unsigned long long)ip->i_ino, mode, current->comm);
 			mxfs_v5_dlm_inode_acq_abandon(ip->i_mount->m_mxfs_dlm,
 						      ip->i_ino, mode);
@@ -2347,7 +2347,7 @@ static int mxfs_ilock_acquire_from_dlm(struct xfs_inode *ip,
 			if (give_up) {
 				mxfs_acqfall_give_up(ip->i_ino);
 				mxfs_probe(
-				    "mxfs: P912-ACQ-UNRECEIPTED ino=%llu mode=%u rc=%d laps=%d beyond_budget_s=%llu receipted=%d killed=%d comm=%s — the master is a live member but has never said it has this request (or this task was killed); failing THIS OPERATION, not the mount, and not waiting further\n",
+				    "mxfs: P912-ACQ-UNRECEIPTED ino=%llu mode=%u rc=%d laps=%d beyond_budget_s=%llu receipted=%d killed=%d comm=%s -- the master is a live member but has never said it has this request (or this task was killed); failing THIS OPERATION, not the mount, and not waiting further\n",
 					(unsigned long long)ip->i_ino, mode, rc,
 					live_laps,
 					(unsigned long long)(beyond_ms / 1000ULL),
@@ -2368,7 +2368,7 @@ static int mxfs_ilock_acquire_from_dlm(struct xfs_inode *ip,
 				{ block_outcome = MXFS_BLOCK_RETURN; goto mxfs_ilock_acquire_from_dlm_exit; }
 			}
 			mxfs_probe(
-			    "mxfs: P-LKWAIT-LIVE ino=%llu mode=%u rc=%d laps=%d beyond_budget_s=%llu receipted=%d comm=%s — acquire budget exhausted behind a live master/holder; waiting for its release, NOT shutting down\n",
+			    "mxfs: P-LKWAIT-LIVE ino=%llu mode=%u rc=%d laps=%d beyond_budget_s=%llu receipted=%d comm=%s -- acquire budget exhausted behind a live master/holder; waiting for its release, NOT shutting down\n",
 				(unsigned long long)ip->i_ino, mode, rc,
 				live_laps,
 				(unsigned long long)(beyond_ms / 1000ULL),
@@ -2384,7 +2384,7 @@ static int mxfs_ilock_acquire_from_dlm(struct xfs_inode *ip,
 		 */
 		if (rc) {
 			mxfs_pal_log(MXFS_LOG_ERR,
-				"mxfs: DLM inode lock unrecoverable: ino=%llu mode=%u rc=%d comm=%s — shutting down filesystem",
+				"mxfs: DLM inode lock unrecoverable: ino=%llu mode=%u rc=%d comm=%s -- shutting down filesystem",
 				(unsigned long long)ip->i_ino, mode, rc,
 				current->comm);
 			/* Clear ACQUIRING so subsequent ops see a deterministic
@@ -2591,7 +2591,7 @@ static int mxfs_ilock_wait_for_transition(struct xfs_inode *ip, uint8_t mode,
 		    READ_ONCE(ip->i_mxfs_rel_state) == MXFS_RELSTATE_WEDGED) {
 			spin_unlock(&ip->i_dlm_lock);
 			pr_warn_ratelimited(
-			    "mxfs: P-INODE-WEDGE-FENCE ino=%llu mode=%u — release wedged; refusing DLM acquire (postwait)\n",
+			    "mxfs: P-INODE-WEDGE-FENCE ino=%llu mode=%u -- release wedged; refusing DLM acquire (postwait)\n",
 				(unsigned long long)ip->i_ino, mode);
 			{ mxfs_ilock_wait_for_transition_outcome = MXFS_BLOCK_RETURN; goto mxfs_ilock_wait_for_transition_exit; }
 		}
@@ -2687,7 +2687,7 @@ static int mxfs_ilock_wait_for_transition(struct xfs_inode *ip, uint8_t mode,
 			{ u8 dtr_om = ip->i_dlm_mode, dtr_os = ip->i_dlm_state;
 			ip->i_dlm_state = MXFS_DLM_ISTATE_DEMOTING;
 			mxfs_dlmtr_rec(ip, dtr_om, dtr_os, MXFS_SITE); }
-			pr_warn("mxfs: P-DEMWAIT-REDRIVE ino=%llu req=%u mode=%u — dead demote instance (no holders, work idle); re-driving release\n",
+			pr_warn("mxfs: P-DEMWAIT-REDRIVE ino=%llu req=%u mode=%u -- dead demote instance (no holders, work idle); re-driving release\n",
 				(unsigned long long)ip->i_ino, mode,
 				ip->i_dlm_mode);
 			spin_unlock(&ip->i_dlm_lock);
@@ -2718,7 +2718,7 @@ static int mxfs_ilock_wait_for_transition(struct xfs_inode *ip, uint8_t mode,
 				 * path carries no buffer locks into xfs_ilock
 				 * — none of the inline hazards apply.
 				 */
-				pr_warn_ratelimited("mxfs: P134-BASTQ-FREEING ino=%llu site=demwait_redrive i_state=0x%lx — evicting; running dead-demote release INLINE\n",
+				pr_warn_ratelimited("mxfs: P134-BASTQ-FREEING ino=%llu site=demwait_redrive i_state=0x%lx -- evicting; running dead-demote release INLINE\n",
 					(unsigned long long)ip->i_ino,
 					mxfs_istate(VFS_I(ip)));
 				{
@@ -2781,7 +2781,7 @@ static void mxfs_ilock_report_admit_refusal(struct xfs_inode *ip, uint8_t mode)
 				mxfs_v5_dlm_inode_granted_mode(
 					ip->i_mount->m_mxfs_dlm, ip->i_ino);
 			spin_lock(&ip->i_dlm_lock);
-			mxfs_probe("mxfs: P47-FILEBLOCK ino=%llu req=%u mode=%u state=%u g2=%u dsite=%u in_wb=%d in_ioend=%d ex_h=%u pr_h=%u pin=%u comm=%s — file blocking on demote-wait (fast path did not admit)\n",
+			mxfs_probe("mxfs: P47-FILEBLOCK ino=%llu req=%u mode=%u state=%u g2=%u dsite=%u in_wb=%d in_ioend=%d ex_h=%u pr_h=%u pin=%u comm=%s -- file blocking on demote-wait (fast path did not admit)\n",
 				(unsigned long long)ip->i_ino, mode,
 				ip->i_dlm_mode, ip->i_dlm_state, p47g2,
 				ip->i_dlm_drain_site,
@@ -2879,7 +2879,7 @@ static int mxfs_ilock_nested_hold_guard(struct xfs_inode *ip, uint8_t mode)
 				ip->i_dlm_state = MXFS_DLM_ISTATE_NONE;
 				mxfs_dlmtr_rec(ip, dtr_om, dtr_os, MXFS_SITE); }
 				if (atomic_inc_return(&p79s_n) <= 2000)
-					mxfs_probe("mxfs: P79-STALEBAST-CLEAR ino=%llu req=%u granted=%u ex=%u pr=%u — BAST wait unsatisfiable; cleared to NONE for slow path\n",
+					mxfs_probe("mxfs: P79-STALEBAST-CLEAR ino=%llu req=%u granted=%u ex=%u pr=%u -- BAST wait unsatisfiable; cleared to NONE for slow path\n",
 						(unsigned long long)ip->i_ino,
 						mode, g, ip->i_dlm_ex_holders,
 						ip->i_dlm_pr_holders);
@@ -2959,7 +2959,7 @@ static int mxfs_ilock_verify_dir_ex_ownership(bool dir_ex_verify_held,
 
 			held = mxfs_dlm_verify_rawmode(dlm, ip->i_ino,
 				&held_sampled) > MXFS_LOCK_NL ? 1 : 0;
-			mxfs_probe("mxfs: P106-INJECT-CONSUMED ino=%llu epoch=%lu mode=%u state=%u ex_h=%u pr_h=%u pin=%d unlock_rc=%d resample_held=%d sampled=%d — INJECTED: wire grant released behind the cache; the backing-record check read the wire for real\n",
+			mxfs_probe("mxfs: P106-INJECT-CONSUMED ino=%llu epoch=%lu mode=%u state=%u ex_h=%u pr_h=%u pin=%d unlock_rc=%d resample_held=%d sampled=%d -- INJECTED: wire grant released behind the cache; the backing-record check read the wire for real\n",
 				(unsigned long long)ip->i_ino,
 				ip->i_dlm_epoch, ip->i_dlm_mode,
 				ip->i_dlm_state, ip->i_dlm_ex_holders,
@@ -3076,7 +3076,7 @@ static int mxfs_ilock_verify_dir_ex_ownership(bool dir_ex_verify_held,
 					if (S_ISDIR(VFS_I(ip)->i_mode))
 						mxfs_dir_base_invalidate(ip, 3);
 					mxfs_probe(
-					"mxfs: P106-STALE-EX-BAIL ino=%llu lap=%d epoch=%lu epoch_src=%u:%u — phantom cached EX demoted to NL (epoch advanced); re-acquiring on-disk via slow path\n",
+					"mxfs: P106-STALE-EX-BAIL ino=%llu lap=%d epoch=%lu epoch_src=%u:%u -- phantom cached EX demoted to NL (epoch advanced); re-acquiring on-disk via slow path\n",
 						(unsigned long long)ip->i_ino,
 						phantom_laps, ip->i_dlm_epoch,
 						MXFS_SITE_ARGS(ip->i_dlm_epoch_src));
@@ -3088,7 +3088,7 @@ static int mxfs_ilock_verify_dir_ex_ownership(bool dir_ex_verify_held,
 						int pms = xchg(&mxfs_dbg_p106_bail_pause_ms, 0);
 
 						if (unlikely(pms > 0)) {
-							mxfs_probe("mxfs: P106-BAIL-PAUSE ino=%llu ms=%d — INJECTED: parking in the authority gap before the re-acquire\n",
+							mxfs_probe("mxfs: P106-BAIL-PAUSE ino=%llu ms=%d -- INJECTED: parking in the authority gap before the re-acquire\n",
 								(unsigned long long)ip->i_ino, pms);
 							while (pms > 0) {
 								msleep(pms > 100 ? 100 : pms);
@@ -3313,7 +3313,7 @@ static void mxfs_ilock_tenure_change_check(struct xfs_inode *ip, uint8_t mode,
 			    ip->i_dlm_dir_gen <=
 			    ip->i_dlm_dir_loaded_gen)
 				ip->i_dlm_dir_gen++;
-			mxfs_probe_ratelimited("mxfs: P63-FASTEX-HANDOFF ino=%llu grant_gen=%u acted_gen=%u — peer held EX since our last grant; forcing disk-superset reload\n",
+			mxfs_probe_ratelimited("mxfs: P63-FASTEX-HANDOFF ino=%llu grant_gen=%u acted_gen=%u -- peer held EX since our last grant; forcing disk-superset reload\n",
 				(unsigned long long)ip->i_ino,
 				hgg, ip->i_dlm_handoff_acted_gen);
 		}
@@ -3332,7 +3332,7 @@ static void mxfs_ilock_tenure_change_check(struct xfs_inode *ip, uint8_t mode,
 		 * self-grant / no token) excluded. */
 		if (hgg != 0 && hgg != ip->i_dlm_cached_grant_gen && !ho)
 			mxfs_probe_ratelimited(
-			    "mxfs: P51-HANDOFF-UNDERFIRE ino=%llu hgg=%u cached_gg=%u acted=%u dir_gen=%llu loaded=%u — grant token advanced (lock changed hands) but handoff bit FALSE; fast-path EX serve on un-refreshed base\n",
+			    "mxfs: P51-HANDOFF-UNDERFIRE ino=%llu hgg=%u cached_gg=%u acted=%u dir_gen=%llu loaded=%u -- grant token advanced (lock changed hands) but handoff bit FALSE; fast-path EX serve on un-refreshed base\n",
 				(unsigned long long)ip->i_ino, hgg,
 				ip->i_dlm_cached_grant_gen,
 				ip->i_dlm_handoff_acted_gen,
@@ -3435,7 +3435,7 @@ static void mxfs_ilock_tenure_change_check(struct xfs_inode *ip, uint8_t mode,
 			int p42_held = (s6_raw_snap > MXFS_LOCK_NL)
 					? 1 : 0;
 			if (p42_held == 0)
-				mxfs_probe_ratelimited("mxfs: P42-STALEEX-SERVE ino=%llu held=0 ho=%d hgg=%u cached_gg=%u ex_holders=%d dir_gen=%llu state=%u comm=%s — SERVED cached EX but grant NOT held (divergent-RMW window)\n",
+				mxfs_probe_ratelimited("mxfs: P42-STALEEX-SERVE ino=%llu held=0 ho=%d hgg=%u cached_gg=%u ex_holders=%d dir_gen=%llu state=%u comm=%s -- SERVED cached EX but grant NOT held (divergent-RMW window)\n",
 					(unsigned long long)ip->i_ino,
 					ho ? 1 : 0, hgg,
 					ip->i_dlm_cached_grant_gen,
@@ -3477,7 +3477,7 @@ static void mxfs_ilock_tenure_change_check(struct xfs_inode *ip, uint8_t mode,
 					ip->i_dlm_dir_gen++;
 				ip->i_dlm_dir_valid_epoch = fe;
 				ip->i_dlm_dir_valid_incarn = VFS_I(ip)->i_generation;	/* the baseline belongs to THIS incarnation */
-				mxfs_probe_ratelimited("mxfs: P-FASTEX-EPOCH ino=%llu epoch=%u valid=%u — peer modified dir since (level-triggered); forcing data-block refresh\n",
+				mxfs_probe_ratelimited("mxfs: P-FASTEX-EPOCH ino=%llu epoch=%u valid=%u -- peer modified dir since (level-triggered); forcing data-block refresh\n",
 					(unsigned long long)ip->i_ino,
 					fe, oldve);
 			}
@@ -3547,7 +3547,7 @@ static void mxfs_ilock_tenure_change_check(struct xfs_inode *ip, uint8_t mode,
 				if (bdirty) {
 					atomic64_inc(&mxfs_b_dirty_skip);
 					pr_warn_ratelimited(
-					    "mxfs: P216-B-DIRTY-SKIP ino=%llu reason=%d valid=%d hgg=%u cached_gg=%u fe=%u valid_epoch=%u comm=%s — need_adopt on a tenure that already mutated; refusing adopt (fail-closed), backstops own recovery\n",
+					    "mxfs: P216-B-DIRTY-SKIP ino=%llu reason=%d valid=%d hgg=%u cached_gg=%u fe=%u valid_epoch=%u comm=%s -- need_adopt on a tenure that already mutated; refusing adopt (fail-closed), backstops own recovery\n",
 						(unsigned long long)ip->i_ino,
 						breason,
 						ip->i_dlm_base_valid,
@@ -3568,7 +3568,7 @@ static void mxfs_ilock_tenure_change_check(struct xfs_inode *ip, uint8_t mode,
 					    ip->i_dlm_dir_loaded_gen)
 						ip->i_dlm_dir_gen++;
 					mxfs_probe_ratelimited(
-					    "mxfs: P216-B-ADOPT-ARM ino=%llu reason=%d hgg=%u fe=%u valid_epoch=%u fmt=%d comm=%s — dir-EX authorization gate: adopting before exposure\n",
+					    "mxfs: P216-B-ADOPT-ARM ino=%llu reason=%d hgg=%u fe=%u valid_epoch=%u fmt=%d comm=%s -- dir-EX authorization gate: adopting before exposure\n",
 						(unsigned long long)ip->i_ino,
 						breason, hgg, bfe,
 						ip->i_dlm_dir_valid_epoch,
@@ -3701,7 +3701,7 @@ static void mxfs_ilock_report_cached_dir_ex_rmw(struct xfs_inode *ip,
 		 * No behavior change yet; just confirm it fires. */
 		if (ip->i_dlm_dir_gen > ip->i_dlm_dir_loaded_gen)
 			mxfs_probe_ratelimited(
-				"mxfs: P-SFDIR-STALE-RMW ino=%llu dir_gen=%u loaded_gen=%u count=%u pin=%d — STALE shortform fork RMW (peer modified; would clobber)\n",
+				"mxfs: P-SFDIR-STALE-RMW ino=%llu dir_gen=%u loaded_gen=%u count=%u pin=%d -- STALE shortform fork RMW (peer modified; would clobber)\n",
 				(unsigned long long)ip->i_ino,
 				ip->i_dlm_dir_gen,
 				ip->i_dlm_dir_loaded_gen,
@@ -3783,7 +3783,7 @@ static int mxfs_ilock_fast_path(struct xfs_inode *ip, uint8_t mode,
 			ip->i_dlm_state = MXFS_DLM_ISTATE_BAST;
 			mxfs_dlmtr_rec(ip, dtr_om, dtr_os, MXFS_SITE); }
 			mxfs_probe_ratelimited(
-			    "mxfs: P-EX-TENURE-CAP ino=%llu mode=%u ex=%u pr=%u tenure_ms=%llu — BASTed dir grant past cap; closing fast path for handoff\n",
+			    "mxfs: P-EX-TENURE-CAP ino=%llu mode=%u ex=%u pr=%u tenure_ms=%llu -- BASTed dir grant past cap; closing fast path for handoff\n",
 				(unsigned long long)ip->i_ino, ip->i_dlm_mode,
 				ip->i_dlm_ex_holders, ip->i_dlm_pr_holders,
 				(unsigned long long)((ktime_get_ns() -
@@ -3898,7 +3898,7 @@ static int mxfs_ilock_fast_path(struct xfs_inode *ip, uint8_t mode,
 			 * proof that the hand-off happened here and not by luck. */
 			if (!S_ISDIR(VFS_I(ip)->i_mode)) {
 				WRITE_ONCE(mxfs_file_yield_n, mxfs_file_yield_n + 1);
-				mxfs_probe_ratelimited("mxfs: P-FILE-YIELD ino=%llu req=%u mode=%u state=%u ex=%u pr=%u comm=%s — cached grant yields to a peer's pending request\n",
+				mxfs_probe_ratelimited("mxfs: P-FILE-YIELD ino=%llu req=%u mode=%u state=%u ex=%u pr=%u comm=%s -- cached grant yields to a peer's pending request\n",
 					(unsigned long long)ip->i_ino, mode,
 					ip->i_dlm_mode, ip->i_dlm_state,
 					ip->i_dlm_ex_holders, ip->i_dlm_pr_holders,
@@ -4147,7 +4147,7 @@ static int mxfs_ilock_fast_path(struct xfs_inode *ip, uint8_t mode,
 			      ip->i_dlm_dir_gen > ip->i_dlm_dir_loaded_gen))) {
 				if (!mxfs_sf_fastpath_adopt)
 					mxfs_probe_ratelimited(
-					    "mxfs: P174-STALEGEN-ADOPT ino=%llu dir_gen=%u loaded_gen=%u — fast-path fork never rebuilt across peer modifications; forcing disk adopt before mutation\n",
+					    "mxfs: P174-STALEGEN-ADOPT ino=%llu dir_gen=%u loaded_gen=%u -- fast-path fork never rebuilt across peer modifications; forcing disk adopt before mutation\n",
 						(unsigned long long)ip->i_ino,
 						ip->i_dlm_dir_gen,
 						ip->i_dlm_dir_loaded_gen);
@@ -4458,7 +4458,7 @@ restart:
 	 */
 	if (xfs_is_shutdown(ip->i_mount)) {
 		pr_warn_ratelimited(
-		    "mxfs: P-SHUTDOWN-FENCE ino=%llu mode=%u — FS shut down; refusing DLM acquire\n",
+		    "mxfs: P-SHUTDOWN-FENCE ino=%llu mode=%u -- FS shut down; refusing DLM acquire\n",
 			(unsigned long long)ip->i_ino, mode);
 		return;
 	}
@@ -4472,7 +4472,7 @@ restart:
 	if (mxfs_release_proof_enforce &&
 	    READ_ONCE(ip->i_mxfs_rel_state) == MXFS_RELSTATE_WEDGED) {
 		pr_warn_ratelimited(
-		    "mxfs: P-INODE-WEDGE-FENCE ino=%llu mode=%u — release wedged; refusing DLM acquire\n",
+		    "mxfs: P-INODE-WEDGE-FENCE ino=%llu mode=%u -- release wedged; refusing DLM acquire\n",
 			(unsigned long long)ip->i_ino, mode);
 		return;
 	}
@@ -4489,7 +4489,7 @@ restart:
 	if (unlikely(mxfs_quarantine_covers_ino(ip->i_mount, ip->i_ino))) {
 		xfs_iflags_set(ip, MXFS_IF_QUAR_EIO);
 		pr_warn_ratelimited(
-		    "mxfs: P240-QUAR-REFUSE ino=%llu mode=%u comm=%s — inode in quarantined victim domain; refusing DLM acquire\n",
+		    "mxfs: P240-QUAR-REFUSE ino=%llu mode=%u comm=%s -- inode in quarantined victim domain; refusing DLM acquire\n",
 			(unsigned long long)ip->i_ino, mode, current->comm);
 		return;
 	}
@@ -4502,7 +4502,7 @@ restart:
 	 */
 	if (unlikely(mxfs_recovery_blocked_covers_ino(ip->i_mount, ip->i_ino))) {
 		mxfs_pal_log_repeating(MXFS_LOG_WARN,
-		    "mxfs: P240-RBLK-REFUSE ino=%llu mode=%u comm=%s — grant held by a dead node whose recovery is RECOVERY_BLOCKED; refusing DLM acquire (op fails EIO)\n",
+		    "mxfs: P240-RBLK-REFUSE ino=%llu mode=%u comm=%s -- grant held by a dead node whose recovery is RECOVERY_BLOCKED; refusing DLM acquire (op fails EIO)\n",
 			(unsigned long long)ip->i_ino, mode, current->comm);
 		return;
 	}
@@ -4659,7 +4659,7 @@ restart:
 
 		atomic64_inc(&mxfs_demoter_nogrant_n);
 		if (atomic_inc_return(&p_ng_n) <= 2000)
-			pr_err("mxfs: P-DEMOTER-NOGRANT ino=%llu dir=%d req=%u mode=%u state=%u relflush=%d slot=%d claim_age_ms=%llu claim_line=%u:%u gate=%d n=%lld pid=%d comm=%s — a demoter claim with no drain behind it asked to bypass the acquire; %s\n",
+			pr_err("mxfs: P-DEMOTER-NOGRANT ino=%llu dir=%d req=%u mode=%u state=%u relflush=%d slot=%d claim_age_ms=%llu claim_line=%u:%u gate=%d n=%lld pid=%d comm=%s -- a demoter claim with no drain behind it asked to bypass the acquire; %s\n",
 			       (unsigned long long)ip->i_ino,
 			       S_ISDIR(VFS_I(ip)->i_mode) ? 1 : 0,
 			       mode, ip->i_dlm_mode, ip->i_dlm_state,
@@ -4821,7 +4821,7 @@ restart:
 
 			atomic64_inc(&mxfs_dem_wedge_precond);
 			if (atomic_inc_return(&p77n) <= 200)
-				pr_warn("mxfs: P77-WEDGE-PRECOND ino=%llu me=%d comm=%s stolen_from_line=%u:%u state=%u req=%u — parking on a release this task was draining; its claim was stolen\n",
+				pr_warn("mxfs: P77-WEDGE-PRECOND ino=%llu me=%d comm=%s stolen_from_line=%u:%u state=%u req=%u -- parking on a release this task was draining; its claim was stolen\n",
 					(unsigned long long)ip->i_ino,
 					current->pid, current->comm,
 					MXFS_SITE_ARGS(ip->i_dlm_clobber_victim_line),
@@ -4867,7 +4867,7 @@ restart:
 		static atomic_t upgn = ATOMIC_INIT(0);
 
 		if (atomic_inc_return(&upgn) <= 200)
-			pr_warn("mxfs: P-UPG-STANDBACK ino=%llu req=%u comm=%s upg_pid=%d — a task of this node is retrying a refused upgrade on this inode; this shared request waits for it\n",
+			pr_warn("mxfs: P-UPG-STANDBACK ino=%llu req=%u comm=%s upg_pid=%d -- a task of this node is retrying a refused upgrade on this inode; this shared request waits for it\n",
 				(unsigned long long)ip->i_ino, mode,
 				current->comm, ip->i_dlm_upg_pid);
 		spin_unlock(&ip->i_dlm_lock);
@@ -4998,7 +4998,7 @@ restart:
 
 		atomic_inc(&mxfs_acq_uncertified);
 		if (atomic_inc_return(&unc_n) <= 400)
-			pr_warn("mxfs: P-ACQ-UNCERTIFIED ino=%llu isdir=%d auth_state=%u try=%u try_ep=%llu try_line=%u:%u line=%u:%u snap=%llu gen=%llu routed=%d publish=%d state=%u n=%d comm=%s — EX handed to the caller with no proving certificate\n",
+			pr_warn("mxfs: P-ACQ-UNCERTIFIED ino=%llu isdir=%d auth_state=%u try=%u try_ep=%llu try_line=%u:%u line=%u:%u snap=%llu gen=%llu routed=%d publish=%d state=%u n=%d comm=%s -- EX handed to the caller with no proving certificate\n",
 				(unsigned long long)ip->i_ino,
 				S_ISDIR(VFS_I(ip)->i_mode) ? 1 : 0,
 				(unsigned)ip->i_mxfs_auth_state,
@@ -5520,7 +5520,7 @@ mxfs_dlm_ilock_end(
 			if (!mxfs_bast_arm_queue_delayed(ip, msecs_to_jiffies((unsigned int) mxfs_pr_idle_release_ms)))
 				xfs_irele(ip);	/* dwork already armed */
 		} else {
-			mxfs_probe_ratelimited("mxfs: P134-ILEND-FREEING ino=%llu site=idle_arm i_state=0x%lx (inode evicting; skipping idle-release arm — in-flight eviction owns teardown)\n",
+			mxfs_probe_ratelimited("mxfs: P134-ILEND-FREEING ino=%llu site=idle_arm i_state=0x%lx (inode evicting; skipping idle-release arm -- in-flight eviction owns teardown)\n",
 				(unsigned long long)ip->i_ino,
 				mxfs_istate(VFS_I(ip)));
 		}
@@ -5583,7 +5583,7 @@ mxfs_dlm_ilock_end(
 		if (igrab(VFS_I(ip))) {
 			ip->i_dlm_bastq_src = 1;
 			if (!mxfs_bast_arm_queue(ip)) {
-				mxfs_probe("mxfs: P76-QW-FALSE ino=%llu site=ilock-end — work already pending; DEMOTING set on top\n",
+				mxfs_probe("mxfs: P76-QW-FALSE ino=%llu site=ilock-end -- work already pending; DEMOTING set on top\n",
 					(unsigned long long)ip->i_ino);
 				xfs_irele(ip);	/* already queued — drop our extra ref */
 			}
@@ -5648,6 +5648,28 @@ mxfs_dlm_ilock_end(
 		 * it; drop the residual bookkeeping so the mask cannot go stale
 		 * and be mistaken for a live retention by the sweep.
 		 */
+		/*
+		 * Instrument: a slot that is held, but not by this task, still
+		 * carries the retention its punt recorded.  Dropping its count here
+		 * leaves the punt mask 0 with the claim in place, and the reclaim
+		 * sweep acts only on a set mask.  Count and name every such drop.
+		 */
+		{
+			struct task_struct *h1 = READ_ONCE(ip->i_dlm_demoter);
+			struct task_struct *h2 = READ_ONCE(ip->i_dlm_demoter2);
+
+			if ((ip->i_dlm_punt_n[0] && h1 && h1 != current) ||
+			    (ip->i_dlm_punt_n[1] && h2 && h2 != current)) {
+				atomic64_inc(&mxfs_dem_punt_wipe);
+				pr_warn_ratelimited("mxfs: P-PUNT-WIPE ino=%llu n1=%u s1_pid=%d s1_comm=%s n2=%u s2_pid=%d s2_comm=%s pid=%d comm=%s -- an unlock by a task that does not hold the retained claim drops its retention record\n",
+					(unsigned long long)ip->i_ino,
+					ip->i_dlm_punt_n[0], h1 ? ip->i_dlm_demoter_pid : 0,
+					h1 ? ip->i_dlm_demoter_comm : "-",
+					ip->i_dlm_punt_n[1], h2 ? ip->i_dlm_demoter2_pid : 0,
+					h2 ? ip->i_dlm_demoter2_comm : "-",
+					current->pid, current->comm);
+			}
+		}
 		if (READ_ONCE(ip->i_dlm_demoter) != current)
 			ip->i_dlm_punt_n[0] = 0;
 		if (READ_ONCE(ip->i_dlm_demoter2) != current)
@@ -5661,7 +5683,7 @@ mxfs_dlm_ilock_end(
 		MXFS_SET_DEMOTER(ip);
 		if (READ_ONCE(ip->i_dlm_demoter) == current)
 			WRITE_ONCE(ip->i_dlm_demoter_injected, current);
-		pr_err("mxfs: P-DEMOTER-KEEP-INJECT ino=%llu mode=%u state=%u pid=%d comm=%s left=%d — test-only: this task keeps a demoter claim on the directory with no release behind it\n",
+		pr_err("mxfs: P-DEMOTER-KEEP-INJECT ino=%llu mode=%u state=%u pid=%d comm=%s left=%d -- test-only: this task keeps a demoter claim on the directory with no release behind it\n",
 		       (unsigned long long)ip->i_ino, ip->i_dlm_mode,
 		       ip->i_dlm_state, current->pid, current->comm,
 		       READ_ONCE(mxfs_dbg_demoter_keep_inject));
@@ -5722,7 +5744,7 @@ mxfs_dlm_ilock_try(
 		int n = atomic_inc_return(&p229_n);
 
 		if (n <= 200)
-			mxfs_probe("mxfs: P229-ILOCK-TRY-ATOMIC-BYPASS ino=%llu mode=%u state=%u pcnt=%d comm=%s caller=%pS n=%d — DLM skipped in atomic context%s\n",
+			mxfs_probe("mxfs: P229-ILOCK-TRY-ATOMIC-BYPASS ino=%llu mode=%u state=%u pcnt=%d comm=%s caller=%pS n=%d -- DLM skipped in atomic context%s\n",
 				(unsigned long long)ip->i_ino, mode,
 				ip->i_dlm_state, preempt_count(),
 				current->comm,

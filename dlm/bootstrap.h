@@ -157,6 +157,12 @@ struct mxfs_bootstrap_escrow {
 #define MXFS_BOOT_REFUSE_INHERITANCE_UNPROVEN 5 /* §6.8.4: a completion bit with
 												 * neither a validating guard nor a
 												 * tombstone behind it */
+/* Written by chk_mxfs --accept-quarantine-loss, never by the kernel: the
+ * record is the ADMISSION LOCK of an offline quarantine repair of
+ * refused_slot (docs/quarantine-repair.md).  Every mount refuses a REFUSED
+ * record whatever its reason, which is the whole of the lock; the repair
+ * hands the record back to IDLE as its last step. */
+#define MXFS_BOOT_REFUSE_OPERATOR_REPAIR      6
 
 /*
  * THE SEALED MANIFEST (§6.3).  Sector 0 of the region is the record; sectors

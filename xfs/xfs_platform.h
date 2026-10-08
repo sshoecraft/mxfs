@@ -591,7 +591,7 @@ static inline void iomap_write_delalloc_release(struct inode *inode,
 			 * inferring it from the absence of a later symptom.
 			 */
 			pr_info_ratelimited(
-			    "mxfs: P313-DELALLOC-KEEP ino=%lu folio=[%lld,%lld) range=[%lld,%lld) — this folio is DIRTY, so its delalloc reservation is kept for writeback instead of being punched with the rest of the short write's tail\n",
+			    "mxfs: P313-DELALLOC-KEEP ino=%lu folio=[%lld,%lld) range=[%lld,%lld) -- this folio is DIRTY, so its delalloc reservation is kept for writeback instead of being punched with the rest of the short write's tail\n",
 			    inode->i_ino, (long long)folio_pos(folio),
 			    (long long)folio_end, (long long)start_byte,
 			    (long long)end_byte);

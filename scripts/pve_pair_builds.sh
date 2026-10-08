@@ -18,6 +18,10 @@
 #   PREFIX        build name prefix (default alma9-)
 #   LOCATIONS     "pve1 pve2" (mkosimage locations, in host order)
 #   HOSTS         "192.168.1.80 192.168.1.81" (the same hosts' addresses)
+#   COUNTS        builds per host, in host order, instead of per-host for all
+#                 (e.g. "3 4": the hosts have different memory, and a build VM
+#                 takes 4 GiB of it); names are still dealt in turn, a host
+#                 dropping out of the deal once it has its count
 #   BUILD_BUDGET  seconds per build (default 3000: packer's own 45 min wait for
 #                 the installed system, plus VM creation, boot and post-build)
 #   CREATE_BUDGET seconds from a build's start to its VM created (default 60:
@@ -25,10 +29,25 @@
 #   STORAGE       the Proxmox storage for the build VMs' disks instead of the
 #                 location's own (`shared`): `local-lvm` gives the same builds
 #                 on each host's own disk, the baseline MXFS is measured against
+#   DEFINES       further mkosimage defines, key=value[,key=value] (e.g.
+#                 iso_url=https://vault.almalinux.org/9.7/isos/x86_64/AlmaLinux-9.7-x86_64-dvd.iso:
+#                 AlmaLinux moved 9.7 to its vault and the spec's URL now 404s)
+#   MKOS_FLAGS    further mkosimage flags (e.g. --local: install from the ISO
+#                 already on the hosts' `iso` storage instead of having Proxmox
+#                 download it, which fails at once when that storage is full;
+#                 mkosimage still checks iso_url first, so pass both)
 #   EVID          evidence directory (default tests/evidence/pve_pair_builds/<stamp>)
 #   PROFILE=1     run tests/pve_pair_profile.sh on both hosts for the whole of
 #                 the builds (evidence in $EVID/profile): which MXFS operations
 #                 the builds' time went to
+#   TRACE=1       run tests/pve_pair_write_bound.sh FIO=0 on both hosts for the
+#                 whole of the builds: every compare-and-swap timed (TRACE_FNS
+#                 adds functions, as its EXTRA_FNS), and both kernel logs since
+#                 the start searched for heartbeat stalls, authority closures,
+#                 self-fences and kernel warnings; its summary is appended here
+#   PROBES        debug-probe formats to turn on on both hosts for the run and
+#                 off again after it (e.g. "P15-REL-ABORT P79-STALEBAST-CLEAR"):
+#                 a count of a probe line is evidence only while it is on
 #   SAMPLE_S      seconds between samples of every running VM's block counters
 #                 (default 60)
 #   STOP_INSTALLED=1  stop a build (SIGTERM, so packer removes its VM) as soon
@@ -89,9 +108,28 @@ on() {  # <host> <cmd> [timeout]
 command -v mkosimage >/dev/null || { say "ABORT: no mkosimage here"; exit 1; }
 
 NAMES=()
+HIDX=()                             # the host index of each name
 [ "${#LOCS[@]}" = "${#HOSTS[@]}" ] || { say "ABORT: LOCATIONS and HOSTS name different numbers of hosts"; exit 2; }
 NH=${#HOSTS[@]}
-for i in $(seq 1 $(( PER * NH ))); do NAMES+=("$PREFIX$i"); done
+if [ -n "${COUNTS:-}" ]; then
+    read -r -a CNT <<<"$COUNTS"
+    [ "${#CNT[@]}" = "$NH" ] || { say "ABORT: COUNTS names ${#CNT[@]} hosts, HOSTS $NH"; exit 2; }
+else
+    CNT=()
+    for h in "${HOSTS[@]}"; do CNT+=("$PER"); done
+fi
+left=("${CNT[@]}")
+while :; do
+    dealt=0
+    for k in $(seq 0 $(( NH - 1 ))); do
+        [ "${left[$k]}" -gt 0 ] || continue
+        NAMES+=("$PREFIX$(( ${#NAMES[@]} + 1 ))")
+        HIDX+=("$k")
+        left[$k]=$(( left[k] - 1 ))
+        dealt=1
+    done
+    [ "$dealt" = 1 ] || break
+done
 
 # The VMs this harness created, across runs: "<host> <vmid> <vm name>" per
 # line.  Only these are ever destroyed here, or have their disks freed: the
@@ -159,6 +197,37 @@ if [ "${PROFILE:-0}" = 1 ]; then
         || { say "ABORT: the profile did not start: $(tail -2 "$EVID/profile.out" | tr '\n' ' ')"; kill "$PROF_PID" 2>/dev/null; exit 1; }
     say "profiling both hosts: $EVID/profile"
 fi
+probes() {  # +p | -p
+    local h f cmd=""
+    for f in ${PROBES:-}; do
+        cmd+="echo 'module mxfs format \"$f\" $1' > /proc/dynamic_debug/control; "
+    done
+    [ -n "$cmd" ] || return 0
+    for h in "${HOSTS[@]}"; do
+        # the flags are the third field; a match on the line would also
+        # match format text
+        on "$h" "${cmd}awk '\$3 == \"=p\" && \$2 ~ /^\\[mxfs\\]/' /proc/dynamic_debug/control | wc -l" 30 | sed "s/^/  $h: probe sites on after $1: /"
+    done
+}
+if [ -n "${PROBES:-}" ]; then
+    trap 'probes -p' EXIT
+    probes +p | tee -a "$SUM"
+fi
+TRACE_PID=
+if [ "${TRACE:-0}" = 1 ]; then
+    env PVE_PAIR="${HOSTS[*]}" FIO=0 LOAD_S=$(( BUILD_BUDGET + 600 )) \
+        STOP_FILE="$EVID/trace.stop" EXTRA_FNS="${TRACE_FNS:-}" \
+        "$REPO/tests/pve_pair_write_bound.sh" > "$EVID/trace.out" 2>&1 &
+    TRACE_PID=$!
+    tp=$(date +%s)
+    until grep -q -E 'observing only|ABORT' "$EVID/trace.out" 2>/dev/null; do
+        [ $(( $(date +%s) - tp )) -ge 120 ] && break
+        sleep 2
+    done
+    grep -q 'observing only' "$EVID/trace.out" 2>/dev/null \
+        || { say "ABORT: the trace did not start: $(tail -2 "$EVID/trace.out" | tr '\n' ' ')"; kill "$TRACE_PID" 2>/dev/null; exit 1; }
+    say "tracing every swap on both hosts: $EVID/trace.out"
+fi
 # One sample of every running VM's drives: "<ts> <vmid> <drive> rd_bytes rd_ops
 # rd_ns wr_bytes wr_ops wr_ns flush_ops flush_ns", from `qm status --verbose`;
 # and of the host's own disks: "<ts> DISK <dev> <the 17 fields of its stat>",
@@ -202,17 +271,19 @@ SAMPLE_S=${SAMPLE_S:-60}
 ) &
 BLK_PID=$!
 
-say "starting ${#NAMES[@]} builds of $SPEC: $PER per host, disks on storage ${STORAGE:-shared}, budget ${BUILD_BUDGET}s each"
+say "starting ${#NAMES[@]} builds of $SPEC: ${CNT[*]} on ${LOCS[*]}, disks on storage ${STORAGE:-shared}, budget ${BUILD_BUDGET}s each"
 T0=$(date +%s)
 BPIDS=()
 for i in "${!NAMES[@]}"; do
     n=${NAMES[$i]}
-    loc=${LOCS[$(( i % NH ))]}
+    loc=${LOCS[${HIDX[$i]}]}
     (
         t0=$(date +%s)
         # timeout leads its own process group and passes a SIGTERM sent to it
         # on to mkosimage and packer, so packer's own cleanup runs
-        timeout "$BUILD_BUDGET" mkosimage ${STORAGE:+-D "vm_storage_pool=$STORAGE"} "proxmox/$loc/$SPEC" "$n" > "$EVID/$n.log" 2>&1 </dev/null &
+        defs=${STORAGE:+vm_storage_pool=$STORAGE}
+        [ -n "${DEFINES:-}" ] && defs=${defs:+$defs,}$DEFINES
+        timeout "$BUILD_BUDGET" mkosimage ${MKOS_FLAGS:-} ${defs:+-D "$defs"} "proxmox/$loc/$SPEC" "$n" > "$EVID/$n.log" 2>&1 </dev/null &
         echo $! > "$EVID/$n.pid"
         wait $!
         rc=$?
@@ -232,7 +303,7 @@ for i in "${!NAMES[@]}"; do
         # its VM: the packer-* VM on its host whose configuration holds the
         # kickstart ISO this build uploaded (the log's colour codes end the name)
         iso=$(grep -a -o -m1 -E 'Uploaded ISO to [[:alnum:]_:/.-]+' "$EVID/$n.log" | awk '{print $4}')
-        h=${HOSTS[$(( i % NH ))]}
+        h=${HOSTS[${HIDX[$i]}]}
         vm=
         [ -n "$iso" ] && vm=$(on "$h" "for id in \$(qm list 2>/dev/null | awk '\$2 ~ /^packer-/ {print \$1}'); do qm config \$id 2>/dev/null | grep -qF '$iso' && echo \"\$id \$(qm config \$id | sed -n 's/^name: //p')\"; done" 60 | head -1)
         if [ -n "$vm" ]; then
@@ -314,6 +385,18 @@ if [ -n "$PROF_PID" ]; then
         kill "$PROF_PID" 2>/dev/null
     fi
     sed -n '/: function, calls/,$p' "$EVID/profile/summary.txt" | tee -a "$SUM"
+fi
+if [ -n "$TRACE_PID" ]; then
+    touch "$EVID/trace.stop"
+    # it removes its trace instances and copies both kernel logs: a few ssh
+    # round trips per host
+    for try in $(seq 1 60); do kill -0 "$TRACE_PID" 2>/dev/null || break; sleep 5; done
+    if kill -0 "$TRACE_PID" 2>/dev/null; then
+        say "the trace had not finished 300s after it was told to stop; stopped it"
+        kill "$TRACE_PID" 2>/dev/null
+    fi
+    say "the trace (tests/pve_pair_write_bound.sh FIO=0):"
+    grep -a -E '^\[|mxfs_|kernel log since|FAIL|PASS|lost events' "$EVID/trace.out" | sed 's/^/  /' | tee -a "$SUM"
 fi
 for h in "${HOSTS[@]}"; do
     on "$h" "hostname; qm list 2>/dev/null" 30 | sed "s/^/  /" | tee -a "$SUM"

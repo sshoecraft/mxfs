@@ -700,6 +700,18 @@ acquisition record for that resource and mode remains on the releaser).  Both
 refusals are silent: a DENY would complete the sender's NEXT pending entry on
 that resource with the old one's error.
 
+**A would-block DENY answers only a request that asked not to queue.**  The
+requester finds the waiting entry for a reply by resource alone, so a DENY can
+always reach a later attempt than the one it answers.  For most deny codes the
+later attempt would get the same answer.  `MXFS_ERR_DEADLOCK` is different: the
+master sends it only to a NOQUEUE or TRYLOCK request, and the requester maps it
+to `-EAGAIN`.  When it arrives after its no-queue probe gave up, the next
+request for that resource may be a blocking acquire the master has queued, and
+for a caller inside a dirty transaction `-EAGAIN` there is a shutdown.  Each
+waiting entry therefore records its request's flags, and a would-block deny
+completes only an entry whose request carried NOQUEUE or TRYLOCK
+(`P-DENY-NOT-ASKED` counts the ones it skips).
+
 ## Purge publication interlock and its verification (sess419)
 
 `mxfs_disklock_purge_node(victim)` zeroes the victim's ACTIVE lock records

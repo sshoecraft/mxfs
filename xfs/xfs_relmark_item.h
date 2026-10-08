@@ -44,6 +44,31 @@ extern struct kmem_cache	*xfs_relmark_cache;
 						 * ADOPTED victim's slot — published
 						 * by construction; whole txn skips */
 
+/* the terminal a REFUSE verdict came from (xlog_recover_item.ri_mxfs_why):
+ * one per refusal layer of mxfs_shadow_eval_token, plus the image shapes
+ * that never reach it */
+#define MXFS_RI_WHY_NONE		0
+#define MXFS_RI_WHY_UNTAGGED		1	/* buffer image with no trailer */
+#define MXFS_RI_WHY_MALFORMED		2	/* trailer present, unusable */
+#define MXFS_RI_WHY_NOEVAL		3	/* no evaluator: fail closed */
+#define MXFS_RI_WHY_V1			4
+#define MXFS_RI_WHY_RESMISMATCH		5	/* AG token for another AG */
+#define MXFS_RI_WHY_CLASS_SB		6
+#define MXFS_RI_WHY_CLASSLESS		7
+#define MXFS_RI_WHY_CLASS_UNSUP		8
+#define MXFS_RI_WHY_STATUS		9	/* token status not VALID */
+#define MXFS_RI_WHY_FOREIGN_OWNER	10	/* token names another slot */
+#define MXFS_RI_WHY_WRONG_INC		11	/* another incarnation */
+#define MXFS_RI_WHY_NOT_HELD		12	/* manifest: not held at death */
+#define MXFS_RI_WHY_MANIFEST_ERR	13
+#define MXFS_RI_WHY_WRONG_LINEAGE	14
+#define MXFS_RI_WHY_STALE_EPOCH		15	/* held, under another grant */
+#define MXFS_RI_WHY_UNCAPABLE		16	/* no FENCED descriptor */
+#define MXFS_RI_WHY_NO_LINEAGE		17	/* full match, lineage-less */
+#define MXFS_RI_WHY_ICREATE		18	/* icreate without its proof */
+#define MXFS_RI_WHY_NONBUF		19	/* an item type with no authority */
+#define MXFS_RI_WHY_MAX			20
+
 /*
  * Publish a clean-release marker for a tenure this node is about to unlock.
  * Blocks until the marker is durable (sync log force).  Returns 0, or a

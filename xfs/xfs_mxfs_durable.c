@@ -84,7 +84,7 @@ mxfs_blkdev_flush_durable(struct xfs_mount *mp)
 		atomic64_inc(&mp->m_mxfs_flush_epoch);
 	else
 		xfs_alert(mp,
-			"MXFS P228-FLUSH-DURABLE-FAIL rc=%d — a cache flush "
+			"MXFS P228-FLUSH-DURABLE-FAIL rc=%d -- a cache flush "
 			"of the shared device FAILED; recovery output cannot "
 			"be certified durable", rc);
 	return rc;
@@ -183,6 +183,7 @@ mxfs_ail_drain_inode_to(struct xfs_inode *ip, u64 deadline_ns)
 	struct xfs_mount	*mp = ip->i_mount;
 	struct xfs_ail		*ailp = mp->m_ail;
 	unsigned int		iter = 0;
+	u64			drain_t0 = ktime_get_ns();
 
 	bool			redrained = false;
 	bool			redrained2 = false;	/* P136 rescue fired */
@@ -232,8 +233,17 @@ mxfs_ail_drain_inode_to(struct xfs_inode *ip, u64 deadline_ns)
 		 * unnecessary — P137/P138 timing proved those sleeps were
 		 * ~80% of the per-unlink and per-BAST-release cost.
 		 */
-		if (!in_ail && xfs_ipincount(ip) == 0)
+		if (!in_ail && xfs_ipincount(ip) == 0) {
+			/* a drain that logged P113-DRAIN-WEDGE says how it
+			 * ended: a bounded wait on a slow write ends here */
+			if (iter >= 256)
+				pr_warn("mxfs: P113-DRAIN-WEDGE-END ino=%llu iter=%u ms=%llu rescued=%d\n",
+					(unsigned long long)ip->i_ino, iter,
+					(unsigned long long)((ktime_get_ns() -
+						drain_t0) / NSEC_PER_MSEC),
+					redrained2 ? 1 : 0);
 			return true;
+		}
 
 		/* P2D-DRAINWHY: the P138 stage bisect shows a
 		 * release drain costs ~7ms even for inodes the entry predicate
@@ -654,7 +664,7 @@ mxfs_inode_cluster_durable(struct xfs_inode *ip)
 			 * ghost).  The reload merge gate honors this. */
 			ip->i_dlm_icd_refused = true;
 			pr_warn_ratelimited(
-				"mxfs: P-ICD-TENURE-REFUSE ino=%llu rel=%d try=%d state=%u mode=%u — on-disk slot no longer ours at destage; refusing stale-tenure cluster write (committed change lands via next-acquire merge)\n",
+				"mxfs: P-ICD-TENURE-REFUSE ino=%llu rel=%d try=%d state=%u mode=%u -- on-disk slot no longer ours at destage; refusing stale-tenure cluster write (committed change lands via next-acquire merge)\n",
 				(unsigned long long)ip->i_ino,
 				icd_releasing ? 1 : 0, rtry,
 				ip->i_dlm_state, ip->i_dlm_mode);
@@ -787,7 +797,7 @@ mxfs_inode_cluster_durable(struct xfs_inode *ip)
 				     &ip->i_itemp->ili_item.li_flags)) {
 				icd_selfskip++;	/* lap-reason counter */
 				mxfs_probe_ratelimited(
-					"mxfs: P55D-ICD-SELF-SKIPPED ino=%llu try=%d/%d rel=%d state=%u exh=%d prh=%d pin=%d comm=%s — cluster flushed without this dinode (ILOCK trylock-skipped), retrying\n",
+					"mxfs: P55D-ICD-SELF-SKIPPED ino=%llu try=%d/%d rel=%d state=%u exh=%d prh=%d pin=%d comm=%s -- cluster flushed without this dinode (ILOCK trylock-skipped), retrying\n",
 					(unsigned long long)ip->i_ino, rtry,
 					icd_max_try, icd_releasing ? 1 : 0,
 					ip->i_dlm_state, ip->i_dlm_ex_holders,
@@ -936,7 +946,7 @@ __mxfs_dlm_dir_inode_durable(struct xfs_inode *dp)
 			return;			/* extent map already durable */
 		if (!mxfs_inode_cluster_durable(dp))
 			pr_warn_ratelimited(
-				"mxfs: P68-DIRINODE-DURABLE-FAIL ino=%llu fmt=%u state=%d releasing=%d refused=%d held_mode=%u in_ail=%d pin=%d clean=%d — grown dir extent map not destaged\n",
+				"mxfs: P68-DIRINODE-DURABLE-FAIL ino=%llu fmt=%u state=%d releasing=%d refused=%d held_mode=%u in_ail=%d pin=%d clean=%d -- grown dir extent map not destaged\n",
 				(unsigned long long)dp->i_ino,
 				dp->i_df.if_format,
 				(int)dp->i_dlm_state,
@@ -962,7 +972,7 @@ __mxfs_dlm_dir_inode_durable(struct xfs_inode *dp)
 	 */
 	if (!mxfs_inode_cluster_durable(dp))
 		pr_warn_ratelimited(
-			"mxfs: P13-SFPARENT-DURABLE-FAIL ino=%llu state=%d releasing=%d refused=%d held_mode=%u in_ail=%d pin=%d clean=%d — shortform parent cluster not destaged\n",
+			"mxfs: P13-SFPARENT-DURABLE-FAIL ino=%llu state=%d releasing=%d refused=%d held_mode=%u in_ail=%d pin=%d clean=%d -- shortform parent cluster not destaged\n",
 			(unsigned long long)dp->i_ino,
 			(int)dp->i_dlm_state,
 			mxfs_dir_durable_is_release(dp),

@@ -218,7 +218,7 @@ extern int mxfs_evict_retain_pr;	/* clean-PR retention across evict */
 			atomic64_inc(&mxfs_dem_contest);		\
 			mxfs_demev_rec((ip), 3, MXFS_SITE);		\
 			if (atomic_inc_return(&p74n) <= 2000)		\
-				pr_warn("mxfs: P74-DEMOTER-CONTEST ino=%llu holder_pid=%d holder_comm=%s holder_line=%u:%u age_ms=%llu me=%d comm=%s — concurrent release drain on one inode; claim NOT stolen (see D-BAST-IRELE-INACTIVE-SELF-WEDGE)\n", \
+				pr_warn("mxfs: P74-DEMOTER-CONTEST ino=%llu holder_pid=%d holder_comm=%s holder_line=%u:%u age_ms=%llu me=%d comm=%s -- concurrent release drain on one inode; claim NOT stolen (see D-BAST-IRELE-INACTIVE-SELF-WEDGE)\n", \
 					(unsigned long long)(ip)->i_ino,\
 					(ip)->i_dlm_demoter_pid,	\
 					(ip)->i_dlm_demoter_comm,	\
@@ -287,7 +287,7 @@ extern int mxfs_evict_retain_pr;	/* clean-PR retention across evict */
 			 * was still set).  This deref was a live		\
 			 * use-after-free read on a shipped path. */		\
 			if (atomic_inc_return(&p76n) <= 400)			\
-				pr_warn("mxfs: P76-DEMOTER-FOREIGN-CLEAR ino=%llu line=%u:%u me=%d comm=%s slot1_pid=%d slot1_set=%d slot2_set=%d — clear by non-owner; ignored\n", \
+				pr_warn("mxfs: P76-DEMOTER-FOREIGN-CLEAR ino=%llu line=%u:%u me=%d comm=%s slot1_pid=%d slot1_set=%d slot2_set=%d -- clear by non-owner; ignored\n", \
 					(unsigned long long)(ip)->i_ino,	\
 					MXFS_SITE_ARGS(MXFS_SITE), current->pid, current->comm, \
 					(ip)->i_dlm_demoter_pid,		\
@@ -1601,6 +1601,7 @@ extern atomic64_t mxfs_dem_punt_retain;
 extern atomic64_t mxfs_dem_punt_reclaim_n;
 extern atomic64_t mxfs_dem_punt_selfclear;
 extern atomic64_t mxfs_dem_punt_owner_clear;
+extern atomic64_t mxfs_dem_punt_wipe;
 extern atomic64_t mxfs_dem_strand_n;
 extern atomic64_t mxfs_dem_defer_set;
 extern atomic64_t mxfs_dem_defer_clear;

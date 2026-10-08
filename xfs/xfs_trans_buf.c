@@ -322,7 +322,7 @@ xfs_trans_read_buf_map(
 			for (mi = 0; mi < nmaps; mi++)
 				tot += map[mi].bm_len;
 			xfs_alert(mp,
-	"MXFS: P378-TRANS-READ-FAIL daddr=%lld bb=%d nmaps=%d ops=%s err=%d dirty=%d flags=0x%x caller=%pS — metadata read failed inside a transaction%s",
+	"MXFS: P378-TRANS-READ-FAIL daddr=%lld bb=%d nmaps=%d ops=%s err=%d dirty=%d flags=0x%x caller=%pS -- metadata read failed inside a transaction%s",
 				(long long)map[0].bm_bn, tot, nmaps,
 				ops ? ops->name : "(none)", error,
 				tp ? !!(tp->t_flags & XFS_TRANS_DIRTY) : 0,
@@ -773,7 +773,7 @@ xfs_trans_binval(
 	if (bp->b_mxfs_logged_seq != bp->b_mxfs_written_seq) {
 		static atomic_t p3b_n = ATOMIC_INIT(0);
 		if (atomic_inc_return(&p3b_n) <= 2000)
-			mxfs_probe("mxfs: P3B-BINVAL-RETIRE daddr=%lld lseq=%u wseq=%u ops=%s comm=%s — freed block's undestaged debt retired\n",
+			mxfs_probe("mxfs: P3B-BINVAL-RETIRE daddr=%lld lseq=%u wseq=%u ops=%s comm=%s -- freed block's undestaged debt retired\n",
 				(long long)bp->b_maps[0].bm_bn,
 				bp->b_mxfs_logged_seq,
 				bp->b_mxfs_written_seq,

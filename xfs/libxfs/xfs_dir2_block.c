@@ -82,7 +82,7 @@ xfs_dir3_block_read_verify(
 		 * owner image is still on disk (the sf->block double-alloc). */
 		if (mp->m_mxfs_dlm && !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm)) {
 			struct xfs_dir3_blk_hdr *h3 = bp->b_addr;
-			mxfs_probe("mxfs: P-BLKRV-CRC daddr=%lld blkno=%llu owner=%llu — dir3 block CRC fail on read (multinode)\n",
+			mxfs_probe("mxfs: P-BLKRV-CRC daddr=%lld blkno=%llu owner=%llu -- dir3 block CRC fail on read (multinode)\n",
 				(long long)xfs_buf_daddr(bp),
 				(unsigned long long)be64_to_cpu(h3->blkno),
 				(unsigned long long)be64_to_cpu(h3->owner));
@@ -98,7 +98,7 @@ xfs_dir3_block_read_verify(
 			if (mp->m_mxfs_dlm &&
 			    !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm)) {
 				struct xfs_dir3_blk_hdr *h3 = bp->b_addr;
-				mxfs_probe("mxfs: P-BLKRV-STRUCT daddr=%lld blkno=%llu owner=%llu fa=%pS — dir3 block struct-verify fail on read (multinode)\n",
+				mxfs_probe("mxfs: P-BLKRV-STRUCT daddr=%lld blkno=%llu owner=%llu fa=%pS -- dir3 block struct-verify fail on read (multinode)\n",
 					(long long)xfs_buf_daddr(bp),
 					(unsigned long long)be64_to_cpu(h3->blkno),
 					(unsigned long long)be64_to_cpu(h3->owner), fa);
@@ -128,7 +128,7 @@ xfs_dir3_block_write_verify(
 	 * multinode so we can confirm whether the failing daddr (block0) is ever
 	 * written to disk at all (lost-write) vs written-but-read-elsewhere. */
 	if (mp->m_mxfs_dlm && !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm))
-		mxfs_probe_ratelimited("mxfs: P-BLKWR daddr=%lld owner=%llu — writing block-fmt dir block to disk\n",
+		mxfs_probe_ratelimited("mxfs: P-BLKWR daddr=%lld owner=%llu -- writing block-fmt dir block to disk\n",
 			(long long)xfs_buf_daddr(bp),
 			(unsigned long long)be64_to_cpu(hdr3->owner));
 
@@ -802,7 +802,7 @@ xfs_dir2_block_lookup_int(
 	    !mxfs_v5_dlm_is_single_node(dp->i_mount->m_mxfs_dlm) &&
 	    S_ISDIR(VFS_I(dp)->i_mode)) {
 		mxfs_probe_ratelimited(
-			"mxfs: P-BLKLK ino=%llu owner=%llu incore_gen=%u fmt=%u nx=%llu dlm_mode=%u dir_gen=%u loaded_gen=%u self=%d reused=%d stale=%d comm=%s — about to block-read for lookup\n",
+			"mxfs: P-BLKLK ino=%llu owner=%llu incore_gen=%u fmt=%u nx=%llu dlm_mode=%u dir_gen=%u loaded_gen=%u self=%d reused=%d stale=%d comm=%s -- about to block-read for lookup\n",
 			(unsigned long long)dp->i_ino,
 			(unsigned long long)args->owner,
 			VFS_I(dp)->i_generation, dp->i_df.if_format,

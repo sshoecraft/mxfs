@@ -99,7 +99,7 @@ mxfs_dlm_relbar_check(struct xfs_inode *ip, const char *arm)
 		 */
 		if (atomic_inc_return(&p220lo_n) <= 400)
 			mxfs_probe(
-		    "mxfs: P220-UNLOCK-LEDGER-OPEN ino=%llu arm=%s pend=%llu dur=%llu flush=%llu ili_f=0x%x ili_lf=0x%x iflushing=%d isdir=%d nlink=%u istale=%d lastrel=%u fmt=%d comm=%s — unlocking with a committed change not yet at home\n",
+		    "mxfs: P220-UNLOCK-LEDGER-OPEN ino=%llu arm=%s pend=%llu dur=%llu flush=%llu ili_f=0x%x ili_lf=0x%x iflushing=%d isdir=%d nlink=%u istale=%d lastrel=%u fmt=%d comm=%s -- unlocking with a committed change not yet at home\n",
 			(unsigned long long)ip->i_ino, arm,
 			(unsigned long long)ip->i_mxfs_pub_pending_seq,
 			(unsigned long long)ip->i_mxfs_pub_durable_seq,
@@ -118,7 +118,7 @@ mxfs_dlm_relbar_check(struct xfs_inode *ip, const char *arm)
 		return;
 	atomic64_inc(&mxfs_relbar_flushing);
 	mxfs_probe_ratelimited(
-	    "mxfs: P220-UNLOCK-OBLIGATION-OPEN ino=%llu arm=%s isdir=%d in_ail=%d pin=%d ili_fields=0x%x last_fields=0x%x li_buf=%d stage_epoch=%lu now_epoch=%lu comm=%s realns=%llu — releasing the grant while a staged image of this tenure has not reached home\n",
+	    "mxfs: P220-UNLOCK-OBLIGATION-OPEN ino=%llu arm=%s isdir=%d in_ail=%d pin=%d ili_fields=0x%x last_fields=0x%x li_buf=%d stage_epoch=%lu now_epoch=%lu comm=%s realns=%llu -- releasing the grant while a staged image of this tenure has not reached home\n",
 		(unsigned long long)ip->i_ino, arm,
 		S_ISDIR(VFS_I(ip)->i_mode) ? 1 : 0,
 		in_ail ? 1 : 0, atomic_read(&ip->i_pincount),
@@ -159,7 +159,7 @@ mxfs_relbar_epoch_check(struct xfs_inode *ip)
 	    READ_ONCE(ip->i_mxfs_pub_durable_seq)) {
 		atomic64_inc(&mxfs_relbar_ep_obligation);
 		mxfs_probe_ratelimited(
-		    "mxfs: P220-EPOCH-LEDGER-OPEN ino=%llu epsrc=%u:%u pend=%llu dur=%llu flush=%llu mode=%u isdir=%d nlink=%u istale=%d dstale=%d dss=%u dinc=%u ili_f=0x%x comm=%s — tenure ended with a committed change not yet at home\n",
+		    "mxfs: P220-EPOCH-LEDGER-OPEN ino=%llu epsrc=%u:%u pend=%llu dur=%llu flush=%llu mode=%u isdir=%d nlink=%u istale=%d dstale=%d dss=%u dinc=%u ili_f=0x%x comm=%s -- tenure ended with a committed change not yet at home\n",
 			(unsigned long long)ip->i_ino,
 			MXFS_SITE_ARGS(ip->i_dlm_epoch_src),
 			(unsigned long long)ip->i_mxfs_pub_pending_seq,
@@ -184,7 +184,7 @@ mxfs_relbar_epoch_check(struct xfs_inode *ip)
 		return;
 	atomic64_inc(&mxfs_relbar_ep_flushing);
 	mxfs_probe_ratelimited(
-	    "mxfs: P220-EPOCH-OBLIGATION-OPEN ino=%llu epsrc=%u:%u isdir=%d mode=%u stage_epoch=%lu now_epoch=%lu comm=%s realns=%llu — tenure ENDED here while a staged image of it has not reached home\n",
+	    "mxfs: P220-EPOCH-OBLIGATION-OPEN ino=%llu epsrc=%u:%u isdir=%d mode=%u stage_epoch=%lu now_epoch=%lu comm=%s realns=%llu -- tenure ENDED here while a staged image of it has not reached home\n",
 		(unsigned long long)ip->i_ino,
 		MXFS_SITE_ARGS(ip->i_dlm_epoch_src),
 		S_ISDIR(VFS_I(ip)->i_mode) ? 1 : 0,
@@ -467,7 +467,7 @@ mxfs_relbar_close_or_defer(struct xfs_inode *ip, const char *arm,
 		mxfs_rel_state_set(ip, MXFS_RELSTATE_DEMOTING);
 		atomic64_inc(&mxfs_relbar_deferred);
 		if (atomic_inc_return(&p228_n) <= 400)
-			mxfs_probe("mxfs: P228-RELBAR-DEFER ino=%llu arm=%s pend=%llu dur=%llu flush=%llu isdir=%d — obligation would not close after %d durable passes; deferring the wire unlock (requeue)\n",
+			mxfs_probe("mxfs: P228-RELBAR-DEFER ino=%llu arm=%s pend=%llu dur=%llu flush=%llu isdir=%d -- obligation would not close after %d durable passes; deferring the wire unlock (requeue)\n",
 				(unsigned long long)ip->i_ino, arm,
 				(unsigned long long)ip->i_mxfs_pub_pending_seq,
 				(unsigned long long)ip->i_mxfs_pub_durable_seq,
@@ -492,7 +492,7 @@ mxfs_relbar_close_or_defer(struct xfs_inode *ip, const char *arm,
 			mxfs_rel_state_set(ip, MXFS_RELSTATE_DEMOTING);
 			atomic64_inc(&mxfs_relbar_deferred);
 			if (atomic_inc_return(&p228_f4_n) <= 400)
-				mxfs_probe("mxfs: P228-RELBAR-F4-DEFER ino=%llu arm=%s f4_open=%ld unknown=%d — committed-never-submitted obligations open after %d durable passes; deferring the wire unlock (requeue)\n",
+				mxfs_probe("mxfs: P228-RELBAR-F4-DEFER ino=%llu arm=%s f4_open=%ld unknown=%d -- committed-never-submitted obligations open after %d durable passes; deferring the wire unlock (requeue)\n",
 					(unsigned long long)ip->i_ino, arm,
 					f4_open, f4_unknown, rb_try);
 			return true;
@@ -543,7 +543,7 @@ mxfs_relbar_close_or_defer(struct xfs_inode *ip, const char *arm,
 				mxfs_rel_state_set(ip, MXFS_RELSTATE_DEMOTING);
 				atomic64_inc(&mxfs_relbar_deferred);
 				if (atomic_inc_return(&p228_tk_n) <= 400)
-					mxfs_probe("mxfs: P228-RELBAR-TICKET-DEFER ino=%llu arm=%s stamp=%llu epoch=%llu forced=%d — no covering durable flush ticket after the direct flush; deferring the wire unlock (requeue)\n",
+					mxfs_probe("mxfs: P228-RELBAR-TICKET-DEFER ino=%llu arm=%s stamp=%llu epoch=%llu forced=%d -- no covering durable flush ticket after the direct flush; deferring the wire unlock (requeue)\n",
 						(unsigned long long)ip->i_ino, arm,
 						(unsigned long long)READ_ONCE(
 							ip->i_mxfs_pub_durable_fepoch),
@@ -665,7 +665,7 @@ mxfs_inode_relcert_finish(struct xfs_inode *ip, struct mxfs_release_cert *cert,
 				WRITE_ONCE(ip->i_mxfs_rel_state,
 					   MXFS_RELSTATE_ACTIVE);
 			else
-				mxfs_probe_ratelimited("mxfs: P283-REL-FINISH-SKIP ino=%llu instance=%u current=%d state=%u cas=%d — a concurrent pipeline owns rel_state; not resetting\n",
+				mxfs_probe_ratelimited("mxfs: P283-REL-FINISH-SKIP ino=%llu instance=%u current=%d state=%u cas=%d -- a concurrent pipeline owns rel_state; not resetting\n",
 					(unsigned long long)ip->i_ino,
 					cert->rel_instance,
 					atomic_read(&ip->i_mxfs_rel_instance),
@@ -719,7 +719,7 @@ mxfs_inode_defer_causes(struct xfs_inode *ip,
 
 		causes = MXFS_RELCAUSE_UNKNOWN;
 		if (atomic_inc_return(&nocause_n) <= 200)
-			pr_err("mxfs: P-INODE-DEFER-NOCAUSE ino=%llu path=%s oblig=%u f4=%u/%u pf=%u tstat=%u — release deferred with no derivable cause (invariant failure)\n",
+			pr_err("mxfs: P-INODE-DEFER-NOCAUSE ino=%llu path=%s oblig=%u f4=%u/%u pf=%u tstat=%u -- release deferred with no derivable cause (invariant failure)\n",
 			       (unsigned long long)ip->i_ino,
 			       cert->path ? cert->path : "-",
 			       cert->oblig_flush, cert->f4_flush,
@@ -846,7 +846,7 @@ mxfs_inode_wedge(struct xfs_inode *ip, struct mxfs_release_cert *cert,
 				"no-progress bound exceeded";
 			mxfs_release_cert_emit(cert);
 		}
-		pr_err("mxfs: P-INODE-WEDGE ino=%llu tries=%u causes=0x%x badness=%u pin_rc=%d teardown=%d — release unprovable within bounds; grant PINNED on disk, admission closed%s\n",
+		pr_err("mxfs: P-INODE-WEDGE ino=%llu tries=%u causes=0x%x badness=%u pin_rc=%d teardown=%d -- release unprovable within bounds; grant PINNED on disk, admission closed%s\n",
 		       (unsigned long long)ip->i_ino,
 		       ip->i_mxfs_reldefer_tries,
 		       ip->i_mxfs_reldefer_causes,
@@ -932,7 +932,7 @@ mxfs_dlm_relog_authorized(
 	    (!foreign || ip->i_mxfs_self_created))
 		return true;
 
-	pr_warn("mxfs: P146V-NOAUTH-REFUSE ino=%llu site=%s held_mode=%u icd_refused=%d self_created=%d dlm_mode=%u state=%u incore[gen=%u mode=0%o nlink=%u] disk_gen=%u foreign=%d comm=%s — synthetic re-log refused: %s\n",
+	pr_warn("mxfs: P146V-NOAUTH-REFUSE ino=%llu site=%s held_mode=%u icd_refused=%d self_created=%d dlm_mode=%u state=%u incore[gen=%u mode=0%o nlink=%u] disk_gen=%u foreign=%d comm=%s -- synthetic re-log refused: %s\n",
 		(unsigned long long)ip->i_ino, site, held_mode,
 		ip->i_dlm_icd_refused ? 1 : 0, ip->i_mxfs_self_created ? 1 : 0,
 		ip->i_dlm_mode, ip->i_dlm_state,
@@ -980,7 +980,7 @@ mxfs_target_cache_protected_set(const char *val, const struct kernel_param *kp)
 	if (!v && READ_ONCE(mxfs_foreign_replay_token_enforce) &&
 	    READ_ONCE(mxfs_fua_disable)) {
 		mutex_unlock(&mxfs_fr_cfg_lock);
-		pr_err("mxfs: target_cache_protected=0 REFUSED while foreign_replay_token_enforce is armed under fua_disable=1 — the declaration is the F2 predicate that arming was validated against.  Disarm foreign_replay_token_enforce first\n");
+		pr_err("mxfs: target_cache_protected=0 REFUSED while foreign_replay_token_enforce is armed under fua_disable=1 -- the declaration is the F2 predicate that arming was validated against.  Disarm foreign_replay_token_enforce first\n");
 		return -EBUSY;
 	}
 	WRITE_ONCE(mxfs_target_cache_protected, v);
@@ -1114,7 +1114,7 @@ mxfs_release_cert_emit(const struct mxfs_release_cert *rc)
 	if (rc->cas_attempted && !rc->proved) {
 		atomic64_inc(&mxfs_relcert_cas_noproof_v2);
 		mxfs_probe_ratelimited(
-		    "mxfs: P283-RELCERT-CAS-UNPROVED class=%u res=%llu path=%s relstate=%u relgen=%u — wire CAS entered without a completed release proof (per-instance)\n",
+		    "mxfs: P283-RELCERT-CAS-UNPROVED class=%u res=%llu path=%s relstate=%u relgen=%u -- wire CAS entered without a completed release proof (per-instance)\n",
 			rc->rclass, (unsigned long long)rc->res_id,
 			rc->path ? rc->path : "?", rc->rel_state_cas,
 			rc->rel_gen);
@@ -1128,7 +1128,7 @@ mxfs_release_cert_emit(const struct mxfs_release_cert *rc)
 	 */
 	if (dirty_at_cas)
 		pr_err_ratelimited(
-		    "mxfs: P281-RELCERT-INVALID-PROOF class=%u res=%llu path=%s oblig=%u inflight=%u timeout=%u cas_rc=%d — release reached CAS with unretired dirty state (F1)\n",
+		    "mxfs: P281-RELCERT-INVALID-PROOF class=%u res=%llu path=%s oblig=%u inflight=%u timeout=%u cas_rc=%d -- release reached CAS with unretired dirty state (F1)\n",
 			rc->rclass, (unsigned long long)rc->res_id,
 			rc->path ? rc->path : "?", rc->oblig_cas,
 			rc->inflight_cas, rc->timeout, rc->cas_result);
@@ -1471,7 +1471,7 @@ MODULE_PARM_DESC(pub_skip_rearm,
                  "sector, keep that inode dirty and in the AIL instead of "
                  "letting the buffer's completion mark it durable.  "
                  "MEASURED TO LIVELOCK on its own (the retry can never gain "
-                 "publication authority) — 0=off (default), 1=re-arm.");
+                 "publication authority) -- 0=off (default), 1=re-arm.");
 
 /*
  * the lookup-window read trace (P495-LKP-RD / P495-LKP-WIN).  When

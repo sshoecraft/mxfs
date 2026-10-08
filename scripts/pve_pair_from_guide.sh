@@ -45,6 +45,16 @@
 #        not by the guide's 110 MB/s c-max-rate, so 40 GiB takes ~22 min;
 #        twice that, rounded up), MOUNT_BUDGET (seconds from `enable --now`
 #        to both mounted, default 300)
+#        FROM_TREE=1 builds and installs this working tree (packed and copied
+#        to /root/mxfs-tree, as scripts/pve_pair_update.sh does) in place of
+#        section 1's clone: a test build on a pair set up for testing.
+#        LV_SIZE (default the guide's 40G): a nested pair's thin pool is ~23 GiB,
+#        so pve9-1/pve9-2 carry a 12G volume.  Its first sync ran at 39 MB/s
+#        on pve9-3/pve9-4 (DRBD's resync controller wanted 45 MB/s with the
+#        receiver idle), ~5 min, so SYNC_BUDGET=630 there.
+#        A pair other than the guide's pve1/pve2 gets the guide's resource with
+#        its hosts' names and addresses in place of pve1/pve2's, and nothing else
+#        changed.
 # Evidence: tests/evidence/pve_pair_from_guide/<UTC stamp>/
 set -u
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
@@ -55,6 +65,7 @@ read -r -a PAIR <<<"${PVE_PAIR:-192.168.1.80 192.168.1.81}"
 REPO_URL=${REPO_URL:-https://github.com/sshoecraft/mxfs}
 SYNC_BUDGET=${SYNC_BUDGET:-2700}
 MOUNT_BUDGET=${MOUNT_BUDGET:-300}
+LV_SIZE=${LV_SIZE:-40G}
 # A clone of the repository and a build of the module and tools on these
 # hosts: measured 2-4 min each on the HP Z400s; twice the slow end.
 BUILD_BUDGET=480
@@ -139,18 +150,49 @@ guide() {
              "git clone https://github.com/sshoecraft/mxfs && cd mxfs" "make && make install"; do
         guide_has "$c"
     done
-    say "1. install: apt, clone, make && make install (both nodes)"
+    local src="cd /root && git clone $REPO_URL > /dev/null 2>&1 && cd mxfs" h
+    if [ "${FROM_TREE:-0}" = 1 ]; then
+        # the sources `make install` reads, no build products
+        tar -C "$REPO" -czf "$EVID/mxfs-tree.tar.gz" \
+            --exclude='*.o' --exclude='*.ko' --exclude='*.mod' --exclude='*.mod.c' \
+            --exclude='.*.cmd' --exclude='*.a' --exclude='modules.order' \
+            --exclude='Module.symvers' --exclude='.tmp_versions' --exclude='__pycache__' \
+            --exclude='tools/mkfs_mxfs' --exclude='tools/chk_mxfs' \
+            --exclude='tools/resize_mxfs' --exclude='tools/mxfs_admin' \
+            --exclude='tools/fua_verify' \
+            Kbuild Makefile VERSION compat include xfs dlm pal mxfs_clayer packaging \
+            tools docs/drbd-setup.md docs/man \
+            || die "could not pack the working tree"
+        for h in "$P0" "$P1"; do
+            timeout 120 "$SSHP" "$h" SCP "$EVID/mxfs-tree.tar.gz" /root/mxfs-tree.tar.gz </dev/null >/dev/null 2>&1 \
+                || die "$h: could not copy the tree's pack"
+        done
+        src="rm -rf /root/mxfs-tree && mkdir /root/mxfs-tree && tar -xzf /root/mxfs-tree.tar.gz -C /root/mxfs-tree && cd /root/mxfs-tree"
+        say "1. install: apt, this working tree ($(cat "$REPO/VERSION")) in place of the clone, make && make install (both nodes)"
+    else
+        say "1. install: apt, clone, make && make install (both nodes)"
+    fi
     both "DEBIAN_FRONTEND=noninteractive apt install -y drbd-utils git build-essential proxmox-headers-\$(uname -r) > /dev/null 2>&1 || exit 1
-        cd /root && git clone $REPO_URL > /dev/null 2>&1 && cd mxfs && echo VERSION=\$(cat VERSION) && make > /root/mxfs-make.log 2>&1 && make install >> /root/mxfs-make.log 2>&1 && echo INSTALLED; tail -3 /root/mxfs-make.log; ls /usr/sbin | grep -c mxfs" "$BUILD_BUDGET" \
+        $src && echo VERSION=\$(cat VERSION) && make > /root/mxfs-make.log 2>&1 && make install >> /root/mxfs-make.log 2>&1 && echo INSTALLED; tail -3 /root/mxfs-make.log; ls /usr/sbin | grep -c mxfs" "$BUILD_BUDGET" \
         || die "section 1 failed (see $EVID/host-*.log)"
     # 2. A backing device on each node
     c="lvcreate -V 40G -T pve/data -n mxfs"; guide_has "$c"
+    c=${c/40G/$LV_SIZE}
     say "2. backing device: $c (both nodes)"
     both "$c && lvs --noheadings -o lv_name,lv_size,pool_lv pve/mxfs" 60 || die "section 2 failed"
     # 3. The DRBD resource, from the guide's own text
-    local res
+    local res n0 n1
     res=$(awk '/^## 3\./ {s = 1} s && /^```/ {if (in_block) exit; in_block = 1; next} in_block {print}' "$GUIDE")
     grep -q '^resource mxfs {' <<<"$res" && grep -q 'ping-int' <<<"$res" || die "could not take the resource file from section 3 of the guide"
+    grep -q '^    on pve1 {' <<<"$res" && grep -q '^    on pve2 {' <<<"$res" && grep -q '192\.168\.1\.80:7788' <<<"$res" && grep -q '192\.168\.1\.81:7788' <<<"$res" \
+        || die "section 3 of the guide no longer names pve1/pve2 at 192.168.1.80/.81"
+    n0=$(on "$P0" hostname 20); n1=$(on "$P1" hostname 20)
+    [ -n "$n0" ] && [ -n "$n1" ] || die "could not read the hosts' names"
+    if [ "$n0 $P0 $n1 $P1" != "pve1 192.168.1.80 pve2 192.168.1.81" ]; then
+        res=$(sed -e "s/^    on pve1 {/    on $n0 {/" -e "s/^    on pve2 {/    on $n1 {/" \
+                  -e "s/192\.168\.1\.80:7788/$P0:7788/" -e "s/192\.168\.1\.81:7788/$P1:7788/" <<<"$res")
+        say "3. the guide's resource with $n0 ($P0) for pve1 and $n1 ($P1) for pve2"
+    fi
     echo "$res" > "$EVID/mxfs.res"
     say "3. resource file: $(wc -l <<<"$res") lines from the guide's section 3 (both nodes)"
     both "echo $(base64 -w0 <<<"$res") | base64 -d > /etc/drbd.d/mxfs.res && drbdadm dump mxfs > /dev/null && echo RES_OK" 30 || die "section 3 failed"

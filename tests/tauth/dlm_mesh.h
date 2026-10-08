@@ -40,6 +40,10 @@ struct vnode {
     volatile int     stop;
     /* knobs / observations */
     volatile int     drop_grants;       /* drop this many inbound GRANTs */
+    volatile int     hold_denies;       /* park this many inbound DENYs until
+                                         * release_held_denies(): a reply that
+                                         * arrives after its attempt gave up */
+    struct vmsg     *held;              /* the parked DENYs, under qlock */
     volatile int     auto_release;      /* unlock on BAST */
     volatile int     nak_unheld;        /* answer a BAST for a grant this node
                                          * does not hold as the mount layer
@@ -162,6 +166,14 @@ static void vrx_fn(void *arg)
                     me->drop_grants--;
                     break;
                 }
+                if (hdr->type == MXFS_MSG_LOCK_DENY && me->hold_denies > 0) {
+                    me->hold_denies--;
+                    mxfs_pal_mutex_lock(me->qlock);
+                    m->next = me->held;
+                    me->held = m;
+                    mxfs_pal_mutex_unlock(me->qlock);
+                    continue;
+                }
                 if (m->len >= sizeof(struct mxfs_dlm_lock_resp))
                     mxfs_dlm_process_remote_grant(me->dlm,
                                                   (const struct mxfs_dlm_lock_resp *)m->buf);
@@ -205,6 +217,27 @@ static void vrx_fn(void *arg)
         }
         free(m);
     }
+}
+
+/* deliver the DENYs hold_denies parked, now; returns how many */
+static int release_held_denies(struct vnode *n)
+{
+    struct vmsg *m, *list;
+    int c = 0;
+
+    mxfs_pal_mutex_lock(n->qlock);
+    list = n->held;
+    n->held = NULL;
+    mxfs_pal_mutex_unlock(n->qlock);
+    while ((m = list) != NULL) {
+        list = m->next;
+        if (n->dlm && m->len >= sizeof(struct mxfs_dlm_lock_resp))
+            mxfs_dlm_process_remote_grant(n->dlm,
+                                          (const struct mxfs_dlm_lock_resp *)m->buf);
+        free(m);
+        c++;
+    }
+    return c;
 }
 
 /* (step 4): the mount layer's callbacks.  bootstrap = this node

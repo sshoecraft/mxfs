@@ -1961,7 +1961,7 @@ xfs_setup_inode(
 		int n = atomic_inc_return(&p141_n);
 
 		if (n <= 200)
-			mxfs_probe("mxfs: P141-SETUP-SKIP-DOUBLE-ADD ino=0x%llx ip=%px pid=%d comm=%s is_meta=%d count=%d nlink=%u mode=0%o — inode_sb_list_add SKIPPED, i_sb_list already linked (next=%px prev=%px) -- avoided a double-link\n",
+			mxfs_probe("mxfs: P141-SETUP-SKIP-DOUBLE-ADD ino=0x%llx ip=%px pid=%d comm=%s is_meta=%d count=%d nlink=%u mode=0%o -- inode_sb_list_add SKIPPED, i_sb_list already linked (next=%px prev=%px) -- avoided a double-link\n",
 				(unsigned long long)ip->i_ino, ip, current->pid,
 				current->comm, is_meta,
 				atomic_read(&inode->i_count), inode->i_nlink,

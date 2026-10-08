@@ -323,7 +323,7 @@ mxfs_iclus_publish_open_bits(struct xfs_mount *mp, uint64_t base)
 				       mapping_mapped(VFS_I(ip)->i_mapping);
 				spin_unlock(&ip->i_dlm_lock);
 				mxfs_probe_ratelimited(
-				    "mxfs: P-ICLUS-OPENSET ino=%llu base=%llu opens=%d mapped=%d — routed open bit published pre-release\n",
+				    "mxfs: P-ICLUS-OPENSET ino=%llu base=%llu opens=%d mapped=%d -- routed open bit published pre-release\n",
 				    (unsigned long long)ip->i_ino,
 				    (unsigned long long)base,
 				    atomic_read(&ip->i_mxfs_open_n),
@@ -338,7 +338,7 @@ mxfs_iclus_publish_open_bits(struct xfs_mount *mp, uint64_t base)
 			} else {
 				spin_unlock(&ip->i_dlm_lock);
 				mxfs_probe_ratelimited(
-				    "mxfs: P-ICLUS-OPENSET-FAIL ino=%llu base=%llu rc=%d — release GATED (grant retained for retry)\n",
+				    "mxfs: P-ICLUS-OPENSET-FAIL ino=%llu base=%llu rc=%d -- release GATED (grant retained for retry)\n",
 				    (unsigned long long)ip->i_ino,
 				    (unsigned long long)base, src);
 				rc = src;
@@ -394,7 +394,7 @@ mxfs_iclus_wedge(struct xfs_mount *mp, struct mxfs_iclus *ic,
 		cert->defer_kind = MXFS_RELDEFER_WEDGE;
 		cert->defer_reason = "no-progress bound exceeded";
 		mxfs_release_cert_emit(cert);
-		pr_err("mxfs: P-ICLUS-WEDGE base=%llu tries=%u oblig=%u pf=%u trip=%u pin_rc=%d — release unprovable within bounds; grant PINNED on disk, admission closed%s\n",
+		pr_err("mxfs: P-ICLUS-WEDGE base=%llu tries=%u oblig=%u pf=%u trip=%u pin_rc=%d -- release unprovable within bounds; grant PINNED on disk, admission closed%s\n",
 		       (unsigned long long)ic->base, ic->defer_tries,
 		       cert->oblig_cas, cert->proof_failed, cert->tripwire,
 		       pin_rc,
@@ -654,7 +654,7 @@ mxfs_iclus_disk_release(struct xfs_mount *mp, struct mxfs_iclus *ic,
 
 				atomic64_inc(&mxfs_relmark_iclus_failed);
 				if (atomic_inc_return(&p_n) <= 2000)
-					pr_warn("mxfs: P-RELMARK-ICLUS-UNMARKED base=%llu gepoch=%llu rc=%d — releasing WITHOUT a clean-release marker; this cluster tenure's records will refuse at foreign replay\n",
+					pr_warn("mxfs: P-RELMARK-ICLUS-UNMARKED base=%llu gepoch=%llu rc=%d -- releasing WITHOUT a clean-release marker; this cluster tenure's records will refuse at foreign replay\n",
 						(unsigned long long)base,
 						(unsigned long long)m_ep, mrc);
 			}
@@ -772,7 +772,7 @@ mxfs_iclus_auth_snapshot_locked(struct mxfs_iclus *ic,
 
 		atomic64_inc(&mxfs_relmark_iclus_reinstall_refused);
 		if (atomic_inc_return(&p_n) <= 2000)
-			pr_warn("mxfs: P-RELMARK-ICLUS-REINSTALL-REFUSED base=%llu gepoch=%llu lineage=%llx — tuple already marked clean-released by this node's journal; not resurrecting it as authority\n",
+			pr_warn("mxfs: P-RELMARK-ICLUS-REINSTALL-REFUSED base=%llu gepoch=%llu lineage=%llx -- tuple already marked clean-released by this node's journal; not resurrecting it as authority\n",
 				(unsigned long long)ic->base,
 				(unsigned long long)ic->auth_epoch,
 				(unsigned long long)ic->auth_lineage);
@@ -948,7 +948,7 @@ mxfs_iclus_lock(struct xfs_mount *mp, uint64_t ino, uint8_t mode,
 			spin_unlock(&ic->lock);
 			wake_up_all(&ic->wq);
 			mxfs_probe_ratelimited(
-			    "mxfs: P-ICLUS-SELFCLEAR base=%llu want=%u urc=%d — stale self-hold %s\n",
+			    "mxfs: P-ICLUS-SELFCLEAR base=%llu want=%u urc=%d -- stale self-hold %s\n",
 				(unsigned long long)base, mode, urc,
 				urc == 0 ? "cleared; retry will claim fresh" :
 					   "NOT cleared (covered active or CAS fail)");
@@ -1051,7 +1051,7 @@ mxfs_iclus_make_durable(struct xfs_mount *mp, uint64_t base,
 
 				proof_failed = 1;
 				if (atomic_inc_return(&p_icu_n) <= 200)
-					mxfs_probe("mxfs: P289-ICLUS-SETTLE-UNKNOWN base=%llu daddr=%lld rc=%d — cluster buffer lock unavailable for 250ms; settle state unknowable, proof fails conservative\n",
+					mxfs_probe("mxfs: P289-ICLUS-SETTLE-UNKNOWN base=%llu daddr=%lld rc=%d -- cluster buffer lock unavailable for 250ms; settle state unknowable, proof fails conservative\n",
 						(unsigned long long)base,
 						(long long)imap.im_blkno,
 						irc);
@@ -1084,7 +1084,7 @@ mxfs_iclus_make_durable(struct xfs_mount *mp, uint64_t base,
 
 			still_dirty = 1;
 			if (atomic_inc_return(&p_icd_n) <= 200)
-				mxfs_probe("mxfs: P-ICLUS-DUR-TIMEOUT base=%llu daddr=%lld — cluster buffer still dirty after 250ms; releasing anyway (peer may read a lagging dinode)\n",
+				mxfs_probe("mxfs: P-ICLUS-DUR-TIMEOUT base=%llu daddr=%lld -- cluster buffer still dirty after 250ms; releasing anyway (peer may read a lagging dinode)\n",
 					(unsigned long long)base,
 					(long long)imap.im_blkno);
 		}
@@ -1116,7 +1116,7 @@ out:
 
 				proof_failed = 1;
 				if (atomic_inc_return(&p_icw_n) <= 200)
-					mxfs_probe("mxfs: P289-ICLUS-INFLIGHT-TIMEOUT base=%llu daddr=%lld inflight=%d — counted cluster writes did not complete in 100ms; proof fails conservative\n",
+					mxfs_probe("mxfs: P289-ICLUS-INFLIGHT-TIMEOUT base=%llu daddr=%lld inflight=%d -- counted cluster writes did not complete in 100ms; proof fails conservative\n",
 						(unsigned long long)base,
 						(long long)daddr,
 						atomic_read(&ent->ie_inflight));
@@ -1169,7 +1169,7 @@ out:
 
 			proof_failed = 1;
 			if (atomic_inc_return(&p_icb_n) <= 200)
-				mxfs_probe("mxfs: P289-ICLUS-GEN-MOVED base=%llu daddr=%lld — cluster writes kept arriving across two flush proofs; proof fails conservative\n",
+				mxfs_probe("mxfs: P289-ICLUS-GEN-MOVED base=%llu daddr=%lld -- cluster writes kept arriving across two flush proofs; proof fails conservative\n",
 					(unsigned long long)base,
 					(long long)daddr);
 		}
@@ -1262,7 +1262,7 @@ mxfs_iclus_unlock(struct xfs_mount *mp, uint64_t ino, uint8_t mode,
 			mxfs_iclus_release_done_locked(ic);
 		else
 			mxfs_probe_ratelimited(
-			    "mxfs: P-ICLUS-UNLK-FAIL base=%llu rc=%d — disk bit NOT cleared; keeping disk_mode=%u bast_pending for retry\n",
+			    "mxfs: P-ICLUS-UNLK-FAIL base=%llu rc=%d -- disk bit NOT cleared; keeping disk_mode=%u bast_pending for retry\n",
 				(unsigned long long)base, urc, ic->disk_mode);
 		ic->busy = false;
 		spin_unlock(&ic->lock);
@@ -1383,7 +1383,7 @@ mxfs_iclus_bast_notify(void *data, uint64_t base_ino, uint8_t req_mode)
 			mxfs_iclus_release_done_locked(ic);
 		else
 			mxfs_probe_ratelimited(
-			    "mxfs: P-ICLUS-UNLK-FAIL base=%llu rc=%d (bast_notify) — keeping disk_mode=%u for retry\n",
+			    "mxfs: P-ICLUS-UNLK-FAIL base=%llu rc=%d (bast_notify) -- keeping disk_mode=%u for retry\n",
 				(unsigned long long)base_ino, urc,
 				ic->disk_mode);
 		ic->busy = false;
@@ -1524,7 +1524,7 @@ mxfs_iclus_purge_all(struct xfs_mount *mp)
 				int pin_rc = mxfs_v5_dlm_iclus_pin(
 						mp->m_mxfs_dlm, ic->base);
 
-				pr_err("mxfs: P-ICLUS-TEARDOWN-UNPROVEN base=%llu rc=%d pin_rc=%d — deferred release still unproven at unmount; grant pinned, departure NOT clean\n",
+				pr_err("mxfs: P-ICLUS-TEARDOWN-UNPROVEN base=%llu rc=%d pin_rc=%d -- deferred release still unproven at unmount; grant pinned, departure NOT clean\n",
 				       (unsigned long long)ic->base, rc,
 				       pin_rc);
 				if (pin_rc)

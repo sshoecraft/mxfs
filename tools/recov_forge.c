@@ -41,6 +41,9 @@
  *                      2 has not meant FENCED since, and the help here said it
  *                      did for long enough to be worth saying so.
  *   --live             omit MXFS_RECOV_F_QUARANTINED (live descriptor)
+ *   --feat F           the victim's C7 feature block with feat_flags F,
+ *                      crc-bound to the sector [absent]: 0x0008 TCP,
+ *                      0x0018 TCP on DRBD
  *   --break-desc-crc   store a deliberately wrong descriptor crc
  *   --victim-fsgen G   desc.victim_fs_gen [= the heartbeat's fs_gen].  Moving
  *                      ONLY this leaves the record visible to every sweep and
@@ -97,6 +100,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <sys/ioctl.h>
+#include <sys/stat.h>
 #include <scsi/sg.h>
 
 #include <mxfs/mxfs_super.h>
@@ -284,6 +288,22 @@ static int sg_rw(int fd, int write, uint64_t lba, void *buf, uint32_t blocks)
 	unsigned char sense[64];
 	sg_io_hdr_t hdr;
 	int attempt;
+	struct stat st;
+
+	/* An image file has no target to serve a stale copy and no SCSI to
+	 * ask: plain reads and writes, the write flushed. */
+	if (fstat(fd, &st) == 0 && S_ISREG(st.st_mode)) {
+		size_t len = (size_t)blocks * SECTOR_SIZE;
+		ssize_t n = write ? pwrite(fd, buf, len, (off_t)(lba * SECTOR_SIZE))
+				  : pread(fd, buf, len, (off_t)(lba * SECTOR_SIZE));
+
+		if (n != (ssize_t)len || (write && fsync(fd) != 0)) {
+			fprintf(stderr, "image %s at lba %llu failed\n",
+				write ? "write" : "read", (unsigned long long)lba);
+			return -1;
+		}
+		return 0;
+	}
 
 	cdb[0]  = write ? 0x8A : 0x88;          /* WRITE(16) / READ(16) */
 	cdb[2]  = (uint8_t)(lba >> 56);
@@ -470,7 +490,7 @@ static void usage(void)
 		"              [--oc SHAPE] [--oc-agmask M]\n"
 		"              [--fence-kind K] [--fence-resv T] [--fence-key X]\n"
 		"              [--fence-prover N] [--fence-prover-epoch E]\n"
-		"              [--fence-term T]\n"
+		"              [--fence-term T] [--feat FLAGS]\n"
 		"  SHAPE: none valid fswide badkind badreason agmask0 slotmismatch\n"
 		"         fswidemask badcrc\n"
 		"  STAGE: 1 FENCING 2 SNAPSHOTTING 3 FENCED 4 IMAGES_REPLAYED\n"
@@ -612,6 +632,7 @@ int main(int argc, char **argv)
 		uint32_t fence_prover = 1;
 		uint64_t fence_prover_epoch = 1;
 		uint32_t fence_term = 1;
+		int feat = -1;                  /* --feat: absent unless asked */
 
 		if (argc < 4)
 			usage();
@@ -655,6 +676,8 @@ int main(int argc, char **argv)
 			} else if (!strcmp(argv[i], "--fence-term") &&
 				   i + 1 < argc) {
 				fence_term = (uint32_t)strtoul(argv[++i], NULL, 0);
+			} else if (!strcmp(argv[i], "--feat") && i + 1 < argc) {
+				feat = (int)(strtoul(argv[++i], NULL, 0) & 0xFFFF);
 			} else if (!strcmp(argv[i], "--live")) {
 				quarantine = false;
 			} else if (!strcmp(argv[i], "--break-desc-crc")) {
@@ -811,6 +834,31 @@ int main(int argc, char **argv)
 			oc->crc32c = oc_crc(&hb, oc);
 			if (!strcmp(ocshape, "badcrc"))
 				oc->crc32c ^= 0xFFFFFFFFu;
+		}
+
+		/*
+		 * --feat F: the victim's C7 feature block with feat_flags F, crc-
+		 * bound to the sector's identity, at byte 500.  A real guard is the
+		 * victim's record copied byte for byte with only `flags` moved, so
+		 * it carries the victim's block — which is where an offline tool
+		 * reads the victim's transport from (0x0008 TCP, 0x0010 DRBD).
+		 */
+		if (feat >= 0) {
+			struct {
+				uint32_t magic; uint16_t proto_gen; uint16_t feat_flags;
+				uint32_t fs_gen; uint32_t node_id; uint64_t epoch;
+			} __attribute__((packed)) fb;
+			uint32_t fcrc;
+
+			fb.magic = 0x47465846u;             /* MXFS_HB_FEAT_MAGIC */
+			fb.proto_gen = 22;                  /* MXFS_PROTO_GEN */
+			fb.feat_flags = (uint16_t)feat;
+			fb.fs_gen = hb.fs_gen;
+			fb.node_id = hb.node_id;
+			fb.epoch = hb.epoch;
+			fcrc = crc32c(~0U, &fb, sizeof(fb));
+			memcpy(hb.tail + 76, &fb, 8);
+			memcpy(hb.tail + 84, &fcrc, 4);
 		}
 
 		if (slot_write(fd, slot, &hb) < 0)

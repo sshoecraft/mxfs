@@ -30,7 +30,7 @@ module_param_named(dir_modify_target_flush, mxfs_dir_modify_target_flush, int, 0
 int mxfs_dir_leaf_rebuild = 1;
 module_param_named(dir_leaf_rebuild, mxfs_dir_leaf_rebuild, int, 0644);
 MODULE_PARM_DESC(dir_leaf_rebuild,
-	"reliably rebuild the dir LEAF hash index from coherent DATA blocks once per cross-node tenure; 0=off (default — perturbs data coherency), 1=on");
+	"reliably rebuild the dir LEAF hash index from coherent DATA blocks once per cross-node tenure; 0=off (default -- perturbs data coherency), 1=on");
 EXPORT_SYMBOL(mxfs_dir_leaf_rebuild);
 
 /*
@@ -376,7 +376,7 @@ mxfs_dlm_dir_modify_reload_prelock(struct xfs_inode *dp)
 
 		if (ge > dp->i_dlm_dir_valid_epoch) {
 			mxfs_probe_ratelimited(
-				"mxfs: P65-EPOCH-CONVGATE ino=%llu grant_epoch=%u valid_epoch=%u dlm_mode=%u gen=%u comm=%s — shortform dir, epoch advanced (peer converted); reload+adopt before our conversion\n",
+				"mxfs: P65-EPOCH-CONVGATE ino=%llu grant_epoch=%u valid_epoch=%u dlm_mode=%u gen=%u comm=%s -- shortform dir, epoch advanced (peer converted); reload+adopt before our conversion\n",
 				(unsigned long long)dp->i_ino, ge,
 				dp->i_dlm_dir_valid_epoch, dp->i_dlm_mode,
 				VFS_I(dp)->i_generation, current->comm);
@@ -416,7 +416,7 @@ mxfs_dlm_dir_modify_reload_prelock(struct xfs_inode *dp)
 						 VFS_I(dp)->i_generation,
 						 &canon_fsb)) {
 			mxfs_probe_ratelimited(
-				"mxfs: P-BLOCK0-CONVGATE ino=%llu canon_fsb=%llu dlm_mode=%u gen=%u comm=%s — shortform dir, canonical block0 already published (peer converted); reload+adopt before our conversion\n",
+				"mxfs: P-BLOCK0-CONVGATE ino=%llu canon_fsb=%llu dlm_mode=%u gen=%u comm=%s -- shortform dir, canonical block0 already published (peer converted); reload+adopt before our conversion\n",
 				(unsigned long long)dp->i_ino,
 				(unsigned long long)canon_fsb, dp->i_dlm_mode,
 				VFS_I(dp)->i_generation, current->comm);
@@ -448,7 +448,7 @@ mxfs_dlm_dir_modify_reload_prelock(struct xfs_inode *dp)
 
 		if (ge > dp->i_dlm_dir_valid_epoch) {
 			mxfs_probe_ratelimited(
-				"mxfs: P14-MODEXT-RELOAD ino=%llu grant_epoch=%u valid_epoch=%u fmt=%u dlm_mode=%u — non-SF dir epoch advanced (peer grew); reload extent map before modify\n",
+				"mxfs: P14-MODEXT-RELOAD ino=%llu grant_epoch=%u valid_epoch=%u fmt=%u dlm_mode=%u -- non-SF dir epoch advanced (peer grew); reload extent map before modify\n",
 				(unsigned long long)dp->i_ino, ge,
 				dp->i_dlm_dir_valid_epoch, dp->i_df.if_format,
 				dp->i_dlm_mode);
@@ -499,7 +499,7 @@ mxfs_dlm_dir_modify_reload_prelock(struct xfs_inode *dp)
 					}
 				}
 				if (disk_ahead) {
-					mxfs_probe_ratelimited("mxfs: P62-ADOPT-CONTENT ino=%llu incore_fmt=LOCAL incore_cnt=%d disk_fmt=%d disk_cnt=%d dlm_mode=%u gen=%u comm=%s — disk dir ahead, reload+merge before convert\n",
+					mxfs_probe_ratelimited("mxfs: P62-ADOPT-CONTENT ino=%llu incore_fmt=LOCAL incore_cnt=%d disk_fmt=%d disk_cnt=%d dlm_mode=%u gen=%u comm=%s -- disk dir ahead, reload+merge before convert\n",
 						(unsigned long long)dp->i_ino,
 						incore_cnt, dip->di_format, disk_cnt,
 						dp->i_dlm_mode,
@@ -639,7 +639,7 @@ mxfs_dlm_dir_modify_reload_prelock(struct xfs_inode *dp)
 
 					if (diverged) {
 						mxfs_probe_ratelimited(
-						    "mxfs: P68-MAPDIVERGE ino=%llu incore_nx=%llu disk_nx=%u dlm_mode=%u comm=%s — disk extent map differs (per-block daddr); reload+adopt before modify\n",
+						    "mxfs: P68-MAPDIVERGE ino=%llu incore_nx=%llu disk_nx=%u dlm_mode=%u comm=%s -- disk extent map differs (per-block daddr); reload+adopt before modify\n",
 						    (unsigned long long)dp->i_ino,
 						    (unsigned long long)dp->i_df.if_nextents,
 						    disk_nx, dp->i_dlm_mode,
@@ -818,7 +818,7 @@ mxfs_note_fork_tear(struct xfs_inode *ip, const char *site)
 		return;
 	if (atomic_inc_return(&p181n) > 20)
 		return;
-	mxfs_probe("mxfs: P181-FORK-TORN ino=%llu site=%s if_bytes=%d mode=0%o dlm_mode=%d gen=%u comm=%s — LOCAL fork has if_bytes>0 with if_data==NULL; every flush of this inode will fail the shortform verifier\n",
+	mxfs_probe("mxfs: P181-FORK-TORN ino=%llu site=%s if_bytes=%d mode=0%o dlm_mode=%d gen=%u comm=%s -- LOCAL fork has if_bytes>0 with if_data==NULL; every flush of this inode will fail the shortform verifier\n",
 		(unsigned long long)ip->i_ino, site, (int)ifp->if_bytes,
 		VFS_I(ip)->i_mode, ip->i_dlm_mode, VFS_I(ip)->i_generation,
 		current->comm);
@@ -869,7 +869,7 @@ mxfs_rebase_core_probe(struct xfs_inode *dp, struct xfs_dinode *dip,
 		return;
 	if (atomic_inc_return(&p179n) > 4000)
 		return;
-	mxfs_probe("mxfs: P179-REBASE-CORE-TEAR ino=%llu path=%s incore_nlink=%u disk_nlink=%u incore_chg=%llu disk_chg=%llu incore_sz=%lld disk_sz=%llu comm=%s — adopting the image's FORK while keeping our CORE\n",
+	mxfs_probe("mxfs: P179-REBASE-CORE-TEAR ino=%llu path=%s incore_nlink=%u disk_nlink=%u incore_chg=%llu disk_chg=%llu incore_sz=%lld disk_sz=%llu comm=%s -- adopting the image's FORK while keeping our CORE\n",
 		(unsigned long long)dp->i_ino, path, inl, dnl,
 		(unsigned long long)inode_peek_iversion(VFS_I(dp)),
 		(unsigned long long)be64_to_cpu(dip->di_changecount),
@@ -976,7 +976,7 @@ mxfs_dir_rebase_shortform(struct xfs_inode *dp)
 
 		atomic64_inc(&mxfs_rb_verbail);
 		if (atomic_inc_return(&p178n) <= 2000)
-			pr_warn("mxfs: P178-REBASE-OLDER-DISK ino=%llu disk_chg=%llu incore_chg=%llu disk_sz=%llu incore_bytes=%lld own_work=%d gen=%u comm=%s — home shortform older than in-core; rebase refused (would revert peers' committed dirents)\n",
+			pr_warn("mxfs: P178-REBASE-OLDER-DISK ino=%llu disk_chg=%llu incore_chg=%llu disk_sz=%llu incore_bytes=%lld own_work=%d gen=%u comm=%s -- home shortform older than in-core; rebase refused (would revert peers' committed dirents)\n",
 				(unsigned long long)dp->i_ino,
 				(unsigned long long)be64_to_cpu(dip->di_changecount),
 				(unsigned long long)inode_peek_iversion(VFS_I(dp)),
@@ -1093,7 +1093,7 @@ mxfs_dir_rebase_shortform(struct xfs_inode *dp)
 				static atomic_t p14s = ATOMIC_INIT(0);
 
 				if (atomic_inc_return(&p14s) <= 200)
-					mxfs_probe("mxfs: P14-SFSTRIP-BAD ino=%llu cnt=%u dsize=%llu dropped=%u — post-strip image fails verify; refresh skipped\n",
+					mxfs_probe("mxfs: P14-SFSTRIP-BAD ino=%llu cnt=%u dsize=%llu dropped=%u -- post-strip image fails verify; refresh skipped\n",
 						(unsigned long long)dp->i_ino,
 						dsf->count,
 						(unsigned long long)dsize,
@@ -1235,7 +1235,7 @@ mxfs_dir_rebase_shortform(struct xfs_inode *dp)
 			static atomic_t p14m = ATOMIC_INIT(0);
 
 			if (atomic_inc_return(&p14m) <= 200)
-				mxfs_probe("mxfs: P14-SFMERGE-BAD ino=%llu cnt=%u mlen=%u added=%d — union product fails verify; adopt skipped\n",
+				mxfs_probe("mxfs: P14-SFMERGE-BAD ino=%llu cnt=%u mlen=%u added=%d -- union product fails verify; adopt skipped\n",
 					(unsigned long long)dp->i_ino,
 					mh->count, mlen, added);
 			kfree(merged);
@@ -1259,7 +1259,7 @@ mxfs_dir_rebase_shortform(struct xfs_inode *dp)
 			kfree(merged);
 			atomic64_inc(&mxfs_rb_merged);
 			if (unlikely(mxfs_dirwr_enabled || mxfs_instr_enabled))
-				mxfs_probe("mxfs: P12-SF-MERGE ino=%llu disk=%llu merged=%u added=%d — union (disk ∪ own-uncheckpointed)\n",
+				mxfs_probe("mxfs: P12-SF-MERGE ino=%llu disk=%llu merged=%u added=%d -- union (disk U own-uncheckpointed)\n",
 					(unsigned long long)dp->i_ino,
 					(unsigned long long)dsize, mlen, added);
 			goto out;
@@ -1275,7 +1275,7 @@ mxfs_dir_rebase_shortform(struct xfs_inode *dp)
 	i_size_write(VFS_I(dp), dsize);
 	atomic64_inc(&mxfs_rb_adopted);
 	if (unlikely(mxfs_dirwr_enabled || mxfs_instr_enabled))
-		mxfs_probe("mxfs: P12-SF-REBASE ino=%llu newsize=%llu gen=%u evicted_gen=%u — adopted peer durable shortform\n",
+		mxfs_probe("mxfs: P12-SF-REBASE ino=%llu newsize=%llu gen=%u evicted_gen=%u -- adopted peer durable shortform\n",
 			(unsigned long long)dp->i_ino, (unsigned long long)dsize,
 			dp->i_dlm_dir_gen, dp->i_dlm_dir_evicted_gen);
 out:
@@ -1551,7 +1551,7 @@ mxfs_dir_modify_adopt_disk_format(struct xfs_inode *dp, unsigned int lock_flags)
 
 		atomic64_inc(&mxfs_adopt_skip_held_ex);
 		if (atomic_inc_return(&p495s) <= 20)
-			mxfs_probe("mxfs: P495-ADOPT-SKIP ino=%llu epoch=%lu incarn=%u dir_gen=%u comm=%s — dir EX held continuously since the last clean adopt check; platter cannot be ahead, FUA inode read skipped\n",
+			mxfs_probe("mxfs: P495-ADOPT-SKIP ino=%llu epoch=%lu incarn=%u dir_gen=%u comm=%s -- dir EX held continuously since the last clean adopt check; platter cannot be ahead, FUA inode read skipped\n",
 				(unsigned long long)dp->i_ino, dp->i_dlm_epoch,
 				VFS_I(dp)->i_generation, dp->i_dlm_dir_gen,
 				current->comm);
@@ -1562,7 +1562,7 @@ mxfs_dir_modify_adopt_disk_format(struct xfs_inode *dp, unsigned int lock_flags)
 		static atomic_t p495n = ATOMIC_INIT(0);
 
 		if (atomic_inc_return(&p495n) <= 40)
-			mxfs_probe("mxfs: P495-ADOPT-READ ino=%llu mode=%u stale=%d epoch=%lu ok_epoch=%lu incarn=%u ok_incarn=%u dir_gen=%u ok_dir_gen=%u comm=%s — tuple mismatch, FUA inode read taken\n",
+			mxfs_probe("mxfs: P495-ADOPT-READ ino=%llu mode=%u stale=%d epoch=%lu ok_epoch=%lu incarn=%u ok_incarn=%u dir_gen=%u ok_dir_gen=%u comm=%s -- tuple mismatch, FUA inode read taken\n",
 				(unsigned long long)dp->i_ino, dp->i_dlm_mode,
 				dp->i_dlm_stale ? 1 : 0, dp->i_dlm_epoch,
 				dp->i_dlm_adopt_ok_epoch,
@@ -1698,7 +1698,7 @@ mxfs_dir_modify_adopt_disk_format(struct xfs_inode *dp, unsigned int lock_flags)
 
 		stale = true;
 		if (atomic_inc_return(&p190n) <= 4000)
-			mxfs_probe("mxfs: P190-MODIFY-BASE-BEHIND ino=%llu incore_nlink=%u disk_nlink=%u incore_chg=%llu disk_chg=%llu fmt=%d disk_fmt=%d incore_sz=%lld disk_sz=%llu comm=%s — RMW base is behind the platter with identical geometry; adopting before the modify\n",
+			mxfs_probe("mxfs: P190-MODIFY-BASE-BEHIND ino=%llu incore_nlink=%u disk_nlink=%u incore_chg=%llu disk_chg=%llu fmt=%d disk_fmt=%d incore_sz=%lld disk_sz=%llu comm=%s -- RMW base is behind the platter with identical geometry; adopting before the modify\n",
 				(unsigned long long)dp->i_ino,
 				VFS_I(dp)->i_nlink, disk_nlink,
 				(unsigned long long)inode_peek_iversion(VFS_I(dp)),
@@ -1724,7 +1724,7 @@ mxfs_dir_modify_adopt_disk_format(struct xfs_inode *dp, unsigned int lock_flags)
 		return false;
 	}
 
-	mxfs_probe_ratelimited("mxfs: P61-ADOPT-DISK ino=%llu incore_fmt=%d disk_fmt=%d incore_nx=%llu disk_nx=%u incore_sz=%lld disk_sz=%llu gen=%u dlm_mode=%d comm=%s — reload stale fork before modify (peer converted/grew)\n",
+	mxfs_probe_ratelimited("mxfs: P61-ADOPT-DISK ino=%llu incore_fmt=%d disk_fmt=%d incore_nx=%llu disk_nx=%u incore_sz=%lld disk_sz=%llu gen=%u dlm_mode=%d comm=%s -- reload stale fork before modify (peer converted/grew)\n",
 		(unsigned long long)dp->i_ino, dp->i_df.if_format, disk_fmt,
 		(unsigned long long)dp->i_df.if_nextents, disk_nx,
 		(long long)dp->i_disk_size, disk_sz, disk_gen,
@@ -2650,7 +2650,7 @@ mxfs_dir_postrmw_probe(struct xfs_inode *dp)
 			nblk++;
 			if (de_n > 0) {
 				disk_extra_tot += de_n;
-				mxfs_probe("mxfs: P-POSTRMW ino=%llu daddr=%lld disk_extra=%d in_ail=%d — STALE RMW BASE (mechanism A: peer dirent absent from in-core right after our addname)\n",
+				mxfs_probe("mxfs: P-POSTRMW ino=%llu daddr=%lld disk_extra=%d in_ail=%d -- STALE RMW BASE (mechanism A: peer dirent absent from in-core right after our addname)\n",
 					(unsigned long long)dp->i_ino,
 					(long long)d, de_n,
 					(dbp->b_log_item &&
@@ -3761,7 +3761,7 @@ mxfs_dir_epoch_superseded(
 
 		if (cur_ep > ip->i_dlm_dir_valid_epoch &&
 		    atomic_inc_return(&p211u) <= 400)
-			mxfs_probe("mxfs: P211-EPOCH-NOGRANT ino=%llu cur_ep=%u valid_epoch=%u incarn=%u comm=%s — unpublished incarnation; master epoch belongs to a previous one, not a supersession\n",
+			mxfs_probe("mxfs: P211-EPOCH-NOGRANT ino=%llu cur_ep=%u valid_epoch=%u incarn=%u comm=%s -- unpublished incarnation; master epoch belongs to a previous one, not a supersession\n",
 				(unsigned long long)ip->i_ino, cur_ep,
 				ip->i_dlm_dir_valid_epoch, incarn,
 				current->comm);
@@ -3791,7 +3791,7 @@ mxfs_dir_epoch_superseded(
 			if (mxfs_dir_adopt_at_acquire)
 				smp_store_release(&ip->i_dlm_base_valid, 1);
 			if (atomic_inc_return(&p211r) <= 400)
-				pr_warn("mxfs: P211-EPOCH-REBASE ino=%llu cur_ep=%u old_ep=%u old_incarn=%u incarn=%u comm=%s — baseline belonged to a dead incarnation; re-based onto the live one\n",
+				pr_warn("mxfs: P211-EPOCH-REBASE ino=%llu cur_ep=%u old_ep=%u old_incarn=%u incarn=%u comm=%s -- baseline belonged to a dead incarnation; re-based onto the live one\n",
 					(unsigned long long)ip->i_ino, cur_ep,
 					old_ep, old_in, incarn, current->comm);
 			return false;
@@ -3801,7 +3801,7 @@ mxfs_dir_epoch_superseded(
 
 			if (cur_ep > ip->i_dlm_dir_valid_epoch &&
 			    atomic_inc_return(&p211f) <= 400)
-				mxfs_probe("mxfs: P211-EPOCH-FOREIGN ino=%llu cur_ep=%u valid_epoch=%u valid_incarn=%u incarn=%u — cross-incarnation compare on an inode we did NOT create; left as-is\n",
+				mxfs_probe("mxfs: P211-EPOCH-FOREIGN ino=%llu cur_ep=%u valid_epoch=%u valid_incarn=%u incarn=%u -- cross-incarnation compare on an inode we did NOT create; left as-is\n",
 					(unsigned long long)ip->i_ino, cur_ep,
 					ip->i_dlm_dir_valid_epoch,
 					ip->i_dlm_dir_valid_incarn, incarn);

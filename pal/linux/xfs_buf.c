@@ -6,6 +6,8 @@
 #include "xfs_platform.h"
 #include <linux/backing-dev.h>
 #include <linux/dax.h>
+#include <linux/seq_file.h>
+#include <linux/vmalloc.h>
 
 #include "xfs_shared.h"
 #include "xfs_format.h"
@@ -381,7 +383,7 @@ xfs_buf_stale(
 			/* Focus on the dangerous case: staling an UNDESTAGED (or
 			 * in-AIL) dir block whose content is not on disk. */
 			if ((undest || in_ail) && atomic_inc_return(&pds) <= 200) {
-				mxfs_probe("mxfs: P-DIRSTALE daddr=%lld magic=0x%x in_ail=%d undest=%d DONE=%d has_bli=%d pin=%d flags=0x%x — staling dir block\n",
+				mxfs_probe("mxfs: P-DIRSTALE daddr=%lld magic=0x%x in_ail=%d undest=%d DONE=%d has_bli=%d pin=%d flags=0x%x -- staling dir block\n",
 					(long long)xfs_buf_daddr(bp), be32_to_cpu(m),
 					in_ail, undest,
 					(bp->b_flags & XBF_DONE) ? 1 : 0,
@@ -504,7 +506,7 @@ mxfs_report_leaked_buffers(
 		n++;
 		if (n > 32)
 			continue;
-		pr_warn("mxfs: P-BUF-LEAKED stage=%s n=%u daddr=%lld len=%u ops=%s flags=0x%x hold=%d pin=%d state=0x%x lru_ref=%d cached=%d mount=%d gen=%llu freeflag=%lu li_empty=%d bli=%d — buffer allocated and never freed, still alive at module unload\n",
+		pr_warn("mxfs: P-BUF-LEAKED stage=%s n=%u daddr=%lld len=%u ops=%s flags=0x%x hold=%d pin=%d state=0x%x lru_ref=%d cached=%d mount=%d gen=%llu freeflag=%lu li_empty=%d bli=%d -- buffer allocated and never freed, still alive at module unload\n",
 			stage, n, (long long)bp->b_rhash_key, bp->b_length,
 			(bp->b_ops && bp->b_ops->name) ? bp->b_ops->name : "?",
 			bp->b_flags, bp->b_hold, atomic_read(&bp->b_pin_count),
@@ -550,7 +552,7 @@ xfs_buf_free(
 	 * the first free owns the object from here on.
 	 */
 	if (test_and_set_bit(0, &bp->b_mxfs_freeflag)) {
-		pr_alert("mxfs: P-BUF-DOUBLEFREE daddr=%lld len=%d flags=0x%x hold=%d state=0x%x comm=%s — second xfs_buf_free suppressed\n",
+		pr_alert("mxfs: P-BUF-DOUBLEFREE daddr=%lld len=%d flags=0x%x hold=%d state=0x%x comm=%s -- second xfs_buf_free suppressed\n",
 			 (long long)(bp->b_rhash_key),
 			 bp->b_length, bp->b_flags, bp->b_hold,
 			 bp->b_state, current->comm);
@@ -591,7 +593,7 @@ xfs_buf_free(
 	if (unlikely(!list_empty(&bp->b_li_list))) {
 		static atomic_t pbla = ATOMIC_INIT(0);
 		if (atomic_inc_return(&pbla) <= 6) {
-			pr_alert("mxfs: P-BUF-FREE-WITH-ITEMS daddr=%lld len=%d flags=0x%x hold=%d gen=%llu comm=%s — freeing buffer with attached log items\n",
+			pr_alert("mxfs: P-BUF-FREE-WITH-ITEMS daddr=%lld len=%d flags=0x%x hold=%d gen=%llu comm=%s -- freeing buffer with attached log items\n",
 				 (long long)(bp->b_rhash_key),
 				 bp->b_length, bp->b_flags, bp->b_hold,
 				 (unsigned long long)bp->b_mxfs_alloc_gen,
@@ -620,7 +622,7 @@ xfs_buf_free(
 		    m == cpu_to_be32(MXFS_DIR3_DATA_MAGIC)) {
 			static atomic_t pdf = ATOMIC_INIT(0);
 			if (atomic_inc_return(&pdf) <= 300) {
-				mxfs_probe("mxfs: P-DIRFREE daddr=%lld magic=0x%x has_bli=%d flags=0x%x hold=%d — freeing dir3 buffer (content destroyed)\n",
+				mxfs_probe("mxfs: P-DIRFREE daddr=%lld magic=0x%x has_bli=%d flags=0x%x hold=%d -- freeing dir3 buffer (content destroyed)\n",
 					(long long)xfs_buf_daddr(bp), be32_to_cpu(m),
 					bp->b_log_item ? 1 : 0, bp->b_flags,
 					bp->b_hold);
@@ -647,7 +649,7 @@ xfs_buf_free(
 
 	/* D-0924 test knob: strand this struct deliberately (see the knob). */
 	if (unlikely(READ_ONCE(mxfs_dbg_leak_bufs)) && mxfs_dbg_leak_take()) {
-		pr_warn("mxfs: P-DBG-LEAK-BUF bp=0x%p daddr=%lld len=%u ops=%s left=%u — struct deliberately not returned to the slab; the unload will report it\n",
+		pr_warn("mxfs: P-DBG-LEAK-BUF bp=0x%p daddr=%lld len=%u ops=%s left=%u -- struct deliberately not returned to the slab; the unload will report it\n",
 			bp, (long long)bp->b_rhash_key, bp->b_length,
 			(bp->b_ops && bp->b_ops->name) ? bp->b_ops->name : "?",
 			READ_ONCE(mxfs_dbg_leak_bufs));
@@ -658,7 +660,7 @@ xfs_buf_free(
 		static atomic_t late_n = ATOMIC_INIT(0);
 
 		if (atomic_inc_return(&late_n) <= 8) {
-			pr_alert("mxfs: P-BUF-FREE-LATE daddr=%lld len=%u ops=%s flags=0x%x cached=%d mount=%d gen=%llu comm=%s — buffer freed after the cache-destroy RCU barrier; its RCU free lands after the slab is gone\n",
+			pr_alert("mxfs: P-BUF-FREE-LATE daddr=%lld len=%u ops=%s flags=0x%x cached=%d mount=%d gen=%llu comm=%s -- buffer freed after the cache-destroy RCU barrier; its RCU free lands after the slab is gone\n",
 				(long long)bp->b_rhash_key, bp->b_length,
 				(bp->b_ops && bp->b_ops->name) ? bp->b_ops->name : "?",
 				bp->b_flags, bp->b_pag ? 1 : 0, bp->b_mount ? 1 : 0,
@@ -970,7 +972,7 @@ mxfs_hold_ring_dump(
 		return;
 	h = bp->b_mxfs_hri;
 	n = (h < MXFS_HOLD_RING) ? h : MXFS_HOLD_RING;
-	mxfs_probe("mxfs: P-HOLDRING daddr=%lld ops=%s hold=%d flags=0x%x — %u events (oldest first):\n",
+	mxfs_probe("mxfs: P-HOLDRING daddr=%lld ops=%s hold=%d flags=0x%x -- %u events (oldest first):\n",
 		(long long)bp->b_maps[0].bm_bn,
 		(bp->b_ops && bp->b_ops->name) ? bp->b_ops->name : "?",
 		bp->b_hold, bp->b_flags, n);
@@ -998,7 +1000,7 @@ xfs_buf_cache_left(
 
 	if (atomic_inc_return(&left_n) > 64)
 		return;
-	pr_warn("mxfs: P-BCACHE-LEFT daddr=%lld len=%u ops=%s hold=%d pin=%d flags=0x%x agmeta_hold=%d bli=%d transp=%d — buffer still in the AG buffer cache at cache teardown (leaked xfs_buf)\n",
+	pr_warn("mxfs: P-BCACHE-LEFT daddr=%lld len=%u ops=%s hold=%d pin=%d flags=0x%x agmeta_hold=%d bli=%d transp=%d -- buffer still in the AG buffer cache at cache teardown (leaked xfs_buf)\n",
 		(long long)bp->b_maps[0].bm_bn, bp->b_length,
 		(bp->b_ops && bp->b_ops->name) ? bp->b_ops->name : "?",
 		bp->b_hold, atomic_read(&bp->b_pin_count), bp->b_flags,
@@ -1077,7 +1079,7 @@ xfs_buf_find_lock(
 					break;
 			}
 			if (atomic_inc_return(&sdw_n) <= 200)
-				pr_warn("mxfs: P-STALE-DELWRI-WIPE n=%d daddr=%lld ops=%s items=%u staler=%pS comm=%s — a lookup's stale reset clears a queued write\n",
+				pr_warn("mxfs: P-STALE-DELWRI-WIPE n=%d daddr=%lld ops=%s items=%u staler=%pS comm=%s -- a lookup's stale reset clears a queued write\n",
 					atomic_read(&sdw_n),
 					(long long)xfs_buf_daddr(bp),
 					bp->b_ops && bp->b_ops->name ?
@@ -1418,8 +1420,15 @@ static atomic64_t mxfs_logwr_nocore;        /* bli-dirty-only slot, no in-core i
  * FIX knob for D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY.  1 = drop
  * PR-held slots we did not log from an inode-cluster write (we have no write
  * tenure for those bytes); 0 = the pre-fix behaviour, for a same-build A/B.
+ * 2 = drop slots with no in-core inode.  4 = drop slots held at any other
+ * mode (EX) that we did not log either: such a slot carries no change of
+ * ours, and nothing holds the inode's grant until this write completes, so
+ * the grant can pass to the peer while the write is in flight and the peer's
+ * own write of the slot lands beside it, or under it
+ * (D-DRBD-BOTH-HOSTS-WRITE-ONE-DINODE-AT-ONCE-AND-DRBD-DROPS-THE-LINK).
+ * 3 is the behaviour before that, for a same-build A/B.
  */
-int mxfs_cluster_passenger_skip = 3;
+int mxfs_cluster_passenger_skip = 7;
 module_param_named(cluster_passenger_skip, mxfs_cluster_passenger_skip, int, 0644);
 /*
  * D-0976: slots a log recovery patched in an inode-cluster image are
@@ -1495,7 +1504,7 @@ mxfs_recov_slot_refresh(
 				bp->b_target->bt_sector_offset,
 			tmp, len);
 	if (rc) {
-		pr_warn_ratelimited("mxfs: P218-RECOV-BASELINE-FAIL daddr=%lld slot=%d rc=%d — platter read for the recovery slot baseline failed; failing this replay\n",
+		pr_warn_ratelimited("mxfs: P218-RECOV-BASELINE-FAIL daddr=%lld slot=%d rc=%d -- platter read for the recovery slot baseline failed; failing this replay\n",
 			(long long)bp->b_maps[0].bm_bn, slot, rc);
 		kfree(tmp);
 		return rc;
@@ -1621,7 +1630,7 @@ static inline bool mxfs_buf_inject_take(int *knob)
 	return xchg(knob, 0) > 0;
 }
 MODULE_PARM_DESC(cluster_passenger_skip,
-	"drop un-logged slots we have no write authority for from an inode-cluster write: bit0(1)=PR-held, bit1(2)=no in-core inode, 3=both, 0=pre-fix negative control");
+	"drop un-logged slots from an inode-cluster write: bit0(1)=PR-held, bit1(2)=no in-core inode, bit2(4)=held at any other mode (EX); 7=all (default), 3=the behaviour before bit2, 0=pre-fix negative control");
 
 static int
 mxfs_cluster_authority_dump_set(const char *val, const struct kernel_param *kp)
@@ -1660,6 +1669,287 @@ static const struct kernel_param_ops mxfs_cluster_authority_dump_ops = {
 };
 module_param_cb(cluster_authority_dump, &mxfs_cluster_authority_dump_ops,
 		NULL, 0644);
+
+/*
+ * The slot record (D-DRBD-BOTH-HOSTS-WRITE-ONE-DINODE-AT-ONCE): every inode
+ * slot an inode-cluster write sends to the device, with the class it went out
+ * under and the image it carried, kept in memory and read from
+ * /proc/fs/mxfs/slot_ring.
+ *
+ * On a DRBD pair two hosts writing one dinode at once are seen only by DRBD,
+ * which logs "Concurrent writes detected" with the sectors and the moment on
+ * both hosts.  This record names, on each host, what each of those writes
+ * was: logged this round, buffer-logged, or a passenger, with the in-core
+ * inode's lock mode, generation and flags (MXFS_IF_INCARN_STALE among them)
+ * beside the image's identity.  The per-write probes are rate-limited and
+ * dropped the lines that mattered, and a log line per slot would change the
+ * timing being measured, so nothing here prints on the write path.
+ *
+ * Lab only: off unless slot_ring=1, which allocates the ring once.  A read
+ * prints the records numbered above slot_ring_since whose device sector lies
+ * in [slot_ring_lo, slot_ring_hi] (hi 0: every sector), after a header line
+ * carrying the next record number, so a reader can take only what is new.
+ * The record numbers never restart while the module is loaded.
+ */
+#define MXFS_SLOT_RING_N	(1u << 16)
+
+#define MXFS_SLOTREC_LOGGED	0x01	/* an inode log item for the slot is on this buffer */
+#define MXFS_SLOTREC_BLI	0x02	/* a dirty buffer-log range covers the slot */
+#define MXFS_SLOTREC_RECOV	0x04	/* a log recovery patched the slot */
+#define MXFS_SLOTREC_WHOLE	0x08	/* the whole buffer was written */
+#define MXFS_SLOTREC_ALLOC	0x10	/* the buffer log item carries XFS_BLI_INODE_ALLOC_BUF */
+#define MXFS_SLOTREC_INCORE	0x20	/* an in-core inode exists for the number */
+
+struct mxfs_slot_rec {
+	u64	seq;		/* record number, from 1; written last */
+	u64	realns;		/* ktime_get_real_ns() at submit */
+	u64	dsect;		/* the slot's first sector on the device */
+	u64	ino;		/* the image's di_ino */
+	u64	cc;		/* the image's di_changecount */
+	u32	gen;		/* the image's di_gen */
+	u32	igen;		/* the in-core inode's i_generation (0: none) */
+	u32	iflags;		/* the in-core inode's i_flags */
+	u16	mode;		/* the image's di_mode */
+	u8	cls;		/* MXFS_SLOTREC_* */
+	s8	dlm;		/* the in-core inode's i_dlm_mode (-1: none) */
+	pid_t	pid;
+	char	comm[TASK_COMM_LEN];
+};
+
+static struct mxfs_slot_rec *mxfs_slot_ring;
+static int mxfs_slot_ring_on;
+static atomic64_t mxfs_slot_ring_next = ATOMIC64_INIT(0);
+static unsigned long long mxfs_slot_ring_since;
+static unsigned long long mxfs_slot_ring_lo;
+static unsigned long long mxfs_slot_ring_hi;
+module_param_named(slot_ring_since, mxfs_slot_ring_since, ullong, 0644);
+MODULE_PARM_DESC(slot_ring_since,
+	"LAB: /proc/fs/mxfs/slot_ring prints only records numbered above this");
+module_param_named(slot_ring_lo, mxfs_slot_ring_lo, ullong, 0644);
+MODULE_PARM_DESC(slot_ring_lo,
+	"LAB: /proc/fs/mxfs/slot_ring prints only slots at or above this device sector");
+module_param_named(slot_ring_hi, mxfs_slot_ring_hi, ullong, 0644);
+MODULE_PARM_DESC(slot_ring_hi,
+	"LAB: /proc/fs/mxfs/slot_ring prints only slots at or below this device sector (0: no bound)");
+
+static int
+mxfs_slot_ring_set(const char *val, const struct kernel_param *kp)
+{
+	struct mxfs_slot_rec	*ring;
+	int			on, rc;
+
+	rc = kstrtoint(val, 0, &on);
+	if (rc)
+		return rc;
+	if (!on) {
+		WRITE_ONCE(mxfs_slot_ring_on, 0);
+		return 0;
+	}
+	if (!READ_ONCE(mxfs_slot_ring)) {
+		ring = vzalloc(array_size(MXFS_SLOT_RING_N, sizeof(*ring)));
+		if (!ring)
+			return -ENOMEM;
+		if (cmpxchg(&mxfs_slot_ring, NULL, ring) != NULL)
+			vfree(ring);
+	}
+	WRITE_ONCE(mxfs_slot_ring_on, 1);
+	return 0;
+}
+
+static int
+mxfs_slot_ring_get(char *buf, const struct kernel_param *kp)
+{
+	return sysfs_emit(buf, "%d\n", READ_ONCE(mxfs_slot_ring_on));
+}
+
+static const struct kernel_param_ops mxfs_slot_ring_ops = {
+	.set = mxfs_slot_ring_set,
+	.get = mxfs_slot_ring_get,
+};
+module_param_cb(slot_ring, &mxfs_slot_ring_ops, NULL, 0644);
+MODULE_PARM_DESC(slot_ring,
+	"LAB: 1 = record every inode slot a cluster write sends to the device (read /proc/fs/mxfs/slot_ring); 0 = stop recording");
+
+/* pal/linux/xfs_stats.c shows the record; pal/linux/xfs_super.c frees it */
+int mxfs_slot_ring_show(struct seq_file *m, void *v);
+void mxfs_slot_ring_exit(void);
+
+int
+mxfs_slot_ring_show(struct seq_file *m, void *v)
+{
+	struct mxfs_slot_rec	*ring = READ_ONCE(mxfs_slot_ring);
+	u64			next = atomic64_read(&mxfs_slot_ring_next);
+	u64			since = READ_ONCE(mxfs_slot_ring_since);
+	u64			lo = READ_ONCE(mxfs_slot_ring_lo);
+	u64			hi = READ_ONCE(mxfs_slot_ring_hi);
+	u64			n, first;
+
+	seq_printf(m, "next=%llu size=%u on=%d since=%llu lo=%llu hi=%llu\n",
+		   (unsigned long long)next, MXFS_SLOT_RING_N,
+		   READ_ONCE(mxfs_slot_ring_on), (unsigned long long)since,
+		   (unsigned long long)lo, (unsigned long long)hi);
+	if (!ring)
+		return 0;
+	first = next > MXFS_SLOT_RING_N ? next - MXFS_SLOT_RING_N + 1 : 1;
+	if (first <= since)
+		first = since + 1;
+	for (n = first; n <= next; n++) {
+		struct mxfs_slot_rec	*e = &ring[(n - 1) & (MXFS_SLOT_RING_N - 1)];
+		struct mxfs_slot_rec	r;
+		char			cls[8];
+		int			c = 0;
+
+		if (READ_ONCE(e->seq) != n)
+			continue;	/* not yet written, or overwritten */
+		smp_rmb();
+		r = *e;
+		smp_rmb();
+		if (READ_ONCE(e->seq) != n || r.seq != n)
+			continue;	/* rewritten while it was copied */
+		if (r.dsect < lo || (hi && r.dsect > hi))
+			continue;
+		if (r.cls & MXFS_SLOTREC_LOGGED)
+			cls[c++] = 'L';
+		if (r.cls & MXFS_SLOTREC_BLI)
+			cls[c++] = 'B';
+		if (r.cls & MXFS_SLOTREC_RECOV)
+			cls[c++] = 'R';
+		if (r.cls & MXFS_SLOTREC_WHOLE)
+			cls[c++] = 'W';
+		if (r.cls & MXFS_SLOTREC_ALLOC)
+			cls[c++] = 'A';
+		if (r.cls & MXFS_SLOTREC_INCORE)
+			cls[c++] = 'I';
+		if (!c)
+			cls[c++] = '-';
+		cls[c] = '\0';
+		seq_printf(m, "seq=%llu realns=%llu dsect=%llu ino=%llu gen=%u mode=0%o cc=%llu cls=%s dlm=%d igen=%u iflags=0x%x stale=%d pid=%d comm=%.16s\n",
+			   (unsigned long long)r.seq,
+			   (unsigned long long)r.realns,
+			   (unsigned long long)r.dsect,
+			   (unsigned long long)r.ino, r.gen, r.mode,
+			   (unsigned long long)r.cc, cls, r.dlm, r.igen,
+			   r.iflags, !!(r.iflags & MXFS_IF_INCARN_STALE),
+			   r.pid, r.comm);
+	}
+	return 0;
+}
+
+/* module exit, after /proc/fs/mxfs is gone */
+void
+mxfs_slot_ring_exit(void)
+{
+	WRITE_ONCE(mxfs_slot_ring_on, 0);
+	vfree(xchg(&mxfs_slot_ring, NULL));
+}
+
+/*
+ * Record the slots of inode-cluster write `bp` that go to the device:
+ * `sects` is the submitted sector mask in filesystem sectors (every bit set
+ * for a whole-buffer write).  Called with the buffer locked, as the write
+ * leaves.
+ */
+static void
+mxfs_slot_ring_record(
+	struct xfs_buf		*bp,
+	u64			sects,
+	bool			whole)
+{
+	struct mxfs_slot_rec	*ring = READ_ONCE(mxfs_slot_ring);
+	struct xfs_mount	*mp = bp->b_mount;
+	struct xfs_perag	*pag = bp->b_pag;
+	struct xfs_log_item	*lip;
+	unsigned int		ilog, isz, ni, sectsize, spi, s, k;
+	u64			logged = 0, bli = 0, realns, base_sect;
+	xfs_agino_t		base_agino;
+	u8			common = whole ? MXFS_SLOTREC_WHOLE : 0;
+
+	if (likely(!READ_ONCE(mxfs_slot_ring_on)) || !ring)
+		return;
+	if (!mp || !pag || !bp->b_addr || bp->b_map_count != 1 ||
+	    !bp->b_target || !(bp->b_flags & XBF_WRITE) ||
+	    bp->b_ops != &xfs_inode_buf_ops)
+		return;
+	ilog = mp->m_sb.sb_inodelog;
+	isz = 1u << ilog;
+	sectsize = mp->m_sb.sb_sectsize;
+	ni = BBTOB(bp->b_length) >> ilog;
+	if (!sectsize || isz < sectsize || ni == 0 || ni > 64)
+		return;
+	spi = isz / sectsize;
+
+	list_for_each_entry(lip, &bp->b_li_list, li_bio_list) {
+		struct xfs_inode	*lip_ip;
+
+		if (lip->li_type != XFS_LI_INODE)
+			continue;
+		lip_ip = ((struct xfs_inode_log_item *)lip)->ili_inode;
+		if (lip_ip && (lip_ip->i_imap.im_boffset >> ilog) < ni)
+			logged |= 1ULL << (lip_ip->i_imap.im_boffset >> ilog);
+	}
+	if (bp->b_log_item && (bp->b_log_item->bli_flags & XFS_BLI_DIRTY)) {
+		struct xfs_buf_log_format *blfp = &bp->b_log_item->__bli_format;
+		unsigned int		nbword = NBBY * sizeof(unsigned int);
+		unsigned int		c, nbits = blfp->blf_map_size * nbword;
+
+		for (c = 0; c < nbits; c++) {
+			if (!(blfp->blf_data_map[c / nbword] & (1U << (c % nbword))))
+				continue;
+			s = (c * XFS_BLF_CHUNK) / isz;
+			if (s < ni)
+				bli |= 1ULL << s;
+		}
+	}
+	if (bp->b_log_item &&
+	    (bp->b_log_item->bli_flags & XFS_BLI_INODE_ALLOC_BUF))
+		common |= MXFS_SLOTREC_ALLOC;
+	base_agino = (xfs_agino_t)((bp->b_maps[0].bm_bn >> mp->m_blkbb_log) %
+				   mp->m_sb.sb_agblocks) << mp->m_sb.sb_inopblog;
+	base_sect = (u64)bp->b_maps[0].bm_bn + bp->b_target->bt_sector_offset;
+	realns = ktime_get_real_ns();
+
+	mxfs_ici_lock(pag);
+	for (s = 0; s < ni; s++) {
+		struct xfs_dinode	*d = bp->b_addr + ((size_t)s << ilog);
+		struct xfs_inode	*ip;
+		struct mxfs_slot_rec	*e;
+		u64			slotbits = 0, n;
+		u8			cls = common;
+
+		for (k = 0; k < spi && s * spi + k < 64; k++)
+			slotbits |= 1ULL << (s * spi + k);
+		if (!(sects & slotbits))
+			continue;
+		if (logged & (1ULL << s))
+			cls |= MXFS_SLOTREC_LOGGED;
+		if (bli & (1ULL << s))
+			cls |= MXFS_SLOTREC_BLI;
+		if (bp->b_mxfs_recov_slots & (1ULL << s))
+			cls |= MXFS_SLOTREC_RECOV;
+		ip = radix_tree_lookup(&pag->pag_ici_root, base_agino + s);
+		if (ip)
+			cls |= MXFS_SLOTREC_INCORE;
+		n = atomic64_inc_return(&mxfs_slot_ring_next);
+		e = &ring[(n - 1) & (MXFS_SLOT_RING_N - 1)];
+		WRITE_ONCE(e->seq, 0);
+		smp_wmb();
+		e->realns = realns;
+		e->dsect = base_sect + (((u64)s * isz) >> BBSHIFT);
+		e->ino = be64_to_cpu(d->di_ino);
+		e->cc = be64_to_cpu(d->di_changecount);
+		e->gen = be32_to_cpu(d->di_gen);
+		e->mode = be16_to_cpu(d->di_mode);
+		e->cls = cls;
+		e->dlm = ip ? (s8)ip->i_dlm_mode : -1;
+		e->igen = ip ? VFS_I(ip)->i_generation : 0;
+		e->iflags = ip ? (u32)ip->i_flags : 0;
+		e->pid = current->pid;
+		strscpy(e->comm, current->comm, sizeof(e->comm));
+		smp_wmb();
+		WRITE_ONCE(e->seq, n);
+	}
+	spin_unlock(&pag->pag_ici_lock);
+}
 
 static bool
 mxfs_buf_is_multinode_dir_meta(struct xfs_buf *bp)
@@ -1777,7 +2067,7 @@ mxfs_buf_coherent_reread_verify(struct xfs_buf *bp)
 		bp->b_error = 0;
 		bp->b_ops->verify_read(bp);
 		pr_warn_ratelimited(
-		    "mxfs: P-INOCL-REREAD-REFUSED daddr=%lld delwri=%d pin=%d bli_dirty=%d uncp=%d curr_verify=%d — unhomed local state; keeping current image, snapshot not installed\n",
+		    "mxfs: P-INOCL-REREAD-REFUSED daddr=%lld delwri=%d pin=%d bli_dirty=%d uncp=%d curr_verify=%d -- unhomed local state; keeping current image, snapshot not installed\n",
 			(long long)bp->b_maps[0].bm_bn,
 			!!(bp->b_flags & _XBF_DELWRI_Q),
 			xfs_buf_ispinned(bp) ? 1 : 0,
@@ -1938,12 +2228,12 @@ _xfs_buf_read(
 		}
 		if (!error) {
 			bp->b_flags |= XBF_DONE;
-			mxfs_probe_ratelimited("mxfs: P-DIRCRC-RETRY-OK daddr=%lld ops=%s — transient torn read settled\n",
+			mxfs_probe_ratelimited("mxfs: P-DIRCRC-RETRY-OK daddr=%lld ops=%s -- transient torn read settled\n",
 				(long long)bp->b_maps[0].bm_bn,
 				(bp->b_ops && bp->b_ops->name) ?
 					bp->b_ops->name : "?");
 		} else {
-			mxfs_probe("mxfs: P-DIRCRC-RETRY-FAIL daddr=%lld ops=%s err=%d — durable, not transient\n",
+			mxfs_probe("mxfs: P-DIRCRC-RETRY-FAIL daddr=%lld ops=%s err=%d -- durable, not transient\n",
 				(long long)bp->b_maps[0].bm_bn,
 				(bp->b_ops && bp->b_ops->name) ?
 					bp->b_ops->name : "?",
@@ -2031,7 +2321,7 @@ xfs_buf_read_map(
 		} else {
 			atomic_inc(&mxfs_recov_cache_hit);
 			if (atomic_inc_return(&prch) <= 100)
-				pr_warn("mxfs: P-RECOV-CACHE-HIT daddr=%lld len=%u ops=%s comm=%s — a recovery-populated image was served from the cache with no read\n",
+				pr_warn("mxfs: P-RECOV-CACHE-HIT daddr=%lld len=%u ops=%s comm=%s -- a recovery-populated image was served from the cache with no read\n",
 					(long long)bp->b_maps[0].bm_bn, bp->b_length,
 					bp->b_ops && bp->b_ops->name ? bp->b_ops->name : "?",
 					current->comm);
@@ -2064,7 +2354,7 @@ xfs_buf_read_map(
 			 * re-read in that window silently discards the
 			 * committed delta (fossil di_next_unlinked producer
 			 * candidate; P53 wave with fence=1, agno15). */
-			pr_warn("mxfs: P-PINNED-REREAD daddr=%lld ops=%s dirty=%d pin=%d in_ail=%d delwri=%d comm=%s — re-reading a buffer with committed-undestaged content (delta will be LOST)\n",
+			pr_warn("mxfs: P-PINNED-REREAD daddr=%lld ops=%s dirty=%d pin=%d in_ail=%d delwri=%d comm=%s -- re-reading a buffer with committed-undestaged content (delta will be LOST)\n",
 				(long long)bp->b_maps[0].bm_bn,
 				ops && ops->name ? ops->name : "?",
 				bp->b_log_item ? (test_bit(XFS_LI_DIRTY,
@@ -2105,7 +2395,7 @@ xfs_buf_read_map(
 					static atomic_t p143_n = ATOMIC_INIT(0);
 
 					if (atomic_inc_return(&p143_n) <= 60)
-						mxfs_probe("mxfs: P143-AGMETA-FLUSHREAD agno=%u daddr=%lld ops=%s wr_epoch=%lld flush_epoch=%lld comm=%s — cold AG-meta read inside unflushed write window; fencing with device flush\n",
+						mxfs_probe("mxfs: P143-AGMETA-FLUSHREAD agno=%u daddr=%lld ops=%s wr_epoch=%lld flush_epoch=%lld comm=%s -- cold AG-meta read inside unflushed write window; fencing with device flush\n",
 							xfs_daddr_to_agno(fmp, bp->b_maps[0].bm_bn),
 							(long long)bp->b_maps[0].bm_bn,
 							ops->name ? ops->name : "?",
@@ -2147,7 +2437,7 @@ xfs_buf_read_map(
 						static atomic_t pincl_n = ATOMIC_INIT(0);
 
 						if (atomic_inc_return(&pincl_n) <= 120)
-							mxfs_probe("mxfs: P-INOCL-COLDREAD agno=%u daddr=%lld wr_epoch=%lld flush_epoch=%lld fence=%u comm=%s — cold inode-cluster read inside unflushed write window\n",
+							mxfs_probe("mxfs: P-INOCL-COLDREAD agno=%u daddr=%lld wr_epoch=%lld flush_epoch=%lld fence=%u comm=%s -- cold inode-cluster read inside unflushed write window\n",
 								xfs_daddr_to_agno(fmp, bp->b_maps[0].bm_bn),
 								(long long)bp->b_maps[0].bm_bn,
 								(long long)atomic64_read(&hpag->pag_mxfs_inocl_wr_epoch),
@@ -2423,7 +2713,7 @@ xfs_buf_rele_uncached(
 	 * decrement would wrap and resurrect the buffer into a second
 	 * xfs_buf_free (test25 slub double-free family).  Catch it. */
 	if (WARN(bp->b_hold == 0,
-		 "mxfs: P-BUF-RELE-ZERO uncached daddr=%lld comm=%s — double release suppressed\n",
+		 "mxfs: P-BUF-RELE-ZERO uncached daddr=%lld comm=%s -- double release suppressed\n",
 		 (long long)bp->b_rhash_key, current->comm)) {
 		spin_unlock(&bp->b_lock);
 		return;
@@ -2456,7 +2746,7 @@ xfs_buf_rele_cached(
 	 * b_hold==0 zombie must not wrap/hash-remove/perag-put/free a
 	 * second time.  WARN gives the extra releaser's stack. */
 	if (WARN(bp->b_hold == 0,
-		 "mxfs: P-BUF-RELE-ZERO cached daddr=%lld comm=%s — double release suppressed\n",
+		 "mxfs: P-BUF-RELE-ZERO cached daddr=%lld comm=%s -- double release suppressed\n",
 		 (long long)bp->b_rhash_key, current->comm)) {
 		spin_unlock(&bp->b_lock);
 		return;
@@ -2815,7 +3105,7 @@ xfs_buf_ioend_handle_error(
 	if (unlikely(bp->b_mxfs_foreign_recovery)) {
 		xfs_buf_ioerror_alert_ratelimited(bp);
 		pr_warn_ratelimited(
-	"mxfs: P227-FR-BUFFAIL daddr=%lld len=%u err=%d ops=%s flags=0x%x — foreign-replay buffer write failed; failing the replay, NOT this mount\n",
+	"mxfs: P227-FR-BUFFAIL daddr=%lld len=%u err=%d ops=%s flags=0x%x -- foreign-replay buffer write failed; failing the replay, NOT this mount\n",
 			(long long)bp->b_maps[0].bm_bn,
 			(unsigned int)BBTOB(bp->b_length), bp->b_error,
 			bp->b_ops && bp->b_ops->name ? bp->b_ops->name : "?",
@@ -2961,7 +3251,7 @@ mxfs_dir_wr_inflight_dec(
 
 		atomic_set(&bp->b_mount->m_mxfs_dir_wr_inflight, 0);
 		pr_warn_ratelimited(
-		    "mxfs: P-WRCNT-UNDERFLOW ctx=%s daddr=%lld ops=%s flags=0x%x evi=%u ev=[%016llx %016llx %016llx %016llx %016llx %016llx %016llx %016llx] — inflight went negative (more retirements than counted increments); clamped to 0 — possible double-retirement of a leaked+recovered completion pair on a reused buffer\n",
+		    "mxfs: P-WRCNT-UNDERFLOW ctx=%s daddr=%lld ops=%s flags=0x%x evi=%u ev=[%016llx %016llx %016llx %016llx %016llx %016llx %016llx %016llx] -- inflight went negative (more retirements than counted increments); clamped to 0 -- possible double-retirement of a leaked+recovered completion pair on a reused buffer\n",
 		    ctx,
 		    (long long)bp->b_maps[0].bm_bn,
 		    bp->b_ops && bp->b_ops->name ? bp->b_ops->name : "?",
@@ -3506,7 +3796,7 @@ __xfs_buf_ioend(
 			 * error is EIO, the same thing the node reports moments
 			 * later once it has shut down.
 			 */
-			pr_warn_ratelimited("mxfs: P-EBADE-BOUNDARY buf daddr=%lld flags=0x%x — reservation conflict on %s, returning EIO to the caller (fence in progress)\n",
+			pr_warn_ratelimited("mxfs: P-EBADE-BOUNDARY buf daddr=%lld flags=0x%x -- reservation conflict on %s, returning EIO to the caller (fence in progress)\n",
 				(long long)bp->b_maps[0].bm_bn, bp->b_flags,
 				(bp->b_flags & XBF_WRITE) ? "write" : "read");
 			bp->b_error = -EIO;
@@ -3602,7 +3892,7 @@ __xfs_buf_ioend(
 			static atomic_t agm_missed = ATOMIC_INIT(0);
 
 			if (atomic_inc_return(&agm_missed) <= 100)
-				mxfs_probe("mxfs: P-AGMETA-IODONE-MISSED daddr=%lld len=%u ops=%s b_iodone=%pS flags=0x%x hold=%d pin=%d bli=%d — write completed with the AG-meta track token still armed; the callback did not consume it, returning the hold and the AG's pending count here\n",
+				mxfs_probe("mxfs: P-AGMETA-IODONE-MISSED daddr=%lld len=%u ops=%s b_iodone=%pS flags=0x%x hold=%d pin=%d bli=%d -- write completed with the AG-meta track token still armed; the callback did not consume it, returning the hold and the AG's pending count here\n",
 					(long long)bp->b_maps[0].bm_bn, bp->b_length,
 					(bp->b_ops && bp->b_ops->name) ? bp->b_ops->name : "?",
 					agm_cb, bp->b_flags, bp->b_hold,
@@ -3661,7 +3951,7 @@ xfs_buf_ioend(
 			static atomic_t psw_n = ATOMIC_INIT(0);
 			if (atomic_inc_return(&psw_n) <= 4000)
 				mxfs_probe_ratelimited(
-				    "mxfs: P-SYNCWAIT-OVERRIDE daddr=%lld ops=%s flags=0x%x path=ioend — concurrent async submit raced this sync waiter; woke it via the per-submission credit\n",
+				    "mxfs: P-SYNCWAIT-OVERRIDE daddr=%lld ops=%s flags=0x%x path=ioend -- concurrent async submit raced this sync waiter; woke it via the per-submission credit\n",
 				    (long long)bp->b_maps[0].bm_bn,
 				    bp->b_ops && bp->b_ops->name ? bp->b_ops->name : "?",
 				    (unsigned int)bp->b_flags);
@@ -3711,7 +4001,7 @@ xfs_buf_ioend_work(
 
 			if (atomic_inc_return(&psww_n) <= 4000)
 				mxfs_probe_ratelimited(
-				    "mxfs: P-SYNCWAIT-OVERRIDE daddr=%lld flags=0x%x path=worker — async-flagged worker completion woke the pending sync waiter via its credit (no relse)\n",
+				    "mxfs: P-SYNCWAIT-OVERRIDE daddr=%lld flags=0x%x path=worker -- async-flagged worker completion woke the pending sync waiter via its credit (no relse)\n",
 				    (long long)bp->b_maps[0].bm_bn,
 				    (unsigned int)bp->b_flags);
 		}
@@ -3868,7 +4158,7 @@ mxfs_depart_buf_free(
 	bp->b_mxfs_acct = NULL;
 	spin_unlock(&acct->lock);
 	if (n || r)
-		pr_alert("mxfs: P304-IOCNT-ORPHAN daddr=%lld len=%d flags=0x%x tokens=%u rejected_pending=%u comm=%s — buffer freed with departure tokens outstanding (no completion ever ran); accounting marked CORRUPT, tokens left counted, the accounting object is pinned forever (every departure of this mount is DIRTY)\n",
+		pr_alert("mxfs: P304-IOCNT-ORPHAN daddr=%lld len=%d flags=0x%x tokens=%u rejected_pending=%u comm=%s -- buffer freed with departure tokens outstanding (no completion ever ran); accounting marked CORRUPT, tokens left counted, the accounting object is pinned forever (every departure of this mount is DIRTY)\n",
 			 (long long)bp->b_maps[0].bm_bn, bp->b_length, bp->b_flags,
 			 n, r, current->comm);
 	/* the buffer's reference (if it held one) is NOT dropped */
@@ -3943,7 +4233,7 @@ mxfs_depart_token_take(
 					      : ++acct->agmeta_after_agfree_rd);
 	}
 	if (unlikely(agfree_n) && agfree_n <= 8)
-		mxfs_probe("mxfs: P483-%s-AFTER-AGFREE %s%s daddr=%lld ops=%s n=%lu stage=%d comm=%s pid=%d — %s I/O submitted after this mount published its AG grants as free%s\n",
+		mxfs_probe("mxfs: P483-%s-AFTER-AGFREE %s%s daddr=%lld ops=%s n=%lu stage=%d comm=%s pid=%d -- %s I/O submitted after this mount published its AG grants as free%s\n",
 			agfree_iclus ? "ICLUS" : "AGMETA",
 			agfree_nodlm ? "NODLM-" : "",
 			agfree_wr ? "WRITE" : "READ",
@@ -3982,7 +4272,7 @@ mxfs_depart_token_take(
 		ctok = bp->b_mxfs_io_tokens;
 		cinf = acct->inflight;
 		spin_unlock(&acct->lock);
-		pr_notice_ratelimited("mxfs: P304-TOKEN-CARRY daddr=%lld ops=%s tokens=%u inflight=%d — %s\n",
+		pr_notice_ratelimited("mxfs: P304-TOKEN-CARRY daddr=%lld ops=%s tokens=%u inflight=%d -- %s\n",
 				      (long long)bp->b_maps[0].bm_bn,
 				      bp->b_ops && bp->b_ops->name ? bp->b_ops->name : "?",
 				      ctok, cinf, cwhy);
@@ -4016,7 +4306,7 @@ mxfs_depart_token_take(
 	spin_unlock(&acct->lock);
 	if (overflow)
 		pr_err_ratelimited(
-		    "mxfs: P304-IOCNT-OVERFLOW daddr=%lld ops=%s — 255 departure tokens already outstanding on this buffer; submission REJECTED (-EIO), accounting marked CORRUPT (never repaired)\n",
+		    "mxfs: P304-IOCNT-OVERFLOW daddr=%lld ops=%s -- 255 departure tokens already outstanding on this buffer; submission REJECTED (-EIO), accounting marked CORRUPT (never repaired)\n",
 		    (long long)bp->b_maps[0].bm_bn,
 		    bp->b_ops && bp->b_ops->name ? bp->b_ops->name : "?");
 	return ok;
@@ -4088,7 +4378,7 @@ mxfs_depart_token_retire(
 	if (untok) {
 		static atomic_t untok_dumps = ATOMIC_INIT(0);
 
-		pr_alert("mxfs: P304-IOCNT-UNTOKENED daddr=%lld len=%d flags=0x%x ops=%s comm=%s stage=%d error=%d — terminal buffer completion with no departure token, no pending rejection and no audited software-completion mark: provenance unknown, the departure can no longer be proven quiescent (fails closed: DIRTY, PR key retained)\n",
+		pr_alert("mxfs: P304-IOCNT-UNTOKENED daddr=%lld len=%d flags=0x%x ops=%s comm=%s stage=%d error=%d -- terminal buffer completion with no departure token, no pending rejection and no audited software-completion mark: provenance unknown, the departure can no longer be proven quiescent (fails closed: DIRTY, PR key retained)\n",
 			 (long long)bp->b_maps[0].bm_bn, bp->b_length, bp->b_flags,
 			 bp->b_ops && bp->b_ops->name ? bp->b_ops->name : "?",
 			 current->comm, stage, bp->b_error);
@@ -4140,7 +4430,7 @@ mxfs_depart_dbg_carry_fn(
 		container_of(to_delayed_work(w), struct mxfs_depart_dbg_carry, work);
 	struct xfs_buf		*bp = c->bp;
 
-	pr_notice("mxfs: P-DBG-DEPART-CARRY-RESUBMIT daddr=%lld tokens=%u carry=%d — resubmitting the carried generation during the departure drain\n",
+	pr_notice("mxfs: P-DBG-DEPART-CARRY-RESUBMIT daddr=%lld tokens=%u carry=%d -- resubmitting the carried generation during the departure drain\n",
 		  (long long)bp->b_maps[0].bm_bn, bp->b_mxfs_io_tokens,
 		  bp->b_mxfs_io_carry ? 1 : 0);
 	xfs_buf_submit_ex(bp, false);	/* carry take: rejected after the freeze */
@@ -4174,7 +4464,7 @@ mxfs_depart_dbg_inject(
 		return;
 	}
 	xfs_notice(mp,
-	"MXFS: P-DBG-DEPART-INJECT which=%d phase=%s daddr=%lld — %s",
+	"MXFS: P-DBG-DEPART-INJECT which=%d phase=%s daddr=%lld -- %s",
 		   which, phase, (long long)bp->b_maps[0].bm_bn,
 		   which == 1 ? "P-DBG-DEPART-UNTOKENED-INJECT completing a buffer that never entered xfs_buf_submit_ex (unclassified completion: the departure must fail closed)" :
 		   which == 2 ? "P-DBG-DEPART-POSTTEARDOWN-SUBMIT submitting after the teardown: the token take must reject it and the FINAL assertion must block the release" :
@@ -4195,19 +4485,19 @@ mxfs_depart_dbg_inject(
 		return;
 	case 3:
 		took = mxfs_depart_token_take(bp) ? 1 : 0;
-		xfs_notice(mp, "MXFS: P-DBG-DEPART-ORPHAN-TOKEN took=%d — releasing the buffer with the token held", took);
+		xfs_notice(mp, "MXFS: P-DBG-DEPART-ORPHAN-TOKEN took=%d -- releasing the buffer with the token held", took);
 		xfs_buf_relse(bp);		/* freed with the token: ORPHAN */
 		return;
 	case 4:
 		took = mxfs_depart_token_take(bp) ? 1 : 0;
-		xfs_notice(mp, "MXFS: P-DBG-DEPART-ORPHAN-REJECTED admitted=%d (0 = rejected as required) — releasing the buffer with the rejection pending", took);
+		xfs_notice(mp, "MXFS: P-DBG-DEPART-ORPHAN-REJECTED admitted=%d (0 = rejected as required) -- releasing the buffer with the rejection pending", took);
 		xfs_buf_relse(bp);		/* freed with rejected_pending: ORPHAN */
 		return;
 	case 5:
 		for (i = 0; i < 256; i++)
 			if (mxfs_depart_token_take(bp))
 				took++;
-		xfs_notice(mp, "MXFS: P-DBG-DEPART-OVERFLOW admitted=%d of 256 (255 expected) — retiring every generation", took);
+		xfs_notice(mp, "MXFS: P-DBG-DEPART-OVERFLOW admitted=%d of 256 (255 expected) -- retiring every generation", took);
 		for (i = 0; i < 256; i++)
 			mxfs_depart_token_retire(bp);
 		xfs_buf_relse(bp);
@@ -4217,7 +4507,7 @@ mxfs_depart_dbg_inject(
 		spin_lock(&acct->lock);
 		acct->inflight = 0;		/* the forced invalid decrement */
 		spin_unlock(&acct->lock);
-		xfs_notice(mp, "MXFS: P-DBG-DEPART-UNDERFLOW took=%d inflight forced to 0 — retiring the buffer's token", took);
+		xfs_notice(mp, "MXFS: P-DBG-DEPART-UNDERFLOW took=%d inflight forced to 0 -- retiring the buffer's token", took);
 		mxfs_depart_token_retire(bp);
 		xfs_buf_relse(bp);
 		return;
@@ -4225,7 +4515,7 @@ mxfs_depart_dbg_inject(
 		c = kzalloc(sizeof(*c), GFP_KERNEL);
 		took = mxfs_depart_token_take(bp) ? 1 : 0;
 		if (!c || !took) {
-			pr_err("mxfs: P-DBG-DEPART-CARRY-FREEZE took=%d alloc=%d — injector unwound\n",
+			pr_err("mxfs: P-DBG-DEPART-CARRY-FREEZE took=%d alloc=%d -- injector unwound\n",
 			       took, c ? 1 : 0);
 			if (took)
 				mxfs_depart_token_retire(bp);
@@ -4237,7 +4527,7 @@ mxfs_depart_dbg_inject(
 		bp->b_mxfs_io_carry = true;	/* "a retry is pending on this generation" */
 		c->bp = bp;
 		INIT_DELAYED_WORK(&c->work, mxfs_depart_dbg_carry_fn);
-		xfs_notice(mp, "MXFS: P-DBG-DEPART-CARRY-FREEZE took=%d tokens=%u — resubmit scheduled in 3000 ms (lands inside the drain)",
+		xfs_notice(mp, "MXFS: P-DBG-DEPART-CARRY-FREEZE took=%d tokens=%u -- resubmit scheduled in 3000 ms (lands inside the drain)",
 			   took, bp->b_mxfs_io_tokens);
 		schedule_delayed_work(&c->work, msecs_to_jiffies(3000));
 		return;
@@ -4335,7 +4625,7 @@ xfs_buf_bio_done(
 			static atomic_t pswb_n = ATOMIC_INIT(0);
 			if (atomic_inc_return(&pswb_n) <= 4000)
 				mxfs_probe_ratelimited(
-				    "mxfs: P-SYNCWAIT-OVERRIDE daddr=%lld flags=0x%x path=bio_end — concurrent async submit raced this sync waiter; woke it via the per-submission credit\n",
+				    "mxfs: P-SYNCWAIT-OVERRIDE daddr=%lld flags=0x%x path=bio_end -- concurrent async submit raced this sync waiter; woke it via the per-submission credit\n",
 				    (long long)bp->b_maps[0].bm_bn,
 				    (unsigned int)bp->b_flags);
 		}
@@ -4718,13 +5008,13 @@ mxfs_dino_clobber_probe(
 		 * image) says the FUA read ran and the incarnation test was
 		 * consulted, whether or not anything regressed. */
 		if (realloc || ownfree || ownchurn)
-			pr_warn_ratelimited("mxfs: P-DINO-CLOBBER-REALLOC daddr=%lld path=%s realloc=%u ownfree=%u ownchurn=%u regress=%u masked=%u comm=%s — new incarnations published over the platter's freed images, or our own frees of the platter's live ones (not a revert)\n",
+			pr_warn_ratelimited("mxfs: P-DINO-CLOBBER-REALLOC daddr=%lld path=%s realloc=%u ownfree=%u ownchurn=%u regress=%u masked=%u comm=%s -- new incarnations published over the platter's freed images, or our own frees of the platter's live ones (not a revert)\n",
 				(long long)bp->b_maps[0].bm_bn, path, realloc,
 				ownfree, ownchurn, regress, masked, current->comm);
 		if (masked) {
 			int m = atomic_inc_return(&mxfs_dino_clobber_masked_n);
 
-			pr_warn_ratelimited("mxfs: P-DINO-CLOBBER-MASKED#%d daddr=%lld path=%s masked=%u written_regress=%u comm=%s — stale slot(s) behind the platter were dropped from this cluster write by the authority mask\n",
+			pr_warn_ratelimited("mxfs: P-DINO-CLOBBER-MASKED#%d daddr=%lld path=%s masked=%u written_regress=%u comm=%s -- stale slot(s) behind the platter were dropped from this cluster write by the authority mask\n",
 				m, (long long)bp->b_maps[0].bm_bn, path, masked,
 				regress, current->comm);
 		}
@@ -4732,7 +5022,7 @@ mxfs_dino_clobber_probe(
 			int n = atomic_inc_return(&mxfs_dino_clobber_n);
 
 			if (n <= 2000)
-				pr_warn("mxfs: P-DINO-CLOBBER#%d path=%s daddr=%lld len=%u slots=%u regress=%u live_revert=%u node_slot=%u foreign_replay=%d comm=%s pid=%d dirty=%d in_ail=%d pin=%d delwri=%d done=%d fua_fresh=%d hold=%d lsn=%llu%s%s%s%s — writing an inode cluster whose submitted image is BEHIND the platter for %u slot(s)\n",
+				pr_warn("mxfs: P-DINO-CLOBBER#%d path=%s daddr=%lld len=%u slots=%u regress=%u live_revert=%u node_slot=%u foreign_replay=%d comm=%s pid=%d dirty=%d in_ail=%d pin=%d delwri=%d done=%d fua_fresh=%d hold=%d lsn=%llu%s%s%s%s -- writing an inode cluster whose submitted image is BEHIND the platter for %u slot(s)\n",
 					n, path, (long long)bp->b_maps[0].bm_bn, len, ni,
 					regress, live_revert, bp->b_mount->m_mxfs_node_slot,
 					bp->b_mxfs_foreign_recovery ? 1 : 0,
@@ -4934,7 +5224,7 @@ mxfs_submit_partial_inode_write(
 		}
 		atomic64_inc(&mxfs_recov_slots_written);
 		mxfs_probe_ratelimited(
-			"mxfs: P218-RECOV-OWNED daddr=%lld slots=0x%llx comm=%s — slots a log recovery patched are published on the recovery's authority\n",
+			"mxfs: P218-RECOV-OWNED daddr=%lld slots=0x%llx comm=%s -- slots a log recovery patched are published on the recovery's authority\n",
 			(long long)bp->b_maps[0].bm_bn,
 			(unsigned long long)bp->b_mxfs_recov_slots,
 			current->comm);
@@ -4951,8 +5241,10 @@ mxfs_submit_partial_inode_write(
 	 *   - BUG2 (dir):  node1's stale di_size reverts node2's dir grow.
 	 * The "not logged this round" guard writes anything we actually modified now
 	 * (so a freshly-created inode that transiently reads MXFS_LOCK_NL==0 is still
-	 * written), and held EX/PR inodes (mode!=NL) are always written, so a
-	 * node never skips an inode it owns.  Enumerate by NUMBER: NL inodes are NOT
+	 * written).  A held inode we did not log is a passenger and is dropped too
+	 * (mxfs.cluster_passenger_skip, in the held non-dir branch below): what we
+	 * own of it reaches its slot through its own flush, which is logged.
+	 * Enumerate by NUMBER: NL inodes are NOT
 	 * on b_li_list.  agbno = fsb % agblocks (fsb encodes agno*agblocks + agbno);
 	 * radix key is the AG-relative agino.
 	 */
@@ -5216,7 +5508,7 @@ mxfs_submit_partial_inode_write(
 							MXFS_IF_PUB_SKIPPED);
 				}
 				pr_warn_ratelimited(
-					"mxfs: P56-NL-LOGGED-DIR-SKIP daddr=%lld slot=%d ino=%llu img_fmt=%u img_size=%llu valid_epoch=%u self_created=%d comm=%s — logged dir slot at NL without publication authority (no RELFLUSH token); refusing to publish prior-tenure image over the current owner\n",
+					"mxfs: P56-NL-LOGGED-DIR-SKIP daddr=%lld slot=%d ino=%llu img_fmt=%u img_size=%llu valid_epoch=%u self_created=%d comm=%s -- logged dir slot at NL without publication authority (no RELFLUSH token); refusing to publish prior-tenure image over the current owner\n",
 					(long long)bp->b_maps[0].bm_bn, s,
 					(unsigned long long)be64_to_cpu(d->di_ino),
 					d->di_format,
@@ -5259,7 +5551,7 @@ mxfs_submit_partial_inode_write(
 				extern int mxfs_dir_nl_require_grant;
 
 				if (atomic_inc_return(&p186n) <= 4000)
-					mxfs_probe("mxfs: P186-NLINK-REVERT ino=%llu daddr=%lld out_nlink=%u seen_disk_nlink=%u incore_nlink=%u gen=%u chg=%llu fmt=%u logged=%d relflush=%d dlm_mode=%d held=%d comm=%s realns=%llu — publishing a dinode whose link count is BELOW one already durable on the platter\n",
+					mxfs_probe("mxfs: P186-NLINK-REVERT ino=%llu daddr=%lld out_nlink=%u seen_disk_nlink=%u incore_nlink=%u gen=%u chg=%llu fmt=%u logged=%d relflush=%d dlm_mode=%d held=%d comm=%s realns=%llu -- publishing a dinode whose link count is BELOW one already durable on the platter\n",
 						(unsigned long long)be64_to_cpu(d->di_ino),
 						(long long)bp->b_maps[0].bm_bn,
 						be32_to_cpu(d->di_nlink),
@@ -5438,7 +5730,7 @@ mxfs_submit_partial_inode_write(
 						ip->i_mxfs_pub_flush_seq =
 							ip->i_mxfs_pub_durable_seq;
 						xfs_iflags_set(ip, MXFS_IF_PUB_SKIPPED);
-						mxfs_probe("mxfs: P-FREEPUB-INJECT-DROP daddr=%lld slot=%d ino=%llu gen=%u epoch=%llu — FAULT INJECTION: claimed free image dropped from this cluster write; buffer keeps the staged mode-0 image, platter keeps the live predecessor\n",
+						mxfs_probe("mxfs: P-FREEPUB-INJECT-DROP daddr=%lld slot=%d ino=%llu gen=%u epoch=%llu -- FAULT INJECTION: claimed free image dropped from this cluster write; buffer keeps the staged mode-0 image, platter keeps the live predecessor\n",
 							(long long)bp->b_maps[0].bm_bn, s,
 							(unsigned long long)be64_to_cpu(d->di_ino),
 							be32_to_cpu(d->di_gen),
@@ -5449,7 +5741,7 @@ mxfs_submit_partial_inode_write(
 						static atomic_t p_fpw = ATOMIC_INIT(0);
 
 						if (atomic_inc_return(&p_fpw) <= 2000)
-							mxfs_probe("mxfs: P-FREEPUB-WRITE daddr=%lld slot=%d ino=%llu gen=%u epoch=%llu dlm_mode=%d comm=%s — claimed free image included in the cluster write\n",
+							mxfs_probe("mxfs: P-FREEPUB-WRITE daddr=%lld slot=%d ino=%llu gen=%u epoch=%llu dlm_mode=%d comm=%s -- claimed free image included in the cluster write\n",
 								(long long)bp->b_maps[0].bm_bn, s,
 								(unsigned long long)be64_to_cpu(d->di_ino),
 								be32_to_cpu(d->di_gen),
@@ -5513,7 +5805,7 @@ mxfs_submit_partial_inode_write(
 				}
 				if (stale || (!ex && !rf && !dem))
 					mxfs_probe_ratelimited(
-					    "mxfs: P219-LOGGED-NO-AUTHORITY daddr=%lld slot=%d ino=%llu isdir=%d staged=%d dlm_mode=%d stage_mode=%d relflush=%d demoter=%d stage_epoch=%lu now_epoch=%lu epsrc=%u:%u stale=%d img_gen=%u img_cc=%llu img_mode=%o img_nl=%u stage_ns=%llu comm=%s realns=%llu bflags=0x%x — publishing a LOGGED image to home without the tenure it was staged under\n",
+					    "mxfs: P219-LOGGED-NO-AUTHORITY daddr=%lld slot=%d ino=%llu isdir=%d staged=%d dlm_mode=%d stage_mode=%d relflush=%d demoter=%d stage_epoch=%lu now_epoch=%lu epsrc=%u:%u stale=%d img_gen=%u img_cc=%llu img_mode=%o img_nl=%u stage_ns=%llu comm=%s realns=%llu bflags=0x%x -- publishing a LOGGED image to home without the tenure it was staged under\n",
 					    (long long)bp->b_maps[0].bm_bn, s,
 					    (unsigned long long)be64_to_cpu(d->di_ino),
 					    isdir ? 1 : 0, staged ? 1 : 0,
@@ -5611,7 +5903,7 @@ mxfs_submit_partial_inode_write(
 						if (mxfs_stale_stage_unlanded_shutdown) {
 							static atomic_t p224_n = ATOMIC_INIT(0);
 							if (atomic_inc_return(&p224_n) <= 100)
-								pr_err("mxfs: P224-UNLANDED-STALE-FATAL ino=%llu daddr=%lld slot=%d pending=%llu durable=%llu staged=%llu stage_epoch=%lu now_epoch=%lu img_mode=%o img_nl=%u comm=%s — committed change unlanded at NL under a dead tenure; failing closed (shutdown->fence) instead of publishing or dropping it\n",
+								pr_err("mxfs: P224-UNLANDED-STALE-FATAL ino=%llu daddr=%lld slot=%d pending=%llu durable=%llu staged=%llu stage_epoch=%lu now_epoch=%lu img_mode=%o img_nl=%u comm=%s -- committed change unlanded at NL under a dead tenure; failing closed (shutdown->fence) instead of publishing or dropping it\n",
 									(unsigned long long)be64_to_cpu(d->di_ino),
 									(long long)bp->b_maps[0].bm_bn, s,
 									(unsigned long long)ip->i_mxfs_pub_pending_seq,
@@ -5641,7 +5933,7 @@ mxfs_submit_partial_inode_write(
 					 * the pub seqs order the timeline.
 					 */
 					pr_warn_ratelimited(
-					    "mxfs: P222-STALE-STAGE-SKIP daddr=%lld slot=%d ino=%llu landed=%d stage_epoch=%lu now_epoch=%lu stage_mode=%u ili_f=0x%x ili_lf=0x%x pend=%llu dur=%llu img_nl=%u comm=%s — masking a dead-tenure staged image out of the home write\n",
+					    "mxfs: P222-STALE-STAGE-SKIP daddr=%lld slot=%d ino=%llu landed=%d stage_epoch=%lu now_epoch=%lu stage_mode=%u ili_f=0x%x ili_lf=0x%x pend=%llu dur=%llu img_nl=%u comm=%s -- masking a dead-tenure staged image out of the home write\n",
 						(long long)bp->b_maps[0].bm_bn, s,
 						(unsigned long long)be64_to_cpu(d->di_ino),
 						landed ? 1 : 0,
@@ -5703,7 +5995,7 @@ mxfs_submit_partial_inode_write(
 					}
 					xfs_iflags_set(ip, MXFS_IF_PUB_SKIPPED);
 					mxfs_probe_ratelimited(
-					    "mxfs: P235-EX-STALE-SKIP daddr=%lld slot=%d ino=%llu landed=%d stage_epoch=%lu now_epoch=%lu stage_mode=%u ili_f=0x%x pend=%llu dur=%llu img_nl=%u comm=%s — dead-tenure staged image masked from an EX-held home write; restaging under the live grant\n",
+					    "mxfs: P235-EX-STALE-SKIP daddr=%lld slot=%d ino=%llu landed=%d stage_epoch=%lu now_epoch=%lu stage_mode=%u ili_f=0x%x pend=%llu dur=%llu img_nl=%u comm=%s -- dead-tenure staged image masked from an EX-held home write; restaging under the live grant\n",
 						(long long)bp->b_maps[0].bm_bn, s,
 						(unsigned long long)be64_to_cpu(d->di_ino),
 						ex_landed ? 1 : 0,
@@ -5764,7 +6056,7 @@ mxfs_submit_partial_inode_write(
 			skip |= slotbits;
 			nskip++;
 			mxfs_probe_ratelimited(
-				"mxfs: P56-CORESIDENT-DIR-SKIP daddr=%lld slot=%d incore=%d mode=%d img_ino=%llu img_nx=%u img_chg=%llu comm=%s realns=%llu — dir slot not logged this round; skip\n",
+				"mxfs: P56-CORESIDENT-DIR-SKIP daddr=%lld slot=%d incore=%d mode=%d img_ino=%llu img_nx=%u img_chg=%llu comm=%s realns=%llu -- dir slot not logged this round; skip\n",
 				(long long)bp->b_maps[0].bm_bn, s,
 				ip ? 1 : 0, ip ? ip->i_dlm_mode : -1,
 				(unsigned long long)be64_to_cpu(d->di_ino),
@@ -5910,6 +6202,38 @@ mxfs_submit_partial_inode_write(
 					pr_skip |= slotbits;
 					n_pr_skip++;
 				}
+				/*
+				 * bit2 — HELD AT ANY OTHER MODE (EX), NOT LOGGED.
+				 * Holding EX is authority to publish this
+				 * node's state of the inode, and that state
+				 * reaches the slot only through the inode's own
+				 * flush (a logged slot) or a buffer-logged range.
+				 * An unlogged slot carries no change of ours: at
+				 * best its bytes are what is already home, at
+				 * worst they predate the in-core inode (a reload
+				 * that adopted the platter's image keeps the
+				 * protected buffer's old one).  And nothing ties
+				 * the grant to this write: the inode is clean, so
+				 * a release has nothing to flush and lets the
+				 * grant go while the write is in flight.
+				 *
+				 * MEASURED on the nested DRBD pair (0.90.93, the
+				 * slot record): 78% of slots written were these
+				 * passengers, and the shared files' slots went
+				 * out as passengers on one host 0.24 s before
+				 * the other host, holding them next, wrote its
+				 * own logged images (change count + 1); a
+				 * cold-mount churn, so the faster churns that
+				 * made DRBD log both hosts writing one dinode at
+				 * once close that gap to an overlap.  Lost-write
+				 * safety is the same as for bits 0 and 1: a
+				 * skipped slot has no item on this buffer.
+				 */
+				if (!nocore && !pr &&
+				    (mxfs_cluster_passenger_skip & 4)) {
+					pr_skip |= slotbits;
+					n_pr_skip++;
+				}
 				if (genmm)
 					n_unlogged_genmm++;
 				/*
@@ -5929,7 +6253,7 @@ mxfs_submit_partial_inode_write(
 				skipped = (pr_skip & slotbits) != 0;
 				if (pr || genmm || nocore)
 					mxfs_probe_ratelimited(
-					    "mxfs: P218-CLUSTER-PASSENGER daddr=%lld slot=%d ino=%llu img_gen=%u img_cc=%llu incore_gen=%u img_mode=%o dlm_mode=%d pr=%d genmm=%d nocore=%d skipped=%d comm=%s realns=%llu — un-logged slot in this cluster write\n",
+					    "mxfs: P218-CLUSTER-PASSENGER daddr=%lld slot=%d ino=%llu img_gen=%u img_cc=%llu incore_gen=%u img_mode=%o dlm_mode=%d pr=%d genmm=%d nocore=%d skipped=%d comm=%s realns=%llu -- un-logged slot in this cluster write\n",
 					    (long long)bp->b_maps[0].bm_bn, s,
 					    (unsigned long long)be64_to_cpu(d->di_ino),
 					    img_gen,
@@ -6054,7 +6378,7 @@ mxfs_submit_partial_inode_write(
 		if (dirty) {
 			atomic64_add(n_pr_skip, &mxfs_clpass_skipped);
 			mxfs_probe_ratelimited(
-				"mxfs: P218-PASSENGER-SKIP daddr=%lld slots=%u — dropped un-logged slots we have no write tenure for\n",
+				"mxfs: P218-PASSENGER-SKIP daddr=%lld slots=%u -- dropped un-logged slots we have no write tenure for\n",
 				(long long)bp->b_maps[0].bm_bn, n_pr_skip);
 		}
 	} else {
@@ -6118,7 +6442,7 @@ mxfs_submit_partial_inode_write(
 		 * fails and retries, rather than publishing nothing and
 		 * reporting the images flushed home.
 		 */
-		pr_err("mxfs: P218-RECOV-REFUSED daddr=%lld slots=0x%llx logged=0x%llx skip=0x%llx pr_skip=0x%llx — a cluster write carrying recovery-owned slots computed an empty I/O; failing it\n",
+		pr_err("mxfs: P218-RECOV-REFUSED daddr=%lld slots=0x%llx logged=0x%llx skip=0x%llx pr_skip=0x%llx -- a cluster write carrying recovery-owned slots computed an empty I/O; failing it\n",
 			(long long)bp->b_maps[0].bm_bn,
 			(unsigned long long)bp->b_mxfs_recov_slots,
 			logged, skip, pr_skip);
@@ -6173,7 +6497,7 @@ mxfs_submit_partial_inode_write(
 		    ((logged | bli_dirty) & ~skip) == 0) {
 			atomic64_add(n_pr_skip, &mxfs_clpass_refused);
 			pr_warn_ratelimited(
-				"mxfs: P218-WRITE-REFUSED daddr=%lld slots=%u — every slot in this cluster write is un-logged and un-owned; refusing to publish rather than clobbering peers\n",
+				"mxfs: P218-WRITE-REFUSED daddr=%lld slots=%u -- every slot in this cluster write is un-logged and un-owned; refusing to publish rather than clobbering peers\n",
 				(long long)bp->b_maps[0].bm_bn, n_pr_skip);
 			xfs_buf_ioend(bp);
 			return true;	/* we own completion; no I/O issued */
@@ -6181,7 +6505,7 @@ mxfs_submit_partial_inode_write(
 		if (n_pr_skip) {
 			atomic64_add(n_pr_skip, &mxfs_clpass_skip_declined);
 			pr_warn_ratelimited(
-				"mxfs: P218-SKIP-DECLINED daddr=%lld slots=%u logged=0x%llx bli_dirty=0x%llx skip=0x%llx — SHOULD NOT HAPPEN: an owed sector survives outside `skip` yet the write is empty; writing whole buffer so no committed change is lost\n",
+				"mxfs: P218-SKIP-DECLINED daddr=%lld slots=%u logged=0x%llx bli_dirty=0x%llx skip=0x%llx -- SHOULD NOT HAPPEN: an owed sector survives outside `skip` yet the write is empty; writing whole buffer so no committed change is lost\n",
 				(long long)bp->b_maps[0].bm_bn, n_pr_skip,
 				logged, bli_dirty, skip);
 		}
@@ -6191,6 +6515,7 @@ mxfs_submit_partial_inode_write(
 	base_512 = bp->b_maps[0].bm_bn + bp->b_target->bt_sector_offset;
 	vmalloc = is_vmalloc_addr(bp->b_addr);
 	mxfs_dino_clobber_probe(bp, dirty, "partial");
+	mxfs_slot_ring_record(bp, dirty, false);
 
 	/* Find the LAST contiguous owned-sector run; it becomes the parent bio. */
 	s = 0;
@@ -7237,7 +7562,7 @@ mxfs_dir3_data_writemerge(struct xfs_buf *bp)
 		{
 			static atomic_t wm = ATOMIC_INIT(0);
 			if (atomic_inc_return(&wm) <= 4000)
-				mxfs_probe_ratelimited("mxfs: P-WMERGE2 owner=%llu daddr=%lld grafted=%d dko=%d ourx=%d disamb=%d remn=%u comm=%s — merged peer adds into dir block before destage\n",
+				mxfs_probe_ratelimited("mxfs: P-WMERGE2 owner=%llu daddr=%lld grafted=%d dko=%d ourx=%d disamb=%d remn=%u comm=%s -- merged peer adds into dir block before destage\n",
 					(unsigned long long)be64_to_cpu(hi->hdr.owner),
 					(long long)bp->b_maps[0].bm_bn,
 					grafted, dko, ourx, disamb, remn,
@@ -7404,7 +7729,7 @@ mxfs_dir3_data_drain_merge(struct xfs_inode *dp, struct xfs_buf *bp)
 		{
 			static atomic_t dm = ATOMIC_INIT(0);
 			if (atomic_inc_return(&dm) <= 400)
-				mxfs_probe("mxfs: P34-DRAINMERGE owner=%llu daddr=%lld grafted=%d — grafted peer adds (not our removes) into dir block before release bwrite\n",
+				mxfs_probe("mxfs: P34-DRAINMERGE owner=%llu daddr=%lld grafted=%d -- grafted peer adds (not our removes) into dir block before release bwrite\n",
 					(unsigned long long)be64_to_cpu(hi->hdr.owner),
 					(long long)bp->b_maps[0].bm_bn, grafted);
 		}
@@ -7470,14 +7795,14 @@ mxfs_bmbt_skip_preserve_truth(
 	if (same == 1) {
 		if (bp->b_mxfs_logged_seq != bp->b_mxfs_written_seq) {
 			mxfs_probe_ratelimited(
-				"mxfs: P82-SKIP-ALREADY-ON-LUN site=%s daddr=%lld lseq=%u wseq=%u — undestaged image is byte-identical to LUN; certifying destaged\n",
+				"mxfs: P82-SKIP-ALREADY-ON-LUN site=%s daddr=%lld lseq=%u wseq=%u -- undestaged image is byte-identical to LUN; certifying destaged\n",
 				site, (long long)bp->b_maps[0].bm_bn,
 				bp->b_mxfs_logged_seq, bp->b_mxfs_written_seq);
 			bp->b_mxfs_written_seq = bp->b_mxfs_logged_seq;
 		}
 		return;
 	}
-	mxfs_probe("mxfs: P77-SKIP-DIFFERS site=%s owner=%llu daddr=%lld numrecs=%u same=%d lseq=%u wseq=%u undest=%d — skipped bmbt image differs from LUN (undest=1 would mean a committed update escaped the fence)\n",
+	mxfs_probe("mxfs: P77-SKIP-DIFFERS site=%s owner=%llu daddr=%lld numrecs=%u same=%d lseq=%u wseq=%u undest=%d -- skipped bmbt image differs from LUN (undest=1 would mean a committed update escaped the fence)\n",
 		site,
 		(unsigned long long)be64_to_cpu(((struct xfs_btree_block *)
 			bp->b_addr)->bb_u.l.bb_owner),
@@ -7488,7 +7813,7 @@ mxfs_bmbt_skip_preserve_truth(
 		bp->b_mxfs_logged_seq != bp->b_mxfs_written_seq ? 1 : 0);
 	if (same == 0) {
 		if (bp->b_mxfs_logged_seq != bp->b_mxfs_written_seq) {
-			pr_warn("mxfs: P81-BMBT-SUPERSEDED-DROP site=%s owner=%llu daddr=%lld numrecs=%u lseq=%u wseq=%u — committed bmbt delta missed its release fence and a peer era now owns the LUN; dropping local image (delta LOST — fence bug if this fires)\n",
+			pr_warn("mxfs: P81-BMBT-SUPERSEDED-DROP site=%s owner=%llu daddr=%lld numrecs=%u lseq=%u wseq=%u -- committed bmbt delta missed its release fence and a peer era now owns the LUN; dropping local image (delta LOST -- fence bug if this fires)\n",
 				site,
 				(unsigned long long)be64_to_cpu(
 					((struct xfs_btree_block *)
@@ -7845,6 +8170,7 @@ xfs_buf_submit_bio(
 	if (mxfs_submit_partial_inode_write(bp))
 		return;
 	mxfs_dino_clobber_probe(bp, ~0ULL, "whole");
+	mxfs_slot_ring_record(bp, ~0ULL, true);
 
 	/*
 	 * (design review WRITEBACK-COMPLETION-BARRIER) — count this
@@ -7882,7 +8208,7 @@ xfs_buf_submit_bio(
 		unsigned int wrevi = bp->b_mxfs_evi;
 
 		pr_warn_ratelimited(
-		    "mxfs: P-WRCNT-RESUBMIT daddr=%lld ops=%s flags=0x%x inflight=%d evi=%u ev=[%016llx %016llx %016llx %016llx %016llx %016llx %016llx %016llx] — counted write resubmitted before its completion decremented; keeping single count (leak neutralized)\n",
+		    "mxfs: P-WRCNT-RESUBMIT daddr=%lld ops=%s flags=0x%x inflight=%d evi=%u ev=[%016llx %016llx %016llx %016llx %016llx %016llx %016llx %016llx] -- counted write resubmitted before its completion decremented; keeping single count (leak neutralized)\n",
 		    (long long)bp->b_maps[0].bm_bn,
 		    bp->b_ops && bp->b_ops->name ? bp->b_ops->name : "?",
 		    (unsigned int)bp->b_flags,
@@ -7956,7 +8282,7 @@ xfs_buf_submit_bio(
 				int cr_held = mxfs_v5_dlm_inode_held_rawmode(
 					bp->b_mount->m_mxfs_dlm, cr_owner);
 				mxfs_probe_ratelimited(
-					"mxfs: P-COUNTREGRESS owner=%llu daddr=%lld cnt=%u prev_max=%u real_mode=%d in_txn=%d in_ail=%d comm=%s — dir-data write LOST entries vs this buffer's own high-water (stale-base RMW = the silent readdir=799 lost-update)\n",
+					"mxfs: P-COUNTREGRESS owner=%llu daddr=%lld cnt=%u prev_max=%u real_mode=%d in_txn=%d in_ail=%d comm=%s -- dir-data write LOST entries vs this buffer's own high-water (stale-base RMW = the silent readdir=799 lost-update)\n",
 					(unsigned long long)cr_owner,
 					(long long)bp->b_maps[0].bm_bn,
 					cr_cnt, bp->b_mxfs_dir_wrcnt_max, cr_held,
@@ -8043,14 +8369,14 @@ xfs_buf_submit_bio(
 						if (incore_extra > 0) {
 							static atomic_t wst = ATOMIC_INIT(0);
 							if (atomic_inc_return(&wst) <= 4) {
-								pr_warn("mxfs: P-WMERGE-STACK daddr=%lld comm=%s — stack of the loss-write:\n",
+								pr_warn("mxfs: P-WMERGE-STACK daddr=%lld comm=%s -- stack of the loss-write:\n",
 									(long long)bp->b_maps[0].bm_bn,
 									current->comm);
 								dump_stack();
 							}
 						}
 						if (atomic_inc_return(&wp) <= 300)
-							mxfs_probe("mxfs: P-WMERGE owner=%llu daddr=%lld disk_extra=%d incore_extra=%d held_mode=%d in_ail=%d dirty=%d bgen=%u DONE=%d fua_fresh=%d delwri=%d bp=%px lseq=%u wseq=%u pin=%d comm=%s kind=%s — %s\n",
+							mxfs_probe("mxfs: P-WMERGE owner=%llu daddr=%lld disk_extra=%d incore_extra=%d held_mode=%d in_ail=%d dirty=%d bgen=%u DONE=%d fua_fresh=%d delwri=%d bp=%px lseq=%u wseq=%u pin=%d comm=%s kind=%s -- %s\n",
 								(unsigned long long)wowner,
 								(long long)bp->b_maps[0].bm_bn,
 								disk_extra, incore_extra,
@@ -8218,7 +8544,7 @@ xfs_buf_submit_bio(
 							    bp->b_addr,
 							    &trim_loghead);
 							mxfs_probe_ratelimited(
-				"mxfs: P-REINTRO-TRIM owner=%llu daddr=%lld trimmed=%d first_ino=%llu first_name=%s — surgically removed proven-freed-inode dirent(s) in place, write proceeds\n",
+				"mxfs: P-REINTRO-TRIM owner=%llu daddr=%lld trimmed=%d first_ino=%llu first_name=%s -- surgically removed proven-freed-inode dirent(s) in place, write proceeds\n",
 								(unsigned long long)bowner,
 								(long long)bp->b_maps[0].bm_bn,
 								free_reintro,
@@ -8241,7 +8567,7 @@ xfs_buf_submit_bio(
 							  mxfs_dir_buf_is_undestaged(bp);
 
 							mxfs_probe_ratelimited(
-				"mxfs: P-REINTRO owner=%llu daddr=%lld free_reintro=%d live_extra=%d first_free_ino=%llu first_name=%s bgen=%u dirgen=%u same_incarn=%d mode=%d in_ail=%d dirty=%d pin=%d undest=%d done=%d fua_fresh=%d comm=%s — %s\n",
+				"mxfs: P-REINTRO owner=%llu daddr=%lld free_reintro=%d live_extra=%d first_free_ino=%llu first_name=%s bgen=%u dirgen=%u same_incarn=%d mode=%d in_ail=%d dirty=%d pin=%d undest=%d done=%d fua_fresh=%d comm=%s -- %s\n",
 								(unsigned long long)bowner,
 								(long long)bp->b_maps[0].bm_bn,
 								free_reintro, live_extra,
@@ -8275,7 +8601,7 @@ xfs_buf_submit_bio(
 							    atomic_read(&bp->b_pin_count) == 0 &&
 							    !rundest) {
 								mxfs_probe_ratelimited(
-				"mxfs: P-REINTRO-SKIP owner=%llu daddr=%lld free_reintro=%d ino=%llu name=%s — dropped stale zombie reintroducing a removed dirent to a freed inode; marked for re-read\n",
+				"mxfs: P-REINTRO-SKIP owner=%llu daddr=%lld free_reintro=%d ino=%llu name=%s -- dropped stale zombie reintroducing a removed dirent to a freed inode; marked for re-read\n",
 									(unsigned long long)bowner,
 									(long long)bp->b_maps[0].bm_bn,
 									free_reintro,
@@ -8332,7 +8658,7 @@ xfs_buf_submit_bio(
 			mxfs_dir_wr_inflight_dec(bp, "chokepoint-skip");
 		}
 		mxfs_probe_ratelimited(
-			"mxfs: P61-CHOKEPOINT-SKIP-BMBT owner=%llu daddr=%lld numrecs=%u — NL-released dir, skipping stale leaf write at bio submit\n",
+			"mxfs: P61-CHOKEPOINT-SKIP-BMBT owner=%llu daddr=%lld numrecs=%u -- NL-released dir, skipping stale leaf write at bio submit\n",
 			(unsigned long long)be64_to_cpu(((struct xfs_btree_block *)
 				bp->b_addr)->bb_u.l.bb_owner),
 			(long long)bp->b_maps[0].bm_bn,
@@ -8405,7 +8731,7 @@ xfs_buf_submit_bio(
 			static atomic_t recov_dirwr_n = ATOMIC_INIT(0);
 
 			if (atomic_inc_return(&recov_dirwr_n) <= 4000)
-				mxfs_probe("mxfs: P12-RECOV-DIRWR owner=%llu daddr=%lld ops=%s act=%d in_core=%d mode=%d foreign=%d comm=%s — a log recovery's directory image is written on the recovery's authority, whatever grant this node holds\n",
+				mxfs_probe("mxfs: P12-RECOV-DIRWR owner=%llu daddr=%lld ops=%s act=%d in_core=%d mode=%d foreign=%d comm=%s -- a log recovery's directory image is written on the recovery's authority, whatever grant this node holds\n",
 					(unsigned long long)dsi.owner,
 					(long long)bp->b_maps[0].bm_bn,
 					bp->b_ops && bp->b_ops->name ?
@@ -8520,7 +8846,7 @@ xfs_buf_submit_bio(
 		 */
 		if (dsi.incarn_aba && dir_skip && mxfs_dirskip_enabled)
 			pr_warn_ratelimited(
-				"mxfs: P40-INCARN-ABA-DIRSKIP owner=%llu daddr=%lld ops=%s bincarn=%u cincarn=%u mode=%d comm=%s — suppressed xfsaild flush of DEAD prior-incarnation dir block\n",
+				"mxfs: P40-INCARN-ABA-DIRSKIP owner=%llu daddr=%lld ops=%s bincarn=%u cincarn=%u mode=%d comm=%s -- suppressed xfsaild flush of DEAD prior-incarnation dir block\n",
 				(unsigned long long)dsi.owner,
 				(long long)bp->b_maps[0].bm_bn,
 				bp->b_ops && bp->b_ops->name ?
@@ -8567,7 +8893,7 @@ xfs_buf_submit_bio(
 
 			if (relepoch_enf)
 				mxfs_probe_ratelimited(
-					"mxfs: P50-RELEPOCH-SKIP owner=%llu daddr=%lld ops=%s mode=%d comm=%s — skipped reflush of CLEAN pre-release stale dir buffer (relepoch<i_dlm_epoch; peer superseded on LUN)\n",
+					"mxfs: P50-RELEPOCH-SKIP owner=%llu daddr=%lld ops=%s mode=%d comm=%s -- skipped reflush of CLEAN pre-release stale dir buffer (relepoch<i_dlm_epoch; peer superseded on LUN)\n",
 					(unsigned long long)dsi.owner,
 					(long long)bp->b_maps[0].bm_bn,
 					bp->b_ops && bp->b_ops->name ?
@@ -8576,7 +8902,7 @@ xfs_buf_submit_bio(
 
 			if (reflush_enf)
 				mxfs_probe_ratelimited(
-					"mxfs: P33-REFLUSH-SKIP owner=%llu daddr=%lld ops=%s mode=%d dgen=%u comm=%s — retired zombie BLI (DONE=0 clean destaged in_ail) instead of reflushing stale dir buffer (EX-held)\n",
+					"mxfs: P33-REFLUSH-SKIP owner=%llu daddr=%lld ops=%s mode=%d dgen=%u comm=%s -- retired zombie BLI (DONE=0 clean destaged in_ail) instead of reflushing stale dir buffer (EX-held)\n",
 					(unsigned long long)dsi.owner,
 					(long long)bp->b_maps[0].bm_bn,
 					bp->b_ops && bp->b_ops->name ?
@@ -8585,7 +8911,7 @@ xfs_buf_submit_bio(
 
 			if (tenure_enf)
 				mxfs_probe_ratelimited(
-					"mxfs: P37-TENURE-REFLUSH-SKIP owner=%llu daddr=%lld ops=%s mode=%d bgen=%u dgen=%u comm=%s — retired prior-tenure zombie BLI (clean destaged in_ail bgen<dgen) instead of reflushing superseded dir buffer (EX-held)\n",
+					"mxfs: P37-TENURE-REFLUSH-SKIP owner=%llu daddr=%lld ops=%s mode=%d bgen=%u dgen=%u comm=%s -- retired prior-tenure zombie BLI (clean destaged in_ail bgen<dgen) instead of reflushing superseded dir buffer (EX-held)\n",
 					(unsigned long long)dsi.owner,
 					(long long)bp->b_maps[0].bm_bn,
 					bp->b_ops && bp->b_ops->name ?
@@ -8999,7 +9325,7 @@ xfs_buf_submit_bio(
 							if (ri_disk_extra > 0 &&
 							    ri_core_extra == 0) {
 								mxfs_probe_ratelimited(
-					"mxfs: P39-EXSUBSET-DROP owner=%llu daddr=%lld buf_cnt=%u disk_cnt=%u disk_extra=%d — EX-held pure-stale-subset; dropped stale write, marked for re-read (no peer-add revert)\n",
+					"mxfs: P39-EXSUBSET-DROP owner=%llu daddr=%lld buf_cnt=%u disk_cnt=%u disk_extra=%d -- EX-held pure-stale-subset; dropped stale write, marked for re-read (no peer-add revert)\n",
 									(unsigned long long)dsi.owner,
 									(long long)bp->b_maps[0].bm_bn,
 									bcnt, dcnt, ri_disk_extra);
@@ -9039,7 +9365,7 @@ xfs_buf_submit_bio(
 						}
 						if (sg_extra > 0 && sg_incore_extra == 0) {
 							mxfs_probe_ratelimited(
-				"mxfs: P26-SUBSET-SKIP owner=%llu daddr=%lld buf_cnt=%u disk_cnt=%u disk_extra=%d in_ail=%d bdirty=%d comm=%s — suppressed EX-held stale dir write dropping a peer dirent\n",
+				"mxfs: P26-SUBSET-SKIP owner=%llu daddr=%lld buf_cnt=%u disk_cnt=%u disk_extra=%d in_ail=%d bdirty=%d comm=%s -- suppressed EX-held stale dir write dropping a peer dirent\n",
 								(unsigned long long)dsi.owner,
 								(long long)bp->b_maps[0].bm_bn,
 								bcnt, dcnt, sg_extra,
@@ -9088,7 +9414,7 @@ xfs_buf_submit_bio(
 							 * is authoritative) and emulate a clean
 							 * ioend so the AIL item is released. */
 							pr_warn_ratelimited(
-				"mxfs: P12-DIR-EXGUARD-SKIP kind=%s owner=%llu daddr=%lld buf_cnt=%u disk_cnt=%u bufgen=%u dirgen=%u in_core=%d mode=%d dc_stale=%d comm=%s — suppressed non-EX clobbering dir write\n",
+				"mxfs: P12-DIR-EXGUARD-SKIP kind=%s owner=%llu daddr=%lld buf_cnt=%u disk_cnt=%u bufgen=%u dirgen=%u in_core=%d mode=%d dc_stale=%d comm=%s -- suppressed non-EX clobbering dir write\n",
 								kind,
 								(unsigned long long)dsi.owner,
 								(long long)bp->b_maps[0].bm_bn,
@@ -9274,7 +9600,7 @@ xfs_buf_submit_bio(
 							static atomic_t p6ld_n = ATOMIC_INIT(0);
 
 							if (atomic_inc_return(&p6ld_n) <= 40) {
-								pr_err("mxfs: P-LEAFDROP owner=%llu daddr=%lld buf_cnt=%u disk_cnt=%u dropped=%u first_hash=0x%x bufgen=%u bp=%px hold=%d lseq=%u wseq=%u bli=%d inail=%d comm=%s realns=%llu — forward leaf write DROPS durable hashval(s); stack:\n",
+								pr_err("mxfs: P-LEAFDROP owner=%llu daddr=%lld buf_cnt=%u disk_cnt=%u dropped=%u first_hash=0x%x bufgen=%u bp=%px hold=%d lseq=%u wseq=%u bli=%d inail=%d comm=%s realns=%llu -- forward leaf write DROPS durable hashval(s); stack:\n",
 									(unsigned long long)be64_to_cpu(p56_bh->info.owner),
 									(long long)bp->b_maps[0].bm_bn,
 									p56_bc, p56_dc, miss,
@@ -9383,7 +9709,7 @@ xfs_buf_submit_bio(
 		static atomic_t	dwd_n = ATOMIC_INIT(0);
 
 		if (atomic_inc_return(&dwd_n) <= 20)
-			pr_warn("mxfs: P-DBG-DIR-WRITE-DELAY daddr=%lld ops=%s ms=%d — TEST ONLY: the AIL pusher's write of a directory block or inode cluster is held back\n",
+			pr_warn("mxfs: P-DBG-DIR-WRITE-DELAY daddr=%lld ops=%s ms=%d -- TEST ONLY: the AIL pusher's write of a directory block or inode cluster is held back\n",
 				(long long)bp->b_maps[0].bm_bn,
 				bp->b_ops->name ? bp->b_ops->name : "?",
 				mxfs_dbg_dir_write_delay_ms);
@@ -9407,7 +9733,7 @@ xfs_buf_submit_bio(
 		int			n = atomic_inc_return(&rou_n);
 
 		if (n <= 400)
-			pr_warn("mxfs: P-READ-OVER-UNDESTAGED n=%d daddr=%lld ops=%s lseq=%llu wseq=%llu bli=%d in_ail=%d in_cil=%d dirty=%d pin=%d delwri=%d stale=%d dir_incarn=%u dir_gen=%u grant_gen=%u dir_epoch=%u flags=0x%x last_staler=%pS staled_ms_ago=%d staler_items=%u comm=%s — a platter read is about to replace logged content that was never written\n",
+			pr_warn("mxfs: P-READ-OVER-UNDESTAGED n=%d daddr=%lld ops=%s lseq=%llu wseq=%llu bli=%d in_ail=%d in_cil=%d dirty=%d pin=%d delwri=%d stale=%d dir_incarn=%u dir_gen=%u grant_gen=%u dir_epoch=%u flags=0x%x last_staler=%pS staled_ms_ago=%d staler_items=%u comm=%s -- a platter read is about to replace logged content that was never written\n",
 				n, (long long)bp->b_maps[0].bm_bn,
 				bp->b_ops && bp->b_ops->name ? bp->b_ops->name : "?",
 				(unsigned long long)bp->b_mxfs_logged_seq,
@@ -9570,7 +9896,7 @@ xfs_buf_iowait(
 
 			WRITE_ONCE(bp->b_mxfs_ioend_ran, false);
 			if (atomic_inc_return(&p490_n) <= 2)
-				mxfs_probe("mxfs: P490-SYNC-IOEND-SKIP daddr=%lld ops=%s flags=0x%x comm=%s — the emulated completion already ran this sync generation's terminal pass; the waiter skips its second (once-per-boot marker, x2)\n",
+				mxfs_probe("mxfs: P490-SYNC-IOEND-SKIP daddr=%lld ops=%s flags=0x%x comm=%s -- the emulated completion already ran this sync generation's terminal pass; the waiter skips its second (once-per-boot marker, x2)\n",
 					(long long)bp->b_maps[0].bm_bn,
 					bp->b_ops && bp->b_ops->name ? bp->b_ops->name : "?",
 					(unsigned int)bp->b_flags, current->comm);
@@ -9663,7 +9989,7 @@ xfs_buf_verify_write(
 			if (ops) {
 				static atomic_t opsrec = ATOMIC_INIT(0);
 				if (atomic_inc_return(&opsrec) <= 400)
-					pr_warn("mxfs: P30-OPS-RECOVER daddr=0x%llx len=%d ops=%s — re-derived verifier, stamping CRC (write would have been un-CRC'd)\n",
+					pr_warn("mxfs: P30-OPS-RECOVER daddr=0x%llx len=%d ops=%s -- re-derived verifier, stamping CRC (write would have been un-CRC'd)\n",
 						(unsigned long long)xfs_buf_daddr(bp),
 						bp->b_length, ops->name);
 				bp->b_ops = ops;
@@ -9761,7 +10087,7 @@ mxfs_buf_read_fua(
 		if (mxfs_dir_fua_refresh_destaged && is_dir_blk && destaged) {
 			static atomic_t p26fr = ATOMIC_INIT(0);
 			if (atomic_inc_return(&p26fr) <= 8000)
-				mxfs_probe("mxfs: P26-FUAREFRESH daddr=%lld ops=%s has_bli=%d li_empty=%d comm=%s — FUA-piercing destaged lingering-BLI dir base\n",
+				mxfs_probe("mxfs: P26-FUAREFRESH daddr=%lld ops=%s has_bli=%d li_empty=%d comm=%s -- FUA-piercing destaged lingering-BLI dir base\n",
 					(long long)bp->b_maps[0].bm_bn,
 					(bp->b_ops == &xfs_dir3_block_buf_ops) ? "block" : "data",
 					bp->b_log_item ? 1 : 0,
@@ -9794,7 +10120,7 @@ mxfs_buf_read_fua(
 		 * refreshes once the modification is checkpointed.
 		 */
 		pr_warn_ratelimited(
-		    "mxfs: P91-FUA-SKIP-LOGGED daddr=%lld ops=%s pin=%d li_empty=%d has_bli=%d bflags=0x%x comm=%s — kept in-core authoritative buffer (clobber averted)\n",
+		    "mxfs: P91-FUA-SKIP-LOGGED daddr=%lld ops=%s pin=%d li_empty=%d has_bli=%d bflags=0x%x comm=%s -- kept in-core authoritative buffer (clobber averted)\n",
 		    (long long)bp->b_maps[0].bm_bn, opsname,
 		    atomic_read(&bp->b_pin_count),
 		    list_empty(&bp->b_li_list) ? 1 : 0,
@@ -9973,7 +10299,7 @@ xfs_buf_submit_ex(
 	 */
 	if (bp->b_mount && !mxfs_depart_token_take(bp)) {
 		pr_err_ratelimited(
-		    "mxfs: P304-RETIRE-IO-AFTER-FREEZE %s daddr=%lld len=%d ops=%s comm=%s — buffer I/O submitted after the departure freeze; REJECTED (-EIO), the release will be treated as DIRTY\n",
+		    "mxfs: P304-RETIRE-IO-AFTER-FREEZE %s daddr=%lld len=%d ops=%s comm=%s -- buffer I/O submitted after the departure freeze; REJECTED (-EIO), the release will be treated as DIRTY\n",
 		    (bp->b_flags & XBF_WRITE) ? "WRITE" : "READ",
 		    (long long)bp->b_maps[0].bm_bn, bp->b_length,
 		    bp->b_ops && bp->b_ops->name ? bp->b_ops->name : "?",
@@ -10055,7 +10381,7 @@ xfs_buf_submit_ex(
 			     READ_ONCE(bp->b_mount->m_mxfs_clustered))) {
 			atomic64_inc(&mxfs_auth_meta_detached_n);
 			pr_notice_ratelimited(
-			    "mxfs: P291-AUTH-META-DETACHED daddr=%lld len=%d ops=%s comm=%s — this metadata write reached the metadata authority arm with the mount's DLM already detached; the mount's own authority object decides it\n",
+			    "mxfs: P291-AUTH-META-DETACHED daddr=%lld len=%d ops=%s comm=%s -- this metadata write reached the metadata authority arm with the mount's DLM already detached; the mount's own authority object decides it\n",
 			    (long long)bp->b_maps[0].bm_bn, bp->b_length,
 			    bp->b_ops && bp->b_ops->name ? bp->b_ops->name : "?",
 			    current->comm);
@@ -10063,7 +10389,7 @@ xfs_buf_submit_ex(
 
 		if (!mxfs_mount_write_admitted(bp->b_mount, "meta")) {
 			pr_err_ratelimited(
-			    "mxfs: P290-AUTH-REFUSED-META daddr=%lld len=%d ops=%s comm=%s — this node's authority over the shared LUN has expired; the metadata write is REFUSED (-EIO) and no bio is issued\n",
+			    "mxfs: P290-AUTH-REFUSED-META daddr=%lld len=%d ops=%s comm=%s -- this node's authority over the shared LUN has expired; the metadata write is REFUSED (-EIO) and no bio is issued\n",
 			    (long long)bp->b_maps[0].bm_bn, bp->b_length,
 			    bp->b_ops && bp->b_ops->name ? bp->b_ops->name : "?",
 			    current->comm);
@@ -10100,7 +10426,7 @@ xfs_buf_submit_ex(
 		else if (!(bp->b_flags & _XBF_LOGRECOVERY))
 			hit = mxfs_buf_inject_take(&mxfs_buf_inject_write_eio_live);
 		if (hit) {
-			mxfs_probe("mxfs: P227-FR-INJECT-WRITE-EIO daddr=%lld len=%u ops=%s flags=0x%x foreign=%d — failing this write at submit (no I/O) by test injection\n",
+			mxfs_probe("mxfs: P227-FR-INJECT-WRITE-EIO daddr=%lld len=%u ops=%s flags=0x%x foreign=%d -- failing this write at submit (no I/O) by test injection\n",
 				(long long)bp->b_maps[0].bm_bn,
 				(unsigned int)BBTOB(bp->b_length),
 				bp->b_ops && bp->b_ops->name ? bp->b_ops->name : "?",
@@ -10205,7 +10531,7 @@ xfs_buf_submit_ex(
 					bp->b_maps[0].bm_bn, bp->b_length,
 					bp->b_addr, BBTOB(bp->b_length));
 			if (wh)
-				mxfs_probe("mxfs: P-IUNLSTORE-WRSITE daddr=%lld hits=%d pin=%d delwri=%d bli=%d bli_dirty=%d in_ail=%d lseq=%u wseq=%u comm=%s — outgoing cluster write carried fossil slot(s); corrected pre-CRC\n",
+				mxfs_probe("mxfs: P-IUNLSTORE-WRSITE daddr=%lld hits=%d pin=%d delwri=%d bli=%d bli_dirty=%d in_ail=%d lseq=%u wseq=%u comm=%s -- outgoing cluster write carried fossil slot(s); corrected pre-CRC\n",
 					(long long)bp->b_maps[0].bm_bn, wh,
 					atomic_read(&bp->b_pin_count),
 					!!(bp->b_flags & _XBF_DELWRI_Q),
@@ -10225,7 +10551,7 @@ xfs_buf_submit_ex(
 		     READ_ONCE(mxfs_freplay_inject_verify_fail) > 0) &&
 	    mxfs_buf_inject_take(&mxfs_freplay_inject_verify_fail)) {
 		((unsigned char *)bp->b_addr)[0] ^= 0xff;
-		pr_warn("mxfs: P227-FR-INJECT-VERIFY-FAIL daddr=%lld len=%u ops=%s — corrupted the outgoing foreign-replay image at submit by test injection; the write verifier must refuse it without shutting this mount down\n",
+		pr_warn("mxfs: P227-FR-INJECT-VERIFY-FAIL daddr=%lld len=%u ops=%s -- corrupted the outgoing foreign-replay image at submit by test injection; the write verifier must refuse it without shutting this mount down\n",
 			(long long)bp->b_maps[0].bm_bn,
 			(unsigned int)BBTOB(bp->b_length),
 			bp->b_ops->name ? bp->b_ops->name : "?");
@@ -10308,7 +10634,7 @@ xfs_buf_submit_ex(
 		 * mount" (s507a).  A live-mount image keeps upstream policy.
 		 */
 		if (unlikely(bp->b_mxfs_foreign_recovery)) {
-			pr_warn("mxfs: P227-FR-VERIFY-FAIL daddr=%lld len=%u err=%d ops=%s — foreign-replay image refused by its write verifier; failing the replay, NOT this mount\n",
+			pr_warn("mxfs: P227-FR-VERIFY-FAIL daddr=%lld len=%u err=%d ops=%s -- foreign-replay image refused by its write verifier; failing the replay, NOT this mount\n",
 				(long long)bp->b_maps[0].bm_bn,
 				(unsigned int)BBTOB(bp->b_length), bp->b_error,
 				bp->b_ops && bp->b_ops->name ? bp->b_ops->name : "?");
@@ -10540,7 +10866,7 @@ xfs_buf_submit_ex(
 			       pa->pag_dlm_demoting ||
 			       pa->pag_dlm_release_pending;
 			if (held)
-				mxfs_probe_ratelimited("mxfs: PROBE-A-TRANSIENT agno=%u daddr=%lld comm=%s — gate sampled !held mid-transition; authority present at re-read (no dump)\n",
+				mxfs_probe_ratelimited("mxfs: PROBE-A-TRANSIENT agno=%u daddr=%lld comm=%s -- gate sampled !held mid-transition; authority present at re-read (no dump)\n",
 					pag_agno(pa),
 					(long long)bp->b_maps[0].bm_bn,
 					current->comm);
@@ -10605,7 +10931,7 @@ xfs_buf_submit_ex(
 					bp->b_mount->m_mxfs_dlm,
 					pag_agno(pa), &p125_exn);
 
-				mxfs_probe_ratelimited("mxfs: P125-AG-DIVERGE#%d agno=%u daddr=%lld %s in-core HELD (cached=%d holders=%d demoting=%d relpend=%d) but ON-DISK holder bit=0 — exclusion divergence; peer can own this AG while we write our diverged image. ondisk_ex_pop=%d ex_nslots=%d comm=%s pid=%d\n",
+				mxfs_probe_ratelimited("mxfs: P125-AG-DIVERGE#%d agno=%u daddr=%lld %s in-core HELD (cached=%d holders=%d demoting=%d relpend=%d) but ON-DISK holder bit=0 -- exclusion divergence; peer can own this AG while we write our diverged image. ondisk_ex_pop=%d ex_nslots=%d comm=%s pid=%d\n",
 					p125_seq, pag_agno(pa),
 					(long long)bp->b_maps[0].bm_bn,
 					(bp->b_ops == &xfs_bnobt_buf_ops ? "bno" :
@@ -10759,7 +11085,7 @@ xfs_buf_submit_ex(
 				static bool p88_dumped;
 				if (!p88_dumped) {
 					p88_dumped = true;
-					pr_warn("mxfs: P88-CLOBBER-PRODUCER agno=%u writing pristine bnobt while NOT holding AG DLM (disk has real V1) — stack:\n",
+					pr_warn("mxfs: P88-CLOBBER-PRODUCER agno=%u writing pristine bnobt while NOT holding AG DLM (disk has real V1) -- stack:\n",
 						(unsigned)p88_agno);
 					dump_stack();
 				}
@@ -10857,7 +11183,7 @@ xfs_buf_submit_ex(
 					if (unlikely(mxfs_dirwr_enabled ||
 						     mxfs_instr_enabled) &&
 					    p93_seq <= 8) {
-						pr_warn("mxfs: P93-REVERT-CLOBBER#%d agno=%u daddr=%lld writing nr=%u over disk_nr=%u held=%d bp=%p comm=%s pid=%d buf_gen=%llu pag_gen=%llu fua_fresh=%d dirty=%d in_ail=%d pin=%d delwri=%d hold=%d — reverting durable bnobt split; stack:\n",
+						pr_warn("mxfs: P93-REVERT-CLOBBER#%d agno=%u daddr=%lld writing nr=%u over disk_nr=%u held=%d bp=%p comm=%s pid=%d buf_gen=%llu pag_gen=%llu fua_fresh=%d dirty=%d in_ail=%d pin=%d delwri=%d hold=%d -- reverting durable bnobt split; stack:\n",
 							p93_seq, (unsigned)p88_agno,
 							(long long)bp->b_maps[0].bm_bn,
 							(unsigned)nr, (unsigned)p93_dnr,
@@ -10972,7 +11298,7 @@ xfs_buf_submit_ex(
 				 * failure, fixed at the AG acquire path, not here.
 				 */
 				if (p124_seq <= 16) {
-					mxfs_probe("mxfs: P124-ALLOC-REVERT#%d %s daddr=%lld agno=%u level=%u writing nr=%u over COHERENT disk_nr=%u dir=%s comm=%s pid=%d — prior-tenure-stale write reverts peer's durable bnobt change; stack:\n",
+					mxfs_probe("mxfs: P124-ALLOC-REVERT#%d %s daddr=%lld agno=%u level=%u writing nr=%u over COHERENT disk_nr=%u dir=%s comm=%s pid=%d -- prior-tenure-stale write reverts peer's durable bnobt change; stack:\n",
 						p124_seq,
 						bp->b_ops == &xfs_bnobt_buf_ops ?
 							"bnobt" : "cntbt",
@@ -11124,7 +11450,7 @@ xfs_buf_submit_ex(
 				if (!xfs_verify_fsbext(p133_mp,
 						p133_ir.br_startblock,
 						p133_ir.br_blockcount)) {
-					mxfs_probe("mxfs: P-WRBUF-DIRTORN ino=%llu nx=%u forkoff=%u startblk=0x%llx cnt=0x%llx first16=%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x daddr=%lld comm=%s pid=%d realns=%llu — torn LOCAL->EXTENTS dir dinode about to be written; stack:\n",
+					mxfs_probe("mxfs: P-WRBUF-DIRTORN ino=%llu nx=%u forkoff=%u startblk=0x%llx cnt=0x%llx first16=%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x daddr=%lld comm=%s pid=%d realns=%llu -- torn LOCAL->EXTENTS dir dinode about to be written; stack:\n",
 						(unsigned long long)be64_to_cpu(p133_d->di_ino),
 						be32_to_cpu(p133_d->di_nextents),
 						p133_d->di_forkoff,
@@ -11166,7 +11492,7 @@ xfs_buf_submit_ex(
 				     be32_to_cpu(p133_d->di_nextents) <
 					be32_to_cpu(p133_dd->di_nextents)) &&
 				    atomic_inc_return(&p133_rn) <= 16) {
-					mxfs_probe("mxfs: P133-DIRINO-REVERT ino=%llu writing size=%lld nx=%u over COHERENT disk size=%lld nx=%u daddr=%lld comm=%s pid=%d realns=%llu — stale dinode write reverts peer's durable dir growth; stack:\n",
+					mxfs_probe("mxfs: P133-DIRINO-REVERT ino=%llu writing size=%lld nx=%u over COHERENT disk size=%lld nx=%u daddr=%lld comm=%s pid=%d realns=%llu -- stale dinode write reverts peer's durable dir growth; stack:\n",
 						(unsigned long long)be64_to_cpu(p133_d->di_ino),
 						(long long)be64_to_cpu(p133_d->di_size),
 						be32_to_cpu(p133_d->di_nextents),
@@ -11250,7 +11576,7 @@ xfs_buf_submit_ex(
 				int p134_seq = atomic_inc_return(&p134_rn);
 
 				if (p134_seq <= 16) {
-					mxfs_probe("mxfs: P134-BMBT-REVERT#%d owner=%llu daddr=%lld writing level=%u nr=%u lsn=%llx over COHERENT disk level=%u nr=%u lsn=%llx disk_owner=%llu comm=%s pid=%d realns=%llu — prior-tenure-stale bmbt write reverts peer's durable dir growth; stack:\n",
+					mxfs_probe("mxfs: P134-BMBT-REVERT#%d owner=%llu daddr=%lld writing level=%u nr=%u lsn=%llx over COHERENT disk level=%u nr=%u lsn=%llx disk_owner=%llu comm=%s pid=%d realns=%llu -- prior-tenure-stale bmbt write reverts peer's durable dir growth; stack:\n",
 						p134_seq,
 						(unsigned long long)be64_to_cpu(
 							p134_b->bb_u.l.bb_owner),
@@ -11728,7 +12054,7 @@ xfs_buf_submit_ex(
 							break;
 						}
 					}
-					mxfs_probe("mxfs: P10-CLREGRESS daddr=%lld off=%u disk_size=%llu buf_size=%llu disk_sfcnt=%u buf_sfcnt=%u owned=%d ofields=0x%x comm=%s realns=%llu — cluster write would REGRESS a dir dinode slot\n",
+					mxfs_probe("mxfs: P10-CLREGRESS daddr=%lld off=%u disk_size=%llu buf_size=%llu disk_sfcnt=%u buf_sfcnt=%u owned=%d ofields=0x%x comm=%s realns=%llu -- cluster write would REGRESS a dir dinode slot\n",
 						(long long)bp->b_maps[0].bm_bn,
 						(unsigned)o,
 						(unsigned long long)dsz,
@@ -11860,7 +12186,7 @@ xfs_buf_submit_ex(
 			kfree(tmp);
 		}
 		if (rrc == 0) {
-			pr_warn_ratelimited("mxfs: P122-STALE-AGWRITE-SUPPRESSED daddr=%lld %s len=%u comm=%s — refreshed from coherent cache, write skipped (revert-clobber prevented)\n",
+			pr_warn_ratelimited("mxfs: P122-STALE-AGWRITE-SUPPRESSED daddr=%lld %s len=%u comm=%s -- refreshed from coherent cache, write skipped (revert-clobber prevented)\n",
 				(long long)bp->b_maps[0].bm_bn,
 				bp->b_ops == &xfs_bnobt_buf_ops ? "bnobt" :
 				bp->b_ops == &xfs_cntbt_buf_ops ? "cntbt" : "ag",
@@ -11869,7 +12195,7 @@ xfs_buf_submit_ex(
 			xfs_buf_ioend(bp);
 			return;
 		}
-		pr_err("mxfs: P122-STALE-AGWRITE-REFRESH-FAILED daddr=%lld rrc=%d — forcing shutdown rather than writing stale free-space\n",
+		pr_err("mxfs: P122-STALE-AGWRITE-REFRESH-FAILED daddr=%lld rrc=%d -- forcing shutdown rather than writing stale free-space\n",
 			(long long)bp->b_maps[0].bm_bn, rrc);
 		xfs_force_shutdown(bp->b_mount, SHUTDOWN_CORRUPT_INCORE);
 		xfs_buf_ioerror(bp, -EFSCORRUPTED);
@@ -11969,7 +12295,7 @@ xfs_buf_submit_ex(
 			if (!f_ail && !f_dirty && !f_pin) {
 				static atomic_t f_dumps = ATOMIC_INIT(0);
 
-				mxfs_probe_ratelimited("mxfs: P123-DIRFENCE-SKIP fmt=%s owner=%lld daddr=%lld gmode=%u has_bli=%d in_drain=%d lseq=%llu wseq=%llu done=%d comm=%s — sub-EX stale dir-block write suppressed\n",
+				mxfs_probe_ratelimited("mxfs: P123-DIRFENCE-SKIP fmt=%s owner=%lld daddr=%lld gmode=%u has_bli=%d in_drain=%d lseq=%llu wseq=%llu done=%d comm=%s -- sub-EX stale dir-block write suppressed\n",
 					ffmt, fowner,
 					(long long)bp->b_maps[0].bm_bn,
 					mxfs_v5_dlm_inode_granted_mode(
@@ -11994,7 +12320,7 @@ xfs_buf_submit_ex(
 				xfs_buf_ioend(bp);
 				return;
 			}
-			pr_warn_ratelimited("mxfs: P-FENCE-AILLEAK fmt=%s owner=%lld daddr=%lld gmode=%u in_ail=%d dirty=%d pin=%d in_drain=%d lseq=%llu wseq=%llu comm=%s — log-obligated sub-EX dir write ALLOWED (v2 target)\n",
+			pr_warn_ratelimited("mxfs: P-FENCE-AILLEAK fmt=%s owner=%lld daddr=%lld gmode=%u in_ail=%d dirty=%d pin=%d in_drain=%d lseq=%llu wseq=%llu comm=%s -- log-obligated sub-EX dir write ALLOWED (v2 target)\n",
 				ffmt, fowner,
 				(long long)bp->b_maps[0].bm_bn,
 				mxfs_v5_dlm_inode_granted_mode(
@@ -12237,14 +12563,14 @@ xfs_buf_submit_ex(
 		bool undest = mxfs_buf_is_undestaged(bp);
 
 		mxfs_probe_ratelimited(
-		    "mxfs: P110-BIO-OVER-LOGGED daddr=%lld ops=%s pin=%d li_empty=%d has_bli=%d delwri=%d flags=0x%x undest=%d comm=%s — %s\n",
+		    "mxfs: P110-BIO-OVER-LOGGED daddr=%lld ops=%s pin=%d li_empty=%d has_bli=%d delwri=%d flags=0x%x undest=%d comm=%s -- %s\n",
 		    (long long)bp->b_maps[0].bm_bn, opsname,
 		    atomic_read(&bp->b_pin_count),
 		    list_empty(&bp->b_li_list) ? 1 : 0,
 		    bp->b_log_item ? 1 : 0,
 		    !!(bp->b_flags & _XBF_DELWRI_Q),
 		    bp->b_flags, undest ? 1 : 0, current->comm,
-		    undest ? "UNDESTAGED — refusing DMA, completing read from in-core (b60r2 cntbt revert)" :
+		    undest ? "UNDESTAGED -- refusing DMA, completing read from in-core (b60r2 cntbt revert)" :
 			     "LOG-ONLY (destaged-lingering; read proceeds per)");
 		if (undest) {
 			bp->b_error = 0;
@@ -12303,7 +12629,7 @@ xfs_buf_submit_ex(
 	    bp->b_ops == &xfs_bmbt_buf_ops && bp->b_addr &&
 	    mxfs_buf_has_uncheckpointed_mods(bp)) {
 		pr_warn_ratelimited(
-		    "mxfs: P61-BIO-OVER-LOGGED-BMBT owner=%llu daddr=%lld incore_numrecs=%u pin=%d has_bli=%d delwri=%d flags=0x%x comm=%s — refusing disk read, keeping authoritative in-core leaf\n",
+		    "mxfs: P61-BIO-OVER-LOGGED-BMBT owner=%llu daddr=%lld incore_numrecs=%u pin=%d has_bli=%d delwri=%d flags=0x%x comm=%s -- refusing disk read, keeping authoritative in-core leaf\n",
 		    (unsigned long long)be64_to_cpu(((struct xfs_btree_block *)
 			bp->b_addr)->bb_u.l.bb_owner),
 		    (long long)bp->b_maps[0].bm_bn,
@@ -12440,7 +12766,7 @@ xfs_buf_submit_ex(
 							(unsigned long long)ktime_get_real_ns());
 				} else {
 					mxfs_probe_ratelimited(
-						"mxfs: P150-RDPRESERVE-ENOMEM daddr=%lld mask=0x%llx — read proceeds UNPRESERVED\n",
+						"mxfs: P150-RDPRESERVE-ENOMEM daddr=%lld mask=0x%llx -- read proceeds UNPRESERVED\n",
 						(long long)bp->b_maps[0].bm_bn,
 						(unsigned long long)p150_mask);
 				}
@@ -12639,7 +12965,7 @@ xfs_buf_submit_ex(
 			 * fence natively.) */
 			mxfs_bmbt_skip_preserve_truth(bp, "fua");
 			mxfs_probe_ratelimited(
-				"mxfs: P61-FUA-SKIP-BMBT owner=%llu daddr=%lld numrecs=%u tenure=%llu — prior-tenure/NL leaf image, skipping FUA re-publish\n",
+				"mxfs: P61-FUA-SKIP-BMBT owner=%llu daddr=%lld numrecs=%u tenure=%llu -- prior-tenure/NL leaf image, skipping FUA re-publish\n",
 				(unsigned long long)be64_to_cpu(
 					((struct xfs_btree_block *)
 					 bp->b_addr)->bb_u.l.bb_owner),
@@ -12755,7 +13081,7 @@ xfs_buf_submit_ex(
 			return;
 		}
 		mxfs_probe_ratelimited(
-			"mxfs: P63-BMBT-FUAWR-FALLBACK daddr=%lld rc=%d — SCSI FUA passthrough write failed, falling back to bio\n",
+			"mxfs: P63-BMBT-FUAWR-FALLBACK daddr=%lld rc=%d -- SCSI FUA passthrough write failed, falling back to bio\n",
 			(long long)bp->b_maps[0].bm_bn, bmbt_fuawr);
 	}
 
@@ -12959,7 +13285,7 @@ xfs_buftarg_isolate(
 		static atomic_t p19_n = ATOMIC_INIT(0);
 
 		if ((unsigned)atomic_inc_return(&p19_n) <= 2000)
-			pr_warn("mxfs: P-SHRINK-UNDEST-ROTATE daddr=%lld ops=%s lseq=%llu wseq=%llu pin=%d — refusing reclaim of committed-undestaged dir buffer\n",
+			pr_warn("mxfs: P-SHRINK-UNDEST-ROTATE daddr=%lld ops=%s lseq=%llu wseq=%llu pin=%d -- refusing reclaim of committed-undestaged dir buffer\n",
 				(long long)bp->b_maps[0].bm_bn,
 				bp->b_ops->name ? bp->b_ops->name : "?",
 				(unsigned long long)bp->b_mxfs_logged_seq,
@@ -13344,7 +13670,7 @@ xfs_buf_delwri_queue_recovery(
 
 	if (foreign) {
 		pr_warn_ratelimited(
-	"mxfs: P227-FR-QCONFLICT daddr=%lld len=%u flags=0x%x — foreign-replay buffer already delwri-queued by a live owner; refusing the replay rather than sharing the write\n",
+	"mxfs: P227-FR-QCONFLICT daddr=%lld len=%u flags=0x%x -- foreign-replay buffer already delwri-queued by a live owner; refusing the replay rather than sharing the write\n",
 			(long long)bp->b_maps[0].bm_bn,
 			(unsigned int)BBTOB(bp->b_length),
 			(unsigned int)bp->b_flags);
@@ -13352,7 +13678,7 @@ xfs_buf_delwri_queue_recovery(
 	}
 
 	pr_warn_ratelimited(
-	"mxfs: P227-FR-QSTALE daddr=%lld flags=0x%x — non-foreign recovery requeue found a stale foreign tag; clearing it so this recovery keeps upstream failure semantics\n",
+	"mxfs: P227-FR-QSTALE daddr=%lld flags=0x%x -- non-foreign recovery requeue found a stale foreign tag; clearing it so this recovery keeps upstream failure semantics\n",
 		(long long)bp->b_maps[0].bm_bn, (unsigned int)bp->b_flags);
 	bp->b_mxfs_foreign_recovery = false;
 	return 0;
@@ -13593,7 +13919,7 @@ xfs_buf_delwri_fail(
 		if (unlikely(!bp->b_mxfs_foreign_recovery)) {
 			ASSERT(0);
 			mxfs_probe_ratelimited(
-	"mxfs: P227-FR-UNTAGGED daddr=%lld len=%u flags=0x%x ops=%s — buffer reached xfs_buf_delwri_fail without foreign provenance (missed queue-site tag); forcing it so the batch-fail cannot shut down the survivor\n",
+	"mxfs: P227-FR-UNTAGGED daddr=%lld len=%u flags=0x%x ops=%s -- buffer reached xfs_buf_delwri_fail without foreign provenance (missed queue-site tag); forcing it so the batch-fail cannot shut down the survivor\n",
 				(long long)bp->b_maps[0].bm_bn,
 				(unsigned int)BBTOB(bp->b_length),
 				(unsigned int)bp->b_flags,

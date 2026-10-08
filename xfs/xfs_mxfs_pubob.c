@@ -129,7 +129,7 @@ void mxfs_iunl_store_purge_ag(struct xfs_mount *mp, xfs_agnumber_t agno,
 			continue;
 		if (!r->wr_epoch) {
 			unhomed++;
-			pr_warn_ratelimited("mxfs: P-IUNLSTORE-RELLEAK ino=%llu agno=%u committed=0x%x wr_epoch=0 why=%s — record never payload-verified home at AG release (drain gap evidence)\n",
+			pr_warn_ratelimited("mxfs: P-IUNLSTORE-RELLEAK ino=%llu agno=%u committed=0x%x wr_epoch=0 why=%s -- record never payload-verified home at AG release (drain gap evidence)\n",
 				(unsigned long long)r->ino, agno,
 				r->next_agino, why);
 		}
@@ -196,7 +196,7 @@ void mxfs_iunl_store_retire_range(struct xfs_mount *mp, xfs_daddr_t daddr,
 		    be32_to_cpu(dip->di_next_unlinked) == r->next_agino) {
 			r->wr_epoch = fe;
 		} else {
-			mxfs_probe_ratelimited("mxfs: P-IUNLSTORE-FOSSILWR ino=%llu daddr=%lld wrote_next=0x%x committed=0x%x gen=%u — completed SAME-GEN write did NOT carry the committed value; record kept\n",
+			mxfs_probe_ratelimited("mxfs: P-IUNLSTORE-FOSSILWR ino=%llu daddr=%lld wrote_next=0x%x committed=0x%x gen=%u -- completed SAME-GEN write did NOT carry the committed value; record kept\n",
 				(unsigned long long)r->ino,
 				(long long)r->daddr,
 				be32_to_cpu(dip->di_next_unlinked),
@@ -343,7 +343,7 @@ int mxfs_iunl_store_overlay(struct xfs_mount *mp, xfs_daddr_t daddr,
 			 * drop the record — keep and skip.  True-reuse
 			 * records self-clean: the next local unlink of the
 			 * ino re-records, and the flush cycle retires. */
-			mxfs_probe_ratelimited("mxfs: P-IUNLSTORE-GENSKEW ino=%llu rec_gen=%u img_gen=%u — incarnation mismatch; record kept, no graft\n",
+			mxfs_probe_ratelimited("mxfs: P-IUNLSTORE-GENSKEW ino=%llu rec_gen=%u img_gen=%u -- incarnation mismatch; record kept, no graft\n",
 				(unsigned long long)r->ino, r->gen,
 				be32_to_cpu(dip->di_gen));
 			continue;
@@ -405,14 +405,14 @@ int mxfs_iunl_store_overlay(struct xfs_mount *mp, xfs_daddr_t daddr,
 					xfs_perag_put(lpag);
 				}
 				if (poststate) {
-					mxfs_probe_ratelimited("mxfs: P-IUNLSTORE-POSTSTATE ino=%llu img=0x%x committed=0x%x cert={0x%x->0x%x} — image already holds certified post-state; accepted, no graft\n",
+					mxfs_probe_ratelimited("mxfs: P-IUNLSTORE-POSTSTATE ino=%llu img=0x%x committed=0x%x cert={0x%x->0x%x} -- image already holds certified post-state; accepted, no graft\n",
 						(unsigned long long)r->ino,
 						be32_to_cpu(dip->di_next_unlinked),
 						r->next_agino, cold, cnext);
 					continue;
 				}
 				if (refuse) {
-					pr_warn_ratelimited("mxfs: P-IUNLSTORE-LIVESKEW ino=%llu incore=0x%x committed=0x%x img=0x%x cert_valid=%u cert={0x%x->0x%x} — unexplained live skew; graft refused\n",
+					pr_warn_ratelimited("mxfs: P-IUNLSTORE-LIVESKEW ino=%llu incore=0x%x committed=0x%x img=0x%x cert_valid=%u cert={0x%x->0x%x} -- unexplained live skew; graft refused\n",
 						(unsigned long long)r->ino,
 						incore, r->next_agino,
 						be32_to_cpu(dip->di_next_unlinked),
@@ -420,13 +420,13 @@ int mxfs_iunl_store_overlay(struct xfs_mount *mp, xfs_daddr_t daddr,
 					continue;
 				}
 				if (pending)
-					mxfs_probe_ratelimited("mxfs: P-IUNLSTORE-PENDGRAFT ino=%llu incore=0x%x committed=0x%x img=0x%x cert={0x%x->0x%x} — skew explained by pending transition; grafting committed value\n",
+					mxfs_probe_ratelimited("mxfs: P-IUNLSTORE-PENDGRAFT ino=%llu incore=0x%x committed=0x%x img=0x%x cert={0x%x->0x%x} -- skew explained by pending transition; grafting committed value\n",
 						(unsigned long long)r->ino,
 						incore, r->next_agino,
 						be32_to_cpu(dip->di_next_unlinked),
 						cold, cnext);
 			}
-			mxfs_probe("mxfs: P-IUNLSTORE-OVERLAY ino=%llu img_next=0x%x committed=0x%x daddr=%lld — platter image stale; overlaying committed value\n",
+			mxfs_probe("mxfs: P-IUNLSTORE-OVERLAY ino=%llu img_next=0x%x committed=0x%x daddr=%lld -- platter image stale; overlaying committed value\n",
 				(unsigned long long)r->ino,
 				be32_to_cpu(dip->di_next_unlinked),
 				r->next_agino, (long long)r->daddr);
@@ -482,7 +482,7 @@ void mxfs_pubob_arm(struct xfs_mount *mp, struct xfs_inode *ip)
 			ob->kind = MXFS_PUBOB_UNLINK;
 			spin_unlock(&mp->m_mxfs_pubob_lock);
 			if (okind != MXFS_PUBOB_UNLINK && okind != MXFS_PUBOB_CHAIN_LIVE)
-				mxfs_probe("mxfs: P-FREEOB-ARM-ANOMALY ino=%llu kind=%u chain=%u — unlink of a live inode whose store entry was still an actionable FREE; reset to UNLINK\n",
+				mxfs_probe("mxfs: P-FREEOB-ARM-ANOMALY ino=%llu kind=%u chain=%u -- unlink of a live inode whose store entry was still an actionable FREE; reset to UNLINK\n",
 					(unsigned long long)ip->i_ino, okind, ob->chain);
 			xfs_iflags_set(ip, MXFS_IF_PUBOB);
 			xfs_iflags_clear(ip, MXFS_IF_PUBOB_FLUSHED);
@@ -592,10 +592,10 @@ void mxfs_pubob_free_pending(struct xfs_mount *mp, struct xfs_inode *ip,
 	spin_unlock(&mp->m_mxfs_pubob_lock);
 	kfree(n);
 	if (okind == MXFS_PUBOB_FREE || okind == MXFS_PUBOB_FREE_PENDING)
-		mxfs_probe("mxfs: P-FREEOB-PENDING-ANOMALY ino=%llu pred_kind=%u chain=%u — ifree beginning on an entry that was already an actionable FREE; recorded as the predecessor\n",
+		mxfs_probe("mxfs: P-FREEOB-PENDING-ANOMALY ino=%llu pred_kind=%u chain=%u -- ifree beginning on an entry that was already an actionable FREE; recorded as the predecessor\n",
 			(unsigned long long)ip->i_ino, okind, ob->chain);
 	if (!epoch)
-		mxfs_probe("mxfs: P-FREEOB-NOEPOCH ino=%llu — ifree beginning with no AG EX tenure epoch\n",
+		mxfs_probe("mxfs: P-FREEOB-NOEPOCH ino=%llu -- ifree beginning with no AG EX tenure epoch\n",
 			(unsigned long long)ip->i_ino);
 }
 EXPORT_SYMBOL(mxfs_pubob_free_pending);
@@ -660,23 +660,23 @@ void mxfs_pubob_free_commit(struct xfs_mount *mp, struct xfs_inode *ip,
 	spin_unlock(&mp->m_mxfs_pubob_lock);
 	kfree(n);
 	if (created)
-		mxfs_probe("mxfs: P-FREEOB-COMMIT-CREATED ino=%llu gen=%u epoch=%llu — ifree committed with no obligation entry (the pending transition never ran); FREE entry created at the commit\n",
+		mxfs_probe("mxfs: P-FREEOB-COMMIT-CREATED ino=%llu gen=%u epoch=%llu -- ifree committed with no obligation entry (the pending transition never ran); FREE entry created at the commit\n",
 			(unsigned long long)ip->i_ino, VFS_I(ip)->i_generation,
 			(unsigned long long)epoch);
 	else if (okind == MXFS_PUBOB_UNLINK)
-		mxfs_probe("mxfs: P-FREEOB-COMMIT-NOPENDING ino=%llu gen=%u — ifree committed on an UNLINK entry (the pending transition never ran); advanced to FREE\n",
+		mxfs_probe("mxfs: P-FREEOB-COMMIT-NOPENDING ino=%llu gen=%u -- ifree committed on an UNLINK entry (the pending transition never ran); advanced to FREE\n",
 			(unsigned long long)ip->i_ino, VFS_I(ip)->i_generation);
 	else if (okind == MXFS_PUBOB_FREE)
-		mxfs_probe_ratelimited("mxfs: P-FREEOB-COMMIT-IDEMPOTENT ino=%llu gen=%u — ifree committed on an entry already FREE\n",
+		mxfs_probe_ratelimited("mxfs: P-FREEOB-COMMIT-IDEMPOTENT ino=%llu gen=%u -- ifree committed on an entry already FREE\n",
 			(unsigned long long)ip->i_ino, VFS_I(ip)->i_generation);
 	if (!epoch)
 		/* design-consult: epoch 0 while freeing = a protocol failure, not an
 		 * ordinary obligation — xfsaild can never sanction it; only the
 		 * release audit's retiring token can publish it. */
-		mxfs_probe("mxfs: P-FREEOB-NOEPOCH ino=%llu gen=%u — ifree committed with no AG EX tenure epoch\n",
+		mxfs_probe("mxfs: P-FREEOB-NOEPOCH ino=%llu gen=%u -- ifree committed with no AG EX tenure epoch\n",
 			(unsigned long long)ip->i_ino, VFS_I(ip)->i_generation);
 	if (skew || anomaly) {
-		pr_err("mxfs: P-FREEOB-COMMIT-PROTOCOL ino=%llu gen=%u kind_at_commit=%u pending_epoch=%llu commit_epoch=%llu — %s; the FREE-PUBLISH bookkeeping cannot be trusted for this AG: shutting down (fail-closed, the journal carries the free)\n",
+		pr_err("mxfs: P-FREEOB-COMMIT-PROTOCOL ino=%llu gen=%u kind_at_commit=%u pending_epoch=%llu commit_epoch=%llu -- %s; the FREE-PUBLISH bookkeeping cannot be trusted for this AG: shutting down (fail-closed, the journal carries the free)\n",
 			(unsigned long long)ip->i_ino, VFS_I(ip)->i_generation,
 			okind, (unsigned long long)pend_ep,
 			(unsigned long long)epoch,
@@ -712,7 +712,7 @@ void mxfs_pubob_free_abort(struct xfs_mount *mp, struct xfs_inode *ip)
 	}
 	if (xfs_is_shutdown(mp)) {
 		spin_unlock(&mp->m_mxfs_pubob_lock);
-		pr_warn("mxfs: P-FREEOB-ABORT-SHUTDOWN ino=%llu — ifree outcome unknowable under shutdown; FREE_PENDING kept (fail-closed)\n",
+		pr_warn("mxfs: P-FREEOB-ABORT-SHUTDOWN ino=%llu -- ifree outcome unknowable under shutdown; FREE_PENDING kept (fail-closed)\n",
 			(unsigned long long)ip->i_ino);
 		return;
 	}
@@ -746,7 +746,7 @@ void mxfs_pubob_free_abort(struct xfs_mount *mp, struct xfs_inode *ip)
 	}
 	ob = NULL;
 	spin_unlock(&mp->m_mxfs_pubob_lock);
-	pr_warn_ratelimited("mxfs: P-FREEOB-ABORTED ino=%llu restored=%s — ifree did not commit; obligation restored to its predecessor\n",
+	pr_warn_ratelimited("mxfs: P-FREEOB-ABORTED ino=%llu restored=%s -- ifree did not commit; obligation restored to its predecessor\n",
 		(unsigned long long)ip->i_ino,
 		dropped ? "none" :
 		restored == MXFS_PUBOB_UNLINK ? "UNLINK" : "CHAIN_LIVE");
@@ -790,7 +790,7 @@ bool mxfs_pubob_stage_flush(struct xfs_mount *mp, struct xfs_inode *ip)
 	}
 	spin_unlock(&mp->m_mxfs_pubob_lock);
 	if (busy)
-		pr_warn("mxfs: P-FREEOB-TOKEN-BUSY ino=%llu old=%u new=%u — a previous write's token was never consumed (completion/abort bookkeeping gap); overwritten\n",
+		pr_warn("mxfs: P-FREEOB-TOKEN-BUSY ino=%llu old=%u new=%u -- a previous write's token was never consumed (completion/abort bookkeeping gap); overwritten\n",
 			(unsigned long long)ip->i_ino, busy, tok);
 	return tok != MXFS_PUBOB_INFLIGHT_NONE;
 }
@@ -890,7 +890,7 @@ void mxfs_pubob_recycle(struct xfs_mount *mp, struct xfs_inode *ip,
 	}
 	spin_unlock(&mp->m_mxfs_pubob_lock);
 	if (verdict == 4)
-		mxfs_probe_ratelimited("mxfs: P-FREEOB-CHAIN-SUPERSEDED ino=%llu deadshell=%d — chained live life was freed by a peer; chain entry dropped\n",
+		mxfs_probe_ratelimited("mxfs: P-FREEOB-CHAIN-SUPERSEDED ino=%llu deadshell=%d -- chained live life was freed by a peer; chain entry dropped\n",
 			(unsigned long long)ip->i_ino, deadshell ? 1 : 0);
 	if (verdict == 1) {
 		static atomic_t chain_n = ATOMIC_INIT(0);
@@ -900,15 +900,15 @@ void mxfs_pubob_recycle(struct xfs_mount *mp, struct xfs_inode *ip,
 		 * churn path.  First 200 verbatim, then one in 500 with the
 		 * running total, so a sweep is never saturated by them. */
 		if (n <= 200 || (n % 500) == 0)
-			mxfs_probe("mxfs: P-FREEOB-CHAIN-LIVE ino=%llu chain=%u epoch=%llu n=%d — local re-allocation of a number whose free is still unpublished (same AG EX tenure); the entry is not actionable until this life is freed\n",
+			mxfs_probe("mxfs: P-FREEOB-CHAIN-LIVE ino=%llu chain=%u epoch=%llu n=%d -- local re-allocation of a number whose free is still unpublished (same AG EX tenure); the entry is not actionable until this life is freed\n",
 				(unsigned long long)ip->i_ino, chain,
 				(unsigned long long)epoch, n);
 	} else if (verdict == 2) {
-		pr_warn("mxfs: P-FREEOB-CHAIN-BROKEN ino=%llu kind=%u ob_epoch=%llu epoch=%llu — re-allocating a number whose free obligation outlived its AG EX tenure (the release audit should have published or refused); entry dropped\n",
+		pr_warn("mxfs: P-FREEOB-CHAIN-BROKEN ino=%llu kind=%u ob_epoch=%llu epoch=%llu -- re-allocating a number whose free obligation outlived its AG EX tenure (the release audit should have published or refused); entry dropped\n",
 			(unsigned long long)ip->i_ino, okind,
 			(unsigned long long)oepoch, (unsigned long long)epoch);
 	} else if (verdict == 3) {
-		mxfs_probe("mxfs: P-FREEOB-RECYCLE-ANOMALY ino=%llu kind=%u deadshell=%d — recycled a freed shell that still carried a non-FREE store entry; entry dropped\n",
+		mxfs_probe("mxfs: P-FREEOB-RECYCLE-ANOMALY ino=%llu kind=%u deadshell=%d -- recycled a freed shell that still carried a non-FREE store entry; entry dropped\n",
 			(unsigned long long)ip->i_ino, okind, deadshell ? 1 : 0);
 	}
 }
@@ -985,7 +985,7 @@ bool mxfs_pubob_settle_home_free(struct xfs_mount *mp, struct xfs_inode *ip,
 		refuse = "ifree-pinned";
 	if (refuse) {
 		if (atomic_inc_return(&settle_n) <= 2000)
-			pr_warn("mxfs: P55C-FREE-HOME-UNSETTLED ino=%llu site=%s why=%s pend=%llu dur=%llu mode=0%o nlink=%u freeob=%u pin=%d — home is free but the ledger cannot be settled by equivalence; left open (fail-closed)\n",
+			pr_warn("mxfs: P55C-FREE-HOME-UNSETTLED ino=%llu site=%s why=%s pend=%llu dur=%llu mode=0%o nlink=%u freeob=%u pin=%d -- home is free but the ledger cannot be settled by equivalence; left open (fail-closed)\n",
 				(unsigned long long)ip->i_ino, site, refuse,
 				(unsigned long long)pend, (unsigned long long)dur,
 				VFS_I(ip)->i_mode, VFS_I(ip)->i_nlink,
@@ -1000,7 +1000,7 @@ bool mxfs_pubob_settle_home_free(struct xfs_mount *mp, struct xfs_inode *ip,
 	WRITE_ONCE(ip->i_mxfs_pub_flush_seq, pend);
 	WRITE_ONCE(ip->i_mxfs_pub_fenced, 0);
 	if (atomic_inc_return(&settle_n) <= 2000)
-		mxfs_probe("mxfs: P55C-FREE-HOME-SETTLED ino=%llu site=%s pend=%llu dur=%llu->%llu — freed incarnation's ledger settled by equivalence (home dinode is free)\n",
+		mxfs_probe("mxfs: P55C-FREE-HOME-SETTLED ino=%llu site=%s pend=%llu dur=%llu->%llu -- freed incarnation's ledger settled by equivalence (home dinode is free)\n",
 			(unsigned long long)ip->i_ino, site,
 			(unsigned long long)pend, (unsigned long long)dur,
 			(unsigned long long)pend);
@@ -1059,7 +1059,7 @@ void mxfs_pubob_discharge(struct xfs_mount *mp, struct xfs_inode *ip,
 		/* the hint bit, if still set, belongs to no token now */
 		if (flushed)
 			xfs_iflags_clear(ip, MXFS_IF_PUBOB_FLUSHED);
-		mxfs_probe_ratelimited("mxfs: P-FREEOB-FLUSH-STALE ino=%llu why=%s token=%u kind=%u — completion does not match the obligation's current state; nothing discharged\n",
+		mxfs_probe_ratelimited("mxfs: P-FREEOB-FLUSH-STALE ino=%llu why=%s token=%u kind=%u -- completion does not match the obligation's current state; nothing discharged\n",
 			(unsigned long long)ip->i_ino, why, tok, okind);
 		return;
 	}
@@ -1100,7 +1100,7 @@ void mxfs_pubob_discharge(struct xfs_mount *mp, struct xfs_inode *ip,
 		/* s442 board: ~900/node — the dominant chained-life
 		 * churn path, same pacing as P-FREEOB-CHAIN-LIVE. */
 		if (n <= 200 || (n % 500) == 0)
-			mxfs_probe("mxfs: P-FREEOB-CHAIN-KEPT ino=%llu chain=%u why=%s n=%d — unlink obligation discharged on a chained live life; chain provenance retained (entry back to CHAIN_LIVE)\n",
+			mxfs_probe("mxfs: P-FREEOB-CHAIN-KEPT ino=%llu chain=%u why=%s n=%d -- unlink obligation discharged on a chained live life; chain provenance retained (entry back to CHAIN_LIVE)\n",
 				(unsigned long long)ip->i_ino, kept, why, n);
 	} else if (dropped && okind == MXFS_PUBOB_FREE && !flushed) {
 		static atomic_t sup_n = ATOMIC_INIT(0);
@@ -1199,7 +1199,7 @@ static void mxfs_freeob_recover_fn(struct work_struct *w)
 				ob->epoch = e;
 			spin_unlock(&mp->m_mxfs_pubob_lock);
 			WRITE_ONCE(ip->i_mxfs_freeob_strikes, 0);
-			mxfs_probe("mxfs: P-FREEOB-RESCOPED ino=%llu gen=%u ag=%u epoch=%llu — predecessor still on the LUN; free image re-sanctioned under a fresh AG EX tenure\n",
+			mxfs_probe("mxfs: P-FREEOB-RESCOPED ino=%llu gen=%u ag=%u epoch=%llu -- predecessor still on the LUN; free image re-sanctioned under a fresh AG EX tenure\n",
 				(unsigned long long)inos[k], gens[k], pag_agno(pag),
 				(unsigned long long)e);
 			/* the AG holder count keeps the tenure while xfsaild
@@ -1222,7 +1222,7 @@ static void mxfs_freeob_recover_fn(struct work_struct *w)
 			mxfs_pubob_discharge(mp, ip, "home-free");
 			WRITE_ONCE(ip->i_mxfs_freeob_strikes, 0);
 		} else if (rc == 0) {
-			mxfs_probe("mxfs: P-FREEOB-FOREIGN ino=%llu gen=%u disk_gen=%u disk_mode=0%o live_shell=%d — home dinode is not this node's freed incarnation under a FRESH tenure; neutralizing the shell (never written)\n",
+			mxfs_probe("mxfs: P-FREEOB-FOREIGN ino=%llu gen=%u disk_gen=%u disk_mode=0%o live_shell=%d -- home dinode is not this node's freed incarnation under a FRESH tenure; neutralizing the shell (never written)\n",
 				(unsigned long long)inos[k], gens[k], dgen, dmode,
 				VFS_I(ip)->i_mode != 0 ? 1 : 0);
 			if (VFS_I(ip)->i_mode == 0)
@@ -1324,7 +1324,7 @@ bool mxfs_pubob_drive_publication(struct xfs_mount *mp, uint64_t ino,
 	    (kind != MXFS_PUBOB_FREE &&
 	     kind != MXFS_PUBOB_FREE_PENDING &&
 	     kind != MXFS_PUBOB_CHAIN_LIVE)) {
-		mxfs_probe_ratelimited("mxfs: P946-PUBDRIVE-OK ino=%llu waited_ms=%u — the owed free image is already published; the number is reusable again\n",
+		mxfs_probe_ratelimited("mxfs: P946-PUBDRIVE-OK ino=%llu waited_ms=%u -- the owed free image is already published; the number is reusable again\n",
 			(unsigned long long)ino, waited);
 		return true;
 	}
@@ -1334,7 +1334,7 @@ bool mxfs_pubob_drive_publication(struct xfs_mount *mp, uint64_t ino,
 	 * the caller re-picks, and the allocator's sweep back-off (never ENOSPC)
 	 * covers the case where every candidate is in this state.
 	 */
-	mxfs_probe_ratelimited("mxfs: P946-PUBDRIVE-KICKED ino=%llu kind=%u gen=%u epoch=%llu chain=%u waited_ms=%u — the owed writes are started but not yet landed; the number stays excluded from reuse until the cooldown expires (nothing waited on under the AG grant, no transaction dirtied)\n",
+	mxfs_probe_ratelimited("mxfs: P946-PUBDRIVE-KICKED ino=%llu kind=%u gen=%u epoch=%llu chain=%u waited_ms=%u -- the owed writes are started but not yet landed; the number stays excluded from reuse until the cooldown expires (nothing waited on under the AG grant, no transaction dirtied)\n",
 		(unsigned long long)ino, (unsigned)kind, gen,
 		(unsigned long long)epoch, (unsigned)chain, waited);
 	return false;
@@ -1415,12 +1415,12 @@ void mxfs_defer_reap_destroy(struct xfs_mount *mp)
 		mp->m_mxfs_pubob_count = 0;
 		spin_unlock(&mp->m_mxfs_pubob_lock);
 		if (undischarged)
-			pr_warn("mxfs: P88-PUBOB-UNMOUNT-PENDING count=%d — obligations die with the mount; a dirty departure's journal slice carries the conversions for replay\n",
+			pr_warn("mxfs: P88-PUBOB-UNMOUNT-PENDING count=%d -- obligations die with the mount; a dirty departure's journal slice carries the conversions for replay\n",
 				undischarged);
 	}
 	spin_lock(&mp->m_mxfs_reap_lock);
 	list_for_each_entry_safe(e, tmp, &mp->m_mxfs_reap_list, l) {
-		mxfs_probe("mxfs: P89-REAP-UNMOUNT-PENDING ino=%llu — zombie stays durable in our bucket; next mount of this slot re-drives it\n",
+		mxfs_probe("mxfs: P89-REAP-UNMOUNT-PENDING ino=%llu -- zombie stays durable in our bucket; next mount of this slot re-drives it\n",
 			(unsigned long long)e->ino);
 		list_del(&e->l);
 		kfree(e);

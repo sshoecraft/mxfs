@@ -603,7 +603,7 @@ mxfs_dir_evict_data_blocks(struct xfs_inode *ip)
 				if (disk_gen == VFS_I(ip)->i_generation &&
 				    (disk_nx > ip->i_df.if_nextents ||
 				     disk_sz > (uint64_t)ip->i_disk_size))
-					mxfs_probe("mxfs: P37-STALEBMAP-MODIFY ino=%llu incore_nx=%llu disk_nx=%u incore_fmt=%d disk_fmt=%d incore_size=%lld disk_size=%llu gen=%u comm=%s — modify on a STALE bmap (disk grown past in-core)\n",
+					mxfs_probe("mxfs: P37-STALEBMAP-MODIFY ino=%llu incore_nx=%llu disk_nx=%u incore_fmt=%d disk_fmt=%d incore_size=%lld disk_size=%llu gen=%u comm=%s -- modify on a STALE bmap (disk grown past in-core)\n",
 						(unsigned long long)ip->i_ino,
 						(unsigned long long)ip->i_df.if_nextents,
 						disk_nx, ip->i_df.if_format,
@@ -676,7 +676,7 @@ mxfs_dir_evict_data_blocks(struct xfs_inode *ip)
 				}
 				if (ierr == -EAGAIN) {
 					all_evicted = false;
-					pr_warn_ratelimited("mxfs: P36-EVICT-LOCKED ino=%llu daddr=%llu (stale base KEPT after %d-retry — clobber risk)\n",
+					pr_warn_ratelimited("mxfs: P36-EVICT-LOCKED ino=%llu daddr=%llu (stale base KEPT after %d-retry -- clobber risk)\n",
 						(unsigned long long)ip->i_ino,
 						(unsigned long long)d, w);
 					continue;
@@ -857,7 +857,7 @@ mxfs_dir_evict_data_blocks(struct xfs_inode *ip)
 				decided_in_ail = in_ail;
 				if (dir_gen_stale &&
 				    (mxfs_dirwr_enabled || mxfs_instr_enabled))
-					mxfs_probe_ratelimited("mxfs: P-GENEVICT ino=%llu daddr=%llu bgen=%u dirgen=%llu in_ail=%d undurable=%d — force-evicting dir_gen-stale base (dc_stale predicate, uncovered by epoch/grant/incarn discriminators)\n",
+					mxfs_probe_ratelimited("mxfs: P-GENEVICT ino=%llu daddr=%llu bgen=%u dirgen=%llu in_ail=%d undurable=%d -- force-evicting dir_gen-stale base (dc_stale predicate, uncovered by epoch/grant/incarn discriminators)\n",
 						(unsigned long long)ip->i_ino,
 						(unsigned long long)d,
 						dbp->b_mxfs_dir_gen,
@@ -874,7 +874,7 @@ mxfs_dir_evict_data_blocks(struct xfs_inode *ip)
 				 * `docs/history/ccloop-fix-relepoch-evict-gpt-design.md`. */
 				if (grant_stale_base &&
 				    (mxfs_dirwr_enabled || mxfs_instr_enabled))
-					mxfs_probe_ratelimited("mxfs: P36-GRANTEVICT ino=%llu daddr=%llu bgrant=%u cached_grant=%u in_ail=%d undestaged=%d undurable=%d — force-evict prior-grant stale base\n",
+					mxfs_probe_ratelimited("mxfs: P36-GRANTEVICT ino=%llu daddr=%llu bgrant=%u cached_grant=%u in_ail=%d undestaged=%d undurable=%d -- force-evict prior-grant stale base\n",
 						(unsigned long long)ip->i_ino,
 						(unsigned long long)d,
 						dbp->b_mxfs_grant_gen,
@@ -897,7 +897,7 @@ mxfs_dir_evict_data_blocks(struct xfs_inode *ip)
 				    !(dbp->b_flags & _XBF_DELWRI_Q) &&
 				    (dbp->b_flags & XBF_DONE) &&
 				    (mxfs_dirwr_enabled || mxfs_instr_enabled))
-					mxfs_probe_ratelimited("mxfs: P26-NEWTENURE-EVICT ino=%llu daddr=%llu cur_mep=%u last_mep=%u undurable=%d — dropping durable-stale in-AIL base\n",
+					mxfs_probe_ratelimited("mxfs: P26-NEWTENURE-EVICT ino=%llu daddr=%llu cur_mep=%u last_mep=%u undurable=%d -- dropping durable-stale in-AIL base\n",
 						(unsigned long long)ip->i_ino,
 						(unsigned long long)d, cur_mep,
 						ip->i_dlm_dir_evict_mep, undurable);
@@ -940,7 +940,7 @@ mxfs_dir_evict_data_blocks(struct xfs_inode *ip)
 				    !(dbp->b_flags & _XBF_DELWRI_Q) &&
 				    (dbp->b_flags & XBF_DONE)) {
 					undurable = false;
-					mxfs_probe_ratelimited("mxfs: P16-PRIORTENURE-EVICT ino=%llu daddr=%llu buf_epoch=%u valid_epoch=%u — dropping stale prior-tenure base for re-read\n",
+					mxfs_probe_ratelimited("mxfs: P16-PRIORTENURE-EVICT ino=%llu daddr=%llu buf_epoch=%u valid_epoch=%u -- dropping stale prior-tenure base for re-read\n",
 						(unsigned long long)ip->i_ino,
 						(unsigned long long)d,
 						dbp->b_mxfs_dir_epoch,
@@ -962,7 +962,7 @@ mxfs_dir_evict_data_blocks(struct xfs_inode *ip)
 				    !(dbp->b_flags & _XBF_DELWRI_Q) &&
 				    (dbp->b_flags & XBF_DONE)) {
 					undurable = false;
-					mxfs_probe_ratelimited("mxfs: P23-TENURE-EVICT ino=%llu daddr=%llu buf_epoch=%u valid_epoch=%u — dropping stale prior-tenure RMW base (modify-only)\n",
+					mxfs_probe_ratelimited("mxfs: P23-TENURE-EVICT ino=%llu daddr=%llu buf_epoch=%u valid_epoch=%u -- dropping stale prior-tenure RMW base (modify-only)\n",
 						(unsigned long long)ip->i_ino,
 						(unsigned long long)d,
 						dbp->b_mxfs_dir_epoch,
@@ -1033,7 +1033,7 @@ mxfs_dir_evict_data_blocks(struct xfs_inode *ip)
 					static atomic_t aila_n = ATOMIC_INIT(0);
 
 					if (atomic_inc_return(&aila_n) <= 200)
-						pr_warn("mxfs: P-EVICT-AIL-ARRIVED n=%d ino=%llu daddr=%llu lseq=%llu wseq=%llu pin=%d ops=%s comm=%s — item entered the AIL after the evict read it absent; logged content is about to be dropped\n",
+						pr_warn("mxfs: P-EVICT-AIL-ARRIVED n=%d ino=%llu daddr=%llu lseq=%llu wseq=%llu pin=%d ops=%s comm=%s -- item entered the AIL after the evict read it absent; logged content is about to be dropped\n",
 							atomic_read(&aila_n),
 							(unsigned long long)ip->i_ino,
 							(unsigned long long)d,
@@ -1120,7 +1120,7 @@ mxfs_dir_evict_data_blocks(struct xfs_inode *ip)
 					bip = NULL;
 					if (unlikely(mxfs_dirwr_enabled ||
 						     mxfs_instr_enabled))
-						mxfs_probe_ratelimited("mxfs: P33-ZOMBIE-RETIRE ino=%llu daddr=%llu — retired lingering destaged BLI at acquire-evict (prevents stale reflush)\n",
+						mxfs_probe_ratelimited("mxfs: P33-ZOMBIE-RETIRE ino=%llu daddr=%llu -- retired lingering destaged BLI at acquire-evict (prevents stale reflush)\n",
 							(unsigned long long)ip->i_ino,
 							(unsigned long long)d);
 				}
@@ -1203,7 +1203,7 @@ mxfs_dir_evict_data_blocks(struct xfs_inode *ip)
 
 					dbp->b_flags |= XBF_DONE;
 					if (atomic_inc_return(&p492k_n) <= 400)
-						mxfs_probe("mxfs: P492-KEEP-UNDEST ino=%llu daddr=%llu lseq=%llu wseq=%llu new_tenure=%d cur_mep=%u b_epoch=%u valid_epoch=%u b_grant_gen=%u cached_grant_gen=%u epoch_rel=%s mode=%u ops=%s comm=%s — undestaged log item kept at a stale-base evict (retire requires destaged)\n",
+						mxfs_probe("mxfs: P492-KEEP-UNDEST ino=%llu daddr=%llu lseq=%llu wseq=%llu new_tenure=%d cur_mep=%u b_epoch=%u valid_epoch=%u b_grant_gen=%u cached_grant_gen=%u epoch_rel=%s mode=%u ops=%s comm=%s -- undestaged log item kept at a stale-base evict (retire requires destaged)\n",
 							(unsigned long long)ip->i_ino,
 							(unsigned long long)d,
 							(unsigned long long)dbp->b_mxfs_logged_seq,
@@ -1244,7 +1244,7 @@ mxfs_dir_evict_data_blocks(struct xfs_inode *ip)
 					bip = NULL;
 					if (unlikely(mxfs_dirwr_enabled ||
 						     mxfs_instr_enabled))
-						mxfs_probe_ratelimited("mxfs: P34-NEWTENURE-RETIRE ino=%llu daddr=%llu — retired durable-but-undestaged in-AIL BLI at new-tenure evict (cold re-read peer image)\n",
+						mxfs_probe_ratelimited("mxfs: P34-NEWTENURE-RETIRE ino=%llu daddr=%llu -- retired durable-but-undestaged in-AIL BLI at new-tenure evict (cold re-read peer image)\n",
 							(unsigned long long)ip->i_ino,
 							(unsigned long long)d);
 				}
@@ -1354,7 +1354,7 @@ mxfs_dir_evict_data_blocks(struct xfs_inode *ip)
 							    ~(XBF_DONE | _XBF_FUA_FRESH);
 							dbp->b_mxfs_dir_gen = 0;
 							dr_refreshed = true;
-							mxfs_probe_ratelimited("mxfs: P-DIRREFRESH-EVICT ino=%llu daddr=%llu incore_live=%d disk_live=%d — refreshed stale RMW base before modify (peer ahead)\n",
+							mxfs_probe_ratelimited("mxfs: P-DIRREFRESH-EVICT ino=%llu daddr=%llu incore_live=%d disk_live=%d -- refreshed stale RMW base before modify (peer ahead)\n",
 								(unsigned long long)ip->i_ino,
 								(unsigned long long)d,
 								il, dl);
@@ -1526,7 +1526,7 @@ mxfs_dir_release_invalidate_data_blocks(struct xfs_inode *ip)
 			dbp->b_flags &= ~(XBF_DONE | _XBF_FUA_FRESH);
 			dbp->b_mxfs_dir_gen = 0;
 			mxfs_probe_ratelimited(
-			    "mxfs: P-RELINVAL ino=%llu daddr=%lld — invalidated clean+durable dir block at EX release (no buffer survives handoff)\n",
+			    "mxfs: P-RELINVAL ino=%llu daddr=%lld -- invalidated clean+durable dir block at EX release (no buffer survives handoff)\n",
 			    (unsigned long long)ip->i_ino, (long long)d);
 			xfs_buf_relse(dbp);
 		}

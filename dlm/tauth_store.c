@@ -70,7 +70,7 @@ int mxfs_tauth_store_open(struct mxfs_tauth_store *s, mxfs_bdev_t *dev,
 			if (MXFS_TAUTH_REGION_BYTES_FOR(rh->npages) > size) {
 				mxfs_pal_log(MXFS_LOG_ERR,
 					     "tauth: P-TAUTH-OPEN-FAIL base=%llu size=%llu "
-					     "npages=%u needs %llu — region header geometry "
+					     "npages=%u needs %llu -- region header geometry "
 					     "exceeds the envelope region",
 					     (unsigned long long)base, (unsigned long long)size,
 					     rh->npages,
@@ -89,7 +89,7 @@ int mxfs_tauth_store_open(struct mxfs_tauth_store *s, mxfs_bdev_t *dev,
 		rc = -EIO;
 	if (rc == -EUCLEAN || rc == -EIO)
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "tauth: P-TAUTH-OPEN-FAIL base=%llu size=%llu rc=%d — "
+			     "tauth: P-TAUTH-OPEN-FAIL base=%llu size=%llu rc=%d -- "
 			     "no valid region header for this filesystem (v%u, "
 			     "seeded geometry)",
 			     (unsigned long long)base, (unsigned long long)size, rc,
@@ -138,7 +138,7 @@ static int tauth_page_read_both(struct mxfs_tauth_store *s, uint32_t page_id,
 		s->conflicts++;
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "tauth: P-TAUTH-CONFLICT page=%u seq=%llu writers=%u/%llu vs %u/%llu "
-			     "— two valid divergent images (concurrent writers); page UNKNOWN",
+			     "-- two valid divergent images (concurrent writers); page UNKNOWN",
 			     page_id, (unsigned long long)sa, pg->hdr.writer_node,
 			     (unsigned long long)pg->hdr.writer_inc, scratch->hdr.writer_node,
 			     (unsigned long long)scratch->hdr.writer_inc);
@@ -169,7 +169,7 @@ int mxfs_tauth_page_read(struct mxfs_tauth_store *s, uint32_t page_id,
 	mxfs_pal_free(scratch);
 	if (rc == -EUCLEAN)
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "tauth: P-TAUTH-PAGE-UNKNOWN page=%u — no valid copy; "
+			     "tauth: P-TAUTH-PAGE-UNKNOWN page=%u -- no valid copy; "
 			     "every resource on it is UNKNOWN (fail closed)", page_id);
 	return rc;
 }
@@ -216,15 +216,8 @@ static void tauth_next_nonce(struct mxfs_tauth_store *s, uint32_t *out)
  *      base) on our copy is a SUPERSEDED commit, not a failure: the CAW
  *      publish was the durable event.
  */
-/* One commit in flight: what steps 1-2 decide and the ticket built for it. */
-struct tauth_wslot {
-	struct mxfs_tauth_ticket tk;
-	uint8_t  spare0[MXFS_TAUTH_TICKET_BYTES];  /* the spare's sector 0 as read:
-						     * the ticket swap's compare value */
-	uint64_t off;                               /* the spare copy */
-	uint64_t next;                              /* the seq this commit publishes */
-	unsigned target;                            /* which copy is the spare */
-};
+/* One commit in flight — what steps 1-2 decide and the ticket built for it —
+ * is a struct mxfs_tauth_wslot (tauth_store.h). */
 
 /*
  * Steps 1-2: read both copies raw (into ca/cb), find the truth, require the
@@ -233,7 +226,7 @@ struct tauth_wslot {
  */
 static int tauth_write_prepare(struct mxfs_tauth_store *s, struct mxfs_tauth_page *pg,
 			       struct mxfs_tauth_page *ca, struct mxfs_tauth_page *cb,
-			       struct tauth_wslot *ws)
+			       struct mxfs_tauth_wslot *ws)
 {
 	const struct mxfs_tauth_page *spare;
 	struct mxfs_tauth_ticket *tk = &ws->tk;
@@ -272,7 +265,7 @@ static int tauth_write_prepare(struct mxfs_tauth_store *s, struct mxfs_tauth_pag
 		s->stale_bases++;
 		mxfs_pal_log(MXFS_LOG_WARN,
 			     "tauth: P-TAUTH-STALE-BASE page=%u base=%llu/%#x platter=%llu/%#x "
-			     "— the image was derived from a superseded commit; refused",
+			     "-- the image was derived from a superseded commit; refused",
 			     page_id, (unsigned long long)pg->hdr.seq, pg->hdr.write_nonce,
 			     (unsigned long long)cur_seq, cur_nonce);
 		return -ESTALE;
@@ -301,7 +294,7 @@ static int tauth_write_prepare(struct mxfs_tauth_store *s, struct mxfs_tauth_pag
 				s->ticket_takeovers++;
 				mxfs_pal_log(MXFS_LOG_WARN,
 					     "tauth: P-TAUTH-TICKET-TAKEOVER page=%u copy=%u writer=%u/%llu "
-					     "seq=%llu — abandoned by a fenced incarnation",
+					     "seq=%llu -- abandoned by a fenced incarnation",
 					     page_id, target, lt->writer_node,
 					     (unsigned long long)lt->writer_inc,
 					     (unsigned long long)lt->proposed_seq);
@@ -331,7 +324,7 @@ static int tauth_write_prepare(struct mxfs_tauth_store *s, struct mxfs_tauth_pag
 }
 
 /* 3. the ticket swap, through the store's test knob (ticket_fail_once_rc) */
-static int tauth_ticket_swap(struct mxfs_tauth_store *s, const struct tauth_wslot *ws)
+static int tauth_ticket_swap(struct mxfs_tauth_store *s, const struct mxfs_tauth_wslot *ws)
 {
 	int knob = s->ticket_fail_once_rc;
 	int rc = 0;
@@ -347,7 +340,7 @@ static int tauth_ticket_swap(struct mxfs_tauth_store *s, const struct tauth_wslo
 
 /* 3. what the ticket swap's outcome means for the commit */
 static int tauth_ticket_result(struct mxfs_tauth_store *s, uint32_t page_id,
-			       const struct tauth_wslot *ws, int rc)
+			       const struct mxfs_tauth_wslot *ws, int rc)
 {
 	if (rc == -EAGAIN) {
 		s->stale_bases++;
@@ -384,7 +377,7 @@ static void tauth_write_stamp(struct mxfs_tauth_store *s, struct mxfs_tauth_page
 }
 
 static int tauth_body_result(struct mxfs_tauth_store *s, uint32_t page_id,
-			     const struct tauth_wslot *ws, int rc)
+			     const struct mxfs_tauth_wslot *ws, int rc)
 {
 	if (rc == -EBADE)
 		s->target_refused++;
@@ -396,12 +389,12 @@ static int tauth_body_result(struct mxfs_tauth_store *s, uint32_t page_id,
 
 /* 5. what the publish swap's outcome means for the commit */
 static int tauth_publish_result(struct mxfs_tauth_store *s, uint32_t page_id,
-				const struct tauth_wslot *ws, int rc)
+				const struct mxfs_tauth_wslot *ws, int rc)
 {
 	if (rc == -EAGAIN) {
 		s->stolen++;
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "tauth: P-TAUTH-TICKET-STOLEN page=%u copy=%u seq=%llu — our commit "
+			     "tauth: P-TAUTH-TICKET-STOLEN page=%u copy=%u seq=%llu -- our commit "
 			     "ticket was taken over while we were live (fencing fault); NOT durable",
 			     page_id, ws->target, (unsigned long long)ws->next);
 		return -EIO;
@@ -410,7 +403,7 @@ static int tauth_publish_result(struct mxfs_tauth_store *s, uint32_t page_id,
 		if (rc == -EBADE)
 			s->target_refused++;
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "tauth: P-TAUTH-PUBLISH-FAIL page=%u copy=%u seq=%llu rc=%d — uncertain",
+			     "tauth: P-TAUTH-PUBLISH-FAIL page=%u copy=%u seq=%llu rc=%d -- uncertain",
 			     page_id, ws->target, (unsigned long long)ws->next, rc);
 		return -EIO;
 	}
@@ -420,7 +413,7 @@ static int tauth_publish_result(struct mxfs_tauth_store *s, uint32_t page_id,
 /* 6. read back the copy we published (into scratch): durable means
  * "validates from the platter", not "the write returned" */
 static int tauth_write_verify(struct mxfs_tauth_store *s, const struct mxfs_tauth_page *pg,
-			      const struct tauth_wslot *ws, struct mxfs_tauth_page *scratch)
+			      const struct mxfs_tauth_wslot *ws, struct mxfs_tauth_page *scratch)
 {
 	uint32_t page_id = pg->hdr.page_id;
 	int rc;
@@ -444,7 +437,7 @@ static int tauth_write_verify(struct mxfs_tauth_store *s, const struct mxfs_taut
 	}
 	mxfs_pal_log(MXFS_LOG_ERR,
 		     "tauth: P-TAUTH-VERIFY-FAIL page=%u copy=%u seq=%llu rc=%d "
-		     "— the published copy does not validate; transition NOT durable",
+		     "-- the published copy does not validate; transition NOT durable",
 		     page_id, ws->target, (unsigned long long)ws->next, rc);
 	return rc;
 }
@@ -454,7 +447,7 @@ int mxfs_tauth_page_write(struct mxfs_tauth_store *s, struct mxfs_tauth_page *pg
 			  uint32_t torn_after_bytes)
 {
 	struct mxfs_tauth_page *ca, *cb;
-	struct tauth_wslot *ws;
+	struct mxfs_tauth_wslot *ws;
 	uint32_t page_id;
 	uint64_t t0;
 	int rc;
@@ -475,6 +468,49 @@ int mxfs_tauth_page_write(struct mxfs_tauth_store *s, struct mxfs_tauth_page *pg
 	rc = tauth_write_prepare(s, pg, ca, cb, ws);
 	if (rc)
 		goto out;
+	/* 3-5 as one swap where one swap can write the page (span_commit); a
+	 * torn-write test commit keeps the ticket protocol it models */
+	if (s->span_commit && !torn_after_bytes) {
+		s->writes++;
+		tauth_write_stamp(s, pg, ws->next, authority_epoch, config_epoch);
+		t0 = mxfs_pal_time_ms();
+		rc = mxfs_pal_bdev_compare_and_write_span(s->dev, ws->off, ws->spare0, pg,
+							   MXFS_TAUTH_PAGE_BYTES);
+		ph_add(&s->ph_publish_ms, &s->ph_publish_max, t0);
+		if (rc == -EOPNOTSUPP) {
+			/* nothing issued: this device's swaps cover one sector */
+			s->span_commit = false;
+			mxfs_pal_log(MXFS_LOG_WARN,
+				     "tauth: P-TAUTH-SPAN-UNSUPPORTED page=%u -- the device "
+				     "cannot write a page in one swap; ticket commits from here",
+				     page_id);
+		} else {
+			if (rc == -EAGAIN) {
+				/* nothing written: another writer changed the spare first */
+				s->stale_bases++;
+				rc = -ESTALE;
+				goto out;
+			}
+			/* any other failure: the copy is the new image, torn, or the
+			 * old one, as after a failed publish */
+			rc = tauth_publish_result(s, page_id, ws, rc);
+			if (rc)
+				goto out;
+			if (!s->fua_durable) {
+				t0 = mxfs_pal_time_ms();
+				rc = mxfs_pal_bdev_flush(s->dev);
+				ph_add(&s->ph_flush_ms, &s->ph_flush_max, t0);
+				if (rc) {
+					rc = -EIO;
+					goto out;
+				}
+			}
+			s->ph_commits++;
+			s->span_commits++;
+			rc = tauth_write_verify(s, pg, ws, ca);
+			goto out;
+		}
+	}
 	/* 3. acquire the spare */
 	s->writes++;
 	t0 = mxfs_pal_time_ms();
@@ -483,11 +519,13 @@ int mxfs_tauth_page_write(struct mxfs_tauth_store *s, struct mxfs_tauth_page *pg
 	rc = tauth_ticket_result(s, page_id, ws, rc);
 	if (rc)
 		goto out;
-	t0 = mxfs_pal_time_ms();
-	rc = mxfs_pal_bdev_flush(s->dev);
-	ph_add(&s->ph_flush_ms, &s->ph_flush_max, t0);
-	if (rc)
-		goto out;
+	if (!s->fua_durable) {
+		t0 = mxfs_pal_time_ms();
+		rc = mxfs_pal_bdev_flush(s->dev);
+		ph_add(&s->ph_flush_ms, &s->ph_flush_max, t0);
+		if (rc)
+			goto out;
+	}
 
 	/* 4. the image + its body */
 	tauth_write_stamp(s, pg, ws->next, authority_epoch, config_epoch);
@@ -510,10 +548,11 @@ int mxfs_tauth_page_write(struct mxfs_tauth_store *s, struct mxfs_tauth_page *pg
 				     (const uint8_t *)pg + MXFS_TAUTH_TICKET_BYTES,
 				     MXFS_TAUTH_PAGE_BYTES - MXFS_TAUTH_TICKET_BYTES);
 	ph_add(&s->ph_body_ms, &s->ph_body_max, t0);
-	t0 = mxfs_pal_time_ms();
-	if (rc == 0)
+	if (rc == 0 && !s->fua_durable) {
+		t0 = mxfs_pal_time_ms();
 		rc = mxfs_pal_bdev_flush(s->dev);
-	ph_add(&s->ph_flush_ms, &s->ph_flush_max, t0);
+		ph_add(&s->ph_flush_ms, &s->ph_flush_max, t0);
+	}
 	if (rc) {
 		rc = tauth_body_result(s, page_id, ws, rc);
 		goto out;
@@ -525,9 +564,11 @@ int mxfs_tauth_page_write(struct mxfs_tauth_store *s, struct mxfs_tauth_page *pg
 	rc = tauth_publish_result(s, page_id, ws, rc);
 	if (rc)
 		goto out;
-	t0 = mxfs_pal_time_ms();
-	rc = mxfs_pal_bdev_flush(s->dev);
-	ph_add(&s->ph_flush_ms, &s->ph_flush_max, t0);
+	if (!s->fua_durable) {
+		t0 = mxfs_pal_time_ms();
+		rc = mxfs_pal_bdev_flush(s->dev);
+		ph_add(&s->ph_flush_ms, &s->ph_flush_max, t0);
+	}
 	s->ph_commits++;
 	if (rc) {
 		rc = -EIO;
@@ -553,36 +594,62 @@ struct tauth_wvec {
 	int          idx[MXFS_TAUTH_WRITE_BATCH];
 };
 
-int mxfs_tauth_page_write_many(struct mxfs_tauth_store *s, struct mxfs_tauth_wreq *w,
-			       int n, uint64_t config_epoch)
+/* Steps 1-2 for one page of a batch: see tauth_store.h. */
+int mxfs_tauth_page_write_base(struct mxfs_tauth_store *s, struct mxfs_tauth_page *pg,
+			       struct mxfs_tauth_wslot *ws)
 {
 	struct mxfs_tauth_page *ca, *cb;
-	struct tauth_wslot *ws;
-	struct tauth_wvec *v;
-	uint64_t t0;
-	int i, k, m, rc, knob;
+	int rc;
 
-	if (!s || !s->dev || !w || n <= 0 || n > (int)MXFS_TAUTH_WRITE_BATCH)
+	if (!s || !s->dev || !pg || !ws || pg->hdr.page_id >= s->npages)
 		return -EINVAL;
 	ca = mxfs_pal_alloc(sizeof(*ca));
 	cb = mxfs_pal_alloc(sizeof(*cb));
-	ws = mxfs_pal_alloc(sizeof(*ws) * (size_t)n);
-	v = mxfs_pal_alloc(sizeof(*v));
-	if (!ca || !cb || !ws || !v) {
-		for (i = 0; i < n; i++)
-			w[i].rc = -ENOMEM;
+	if (!ca || !cb)
 		rc = -ENOMEM;
-		goto out;
-	}
-	rc = 0;
+	else
+		rc = tauth_write_prepare(s, pg, ca, cb, ws);
+	mxfs_pal_free(ca);
+	mxfs_pal_free(cb);
+	return rc;
+}
 
-	/* 1-2. each page's base, its spare and its ticket */
-	for (i = 0; i < n; i++) {
-		if (!w[i].pg || w[i].pg->hdr.page_id >= s->npages) {
-			w[i].rc = -EINVAL;
-			continue;
-		}
-		w[i].rc = tauth_write_prepare(s, w[i].pg, ca, cb, &ws[i]);
+/* Step 6 for one page of a batch whose barriers left its rc 0. */
+int mxfs_tauth_page_write_readback(struct mxfs_tauth_store *s,
+				   const struct mxfs_tauth_page *pg,
+				   const struct mxfs_tauth_wslot *ws)
+{
+	struct mxfs_tauth_page *scratch;
+	int rc;
+
+	if (!s || !s->dev || !pg || !ws)
+		return -EINVAL;
+	scratch = mxfs_pal_alloc(sizeof(*scratch));
+	if (!scratch)
+		return -EIO;    /* published, and not proven: the uncertain outcome */
+	rc = tauth_write_verify(s, pg, ws, scratch);
+	mxfs_pal_free(scratch);
+	return rc;
+}
+
+/* Steps 3-5 for every page of a batch whose w[i].rc is 0: see tauth_store.h. */
+void mxfs_tauth_page_write_barriers(struct mxfs_tauth_store *s, struct mxfs_tauth_wreq *w,
+				    struct mxfs_tauth_wslot *const *ws, int n,
+				    uint64_t config_epoch, bool fua_body)
+{
+	struct tauth_wvec *v;
+	uint64_t t0;
+	int i, k, m, knob;
+
+	if (!s || !s->dev || !w || !ws || n <= 0 || n > (int)MXFS_TAUTH_WRITE_BATCH)
+		return;
+	v = mxfs_pal_alloc(sizeof(*v));
+	if (!v) {
+		/* nothing issued: no ticket, so nothing written */
+		for (i = 0; i < n; i++)
+			if (!w[i].rc)
+				w[i].rc = -ENOMEM;
+		return;
 	}
 
 	/* 3. every spare acquired: the ticket swaps queued together.  The test
@@ -593,13 +660,13 @@ int mxfs_tauth_page_write_many(struct mxfs_tauth_store *s, struct mxfs_tauth_wre
 		if (w[i].rc)
 			continue;
 		if (knob && !s->ticket_fail_landed) {
-			w[i].rc = tauth_ticket_result(s, w[i].pg->hdr.page_id, &ws[i], knob);
+			w[i].rc = tauth_ticket_result(s, w[i].pg->hdr.page_id, ws[i], knob);
 			knob = 0;
 			continue;
 		}
-		v->off[m] = ws[i].off;
-		v->cmp[m] = ws[i].spare0;
-		v->wr[m] = &ws[i].tk;
+		v->off[m] = ws[i]->off;
+		v->cmp[m] = ws[i]->spare0;
+		v->wr[m] = &ws[i]->tk;
 		v->idx[m++] = i;
 	}
 	if (!m)
@@ -612,15 +679,16 @@ int mxfs_tauth_page_write_many(struct mxfs_tauth_store *s, struct mxfs_tauth_wre
 		v->rc[0] = knob;        /* issued, and its answer lost */
 	for (i = 0; i < m; i++)
 		w[v->idx[i]].rc = tauth_ticket_result(s, w[v->idx[i]].pg->hdr.page_id,
-						      &ws[v->idx[i]], k ? k : v->rc[i]);
-	/* ... and ONE flush orders every ticket before any body byte */
+						      ws[v->idx[i]], k ? k : v->rc[i]);
+	/* ... and ONE flush orders every ticket before any body byte (none when
+	 * the swaps' writes are durable as they complete: fua_durable) */
 	for (m = 0, i = 0; i < n; i++)
 		if (!w[i].rc)
 			v->idx[m++] = i;
 	if (!m)
 		goto out;
 	t0 = mxfs_pal_time_ms();
-	k = mxfs_pal_bdev_flush(s->dev);
+	k = s->fua_durable ? 0 : mxfs_pal_bdev_flush(s->dev);
 	ph_add(&s->ph_flush_ms, &s->ph_flush_max, t0);
 	if (k) {
 		for (i = 0; i < m; i++)
@@ -632,16 +700,21 @@ int mxfs_tauth_page_write_many(struct mxfs_tauth_store *s, struct mxfs_tauth_wre
 	for (i = 0; i < m; i++) {
 		int p = v->idx[i];
 
-		tauth_write_stamp(s, w[p].pg, ws[p].next, w[p].authority_epoch, config_epoch);
-		v->off[i] = ws[p].off + MXFS_TAUTH_TICKET_BYTES;
+		tauth_write_stamp(s, w[p].pg, ws[p]->next, w[p].authority_epoch, config_epoch);
+		v->off[i] = ws[p]->off + MXFS_TAUTH_TICKET_BYTES;
 		v->buf[i] = (uint8_t *)w[p].pg + MXFS_TAUTH_TICKET_BYTES;
 		v->len[i] = MXFS_TAUTH_PAGE_BYTES - MXFS_TAUTH_TICKET_BYTES;
 	}
 	t0 = mxfs_pal_time_ms();
-	k = mxfs_pal_bdev_write_scatter_prio(s->dev, v->off, v->buf, v->len, m);
+	if (fua_body)
+		k = mxfs_pal_bdev_write_scatter_fua(s->dev, v->off, v->buf, v->len, m);
+	else
+		k = mxfs_pal_bdev_write_scatter_prio(s->dev, v->off, v->buf, v->len, m);
 	ph_add(&s->ph_body_ms, &s->ph_body_max, t0);
 	t0 = mxfs_pal_time_ms();
-	if (k == 0)
+	/* a FUA body on a fua_durable device is durable already; a body written
+	 * without FUA is made durable by this flush alone */
+	if (k == 0 && !(fua_body && s->fua_durable))
 		k = mxfs_pal_bdev_flush(s->dev);
 	ph_add(&s->ph_flush_ms, &s->ph_flush_max, t0);
 	if (k) {
@@ -649,7 +722,7 @@ int mxfs_tauth_page_write_many(struct mxfs_tauth_store *s, struct mxfs_tauth_wre
 		 * is in doubt, and no publish follows */
 		for (i = 0; i < m; i++)
 			w[v->idx[i]].rc = tauth_body_result(s, w[v->idx[i]].pg->hdr.page_id,
-							    &ws[v->idx[i]], k);
+							    ws[v->idx[i]], k);
 		goto out;
 	}
 
@@ -657,8 +730,8 @@ int mxfs_tauth_page_write_many(struct mxfs_tauth_store *s, struct mxfs_tauth_wre
 	for (i = 0; i < m; i++) {
 		int p = v->idx[i];
 
-		v->off[i] = ws[p].off;
-		v->cmp[i] = &ws[p].tk;
+		v->off[i] = ws[p]->off;
+		v->cmp[i] = &ws[p]->tk;
 		v->wr[i] = w[p].pg;
 	}
 	t0 = mxfs_pal_time_ms();
@@ -666,31 +739,54 @@ int mxfs_tauth_page_write_many(struct mxfs_tauth_store *s, struct mxfs_tauth_wre
 	ph_add(&s->ph_publish_ms, &s->ph_publish_max, t0);
 	for (i = 0; i < m; i++)
 		w[v->idx[i]].rc = tauth_publish_result(s, w[v->idx[i]].pg->hdr.page_id,
-						       &ws[v->idx[i]], k ? k : v->rc[i]);
+						       ws[v->idx[i]], k ? k : v->rc[i]);
 	for (m = 0, i = 0; i < n; i++)
 		if (!w[i].rc)
 			v->idx[m++] = i;
 	if (!m)
 		goto out;
 	t0 = mxfs_pal_time_ms();
-	k = mxfs_pal_bdev_flush(s->dev);
+	k = s->fua_durable ? 0 : mxfs_pal_bdev_flush(s->dev);
 	ph_add(&s->ph_flush_ms, &s->ph_flush_max, t0);
 	s->ph_commits += (uint64_t)m;
-	if (k) {
+	if (k)
 		for (i = 0; i < m; i++)
 			w[v->idx[i]].rc = -EIO;
-		goto out;
+out:
+	mxfs_pal_free(v);
+}
+
+int mxfs_tauth_page_write_many(struct mxfs_tauth_store *s, struct mxfs_tauth_wreq *w,
+			       int n, uint64_t config_epoch)
+{
+	struct mxfs_tauth_wslot *ws, *wsp[MXFS_TAUTH_WRITE_BATCH];
+	int i;
+
+	if (!s || !s->dev || !w || n <= 0 || n > (int)MXFS_TAUTH_WRITE_BATCH)
+		return -EINVAL;
+	ws = mxfs_pal_alloc(sizeof(*ws) * (size_t)n);
+	if (!ws) {
+		for (i = 0; i < n; i++)
+			w[i].rc = -ENOMEM;
+		return -ENOMEM;
 	}
 
+	/* 1-2. each page's base, its spare and its ticket */
+	for (i = 0; i < n; i++) {
+		wsp[i] = &ws[i];
+		w[i].rc = mxfs_tauth_page_write_base(s, w[i].pg, &ws[i]);
+	}
+	/* 3-5.  On a fua_durable device the bodies are written FUA: there the
+	 * flush after a plain write completes on the local disk alone, which
+	 * would leave the peer's copy of each body in its volatile cache when
+	 * the publish lands */
+	mxfs_tauth_page_write_barriers(s, w, wsp, n, config_epoch, s->fua_durable);
 	/* 6. every published copy read back */
-	for (i = 0; i < m; i++)
-		w[v->idx[i]].rc = tauth_write_verify(s, w[v->idx[i]].pg, &ws[v->idx[i]], ca);
-out:
-	mxfs_pal_free(ca);
-	mxfs_pal_free(cb);
+	for (i = 0; i < n; i++)
+		if (!w[i].rc)
+			w[i].rc = mxfs_tauth_page_write_readback(s, w[i].pg, &ws[i]);
 	mxfs_pal_free(ws);
-	mxfs_pal_free(v);
-	return rc;
+	return 0;
 }
 
 int mxfs_tauth_store_verify(struct mxfs_tauth_store *s, uint32_t *two,
@@ -851,7 +947,7 @@ int mxfs_tauth_store_scan(struct mxfs_tauth_store *s, uint32_t first,
 				s->conflicts++;
 				mxfs_pal_log(MXFS_LOG_ERR,
 					     "tauth: P-TAUTH-CONFLICT page=%u seq=%llu writers=%u/%llu vs %u/%llu "
-					     "— two valid divergent images (concurrent writers); page UNKNOWN",
+					     "-- two valid divergent images (concurrent writers); page UNKNOWN",
 					     page_id, (unsigned long long)sa, a->hdr.writer_node,
 					     (unsigned long long)a->hdr.writer_inc, b->hdr.writer_node,
 					     (unsigned long long)b->hdr.writer_inc);

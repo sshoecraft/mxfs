@@ -976,6 +976,18 @@ bool mxfs_inode_dlm_defer_bast(struct xfs_trans *tp, struct xfs_inode *ip);
 void mxfs_trans_drain_inode_unlocks(struct xfs_trans *tp);
 
 /*
+ * DEBUG one-shot (dbg_sfs_hold_ino / dbg_sfs_hold_ms): park xfs_setfilesize
+ * in its ioend worker while it holds the inode's ILOCK, so a peer's request
+ * lands on a live holder and the commit's unlock defers the release onto the
+ * transaction — the ioend-context trans-free punt, reached on demand.
+ */
+void mxfs_dbg_sfs_hold(struct xfs_inode *ip);
+
+/* DEBUG one-shot (dbg_sb_cover_park_ms): park the next SB summary lock a
+ * workqueue worker takes, after it has read the DLM context. */
+void mxfs_dbg_sb_cover_park(struct xfs_mount *mp);
+
+/*
  * AG-metadata coherency hooks.
  *
  * mxfs_buf_is_ag_metadata: true if bp->b_ops matches one of the AG
@@ -1524,13 +1536,26 @@ void mxfs_dlm_claim_demoter_sync(struct xfs_inode *ip);
 bool mxfs_dlm_drain_defer(struct xfs_inode *ip);
 bool mxfs_dlm_drain_unclaimed(struct xfs_inode *ip);
 
-/* D-STATFS fix: cluster-coherent statfs sums from perag summaries
- * (returns false single-node → caller keeps the upstream percpu path), and
- * the mount-time all-AG header init that makes the sums complete.  See the
- * implementation comment for the drift mechanism and design constraints. */
-bool mxfs_statfs_perag_sums(struct xfs_mount *mp, uint64_t *icount,
-			    uint64_t *ifree, uint64_t *fdblocks);
+/* The mount-time read of every AG header that has not been read yet. */
 void mxfs_init_all_perag_data(struct xfs_mount *mp);
+
+/*
+ * A peer's allocations and frees in this node's admission counters
+ * (xfs_mxfs_sb.c): the delta folded in when an AG header summary is rebuilt,
+ * the rebase where the counters are set from the headers outright, and the
+ * two refreshes that read the headers of AGs this node does not hold —
+ * statfs's, from the medium without a lock, and the ENOSPC retry's, through
+ * the AG lock so the peer's frees still in its log are written first.
+ */
+struct xfs_agf;
+struct xfs_agi;
+bool mxfs_pag_agf_reinit(struct xfs_perag *pag, struct xfs_agf *agf);
+void mxfs_pag_agi_reinit(struct xfs_perag *pag, struct xfs_agi *agi);
+void mxfs_pag_cnt_rebase(struct xfs_perag *pag, uint64_t fd_total,
+			 uint64_t icount, uint64_t ifree);
+void mxfs_freecount_refresh_statfs(struct xfs_mount *mp);
+void mxfs_freecount_statfs_work_fn(struct work_struct *work);
+void mxfs_freecount_refresh_enospc(struct xfs_mount *mp);
 extern struct xfs_mount *mxfs_dbg_mp;
 
 /* TEST-ONLY: substitute into an inode-buffer image AT THE DURABLE WRITE, so
@@ -1625,7 +1650,7 @@ void mxfs_iclus_purge_all(struct xfs_mount *mp);
 			int n = atomic_inc_return(&solenote);		\
 									\
 			if (n == 1 || n == 100 || n == 10000)		\
-				mxfs_probe("mxfs: P952-SOLE-SKIP site=%s n=%d — a SOLE SURVIVOR is taking a single-node fast path; the work it skips was written for a mount that has never had a peer\n", \
+				mxfs_probe("mxfs: P952-SOLE-SKIP site=%s n=%d -- a SOLE SURVIVOR is taking a single-node fast path; the work it skips was written for a mount that has never had a peer\n", \
 					(site), n);			\
 		}							\
 	} while (0)

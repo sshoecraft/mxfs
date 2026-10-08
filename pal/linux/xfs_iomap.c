@@ -96,7 +96,7 @@ xfs_iomap_valid(
 			xfs_iomap_inode_sequence(ip, iomap->flags)) {
 		trace_xfs_iomap_invalid(ip, iomap);
 		mxfs_probe_ratelimited(
-		    "mxfs: P312-IOMAP-STALE ino=%llu pos=%lld len=%llu type=%u flags=0x%x cookie=0x%llx now=0x%llx — the cached mapping no longer describes this inode's extents; iomap must remap before writing\n",
+		    "mxfs: P312-IOMAP-STALE ino=%llu pos=%lld len=%llu type=%u flags=0x%x cookie=0x%llx now=0x%llx -- the cached mapping no longer describes this inode's extents; iomap must remap before writing\n",
 		    (unsigned long long)ip->i_ino, (long long)iomap->offset,
 		    (unsigned long long)iomap->length, iomap->type, iomap->flags,
 		    (unsigned long long)iomap->validity_cookie,
@@ -109,7 +109,7 @@ xfs_iomap_valid(
 	 * lap cannot ask any other way.  Not rate-limited but ONCE — a per-write
 	 * census of a passing check is noise on the write path.
 	 */
-	mxfs_probe_once("mxfs: P312-IOMAP-REVALIDATED ino=%llu pos=%lld cookie=0x%llx — the mapping revalidation hook is installed and iomap is calling it\n",
+	mxfs_probe_once("mxfs: P312-IOMAP-REVALIDATED ino=%llu pos=%lld cookie=0x%llx -- the mapping revalidation hook is installed and iomap is calling it\n",
 		     (unsigned long long)ip->i_ino, (long long)iomap->offset,
 		     (unsigned long long)iomap->validity_cookie);
 
@@ -1953,6 +1953,17 @@ out_unlock:
 	return error;
 }
 
+/*
+ * TEST-ONLY: 1 gives a cluster mount delayed allocation back, so the cost and
+ * the behaviour of allocating at write time can be measured against it on one
+ * build.  Never set on a filesystem holding data that matters: near full it
+ * reopens the writeback data loss the default closes.
+ */
+static int mxfs_dbg_cluster_delalloc;
+module_param_named(dbg_cluster_delalloc, mxfs_dbg_cluster_delalloc, int, 0644);
+MODULE_PARM_DESC(dbg_cluster_delalloc,
+	"TEST-ONLY: 1 = cluster mounts use delayed allocation for buffered writes (unsafe near full)");
+
 static int
 xfs_buffered_write_iomap_begin(
 	struct inode		*inode,
@@ -1993,6 +2004,23 @@ xfs_buffered_write_iomap_begin(
 
 	/* we can't use delayed allocations when using extent size hints */
 	if (xfs_get_extsz_hint(ip))
+		return xfs_direct_write_iomap_begin(inode, offset, count,
+				flags, iomap, srcmap);
+
+	/*
+	 * MXFS: nor on a cluster mount.  A delayed allocation is reserved from
+	 * this host's own free-space counter and becomes blocks only at
+	 * writeback, and every host's counter counts the same free blocks: near
+	 * full both hosts accept writes that do not fit together, and the
+	 * writeback that allocates second finds no space and discards pages
+	 * write() accepted (tests/pve_delalloc_overcommit.sh: both hosts lost
+	 * data).  Allocating unwritten extents here, under the AG locks, as a
+	 * write with an extent size hint does, refuses what does not fit at
+	 * write() time; writeback only converts them.  Whatever the membership:
+	 * a reservation made while alone would still be outstanding when a
+	 * peer mounts.
+	 */
+	if (mp->m_mxfs_dlm && !READ_ONCE(mxfs_dbg_cluster_delalloc))
 		return xfs_direct_write_iomap_begin(inode, offset, count,
 				flags, iomap, srcmap);
 

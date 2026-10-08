@@ -19,7 +19,10 @@ read for them, concluded the released product was not ready.
 
 WHAT IT CHECKS.  Derived from the data, never from a second list kept here:
 
-  1. The README's "Released" table names exactly the released configurations.
+  1. The README's "Released" table names exactly the released configurations,
+     and its "Released in an earlier version" table names exactly the ones an
+     earlier release claimed and this one does not, each with the version
+     that verified it.
   2. The README names the tree's VERSION as the current release, in the table's
      closing sentence and in its first news heading.
   3. The count in the README's "Released: <n> configurations" heading.
@@ -97,8 +100,9 @@ STALE = [
 
 # How prose names an attachment.  A public file must not call a RELEASED
 # attachment unverified, unsupported or unreleased; which ones are released
-# comes from the data.  DRBD was released in 0.90.41 and withdrawn on
-# 2026-10-06, and the text that says so is right.
+# comes from the data.  DRBD was released in 0.90.41, withdrawn on 2026-10-06
+# and released again in 0.90.107; text that names that history by its dates and
+# versions is right, and a present-tense "not released" is not.
 ATTACH_WORDS = {"mpath": r"dm-multipath|multipath|\bmpath\b", "drbd": r"DRBD"}
 
 
@@ -133,6 +137,12 @@ def released() -> list[str]:
     d = json.loads(read("data/configurations.json"))
     own = [k for k in d.get("released_by_own_rig", {}) if k != "_"]
     return list(d["release_matrix"]) + own
+
+
+def released_earlier() -> dict[str, str]:
+    """{configuration: the version that verified it} for those an earlier release claimed."""
+    d = json.loads(read("data/configurations.json"))
+    return {k: v["verified_in"] for k, v in d.get("released_earlier", {}).items() if k != "_"}
 
 
 def matrix_sizes() -> list[int]:
@@ -190,6 +200,17 @@ def main() -> int:
     for c in rows:
         if c not in rel:
             fails.append(f"README.md: the Released table lists {c}, which the release data does not")
+    earlier = released_earlier()
+    head = "### Released in an earlier version"
+    section = readme.split(head, 1)[1].split("###", 1)[0] if head in readme else ""
+    rows = dict(re.findall(r"^> \| `(\d+/[a-z]+/[a-z]+/[a-z]+)` \| ([0-9]+\.[0-9]+\.[0-9]+) \|", section, re.M))
+    for c, v in earlier.items():
+        if rows.get(c) != v:
+            fails.append(f"README.md: the '{head[4:]}' table gives {c} as {rows.get(c, 'nothing')}; "
+                         f"the release data says {v}")
+    for c in rows:
+        if c not in earlier:
+            fails.append(f"README.md: the '{head[4:]}' table lists {c}, which the release data does not")
 
     # 2. the current release
     m = re.search(r"verified on the current release, ([0-9.]+[0-9])", readme)

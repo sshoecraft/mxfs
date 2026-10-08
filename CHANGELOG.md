@@ -1,3 +1,1081 @@
+## 2026-10-08 — 0.90.107 — MXFS on DRBD dual-primary is released again, verified on two physical Proxmox VE 9 hosts; seven configurations are claimed
+
+**What this release claims.** `2/net/mesh/drbd` again, withdrawn on
+2026-10-06 and now verified three ways:
+- on two physical Proxmox VE 9.1 hosts (kernel 6.17.2-1-pve, DRBD 8.4.11)
+  under seven concurrent VM installs;
+- on a nested Proxmox VE 9 pair through 15 crash, power-cut, restart,
+  promotion and withdraw tests;
+- on the test rig by `tests/drbd_release_verify.sh`.
+
+It also claims six shared-LUN configurations on the `direct` attachment,
+verified again on this build: `2/net/mesh/direct`, `4/net/mesh/direct`, and
+`2/disk/caw/direct` through `16/disk/caw/direct`. It does not claim
+`8/net/mesh/direct`, `16/net/mesh/direct` or any `mpath` configuration.
+Defects found after 0.90.51 that can lose data or stop a node reach them
+(`tools/defects.py <configuration> --release`); the README lists them under
+"Released in an earlier version". The last published release was 0.90.42, and
+every change since is in the entries below, 0.90.43 to 0.90.107. For DRBD the
+substance is in 0.90.55 to 0.90.106: what eight concurrent VM installs on the
+physical pair found, fixed one cause at a time.
+
+**The DRBD rig no longer releases a fenced node before the survivor's MXFS
+has proved it excluded.** The fence and split tests in `scripts/drbd_rig.sh`
+run with MXFS mounted, and they released the loser's inhibit as soon as DRBD
+on the survivor had settled. That was 1–2 s after the fence in
+`tests/drbd_release_verify.sh` on 0.90.106 (clyde's authority log: fenced
+10:03:06, released 10:03:08). The survivor's MXFS recovers a dead peer's
+journal slice only after its witness sees the peer off and still inhibited
+under the fence's episode. Every answer it got was `running, inhibit none`,
+because the loser was already booting again. So it never certified the
+death, kept the slot unreplayed with its locks frozen (fail-closed), and the
+next step's unmount on it never finished: `test1 would not release mxfs`,
+and the remaining steps of the run failed behind it. That refusal is the
+designed behaviour. A product pair's guard releases a fenced peer only after
+the survivor's recovery completes, as `tests/pve_pair_failover.sh`
+(answering-restart) checks. Both tests now wait, when MXFS is mounted, for
+the survivor's `P163-RECOVERY-COMPLETE` and its `P238-DRBD-FENCE-WITNESSED`
+before releasing, as the death test and `rejoin_node` already did. With it,
+each survivor recovered the fenced peer's slice under the witness 12 s into
+its test, and the unmounts after both went through.
+
+**The release chain no longer starts boards that cannot run.**
+`tests/release_verify_chain.sh` on 0.90.107 ran three of its six boards.
+It powered every board group up and started all the boards at once. The
+guests' boot put about 45 kernel lines/s on clyde for a few seconds (SCST
+session threads, bridge ports), above the host preflight's 40/s gate, so
+`2/disk/caw/direct`'s `run.sh` was refused. The groups also overlap: g16
+holds every node of g8, g4, g2 and g2b. The 16-node board and
+`2/net/mesh/direct` therefore found their nodes held by the other boards'
+runs and refused too. The chain now waits, at most 120 s, for the host
+preflight to pass before any board starts. It also runs the boards in
+waves: a board joins the first wave whose groups share no node with its
+own, and the waves run one after another. For this release that is the
+16-node board with `4/disk/caw/direct` on g4b, then the other four.
+Verified by a full run of the fixed chain on 0.90.107 (`CLAIM=16 FULL=0
+POWER=1 LOWER="16 8 4 2"`): every rig group was powered off and up again,
+the settle wait passed before any board started, and both waves exited 0.
+Each of the six boards' own logs (`board_*_bL1_0.90.107.log`,
+`board_*_bL2_0.90.107.log`) holds 30 rows with no FAIL, no preflight refusal
+and no node held by another run, and every board reads 31 of 31 PASS.
+`D-RELEASE-CHAIN-STARTS-BOARDS-INSIDE-ITS-OWN-POWER-UP-LOG-BURST` is
+removed from the defect queue.
+
+**`2/disk/caw/direct`'s `crash_audit` row reads PASS again.** It read FLAKY
+because of a FAIL recorded on 2026-10-05 in which the filesystem was never
+exercised: `tests/tcp_death_replay.sh` aborted at its first check because
+test15 was running a module other than the tree's
+(`board_20261005T050017Z-g2b_crash_audit/oracle.log`), and `crash_audit.sh`
+scores any oracle exit other than 0 as a failed death oracle. Nine laps of
+the row on this build plus the board's own run took that record out of the
+11-run window; every one passed.
+
+**Verified on 0.90.107: `tests/drbd_release_verify.sh` passed every step**
+(`DRBD_RELEASE_VERIFY PASS`, module C930E3CE4539BDFFAAC8739): the suite,
+remount, death, fence, split, resolve, pair-outage and both takeover tests.
+That closes `D-UNMOUNT-FREES-DLM-CONTEXT-UNDER-AN-IN-FLIGHT-RUNTIME-SB-COVER-OOPS`
+(the 0.90.106 fix below), whose deterministic reproduction had already been
+clean 3 of 3. Also on the 0.90.106 code (36AE6F621EFE1608895C6C3 on the
+Proxmox kernels):
+- The nested Proxmox VE 9 pair passed all 15 steps of
+  `tests/pve_pair_failover.sh`.
+- The physical pair ran 7 concurrent VM installs for 2604 s on the shared
+  filesystem. No guest I/O error, hung task, warning, withdraw or self-fence
+  on either host. The slowest heartbeat swap was 8.6 s. No build finished
+  within the budget: that is the pair's write capacity, an open,
+  non-blocking record.
+
+## 2026-10-08 — 0.90.106 — IN PROGRESS, NOT RELEASED: unmounting a shut-down mount no longer frees the lock manager under the log worker and crashes the node
+
+**An unmount no longer frees the DLM context while the log worker is
+acquiring through it.** The log worker's periodic superblock cover reads the
+mount's DLM context once and then takes the cluster summary lock through it.
+On a loaded device that acquire can take seconds. `xfs_fs_put_super` cleared
+the pointer and freed the context before `xfs_unmountfs`, which is where the
+worker is cancelled. The only thing that waited out a cover in flight was the
+final summary sync's mutex, and that sync returns before taking the mutex when
+the mount is shut down or its log is unwritable. Found by
+`tests/drbd_release_verify.sh` on the DRBD rig: after the fence test, the
+survivor's unmount oopsed in `mxfs_tauth_page_write` under `xfs_log_worker`
+(page fault on the freed context, kernel panic). The ledger swap it was inside
+had taken 20 s and failed with EIO. Reproduced on demand on
+`2/net/mesh/direct`: `tests/rig_unmount_cover_race.sh` parks a worker's
+summary lock holding the context (`dbg_sb_cover_park_ms`, debug, one-shot), shuts
+the mount down and unmounts it. Before the fix this gave an Oops in
+`mxfs_v5_dlm_inode_lock` and a panic. put_super and the mount-failure unwind now
+stop the log worker before the context is torn down, waiting out a worker that
+is already inside. In the normal path the final sync's quiesce had already
+stopped it. With the fix the parked worker resumes on a live context, the
+unmount returns 0 after the 20 s park, and three laps of three were clean
+(`pal/linux/xfs_super.c`).
+
+**Measured: every release drain that logged `P113-DRAIN-WEDGE` on the
+physical pair since 0.90.105 ended on its own.** With `P113-DRAIN-WEDGE-END`
+in the build, the wedged drains ended after 2.8–4.5 s (iter 265–420,
+`rescued=0`), each waiting on its cluster buffer's write under DRBD write
+load (holder `xfs_inode_item_push`). Defect queue:
+`D-DRBD-RELEASE-DRAIN-WEDGE-AT-BUILD-TEARDOWN`, open until the 7-install
+workload it was found under passes with every wedge ended.
+
+**Instrument: a retained demoter claim whose record another task drops.**
+`mxfs_dlm_ilock_end` retires a trans-free punt's retention at its owner's
+unlock. For a slot held by a different task it also zeroes that slot's
+retention count, which leaves the punt mask 0 while the claim stands. The
+reclaim sweep acts only on a set mask, so such a claim would stand until its
+task exits. That would explain the 326 s strand behind
+`D-CAW-MKDIR-LOOKUP-ESTALE-TYPEFLIP-UNRESOLVED`, but it has not been seen live.
+Every such drop is now counted (`wipe=` in the `P213-PUNT` readout, which now
+prints at warning level) and named (`P-PUNT-WIPE`, rate-limited).
+`dbg_sfs_hold_ino` / `dbg_sfs_hold_ms` (debug, one-shot) park
+`xfs_setfilesize` with the ILOCK held, so a peer's request lands on a live
+holder. The deferred-release path could not be reached on demand. On a cluster
+mount an O_DSYNC append completes through `xfs_iomap_write_unwritten` (traced:
+20 of 20), which unlocks after its commit and so never defers. The park never
+fired, even with `dbg_cluster_delalloc=1`. And
+`mxfs_inode_dlm_defer_bast` was called 0 times on either host through a
+`tests/pve_churn_fairness.sh` run.
+
+**The near-full ENOSPC hang does not gate a release** (user ruling,
+2026-10-08: a corner case to fix, not a release blocker). At the 210 s budget
+on 0.90.105 the physical pair passed twice. It failed once, with no hang: pve1's
+2 GiB write was still flushing at 210 s, and neither host logged a hung task.
+`D-DRBD-ENOSPC-WRITER-WAITS-FOR-WHOLE-DIRTY-SET-HUNG-TASK` stays open.
+
+**Also:**
+- `tests/pve_delalloc_overcommit.sh` samples each writer every 10 s: its file
+  size, the host's Dirty and Writeback, and where `dd` waits. An overrun then
+  shows whether the writer was refused, flushing, or stopped.
+- `tests/pve_append_release_race.sh` takes `HOLD_MS` (arms the park above)
+  and reports `wipe`.
+- `tests/pve_trace_calls.sh` takes `STACK=1`: each call's kernel stack,
+  distinct stacks counted, to name the path that reaches a function.
+
+## 2026-10-08 — 0.90.105 — IN PROGRESS, NOT RELEASED: near full on a cluster mount, a buffered write that does not fit is refused without first waiting for the host's whole dirty set to be written back
+
+**A buffered write refused for space no longer waits for every dirty page on
+the host first.** On ENOSPC, the buffered write retries once after
+`xfs_flush_inodes`, a `sync_inodes_sb` of the whole filesystem run with the
+writer's IOLOCK held. In XFS that flush turns delayed allocations into real
+ones and gives back their worst-case reservations. A cluster mount allocates
+at write time (0.90.104), so the flush has nothing to give back and only makes
+the refused writer wait for every dirty page to reach the disk. On the
+physical DRBD pair that wait outlasted the hung-task timeout:
+`tests/pve_delalloc_overcommit.sh` at full size (3 GiB free, 2 GiB per host
+at once) left pve1's `dd` in `xfs_flush_inodes` past 180 s, with 8 and 6
+hung-task reports (0.90.104, 1F7A7AAC583EB64EF7C6452; the writeback under it
+was a release drain parked in the DRBD write bound). The flush now runs only
+while the mount has delayed-allocation blocks outstanding
+(`m_delalloc_blks`), so a mount using delayed allocation keeps upstream's
+behaviour (`pal/linux/xfs_file.c`). On 0.90.105 (F4F1AC1830CE10FDA6297B6):
+pve1 wrote all 2 GiB, pve2 was refused at `write()` after 1012 MiB, and
+neither host logged a hung task. The nested pair passed twice
+(`overcommit-0.90.105-*`).
+
+`tests/pve_delalloc_overcommit.sh` grades hung-task reports again. 0.90.104
+had stopped grading them and shrunk the physical run to 512 MiB per host.
+Its budget for the physical pair is now derived: 3 GiB on each disk, which
+XFS on a scratch DRBD resource there writes in ~104 s, so 210 s.
+
+**A stranded demoter claim is recorded whenever it is met.** On nested pair
+A (0.90.104), one release worker's claim on a file stood for 326 s. While it
+stood, every lookup of the number's next incarnation failed ESTALE after 201
+rounds (`find: Stale file handle`, 48.6 s per walk). It ended only when the
+worker thread exited and the claim was reaped. The strand detector
+(`P214-DEMOTER-STRANDED`, once per inode, with its claim-ring replay) was a
+debug probe, so that run recorded nothing about which claim went unpaired.
+It now prints at warning level. `P-DEMOTER-DEAD-REAP` also prints the claim's
+depth, punt mask and punt count. The leak itself is not found yet; it stays in
+the queue (`D-CAW-MKDIR-LOOKUP-ESTALE-TYPEFLIP-UNRESOLVED`).
+
+**Measured: the DRBD write bound holds a lone writer to half of XFS's
+speed.** On the physical pair, one buffered 3 GiB write with fsync took MXFS
+215 s against 104 s for XFS on a scratch DRBD resource on the same disks. With
+the 4 MiB / 64-request bound lifted, MXFS wrote 1 GiB at 68–74 MB/s against
+19–20 MB/s bounded. Delayed vs write-time allocation and thin vs thick backing
+were measured and are not the cause. Defect queue:
+`D-DRBD-WRITE-BOUND-HOLDS-LONE-WRITER-TO-HALF-XFS`.
+
+**On DRBD the in-flight bound is now a floor, and the window grows above it
+while writes complete quickly.** The window doubles each window's worth of
+completions while every admitted write completes within
+`drbd_inflight_target_ms` (500), up to `drbd_inflight_max_kb` (32768). It halves,
+never below the 4 MiB floor and at most once per target interval, when a write
+takes longer. A write's completion time is how deep the queue is that a
+heartbeat or lock write would wait behind, so the peer's writes shrink the
+window too (`pal/linux/drbd.c`). Physical pair, `tests/pve_drbd_window_ab.sh`, a
+2 GiB lone write and then both hosts flooding: the fixed 4 MiB bound gave
+18.3 / 20.0 MB/s with the slowest swap under flood at 5.5 / 4.0 s. The window at
+500 ms gave 22.1 / 25.2 MB/s with the slowest swap at 4.5 / 4.7 s, and every flood
+verdict passed. At a 1500 ms target the lone write reached 39.1 MB/s, but a swap
+under flood took 8.9 s, past the heartbeat's 8 s stall threshold. So 500 ms is the default.
+Protecting the coordination writes takes precedence over lone-writer speed on
+DRBD (user ruling, 2026-10-08). A target of 0, or a maximum at or below the floor,
+gives the fixed bound.
+
+**Measured: off DRBD, a lone buffered writer keeps pace with XFS.** The
+board's `fio_perf` rows write with O_DIRECT, so they never covered the
+buffered path that 0.90.104's write-time allocation changed. On the rig's
+shared LUN (2/net/mesh/direct, test2 mounted), 1 GiB buffered with fsync: MXFS
+0.96–1.07 s, MXFS with delayed allocation 0.88–0.89 s, native XFS on the same
+LUN 0.92–0.97 s. The first write after a mount is slow in either mode
+(1.4–2.8 s). `tests/rig_buffered_write_vs_xfs.sh` runs all three; it
+reformats the LUN.
+
+**Also:**
+- `tests/pve_demoter_strand.sh`: shared-directory churn followed by a
+  peer-delete walk, in laps, with the claim counters and strand lines.
+- `tests/pve_append_release_race.sh`: O_DSYNC appends on one host, stat and
+  read on the other, with the deferred-release counters. It fails as
+  unexercised when no release was deferred.
+- `tests/pve_drbd_bound_sweep.sh`: per bound value, the lone-writer rate and
+  `tests/pve_pair_write_bound.sh`'s swap latency under both hosts' load.
+- `scripts/pve_drbd_xfs_storage.sh` takes `THIN_POOL`, so the yardstick can
+  sit on a thin volume like the MXFS resource's.
+- Defect queue: `D-DRBD-ENOSPC-WRITER-WAITS-FOR-WHOLE-DIRTY-SET-HUNG-TASK`
+  (the flush above, open until the physical pair passes at full size).
+
+## 2026-10-08 — 0.90.104 — IN PROGRESS, NOT RELEASED: a host counts the space its peer frees, so deleting on one host no longer leaves the other refused ENOSPC on an empty filesystem, and both hosts' df agree; near full, a buffered write that does not fit is refused at write() instead of being lost at writeback on both hosts
+
+**Each host's free-space and inode counters now follow what the peer
+allocates and frees.** A host's admission counters (the free-block count a
+reservation is taken from before anything is allocated, and the inode
+counts) were set from the AG headers at mount and then moved only by that
+host's own transactions. A block the peer freed was never free on this host,
+and a block the peer allocated was still free here. Reproduced with
+`tests/pve_freespace_drift.sh` on nested pair A (0.90.103): pve9-2
+fallocated 6 GiB, pve9-1 removed the file, and pve9-2's next two 6 GiB
+fallocates were refused `No space left on device` on a filesystem holding
+about 10 MB, its df still reporting 6.19 GB used against pve9-1's 1.06 GB.
+The physical pair, idle after the build soak, showed the same split (df
+6.96 GB used on pve1, 4.62 GB on pve2, du 4.6 GB on both). Every fresh-tenure
+rebuild of an AGF summary also added the AG's allocbt blocks to
+`m_allocbt_blks` again, so the space statfs and ENOSPC treat as unavailable
+grew with every handoff.
+
+The fix (`xfs/xfs_mxfs_sb.c`): per AG, what a host's counters hold is its
+in-core header summary plus a correction for header totals read while the AG
+was not its own. Whenever the AG's headers come in, the difference is the
+peer's net change and goes into the counters as a delta, in three places:
+- at every fresh-tenure rebuild of the AGF/AGI summary, with the allocbt
+  share applied as a delta rather than added again;
+- at statfs, from the medium without a lock, at most once a second and in a
+  work item (statfs answers from the counters at once: under load the reads
+  queue behind the guests' writes, and `pvestatd` was sampled waiting in them
+  until the read moved off its path), for AGs whose lineage is closed (the release drain already wrote this host's
+  changes home) and where no tenure opened during the read;
+- on the ENOSPC retry (`xfs_trans_alloc`, buffered write), through each AG's
+  bounded lock, so a peer's free that is still only in its log is written
+  home and counted before the retry.
+
+statfs reports the counters again, rather than the per-AG summary sums that
+went stale once the peer took an AG. The mount and quiesce recounts rebase
+each AG to the headers they set the counters from.
+
+Verified on nested pair A (0.90.104, 292CE5CEE167C0B3BF69877): 3 rounds of
+6 GiB fallocate on one host and removal on the other, every round allocates
+and both hosts' df agree within 1 s, in both role directions (evidence
+`tests/evidence/fsdrift-0.90.104-{fix1,fix2,fix3rev}.log`). With the df
+between rounds turned off (`DF_EACH_ROUND=0`), so only the ENOSPC retry can
+bring the frees in, rounds 2 and 3 each logged `P-FREECNT-ENOSPC-SWEEP
+taken=5 ms=570-578` and allocated (`fsdrift-0.90.104-enospc1.log`). Control
+0.90.103: rounds 2 and 3 refused ENOSPC, df 5.1 GB apart
+(`fsdrift-0.90.103-base.log`). On the physical pair (EFA0126F0369FF0A4246E54)
+both modes passed with 6 GB rounds, and its df now reads 4.65 / 4.69 GB used
+against du's 4.6 GB, where it read 6.96 / 4.62 before
+(`fsdrift-0.90.104-phys-{enospc,df}.log`). Removed from the queue as fixed
+and verified: D-PEER-FREES-NEVER-REACH-A-HOSTS-FREE-SPACE-COUNTER-FALSE-ENOSPC.
+
+**A buffered write on a cluster mount allocates its blocks when it is written,
+so near full a write that does not fit is refused at `write()` rather than
+accepted and then lost at writeback.** A delayed allocation is reserved from
+the writing host's own free-space counter, and every host's counter counts the
+same free blocks. `tests/pve_delalloc_overcommit.sh` filled nested pair A to
+3 GiB free and had both hosts write 2 GiB buffered at once. Both writes were
+accepted, then both hosts' writeback found no space (`writeback error`, a run
+of `XFS (drbd0): page discard`), and the fsync failed. That is data `write()`
+had accepted, lost on both hosts. On a cluster mount
+`xfs_buffered_write_iomap_begin` now does what XFS already does for a file
+with an extent size hint: it allocates unwritten extents at write time, under
+the AG locks, through `xfs_direct_write_iomap_begin`. Writeback only converts
+them to written. It does this whatever the membership, because a reservation
+made while alone would still be outstanding when a peer mounts. Writes into
+already allocated space and direct I/O (Proxmox's `cache=none` guest disks)
+are unchanged.
+
+Verified on one build (D6C32A5A4D80F8A23269AA3) with the test-only knob
+`dbg_cluster_delalloc` that gives delayed allocation back. Knob 1 (control):
+both hosts accepted the writes, `writeback error` on both, FAIL
+(`overcommit-0.90.104-control-knob1.log`). Default: 6 runs, every host refused
+at `write()` once space ran out (3.1 GiB written in all against 3 GiB free), no
+writeback error, PASS (`overcommit-0.90.104-{fix1,fix2,trig1,seq1,seq2,fixed-knob0}.log`).
+On the physical pair (4AFCD34789622F69480B4EE), sized to its ~15 MB/s
+(768 MiB free, 512 MiB per host), twice: one host wrote all 512 MiB, the
+other was refused at `write()` after 250 / 218 MiB, no writeback error
+(`overcommit-0.90.104-phys-sized{1,2}.log`). Buffered sequential throughput
+there is the same either way (512 MiB with fsync: 9.1 / 17.6 / 15.4 MB/s
+allocating at write time, 7.1 / 18.1 / 18.1 with delayed allocation). Removed
+from the queue as fixed and verified:
+D-TWO-HOSTS-RESERVE-THE-SAME-FREE-BLOCKS-DELALLOC-WRITEBACK-ENOSPC.
+Cost, measured interleaved on the churn-fairness loop (appends to shared files,
+small file create/rename/remove): about 14% fewer iterations in total (mean
+9,574 against 11,102 over three laps each, noisy); the hosts' ratio is
+unchanged (0.28-0.38 against 0.27-0.38).
+
+**The 2-node TCP board passes 30 of 30 on this build** (D6C32A5A4D80F8A23269AA3,
+`tests/evidence/board-2tcp-0.90.104.log`), including every coherency,
+durability, crash and fault row and `chk_clean` reading CLEAN. Its one first
+failure, `guard_census` (`new=748`), was the census, not the module:
+`tools/sole_survivor_audit.py` walked `.claude/worktrees/`, eleven agent
+worktrees that are each a whole copy of the tree, and counted every guard in
+them as a new site. The walk now skips `.claude`, and the row passes (71
+guards, all in the reviewed inventory).
+
+**A release drain that logs `P113-DRAIN-WEDGE` now also logs how it ended**
+(`P113-DRAIN-WEDGE-END ino iter ms rescued`), so a drain that waited on a
+slow write can be told from one that stalled.
+
+## 2026-10-07 — 0.90.103 — IN PROGRESS, NOT RELEASED: the total-outage refusal on a DRBD pair is closed, proven against a deterministic reproduction; a ledger commit on DRBD is one compare-and-swap with no flush, and creates on the physical pair run four to five times faster; the late would-block deny is closed
+
+**A DRBD pair that loses power on both hosts at once comes back by itself.**
+The cause and the fix are 0.90.102's (an imported exclusive record is
+re-granted under a fresh id); what was missing was a test that reaches the
+refusal every time. `tests/pve_released_grant_ghost.sh RELEASE_BY=pause`
+parks every one of participant 0's release drains
+(`dbg_bast_pause_ino` = all ones), lets participant 1 read each of 16
+directories so participant 0 owes each a release, freezes participant 1,
+and lets the releases go out to the frozen master. Participant 1 now walks
+to the run directory before the drains are parked: participant 0 held that
+directory exclusively, and the first pause lap parked only its release,
+which held every lookup below it, so no directory was asked for and nothing
+was adopted.
+
+**A ledger commit on DRBD no longer flushes after writes that are already
+durable.** A grant or release is made durable by committing its ledger
+page: a compare-and-swap that takes the spare copy, the page body written
+FUA, a compare-and-swap that publishes it. Each of the three was followed
+by an empty flush. On DRBD every swap's target write is FUA, a FUA write is
+replicated as such and completes once the peer's disk holds it, and an
+empty flush is the local disk's flush plus a barrier the peer drains and
+flushes at, which the next replicated write waits behind. So the flushes
+made nothing durable that was not already, and slowed the swaps after
+them. The mount now marks the store of a DRBD device `fua_durable` and its
+commits issue no flush there; a batched commit, which wrote its bodies
+without FUA and relied on the flush, writes them FUA on such a device,
+because there the flush was local and left the peer's copy of the body in
+its volatile cache when the publish landed. Every other device keeps the
+flushes, since a SCSI target may drop FUA. On the physical pair, 100 file
+creates each fsynced on one host with the other mounted
+(`tests/pve_ledger_commit_profile.sh`): before, 5.2-7.5 s in all, p50
+32-34 ms, p90 49-212 ms, the slowest 0.8-1.05 s, commits 36-77 ms; after,
+2.5-2.6 s, p50 24 ms, p90 32-34 ms, the slowest 42 ms, commits 20-27 ms.
+
+**A ledger page on DRBD commits in one compare-and-swap.** A single page
+commit was three steps: a swap that writes a ticket over the spare copy's
+first sector, the body written separately, a swap that publishes the final
+first sector. The ticket exists because a SCSI COMPARE AND WRITE covers one
+sector, so the body has to land outside any swap with the copy marked
+invalid meanwhile. On DRBD every swap is MXFS's own emulation under a
+two-host lock, so one acquisition can cover the whole page: compare the
+spare's first sector as the commit read it, and on a match write the whole
+4 KiB image with FUA (`mxfs_pal_bdev_compare_and_write_span`). Two writers
+that read the same base still race on the same compare, so one wins and
+the other writes nothing; a live ticket of another writer still refuses the
+commit; a write torn by a crash fails the page checksum and the other copy
+stays the truth. Batched commits keep the ticket protocol, and a SCSI
+device answers that it cannot, so nothing changes there. On the physical
+pair, the same 100 fsynced creates now take 1.2-1.5 s in all (p50 12 ms,
+p90 16-18 ms), commits 8.5-12 ms. `tests/tauth/tauth_test.c` case 9 covers
+the commit, the lost race, the live ticket and the torn write; on nested
+pair A both total-outage tests pass on this build.
+
+**On the TCP transport a host no longer drops every read grant it holds
+when the peer writes a directory it reads.** `dir_ex_bast_sweep`, written
+for 32-node compare-and-write unlink storms, released a host's idle read
+grants on files across the whole filesystem whenever the peer took a
+directory it was reading, at most every 3 s. On TCP every release is a
+durable ledger commit and every grant the next read re-takes is another,
+and a walk triggers it itself (the first read of a changed directory
+updates its access time). Interleaved A/B on the physical pair: both hosts
+walking each other's files committed 4.7-4.8 thousand ledger pages per host
+with the sweep off against 10.0-10.2 thousand on, commits took 17-19 ms
+against 93-104 ms, the walks 63-73 s against 77-118 s, and even the unlink
+storm the sweep was written for (400 files the peer had read, removed) took
+11.0-11.5 s against 14.8-15.4 s. The default (1) now sweeps on
+compare-and-write only; 2 sweeps on every transport, as before.
+
+**A test-only knob holds a would-block deny.** `dl_deny_delay_ms` and
+`dl_deny_delay_left` make a master hold its would-block answer to a
+no-queue AG probe past the requester's one-attempt wait, which is how the
+late deny of 0.90.102's fix is reproduced on demand
+(`tests/pve_late_deny.sh`). Never set in production.
+
+- **a blocking AG EX acquire on the TCP DLM could be completed by a late would-block deny that the master sent to an earlier no-queue probe of the same AG, returning -EAGAIN inside a deferred-op chain and shutting the mount down (physical pair, 2026-10-07 20:14:54)** — FIXED AND VERIFIED. Cause: pending entries are matched by resource alone, so the deny for a probe that had already given up completed the next request for that AG whatever it asked; reproduced in tests/tauth/dlm_ledger_test.c case 17. Fix (0.90.102, dlm/dlm.c): a would-block deny completes only an entry that asked not to queue; any other is skipped and counted (P-DENY-NOT-ASKED). Verified on nested pair A with tests/pve_late_deny.sh (every AG would-block deny held 1500 ms while both hosts allocate): the control build with the check disabled logged 6 'DLM AG lock failed ... rc=-11'; the fixed build, three laps, skipped 1, 1 and 6 late denies with 0 AG lock failures, 0 shutdowns and every write successful. The physical pair's 7-build soak on the fixed build logged 0 AG lock failures.
+
+- **after both hosts of a DRBD pair lost power at once, the first mount's whole-cluster bootstrap adopted the last mounted host's log slice and its authority-evaluated replay refused that slice's two newest transactions as unauthorised; a refused transaction makes the bootstrap term terminal (P-BOOT-REFUSED, reason TERMINAL_SLICE), so every later mount on either host is refused until operator repair** — FIXED AND VERIFIED. Cause proven by instrument: a host whose release reached a master that then died adopted the imported exclusive record under the grant id it had already released; the inode layer refused to reinstall that id (P-RELMARK-REINSTALL-REFUSED), its later writes were logged with no authority class, and after a total outage the bootstrap refused them (P227-FR-REFUSED-WHY classless, P-BOOT-REFUSED). Fix (0.90.102, dlm/dlm.c): an imported exclusive record is re-granted under a fresh id, and a refused re-grant commit restores the import so the retry re-grants (tests/tauth/dlm_ledger_test.c case 16). Verified on nested pair A with tests/pve_released_grant_ghost.sh RELEASE_BY=pause (16 directory releases parked until the master is frozen): control build with the re-grant disabled (FA7CB4687E1912A7E8F9B2A) adopted 9, refused 18 reinstalls and the bootstrap refused (classless=9, evidence 20261008T041122Z); fixed build 0.90.103 (8A6E8346A668656692DE222) three laps: ADOPT-LOCAL 8/7/4 all ADOPT-REGRANT, REINSTALL-REFUSED 0, both hosts remounted after the outage in 43-52 s with 0 refused images and 0 atomic skips, every file read back on both hosts (tests/evidence/ghost-pause-fixed-{1,2,3}.log).
+
+## 2026-10-07 — 0.90.102 — IN PROGRESS, NOT RELEASED: a lock released against a master that died is re-granted under a fresh id; a late would-block answer no longer fails a blocking acquire
+
+**The July lock-release spin on the physical pair is closed.** The record
+said pve2 stopped while a kworker cycled `P15-REL-ABORT` and
+`P79-STALEBAST-CLEAR` on one image file for 252 s. Its log carries the
+mechanism 0.87.2 measured and fixed: an EX upgrade refused by the master
+(`mode=5 rc=-35`, `req=5 granted=3`) while the requesting node's own PR hold
+(an io_uring direct writer's IOLOCK ride, `pr=1`, `selfdem=1`) kept its
+self-demote drain from releasing, with `du` re-taking the shared grant in the
+gap (`P79-NESTADMIT`), which 0.90.54 fixed. The module that spun was a
+July build, older than both. On 0.90.101 the record's own workload at 3.5x
+(seven concurrent VM installs on `/mnt/shared` for 45 minutes, the spin's
+probes on) hit the refusal five times and recovered from each at once, and
+`tests/pve_concurrent_dio_upgrade.sh` (qemu-shaped io_uring direct I/O into
+holes while the peer stats the file) passed: no failed lock, no livelock, no
+shutdown.
+
+## 2026-10-07 — 0.90.101 — the DRBD compare-and-swap enters its lock with one replicated write instead of two, and releases it after the callers have their results
+
+**A new lock under the DRBD compare-and-swap.** Every record the cluster
+updates by compare-and-swap (heartbeat, slot claim, recovery milestones,
+bootstrap owner, ledger tickets) is read, compared and written on DRBD under
+a two-host lock built from one register sector per host. That lock was a
+Lamport bakery: a "choosing" write, a ticket write, then the target's read
+and write, then a release write, each one a replicated write. On the
+physical pair's non-NCQ SATA disks under guest load one replicated write
+takes up to about 2 s, and a heartbeat swap that paid four of them in a row
+took up to 11.6 s, past the heartbeat's 8 s stall threshold. The lock is now
+a one-bit lock for two hosts: a host raises its flag and reads the other's.
+Participant 0 waits for the other's flag to drop. Participant 1 lowers its
+own flag and waits, then tries again, and while it waits participant 0 holds
+back (for at most 4 s) so it cannot be passed over again and again. The
+release write now runs after the callers have their results, and the next
+write of that register waits for it. A swap now waits on one register write
+and its own target write. `tests/drbd_cas_lock_model.py` checks the lock
+over every interleaving and every order in which a write reaches the two
+disks: mutual exclusion, no deadlock, and no repeated passing over of the
+waiting host. It also rejects a deliberately broken lock as a negative
+control. The registers' format version is now 2. A register of the old
+version reads as idle only when both of its fields are zero, so a pair
+running the two versions fails its swaps rather than both entering. The
+enrollment sector keeps its version, so existing filesystems still mount.
+
+**Two DRBD-pair stability records closed.** Under 45 minutes of seven
+concurrent VM installs on pve1/pve2, neither host withdrew or self-fenced,
+and no swap failed. No witness ran beside a connected primary peer, and
+neither MXFS nor the host kernel refused or failed an I/O. The 60 s DRBD
+lease (0.90.81) and the witness gate (0.90.77) are what removed those
+failures. A heartbeat cycle over 8 s still happens on pve2 under that load,
+three times in the run. By the owner's decision it is tracked as a
+performance defect, not a release gate.
+
+**The node-fence handler no longer sets off a kernel warning at each peer
+death.** When the handler (`mxfs-drbd-fence-peer`, used where a node fence
+such as IPMI or a PDU is configured) answered DRBD 8.4 "peer was
+stonithed", DRBD resumed the frozen I/O by writing its metadata inside an
+RCU read-side section. That write sleeps, so the kernel printed "Voluntary
+context switch within RCU read-side critical section" at each peer death. The
+handler now resumes the I/O itself with `drbdadm resume-io` first, as the
+built-in two-node handler already does. It does this only for a Primary that
+lost its link, and gives the command at most 10 s.
+
+**No bare stack dumps on the console while a peer waits on a busy file.**
+When a peer's lock request had waited on a file whose local holder was busy,
+the holder's whole kernel stack was dumped (about 60 lines, several times a
+minute) with nothing naming it, because the line meant to introduce it is a
+debug message. The dump now prints only when debug messages are on. On the
+physical pair, the load that produced 3-4 dumps and 176-249 kernel lines per
+run on pve2 now prints none and 8-13 lines.
+
+**`scripts/pve_pair_update.sh` no longer reads another run's result.** An
+update stopped part-way left its build running on the hosts. The next update
+then deleted the tree that build was compiling, and the old build's failure
+code landed in the new run's log, which read it as its own. The script now
+refuses to start while an update is building on a host, and each run reads
+only the exit code tagged with its own run.
+
+## 2026-10-07 — 0.90.100 — on TCP every reused inode's cached lock is checked against the DLM; a peer's recovery no longer floods the kernel log
+
+**On TCP, every reused inode has its cached lock checked against the DLM.**
+The 0.90.99 check that resets a stale cached grant went through a sampler
+built for CAW, where the DLM's record is a disk read. The sampler refuses a
+third concurrent check and every check while its breaker is open, and a
+refused check left the stale grant in service. On TCP, which a DRBD pair
+uses, the record is the DLM's in-memory table, so the check now runs on
+every reuse; CAW stays sampled.
+
+**Fewer kernel-log lines during a peer's recovery.** Each lock request that
+had to wait on a page takeover, and each takeover request a host turned down
+because the bulk takeover would reach it, printed a warning. On pve1 that
+was 65, 21 and 16 lines across two peer deaths. These are steps of every
+normal recovery and are now debug messages. A takeover that makes no
+progress still prints `P960-AUTH-TRANSITION-STALLED` as a warning.
+
+**`tests/pve_pair_write_bound.sh` sees swaps longer than a second.** ftrace
+prints a duration of a second or more without its fraction ("1234567 us"),
+and the parser required one, so every call over a second was dropped. The
+earlier report of maxima just under 1000 ms was this blind spot. Re-read
+with the fix, the physical pair's 0.90.97 build run had swaps on pve2 at p99
+5.1 s, max 11.6 s, and 8 over 8 s, matching the heartbeat stalls it logged.
+
+**New: `tests/pve_fairness_profile.sh`.** It runs the shared-directory churn
+with ftrace's function profiler on both hosts for exactly the churn's
+window, so the two hosts' time per function can be compared.
+
+**New test helper: `tests/tauth/repeat_test.sh`.** It runs one of the
+ledger unit-test binaries N times in a row and reports how many runs failed.
+`formation_test` failed intermittently: 1 run of 5 alone, and 1 of 1 beside
+a build, but 0 of 20 in a row. That gives it a rate instead of a single
+result; the cause is recorded as an open defect.
+
+**`tests/pve_churn_fairness.sh MKDIR_ON=0|1`** chooses which participant
+makes the shared directory, which decides who starts out holding its lock.
+
+**`tools/slot_ring_report.py` reports crossings.** The count it had for
+"another incarnation" compared each slot image with the in-core inode's
+generation. A cluster write's in-core inode is whichever copy the cache
+returns, a stale one as often as the live one, so the count read 2,000-3,000
+per busy host before the 0.90.99 fix and after it. The new section reads
+only the images on disk:
+- **resurrect:** a live image of generation G written after the free image
+  of G (generation G+1, mode 0) went out for that slot. A freed incarnation
+  is never live again.
+- **overwrite:** a live image written over the other host's live image of a
+  different generation, with no free image between.
+- A cross-host order counts only when the two writes are more than SLACK
+  apart, because the two hosts' clocks differ; on one host the order is exact.
+- Over every recorded run on the nested pairs, it named exactly the two
+  pre-fix 8-round runs: 7 inodes on pair A and 2 on pair B, the ones the
+  allocator later found free with a live home. The two runs after the fix
+  had none.
+
+**`scripts/pve_pair_update.sh REFORMAT=1`.** With both units stopped, it
+runs `mkfs.mxfs -f` from participant 0, after the check when `CHECK=1` too,
+and brings the pair back on an empty filesystem. With `REFORMAT=1` a finding
+does not stop the update, and the check's report is kept. It is meant for
+the test pairs.
+
+## 2026-10-07 — 0.90.99 — an open no longer hands out a file descriptor on an inode its own lock acquire has just found dead
+
+**A write to a file the peer had just re-created failed "Stale file handle".**
+When one host frees a file the other still has in core and a new file takes
+the number, the other host's next open of the name finds its old in-core
+inode. The open's protecting lock acquire (`mxfs_dlm_open_protect`) reloads
+the inode, sees the platter holds a different incarnation and poisons the
+old one (`P34H-INCARN-POISON src=freshsrc`). The open then went on and
+returned the descriptor anyway, so the caller's first write failed ESTALE
+on a file that exists. On the nested DRBD pair under
+`tests/pve_churn_fairness.sh` (8 loops per host), 3-4 of participant 1's 8
+loops failed their first append every round. A kernel stack per poison
+(`tests/pve_poison_caller_trace.sh`) put all of them inside that acquire:
+3 of 3 stacks ran `xfs_file_open -> mxfs_dlm_open_protect -> xfs_ilock`,
+and the same round had exactly 3 failed appends.
+- After its acquire, open now asks the inode's gate
+  (`mxfs_inode_incarn_estale`) and refuses with its verdict. ESTALE makes
+  the VFS walk the path again with `LOOKUP_REVAL`. `d_revalidate` drops the
+  poisoned inode's dentry, the lookup retires it and reads the live
+  incarnation, and the open protects that one.
+- Verified on both nested pairs, 4 rounds each: 13 poisons, all refused at
+  open, and no loop error on either pair.
+
+**A host could write a deleted file's old inode over the file that replaced
+it.** When a peer's lock request reached a host whose copy of the inode was
+already retired (reclaimable, no longer in use), the host released the lock
+without touching that copy, which still said "held EX". When the copy was
+brought back into use, an open trusted the cached grant: no lock acquire and
+no re-read. The host then kept logging and writing the OLD incarnation of
+the inode while the peer had freed it and created a new file under the same
+number. On the nested pair under 8 churn rounds, one host kept writing
+inode 2891's freed incarnation for 90 s over the peer's live one. The
+peer's copy then diverged, its free could not be published, and its
+allocator later found the number free in the inode btree with a live inode
+at home. That happened for 7 inodes on one pair and 2 on the other.
+- When a retired copy is brought back into use (`xfs_iget_recycle`), its
+  cached grant is compared with what the DLM says this host holds
+  (`mxfs_dlm_recycle_grant_check`, `xfs/xfs_mxfs_dir_data.c`). A grant the
+  DLM no longer holds is lowered to the DLM's mode, the inode is marked
+  stale so it is re-read from disk, and the next lock is acquired for real.
+- Verified on both nested pairs: two 8-round runs and two 16-round runs on
+  freshly formatted filesystems, every inode write recorded. No write put a
+  freed incarnation back on disk (`tools/slot_ring_report.py` crossings: none),
+  and no allocator found a free number with a live home, while 8 to 38
+  stale grants were caught and reset per run.
+
+**Creates failed "Structure needs cleaning" once a mount had set aside one
+inode number.** When the allocator finds a free number whose home on disk
+still holds a live inode (`P-DIALLOC-DISKLIVE`), it sets the number aside
+for the life of the mount. After that, an allocation that had to step past
+more than 64 candidates still owed their own free writes should back off and
+retry (`P946-DIALLOC-PUBPEND-STORM`). Instead it failed the create EUCLEAN,
+because skipping the already set-aside number counted as a fresh finding of
+a live inode. On the nested pair, one such finding was followed 8 s later by
+seven failed creates in separate allocations.
+- Only a live inode this allocation itself found (`xfs/libxfs/xfs_ialloc.c`,
+  `xfs_dialloc_ag`) makes the storm a corruption verdict.
+- Verified on both nested pairs, 8 churn rounds each, with 8 and 2 numbers
+  set aside for the whole window: 1001 and 823 back-offs, no
+  `P-DIALLOC-DISKLIVE-STORM` and no failed create.
+
+**`chk_mxfs` finds a free inode whose home on disk is still live.** The
+inode btree could say an inode was free while its dinode on disk still held
+a live file, and the check passed it as clean. The next create of that
+number would then have handed a live inode out a second time. The nested
+pairs passed `chk_mxfs -n` with 8 and 2 such inodes, which the kernel's
+allocator had already found and set aside.
+- The orphan audit now reads the core of every inode the inode btree marks
+  free, and reports one with a live mode as `P-FREE-LIVE-CORE`.
+- On both nested pairs it reported exactly the inodes the kernel had set
+  aside (8 and 2), with the same generations.
+
+**New test: `tests/pve_poison_caller_trace.sh`.** It runs a command with a
+kprobe on `mxfs_incarn_poison` recording each call's kernel stack in a
+tracing instance of its own on both hosts. For each host it reports the
+number of poisons and how many came through open, open's protecting
+acquire, a write, or a lookup.
+
+**`tests/pve_cluster_write_authority.sh` takes `ROUNDS`.** It runs the churn
+that many times in one recording window. It also reports
+`P-DIALLOC-DISKLIVE` verdicts, and `tools/slot_ring_report.py` prints every
+recorded write of such an inode from both hosts, in time order, up to the
+verdict.
+
+**New tool: `scripts/pve_drbd_xfs_storage.sh up|down|status`.** It builds
+plain XFS on a scratch DRBD resource of the physical pair, both hosts
+Primary as for MXFS, and adds it as a Proxmox storage on one host. The same
+VM builds can then run on XFS over the same replication
+(`scripts/pve_pair_builds.sh STORAGE=drbdxfs`).
+
+## 2026-10-07 — 0.90.98 — a host rejoining after a crash no longer prints a refusal line for each of its old log's transactions
+
+**A rejoin after a crash printed 56-66 refusal lines for records that are
+skipped by design.** When a host comes back from a crash, its new mount claims
+its old heartbeat slot and adopts the old log slice. The peer has already
+replayed that slice and completed the recovery, so the slice's records are
+not applied again: each transaction is refused because the old incarnation's
+authority is gone. Each refusal printed an `ATOMIC-SKIP ... contains
+unauthorized image(s); partial apply would tear` line and one
+`P227-FR-REFUSED-IMAGE` line per image. On the nested pair that came to
+56-66 lines per rejoin, on a console where such lines read as corruption.
+- A refusal on such a slice whose every blocking image was refused only
+  because that authority is gone (manifest purged, nothing held, no fenced
+  descriptor) is now counted. It prints a debug line (`PRIOR-SKIP`).
+- The mount reports the count once:
+  `adopted log slice: N transaction(s) of the prior incarnation not applied
+  again (a peer completed its recovery); M other refusal(s)`.
+- Any other refusal there still names its images.
+- A bootstrap owner's adopted slice is unchanged; a refusal there is terminal
+  and still names each image.
+
+**New test: `tests/pve_wedged_umount_reboot.sh`.** It holds one nested host's
+next MXFS unmount in the kernel (`dbg_teardown_lease_hold_ms`), requests a
+reboot and does nothing else to it. It fails when:
+- the host's `mxfs-drbd@` stop takes longer than 180 s, or never says the
+  unmount is stuck;
+- the host has no new boot within 600 s;
+- the host's boot program does not wait for its peer to recover its previous
+  incarnation (`has recovered this node's previous incarnation`), or promotes
+  while the recovery is still owed;
+- a mount on the new boot fails;
+- the host is not mounted again, Primary/Primary UpToDate on both, within
+  300 s of its new boot.
+
+It never runs on the physical pair. Unlike `scripts/wedged_umount_reboot_poll.sh`
+and `_remount.sh`, it takes the pair from its environment and reads the
+victim's boot id itself.
+
+## 2026-10-07 — 0.90.97 — a lock acquire that queues on its own host no longer waits on the lock table it already holds
+
+**The self-deadlock that froze pve1's lock manager is fixed.** A locally
+mastered acquire that has to queue builds its waiting entry with the DLM table
+lock held for writing, and in doing so asks the acquisition table for the
+wait's name (`dlm_acq_begin`). That call's idle scan retires records that have
+been idle past 15 s, and a retired record that still holds an adopted grant
+(one that arrived between two attempts of a remote wait) has its grant handed
+back through `dlm_acq_release_grant`, which takes the table lock for writing
+again. The kernel rwsem does not nest, so the task waited on itself: on the
+physical pair under an install-shaped write load, `bash:52508 <writer> blocked
+on an rw-semaphore likely owned by task bash:52508 <writer>`, and every later
+lock operation on the host (pvestatd's storage check, the peer's request
+handler, the log worker) queued behind it until a reboot. `dlm_acq_begin` now
+takes `may_release`; the queue path passes false, and a grant-holding idle
+record is left for the next call that does not hold the table lock, which
+already releases one such record per call. Verified on the physical pair under
+the load that froze pve1: every block both hosts wrote read back as written, no
+task blocked, and eight records that went idle holding an adopted grant handed
+it back to its master with nothing waiting on itself.
+
+**User-mode rwlock wrappers stop the process on a failed acquire.** glibc
+answers a recursive `pthread_rwlock_wrlock` with EDEADLK and takes nothing, so
+the user-mode DLM tests passed straight through the recursion that hangs the
+kernel. `mxfs_pal_rwlock_rdlock`/`wrlock` (pal/linux/user.c) now print the
+failure and `abort()`.
+
+**New test: `tests/tauth/acq_release_deadlock_test.sh`.** It builds the exact
+state through the public lock calls (a one-attempt remote wait that times out,
+its grant adopted between attempts, the record left idle past 15 s, then a
+locally mastered acquire that queues) and runs it twice: against the tree, and
+against a copy of `dlm/dlm.c` with only the queue path's `may_release` set back
+to true. The control aborts with `pthread_rwlock_wrlock failed: Resource
+deadlock avoided` at the queueing acquire, as on pve1; the fix passes all 21
+checks, and a later remote acquire hands the grant back and the peer takes the
+resource again. The whole user-mode suite passes with the aborting wrappers
+(`make -C tests/tauth test`: rc 0, 418 PASS, no failure or abort). The two arms
+run one after the other: run together, each formatting its ledger image slowed
+the other's setup from 7 s to as much as 14 s and put a correct run at its
+30 s budget.
+
+**Kernel messages are plain ASCII.** The module's messages carried 2567
+non-ASCII characters (em dashes above all, also arrows, ellipses and a union
+sign) across 101 source files. The Linux text console has no glyph for them,
+so on pve1's console each printed as garbage right after the field before it,
+which the owner read as filesystem corruption after `P-TAUTH-IMPORT-RESIDUE
+... mode=PR`. Every one inside a string literal is now ASCII (an em dash is
+`--`). `tools/ascii_kernel_strings.py --check` lists any that come back (a
+small C lexer, so comments keep theirs), and `--fix` replaces them. The few
+harness patterns that matched the old text were updated with it. Verified on
+the physical pair after the install: of the 99 mxfs lines both hosts logged
+from module load to mount, 16 print `--` where they used to print an em dash,
+and none carries a byte above 0x7f.
+
+**Leftover grants after an unclean shutdown are released quietly.** A mount
+whose own slot still holds a predecessor's grants (its departure cleanup never
+ran) releases each one as its ledger page is imported, and logged a warning
+per grant: pve1 printed 60 of them to its console in two minutes of that
+ordinary release. Each is now a debug line; the mount logs one info line when
+it finds the first, and the count stays on `P-TAUTH-DLM-STATS`. A release
+that fails is still an error.
+
+**A wedged unmount no longer hangs the DRBD unit's stop.** `mxfs-drbd@`'s stop
+bounded its `umount` with a timeout that, on expiry, killed the child and then
+waited for it, and an unmount stuck in the kernel never dies: the stop sat
+until systemd killed it at 180 s and never logged why. It now waits at most
+170 s without waiting on the child, and says the unmount is stuck in the kernel
+and that the peer will treat the departure as a loss.
+
+**A DRBD host back from an unclean shutdown stays Secondary until its peer
+has recovered its previous mount.** Its boot program asked the mounted peer
+only whether it owed a recovery (`recovery_pending`), and a host that comes
+back before its old incarnation is declared dead finds none owed yet. On the
+nested pair a host whose unmount was stuck in the kernel heartbeated until it
+was reset, booted again within seconds and promoted; the peer then declared
+the old incarnation dead and could not prove it ended while the host was
+Primary (`P238-DRBD-FENCE-NOT-YET`), and the host's first mount failed after
+2 min before a step-down let the recovery through. Each mount now publishes
+`/sys/fs/mxfs/<dev>/other_slots_held` (how many heartbeat slots other than
+its own it still counts, live or owed a recovery), and the boot program stays
+Secondary while the peer's is not 0, bounded as before at 180 s. A clean
+departure leaves no slot, so that boot waits for nothing.
+
+**Merged from the parallel investigations (each verified where it was done):**
+- **The DRBD write bound holds on kernels before 6.9** (`pal/linux/xfs_aops.c`).
+  Their iomap chains a full writeback ioend's next bio to it, so one bound
+  admission carried up to 16 MiB to the device (up to 44 device writes in
+  flight on 6.8). A bounded mount now ends an ioend whose bio is full, so
+  iomap never chains one. On a 6.8 rig pair with 4 KiB buffered writers:
+  unbounded spans 21/18 -> 0/0, device writes in flight max 28/44 -> 19/10,
+  compare-and-swap max 802/837 -> 355/675 ms, every block verified on both
+  hosts; 1 MiB writers showed no slowdown. `tests/drbd_write_bound_arm.sh`
+  runs the arm; `tests/pve_pair_write_bound.sh` gained `DIO_JOBS=0`,
+  `BUF_JOBS`, `SAMPLE_MS` (writes in flight sampled on both hosts),
+  `PAIR_NAMES`, and traces at the top level on kernels whose trace instances
+  cannot run function_graph.
+- **An operator can now repair a refused log slice instead of reformatting.**
+  `chk_mxfs --accept-quarantine-loss` completes the destructive half (the
+  refused slice reset and its slot cleared, crash-safe at every step, the
+  quarantined images archived first), including a slice a bootstrap adopted.
+  Design: `docs/quarantine-repair.md`. `tests/chk_quarantine_repair_unit.sh`
+  (37 checks, a crash injected at each step: PASS) and
+  `tests/drbd_quarantine_repair.sh` (a rig DRBD pair, the adopted form: PASS).
+- **Ledger group commit, off by default** (`tauth_group_commit=0`): concurrent
+  page commits share one barrier batch. On the rig it cut flushes per commit
+  as designed but did not lower commit latency (the rig's flush costs ~0.1 ms),
+  so it ships off for an A/B on the physical pair. `tests/tauth/group_commit_test.c`;
+  `tests/drbd_ledger_storm_ab.sh`.
+- **Recovery timing lines** (`dlm/v5_mount.c`): `P163-RECOVERY-COMPLETE` names
+  the victim's TCP reconnect grace at publication, and a death-worker pass that
+  ran the grace check a second or more late logs `P-TCP-DEATH-PASS-HELD` with
+  each step's time. No behaviour change. `tools/recovery_ladder_report.py`.
+- `scripts/pve_nested_pair.sh` builds a second nested Proxmox pair;
+  `scripts/drbd_rig.sh` takes `MXFS_NODE_REPO` (the tree the nodes load from)
+  and clears a stale SCSI reservation on each LUN before the baseline too.
+
+**Measured, not changed:** real-time I/O priority for DRBD coordination writes.
+Under unbounded bulk it cut pve1's 512 B replicated write from 38.8 s to 2.3 s
+max, but under the 4 MiB-per-host load MXFS's write bound leaves, priority on
+the probe and on both hosts' DRBD receiver threads did not help (max 0.83 ->
+1.24 s and 1.69 -> 2.30 s): the queue is already short.
+`scripts/drbd_write_latency_probe.sh` gained `PROBE_PRIOCLASS` and
+`RECEIVER_PRIOCLASS` for the measurement.
+
+**Defect queue:**
+- **a stat on the physical DRBD pair took the DLM table lock for writing and
+  asked for it again, so every later lock operation on the host queued behind
+  it for good** — FIXED AND VERIFIED: the user-mode control arm deadlocks and
+  the fix passes; on the physical pair the load that froze pve1 passed with
+  every block verified and eight idle grant-holding records released cleanly
+  (tests/evidence/pve_pair_write_bound/20261007T192413Z).
+- **MXFS kernel messages carried non-ASCII characters the console prints as
+  garbage** — FIXED AND VERIFIED: no byte above 0x7f in any mxfs line on either
+  physical host after the install, 16 of them printing `--` where an em dash was.
+- **after a peer withdraws, the survivor held its recovery complete for up to
+  40 s after the old incarnation's end was proven** — FIXED AND VERIFIED: the
+  wait was the per-page ledger purge (batched since 0.90.84), not the TCP
+  reconnect grace, which the completion never waited on. On the physical pair
+  withdraw-p1 completed 7 s and withdraw-guests 9 s after certification, each
+  with the grace still 28 s from its end (`tcp_grace=12118` / `12573`).
+- **a foreign replay's change-count gate compared a dead peer's inode image
+  with the survivor's own cached copy, which can be behind the platter, and
+  could apply an image the platter had moved past** — FIXED AND VERIFIED: the
+  gate takes the newer of the cached and platter counts (since 0.90.54). With
+  every cached slot made to read stale, the old gate applied 10 images the
+  platter had moved past; this build's gate followed the platter all 10 times,
+  every durable line of both hosts survived the reset, and `chk_mxfs -n` was
+  clean (`tests/pve_replay_gate_lag.sh`, nested pair).
+- **a host whose MXFS unmount was stuck in the kernel took ~13 min to
+  reboot** — FIXED AND VERIFIED: with the unmount held stuck and a reboot
+  requested, the unit's stop gave up at 170 s and said why, and the host came
+  back by itself 435-439 s after the request, three runs on two nested pairs.
+- **a DRBD host back from an unclean shutdown promoted before its peer had
+  recovered its previous incarnation, and its first mount failed** — FIXED AND
+  VERIFIED: in two such reboots the host stayed Secondary for 35 s while the
+  peer certified and recovered the old incarnation, then promoted and mounted
+  first time.
+- **a create on a single-node mount restarted a reused inode core's change
+  count, so the replay after that host's crash skipped the new files** — FIXED
+  AND VERIFIED: alone-restart, survivor-restart and answering-restart, each
+  writing 32 files into freed cores, passed on the physical pair (0.90.92,
+  0.90.95) and on a nested pair on this build, with `chk_mxfs -n` clean after.
+- **a survivor's mkdir failed EAGAIN on a dead peer's ledger page** — FIXED AND
+  VERIFIED: survivor-restart and answering-restart passed on both pairs, and a
+  takeover census ran 1152 operations on the dead peer's pages during the
+  takeover with none failing and no page left behind.
+- **a survivor's takeover of its dead peer's ledger pages could skip one page
+  for good** — FIXED AND VERIFIED (the fix shipped in 0.90.90): takeover
+  censuses on both nested pairs left 0 pages under the dead incarnation, and
+  no failover or withdraw step on either pair logged a skipped page.
+- **on a kernel whose iomap still chains a writeback ioend's bios (6.8 and
+  older, e.g. Ubuntu 24.04 GA), the DRBD write bound saw only the last bio of
+  each ioend, so up to 16 MiB per writer went to the device uncapped** — FIXED
+  AND VERIFIED: on a 6.8 rig DRBD pair with the record's own load (4 KiB
+  buffered writers), pre-fix 726C44A4AE50DAE7AD3D815 showed 21/18 unbounded
+  spans and up to 44 device writes in flight; the fix 28DFBB2B210C8FE66DA353B
+  showed 0/0, at most 19, compare-and-swap max 802/837 -> 355/675 ms, every
+  block verified both ways, no stall, closure or warning; merged unchanged
+  (tests/evidence/write_bound_6_8/runs/armB-*).
+- **the rejoin of a withdrawn DRBD mount stopped each guest on it with `qm
+  stop` one at a time, so a starved host stayed Primary with its mount open for
+  minutes** — FIXED AND VERIFIED (the fix shipped in 0.90.78; the record waited
+  on one question that belongs to another record): `tests/pve_pair_failover.sh
+  withdraw-guests` on the physical pair, three frozen VMs on the mount, unmounted
+  51.8 s after the rejoin's start on 0.90.77 and 1.5 s on 0.90.78 (budget
+  15 s), no refused I/O on the peer, every fsynced file intact. The survivor's
+  49.7 s replay after certification stays open under
+  D-DRBD-SURVIVOR-RECOVERY-WAITS-40S-DLM-RECONNECT-AFTER-CERTIFIED-WITHDRAWAL.
+
+## 2026-10-07 — 0.90.96 — test tooling to run more DRBD pairs side by side and to size build loads to each host
+
+**Rig DRBD pairs no longer queue behind one another.** `scripts/drbd_rig.sh`
+took the whole 2/net/mesh/drbd configuration's lock for every step, so only
+one pair on the rig could run a step at a time although no step of one pair
+touches another's nodes, LUNs or DRBD. The configuration lock is now taken only
+by `fio` and `all`, the steps that write the configuration's trial board
+(`suite` goes through run.sh, which takes it itself). `MXFS_NODES="<a> <b>"`
+names a pair's two nodes directly, for pairs beyond the two-node groups g2 and
+g2b; such a pair cannot run `suite`, `fio` or `all`, which need a group.
+
+**`scripts/pve_pair_builds.sh` sizes the build load to each host.** `COUNTS`
+gives each host its own number of builds (e.g. `COUNTS="3 4"`: pve1 has 15 GiB
+of memory and pve2 23 GiB, and a build VM takes 4 GiB), in place of one count
+for every host. `DEFINES` passes further mkosimage defines: AlmaLinux moved
+9.7 to its vault and the spec's ISO URL now returns 404, so every build failed
+in a second until `iso_url` pointed at vault.almalinux.org. `MKOS_FLAGS`
+passes further mkosimage flags: `--local` installs from the ISO already on the
+hosts' `iso` storage, since Proxmox's own download of it fails at once with
+that storage full.
+
+**New test: `tests/drbd_dio_upgrade.sh`.** A synchronous direct write that
+allocates holds the inode's cluster lock shared through its IOLOCK and then
+needs it exclusive for the allocation, in the same task. The test makes the
+peer hold the inode shared with one `stat` and times a 1 MiB `O_DIRECT` write
+into a hole, round after round, counting refused upgrades (`P-CONVBLK-DENY`),
+aborted releases (`P15-REL-ABORT`) and shutdowns on both nodes. First run, on
+a rig DRBD pair (test17/test18, module `ED22A388EE70FF633DBD8EE`): ten rounds,
+every write 38-555 ms, no shutdown
+(tests/evidence/drbd_dio_upgrade/20261007T162316Z). The file's lock was never
+upgraded: the writer's request reached the master as a conflict with the
+peer's PR, the master asked the peer to release (it did, 8 ms later) and
+granted the writer EX. The ten refusals were all on the test's directory, a
+create's upgrade with no outer hold, and the master asked the peer to release
+within 50 ms of each, so they resolved too. The suspected cycle (an upgrade
+refused while the writer's own shared hold keeps its release from completing)
+does not occur on this path.
+
+**`scripts/drbd_rig.sh up` clears a stale SCSI reservation on each node's
+backing disk before creating DRBD's metadata.** A pool LUN last used by a
+shared-LUN MXFS group still carries that group's persistent reservation
+(Write Exclusive, all registrants, kept across logins by APTPL), so every
+write of a node that is not a registrant is refused, and `create-md` failed
+with "Invalid exchange" on test17 and test18 (lun04 held 8 keys, lun08 16).
+The same two commands (register-ignore, then clear, key 0x5eed) cleared both
+LUNs by hand and `up` then passed; with the clear in `up`, the next `up` and
+`mxfs` passed again (tests/evidence/drbd_rig/20261007T162550Z-up) and each
+LUN's reservation generation had moved 0x2 to 0x4, the two commands' mark.
+
+**Defect queue:**
+- **a user following the public repository on two physical hosts ended with
+  DRBD over a loop file, no fencing and no boot-time bring-up: nothing came
+  back after a reboot and nothing refused the setup** — FIXED AND VERIFIED.
+  `docs/drbd-setup.md` run end to end on the physical pair from a fresh clone
+  (`scripts/pve_pair_from_guide.sh`, 0.90.81, PASS:
+  tests/evidence/pve_pair_from_guide/20261007T033406Z); on that guide-built
+  pair `tests/pve_pair_failover.sh` reboot passed on 0.90.81, 0.90.88, 0.90.91
+  and 0.90.95 (20261007T150909Z-192.168.1.80: mounted again 27 s after
+  answering), with power-cut, p0-crash, survivor-restart and answering-restart
+  also passing on 0.90.95; `scripts/drbd_rig.sh misconfig-test` refused all
+  eight wrong settings by name (20261006T152718Z) and resolve-test refused a
+  loop device (20261006T130612Z).
+- **after both physical hosts are reset at once under load, participant 0 is
+  not mounted 300 s after it answers** — FIXED AND VERIFIED. The overrun was
+  the bootstrap's two heartbeat scans waiting a whole dead window each (64.3 s
+  and 64.0 s on 0.90.81), which 0.90.86 reads once when the DRBD witness proves
+  the peer excluded or Secondary. power-cut passed on the physical pair on
+  0.90.88, 0.90.91 and 0.90.95 (20261007T150909Z-192.168.1.80: pve1 mounted
+  93 s after answering, its boot shows both scans as one poll), every fsynced
+  file intact.
+
+## 2026-10-07 — 0.90.95 — a refused replay transaction names each image that blocked it, and why
+
+**A refused transaction said only that it held an unauthorised image.** When
+a replay of another node's journal, or of an adopted slice after a whole-pair
+outage, meets a transaction with an image its authority check cannot credit,
+it skips the whole transaction, and in an adopted slice that ends the
+bootstrap for good. The line it printed carried one number, and the per-image
+verdicts were debug lines, off on a production host: after the nested pair's
+power cut on 2026-10-07 the refusal of the surviving host's last two
+checkpoints could not be traced to any image.
+- The authority check records, for each image it refuses, the layer that
+  refused it: no or an unusable trailer, the token's class, status, slot or
+  incarnation, not held at death, a manifest error, another lineage, another
+  grant, no proven incarnation, no lineage, an inode create without its proof,
+  or an item type that carries no authority.
+- Every refused transaction now logs `P227-FR-REFUSED-WHY` with the count per
+  layer, and `P227-FR-REFUSED-IMAGE` for each image that blocked it (its block,
+  type, token and layer), at most 32 per transaction and 1024 per module load.
+- Checked on the rig's DRBD pair with the new `scripts/drbd_rig.sh death-test`
+  variant `DEATH_FORCE_REFUSE=1`: the survivor is made to refuse every
+  transaction of the dead node's slice it replays, and each refused
+  transaction must carry its report. Five transactions refused, five reports,
+  no oops (tests/evidence/drbd_rig/20261007T145155Z-death-test).
+
+**The DRBD test scripts no longer reset, crash, reboot or power-cycle a
+physical host.** The physical Proxmox pair are workstations over ten years
+old, and repeated resets killed one of them. `tests/pve_pair_failover.sh`
+asks each host `systemd-detect-virt --vm` at the start and refuses every step
+that resets a host or makes one restart itself (all but `withdraw-both`,
+`withdraw-p1`, `withdraw-guests` and `slow-beat`) unless both are virtual
+machines, and each reset, crash, reboot and power primitive refuses a host not
+known to be one. `tools/pve_power.sh off|on`, `tests/pve_fence_rcu_check.sh`
+and `tests/pve_replay_gate_lag.sh` refuse the same way; `pve_power.sh
+restore`, which never resets, is unchanged. Those paths are proven on the
+nested pair.
+
+**`scripts/pve_pair_update.sh` on the nested pair:** the hosts carried a DKMS
+registration of 0.90.93 beside the source install, which the install refuses;
+it was removed (`dkms remove mxfs/0.90.93 --all`) and both pairs now run
+0.90.95 from the tree (srcversion 0E47313284EC5F7F2B5C2A3 on 6.17), each
+checked clean by `chk_mxfs -n` between the stop and the start.
+
+**Defect queue:**
+- **every successful DRBD fence makes the in-kernel DRBD 8.4 worker sleep inside rcu_read_lock (a kernel WARNING on the survivor at every peer exclusion)** — FIXED AND VERIFIED. Fix 0.90.89 (the winner runs `drbdadm resume-io` before answering DRBD). Verified by `tests/pve_fence_rcu_check.sh` and the nested suite on 0.90.93, and on the physical pair on 0.90.95: pve1's boot excluded pve2 (fence-peer exit 7, recovery complete) with 0 "Voluntary context switch within RCU" (tests/evidence/pve_pair_failover/20261007T150909Z-192.168.1.80).
+- **a withdrawn DRBD mount is never remounted and its unit stays active** — FIXED AND VERIFIED. Fixes 0.90.72-0.90.76 (the guard rejoins a withdrawn mount). withdraw-p1/withdraw-both/withdraw-held passed on both pairs earlier; the remaining full suite passed on the physical pair on 0.90.95 (p1-crash, reboot, power-cut, p0-crash, every fsynced file intact; promotion-race passed there on 0.90.81).
+- **a guest on MXFS-on-DRBD got I/O errors after the peer died (survivor recovery blocked)** — FIXED AND VERIFIED. Fixes 0.90.77-0.90.86. p1-crash's takeover load on the dead host's image: physical 0.90.95 err=0, first I/O 23.2 s (bound 30 s); physical 0.90.85 25.4 s; nested 0.90.93 11.5 s.
+- **a DRBD survivor that restarts while its peer is down never mounts again** — FIXED AND VERIFIED. Fixes 0.90.68-0.90.69 (participant 0 excludes a peer DRBD records Outdated and mounts alone; the guard holds the peer until that mount is done). survivor-restart, answering-restart and released-restart passed on the nested pair on 0.90.93; survivor-restart and answering-restart on the physical pair on 0.90.95.
+- **lock releases whose master acknowledges them more than ~10 s late are logged as errors and dropped** — FIXED AND VERIFIED. Fix 0.90.83 (a release is re-sent until acknowledged, 1 s doubling to 16 s, warned once after a minute). `tests/pve_release_ack_trace.sh tests/pve_tree_walk.sh seed both touch0`: no release left unacknowledged on either host and no P-TAUTH-RELEASE-WAIT or UNACKED line, nested pair on 0.90.93 and physical pair on 0.90.95 (tests/evidence/pve_release_ack_trace/20261007T144522Z-192.168.120.137, 20261007T154703Z-192.168.1.80).
+- **the built-in fence authority can let both hosts win one split: participant 1 continues on a read of the peer's momentary state (not Primary, no mount), while the peer's own handler still grants itself the win, either because it is being promoted (the handler runs for a disconnected Secondary's promotion) or because it demoted while its lost-link handler was already running** — FIXED AND VERIFIED. Cause shown live on the nested pair 2026-10-06 (0.90.68 handler, tests/evidence/pve_pair_failover/20261006T152844Z): with participant 0 unmounted and Secondary and its DRBD port cut on its side alone, participant 1 carried on as the departed-peer winner while a plain drbdadm primary on participant 0 was granted (both Primary; DRBD later logged Split-Brain). Fix 0.90.69 tools/mxfs_drbd_fence_self.py: the handler grants a promotion only under participant 0's own standing inhibit naming the peer and otherwise refuses with 1; participant 1 never carries on after a lost link; the boot-time peer-Outdated self-exclusion runs on participant 0 only. Verified by tests/pve_pair_failover.sh promotion-race, unchanged acceptance (participant 1 must lose the tie-break and restart, the plain primary must be refused with no inhibit written, both remount with every fsynced file intact on both): physical pair 2026-10-06 23:12-23:17 CDT on 0.90.81 36AE66BA919CE8EC9AC9894 (tests/evidence/pve_pair_failover/20261007T040624Z-192.168.1.80) and nested pair 2026-10-07 08:59-09:02 CDT on 0.90.93 5C1D6F33451EEB60C084009 (tests/evidence/pve_pair_failover/20261007T135935Z-192.168.120.137: link cut on pve9-2 alone, pve9-1 lost the tie-break and restarted, drbdadm primary on pve9-2 refused with BEFORE Connected UpToDate/UpToDate and nothing excluded, both mounted again, every fsynced file intact on both).
+
+## 2026-10-07 — 0.90.94 — test tooling for a DRBD pair's total outage and for lock-tenure fairness
+
+No change to the module. Tools for two open DRBD defects:
+- `tests/pve_outage_lone_survivor.sh` takes one host of the nested DRBD pair
+  away, lets the other recover it and work alone, then cuts the survivor too
+  and requires both to remount with no operator action. `DIAG=1` prints the
+  replay's per-image authority verdicts for the restart; `PIN=1` holds the
+  survivor's log tail from before the exclusion so its whole span is replayed.
+  Three runs, including one with 78 transactions in the window, remounted
+  both hosts with nothing refused.
+- `tests/pve_conflict_outage.sh` churns with the passenger write switched back
+  on until DRBD logs a conflict, then cuts both hosts and restarts them with
+  the verdicts printed; `PIN=1` holds participant 0's tail from each lap.
+- `tests/pve_bootstrap_verdicts.sh` clears a refused bootstrap term and mounts
+  again with the verdicts printed. The second bootstrap does not judge the
+  same victim as the first: the refused term had adopted the victim's slot.
+- `tests/pve_churn_fairness.sh` with `PROBES=1` turns the lock-tenure probes
+  on for the run, and `tools/tenure_report.py` reports per host and inode how
+  long each EX tenure was held, how many operations it served, and how old the
+  waiters it was queued behind at the master were.
+
+## 2026-10-07 — 0.90.93 — an inode-cluster write no longer sends inode slots this host has not changed
+
+**Both hosts of a DRBD pair wrote the same inodes at the same moment, and DRBD
+dropped the link.** An inode-cluster write sends a block of inodes to the
+device as runs of slots. Slots of inodes this host logged go out with their
+new images. Slots of free inodes, of inodes held by another host, of inodes
+held only shared and of inodes not in core were already left out. A slot held
+exclusive but not logged still went out, with whatever bytes the buffer held.
+Under a shared-directory churn on the nested PVE pair (0.90.92), DRBD logged
+`Concurrent writes detected` on both hosts for dinode sectors, failed an
+internal assertion, received an out-of-order barrier ack and dropped the link
+as a protocol error; participant 1 lost the tie-break and restarted itself. It
+happened in 4 of 8 runs. A new record of every slot each cluster write sends
+to the device caught one: pve9-2 wrote its logged change to a shared file's
+inode, and pve9-1 wrote the same sectors 0.8 ms later from a retired in-core
+copy of that inode. The copy had been poisoned as an older incarnation and
+still carried the exclusive mode after pve9-2 took the lock. pve9-1 had
+changed nothing in that slot, and republished it every 40-120 ms for over a
+second while pve9-2 committed its own changes to the inode (change count 2141
+to 2144).
+- A slot that is not logged and not buffer-logged is left out of the write
+  whatever mode its inode is held at (`cluster_passenger_skip` bit 2, on by
+  default: 7). A left-out slot has no log item on the buffer, so nothing the
+  write owes is lost. 3 restores the previous behaviour.
+- Nested pair, one build: with the bit set, six runs of eight churn loops per
+  host (one on a cold mount, five warm) had no DRBD conflict, no restart and
+  no unlogged slot written on either host. With it clear, the same churn
+  wrote 50,696 and 55,262 unlogged slots on participant 0 per run and
+  2,107-7,810 on participant 1, 267 of them from poisoned copies.
+- The same build with the bit clear (three runs) reproduced the conflict, the
+  protocol error and participant 1's restart in its third run; the physical
+  pair (pve1/pve2) on this build ran four of the same churns with the bit set
+  with no conflict, no restart and no unlogged slot written, and its
+  filesystem checked clean unmounted afterwards. Ten clean runs with the bit
+  set against conflicts in 4 of 8 runs before it: the record of this defect
+  is closed as fixed and verified (evidence
+  `tests/evidence/pve_cluster_write_authority/20261007T111526Z`-`T112848Z`
+  nested, `T113326Z`-`T113840Z` control, `T122956Z`-`T123842Z` physical).
+
+**Also:**
+- `mxfs.slot_ring=1` keeps a record, in memory, of every inode slot a cluster
+  write sends to the device: the slot's sector, the image's inode, generation,
+  mode and change count, the class it went out under (logged, buffer-logged,
+  recovery-owned, whole write, allocation buffer, in core) and the in-core
+  inode's lock mode, generation and flags. It is read from
+  `/proc/fs/mxfs/slot_ring`, prints nothing on the write path, and is off by
+  default. `tools/slot_ring_report.py` reads a run's records: each host's
+  census of slots written by class, the unlogged ones, and each DRBD conflict
+  matched to the two writes it names.
+- `tests/pve_cluster_write_authority.sh` runs the shared-directory churn on a
+  DRBD pair with the write-authority probes and the slot record on, and maps
+  every DRBD conflict to its inodes and writes;
+  `tests/pve_write_authority_laps.sh` runs it lap after lap with the knob set.
+- `scripts/pve_pair_update.sh` with `FROM_TREE=1` installs the working tree
+  on a Proxmox pair for a test, with no commit, push or pull: it packs the
+  sources `make install` reads, copies them to `/root/mxfs-tree` on each host
+  and runs `make install OVERWRITE=1` there, then swaps the module as before.
+  The host's clone in `/root/mxfs` is left for the next release.
+- `tools/pve_power.sh restore` ends a failover run that stopped while a host
+  was "off" without resetting the host again: it lifts the isolation in place
+  and starts the guard and the mount unit.
+- `tools/pve_klog_sweep.sh` counts chosen kernel-log patterns on each host of
+  a pair, boot by boot, since a given time.
+- `tests/pve_ticket_pages.sh` lists every lock-ledger page that carries a
+  commit ticket on a DRBD pair and makes a lock request through each.
+
 ## 2026-10-07 — 0.90.92 — a ledger page whose writer died mid-commit no longer refuses every later write
 
 **A writer that died between claiming a lock-ledger page's spare copy and

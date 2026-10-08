@@ -486,7 +486,7 @@ mxfs_dir_data_durable(struct xfs_inode *ip)
 		if (!mxfs_dir_data_owner_scan(ip, false))
 			vac_durable = false;
 		if (atomic_inc_return(&p42n) <= 500)
-			mxfs_probe("mxfs: P42-VACUOUS-DURABLE ino=%llu fmt=BTREE need_iread=1 owner_scans_durable=%d — map-walk skipped, owner-scans consulted\n",
+			mxfs_probe("mxfs: P42-VACUOUS-DURABLE ino=%llu fmt=BTREE need_iread=1 owner_scans_durable=%d -- map-walk skipped, owner-scans consulted\n",
 				(unsigned long long)ip->i_ino,
 				vac_durable ? 1 : 0);
 		return vac_durable;
@@ -868,7 +868,7 @@ mxfs_sfconv_disk_check(struct xfs_inode *ip)
 
 		mxfs_sf_fmt_names(mp, insf, p185in, sizeof(p185in));
 		mxfs_sf_disk_names(mp, dip, p185dk, sizeof(p185dk));
-		pr_warn("mxfs: P185-SFCONV-DROPS ino=%llu missing=%d lost=[%s] incore_cnt=%u disk_cnt=%u incore_chg=%llu disk_chg=%llu incore_nlink=%u disk_nlink=%u incore=[%s] disk=[%s] dlm_mode=%u comm=%s realns=%llu — LOCAL->BLOCK conversion is about to drop peer names that are already on the platter\n",
+		pr_warn("mxfs: P185-SFCONV-DROPS ino=%llu missing=%d lost=[%s] incore_cnt=%u disk_cnt=%u incore_chg=%llu disk_chg=%llu incore_nlink=%u disk_nlink=%u incore=[%s] disk=[%s] dlm_mode=%u comm=%s realns=%llu -- LOCAL->BLOCK conversion is about to drop peer names that are already on the platter\n",
 			(unsigned long long)ip->i_ino, missing, lost,
 			insf->count, dsf->count,
 			(unsigned long long)inode_peek_iversion(VFS_I(ip)),
@@ -1063,7 +1063,7 @@ mxfs_dir_refresh_stale_data_blocks(struct xfs_inode *ip)
 
 		atomic64_inc(&mxfs_leaf_scan_skipped);
 		if (atomic_inc_return(&p6ls) <= 10)
-			mxfs_probe("mxfs: P6L-SCAN-SKIP ino=%llu epoch=%lu incarn=%u — dir EX held continuously since the last leaf-range scan; scan skipped\n",
+			mxfs_probe("mxfs: P6L-SCAN-SKIP ino=%llu epoch=%lu incarn=%u -- dir EX held continuously since the last leaf-range scan; scan skipped\n",
 				(unsigned long long)ip->i_ino, ip->i_dlm_epoch,
 				VFS_I(ip)->i_generation);
 		return;
@@ -1164,7 +1164,7 @@ mxfs_dir_refresh_stale_data_blocks(struct xfs_inode *ip)
 								  _XBF_FUA_FRESH);
 						lbp->b_mxfs_dir_gen = 0;
 						mxfs_probe_ratelimited(
-						    "mxfs: P6L-LEAFRANGE-INVAL ino=%llu daddr=%lld off=%llu — clean cached leaf-range block diverges from coherent disk; invalidated\n",
+						    "mxfs: P6L-LEAFRANGE-INVAL ino=%llu daddr=%lld off=%llu -- clean cached leaf-range block diverges from coherent disk; invalidated\n",
 						    (unsigned long long)ip->i_ino,
 						    (long long)d,
 						    (unsigned long long)got.br_startoff);
@@ -1324,7 +1324,7 @@ mxfs_dir_flush_one_daddr(struct xfs_inode *ip, xfs_daddr_t d,
 				if (frc == -EAGAIN) {
 					static atomic_t flb = ATOMIC_INIT(0);
 					if (atomic_inc_return(&flb) <= 400)
-						pr_warn("mxfs: P-FLUSH-LOCKWAIT-BAIL ino=%llu daddr=%lld waited=%dms — dir buffer wedged at release; bail+retry (break ABBA)\n",
+						pr_warn("mxfs: P-FLUSH-LOCKWAIT-BAIL ino=%llu daddr=%lld waited=%dms -- dir buffer wedged at release; bail+retry (break ABBA)\n",
 							(unsigned long long)ip->i_ino,
 							(long long)d,
 							mxfs_dir_flush_lockwait * 2);
@@ -1401,7 +1401,7 @@ mxfs_dir_flush_one_daddr(struct xfs_inode *ip, xfs_daddr_t d,
 			    !(dbp->b_flags & _XBF_DELWRI_Q)) {
 				if (unlikely(mxfs_dirwr_enabled ||
 					     mxfs_instr_enabled))
-					mxfs_probe_ratelimited("mxfs: P33-DRAIN-RETIRE ino=%llu daddr=%lld undestaged=%d — retired DONE=0 invalidated zombie BLI at release drain instead of bwriting stale over peer add\n",
+					mxfs_probe_ratelimited("mxfs: P33-DRAIN-RETIRE ino=%llu daddr=%lld undestaged=%d -- retired DONE=0 invalidated zombie BLI at release drain instead of bwriting stale over peer add\n",
 						(unsigned long long)ip->i_ino,
 						(long long)d,
 						mxfs_dir_buf_is_undestaged(dbp));
@@ -1604,7 +1604,7 @@ mxfs_dir_flush_one_daddr(struct xfs_inode *ip, xfs_daddr_t d,
 			    !(dbp->b_flags & _XBF_DELWRI_Q) &&
 			    !mxfs_dir_buf_is_undestaged(dbp)) {
 				if (unlikely(mxfs_dirwr_enabled || mxfs_instr_enabled))
-					mxfs_probe_ratelimited("mxfs: P38-REL-RETIRE-DONE ino=%llu daddr=%lld — retired DONE destaged in-AIL dir BLI at release (no zombie survives handoff for xfsaild reflush)\n",
+					mxfs_probe_ratelimited("mxfs: P38-REL-RETIRE-DONE ino=%llu daddr=%lld -- retired DONE destaged in-AIL dir BLI at release (no zombie survives handoff for xfsaild reflush)\n",
 						(unsigned long long)ip->i_ino,
 						(long long)d);
 				dbp->b_mxfs_done_site = MXFS_SITE;
@@ -1649,7 +1649,7 @@ mxfs_dir_flush_one_daddr(struct xfs_inode *ip, xfs_daddr_t d,
 			    !xfs_buf_ispinned(dbp) &&
 			    !(dbp->b_flags & _XBF_DELWRI_Q)) {
 				if (unlikely(mxfs_dirwr_enabled || mxfs_instr_enabled))
-					mxfs_probe_ratelimited("mxfs: P34-DRAIN-EPOCHSKIP ino=%llu daddr=%lld b_epoch=%u valid_epoch=%u in_ail=%d — retired stale prior-tenure base instead of bwriting over peer add\n",
+					mxfs_probe_ratelimited("mxfs: P34-DRAIN-EPOCHSKIP ino=%llu daddr=%lld b_epoch=%u valid_epoch=%u in_ail=%d -- retired stale prior-tenure base instead of bwriting over peer add\n",
 						(unsigned long long)ip->i_ino,
 						(long long)d,
 						dbp->b_mxfs_dir_epoch,
@@ -1708,13 +1708,13 @@ mxfs_dir_flush_one_daddr(struct xfs_inode *ip, xfs_daddr_t d,
 				if (content_ok) {
 					dbp->b_flags |= XBF_DONE;
 					mxfs_probe_ratelimited(
-					    "mxfs: P3R-RELAND ino=%llu daddr=%lld lseq=%llu wseq=%llu — re-landing never-written committed dir block at release\n",
+					    "mxfs: P3R-RELAND ino=%llu daddr=%lld lseq=%llu wseq=%llu -- re-landing never-written committed dir block at release\n",
 						(unsigned long long)ip->i_ino,
 						(long long)d,
 						(unsigned long long)dbp->b_mxfs_logged_seq,
 						(unsigned long long)dbp->b_mxfs_written_seq);
 				} else {
-					pr_err("mxfs: P3F-UNLANDED-LOST ino=%llu daddr=%lld lseq=%llu wseq=%llu err=%d — committed dir block content unrecoverable in core; NOT writing garbage\n",
+					pr_err("mxfs: P3F-UNLANDED-LOST ino=%llu daddr=%lld lseq=%llu wseq=%llu err=%d -- committed dir block content unrecoverable in core; NOT writing garbage\n",
 						(unsigned long long)ip->i_ino,
 						(long long)d,
 						(unsigned long long)dbp->b_mxfs_logged_seq,
@@ -1876,7 +1876,7 @@ mxfs_dir_flush_one_daddr(struct xfs_inode *ip, xfs_daddr_t d,
 				    !test_bit(XFS_LI_DIRTY, &bip->bli_item.li_flags) &&
 				    !xfs_buf_ispinned(dbp)) {
 					if (unlikely(mxfs_dirwr_enabled || mxfs_instr_enabled))
-						mxfs_probe_ratelimited("mxfs: P37-RELRETIRE ino=%llu daddr=%lld ops=%s — retired destaged BLI after release bwrite (no zombie reflush)\n",
+						mxfs_probe_ratelimited("mxfs: P37-RELRETIRE ino=%llu daddr=%lld ops=%s -- retired destaged BLI after release bwrite (no zombie reflush)\n",
 							(unsigned long long)ip->i_ino,
 							(long long)d,
 							dbp->b_ops && dbp->b_ops->name ?
@@ -2145,7 +2145,7 @@ mxfs_dir_flush_data_blocks_relsafe(struct xfs_inode *ip)
 		} else if (ip->i_df.if_broot &&
 			   be16_to_cpu(ip->i_df.if_broot->bb_level) > 1) {
 			mxfs_probe_ratelimited(
-			    "mxfs: P74-BMBT-DEEP ino=%llu level=%u — release drain covers level-1 bmbt only\n",
+			    "mxfs: P74-BMBT-DEEP ino=%llu level=%u -- release drain covers level-1 bmbt only\n",
 			    (unsigned long long)ip->i_ino,
 			    be16_to_cpu(ip->i_df.if_broot->bb_level));
 		}
@@ -2230,7 +2230,7 @@ mxfs_dir_flush_data_blocks_relsafe(struct xfs_inode *ip)
 		if (brc != 0 || !bbp) {
 			if (brc == -EAGAIN)
 				pr_warn_ratelimited(
-				    "mxfs: P74-BMBT-RELDRAIN-BAIL ino=%llu daddr=%lld — bmbt child wedged at release (50ms)\n",
+				    "mxfs: P74-BMBT-RELDRAIN-BAIL ino=%llu daddr=%lld -- bmbt child wedged at release (50ms)\n",
 				    (unsigned long long)ip->i_ino,
 				    (long long)bmbt_daddrs[i]);
 			continue;	/* absent: already on disk */
@@ -2260,7 +2260,7 @@ mxfs_dir_flush_data_blocks_relsafe(struct xfs_inode *ip)
 				int bw = xfs_bwrite(bbp);
 
 				mxfs_probe_ratelimited(
-				    "mxfs: P74-BMBT-RELDRAIN ino=%llu daddr=%lld dirty=%d in_ail=%d rc=%d — bmbt child landed before unlock\n",
+				    "mxfs: P74-BMBT-RELDRAIN ino=%llu daddr=%lld dirty=%d in_ail=%d rc=%d -- bmbt child landed before unlock\n",
 				    (unsigned long long)ip->i_ino,
 				    (long long)bmbt_daddrs[i],
 				    bdirty, binail, bw);
@@ -2448,7 +2448,7 @@ mxfs_verify_end(struct mxfs_pal_io_budget *b, bool sampled, uint64_t ino)
 		WRITE_ONCE(mxfs_verify_breaker_until_j,
 			   jiffies + msecs_to_jiffies(next));
 		if (atomic_inc_return(&p303_n) <= 400)
-			mxfs_probe("mxfs: P303-VERIFY-BREAKER ino=%llu deadline_ms=%d backoff_ms=%u sampled=%llu timeouts=%llu skip_breaker=%llu skip_inflight=%llu — ownership verify did not complete in its budget; NO SAMPLE (cached grant kept, throttle NOT re-armed), suppressing verifies node-wide for the backoff\n",
+			mxfs_probe("mxfs: P303-VERIFY-BREAKER ino=%llu deadline_ms=%d backoff_ms=%u sampled=%llu timeouts=%llu skip_breaker=%llu skip_inflight=%llu -- ownership verify did not complete in its budget; NO SAMPLE (cached grant kept, throttle NOT re-armed), suppressing verifies node-wide for the backoff\n",
 				(unsigned long long)ino,
 				mxfs_dlm_verify_deadline_ms, next,
 				(unsigned long long)atomic64_read(&mxfs_verify_stat_sampled),
@@ -2494,8 +2494,28 @@ mxfs_dlm_verify_rawmode(struct mxfs_v5_dlm *dlm, uint64_t ino, bool *sampled)
  * spinlock, once the corpse is exclusively this task's.  Counts a recycle
  * that finds a cached grant in core and compares it with the DLM's own
  * record of what this node holds; a mirror that no longer holds the cached
- * mode is the phantom the no-inode release leaves behind.  Measurement
- * only: nothing here changes the inode's state.
+ * mode is the phantom the no-inode release leaves behind.
+ *
+ * A measured phantom is RESET here, before anything can serve it.  This used
+ * to only count it, and the recycled inode went back into service at its
+ * cached EX: an open took the fast path (cached grant, no acquire, no
+ * reload), and its writes were logged and published for an incarnation the
+ * peer had freed and re-created.  Measured on the nested DRBD pair under
+ * tests/pve_churn_fairness.sh with the slot record on
+ * (tests/evidence/pve_cluster_write_authority/20261007T211159Z): pve9-1
+ * counted recycle_grant_phantom=9, and for inode 2891 it kept writing
+ * logged images of incarnation 3490622912 at dlm=5 for 90 s after pve9-2 had
+ * freed that incarnation and allocated 3635184129 in its place, over the
+ * live one; pve9-2's in-core copy then diverged, its free of the number could
+ * not be published over a home holding another generation (P383 why=gen),
+ * and its allocator found the number free in the inobt with a live dinode at
+ * home (P-DIALLOC-DISKLIVE).
+ *
+ * The corpse is exclusively ours (XFS_IRECLAIM set, no holders, no queued
+ * work holding a reference), so its grant fields are lowered to what the DLM
+ * says this node holds, the epoch moves (cached dentries and hold-epoch
+ * fast paths stop trusting it) and i_dlm_stale makes xfs_iget_recycle re-read
+ * the dinode right after this returns and the next lock acquire for real.
  */
 void
 mxfs_dlm_recycle_grant_check(struct xfs_inode *ip)
@@ -2512,7 +2532,20 @@ mxfs_dlm_recycle_grant_check(struct xfs_inode *ip)
 	if (cached == MXFS_LOCK_NL)
 		return;
 	atomic_inc(&mxfs_recycle_grant_cached);
-	raw = mxfs_dlm_verify_rawmode(dlm, ip->i_ino, &sampled);
+	/*
+	 * On TCP the DLM's record is its in-memory table: no I/O, nothing for
+	 * the verify sampler's budget to bound, so every recycle asks it.  The
+	 * sampler refuses a third concurrent verify (and every verify while
+	 * its breaker is open), and a refused sample left the cached grant in
+	 * service — the phantom this check exists to reset.  CAW's record is
+	 * an on-disk slot read and stays sampled.
+	 */
+	if (mxfs_v5_dlm_is_tcp(dlm)) {
+		raw = mxfs_v5_dlm_inode_held_rawmode(dlm, ip->i_ino);
+		sampled = true;
+	} else {
+		raw = mxfs_dlm_verify_rawmode(dlm, ip->i_ino, &sampled);
+	}
 	if (!sampled || raw >= cached)
 		return;
 	atomic_inc(&mxfs_recycle_grant_phantom);
@@ -2520,13 +2553,26 @@ mxfs_dlm_recycle_grant_check(struct xfs_inode *ip)
 		static atomic_t p_rcph_n = ATOMIC_INIT(0);
 
 		if (atomic_inc_return(&p_rcph_n) <= 64)
-			mxfs_probe("mxfs: P-RECYCLE-PHANTOM ino=%llu cached_mode=%u state=%u raw=%u stale=%d bast_pending=%d nlink=%u imode=0%o comm=%s — recycled corpse carries a grant the DLM no longer holds\n",
+			mxfs_probe("mxfs: P-RECYCLE-PHANTOM ino=%llu cached_mode=%u state=%u raw=%u stale=%d bast_pending=%d nlink=%u imode=0%o comm=%s -- recycled corpse carries a grant the DLM no longer holds; lowering it to the DLM's mode and reloading\n",
 				(unsigned long long)ip->i_ino, cached,
 				ip->i_dlm_state, raw, ip->i_dlm_stale ? 1 : 0,
 				ip->i_dlm_bast_pending ? 1 : 0,
 				VFS_I(ip)->i_nlink, VFS_I(ip)->i_mode,
 				current->comm);
 	}
+	spin_lock(&ip->i_dlm_lock);
+	if (ip->i_dlm_mode == cached) {
+		u8 om = ip->i_dlm_mode, os = ip->i_dlm_state;
+
+		ip->i_dlm_mode = raw;
+		ip->i_dlm_state = (raw == MXFS_LOCK_NL) ?
+			MXFS_DLM_ISTATE_NONE : MXFS_DLM_ISTATE_CACHED;
+		ip->i_dlm_bast_pending = false;
+		mxfs_dlmtr_rec(ip, om, os, MXFS_SITE);
+		ip->i_dlm_epoch++; ip->i_dlm_epoch_src = MXFS_SITE; mxfs_relbar_epoch_check(ip);
+		ip->i_dlm_stale = true; ip->i_dlm_stale_src = 29;
+	}
+	spin_unlock(&ip->i_dlm_lock);
 }
 
 int mxfs_dir_drain_epoch_skip;	/* default 0 — release-drain prior-tenure

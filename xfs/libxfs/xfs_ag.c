@@ -108,7 +108,7 @@ xfs_initialize_perag_data(
 
 			if (atomic_inc_return(&p_rcs_n) <= 400)
 				xfs_warn(mp,
-	"P-SB-RECOUNT-STALE agno=%u pag[icount=%u ifree=%u freeblks=%u flcount=%u btreeblks=%u] buf[icount=%llu ifree=%llu freeblks=%llu flcount=%llu btreeblks=%llu] agi_init=%d agf_init=%d — per-AG summary stale vs the fresh header; summing the header",
+	"P-SB-RECOUNT-STALE agno=%u pag[icount=%u ifree=%u freeblks=%u flcount=%u btreeblks=%u] buf[icount=%llu ifree=%llu freeblks=%llu flcount=%llu btreeblks=%llu] agi_init=%d agf_init=%d -- per-AG summary stale vs the fresh header; summing the header",
 					index, pag->pagi_count,
 					pag->pagi_freecount, pag->pagf_freeblks,
 					pag->pagf_flcount, pag->pagf_btreeblks,
@@ -126,6 +126,9 @@ xfs_initialize_perag_data(
 			bfree += a_bfree;
 			bfreelst += a_flcount;
 			btree += a_btree;
+			/* the counters are set from these headers below */
+			mxfs_pag_cnt_rebase(pag, a_bfree + a_flcount + a_btree,
+					    a_icount, a_ifree);
 		} else {
 			ifree += pag->pagi_freecount;
 			ialloc += pag->pagi_count;
@@ -296,6 +299,7 @@ xfs_perag_alloc(
 	INIT_RADIX_TREE(&pag->pag_ici_root, GFP_ATOMIC);
 	mutex_init(&pag->pag_dlm_lock);
 	pag->pag_dlm_holders = 0;
+	spin_lock_init(&pag->pag_mxfs_cnt_lock);
 	pag->pag_mxfs_alloc_dirty = false;
 	pag->pag_mxfs_alloc_retry = false;
 	mutex_init(&pag->pag_mxfs_alloc_buflist_lock);

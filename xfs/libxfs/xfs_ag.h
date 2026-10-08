@@ -105,6 +105,21 @@ struct xfs_perag {
 	struct mutex	pag_dlm_lock;		/* serializes DLM AG acquire/release */
 	int		pag_dlm_holders;	/* node-local holder count */
 	/*
+	 * This node's admission counters (m_free[XC_FREE_BLOCKS], m_icount,
+	 * m_ifree) move with its own transactions; what a peer allocates or
+	 * frees in this AG reaches them as a delta (xfs_mxfs_sb.c).  The header
+	 * totals already folded in are the in-core summary plus the ext_ terms:
+	 * what was read from the medium while the AG was not this node's.
+	 * Under pag_mxfs_cnt_lock.
+	 */
+	spinlock_t	pag_mxfs_cnt_lock;
+	bool		pag_mxfs_agf_based;	/* AGF summary folded in once */
+	bool		pag_mxfs_agi_based;	/* AGI summary folded in once */
+	int64_t		pag_mxfs_ext_fdblocks;
+	int64_t		pag_mxfs_ext_icount;
+	int64_t		pag_mxfs_ext_ifree;
+	int32_t		pag_mxfs_rmap_adj;	/* rmapbt share of btreeblks at init */
+	/*
 	 * Set by the inode-chunk allocation path when a new cluster has
 	 * been initialized while holding this AG's DLM lock.  Consumed by
 	 * mxfs_ag_dlm_unlock: if true at the last-holder release, force a

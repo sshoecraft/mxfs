@@ -44,7 +44,7 @@ int mxfs_sb_mutation_refuse(struct xfs_mount *mp, const char *what)
 		return 0;
 	atomic64_inc(&mxfs_sb_mutation_refused_n);
 	xfs_warn(mp,
-"MXFS P-SB-MUTATION-REFUSED what=%s n=%llu — runtime superblock mutations are not coordinated across the cluster (every node logs its own whole m_sb over the shared sector; a peer's next counter sync would revert this change).  Refused before m_sb was modified; perform it OFFLINE with all nodes unmounted (D-0133)",
+"MXFS P-SB-MUTATION-REFUSED what=%s n=%llu -- runtime superblock mutations are not coordinated across the cluster (every node logs its own whole m_sb over the shared sector; a peer's next counter sync would revert this change).  Refused before m_sb was modified; perform it OFFLINE with all nodes unmounted (D-0133)",
 		 what,
 		 (unsigned long long)atomic64_read(&mxfs_sb_mutation_refused_n));
 	return -EOPNOTSUPP;
@@ -65,27 +65,27 @@ mxfs_replay_gate_enforce_set(const char *val, const struct kernel_param *kp)
 		return 0;
 	}
 	if (mxfs_fua_disable && !mxfs_target_cache_protected) {
-		pr_err("mxfs: replay_gate_enforce=%d REFUSED: fua_disable=1 with target_cache_protected=0 — tenure-boundary flushes are no-ops, so a target write-cache loss can persist the release CAS while dropping the home writes it certified (F2).  Run durable mode (fua_disable=0) or set mxfs.target_cache_protected=1 to declare target power loss out of scope\n",
+		pr_err("mxfs: replay_gate_enforce=%d REFUSED: fua_disable=1 with target_cache_protected=0 -- tenure-boundary flushes are no-ops, so a target write-cache loss can persist the release CAS while dropping the home writes it certified (F2).  Run durable mode (fua_disable=0) or set mxfs.target_cache_protected=1 to declare target power loss out of scope\n",
 		       v);
 		unmet++;
 	}
 	if (!MXFS_RELGATE_F1_ICLUS_DEFERRED_RELEASE_READY) {
-		pr_err("mxfs: replay_gate_enforce=%d REFUSED: F1 unmet — ICLUS make_durable still releases on 250ms settle timeout with a dirty cluster buffer; deferred-release drain worker (build-order step 6) not landed\n",
+		pr_err("mxfs: replay_gate_enforce=%d REFUSED: F1 unmet -- ICLUS make_durable still releases on 250ms settle timeout with a dirty cluster buffer; deferred-release drain worker (build-order step 6) not landed\n",
 		       v);
 		unmet++;
 	}
 	if (!MXFS_RELGATE_F3_COMPLETION_PROOF_READY) {
-		pr_err("mxfs: replay_gate_enforce=%d REFUSED: F3 unmet — the completion-driven proof (keyed icwr accounting, flush tickets, pre-CAS tripwire) blocks ICLUS releases under release_proof_enforce=1, but an INODE-class flush-ticket proof failure (fua_disable=0 domain only) still CASes unproved; enforcement on a non-blocking proof would certify releases the proof itself flagged\n",
+		pr_err("mxfs: replay_gate_enforce=%d REFUSED: F3 unmet -- the completion-driven proof (keyed icwr accounting, flush tickets, pre-CAS tripwire) blocks ICLUS releases under release_proof_enforce=1, but an INODE-class flush-ticket proof failure (fua_disable=0 domain only) still CASes unproved; enforcement on a non-blocking proof would certify releases the proof itself flagged\n",
 		       v);
 		unmet++;
 	}
 	if (!MXFS_RELGATE_F4_OBLIGATION_REGISTRY_READY) {
-		pr_err("mxfs: replay_gate_enforce=%d REFUSED: F4 unmet — no per-tenure obligation registry for committed-never-submitted dir buffers (build-order step 4); inflight counts fence submitted bios only\n",
+		pr_err("mxfs: replay_gate_enforce=%d REFUSED: F4 unmet -- no per-tenure obligation registry for committed-never-submitted dir buffers (build-order step 4); inflight counts fence submitted bios only\n",
 		       v);
 		unmet++;
 	}
 	if (unmet) {
-		pr_err("mxfs: replay_gate_enforce stays 0 — %d prerequisite(s) unmet (fail closed, ruling)\n",
+		pr_err("mxfs: replay_gate_enforce stays 0 -- %d prerequisite(s) unmet (fail closed, ruling)\n",
 		       unmet);
 		return -EINVAL;
 	}
@@ -130,12 +130,12 @@ mxfs_fr_token_enforce_set(const char *val, const struct kernel_param *kp)
 	 * so a concurrent F2-param setter cannot interleave. */
 	mutex_lock(&mxfs_fr_cfg_lock);
 	if (mxfs_fua_disable && !mxfs_target_cache_protected) {
-		pr_err("mxfs: foreign_replay_token_enforce=%d REFUSED: fua_disable=1 with target_cache_protected=0 — tenure-boundary flushes are no-ops, so the manifest state tokens are checked against may survive a target cache loss that dropped the writes it certifies (F2).  Run durable mode (fua_disable=0) or set mxfs.target_cache_protected=1 to declare target power loss out of scope\n",
+		pr_err("mxfs: foreign_replay_token_enforce=%d REFUSED: fua_disable=1 with target_cache_protected=0 -- tenure-boundary flushes are no-ops, so the manifest state tokens are checked against may survive a target cache loss that dropped the writes it certifies (F2).  Run durable mode (fua_disable=0) or set mxfs.target_cache_protected=1 to declare target power loss out of scope\n",
 		       v);
 		unmet++;
 	}
 	if (!mxfs_release_proof_enforce) {
-		pr_err("mxfs: foreign_replay_token_enforce=%d REFUSED: release_proof_enforce=0 — a failed completion proof does not block the release CAS, so manifest hold/epoch state is not trustworthy release evidence for the token gate\n",
+		pr_err("mxfs: foreign_replay_token_enforce=%d REFUSED: release_proof_enforce=0 -- a failed completion proof does not block the release CAS, so manifest hold/epoch state is not trustworthy release evidence for the token gate\n",
 		       v);
 		unmet++;
 	}
@@ -151,19 +151,19 @@ mxfs_fr_token_enforce_set(const char *val, const struct kernel_param *kp)
 	 * per-victim refusal at the first dirty death.  icluster_dlm is
 	 * load-time only (0444), so this set-time check is complete. */
 	if (mxfs_icluster_dlm) {
-		pr_err("mxfs: foreign_replay_token_enforce=%d REFUSED: icluster_dlm=1 — cluster-routed inode tenures release through the ICLUS pipeline without a clean-release certificate (RELMARK), so their images can never earn an enforceable verdict; token enforcement requires icluster_dlm=0 (module load parameter)\n",
+		pr_err("mxfs: foreign_replay_token_enforce=%d REFUSED: icluster_dlm=1 -- cluster-routed inode tenures release through the ICLUS pipeline without a clean-release certificate (RELMARK), so their images can never earn an enforceable verdict; token enforcement requires icluster_dlm=0 (module load parameter)\n",
 		       v);
 		unmet++;
 	}
 	if (unmet) {
 		mutex_unlock(&mxfs_fr_cfg_lock);
-		pr_err("mxfs: foreign_replay_token_enforce stays 0 — %d prerequisite(s) unmet (fail closed, ruling)\n",
+		pr_err("mxfs: foreign_replay_token_enforce stays 0 -- %d prerequisite(s) unmet (fail closed, ruling)\n",
 		       unmet);
 		return -EINVAL;
 	}
 	WRITE_ONCE(mxfs_foreign_replay_token_enforce, v);
 	mutex_unlock(&mxfs_fr_cfg_lock);
-	pr_warn("mxfs: foreign_replay_token_enforce=%d ARMED — fully-tokenized victim transactions with enforceable v3 verdicts will be APPLIED during foreign-slice recovery\n",
+	pr_warn("mxfs: foreign_replay_token_enforce=%d ARMED -- fully-tokenized victim transactions with enforceable v3 verdicts will be APPLIED during foreign-slice recovery\n",
 		v);
 	return 0;
 }
@@ -214,7 +214,7 @@ mxfs_dlm_fence_notify(
 	struct xfs_mount	*mp = data;
 
 	xfs_alert(mp,
-		"P131-SELF-FENCE [%s]: %s — forcing shutdown",
+		"P131-SELF-FENCE [%s]: %s -- forcing shutdown",
 		mxfs_self_fence_reason_name(reason),
 		mxfs_self_fence_reason_desc(reason));
 	xfs_force_shutdown(mp, SHUTDOWN_META_IO_ERROR);
@@ -274,7 +274,7 @@ mxfs_quarantine_import(
 	if (fresh)
 		xfs_alert(mp,
 			"MXFS P240-QUAR-IMPORT victim_slot=%u fswide=%d "
-			"ag_mask=0x%llx vepoch=%llu seq=%llu phase=%s — victim "
+			"ag_mask=0x%llx vepoch=%llu seq=%llu phase=%s -- victim "
 			"recovery domain QUARANTINED: operations touching it "
 			"fail with EIO until operator repair + remount",
 			victim_slot, fswide,
@@ -284,7 +284,7 @@ mxfs_quarantine_import(
 			admitting ? "ADMITTING" : "ADMITTED");
 	if (fresh && fswide && admitting)
 		xfs_alert(mp,
-			"MXFS P240-QUAR-ADMIT-DENY victim_slot=%u — an FSWIDE "
+			"MXFS P240-QUAR-ADMIT-DENY victim_slot=%u -- an FSWIDE "
 			"quarantine landed while this mount was still being "
 			"admitted; the admission transition will refuse it "
 			"rather than admit a mount whose every operation fails",
@@ -392,7 +392,7 @@ mxfs_freplay_import_verdict(
 			"MXFS foreign replay slot=%u [%s]: outcome record "
 			"fails validation (outcome=%u reason=%u domain=%u "
 			"ag_mask=0x%llx victim_slot=%u owner=%u seq=%llu "
-			"agcount=%u) — failing closed FSWIDE",
+			"agcount=%u) -- failing closed FSWIDE",
 			slot, src, oc->outcome, oc->reason, oc->domain_kind,
 			(unsigned long long)oc->ag_mask, oc->victim_slot,
 			oc->owner_node,
@@ -403,7 +403,7 @@ mxfs_freplay_import_verdict(
 	}
 	xfs_alert(mp,
 		"MXFS foreign replay slot=%u [%s]: terminal verdict durable "
-		"(owner=%u reason=%u domain=%s ag_mask=0x%llx seq=%llu) — "
+		"(owner=%u reason=%u domain=%s ag_mask=0x%llx seq=%llu) -- "
 		"imported; a refused slice is never replayed",
 		slot, src, oc->owner_node, oc->reason,
 		oc->domain_kind == MXFS_RECOV_DOMAIN_AG_MASK ?
@@ -507,7 +507,7 @@ mxfs_freplay_classify_terminal(
 		 */
 		xfs_notice(mp,
 			"MXFS foreign replay slot=%u: recovery object belongs "
-			"to a different mkfs generation — ignored (pre-mkfs "
+			"to a different mkfs generation -- ignored (pre-mkfs "
 			"ghost), nothing classified", slot);
 		return 0;
 	case 0:
@@ -519,7 +519,7 @@ mxfs_freplay_classify_terminal(
 		 * persistent corruption — fail closed FSWIDE, stop churning. */
 		xfs_alert(mp,
 			"MXFS foreign replay slot=%u: verdict state UNREADABLE "
-			"(%d) — PERSISTENT; failing closed FSWIDE until "
+			"(%d) -- PERSISTENT; failing closed FSWIDE until "
 			"operator action", slot, orc);
 		mxfs_quarantine_import_oc(mp, slot, NULL);
 		break;
@@ -552,21 +552,21 @@ mxfs_freplay_classify_terminal(
 			xfs_alert(mp,
 				"MXFS foreign replay slot=%u: legacy backfill "
 				"found unusable descriptor/verdict state (%d) "
-				"— PERSISTENT; failing closed FSWIDE until "
+				"-- PERSISTENT; failing closed FSWIDE until "
 				"operator action", slot, brc);
 			mxfs_quarantine_import_oc(mp, slot, NULL);
 			break;
 		}
 		xfs_alert(mp,
 			"MXFS foreign replay slot=%u: legacy-quarantine "
-			"backfill did not land (%d) — will retry "
+			"backfill did not land (%d) -- will retry "
 			"TERMINALIZATION (never replay)", slot, brc);
 		return -EAGAIN;
 	}
 	default:
 		xfs_alert(mp,
 			"MXFS foreign replay slot=%u: verdict read failed (%d) "
-			"— reclassifying next pass; nothing latched",
+			"-- reclassifying next pass; nothing latched",
 			slot, orc);
 		return -EAGAIN;
 	}
@@ -729,7 +729,7 @@ mxfs_freplay_obl_evidence(
 
 	if (fv->obl_lost) {
 		xfs_alert(mp,
-			"MXFS foreign replay slot=%u: P226-OBL-EVIDENCE-LOST recover=%u — the obligation list was not carried out of the replay; the terminal verdict publishes without it",
+			"MXFS foreign replay slot=%u: P226-OBL-EVIDENCE-LOST recover=%u -- the obligation list was not carried out of the replay; the terminal verdict publishes without it",
 			slot, fv->obl_count);
 		return -ENOENT;
 	}
@@ -744,13 +744,13 @@ mxfs_freplay_obl_evidence(
 					    MXFS_RECOV_OBL_F_TERMINAL, rec);
 	if (rc) {
 		xfs_alert(mp,
-			"MXFS foreign replay slot=%u: P226-OBL-EVIDENCE-FAIL rc=%d recover=%u ag_mask=0x%llx — the obligation list could not be made durable; the terminal verdict publishes without it",
+			"MXFS foreign replay slot=%u: P226-OBL-EVIDENCE-FAIL rc=%d recover=%u ag_mask=0x%llx -- the obligation list could not be made durable; the terminal verdict publishes without it",
 			slot, rc, fv->obl_count,
 			(unsigned long long)fv->obl_ag_mask);
 		return rc;
 	}
 	xfs_notice(mp,
-		"MXFS foreign replay slot=%u: P226-OBL-EVIDENCE count=%u ag_mask=0x%llx fswide=%d seq=%u list_crc=0x%08x quarantine=%u q_mask=0x%llx q_fswide=%d — RECOVER extents durable as terminal evidence (completion is not in this build)",
+		"MXFS foreign replay slot=%u: P226-OBL-EVIDENCE count=%u ag_mask=0x%llx fswide=%d seq=%u list_crc=0x%08x quarantine=%u q_mask=0x%llx q_fswide=%d -- RECOVER extents durable as terminal evidence (completion is not in this build)",
 		slot, rec->count, (unsigned long long)rec->obl_ag_mask,
 		(rec->flags & MXFS_RECOV_OBL_F_FSWIDE) ? 1 : 0, rec->pub_seq,
 		rec->list_crc32c, fv->q_count,
@@ -799,7 +799,7 @@ mxfs_recov_obl_publish_terminal(
 						   &info, &ocanon);
 	if (prc) {
 		xfs_alert(mp,
-			"MXFS foreign replay slot=%u: P-OBL-TERMINAL-FAIL rc=%d — the unreconcilable-obligation verdict is not durable; the case stays OPEN (freeze retained) and retries",
+			"MXFS foreign replay slot=%u: P-OBL-TERMINAL-FAIL rc=%d -- the unreconcilable-obligation verdict is not durable; the case stays OPEN (freeze retained) and retries",
 			slot, prc);
 		return prc;
 	}
@@ -808,7 +808,7 @@ mxfs_recov_obl_publish_terminal(
 	mxfs_oblf_note(mp, (int)slot, MXFS_OBL_NONE, 0, 0, 0, 0, false);
 	mxfs_v5_dlm_recovery_release(mp->m_mxfs_dlm, slot);
 	xfs_alert(mp,
-		"MXFS foreign replay slot=%u: P-OBL-TERMINAL ag_mask=0x%llx — an obligation extent was unreconcilable; terminal outcome PUBLISHED, the victim domain is quarantined cluster-wide, freeze lifted, needs repair + remount",
+		"MXFS foreign replay slot=%u: P-OBL-TERMINAL ag_mask=0x%llx -- an obligation extent was unreconcilable; terminal outcome PUBLISHED, the victim domain is quarantined cluster-wide, freeze lifted, needs repair + remount",
 		slot, (unsigned long long)ag_mask);
 	return 0;
 }
@@ -837,7 +837,7 @@ mxfs_barrier_note_open_cases(
 		set_bit(s, mp->m_mxfs_foreign_dead_slots);
 		clear_bit(s, mp->m_mxfs_foreign_torn_slots);
 		xfs_notice(mp,
-			"MXFS mount recovery: P-OBL-BARRIER-OPEN slot=%u — OPEN obligation case: grants retired, AGs frozen; the post-mount worker completes it",
+			"MXFS mount recovery: P-OBL-BARRIER-OPEN slot=%u -- OPEN obligation case: grants retired, AGs frozen; the post-mount worker completes it",
 			s);
 	}
 	set_bit(MXFS_REAPF_FREPLAY, &mp->m_mxfs_reap_duties);
@@ -863,16 +863,16 @@ mxfs_freplay_park_census(
 				fv->digest_valid ? fv->slice_digest : 0);
 		if (rc)
 			xfs_alert(mp,
-				"MXFS foreign replay slot=%u: P-OBL-PARK-FAIL rc=%d count=%u — the OPEN obligation list could not be handed to the ladder; nothing published, will retry",
+				"MXFS foreign replay slot=%u: P-OBL-PARK-FAIL rc=%d count=%u -- the OPEN obligation list could not be handed to the ladder; nothing published, will retry",
 				slot, rc, fv->obl_count);
 		else
 			xfs_notice(mp,
-				"MXFS foreign replay slot=%u: P-OBL-PARK count=%u ag_mask=0x%llx — OPEN obligation list handed to the ladder for the IMAGES_REPLAYED milestone",
+				"MXFS foreign replay slot=%u: P-OBL-PARK count=%u ag_mask=0x%llx -- OPEN obligation list handed to the ladder for the IMAGES_REPLAYED milestone",
 				slot, fv->obl_count,
 				(unsigned long long)fv->obl_ag_mask);
 	} else if (fv->obl_count || fv->obl_lost) {
 		xfs_alert(mp,
-			"MXFS foreign replay slot=%u: P-OBL-PARK-INCONSISTENT count=%u lost=%d list=%d — a successful replay handed out an unusable obligation verdict; nothing published, will retry",
+			"MXFS foreign replay slot=%u: P-OBL-PARK-INCONSISTENT count=%u lost=%d list=%d -- a successful replay handed out an unusable obligation verdict; nothing published, will retry",
 			slot, fv->obl_count, (int)fv->obl_lost,
 			fv->obl_list ? 1 : 0);
 		rc = -EPROTO;
@@ -1005,7 +1005,7 @@ mxfs_freplay_publish_refusal(
 		if (unlikely(mxfs_closure_skip_publisher_purge)) {
 			xfs_alert(mp,
 				"MXFS foreign replay slot=%u: P299-CLOSURE-SKIP "
-				"— publisher purge suppressed by fault "
+				"-- publisher purge suppressed by fault "
 				"injection; the survivor demand scrub is the "
 				"only repair path for this run",
 				slot);
@@ -1052,7 +1052,7 @@ mxfs_freplay_publish_refusal(
 		mxfs_v5_dlm_recovery_release(mp->m_mxfs_dlm, slot);
 		xfs_alert(mp,
 			"MXFS foreign replay slot=%u: slice replay refused "
-			"(%s, rc=%d refused=%u malformed=%u dvalid=%d) — "
+			"(%s, rc=%d refused=%u malformed=%u dvalid=%d) -- "
 			"terminal outcome PUBLISHED, victim domain (%s "
 			"ag_mask=0x%llx) quarantined cluster-wide; grants "
 			"stay frozen; needs repair + remount",
@@ -1113,7 +1113,7 @@ mxfs_freplay_publish_refusal(
 			 * churning. */
 			xfs_alert(mp,
 				"MXFS foreign replay slot=%u: conflicting "
-				"verdict is UNREADABLE (%d) — PERSISTENT; "
+				"verdict is UNREADABLE (%d) -- PERSISTENT; "
 				"failing closed FSWIDE until operator action",
 				slot, orc);
 			mxfs_quarantine_import_oc(mp, slot, NULL);
@@ -1131,7 +1131,7 @@ mxfs_freplay_publish_refusal(
 			xfs_alert(mp,
 				"MXFS foreign replay slot=%u: publish "
 				"conflict but readback shows no outcome "
-				"bytes — unstable snapshot; will reclassify "
+				"bytes -- unstable snapshot; will reclassify "
 				"(never replay)", slot);
 			return 0;
 		default:
@@ -1140,7 +1140,7 @@ mxfs_freplay_publish_refusal(
 			 * retry armed and re-read next pass. */
 			xfs_alert(mp,
 				"MXFS foreign replay slot=%u: conflicting "
-				"verdict readback failed (%d) — will "
+				"verdict readback failed (%d) -- will "
 				"re-read; nothing latched", slot, orc);
 			return 0;
 		}
@@ -1150,7 +1150,7 @@ mxfs_freplay_publish_refusal(
 	 * disk state. */
 	xfs_alert(mp,
 		"MXFS foreign replay slot=%u: terminal refusal publish "
-		"FAILED (%d) — nothing latched; will retry", slot, prc);
+		"FAILED (%d) -- nothing latched; will retry", slot, prc);
 	return 0;
 }
 
@@ -1316,7 +1316,7 @@ mxfs_dlm_foreign_replay_barrier(
 		slot, when, error, min_t(unsigned int, round, MXFS_INVAL_FLUSH_ROUNDS),
 		ktime_ms_delta(ktime_get(), t0), c.ino, c.ag_held, c.ag_unheld,
 		c.blk_own, c.blk_locked, c.dropped,
-		error ? " — a retained buffer is not provably this node's; the "
+		error ? " -- a retained buffer is not provably this node's; the "
 			"slice is not replayed or published yet and the reap retries" : "");
 	return error;
 }
@@ -1374,7 +1374,7 @@ mxfs_dlm_foreign_replay_work_fn(
 		 */
 		if (test_bit(slot, mp->m_mxfs_foreign_torn_slots)) {
 			pr_warn_ratelimited(
-	"mxfs: foreign replay slot=%u latched TORN — slice stays frozen and unpublished; needs repair or token-authorized redo\n",
+	"mxfs: foreign replay slot=%u latched TORN -- slice stays frozen and unpublished; needs repair or token-authorized redo\n",
 				slot);
 			continue;
 		}
@@ -1446,7 +1446,7 @@ mxfs_dlm_foreign_replay_work_fn(
 		 */
 		if (READ_ONCE(mp->m_mxfs_quar_fswide)) {
 			pr_warn_ratelimited(
-	"mxfs: P-RMAN-FSWIDE-HALT foreign replay slot=%u NOT claimed — an FSWIDE terminal quarantine is in force; the slice stays frozen and unpublished until operator repair + remount\n",
+	"mxfs: P-RMAN-FSWIDE-HALT foreign replay slot=%u NOT claimed -- an FSWIDE terminal quarantine is in force; the slice stays frozen and unpublished until operator repair + remount\n",
 				slot);
 			continue;
 		}
@@ -1477,7 +1477,7 @@ mxfs_dlm_foreign_replay_work_fn(
 		}
 		if (auth) {
 			xfs_alert(mp,
-				"MXFS foreign replay slot=%u: NOT replayed — "
+				"MXFS foreign replay slot=%u: NOT replayed -- "
 				"no proven exclusion of the dead node (%d).  "
 				"Its slice stays unreplayed and its grants "
 				"stay frozen until a fence certificate exists; "
@@ -1500,7 +1500,7 @@ mxfs_dlm_foreign_replay_work_fn(
 
 			mxfs_dbg_replay_hold_ms = 0;		/* one-shot */
 			xfs_alert(mp,
-				"MXFS P-FREPLAY-HOLD slot=%u ms=%d — TEST ONLY: "
+				"MXFS P-FREPLAY-HOLD slot=%u ms=%d -- TEST ONLY: "
 				"the recovery execution lease is CLAIMED and the "
 				"fence certificate is sealed, but the slice is "
 				"NOT replayed.  Holding here so a rejoining node "
@@ -1513,7 +1513,7 @@ mxfs_dlm_foreign_replay_work_fn(
 			}
 			xfs_alert(mp,
 				"MXFS P-FREPLAY-HOLD-END slot=%u held_ms=%d "
-				"shutdown=%d — releasing the slice to replay",
+				"shutdown=%d -- releasing the slice to replay",
 				slot, held, xfs_is_shutdown(mp) ? 1 : 0);
 		}
 
@@ -1529,7 +1529,7 @@ mxfs_dlm_foreign_replay_work_fn(
 		if (mxfs_dlm_foreign_replay_barrier(mp, slot, "pre")) {
 			xfs_alert(mp,
 				"MXFS foreign replay slot=%u: cached views "
-				"could not be dropped before replay — slice "
+				"could not be dropped before replay -- slice "
 				"NOT replayed; will retry", slot);
 			set_bit(MXFS_REAPF_FREPLAY, &mp->m_mxfs_reap_duties);
 			mxfs_reap_sched(mp, MXFS_REAP_RETRY_MS, "freplay-retry");
@@ -1558,7 +1558,7 @@ mxfs_dlm_foreign_replay_work_fn(
 						       &dstage) == 0 &&
 			    dstage >= MXFS_RECOV_STAGE_IMAGES_REPLAYED) {
 				xfs_notice(mp,
-					"MXFS foreign replay slot=%u: descriptor already at stage %u (IMAGES_REPLAYED durable) — skipping the slice replay, completing the remaining ladder",
+					"MXFS foreign replay slot=%u: descriptor already at stage %u (IMAGES_REPLAYED durable) -- skipping the slice replay, completing the remaining ladder",
 					slot, dstage);
 				goto complete_ladder;
 			}
@@ -1595,7 +1595,7 @@ mxfs_dlm_foreign_replay_work_fn(
 			if (rrc) {
 				xfs_alert(mp,
 					"MXFS foreign replay slot=%u: slice replay "
-					"FAILED — recovery NOT published; will retry",
+					"FAILED -- recovery NOT published; will retry",
 					slot);
 				set_bit(MXFS_REAPF_FREPLAY, &mp->m_mxfs_reap_duties);
 				mxfs_reap_sched(mp, MXFS_REAP_RETRY_MS, "freplay-retry");
@@ -1621,7 +1621,7 @@ mxfs_dlm_foreign_replay_work_fn(
 			xfs_alert(mp,
 				"MXFS foreign replay slot=%u: slice replayed "
 				"but our cached views could not be dropped "
-				"afterwards — recovery NOT published; will "
+				"afterwards -- recovery NOT published; will "
 				"retry", slot);
 			set_bit(MXFS_REAPF_FREPLAY, &mp->m_mxfs_reap_duties);
 			mxfs_reap_sched(mp, MXFS_REAP_RETRY_MS, "freplay-retry");
@@ -1647,7 +1647,7 @@ mxfs_dlm_foreign_replay_work_fn(
 			if (mxfs_blkdev_flush_durable(mp)) {
 				xfs_alert(mp,
 					"MXFS foreign replay slot=%u: durability "
-					"flush FAILED — recovery NOT published; the "
+					"flush FAILED -- recovery NOT published; the "
 					"slot stays pending and will be retried", slot);
 				set_bit(MXFS_REAPF_FREPLAY, &mp->m_mxfs_reap_duties);
 				mxfs_reap_sched(mp, MXFS_REAP_RETRY_MS, "freplay-retry");
@@ -1694,7 +1694,7 @@ complete_ladder:
 				 * deadline; 0 = the milestone had committed).
 				 */
 				xfs_alert(mp,
-					"MXFS foreign replay slot=%u: publication step '%s' failed rc=%d attempt=%u — retrying in %u ms (bounded; the dead node stays pending, its grants stay held)",
+					"MXFS foreign replay slot=%u: publication step '%s' failed rc=%d attempt=%u -- retrying in %u ms (bounded; the dead node stays pending, its grants stay held)",
 					slot, cres.site, cres.rc, cres.attempts,
 					cres.retry_ms);
 				set_bit(MXFS_REAPF_FREPLAY, &mp->m_mxfs_reap_duties);
@@ -1711,7 +1711,7 @@ complete_ladder:
 				 * if this node is ever owed the slice again.
 				 */
 				xfs_alert(mp,
-					"MXFS foreign replay slot=%u: publication step '%s' rc=%d — SUPERSEDED (owner changed, published elsewhere, or terminal); this node's recovery identity is cancelled, nothing re-armed",
+					"MXFS foreign replay slot=%u: publication step '%s' rc=%d -- SUPERSEDED (owner changed, published elsewhere, or terminal); this node's recovery identity is cancelled, nothing re-armed",
 					slot, cres.site, cres.rc);
 				clear_bit(slot, mp->m_mxfs_foreign_dead_slots);
 				continue;
@@ -1737,7 +1737,7 @@ complete_ladder:
 				dep = mxfs_freplay_open_case_blocked_by(mp, slot);
 				if (dep < 64) {
 					xfs_alert(mp,
-						"MXFS foreign replay slot=%u: P-OBL-DEFER — the OPEN obligation case waits for dead slot %u to reach IMAGES_REPLAYED (a prior custodian's completion frees must be home first); freeze retained",
+						"MXFS foreign replay slot=%u: P-OBL-DEFER -- the OPEN obligation case waits for dead slot %u to reach IMAGES_REPLAYED (a prior custodian's completion frees must be home first); freeze retained",
 						slot, dep);
 					set_bit(MXFS_REAPF_FREPLAY,
 						&mp->m_mxfs_reap_duties);
@@ -1758,7 +1758,7 @@ complete_ladder:
 					continue;
 				}
 				xfs_alert(mp,
-					"MXFS foreign replay slot=%u: obligation completion did not finish rc=%d — the case stays OPEN (freeze retained, grants retired), retrying",
+					"MXFS foreign replay slot=%u: obligation completion did not finish rc=%d -- the case stays OPEN (freeze retained, grants retired), retrying",
 					slot, erc);
 				set_bit(MXFS_REAPF_FREPLAY, &mp->m_mxfs_reap_duties);
 				mxfs_reap_sched(mp, MXFS_REAP_RETRY_MS, "obl-retry");
@@ -1779,7 +1779,7 @@ complete_ladder:
 				 * quiet loop.
 				 */
 				xfs_alert(mp,
-					"MXFS foreign replay slot=%u: publication step '%s' rc=%d — %s; WITHDRAWING this mount (fail-stop) so a survivor is elected to finish the recovery",
+					"MXFS foreign replay slot=%u: publication step '%s' rc=%d -- %s; WITHDRAWING this mount (fail-stop) so a survivor is elected to finish the recovery",
 					slot, cres.site, cres.rc,
 					cres.outcome == MXFS_RECOV_COMPLETE_FATAL_INVARIANT ?
 					"INVARIANT VIOLATION (descriptor left untouched)" :
@@ -1834,7 +1834,7 @@ complete_ladder:
 	 * durable duty; the batch-complete reap_sched below is the wakeup.
 	 */
 	if (!bitmap_empty(mp->m_mxfs_sweep_pending_slots, 64))
-		mxfs_probe("mxfs: P-FREPLAY-PHASE inv=%d phase=SWEEP-DEFERRED sweep_pending=0x%llx dead_slots=0x%llx — bucket sweeps handed to the reap worker (D-0514 fix)\n",
+		mxfs_probe("mxfs: P-FREPLAY-PHASE inv=%d phase=SWEEP-DEFERRED sweep_pending=0x%llx dead_slots=0x%llx -- bucket sweeps handed to the reap worker (D-0514 fix)\n",
 			atomic_read(&mxfs_freplay_work_inv),
 			(unsigned long long)mp->m_mxfs_sweep_pending_slots[0],
 			(unsigned long long)mp->m_mxfs_foreign_dead_slots[0]);
@@ -1912,7 +1912,7 @@ mxfs_dlm_clean_depart_notify(
 	clear_bit(slot, mp->m_mxfs_foreign_torn_slots);
 	if (test_and_clear_bit(slot, mp->m_mxfs_foreign_dead_slots)) {
 		xfs_notice(mp,
-	"MXFS clean departure slot=%u: dead/torn latch dropped — peer released cleanly, no replay",
+	"MXFS clean departure slot=%u: dead/torn latch dropped -- peer released cleanly, no replay",
 			   slot);
 		queue_work(system_unbound_wq,
 			   &mp->m_mxfs_foreign_replay_work);
@@ -1941,7 +1941,7 @@ mxfs_dlm_stuck_work_fn(
 						   m_mxfs_dlm_stuck_work);
 
 	xfs_alert(mp,
-	"mxfs: DLM cleanup permanently stuck — this node cannot clear its slot-table bits and peers block behind them; forcing shutdown");
+	"mxfs: DLM cleanup permanently stuck -- this node cannot clear its slot-table bits and peers block behind them; forcing shutdown");
 	xfs_force_shutdown(mp, SHUTDOWN_META_IO_ERROR);
 }
 

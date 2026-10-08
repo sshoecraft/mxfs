@@ -135,7 +135,7 @@ void mxfs_scsipr_departure_unlock(void)
 	if (!mxfs_scsipr_departure_held()) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "scsipr: P-PR-DEPARTURE-UNLOCK-NOT-OWNER pid=%d owner=%d "
-			     "— unlock by a thread that does not hold the departure "
+			     "-- unlock by a thread that does not hold the departure "
 			     "mutex; ignored", mxfs_pal_current_pid(),
 			     mxfs_pal_flag_get(&scsipr_dep_owner));
 		return;
@@ -153,7 +153,7 @@ static void scsipr_dep_enter(struct mxfs_scsipr_ctx *ctx, const char *op)
 {
 	if (!mxfs_scsipr_departure_held())
 		mxfs_pal_log(MXFS_LOG_DEBUG,
-			     "scsipr: P-PR-DEPARTURE-UNHELD '%s' op=%s pid=%d — a "
+			     "scsipr: P-PR-DEPARTURE-UNHELD '%s' op=%s pid=%d -- a "
 			     "local PROUT issued outside a departure-locked section "
 			     "(a fence, a self-succession); taking the host-wide "
 			     "departure mutex here so every PROUT runs under it",
@@ -261,7 +261,7 @@ int mxfs_scsipr_preempt_dead_gate_holder(struct mxfs_scsipr_ctx *ctx,
 		mxfs_pal_log(MXFS_LOG_WARN,
 			     "scsipr: P-PR-DEADGATE-CONFLICT '%s' PREEMPT AND ABORT of "
 			     "the dead gate holder's key 0x%llx hit RESERVATION "
-			     "CONFLICT — the key is not registered any more (purged "
+			     "CONFLICT -- the key is not registered any more (purged "
 			     "by the target); nothing performed, the readback decides",
 			     ctx->dev_name, (unsigned long long)holder_key);
 	} else if (ret) {
@@ -275,7 +275,7 @@ int mxfs_scsipr_preempt_dead_gate_holder(struct mxfs_scsipr_ctx *ctx,
 	if (rr) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "scsipr: P-PR-DEADGATE-VERIFY '%s' READ RESERVATION rc=%d "
-			     "after preempting key 0x%llx — post-state unknown, "
+			     "after preempting key 0x%llx -- post-state unknown, "
 			     "refusing", ctx->dev_name, rr,
 			     (unsigned long long)holder_key);
 		ret = rr;
@@ -284,7 +284,7 @@ int mxfs_scsipr_preempt_dead_gate_holder(struct mxfs_scsipr_ctx *ctx,
 	if (resv.held && resv.type == MXFS_PAL_PR_TYPE_WR_EX) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "scsipr: P-PR-DEADGATE-STILLHELD '%s' held=1 type=0x1 "
-			     "holder=0x%llx gen=%u after preempting key 0x%llx — a "
+			     "holder=0x%llx gen=%u after preempting key 0x%llx -- a "
 			     "single-holder Write Exclusive reservation is still in "
 			     "force; refusing", ctx->dev_name,
 			     (unsigned long long)resv.key, resv.generation,
@@ -302,7 +302,7 @@ int mxfs_scsipr_preempt_dead_gate_holder(struct mxfs_scsipr_ctx *ctx,
 	mxfs_pal_log(MXFS_LOG_WARN,
 		     "scsipr: P-PR-DEADGATE-PREEMPTED '%s' dead gate holder key "
 		     "0x%llx preempted%s; reservation now held=%d type=0x%x (%s) "
-		     "gen=%u — the joiner can write again",
+		     "gen=%u -- the joiner can write again",
 		     ctx->dev_name, (unsigned long long)holder_key,
 		     ret == -EBUSY ? " (already gone)" : " and its task set aborted",
 		     (int)resv.held, resv.type, mxfs_pr_type_name(resv.type),
@@ -458,7 +458,7 @@ static int scsipr_register_locked(struct mxfs_scsipr_ctx *ctx,
 		if (sr == 0) {
 			mxfs_pal_log(MXFS_LOG_DEBUG,
 				     "mxfs: P305-PR-SAME-BOOT-KEY-REUSED '%s' key=0x%llx "
-				     "— this nexus already held this boot's derived key "
+				     "-- this nexus already held this boot's derived key "
 				     "(earlier REGISTER this boot); reusing it, no "
 				     "registration changed",
 				     ctx->dev_name, (unsigned long long)ctx->local_key);
@@ -468,7 +468,7 @@ static int scsipr_register_locked(struct mxfs_scsipr_ctx *ctx,
 		}
 		if (sr != -ENOKEY && sr != -EOPNOTSUPP) {
 			mxfs_pal_log(MXFS_LOG_ERR,
-				     "mxfs: P305-PR-SAME-KEY-PROBE-FAILED '%s' rc=%d — "
+				     "mxfs: P305-PR-SAME-KEY-PROBE-FAILED '%s' rc=%d -- "
 				     "could not decide whether this nexus holds our key; "
 				     "refusing to register", ctx->dev_name, sr);
 			return sr;
@@ -496,7 +496,7 @@ static int scsipr_register_locked(struct mxfs_scsipr_ctx *ctx,
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "mxfs: P305-PR-PREDECESSOR-KEY-PRESENT '%s': an I_T "
 				     "nexus of this host already holds a different PR "
-				     "registration — a prior incarnation left without "
+				     "registration -- a prior incarnation left without "
 				     "retiring its key (dirty departure, P302; or a "
 				     "clean departure whose retirement failed, P301) "
 				     "or another consumer of this LU.  Refusing to "
@@ -578,7 +578,7 @@ static int scsipr_verify_registered(struct mxfs_scsipr_ctx *ctx)
 	if (vr || !own_present) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P-PRKEY-REGISTER-UNVERIFIED '%s' key=0x%llx "
-			     "read_keys rc=%d own_present=%d keys=%d gen=%u — "
+			     "read_keys rc=%d own_present=%d keys=%d gen=%u -- "
 			     "REGISTER returned GOOD but the table does not show "
 			     "the key on this nexus; refusing to treat this node "
 			     "as registered",
@@ -589,7 +589,7 @@ static int scsipr_verify_registered(struct mxfs_scsipr_ctx *ctx)
 	}
 	mxfs_pal_log(MXFS_LOG_DEBUG,
 		     "mxfs: P-PRKEY-REGISTERED '%s' key=0x%llx keys=%d gen=%u "
-		     "— registration verified by READ KEYS",
+		     "-- registration verified by READ KEYS",
 		     ctx->dev_name, (unsigned long long)ctx->local_key,
 		     count, gen);
 	return 0;
@@ -609,7 +609,7 @@ static int scsipr_register_succeed_locked(struct mxfs_scsipr_ctx *ctx,
 	if (ret) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P305-PR-SELF-SUCCESSION-FAILED '%s' old=0x%llx "
-			     "new=0x%llx rc=%d — %s",
+			     "new=0x%llx rc=%d -- %s",
 			     ctx->dev_name, (unsigned long long)old_key,
 			     (unsigned long long)ctx->local_key, ret,
 			     ret == -ENOKEY ? "this nexus does not hold the "
@@ -621,7 +621,7 @@ static int scsipr_register_succeed_locked(struct mxfs_scsipr_ctx *ctx,
 	ctx->registered = true;
 	mxfs_pal_log(MXFS_LOG_DEBUG,
 		     "mxfs: P305-PR-PREDECESSOR-BOOT-REPLACED '%s' old_key=0x%llx "
-		     "new_key=0x%llx — REGISTER(rk=old, sark=new) replaced this "
+		     "new_key=0x%llx -- REGISTER(rk=old, sark=new) replaced this "
 		     "host's previous boot's registration on our own nexus "
 		     "(nexus-local; no other registration touched)",
 		     ctx->dev_name, (unsigned long long)old_key,
@@ -639,7 +639,7 @@ void mxfs_scsipr_retain_key(struct mxfs_scsipr_ctx *ctx)
 	if (!ctx)
 		return;
 	mxfs_pal_log(MXFS_LOG_WARN,
-		     "mxfs: P302-PR-KEY-RETAINED-ON-REFUSAL '%s' key=0x%llx — the "
+		     "mxfs: P302-PR-KEY-RETAINED-ON-REFUSAL '%s' key=0x%llx -- the "
 		     "registration stays on this nexus as the fence target of the "
 		     "dirty predecessor; this refused mount will not unregister it",
 		     ctx->dev_name, (unsigned long long)ctx->local_key);
@@ -695,7 +695,7 @@ static int scsipr_read_keys_complete(struct mxfs_scsipr_ctx *ctx,
 	if (ret == 0 && total > *n) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "scsipr: P-PR-VIEW-TRUNC '%s' leg=%s target holds %d "
-			     "registration descriptor(s), we could read %d (cap %d) — "
+			     "registration descriptor(s), we could read %d (cap %d) -- "
 			     "key absence is unknowable from a partial table",
 			     ctx->dev_name, leg, total, *n, MXFS_PR_MAX_KEYS);
 		ret = -EOVERFLOW;
@@ -802,14 +802,14 @@ static int scsipr_bracket_and_commit(struct mxfs_scsipr_ctx *ctx)
 		ctx->snap_proof = false;
 		ctx->snap_why = "invalidated-during-bracket";
 		mxfs_pal_log(MXFS_LOG_DEBUG,
-			     "scsipr: P-PR-BRACKET-DISCARDED '%s' — a local PR "
+			     "scsipr: P-PR-BRACKET-DISCARDED '%s' -- a local PR "
 			     "mutation landed while the bracket ran; the view is "
 			     "not a proof of anything (rerun)",
 			     ctx->dev_name);
 	} else {
 		if (v.state == 0 && !v.gen_coherent)
 			mxfs_pal_log(MXFS_LOG_DEBUG,
-				     "scsipr: P-PR-BRACKET-INCOHERENT '%s' — the PR "
+				     "scsipr: P-PR-BRACKET-INCOHERENT '%s' -- the PR "
 				     "generation moved between READ KEYS A, READ "
 				     "RESERVATION and READ KEYS B (a PROUT landed inside "
 				     "the bracket); no absence proof from this view",
@@ -875,7 +875,7 @@ static int scsipr_answer(struct mxfs_scsipr_ctx *ctx, uint64_t key,
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "scsipr: P-PR-ABSENCE-UNPROVABLE '%s' key=0x%llx "
 				     "not in a complete %d-key view (gen=%u), but "
-				     "own_key_present=%d resv_in_force=%d why=%s — "
+				     "own_key_present=%d resv_in_force=%d why=%s -- "
 				     "without our own registration AND the fencing "
 				     "reservation inside one coherent bracket an absent "
 				     "key proves nothing; answering UNKNOWN",
@@ -986,7 +986,7 @@ int mxfs_scsipr_own_registration_proven(struct mxfs_scsipr_ctx *ctx)
 			break;
 		mxfs_pal_log(MXFS_LOG_DEBUG,
 			     "scsipr: P-PR-OWN-PROOF-REBRACKET '%s' key=0x%llx "
-			     "attempt=%d why=%s gen=%u — the bracket was disturbed "
+			     "attempt=%d why=%s gen=%u -- the bracket was disturbed "
 			     "by a PROUT and proves nothing either way; bracketing "
 			     "again",
 			     ctx->dev_name, (unsigned long long)ctx->local_key,
@@ -995,7 +995,7 @@ int mxfs_scsipr_own_registration_proven(struct mxfs_scsipr_ctx *ctx)
 	}
 	mxfs_pal_log(proof ? MXFS_LOG_DEBUG : MXFS_LOG_ERR,
 		     "scsipr: P-PR-OWN-PROOF '%s' key=0x%llx %s gen=%u rc=%d "
-		     "why=%s — %s",
+		     "why=%s -- %s",
 		     ctx->dev_name, (unsigned long long)ctx->local_key,
 		     proof ? "PROVEN" : "NOT-PROVEN", gen, rc, why,
 		     proof ? "our registration is live inside the fencing "
@@ -1079,7 +1079,7 @@ int mxfs_scsipr_probe_start(struct mxfs_scsipr_ctx *ctx)
 	ctx->probe_thread = mxfs_pal_thread_create(scsipr_probe_fn, ctx);
 	if (!ctx->probe_thread) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "scsipr: P-PR-PROBE-NOTHREAD '%s' — could not start the "
+			     "scsipr: P-PR-PROBE-NOTHREAD '%s' -- could not start the "
 			     "key-state probe thread; every asynchronous key state "
 			     "will be UNKNOWN (no RETIRE_PENDING record settles from "
 			     "this node's monitor)", ctx->dev_name);
@@ -1120,7 +1120,7 @@ int mxfs_scsipr_probe_stop(struct mxfs_scsipr_ctx *ctx)
 		mxfs_pal_mutex_unlock(scsipr_quar_lock);
 	}
 	mxfs_pal_log(MXFS_LOG_ERR,
-		     "scsipr: P-PR-PROBE-STUCK '%s' pid=%d — the key-state probe "
+		     "scsipr: P-PR-PROBE-STUCK '%s' pid=%d -- the key-state probe "
 		     "thread did not exit within %u ms (a PR IN is parked on a "
 		     "wedged path); context QUARANTINED (module pinned=%d, nothing "
 		     "freed), the departure is treated as DIRTY (key retained, "
@@ -1164,7 +1164,7 @@ int mxfs_scsipr_quarantine_reap(void)
 			mxfs_pal_thread_join(c->probe_thread);
 			c->probe_thread = NULL;
 			mxfs_pal_log(MXFS_LOG_WARN,
-				     "scsipr: P-PR-PROBE-REAPED '%s' — the quarantined "
+				     "scsipr: P-PR-PROBE-REAPED '%s' -- the quarantined "
 				     "probe thread exited; context freed",
 				     c->dev_name);
 			scsipr_free_now(c);
@@ -1221,7 +1221,7 @@ int mxfs_scsipr_proof_consume(struct mxfs_scsipr_ctx *ctx, uint64_t token)
 	mxfs_pal_mutex_unlock(ctx->snap_lock);
 	if (why) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "scsipr: P-PR-PROOF-REFUSED '%s' token=%llu why=%s — the "
+			     "scsipr: P-PR-PROOF-REFUSED '%s' token=%llu why=%s -- the "
 			     "absence proof is not valid at the CAS; no write",
 			     ctx->dev_name, (unsigned long long)token, why);
 		return -ESTALE;
@@ -1245,7 +1245,7 @@ int mxfs_scsipr_settle_absent(struct mxfs_scsipr_ctx *ctx, uint64_t key,
 		return -EINVAL;
 	if (!mxfs_scsipr_departure_held()) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "scsipr: P-PR-SETTLE-UNHELD '%s' key=0x%llx pid=%d — "
+			     "scsipr: P-PR-SETTLE-UNHELD '%s' key=0x%llx pid=%d -- "
 			     "settle-absent called without the departure mutex; "
 			     "refusing (UNKNOWN)", ctx->dev_name,
 			     (unsigned long long)key, mxfs_pal_current_pid());
@@ -1300,7 +1300,7 @@ int mxfs_scsipr_settle_absent(struct mxfs_scsipr_ctx *ctx, uint64_t key,
 	if (!absent) {
 		mxfs_pal_log(MXFS_LOG_WARN,
 			     "scsipr: P-PR-SETTLE-UNPROVEN '%s' key=0x%llx rc=%d why=%s "
-			     "gen=%u keys=%d — no fencing-grade absence proof from "
+			     "gen=%u keys=%d -- no fencing-grade absence proof from "
 			     "this bracket; UNKNOWN",
 			     ctx->dev_name, (unsigned long long)key, rc, why,
 			     v.gen, v.n);
@@ -1327,7 +1327,7 @@ int mxfs_scsipr_settle_absent(struct mxfs_scsipr_ctx *ctx, uint64_t key,
 						     MXFS_SCSIPR_SETTLE_UNKNOWN;
 	mxfs_pal_log(MXFS_LOG_INFO,
 		     "scsipr: P-PR-SETTLE-ABSENT '%s' key=0x%llx token=%llu gen=%u "
-		     "keys=%d cas=%d — absence proven inside one coherent bracket "
+		     "keys=%d cas=%d -- absence proven inside one coherent bracket "
 		     "under the departure mutex; CAS %s",
 		     ctx->dev_name, (unsigned long long)key,
 		     (unsigned long long)token, v.gen, v.n, cr,
@@ -1451,7 +1451,7 @@ int mxfs_scsipr_observe_reservation(struct mxfs_scsipr_ctx *ctx,
 	ret = mxfs_scsipr_read_reservation(ctx, &resv);
 	if (ret) {
 		mxfs_pal_log(MXFS_LOG_DEBUG,
-			     "scsipr: P304-PREOBSERVE '%s' READ RESERVATION rc=%d — "
+			     "scsipr: P304-PREOBSERVE '%s' READ RESERVATION rc=%d -- "
 			     "the pre-existing reservation state is UNKNOWN",
 			     ctx->dev_name, ret);
 		if (out)
@@ -1461,7 +1461,7 @@ int mxfs_scsipr_observe_reservation(struct mxfs_scsipr_ctx *ctx,
 
 	mxfs_pal_log(MXFS_LOG_DEBUG,
 		     "scsipr: P304-PREOBSERVE '%s' held=%d type=0x%x (%s) "
-		     "holder_key=0x%llx gen=%u — state observed BEFORE this mount "
+		     "holder_key=0x%llx gen=%u -- state observed BEFORE this mount "
 		     "registered or reserved anything",
 		     ctx->dev_name, (int)resv.held, resv.type,
 		     mxfs_pr_type_name(resv.type),
@@ -1649,7 +1649,7 @@ static int scsipr_preempt_locked(struct mxfs_scsipr_ctx *ctx,
 	if (victim_key == ctx->local_key) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "scsipr: P304-PREEMPT-SELFKEY '%s' refusing PREEMPT%s "
-			     "with SARK == our own key 0x%llx — this cannot fence "
+			     "with SARK == our own key 0x%llx -- this cannot fence "
 			     "anyone (our own registration is protected from it) and "
 			     "would remove our sibling nexus.  Node identity collision",
 			     ctx->dev_name, abort ? " AND ABORT" : "",
@@ -1681,7 +1681,7 @@ static int scsipr_preempt_locked(struct mxfs_scsipr_ctx *ctx,
 		 * command did nothing at all.  Not an error, not a fence. */
 		mxfs_pal_log(MXFS_LOG_INFO,
 			     "scsipr: preempt%s of key 0x%llx on '%s': RESERVATION "
-			     "CONFLICT — key not registered; no registration removed "
+			     "CONFLICT -- key not registered; no registration removed "
 			     "and no task set aborted by us",
 			     abort ? "-abort" : "",
 			     (unsigned long long)victim_key, ctx->dev_name);
@@ -1745,7 +1745,7 @@ static int mxfs_scsipr_probe_keys(struct mxfs_scsipr_ctx *ctx,
 	if (total > n) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "scsipr: P-PR-VIEW-TRUNC '%s' target holds %d "
-			     "registration descriptor(s), we could read %d (cap %d) — "
+			     "registration descriptor(s), we could read %d (cap %d) -- "
 			     "key absence is unknowable from a partial table; "
 			     "refusing to classify",
 			     ctx->dev_name, total, n, MXFS_PR_MAX_KEYS);
@@ -1857,7 +1857,7 @@ module_param_named(pr_fence_inject_key_absent, mxfs_pr_fence_inject_key_absent,
 MODULE_PARM_DESC(pr_fence_inject_key_absent,
 		 "TEST ONLY: while non-zero every fencing attempt classifies the "
 		 "victim's registration ABSENT (KEY_ABSENT_UNPROVEN) after READ "
-		 "KEYS, submitting nothing — the shape a target that purges "
+		 "KEYS, submitting nothing -- the shape a target that purges "
 		 "registrations with the session produces. 0=off. Never enable "
 		 "in production.");
 
@@ -1909,7 +1909,7 @@ int mxfs_scsipr_fence_node(struct mxfs_scsipr_ctx *ctx,
 		 * cannot be derived from anything, so this is a refusal, not a
 		 * fallback.  Nothing was issued. */
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "scsipr: P-PR-FENCE-NOKEY node=%u on '%s' — the victim's "
+			     "scsipr: P-PR-FENCE-NOKEY node=%u on '%s' -- the victim's "
 			     "PR key was never frozen from a valid identity block of "
 			     "the dead incarnation; no PREEMPT AND ABORT can name it. "
 			     "NOTHING WAS ISSUED",
@@ -1951,7 +1951,7 @@ int mxfs_scsipr_fence_node(struct mxfs_scsipr_ctx *ctx,
 		if (lrc != 0) {
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "scsipr: P-PR-FENCE-KEY-LIVE-ELSEWHERE key=0x%llx "
-				     "victim_node=%u on '%s' — %s.  A PREEMPT AND ABORT "
+				     "victim_node=%u on '%s' -- %s.  A PREEMPT AND ABORT "
 				     "naming this key would remove that member's "
 				     "registration and abort its task set: the key is "
 				     "derived per BOOT, so a successor on the victim's "
@@ -2018,7 +2018,7 @@ int mxfs_scsipr_fence_node(struct mxfs_scsipr_ctx *ctx,
 	if (count < live_members) {
 		mxfs_pal_log(MXFS_LOG_WARN,
 			     "scsipr: P-PR-ADVISORY '%s' has %d key(s) for %d live "
-			     "member(s) — per-node PR not usable on this topology; "
+			     "member(s) -- per-node PR not usable on this topology; "
 			     "skipping preempt/self-fence (D1+lease fencing apply)",
 			     ctx->dev_name, count, live_members);
 		out->kind = MXFS_FENCE_KIND_ADVISORY_TOPOLOGY;
@@ -2036,7 +2036,7 @@ int mxfs_scsipr_fence_node(struct mxfs_scsipr_ctx *ctx,
 			 * must self-fence. */
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "scsipr: P-PR-OWNKEY-GONE own key 0x%llx missing on "
-				     "'%s' (%d key(s) present, %d live) — node was "
+				     "'%s' (%d key(s) present, %d live) -- node was "
 				     "preempted",
 				     (unsigned long long)ctx->local_key, ctx->dev_name,
 				     count, live_members);
@@ -2052,7 +2052,7 @@ int mxfs_scsipr_fence_node(struct mxfs_scsipr_ctx *ctx,
 			 * down reactively. */
 			mxfs_pal_log(MXFS_LOG_DEBUG,
 				     "scsipr: P-PR-OWNKEY-GONE own key 0x%llx missing on "
-				     "'%s' (%d key(s), sole survivor) — ambiguous; "
+				     "'%s' (%d key(s), sole survivor) -- ambiguous; "
 				     "relying on reactive D1 fencing",
 				     (unsigned long long)ctx->local_key, ctx->dev_name,
 				     count);
@@ -2078,7 +2078,7 @@ int mxfs_scsipr_fence_node(struct mxfs_scsipr_ctx *ctx,
 	if (ret && ret != -EOPNOTSUPP) {
 		mxfs_pal_log(MXFS_LOG_WARN,
 			     "scsipr: P-PR-FENCE read_reservation failed on '%s': %d "
-			     "— cannot establish that deregistration excludes",
+			     "-- cannot establish that deregistration excludes",
 			     ctx->dev_name, ret);
 		out->kind = MXFS_FENCE_KIND_ERROR;
 		out->rc = ret;
@@ -2088,7 +2088,7 @@ int mxfs_scsipr_fence_node(struct mxfs_scsipr_ctx *ctx,
 	    !mxfs_pr_type_excludes_nonregistrants(resv.type)) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "scsipr: P-PR-NORESV '%s' held=%d type=0x%x (%s; want a "
-			     "Write Exclusive form, 0x%x or 0x%x)%s — removing a "
+			     "Write Exclusive form, 0x%x or 0x%x)%s -- removing a "
 			     "registration excludes nobody without a reservation; NOT "
 			     "a fence, and NOTHING WAS ISSUED: no PREEMPT reached the "
 			     "target, no state was consumed, the victim key is intact "
@@ -2109,7 +2109,7 @@ int mxfs_scsipr_fence_node(struct mxfs_scsipr_ctx *ctx,
 	if (victim_present && mxfs_pr_fence_inject_key_absent) {
 		mxfs_pal_log(MXFS_LOG_WARN,
 			     "scsipr: P-PR-FENCE-INJECT-ABSENT '%s' victim=%u key=0x%llx "
-			     "gen=%u — TEST ONLY: the victim's registration IS present "
+			     "gen=%u -- TEST ONLY: the victim's registration IS present "
 			     "and is reported ABSENT; nothing was issued, the attempt "
 			     "stays PRECOMMAND and classifies KEY_ABSENT_UNPROVEN until "
 			     "pr_fence_inject_key_absent is cleared",
@@ -2133,7 +2133,7 @@ int mxfs_scsipr_fence_node(struct mxfs_scsipr_ctx *ctx,
 		 */
 		mxfs_pal_log(MXFS_LOG_DEBUG,
 			     "scsipr: P-PR-FENCE-ABSENT victim key 0x%llx already "
-			     "absent on '%s' (gen=%u) — exclusion NOT proved here; "
+			     "absent on '%s' (gen=%u) -- exclusion NOT proved here; "
 			     "caller must consume published fence evidence",
 			     (unsigned long long)victim_key, ctx->dev_name, gen);
 		out->kind = MXFS_FENCE_KIND_KEY_ABSENT_UNPROVEN;
@@ -2152,7 +2152,7 @@ int mxfs_scsipr_fence_node(struct mxfs_scsipr_ctx *ctx,
 	if (inj == 1) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "scsipr: P-PR-FENCE-INJECT mode=1 precommand '%s' "
-			     "victim=%u key=0x%llx — TEST ONLY: a DEFINITE pre-command "
+			     "victim=%u key=0x%llx -- TEST ONLY: a DEFINITE pre-command "
 			     "failure at the submission boundary.  Nothing was armed "
 			     "and nothing was issued; the attempt stays PRECOMMAND, "
 			     "nothing was consumed, and it is safe to repeat",
@@ -2167,7 +2167,7 @@ int mxfs_scsipr_fence_node(struct mxfs_scsipr_ctx *ctx,
 		if (inj == 2) {
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "scsipr: P-PR-FENCE-INJECT mode=2 armfail '%s' "
-				     "victim=%u key=0x%llx — TEST ONLY: the arm CAS is "
+				     "victim=%u key=0x%llx -- TEST ONLY: the arm CAS is "
 				     "refused without being attempted, so nothing durable "
 				     "names this submission and no PREEMPT AND ABORT is "
 				     "issued",
@@ -2181,7 +2181,7 @@ int mxfs_scsipr_fence_node(struct mxfs_scsipr_ctx *ctx,
 			if (ret) {
 				mxfs_pal_log(MXFS_LOG_ERR,
 					     "scsipr: P-PR-FENCE-INJECT-VACUOUS mode=3 armambig "
-					     "'%s' victim=%u rc=%d — the arm CAS GENUINELY "
+					     "'%s' victim=%u rc=%d -- the arm CAS GENUINELY "
 					     "failed, so there is no landed arm whose answer "
 					     "could be made ambiguous.  The injection is "
 					     "DECLINED and the real outcome stands",
@@ -2189,7 +2189,7 @@ int mxfs_scsipr_fence_node(struct mxfs_scsipr_ctx *ctx,
 			} else {
 				mxfs_pal_log(MXFS_LOG_ERR,
 					     "scsipr: P-PR-FENCE-INJECT mode=3 armambig '%s' "
-					     "victim=%u key=0x%llx — TEST ONLY: the arm CAS "
+					     "victim=%u key=0x%llx -- TEST ONLY: the arm CAS "
 					     "LANDED and is being reported to this prover as "
 					     "having FAILED.  A durable marker now names a "
 					     "submission the prover believes it never made",
@@ -2201,7 +2201,7 @@ int mxfs_scsipr_fence_node(struct mxfs_scsipr_ctx *ctx,
 		if (ret) {
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "scsipr: P304-FENCE-NOARM '%s' victim key 0x%llx rc=%d "
-				     "— the command-submission boundary could not be made "
+				     "-- the command-submission boundary could not be made "
 				     "durable, so NO PREEMPT AND ABORT was issued.  Nothing "
 				     "was consumed and this attempt is still retryable",
 				     ctx->dev_name, (unsigned long long)victim_key, ret);
@@ -2215,7 +2215,7 @@ int mxfs_scsipr_fence_node(struct mxfs_scsipr_ctx *ctx,
 	if (inj == 4) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "scsipr: P-PR-FENCE-INJECT mode=4 uncertain '%s' victim=%u "
-			     "key=0x%llx — TEST ONLY: the submission is durably armed "
+			     "key=0x%llx -- TEST ONLY: the submission is durably armed "
 			     "and NO PREEMPT AND ABORT was issued, but the prover is "
 			     "given a transport timeout.  From here it cannot tell this "
 			     "from a command that reached the target: the attempt is "
@@ -2234,7 +2234,7 @@ int mxfs_scsipr_fence_node(struct mxfs_scsipr_ctx *ctx,
 		if (ret) {
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "scsipr: P-PR-FENCE-INJECT-VACUOUS mode=5 lostresp "
-				     "'%s' victim=%u rc=%d — the real PREEMPT AND ABORT did "
+				     "'%s' victim=%u rc=%d -- the real PREEMPT AND ABORT did "
 				     "not succeed, so there is no completed target action "
 				     "whose response could be lost.  The injection is "
 				     "DECLINED and the real outcome stands",
@@ -2242,7 +2242,7 @@ int mxfs_scsipr_fence_node(struct mxfs_scsipr_ctx *ctx,
 		} else {
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "scsipr: P-PR-FENCE-INJECT mode=5 lostresp '%s' "
-				     "victim=%u key=0x%llx — TEST ONLY: the PREEMPT AND "
+				     "victim=%u key=0x%llx -- TEST ONLY: the PREEMPT AND "
 				     "ABORT COMPLETED at the target and the victim key is "
 				     "really consumed; its successful response is being "
 				     "replaced with a transport timeout while this prover "
@@ -2261,7 +2261,7 @@ int mxfs_scsipr_fence_node(struct mxfs_scsipr_ctx *ctx,
 		 * our PROUT.  We performed nothing. */
 		mxfs_pal_log(MXFS_LOG_INFO,
 			     "scsipr: P-PR-FENCE-RACE lost the preempt-abort race "
-			     "for node %u (key 0x%llx) on '%s' — exclusion NOT "
+			     "for node %u (key 0x%llx) on '%s' -- exclusion NOT "
 			     "proved here",
 			     victim_node, (unsigned long long)victim_key,
 			     ctx->dev_name);
@@ -2297,7 +2297,7 @@ int mxfs_scsipr_fence_node(struct mxfs_scsipr_ctx *ctx,
 	if (ret) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "scsipr: P-PR-FENCE-VERIFY read_keys failed on '%s': %d "
-			     "— the preempt-abort completed but its result is "
+			     "-- the preempt-abort completed but its result is "
 			     "unverified; NOT claiming exclusion",
 			     ctx->dev_name, ret);
 		out->kind = MXFS_FENCE_KIND_ERROR;
@@ -2310,7 +2310,7 @@ int mxfs_scsipr_fence_node(struct mxfs_scsipr_ctx *ctx,
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "scsipr: P-PR-FENCE-VERIFY '%s' post-state wrong after "
 			     "preempt-abort of node %u: victim_present=%d "
-			     "own_present=%d keys=%d gen=%u — NOT claiming exclusion",
+			     "own_present=%d keys=%d gen=%u -- NOT claiming exclusion",
 			     ctx->dev_name, victim_node, victim_present, own_present,
 			     count, gen);
 		out->kind = MXFS_FENCE_KIND_ERROR;
@@ -2320,7 +2320,7 @@ int mxfs_scsipr_fence_node(struct mxfs_scsipr_ctx *ctx,
 
 	mxfs_pal_log(MXFS_LOG_WARN,
 		     "scsipr: P-PR-FENCE preempt-and-aborted dead node %u "
-		     "(key 0x%llx) on '%s' — task set aborted, registration "
+		     "(key 0x%llx) on '%s' -- task set aborted, registration "
 		     "removed, %s reservation held, gen=%u: EXCLUSION PROVED",
 		     victim_node, (unsigned long long)victim_key,
 		     ctx->dev_name, mxfs_pr_type_name(resv.type), gen);
@@ -2402,7 +2402,7 @@ int mxfs_scsipr_validate_admission(struct mxfs_scsipr_ctx *ctx)
 
 	if (!ctx->local_key) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "scsipr: P303-FENCECAP-UNREGISTERED '%s' — this mount "
+			     "scsipr: P303-FENCECAP-UNREGISTERED '%s' -- this mount "
 			     "holds no PR key, so it can neither be fenced nor fence "
 			     "anyone; it must not be admitted read-write",
 			     ctx->dev_name);
@@ -2413,7 +2413,7 @@ int mxfs_scsipr_validate_admission(struct mxfs_scsipr_ctx *ctx)
 	 * nexus (mxfs_scsipr_register's -EOPNOTSUPP arm returns 0 without it). */
 	if (!ctx->registered) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "scsipr: P303-FENCECAP-UNREGISTERED '%s' key=0x%llx — the "
+			     "scsipr: P303-FENCECAP-UNREGISTERED '%s' key=0x%llx -- the "
 			     "key was never REGISTERED and verified on this nexus "
 			     "(no PR support, or the register was skipped); a "
 			     "clustered mount cannot be admitted read-write on it",
@@ -2427,7 +2427,7 @@ int mxfs_scsipr_validate_admission(struct mxfs_scsipr_ctx *ctx)
 	ret = mxfs_pal_scsi_pr_report_capabilities(ctx->dev, &caps);
 	if (ret == -EOPNOTSUPP) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "scsipr: P303-FENCECAP-NOCAPS '%s' — the target does not "
+			     "scsipr: P303-FENCECAP-NOCAPS '%s' -- the target does not "
 			     "answer PERSISTENT RESERVE IN / REPORT CAPABILITIES, so "
 			     "this mount cannot establish that fencing works before it "
 			     "needs it",
@@ -2436,7 +2436,7 @@ int mxfs_scsipr_validate_admission(struct mxfs_scsipr_ctx *ctx)
 	}
 	if (ret) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "scsipr: P303-FENCECAP-ERROR '%s' rc=%d — REPORT "
+			     "scsipr: P303-FENCECAP-ERROR '%s' rc=%d -- REPORT "
 			     "CAPABILITIES failed; fencing capability is UNKNOWN",
 			     ctx->dev_name, ret);
 		return ret;
@@ -2453,7 +2453,7 @@ int mxfs_scsipr_validate_admission(struct mxfs_scsipr_ctx *ctx)
 
 	if (!caps.abort_capable) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "scsipr: P303-FENCECAP-NOABORT '%s' — no underlying SCSI "
+			     "scsipr: P303-FENCECAP-NOABORT '%s' -- no underlying SCSI "
 			     "device can be reached, so PREEMPT AND ABORT cannot be "
 			     "issued and a fence could never abort a victim's "
 			     "in-flight writes.  This is the exact condition that went "
@@ -2464,7 +2464,7 @@ int mxfs_scsipr_validate_admission(struct mxfs_scsipr_ctx *ctx)
 	if (!caps.tmv || !caps.we_ar) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "scsipr: P303-FENCECAP-NOWEAR '%s' tmv=%d mask=0x%04x "
-			     "we_ro=%d we_ar=%d — the target does not offer WRITE "
+			     "we_ro=%d we_ar=%d -- the target does not offer WRITE "
 			     "EXCLUSIVE - ALL REGISTRANTS (type 0x07), the reservation "
 			     "type every MXFS exclusion proof is written against from "
 			     "protocol generation 5 on.  The single-holder type this "
@@ -2481,7 +2481,7 @@ int mxfs_scsipr_validate_admission(struct mxfs_scsipr_ctx *ctx)
 		 * changes silently (see D-PR-REGISTRATION-NOT-PERSISTENT-APTPL). */
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "scsipr: P303-FENCECAP-NOPERSIST '%s' ptpl_c=%d ptpl_a=0 "
-			     "— PR state is NOT persisting through power loss, so "
+			     "-- PR state is NOT persisting through power loss, so "
 			     "registrations do not survive a target restart and "
 			     "cross-boot exclusion cannot be relied on",
 			     ctx->dev_name, (int)caps.ptpl_c);
@@ -2507,7 +2507,7 @@ int mxfs_scsipr_validate_admission(struct mxfs_scsipr_ctx *ctx)
 	}
 	if (ret == -EOPNOTSUPP || !resv.held) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "scsipr: P303-FENCECAP-NORESV '%s' held=%d — no "
+			     "scsipr: P303-FENCECAP-NORESV '%s' held=%d -- no "
 			     "reservation is in force, so nothing is excluded from "
 			     "this LU and a fence would prove nothing",
 			     ctx->dev_name,
@@ -2517,7 +2517,7 @@ int mxfs_scsipr_validate_admission(struct mxfs_scsipr_ctx *ctx)
 	if (resv.type != MXFS_SCSIPR_RESV_TYPE) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "scsipr: P303-FENCECAP-WRONGTYPE '%s' type=0x%x (%s), "
-			     "want 0x%x (%s) — a reservation IS in force and it does "
+			     "want 0x%x (%s) -- a reservation IS in force and it does "
 			     "exclude non-registrants, but it is not the type this "
 			     "protocol generation requires.  A single-holder "
 			     "reservation is released by its holder's clean unmount, "
@@ -2538,7 +2538,7 @@ int mxfs_scsipr_validate_admission(struct mxfs_scsipr_ctx *ctx)
 				     &count, &gen);
 	if (ret == -EOVERFLOW) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "scsipr: P303-FENCECAP-TRUNCATED '%s' — the target holds "
+			     "scsipr: P303-FENCECAP-TRUNCATED '%s' -- the target holds "
 			     "more registrants than this build can read back, so no "
 			     "future exclusion proof on this mount could be sound",
 			     ctx->dev_name);
@@ -2553,7 +2553,7 @@ int mxfs_scsipr_validate_admission(struct mxfs_scsipr_ctx *ctx)
 	if (!self_present) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "scsipr: P303-FENCECAP-SELFABSENT '%s' key=0x%llx "
-			     "registrants=%d gen=%u — this mount's own key is not in "
+			     "registrants=%d gen=%u -- this mount's own key is not in "
 			     "the target's registration table, so it is already "
 			     "excluded from the LU it is about to join",
 			     ctx->dev_name, (unsigned long long)ctx->local_key,
@@ -2563,7 +2563,7 @@ int mxfs_scsipr_validate_admission(struct mxfs_scsipr_ctx *ctx)
 
 	mxfs_pal_log(MXFS_LOG_DEBUG,
 		     "scsipr: P303-FENCECAP-OK '%s' registrants=%d gen=%u "
-		     "resv=%s — fencing capability validated at admission: "
+		     "resv=%s -- fencing capability validated at admission: "
 		     "all-registrants reservation held (it survives any single "
 		     "node's departure), persistence active, key view complete, "
 		     "own key present, PREEMPT AND ABORT issuable",
@@ -2669,7 +2669,7 @@ bool mxfs_fence_durable_kind_supported(enum mxfs_fence_record_family family,
 		return true;
 	case MXFS_FENCE_KIND_SINGLE_NODE_EXCLUSIVE:
 		reason = "REVOKED kind 17: the operator's single-node assertion is "
-			 "about ADMISSION — no second INITIATOR can hold writes — and "
+			 "about ADMISSION -- no second INITIATOR can hold writes -- and "
 			 "it says nothing about the writes the target had already "
 			 "accepted from the previous incarnation, which is the victim "
 			 "here.  An operator parameter may select an operating mode; "
@@ -2678,8 +2678,8 @@ bool mxfs_fence_durable_kind_supported(enum mxfs_fence_record_family family,
 		break;
 	case MXFS_FENCE_KIND_PREEMPT_ABORT_DONE:
 		reason = "RETIRED code point 16: it had two producers and only one of "
-			 "them ran an operation — the bootstrap-owner takeover stamped "
-			 "the same value on an outcome derived from PR-ledger state — "
+			 "them ran an operation -- the bootstrap-owner takeover stamped "
+			 "the same value on an outcome derived from PR-ledger state -- "
 			 "so a durable 16 cannot be classified into a proof contract.  "
 			 "Re-establish the fact and issue a certificate of the current "
 			 "profile; it cannot be relabelled";
@@ -2689,7 +2689,7 @@ bool mxfs_fence_durable_kind_supported(enum mxfs_fence_record_family family,
 			 "the old session', and a REGISTER AND IGNORE that replaces a "
 			 "key on the SAME nexus forces no session outcome at all, so "
 			 "the old nexus may still be live with its earlier tasks "
-			 "active.  Nothing here needs each instance shown unsound — a "
+			 "active.  Nothing here needs each instance shown unsound -- a "
 			 "supported, sound interpretation is what is missing";
 		break;
 	case MXFS_FENCE_KIND_EXCLUSIVE_WRITE_GATE:
@@ -2748,7 +2748,7 @@ mxfs_scsipr_retire_proof(struct mxfs_scsipr_ctx *ctx,
 	 */
 	if (contract && contract[0])
 		mxfs_pal_log(MXFS_LOG_WARN,
-			     "scsipr: P303-RETIRE-CONTRACT-REJECTED '%s' — this build "
+			     "scsipr: P303-RETIRE-CONTRACT-REJECTED '%s' -- this build "
 			     "accepts no deployment clause as a retirement basis, so "
 			     "this value qualifies nothing and changes no outcome.  "
 			     "Retirement is established by a completed target "
@@ -2811,7 +2811,7 @@ int mxfs_scsipr_exclusion_holds(struct mxfs_scsipr_ctx *ctx,
 	    (!mxfs_pr_type_excludes_nonregistrants(resv.type) &&
 	     !scsipr_gate_resv_is_ours(ctx, &resv))) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "scsipr: P239-EXCL-NORESV '%s' held=%d type=0x%x (%s) — "
+			     "scsipr: P239-EXCL-NORESV '%s' held=%d type=0x%x (%s) -- "
 			     "the reservation the certificate was issued under is no "
 			     "longer in force; nothing is excluded from this LU any "
 			     "more",
@@ -2847,7 +2847,7 @@ int mxfs_scsipr_exclusion_holds(struct mxfs_scsipr_ctx *ctx,
 		 * not carry on recovering somebody else. */
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "scsipr: P239-EXCL-SELFGONE '%s' our key 0x%llx is absent "
-			     "while re-checking victim 0x%llx — we are the fenced node",
+			     "while re-checking victim 0x%llx -- we are the fenced node",
 			     ctx->dev_name, (unsigned long long)ctx->local_key,
 			     (unsigned long long)victim_key);
 		out->kind = MXFS_FENCE_KIND_SELF_PREEMPTED;
@@ -2856,7 +2856,7 @@ int mxfs_scsipr_exclusion_holds(struct mxfs_scsipr_ctx *ctx,
 	if (victim_present) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "scsipr: P239-EXCL-RETURNED '%s' victim key 0x%llx is "
-			     "REGISTERED AGAIN (gen=%u, %d keys) — the exclusion this "
+			     "REGISTERED AGAIN (gen=%u, %d keys) -- the exclusion this "
 			     "recovery was authorised by has LAPSED.  The victim can "
 			     "write to this LU right now; no further destructive "
 			     "recovery step may run",
@@ -2893,7 +2893,7 @@ static int scsipr_gate_view(struct mxfs_scsipr_ctx *ctx, uint64_t victim_key,
 	if (total > n) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "scsipr: P-PR-GATE-VIEW-TRUNC '%s' target holds %d "
-			     "registration descriptor(s), we could read %d (cap %d) — "
+			     "registration descriptor(s), we could read %d (cap %d) -- "
 			     "the gate cannot classify a partial table",
 			     ctx->dev_name, total, n, MXFS_PR_MAX_KEYS);
 		return -EOVERFLOW;
@@ -2974,7 +2974,7 @@ int mxfs_scsipr_gate_sole_survivor(struct mxfs_scsipr_ctx *ctx,
 	if (own_n == 0) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "scsipr: P-PR-GATE-SELFGONE '%s' our key 0x%llx is not "
-			     "registered (gen=%u, %d other key(s)) — we are the "
+			     "registered (gen=%u, %d other key(s)) -- we are the "
 			     "excluded node; no gate can be installed",
 			     ctx->dev_name, (unsigned long long)ctx->local_key, gen,
 			     other_n);
@@ -2985,7 +2985,7 @@ int mxfs_scsipr_gate_sole_survivor(struct mxfs_scsipr_ctx *ctx,
 	if (own_n > 1) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "scsipr: P-PR-GATE-MULTINEXUS '%s' our key 0x%llx is "
-			     "registered on %d nexuses — PREEMPT AND ABORT sark=0 "
+			     "registered on %d nexuses -- PREEMPT AND ABORT sark=0 "
 			     "would remove our own sibling registrations and make ONE "
 			     "path the reservation holder; the gate is refused on a "
 			     "multipath nexus set.  NOTHING WAS ISSUED",
@@ -3001,7 +3001,7 @@ int mxfs_scsipr_gate_sole_survivor(struct mxfs_scsipr_ctx *ctx,
 		 * gate is for the key the target already removed. */
 		mxfs_pal_log(MXFS_LOG_DEBUG,
 			     "scsipr: P-PR-GATE-VICTIM-PRESENT '%s' victim node %u key "
-			     "0x%llx IS registered (gen=%u) — not the absent-key case; "
+			     "0x%llx IS registered (gen=%u) -- not the absent-key case; "
 			     "the key preempt applies.  NOTHING WAS ISSUED",
 			     ctx->dev_name, victim_node,
 			     (unsigned long long)victim_key, gen);
@@ -3018,7 +3018,7 @@ int mxfs_scsipr_gate_sole_survivor(struct mxfs_scsipr_ctx *ctx,
 	}
 	if (ret == -EOPNOTSUPP || !resv.held) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "scsipr: P-PR-GATE-NORESV '%s' held=%d — no reservation "
+			     "scsipr: P-PR-GATE-NORESV '%s' held=%d -- no reservation "
 			     "is in force; a sark=0 preempt has nothing to preempt "
 			     "and nothing excludes a non-registrant.  NOTHING WAS "
 			     "ISSUED; retryable once a reservation is back",
@@ -3049,7 +3049,7 @@ int mxfs_scsipr_gate_sole_survivor(struct mxfs_scsipr_ctx *ctx,
 		out->phase = MXFS_FENCE_PHASE_VERIFIED;
 		mxfs_pal_log(MXFS_LOG_DEBUG,
 			     "scsipr: P-PR-GATE-ALREADY '%s' victim node %u key "
-			     "0x%llx — Write Exclusive (1) is already held by our key "
+			     "0x%llx -- Write Exclusive (1) is already held by our key "
 			     "0x%llx with no other registrant (gen=%u): the gate is "
 			     "in force from an earlier attempt; EXCLUSION PROVED, "
 			     "nothing issued",
@@ -3062,7 +3062,7 @@ int mxfs_scsipr_gate_sole_survivor(struct mxfs_scsipr_ctx *ctx,
 	if (resv.type != MXFS_PAL_PR_TYPE_WR_EX_AR) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "scsipr: P-PR-GATE-WRONGTYPE '%s' held type=0x%x (%s) "
-			     "holder=0x%llx — the gate preempts the ALL-REGISTRANTS "
+			     "holder=0x%llx -- the gate preempts the ALL-REGISTRANTS "
 			     "reservation this build establishes (0x%x); a "
 			     "different type or holder is in force.  NOTHING WAS "
 			     "ISSUED",
@@ -3109,7 +3109,7 @@ int mxfs_scsipr_gate_sole_survivor(struct mxfs_scsipr_ctx *ctx,
 	if (other_n > 0) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "scsipr: P-PR-GATE-NOTSOLE '%s' victim node %u key 0x%llx "
-			     "— %d other registrant(s) at gen=%u; a sark=0 PREEMPT AND "
+			     "-- %d other registrant(s) at gen=%u; a sark=0 PREEMPT AND "
 			     "ABORT would remove their registrations and abort their "
 			     "task sets, and a nexus that is registered can be a live "
 			     "node this cluster has not seen join yet.  NOTHING WAS "
@@ -3126,7 +3126,7 @@ int mxfs_scsipr_gate_sole_survivor(struct mxfs_scsipr_ctx *ctx,
 		ret = arm_submit(arm_data);
 		if (ret) {
 			mxfs_pal_log(MXFS_LOG_ERR,
-				     "scsipr: P-PR-GATE-NOARM '%s' victim node %u rc=%d — "
+				     "scsipr: P-PR-GATE-NOARM '%s' victim node %u rc=%d -- "
 				     "the command-submission boundary could not be made "
 				     "durable, so NO PREEMPT AND ABORT was issued.  "
 				     "Nothing was consumed; still retryable",
@@ -3141,7 +3141,7 @@ int mxfs_scsipr_gate_sole_survivor(struct mxfs_scsipr_ctx *ctx,
 
 	mxfs_pal_log(MXFS_LOG_WARN,
 		     "scsipr: P-PR-GATE-ISSUE '%s' victim node %u key 0x%llx "
-		     "absent, %d other registrant(s), WE-AR held (gen=%u) — sole "
+		     "absent, %d other registrant(s), WE-AR held (gen=%u) -- sole "
 		     "survivor issuing PREEMPT AND ABORT rk=0x%llx sark=0 "
 		     "type=WRITE EXCLUSIVE(1)",
 		     ctx->dev_name, victim_node, (unsigned long long)victim_key,
@@ -3153,7 +3153,7 @@ int mxfs_scsipr_gate_sole_survivor(struct mxfs_scsipr_ctx *ctx,
 		/* RESERVATION CONFLICT: our key is not a registrant any more, or
 		 * the reservation changed under us.  The command performed nothing. */
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "scsipr: P-PR-GATE-CONFLICT '%s' — the sark=0 preempt "
+			     "scsipr: P-PR-GATE-CONFLICT '%s' -- the sark=0 preempt "
 			     "hit RESERVATION CONFLICT; nothing was performed and "
 			     "exclusion is NOT proved",
 			     ctx->dev_name);
@@ -3163,7 +3163,7 @@ int mxfs_scsipr_gate_sole_survivor(struct mxfs_scsipr_ctx *ctx,
 	}
 	if (ret) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "scsipr: P-PR-GATE-FAIL '%s' rc=%d — the sark=0 PREEMPT "
+			     "scsipr: P-PR-GATE-FAIL '%s' rc=%d -- the sark=0 PREEMPT "
 			     "AND ABORT did not complete; exclusion is NOT proved",
 			     ctx->dev_name, ret);
 		out->kind = MXFS_FENCE_KIND_ERROR;
@@ -3178,7 +3178,7 @@ int mxfs_scsipr_gate_sole_survivor(struct mxfs_scsipr_ctx *ctx,
 		ret = mxfs_scsipr_read_reservation(ctx, &resv);
 	if (ret) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "scsipr: P-PR-GATE-VERIFY '%s' rc=%d — the preempt "
+			     "scsipr: P-PR-GATE-VERIFY '%s' rc=%d -- the preempt "
 			     "completed but its result is unverified; NOT claiming "
 			     "exclusion",
 			     ctx->dev_name, ret);
@@ -3192,7 +3192,7 @@ int mxfs_scsipr_gate_sole_survivor(struct mxfs_scsipr_ctx *ctx,
 	if (own_n != 1 || other_n != 0 || !scsipr_gate_resv_is_ours(ctx, &resv)) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "scsipr: P-PR-GATE-VERIFY '%s' post-state wrong: own=%d "
-			     "other=%d held=%d type=0x%x (%s) holder=0x%llx gen=%u — "
+			     "other=%d held=%d type=0x%x (%s) holder=0x%llx gen=%u -- "
 			     "NOT claiming exclusion",
 			     ctx->dev_name, own_n, other_n, (int)resv.held, resv.type,
 			     mxfs_pr_type_name(resv.type),
@@ -3211,7 +3211,7 @@ int mxfs_scsipr_gate_sole_survivor(struct mxfs_scsipr_ctx *ctx,
 	out->phase = MXFS_FENCE_PHASE_VERIFIED;
 	mxfs_pal_log(MXFS_LOG_WARN,
 		     "scsipr: P-PR-GATE '%s' victim node %u (key 0x%llx, already "
-		     "purged by the target) — Write Exclusive (1) installed for "
+		     "purged by the target) -- Write Exclusive (1) installed for "
 		     "our key 0x%llx, every other registration removed and its "
 		     "task set aborted, gen=%u: EXCLUSION PROVED.  No other nexus "
 		     "can write until the recovery publishes and WE-AR is "
@@ -3255,7 +3255,7 @@ int mxfs_scsipr_gate_holds(struct mxfs_scsipr_ctx *ctx,
 	if (!scsipr_gate_resv_is_ours(ctx, &resv)) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "scsipr: P239-GATE-LAPSED '%s' held=%d type=0x%x (%s) "
-			     "holder=0x%llx own=0x%llx — the Write Exclusive (1) "
+			     "holder=0x%llx own=0x%llx -- the Write Exclusive (1) "
 			     "reservation this recovery was authorised by is no "
 			     "longer held by our key; nothing excludes another "
 			     "initiator any more",
@@ -3283,7 +3283,7 @@ int mxfs_scsipr_gate_holds(struct mxfs_scsipr_ctx *ctx,
 	if (!own_present) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "scsipr: P239-GATE-SELFGONE '%s' our key 0x%llx is absent "
-			     "while the gate is held — we are the fenced node",
+			     "while the gate is held -- we are the fenced node",
 			     ctx->dev_name, (unsigned long long)ctx->local_key);
 		out->kind = MXFS_FENCE_KIND_SELF_PREEMPTED;
 		return -ESTALE;
@@ -3314,7 +3314,7 @@ int mxfs_scsipr_gate_restore(struct mxfs_scsipr_ctx *ctx)
 		ctx->resv_type_seen = resv.type;
 		ctx->gate_held = false;
 		mxfs_pal_log(MXFS_LOG_DEBUG,
-			     "scsipr: P-PR-GATE-RESTORED '%s' — WE-AR already in force "
+			     "scsipr: P-PR-GATE-RESTORED '%s' -- WE-AR already in force "
 			     "(gen=%u); gate cleared, nothing issued",
 			     ctx->dev_name, resv.generation);
 		ret = 0;
@@ -3326,7 +3326,7 @@ int mxfs_scsipr_gate_restore(struct mxfs_scsipr_ctx *ctx)
 	if (own_n == 0) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "scsipr: P-PR-GATE-RESTORE-SELFGONE '%s' our key 0x%llx "
-			     "is not registered — cannot convert a reservation we do "
+			     "is not registered -- cannot convert a reservation we do "
 			     "not hold",
 			     ctx->dev_name, (unsigned long long)ctx->local_key);
 		ret = -ESTALE;
@@ -3335,7 +3335,7 @@ int mxfs_scsipr_gate_restore(struct mxfs_scsipr_ctx *ctx)
 	if (own_n > 1) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "scsipr: P-PR-GATE-RESTORE-MULTINEXUS '%s' our key is on "
-			     "%d nexuses — a self-preempt would remove the siblings; "
+			     "%d nexuses -- a self-preempt would remove the siblings; "
 			     "gate left in force",
 			     ctx->dev_name, own_n);
 		ret = -ENOTUNIQ;
@@ -3366,7 +3366,7 @@ int mxfs_scsipr_gate_restore(struct mxfs_scsipr_ctx *ctx)
 	} else {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "scsipr: P-PR-GATE-RESTORE-FOREIGN '%s' held type=0x%x "
-			     "(%s) holder=0x%llx — a reservation we did not install "
+			     "(%s) holder=0x%llx -- a reservation we did not install "
 			     "is in force; not touching it",
 			     ctx->dev_name, resv.type, mxfs_pr_type_name(resv.type),
 			     (unsigned long long)resv.key);
@@ -3379,7 +3379,7 @@ int mxfs_scsipr_gate_restore(struct mxfs_scsipr_ctx *ctx)
 	if (!resv.held || resv.type != MXFS_PAL_PR_TYPE_WR_EX_AR) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "scsipr: P-PR-GATE-RESTORE-VERIFY '%s' held=%d type=0x%x "
-			     "(%s) — WE-AR is NOT in force after the conversion; gate "
+			     "(%s) -- WE-AR is NOT in force after the conversion; gate "
 			     "state kept, retry",
 			     ctx->dev_name, (int)resv.held, resv.type,
 			     mxfs_pr_type_name(resv.type));
@@ -3390,7 +3390,7 @@ int mxfs_scsipr_gate_restore(struct mxfs_scsipr_ctx *ctx)
 	ctx->reserved = true;
 	ctx->gate_held = false;
 	mxfs_pal_log(MXFS_LOG_WARN,
-		     "scsipr: P-PR-GATE-RESTORED '%s' — Write Exclusive - All "
+		     "scsipr: P-PR-GATE-RESTORED '%s' -- Write Exclusive - All "
 		     "Registrants restored for key 0x%llx (gen=%u); joiners and a "
 		     "re-registered peer can write again",
 		     ctx->dev_name, (unsigned long long)ctx->local_key,
@@ -3463,7 +3463,7 @@ int mxfs_scsipr_lu_reset_admit(struct mxfs_scsipr_ctx *ctx,
 		out->refusal = MXFS_LURESET_REFUSE_NOT_REGISTERED;
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "scsipr: P306-LURESET-ADMIT '%s' admitted=0 "
-			     "reason=%s victim_node=%u — an initiator that holds no "
+			     "reason=%s victim_node=%u -- an initiator that holds no "
 			     "registration cannot show that it is the only one; "
 			     "NOTHING WILL BE ISSUED",
 			     ctx->dev_name,
@@ -3564,7 +3564,7 @@ int mxfs_scsipr_lu_reset_admit(struct mxfs_scsipr_ctx *ctx,
 						       &out->pr_generation);
 			mxfs_pal_log(MXFS_LOG_WARN,
 				     "scsipr: P306-LURESET-MULTINEXUS '%s' paths=%d "
-				     "answered=1 rc=%d own_n=%d — one path proves our "
+				     "answered=1 rc=%d own_n=%d -- one path proves our "
 				     "key; its registrations on the paths that do not "
 				     "answer were removed",
 				     ctx->dev_name, npaths, mrc, out->own_n);
@@ -3576,7 +3576,7 @@ int mxfs_scsipr_lu_reset_admit(struct mxfs_scsipr_ctx *ctx,
 		} else {
 			mxfs_pal_log(MXFS_LOG_WARN,
 				     "scsipr: P306-LURESET-MULTINEXUS '%s' paths=%d "
-				     "answered=%d own_n=%d rc=%d — %s",
+				     "answered=%d own_n=%d rc=%d -- %s",
 				     ctx->dev_name, npaths, good, out->own_n, mrc,
 				     (mrc == 0 && good == out->own_n) ?
 				     "every registration of our key is a nexus of this node" :
@@ -3655,7 +3655,7 @@ int mxfs_scsipr_lu_reset_admit(struct mxfs_scsipr_ctx *ctx,
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "scsipr: P306-LURESET-RACE '%s' the registration table "
 			     "moved while admission was being decided: gen %u->%u "
-			     "own %d->%d other %d->%d victim %d->%d — the answer would "
+			     "own %d->%d other %d->%d victim %d->%d -- the answer would "
 			     "describe a table that no longer exists",
 			     ctx->dev_name, out->pr_generation, gen_b, out->own_n,
 			     own_b, out->other_n, other_b, (int)out->victim_present,
@@ -3682,7 +3682,7 @@ out:
 	mxfs_pal_log(out->admitted ? MXFS_LOG_DEBUG : MXFS_LOG_ERR,
 		     "scsipr: P306-LURESET-ADMIT '%s' admitted=%d reason=%s "
 		     "victim_node=%u victim_key=0x%016llx victim_present=%d "
-		     "own_n=%d other_n=%d gen=%u resv_type=0x%x (%s) rc=%d — %s",
+		     "own_n=%d other_n=%d gen=%u resv_type=0x%x (%s) rc=%d -- %s",
 		     ctx->dev_name, (int)out->admitted,
 		     mxfs_lu_reset_refusal_name(out->refusal), victim_node,
 		     (unsigned long long)victim_key, (int)out->victim_present,
@@ -3795,7 +3795,7 @@ int mxfs_scsipr_lu_reset_converge(struct mxfs_scsipr_ctx *ctx,
 	mxfs_pal_log(MXFS_LOG_DEBUG,
 		     "scsipr: P307-LURESET-PROBE '%s' the command path answered "
 		     "after the reset: tries=%d ms=%u held=%d type=0x%x (%s) "
-		     "gen=%u — a PR IN completing proves the COMMAND PATH and "
+		     "gen=%u -- a PR IN completing proves the COMMAND PATH and "
 		     "nothing about writable media",
 		     ctx->dev_name, out->probe_tries, out->probe_ms,
 		     (int)resv.held, resv.type, mxfs_pr_type_name(resv.type),
@@ -3849,7 +3849,7 @@ done:
 		     "victim_node=%u probe_tries=%d probe_ms=%u total_ms=%u "
 		     "gen_before=%u gen_after=%u readmit=%s own_n=%d other_n=%d "
 		     "victim_present=%d "
-		     "resv_type=0x%x rc=%d — %s",
+		     "resv_type=0x%x rc=%d -- %s",
 		     ctx->dev_name, (int)out->converged,
 		     mxfs_lu_reset_convergence_name(out->refusal), victim_node,
 		     out->probe_tries, out->probe_ms, out->total_ms,
@@ -3895,7 +3895,7 @@ static const struct mxfs_lu_reset_audited_kernel mxfs_lu_reset_audited[] = {
 		"6.8.0-101-generic",
 		"STRUCTURAL CROSS-CHECK ONLY, and named as exactly that: the bodies "
 		"of this release are not available here, so what was compared is its "
-		"shipped include/scsi/libiscsi.h against the read tree's — the TMF_* "
+		"shipped include/scsi/libiscsi.h against the read tree's -- the TMF_* "
 		"enum, eh_mutex, ehwait, tmhdr, tmf_timer, tmf_state, "
 		"lu_reset_timeout and frwd_lock, identical at identical line numbers. "
 		"A state machine whose declarations are unchanged is strong evidence "
@@ -3948,7 +3948,7 @@ static bool mxfs_lu_reset_fp_admitted(const char *krel, const char **why)
 	for (i = 0; mxfs_lu_reset_denied_krel[i]; i++) {
 		if (!strcmp(krel, mxfs_lu_reset_denied_krel[i])) {
 			if (why)
-				*why = "REFUSED: this kernel release is on the denylist — its "
+				*why = "REFUSED: this kernel release is on the denylist -- its "
 				       "libiscsi declarations match an audited shape but it is "
 				       "known not to keep the one-TMF-per-session invariant";
 			return false;
@@ -3968,9 +3968,9 @@ static bool mxfs_lu_reset_fp_admitted(const char *krel, const char **why)
 		     "scsipr: P308-LURESET-PIN-FINGERPRINT krel=%s build=%s fp=%s "
 		     "%s",
 		     krel, build, fp,
-		     known ? "— matches a read tree's libiscsi TMF declarations; "
+		     known ? "-- matches a read tree's libiscsi TMF declarations; "
 			     "admitted STRUCTURALLY (declarations, not bodies)" :
-			     "— not the shape of any read tree; refused");
+			     "-- not the shape of any read tree; refused");
 	if (!known) {
 		if (why)
 			*why = "REFUSED: this kernel's libiscsi TMF declarations do not "
@@ -4061,7 +4061,7 @@ static const char *mxfs_lu_reset_krel_effective(char *buf, size_t len)
 	snprintf(buf, len, "%.*s", (int)n, p);
 	if (mxfs_fence_lu_reset_kernel_audited(buf, NULL)) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "scsipr: P308-LURESET-KRELPROBE IGNORED '%s' — this knob "
+			     "scsipr: P308-LURESET-KRELPROBE IGNORED '%s' -- this knob "
 			     "exists to exercise the pin's REFUSAL and may name only a "
 			     "release the pin rejects; honouring an audited value here "
 			     "would be a way to mint on a kernel nobody read.  Using "
@@ -4072,7 +4072,7 @@ static const char *mxfs_lu_reset_krel_effective(char *buf, size_t len)
 	}
 	mxfs_pal_log(MXFS_LOG_WARN,
 		     "scsipr: P308-LURESET-KRELPROBE substituting '%s' for the "
-		     "running kernel '%s' — the pin must refuse and NO LOGICAL "
+		     "running kernel '%s' -- the pin must refuse and NO LOGICAL "
 		     "UNIT RESET may be issued",
 		     buf, real);
 	return buf;
@@ -4201,7 +4201,7 @@ int mxfs_scsipr_fence_by_lu_reset(struct mxfs_scsipr_ctx *ctx,
 		out->result.pr_generation = out->admit.pr_generation;
 		out->result.resv_type = out->admit.resv_type;
 		snprintf(out->why, sizeof(out->why),
-			 "REFUSED: admission=%s — nothing was issued and this attempt "
+			 "REFUSED: admission=%s -- nothing was issued and this attempt "
 			 "is retryable",
 			 mxfs_lu_reset_refusal_name(out->admit.refusal));
 		goto refused;
@@ -4288,7 +4288,7 @@ int mxfs_scsipr_fence_by_lu_reset(struct mxfs_scsipr_ctx *ctx,
 		out->verdict = MXFS_LURESET_FENCE_KERNEL_MOVED;
 		snprintf(out->why, sizeof(out->why),
 			 "REFUSED AFTER THE RESET: the report was taken on krel=%s, "
-			 "pinned krel=%s — the reset happened and may not be certified",
+			 "pinned krel=%s -- the reset happened and may not be certified",
 			 wit->krel[0] ? wit->krel : "?", krel ? krel : "?");
 		mxfs_pal_free(wit);
 		goto refused;
@@ -4309,7 +4309,7 @@ int mxfs_scsipr_fence_by_lu_reset(struct mxfs_scsipr_ctx *ctx,
 		out->verdict = MXFS_LURESET_FENCE_BARRIER_REFUSED;
 		snprintf(out->why, sizeof(out->why),
 			 "REFUSED AFTER THE RESET: the barrier did not hold "
-			 "(storage=%s converged=%d) — the reset happened, the intent "
+			 "(storage=%s converged=%d) -- the reset happened, the intent "
 			 "stays resumable by a later authority holder, and NO replay "
 			 "or recovery-commit byte may follow",
 			 mxfs_lu_reset_convergence_name(out->conv.refusal),
@@ -4321,7 +4321,7 @@ int mxfs_scsipr_fence_by_lu_reset(struct mxfs_scsipr_ctx *ctx,
 		out->result.rc = ret;
 		snprintf(out->why, sizeof(out->why),
 			 "REFUSED AFTER THE RESET: the barrier could not be evaluated "
-			 "(rc=%d), which is not permission — the reset happened and "
+			 "(rc=%d), which is not permission -- the reset happened and "
 			 "the intent stays resumable", ret);
 		goto refused;
 	}
@@ -4363,7 +4363,7 @@ log:
 		     "phase=%s basis=%s claim=%s obs=%s admit_run=%d admitted=%d "
 		     "admission=%s "
 		     "pal=%s issued=%d reset_ms=%u converged=%d storage=%s "
-		     "gen_admit=%u gen_after=%u krel=%s total_ms=%u rc=%d — %s",
+		     "gen_admit=%u gen_after=%u krel=%s total_ms=%u rc=%d -- %s",
 		     ctx->dev_name, (int)out->certified,
 		     mxfs_lu_reset_fence_verdict_name(out->verdict),
 		     req->victim_node, (unsigned long long)req->victim_key,
@@ -4435,7 +4435,7 @@ int mxfs_scsipr_self_check(struct mxfs_scsipr_ctx *ctx, int live_members)
 	if (count >= live_members && live_members >= 2) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "scsipr: P-PR-OWNKEY-GONE own key 0x%llx missing on "
-			     "'%s' (self-check: %d key(s), %d live) — node was "
+			     "'%s' (self-check: %d key(s), %d live) -- node was "
 			     "preempted",
 			     (unsigned long long)ctx->local_key, ctx->dev_name,
 			     count, live_members);
@@ -4445,7 +4445,7 @@ int mxfs_scsipr_self_check(struct mxfs_scsipr_ctx *ctx, int live_members)
 		ctx->advisory_logged = true;
 		mxfs_pal_log(MXFS_LOG_DEBUG,
 			     "scsipr: P-PR-ADVISORY '%s' self-check: own key gone, "
-			     "%d key(s) for %d live member(s) — per-node PR not "
+			     "%d key(s) for %d live member(s) -- per-node PR not "
 			     "trustworthy on this topology; D1+lease fencing apply",
 			     ctx->dev_name, count, live_members);
 	}
@@ -4487,7 +4487,7 @@ int mxfs_scsipr_fenced_check(struct mxfs_scsipr_ctx *ctx)
 		if (!present)
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "scsipr: P277-PR-FULLSTATUS own key 0x%llx ABSENT "
-				     "on '%s' (pr_gen=%u) — target says this node is "
+				     "on '%s' (pr_gen=%u) -- target says this node is "
 				     "fenced",
 				     (unsigned long long)ctx->local_key, ctx->dev_name,
 				     gen);
@@ -4505,7 +4505,7 @@ int mxfs_scsipr_fenced_check(struct mxfs_scsipr_ctx *ctx)
 		if (!own_present)
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "scsipr: P277-PR-READKEYS own key 0x%llx absent "
-				     "on '%s' (%d key(s), pr_gen=%u) — fenced "
+				     "on '%s' (%d key(s), pr_gen=%u) -- fenced "
 				     "(full-status unsupported; key-reuse ambiguity "
 				     "accepted as fallback)",
 				     (unsigned long long)ctx->local_key, ctx->dev_name,
@@ -4528,7 +4528,7 @@ int mxfs_scsipr_probe(struct mxfs_scsipr_ctx *ctx)
 				     &count, NULL);
 	if (ret == -EOPNOTSUPP) {
 		mxfs_pal_log(MXFS_LOG_DEBUG,
-			     "scsipr: P-PR-PROBE '%s': READ KEYS unsupported — "
+			     "scsipr: P-PR-PROBE '%s': READ KEYS unsupported -- "
 			     "PR state not verifiable (advisory)", ctx->dev_name);
 		return 0;
 	}
@@ -4538,7 +4538,7 @@ int mxfs_scsipr_probe(struct mxfs_scsipr_ctx *ctx)
 		 * before a fence or a self-check has to refuse. */
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "scsipr: P-PR-PROBE '%s': registration table exceeds the "
-			     "%d-descriptor snapshot cap — PR classification will "
+			     "%d-descriptor snapshot cap -- PR classification will "
 			     "refuse until MXFS_PR_MAX_KEYS is raised",
 			     ctx->dev_name, MXFS_PR_MAX_KEYS);
 		return 0;
@@ -4553,14 +4553,14 @@ int mxfs_scsipr_probe(struct mxfs_scsipr_ctx *ctx)
 		 * registrations.  Fencing must not trust PR here. */
 		mxfs_pal_log(MXFS_LOG_DEBUG,
 			     "scsipr: P-PR-PROBE '%s': own key 0x%llx NOT visible "
-			     "after successful register (%d key(s)) — per-node PR "
+			     "after successful register (%d key(s)) -- per-node PR "
 			     "unusable on this target/topology (advisory only)",
 			     ctx->dev_name,
 			     (unsigned long long)ctx->local_key, count);
 	else
 		mxfs_pal_log(MXFS_LOG_DEBUG,
 			     "scsipr: P-PR-PROBE '%s': own key 0x%llx visible, "
-			     "%d key(s) registered — per-node PR active",
+			     "%d key(s) registered -- per-node PR active",
 			     ctx->dev_name,
 			     (unsigned long long)ctx->local_key, count);
 	return 0;
@@ -4585,7 +4585,7 @@ static int scsipr_unregister_locked(struct mxfs_scsipr_ctx *ctx)
 	 */
 	if (!ctx->registered) {
 		mxfs_pal_log(MXFS_LOG_WARN,
-			     "scsipr: P302-PR-UNREGISTER-SKIPPED '%s' key=0x%llx — "
+			     "scsipr: P302-PR-UNREGISTER-SKIPPED '%s' key=0x%llx -- "
 			     "not this context's live registration (retained fence "
 			     "target or never registered); leaving the LU's PR table "
 			     "unchanged", ctx->dev_name,

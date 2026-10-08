@@ -1414,7 +1414,7 @@ xfs_log_sb(
 	/* (D-0133 seal probe): no SB log after the summary seal. */
 	if (unlikely(READ_ONCE(mp->m_mxfs_sb_sealed))) {
 		atomic_inc(&mp->m_mxfs_seal_syncsb);
-		mxfs_probe("mxfs: P-SB-SEAL-SYNCSB slot=%u comm=%s caller=%pS — xfs_log_sb after the SB summary seal\n",
+		mxfs_probe("mxfs: P-SB-SEAL-SYNCSB slot=%u comm=%s caller=%pS -- xfs_log_sb after the SB summary seal\n",
 			mp->m_mxfs_node_slot, current->comm, (void *)_RET_IP_);
 	}
 
@@ -1453,7 +1453,7 @@ xfs_log_sb(
 			mp->m_sb.sb_ifree = d_if;
 			mp->m_sb.sb_fdblocks = d_fd;
 		}
-		mxfs_probe("mxfs: P-SB-LOG-UNLOCKED slot=%u derr=%d icount=%llu ifree=%llu fdblocks=%llu comm=%s caller=%pS — SB logged outside the summary section with the durable counters (never this node's private view)\n",
+		mxfs_probe("mxfs: P-SB-LOG-UNLOCKED slot=%u derr=%d icount=%llu ifree=%llu fdblocks=%llu comm=%s caller=%pS -- SB logged outside the summary section with the durable counters (never this node's private view)\n",
 			mp->m_mxfs_node_slot, derr,
 			(unsigned long long)mp->m_sb.sb_icount,
 			(unsigned long long)mp->m_sb.sb_ifree,

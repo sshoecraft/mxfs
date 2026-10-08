@@ -800,6 +800,10 @@ xfs_init_mount_workqueues(
 	/* 0.75.34 (D-0536): node-local order of the SB summary critical section. */
 	mutex_init(&mp->m_mxfs_sb_summary_mutex);
 	mp->m_mxfs_sb_cover_durable = false;
+	mutex_init(&mp->m_mxfs_cnt_sweep_mutex);
+	mp->m_mxfs_cnt_sweep_ns = 0;
+	mp->m_mxfs_cnt_statfs_ns = 0;
+	INIT_WORK(&mp->m_mxfs_cnt_statfs_work, mxfs_freecount_statfs_work_fn);
 
 	/* deferred-publish: per-node unpublished-inode list. */
 	INIT_LIST_HEAD(&mp->m_mxfs_unpub_list);
@@ -875,7 +879,7 @@ xfs_destroy_mount_workqueues(
 		       pd_laps++ < 3000)
 			msleep(10);
 		if (atomic_read(&mp->m_mxfs_pubdrain_active) > 0)
-			mxfs_probe("mxfs: P-PUBDRAIN-TEARDOWN-TIMEOUT active=%d after 30s — proceeding\n",
+			mxfs_probe("mxfs: P-PUBDRAIN-TEARDOWN-TIMEOUT active=%d after 30s -- proceeding\n",
 				atomic_read(&mp->m_mxfs_pubdrain_active));
 	}
 	if (mp->m_mxfs_inode_bast_wq)
@@ -966,7 +970,7 @@ xfs_fs_destroy_inode(
 		if (!xfs_iflags_test(ip, MXFS_IF_RMC_ACCT)) {
 			static atomic_t p9dst_n = ATOMIC_INIT(0);
 			if (atomic_inc_return(&p9dst_n) <= 50) {
-				pr_alert("mxfs: P9-RMC-UNPAIRED-DESTROY ino=%llu rmcnt=%ld last0=%pS lastclr=%pS comm=%s — destroy-at-0 dec with UNACCOUNTED zero\n",
+				pr_alert("mxfs: P9-RMC-UNPAIRED-DESTROY ino=%llu rmcnt=%ld last0=%pS lastclr=%pS comm=%s -- destroy-at-0 dec with UNACCOUNTED zero\n",
 					(unsigned long long)ip->i_ino,
 					atomic_long_read(&inode->i_sb->s_remove_count),
 					ip->i_rmc_last0_ra,
@@ -1056,7 +1060,7 @@ xfs_fs_evict_inode(
 	 * names the path that dropped one reference too many.
 	 */
 	if (unlikely(atomic_read(&XFS_I(inode)->i_mxfs_revoke_refs) > 0)) {
-		mxfs_probe("mxfs: P-REVOKE-EVICT-EARLY ino=%llu gen=%u revoke_refs=%d i_state=0x%lx — evicted while a queued revocation still owns a reference\n",
+		mxfs_probe("mxfs: P-REVOKE-EVICT-EARLY ino=%llu gen=%u revoke_refs=%d i_state=0x%lx -- evicted while a queued revocation still owns a reference\n",
 			(unsigned long long)XFS_I(inode)->i_ino,
 			inode->i_generation,
 			atomic_read(&XFS_I(inode)->i_mxfs_revoke_refs),
@@ -1242,14 +1246,6 @@ xfs_statfs_data(
 {
 	int64_t			fdblocks =
 		xfs_sum_freecounter(mp, XC_FREE_BLOCKS);
-	uint64_t		pa_ic, pa_if, pa_fdb;
-
-	/* D-STATFS fix: on multi-node mounts the percpu counter above
-	 * drifts (local-only deltas); report the cluster-coherent physical
-	 * per-AG sum instead.  Residual: omits foreign in-flight delalloc
-	 * (seconds-scale), vs unbounded monotonic drift. */
-	if (mxfs_statfs_perag_sums(mp, &pa_ic, &pa_if, &pa_fdb))
-		fdblocks = pa_fdb;
 
 	/* make sure st->f_bfree does not underflow */
 	st->f_bfree = max(0LL,
@@ -1286,15 +1282,11 @@ xfs_statfs_inodes(
 	uint64_t		icount = percpu_counter_sum(&mp->m_icount);
 	uint64_t		ifree = percpu_counter_sum(&mp->m_ifree);
 	uint64_t		fakeinos;
-	uint64_t		pa_ic, pa_if, pa_fdb;
 
-	/* D-STATFS fix (see xfs_statfs_data): cluster-coherent per-AG
-	 * inode sums on multi-node mounts; the percpu counters drift under
-	 * cross-node create/free asymmetry (measured: ifree > icount). */
-	if (mxfs_statfs_perag_sums(mp, &pa_ic, &pa_if, &pa_fdb)) {
-		icount = pa_ic;
-		ifree = pa_if;
-	}
+	/* the peer's creates and frees are folded in as AG deltas, but
+	 * two separate sums can still cross */
+	if (ifree > icount)
+		ifree = icount;
 	fakeinos = XFS_FSB_TO_INO(mp, st->f_bfree);
 
 	st->f_files = min(icount + fakeinos, (uint64_t)XFS_MAXINUMBER);
@@ -1323,6 +1315,7 @@ xfs_fs_statfs(
 	 * here waiting hours for a billion extent file to be truncated.
 	 */
 	xfs_inodegc_push(mp);
+	mxfs_freecount_refresh_statfs(mp);
 
 	st->f_type = MXFS_SB_MAGIC;
 	st->f_namelen = MAXNAMELEN - 1;
@@ -1651,6 +1644,8 @@ void mxfs_pal_lu_reset_exit(void);
 int mxfs_pal_drbd_init(void);
 void mxfs_pal_sdev_probe_init(void);
 void mxfs_pal_sdev_probe_exit(void);
+/* pal/linux/xfs_buf.c — the inode-cluster write slot record (lab) */
+void mxfs_slot_ring_exit(void);
 void mxfs_pal_drbd_exit(void);
 struct mxfs_depart_late_token {
 	struct delayed_work	work;
@@ -1725,7 +1720,7 @@ mxfs_depart_late_token_arm(
 	spin_lock(&mxfs_depart_late_lock);
 	list_add_tail(&lt->node, &mxfs_depart_late_list);
 	spin_unlock(&mxfs_depart_late_lock);
-	pr_err("mxfs: P-DBG-DEPART-LATE-TOKEN armed: one extra token, retired in %u ms (inflight=%d) — the drain must WAIT for it and the departure must then complete clean\n",
+	pr_err("mxfs: P-DBG-DEPART-LATE-TOKEN armed: one extra token, retired in %u ms (inflight=%d) -- the drain must WAIT for it and the departure must then complete clean\n",
 	       ms, acct->inflight);
 	if (!schedule_delayed_work(&lt->work, msecs_to_jiffies(ms))) {
 		/* cannot happen for a fresh work item; unwind rather than hang */
@@ -1794,7 +1789,7 @@ mxfs_departure_freeze_drain(
 	if (inflight == 0 && rp == 0)
 		return !corrupt;
 	xfs_notice(mp,
-"MXFS: P304-RETIRE-DRAIN at=%s inflight=%d rejected_pending=%d corrupt=%d — tokens admitted before the freeze still outstanding; waiting for them",
+"MXFS: P304-RETIRE-DRAIN at=%s inflight=%d rejected_pending=%d corrupt=%d -- tokens admitted before the freeze still outstanding; waiting for them",
 		   where, inflight, rp, corrupt ? 1 : 0);
 	for (;;) {
 		wait_event_timeout(acct->wq,
@@ -1811,19 +1806,19 @@ mxfs_departure_freeze_drain(
 		spin_unlock(&acct->lock);
 		if (inflight == 0 && rp == 0) {
 			xfs_notice(mp,
-"MXFS: P304-RETIRE-DRAINED at=%s after %d round(s) of %d ms — every token retired; departure may proceed%s",
+"MXFS: P304-RETIRE-DRAINED at=%s after %d round(s) of %d ms -- every token retired; departure may proceed%s",
 				   where, rounds, MXFS_DEPARTURE_DRAIN_ROUND_MS,
 				   corrupt ? " (account CORRUPT: DIRTY regardless)" : "");
 			return !corrupt;
 		}
 		if (corrupt) {
 			xfs_alert(mp,
-"MXFS: P304-RETIRE-DRAIN-ABANDONED at=%s inflight=%d rejected_pending=%d after %d round(s) — the accounting is CORRUPT (under/overflow or an orphaned buffer), the count cannot be trusted and a freed buffer's completion can never come; departure DIRTY (slot ACTIVE, PR key retained as fence target), the accounting object stays pinned",
+"MXFS: P304-RETIRE-DRAIN-ABANDONED at=%s inflight=%d rejected_pending=%d after %d round(s) -- the accounting is CORRUPT (under/overflow or an orphaned buffer), the count cannot be trusted and a freed buffer's completion can never come; departure DIRTY (slot ACTIVE, PR key retained as fence target), the accounting object stays pinned",
 				  where, inflight, rp, rounds);
 			return false;
 		}
 		xfs_alert(mp,
-"MXFS: P304-RETIRE-DRAIN-STALL at=%s inflight=%d rejected_pending=%d after %d round(s) of %d ms — buffer I/O admitted before the freeze has not completed although xfs_unmountfs returned (a D4 accounting/lifetime violation: investigate); still waiting, the mount is not torn down under it",
+"MXFS: P304-RETIRE-DRAIN-STALL at=%s inflight=%d rejected_pending=%d after %d round(s) of %d ms -- buffer I/O admitted before the freeze has not completed although xfs_unmountfs returned (a D4 accounting/lifetime violation: investigate); still waiting, the mount is not torn down under it",
 			  where, inflight, rp, rounds, MXFS_DEPARTURE_DRAIN_ROUND_MS);
 	}
 }
@@ -1876,11 +1871,11 @@ mxfs_departure_quiesced(
 	     untokened == 0 && stage == MXFS_DEPARTURE_FROZEN;
 	if (ok)
 		mxfs_xfs_probe(mp,
-"MXFS: P304-RETIRE-QUIESCED at=%s buf_io_inflight=0 rejected_pending=0 dir_wr_inflight=0 io_after_freeze=0 corrupt=0 untokened=0 soft=%lu carried=%lu submitted=%lu drain_stalls=%lu — departure frozen, release stamp may proceed",
+"MXFS: P304-RETIRE-QUIESCED at=%s buf_io_inflight=0 rejected_pending=0 dir_wr_inflight=0 io_after_freeze=0 corrupt=0 untokened=0 soft=%lu carried=%lu submitted=%lu drain_stalls=%lu -- departure frozen, release stamp may proceed",
 			   where, soft, carried, submitted, stalls);
 	else
 		xfs_alert(mp,
-"MXFS: P304-RETIRE-NOT-QUIESCED at=%s stage=%d buf_io_inflight=%d rejected_pending=%d dir_wr_inflight=%d io_after_freeze=%d rejected=%lu corrupt=%d untokened=%lu soft=%lu carried=%lu — I/O still attributable to this mount at the release point, or a completion of unknown provenance; departure treated as DIRTY (slot ACTIVE, PR key retained as fence target)",
+"MXFS: P304-RETIRE-NOT-QUIESCED at=%s stage=%d buf_io_inflight=%d rejected_pending=%d dir_wr_inflight=%d io_after_freeze=%d rejected=%lu corrupt=%d untokened=%lu soft=%lu carried=%lu -- I/O still attributable to this mount at the release point, or a completion of unknown provenance; departure treated as DIRTY (slot ACTIVE, PR key retained as fence target)",
 			  where, stage, inflight, rp, dirwr, after ? 1 : 0,
 			  rejected, corrupt ? 1 : 0, untokened, soft, carried);
 	return ok;
@@ -1927,7 +1922,7 @@ mxfs_sb_summary_final_sync(
 		/* nothing may be written; the later quiesce stays guarded */
 		mp->m_mxfs_sb_summary_done = true;
 		xfs_notice(mp,
-	"MXFS: P-SB-SUMMARY-FINAL-SKIP slot=%u shutdown=%d writable=%d — no final SB summary write",
+	"MXFS: P-SB-SUMMARY-FINAL-SKIP slot=%u shutdown=%d writable=%d -- no final SB summary write",
 			   mp->m_mxfs_node_slot, xfs_is_shutdown(mp) ? 1 : 0,
 			   xfs_log_writable(mp) ? 1 : 0);
 		return;
@@ -1981,7 +1976,7 @@ mxfs_sb_summary_final_sync(
 				for (a = ia; a < mp->m_sb.sb_agcount &&
 				     irc == -EBUSY; a++)
 					irc = mxfs_inject_unheld_agmeta_dirty(mp, a);
-				mxfs_probe("mxfs: P487-INJECT-UNDER-LOCK slot=%u armed_agno=%d agno=%u rc=%d — unheld AG image committed while put_super holds the SB summary lock, before its quiesce\n",
+				mxfs_probe("mxfs: P487-INJECT-UNDER-LOCK slot=%u armed_agno=%d agno=%u rc=%d -- unheld AG image committed while put_super holds the SB summary lock, before its quiesce\n",
 					mp->m_mxfs_node_slot, ia,
 					irc == -EBUSY ? 0 : a - 1, irc);
 			}
@@ -1999,7 +1994,7 @@ mxfs_sb_summary_final_sync(
 		mp->m_mxfs_sb_late_dirty = true;
 		xfs_fs_mark_sick(mp, XFS_SICK_FS_COUNTERS);
 		xfs_alert(mp,
-	"MXFS: P-SB-SUMMARY-FINAL-FAIL slot=%u lock_rc=%d cover_rc=%d — final SB summary sync did not complete under the lock; departure DIRTY (no unmount record, slot retained)",
+	"MXFS: P-SB-SUMMARY-FINAL-FAIL slot=%u lock_rc=%d cover_rc=%d -- final SB summary sync did not complete under the lock; departure DIRTY (no unmount record, slot retained)",
 			  mp->m_mxfs_node_slot, lk, error);
 	}
 	/* the seal: counted producers after this point are violations */
@@ -2033,7 +2028,7 @@ mxfs_sb_summary_final_sync(
 		if (xfs_iget(mp, NULL, mp->m_sb.sb_rootino, 0, 0, &rip))
 			rip = NULL;
 		xfs_alert(mp,
-	"MXFS: P-DBG-SB-LATE-DIRTY slot=%u — INJECTED: logging the root inode core after the SB summary seal (root dlm_mode=%u)",
+	"MXFS: P-DBG-SB-LATE-DIRTY slot=%u -- INJECTED: logging the root inode core after the SB summary seal (root dlm_mode=%u)",
 			  mp->m_mxfs_node_slot, rip ? rip->i_dlm_mode : 0);
 		if (rip && !xfs_trans_alloc(mp, &M_RES(mp)->tr_ichange, 0, 0, 0, &tp)) {
 			xfs_ilock(rip, XFS_ILOCK_EXCL);
@@ -2063,7 +2058,7 @@ mxfs_sb_late_dirty_prearm(
 		return;
 	if (!rip || !mp->m_mxfs_dlm) {
 		xfs_alert(mp,
-	"MXFS: P-DBG-SB-LATE-DIRTY-PREARM slot=%u — no root inode / DLM; injection dropped",
+	"MXFS: P-DBG-SB-LATE-DIRTY-PREARM slot=%u -- no root inode / DLM; injection dropped",
 			  mp->m_mxfs_node_slot);
 		return;
 	}
@@ -2071,7 +2066,7 @@ mxfs_sb_late_dirty_prearm(
 	xfs_iunlock(rip, XFS_ILOCK_EXCL);
 	mp->m_mxfs_sb_late_dirty_armed = true;
 	xfs_alert(mp,
-	"MXFS: P-DBG-SB-LATE-DIRTY-PREARM slot=%u root dlm_mode=%u — root EX pre-warmed before the teardown bast-arm sweep",
+	"MXFS: P-DBG-SB-LATE-DIRTY-PREARM slot=%u root dlm_mode=%u -- root EX pre-warmed before the teardown bast-arm sweep",
 		  mp->m_mxfs_node_slot, rip->i_dlm_mode);
 }
 
@@ -2109,11 +2104,11 @@ mxfs_depart_dbg_crash_cut(
 	uint32_t	hold = mxfs_pal_dbg_depart_crash_hold_ms();
 
 	xfs_alert(mp,
-"MXFS: P-DBG-DEPART-CUT cut=%d phase=%s — parking put_super for %u ms (crash-cut arm: destroy the VM now)",
+"MXFS: P-DBG-DEPART-CUT cut=%d phase=%s -- parking put_super for %u ms (crash-cut arm: destroy the VM now)",
 		  cut, phase, hold);
 	msleep(hold);
 	xfs_alert(mp,
-"MXFS: P-DBG-DEPART-CUT cut=%d phase=%s — hold expired without a crash; continuing the departure",
+"MXFS: P-DBG-DEPART-CUT cut=%d phase=%s -- hold expired without a crash; continuing the departure",
 		  cut, phase);
 }
 
@@ -2278,7 +2273,7 @@ mxfs_mount_write_admitted(
 	if (unlikely(!auth)) {
 		atomic64_inc(&mxfs_auth_noauth_n);
 		pr_err_ratelimited(
-		    "mxfs: P291-AUTH-ABSENT site=%s comm=%s — a clustered mount reached the authority gate with no authority object, so which incarnation this write belongs to cannot be established; REFUSED\n",
+		    "mxfs: P291-AUTH-ABSENT site=%s comm=%s -- a clustered mount reached the authority gate with no authority object, so which incarnation this write belongs to cannot be established; REFUSED\n",
 		    site, current->comm);
 		return false;
 	}
@@ -2286,7 +2281,7 @@ mxfs_mount_write_admitted(
 	if (unlikely(mxfs_dbg_auth_tail_blind && !READ_ONCE(mp->m_mxfs_dlm))) {
 		atomic64_inc(&mxfs_auth_tail_blind_n);
 		pr_err_ratelimited(
-		    "mxfs: P291-AUTH-TAIL-BLIND site=%s comm=%s — TEST: the pre-fix gate is in force, so this submission is admitted because the DLM reference is absent and WITHOUT asking whether this incarnation still holds authority\n",
+		    "mxfs: P291-AUTH-TAIL-BLIND site=%s comm=%s -- TEST: the pre-fix gate is in force, so this submission is admitted because the DLM reference is absent and WITHOUT asking whether this incarnation still holds authority\n",
 		    site, current->comm);
 		return true;
 	}
@@ -2304,7 +2299,7 @@ mxfs_mount_write_admitted(
 		if (ok) {
 			atomic64_inc(&mxfs_auth_admit_detached_n);
 			mxfs_probe_ratelimited(
-			    "mxfs: P291-AUTH-TAIL-ADMIT site=%s comm=%s — this mount's DLM is already detached; the submission is admitted because the incarnation's authority lease is still live, and it is the lease that said so\n",
+			    "mxfs: P291-AUTH-TAIL-ADMIT site=%s comm=%s -- this mount's DLM is already detached; the submission is admitted because the incarnation's authority lease is still live, and it is the lease that said so\n",
 			    site, current->comm);
 		} else {
 			atomic64_inc(&mxfs_auth_refuse_detached_n);
@@ -2324,11 +2319,11 @@ mxfs_mount_write_admitted(
 
 		WRITE_ONCE(mxfs_dbg_admit_park_ms, 0);
 		xfs_alert(mp,
-"MXFS: P292-ADMIT-PARK site=%s comm=%s ms=%d — TEST: this submission PASSED the authority gate and is parked between the gate and the layer below it; it was admitted by the incarnation holding authority now, and it will be submitted by whatever this node has become when the hold ends",
+"MXFS: P292-ADMIT-PARK site=%s comm=%s ms=%d -- TEST: this submission PASSED the authority gate and is parked between the gate and the layer below it; it was admitted by the incarnation holding authority now, and it will be submitted by whatever this node has become when the hold ends",
 			  site, current->comm, hold);
 		msleep(hold);
 		xfs_alert(mp,
-"MXFS: P292-ADMIT-PARK-END site=%s comm=%s — TEST: the admitted submission resumes and is handed below the gate",
+"MXFS: P292-ADMIT-PARK-END site=%s comm=%s -- TEST: the admitted submission resumes and is handed below the gate",
 			  site, current->comm);
 	}
 	return ok;
@@ -2355,6 +2350,10 @@ xfs_fs_put_super(
 	struct mxfs_v5_dlm_slot_release dl_late = {0};
 
 	xfs_notice(mp, "Unmounting Filesystem %pU", &mp->m_sb.sb_uuid);
+
+	/* statfs's read of the AG headers: queued only while mounted, and it
+	 * reads the AGs and the buftarg the teardown below frees */
+	cancel_work_sync(&mp->m_mxfs_cnt_statfs_work);
 
 	/*
 	 * open the pre-publication half of the unmount accounting.
@@ -2451,7 +2450,7 @@ restart_armsweep:
 
 				if (cnt < 2 ||
 				    (mxfs_istate(vinode) & (I_FREEING | I_CLEAR))) {
-					mxfs_probe("mxfs: P6S-SWEEP-BADREF ino=%llu i_count=%d i_state=0x%lx — NOT releasing\n",
+					mxfs_probe("mxfs: P6S-SWEEP-BADREF ino=%llu i_count=%d i_state=0x%lx -- NOT releasing\n",
 						(unsigned long long)sip->i_ino,
 						cnt, mxfs_istate(vinode));
 					break;
@@ -2464,7 +2463,7 @@ restart_armsweep:
 		}
 		spin_unlock(&sb->s_inode_list_lock);
 		if (p6s_cancels || p6s_refs)
-			mxfs_probe("mxfs: P6S-ARMSWEEP cancels=%d arm_refs_dropped=%d — teardown bast-arm sweep engaged\n",
+			mxfs_probe("mxfs: P6S-ARMSWEEP cancels=%d arm_refs_dropped=%d -- teardown bast-arm sweep engaged\n",
 				p6s_cancels, p6s_refs);
 	}
 
@@ -2632,7 +2631,7 @@ restart_armsweep:
 			drained = mxfs_dlm_ag_drain_all_alloc_buflists(mp);
 			if (drained)
 				mxfs_pal_log(MXFS_LOG_INFO,
-					"mxfs: P-UNMOUNT-ALLOCLIST-DRAIN ags=%u — alloc buflists written before the whole-AIL wait",
+					"mxfs: P-UNMOUNT-ALLOCLIST-DRAIN ags=%u -- alloc buflists written before the whole-AIL wait",
 					drained);
 			xfs_ail_push_all_sync(mp->m_ail);
 			xfs_buftarg_wait(mp->m_ddev_targp);
@@ -2676,6 +2675,22 @@ restart_armsweep:
 			spin_unlock(&mp->m_mxfs_acct->lock);
 		}
 		/*
+		 * Stop the log worker before the DLM context is freed.  Its
+		 * runtime SB cover reads m_mxfs_dlm once and then acquires the
+		 * summary lock through that context, which can take seconds on
+		 * a loaded device (20 s measured on DRBD); clearing the pointer
+		 * below does not reach a worker already inside the acquire, and
+		 * synchronize_rcu() does not wait for it.  The final sync above
+		 * cancels the worker only in its locked quiesce: a shut-down or
+		 * log-unwritable mount returns from it first, and the worker
+		 * then ran on into the freed context (an Oops in
+		 * mxfs_v5_dlm_inode_lock, tests/rig_unmount_cover_race.sh).
+		 * This waits out a worker in flight, while the context is still
+		 * alive, and keeps it from queueing again; xfs_unmountfs's own
+		 * quiesce cancels it as before.
+		 */
+		cancel_delayed_work_sync(&mp->m_log->l_work);
+		/*
 		 * ( a864): settle the shutdown-withdraw work
 		 * BEFORE freeing the ctx.  NULL the pointer first so a
 		 * withdraw queued in the window no-ops instead of using the
@@ -2698,7 +2713,7 @@ restart_armsweep:
 		pr_late_key = mxfs_v5_dlm_detach_pr_key(v5dlm, &pr_quarantined);
 		if (pr_quarantined)
 			xfs_alert(mp,
-"MXFS: P304-DEPARTURE-QUARANTINED — a PR probe/settle thread is parked in a SCSI command; departure treated as DIRTY (slot retained, PR key 0x%llx retained as fence target), the DLM context is leaked with the module pinned",
+"MXFS: P304-DEPARTURE-QUARANTINED -- a PR probe/settle thread is parked in a SCSI command; departure treated as DIRTY (slot retained, PR key 0x%llx retained as fence target), the DLM context is leaked with the module pinned",
 				  (unsigned long long)pr_late_key);
 		/*
 		 * (dirty-slice Arm C): on a clean departure the
@@ -2723,11 +2738,11 @@ restart_armsweep:
 
 			mxfs_dbg_unmount_tail_delay_ms = 0;
 			xfs_alert(mp,
-"MXFS: P291-AUTH-TAIL-PARK ms=%d — TEST: parking the unmount tail past the authority lease; the log cover and the unmount record below are written by a node that has stopped proving liveness",
+"MXFS: P291-AUTH-TAIL-PARK ms=%d -- TEST: parking the unmount tail past the authority lease; the log cover and the unmount record below are written by a node that has stopped proving liveness",
 				  hold);
 			msleep(hold);
 			xfs_alert(mp,
-"MXFS: P291-AUTH-TAIL-PARK-END — TEST: the unmount tail resumes");
+"MXFS: P291-AUTH-TAIL-PARK-END -- TEST: the unmount tail resumes");
 		}
 		/*
 		 * v0.5.0: drain any pending foreign-slice replay while
@@ -2824,17 +2839,17 @@ restart_armsweep:
 		 */
 		if (ndw || ndr || indw || indr || nulld)
 			xfs_alert(mp,
-"MXFS: P483-AGFREE-WINDOW nodlm_wr=%lu nodlm_rd=%lu iclus_nodlm_wr=%lu iclus_nodlm_rd=%lu dlm_wr=%lu dlm_rd=%lu iclus_dlm_wr=%lu iclus_dlm_rd=%lu nulldlm_acquires=%lld anyio=%lu anyio_nodlm=%lu pre_wr=%lu pre_iclus_wr=%lu aglock_after=%lu inodegc_after_stop=%lu — this mount touched allocation-group metadata and/or inode clusters after publishing its AG grants as free and after its DLM was gone; the nodlm counts had no exclusion available at all",
+"MXFS: P483-AGFREE-WINDOW nodlm_wr=%lu nodlm_rd=%lu iclus_nodlm_wr=%lu iclus_nodlm_rd=%lu dlm_wr=%lu dlm_rd=%lu iclus_dlm_wr=%lu iclus_dlm_rd=%lu nulldlm_acquires=%lld anyio=%lu anyio_nodlm=%lu pre_wr=%lu pre_iclus_wr=%lu aglock_after=%lu inodegc_after_stop=%lu -- this mount touched allocation-group metadata and/or inode clusters after publishing its AG grants as free and after its DLM was gone; the nodlm counts had no exclusion available at all",
 				  ndw, ndr, indw, indr, agw, agr, icw, icr,
 				  nulld, anyio, anynd, prew, preic, agl, igc);
 		else if (agw || agr || icw || icr || agl || igc)
 			xfs_alert(mp,
-"MXFS: P483-AGFREE-WINDOW nodlm_wr=0 nodlm_rd=0 iclus_nodlm_wr=0 iclus_nodlm_rd=0 dlm_wr=%lu dlm_rd=%lu iclus_dlm_wr=%lu iclus_dlm_rd=%lu nulldlm_acquires=0 anyio=%lu anyio_nodlm=%lu pre_wr=%lu pre_iclus_wr=%lu aglock_after=%lu inodegc_after_stop=%lu — metadata was touched, an AG grant re-taken, or an inode queued for inactivation after the grants were published; whatever that dirtied was destaged after the re-taken grants were swept, which is the defect the reordering removes",
+"MXFS: P483-AGFREE-WINDOW nodlm_wr=0 nodlm_rd=0 iclus_nodlm_wr=0 iclus_nodlm_rd=0 dlm_wr=%lu dlm_rd=%lu iclus_dlm_wr=%lu iclus_dlm_rd=%lu nulldlm_acquires=0 anyio=%lu anyio_nodlm=%lu pre_wr=%lu pre_iclus_wr=%lu aglock_after=%lu inodegc_after_stop=%lu -- metadata was touched, an AG grant re-taken, or an inode queued for inactivation after the grants were published; whatever that dirtied was destaged after the re-taken grants were swept, which is the defect the reordering removes",
 				  agw, agr, icw, icr, anyio, anynd, prew, preic,
 				  agl, igc);
 		else
 			mxfs_xfs_probe(mp,
-"MXFS: P483-AGFREE-WINDOW nodlm_wr=0 nodlm_rd=0 iclus_nodlm_wr=0 iclus_nodlm_rd=0 dlm_wr=0 dlm_rd=0 iclus_dlm_wr=0 iclus_dlm_rd=0 nulldlm_acquires=0 anyio=%lu anyio_nodlm=%lu pre_wr=%lu pre_iclus_wr=%lu aglock_after=0 inodegc_after_stop=0 — no AG-metadata or inode-cluster access, no AG acquire and no inactivation queued after the AG grants were published; pre_wr is the positive control (the unmount's metadata work, done under live grants), and a zero here is only a measurement while it is nonzero",
+"MXFS: P483-AGFREE-WINDOW nodlm_wr=0 nodlm_rd=0 iclus_nodlm_wr=0 iclus_nodlm_rd=0 dlm_wr=0 dlm_rd=0 iclus_dlm_wr=0 iclus_dlm_rd=0 nulldlm_acquires=0 anyio=%lu anyio_nodlm=%lu pre_wr=%lu pre_iclus_wr=%lu aglock_after=0 inodegc_after_stop=0 -- no AG-metadata or inode-cluster access, no AG acquire and no inactivation queued after the AG grants were published; pre_wr is the positive control (the unmount's metadata work, done under live grants), and a zero here is only a measurement while it is nonzero",
 				   anyio, anynd, prew, preic);
 	}
 
@@ -2869,7 +2884,7 @@ restart_armsweep:
 
 		if (flush_rc)
 			xfs_alert(mp,
-"MXFS: P277-FINAL-FLUSH-FAILED rc=%d before slot release — departure treated as DIRTY (slot retained, PR key retained as fence target)",
+"MXFS: P277-FINAL-FLUSH-FAILED rc=%d before slot release -- departure treated as DIRTY (slot retained, PR key retained as fence target)",
 				  flush_rc);
 		/*
 		 * /454/455 (D2/D3): FREEZE under the accounting lock
@@ -2938,7 +2953,7 @@ restart_armsweep:
 		 */
 		if (mp->m_mxfs_sb_late_dirty)
 			xfs_alert(mp,
-	"MXFS: P-SB-SEAL-DIRTY-DEPARTURE slot=%u — SB summary seal violated or final sync failed; departure treated as DIRTY",
+	"MXFS: P-SB-SEAL-DIRTY-DEPARTURE slot=%u -- SB summary seal violated or final sync failed; departure treated as DIRTY",
 				  mp->m_mxfs_node_slot);
 		slot_released = mxfs_v5_dlm_slot_release_commit(&dl_late,
 					!xfs_is_shutdown(mp) && flush_rc == 0 &&
@@ -2961,7 +2976,7 @@ restart_armsweep:
 			flush_rc = blkdev_issue_flush(mp->m_ddev_targp->bt_bdev);
 			if (flush_rc) {
 				xfs_alert(mp,
-"MXFS: P277-RELEASE-FLUSH-FAILED rc=%d after slot release — the release CAS may or may not be durable (uncertain, not undone); PR key retained as the fence target so the peers settle the record either way",
+"MXFS: P277-RELEASE-FLUSH-FAILED rc=%d after slot release -- the release CAS may or may not be durable (uncertain, not undone); PR key retained as the fence target so the peers settle the record either way",
 					  flush_rc);
 				slot_released = false;
 			}
@@ -3128,20 +3143,20 @@ restart_armsweep:
 		 * the ordering being reached, not a verdict on it.
 		 */
 		mxfs_xfs_probe(mp,
-"MXFS: P291-AUTH-META meta_detached=%lld (module-wide total since load) — metadata writes that reached the metadata authority arm after this mount's DLM was detached",
+"MXFS: P291-AUTH-META meta_detached=%lld (module-wide total since load) -- metadata writes that reached the metadata authority arm after this mount's DLM was detached",
 			   mta);
 
 		if (bld)
 			xfs_alert(mp,
-"MXFS: P291-AUTH-TAIL tail_admit=%lld tail_refuse=%lld no_authority=%lld tail_blind=%lld (module-wide totals since load) — TEST: the pre-fix gate was in force for the tail, so tail_blind submissions went to the LUN without the authority lease being consulted at all",
+"MXFS: P291-AUTH-TAIL tail_admit=%lld tail_refuse=%lld no_authority=%lld tail_blind=%lld (module-wide totals since load) -- TEST: the pre-fix gate was in force for the tail, so tail_blind submissions went to the LUN without the authority lease being consulted at all",
 				  adm, ref, noa, bld);
 		else if (noa)
 			xfs_alert(mp,
-"MXFS: P291-AUTH-TAIL tail_admit=%lld tail_refuse=%lld no_authority=%lld tail_blind=0 (module-wide totals since load) — a clustered mount reached the authority gate with no authority object; which incarnation those writes belonged to could not be established",
+"MXFS: P291-AUTH-TAIL tail_admit=%lld tail_refuse=%lld no_authority=%lld tail_blind=0 (module-wide totals since load) -- a clustered mount reached the authority gate with no authority object; which incarnation those writes belonged to could not be established",
 				  adm, ref, noa);
 		else
 			mxfs_xfs_probe(mp,
-"MXFS: P291-AUTH-TAIL tail_admit=%lld tail_refuse=%lld no_authority=0 tail_blind=0 (module-wide totals since load) — submissions made after a mount's DLM was detached, each one decided by that incarnation's own authority lease rather than by the presence of a pointer",
+"MXFS: P291-AUTH-TAIL tail_admit=%lld tail_refuse=%lld no_authority=0 tail_blind=0 (module-wide totals since load) -- submissions made after a mount's DLM was detached, each one decided by that incarnation's own authority lease rather than by the presence of a pointer",
 				   adm, ref);
 	}
 }
@@ -3781,7 +3796,7 @@ mxfs_durability_domain_admit(
 	else if (!mxfs_release_proof_enforce)
 		why = "release_proof_enforce=0 (a failed completion proof would not block the release CAS); leave it at its default 1";
 	else if (READ_ONCE(mxfs_fua_disable) && !READ_ONCE(mxfs_target_cache_protected))
-		why = "fua_disable=1 with target_cache_protected=0: tenure-boundary flushes are no-ops, so a target write-cache loss can persist a release while dropping the writes it certified; declare mxfs.target_cache_protected=1 (target power loss out of durability scope — coherence-only domain)";
+		why = "fua_disable=1 with target_cache_protected=0: tenure-boundary flushes are no-ops, so a target write-cache loss can persist a release while dropping the writes it certified; declare mxfs.target_cache_protected=1 (target power loss out of durability scope -- coherence-only domain)";
 	else if (!READ_ONCE(mxfs_fua_disable))
 		why = "fua_disable=0: the crash-durable domain is not yet qualified in this release (durable ordering at every peer-claimable release + stable-media oracle outstanding, D-0516); run the coherence-only domain (fua_disable=1 target_cache_protected=1) on a cache-protected target";
 	if (why) {
@@ -4193,7 +4208,7 @@ mxfs_drevalidate(struct dentry *dentry, unsigned int flags)
 
 				/* the denominator, at 1/100000 the volume */
 				if ((p165_fn % 100000) == 0)
-					mxfs_probe("mxfs: P165-AFFINE-FRESH n=%d — affine fast-path blessings of never-validated dentries (d_time=0); these are NOT evidence of staleness, see the comment above\n",
+					mxfs_probe("mxfs: P165-AFFINE-FRESH n=%d -- affine fast-path blessings of never-validated dentries (d_time=0); these are NOT evidence of staleness, see the comment above\n",
 						p165_fn);
 			}
 			/*
@@ -4512,7 +4527,7 @@ mxfs_drevalidate(struct dentry *dentry, unsigned int flags)
 
 		if (kind)
 			mxfs_probe_ratelimited(
-				"mxfs: P165-AFFINE-AUDIT-MISS kind=%s name=%.*s ino=%llu dp=%llu actual_ino=%llu error=%d ret=%d — the affine fast path would have blessed this binding\n",
+				"mxfs: P165-AFFINE-AUDIT-MISS kind=%s name=%.*s ino=%llu dp=%llu actual_ino=%llu error=%d ret=%d -- the affine fast path would have blessed this binding\n",
 				kind, dentry->d_name.len, dentry->d_name.name,
 				(unsigned long long)ip->i_ino,
 				(unsigned long long)dp->i_ino,
@@ -4716,7 +4731,7 @@ xfs_fs_fill_super(
 				 */
 				if (msup->flags & ~MXFS_FORMAT_F_KNOWN) {
 					xfs_alert(mp,
-	"MXFS envelope has unknown incompatible flags 0x%x — this kernel is too old for this format; refusing mount",
+	"MXFS envelope has unknown incompatible flags 0x%x -- this kernel is too old for this format; refusing mount",
 						  msup->flags &
 						  ~MXFS_FORMAT_F_KNOWN);
 					kfree(msup);
@@ -4775,7 +4790,7 @@ xfs_fs_fill_super(
 					    msup->rman_offset + msup->rman_size >
 					    msup->xfs_data_offset) {
 						xfs_warn(mp,
-		"MXFS: envelope recovery-manifest region malformed (offset=%llu size=%llu xfs_data_offset=%llu expected size %llu) — refusing mount",
+		"MXFS: envelope recovery-manifest region malformed (offset=%llu size=%llu xfs_data_offset=%llu expected size %llu) -- refusing mount",
 							 (unsigned long long)msup->rman_offset,
 							 (unsigned long long)msup->rman_size,
 							 (unsigned long long)msup->xfs_data_offset,
@@ -4805,7 +4820,7 @@ xfs_fs_fill_super(
 					    msup->tauth_offset + msup->tauth_size >
 					    msup->xfs_data_offset) {
 						xfs_warn(mp,
-		"MXFS: envelope authority-ledger region malformed (offset=%llu size=%llu xfs_data_offset=%llu minimum size %llu) — refusing mount",
+		"MXFS: envelope authority-ledger region malformed (offset=%llu size=%llu xfs_data_offset=%llu minimum size %llu) -- refusing mount",
 							 (unsigned long long)msup->tauth_offset,
 							 (unsigned long long)msup->tauth_size,
 							 (unsigned long long)msup->xfs_data_offset,
@@ -4830,7 +4845,7 @@ xfs_fs_fill_super(
 					    msup->prkey_offset + msup->prkey_size >
 					    msup->xfs_data_offset) {
 						xfs_warn(mp,
-		"MXFS: envelope PR registrant ledger region malformed (offset=%llu size=%llu xfs_data_offset=%llu) — refusing mount",
+		"MXFS: envelope PR registrant ledger region malformed (offset=%llu size=%llu xfs_data_offset=%llu) -- refusing mount",
 							 (unsigned long long)msup->prkey_offset,
 							 (unsigned long long)msup->prkey_size,
 							 (unsigned long long)msup->xfs_data_offset);
@@ -4853,7 +4868,7 @@ xfs_fs_fill_super(
 					    msup->bootstrap_offset + msup->bootstrap_size >
 					    msup->xfs_data_offset) {
 						xfs_warn(mp,
-		"MXFS: envelope bootstrap record region malformed (offset=%llu size=%llu xfs_data_offset=%llu) — refusing mount",
+		"MXFS: envelope bootstrap record region malformed (offset=%llu size=%llu xfs_data_offset=%llu) -- refusing mount",
 							 (unsigned long long)msup->bootstrap_offset,
 							 (unsigned long long)msup->bootstrap_size,
 							 (unsigned long long)msup->xfs_data_offset);
@@ -4880,7 +4895,7 @@ xfs_fs_fill_super(
 					    msup->slife_offset + msup->slife_size >
 					    msup->xfs_data_offset) {
 						xfs_warn(mp,
-	"MXFS: envelope slice lifecycle region malformed (offset=%llu size=%llu slices=%u xfs_data_offset=%llu) — refusing mount",
+	"MXFS: envelope slice lifecycle region malformed (offset=%llu size=%llu slices=%u xfs_data_offset=%llu) -- refusing mount",
 							 (unsigned long long)msup->slife_offset,
 							 (unsigned long long)msup->slife_size,
 							 msup->xfs_log_node_count,
@@ -5215,7 +5230,7 @@ xfs_fs_fill_super(
 		if (mp->m_mxfs_protogate) {
 			if (mp->m_mxfs_cluster_proto_gen != MXFS_PROTO_GEN) {
 				xfs_alert(mp,
-	"mxfs: C7 gate: filesystem cluster_proto_gen=%u but this kernel speaks %u — refusing mount (upgrade the mismatched side)",
+	"mxfs: C7 gate: filesystem cluster_proto_gen=%u but this kernel speaks %u -- refusing mount (upgrade the mismatched side)",
 					  mp->m_mxfs_cluster_proto_gen,
 					  (unsigned)MXFS_PROTO_GEN);
 				error = -EPROTONOSUPPORT;
@@ -5224,18 +5239,18 @@ xfs_fs_fill_super(
 			if (!xfs_sb_has_incompat_feature(&mp->m_sb,
 					XFS_SB_FEAT_INCOMPAT_MXFS_PROTOGATE)) {
 				xfs_alert(mp,
-	"mxfs: C7 gate: envelope is gated but the XFS sb lacks INCOMPAT_MXFS_PROTOGATE — half-upgraded format; run chk_mxfs --upgrade-protogate");
+	"mxfs: C7 gate: envelope is gated but the XFS sb lacks INCOMPAT_MXFS_PROTOGATE -- half-upgraded format; run chk_mxfs --upgrade-protogate");
 				error = -EPROTONOSUPPORT;
 				goto out_filestream_unmount;
 			}
 		} else if (!mxfs_legacy_rw) {
 			xfs_alert(mp,
-	"mxfs: C7 gate: legacy (pre-protogate) cluster format — old kernels could mount it RW and corrupt open-unlink state undetected for seconds. Refusing mount; run chk_mxfs --upgrade-protogate (offline, all nodes unmounted), or set mxfs.legacy_rw=1 to explicitly accept the exposure.");
+	"mxfs: C7 gate: legacy (pre-protogate) cluster format -- old kernels could mount it RW and corrupt open-unlink state undetected for seconds. Refusing mount; run chk_mxfs --upgrade-protogate (offline, all nodes unmounted), or set mxfs.legacy_rw=1 to explicitly accept the exposure.");
 			error = -EPROTONOSUPPORT;
 			goto out_filestream_unmount;
 		} else {
 			xfs_warn(mp,
-	"mxfs: C7 gate: LEGACY RW mount (mxfs.legacy_rw=1) — no protection against pre-gate kernels joining this LUN");
+	"mxfs: C7 gate: LEGACY RW mount (mxfs.legacy_rw=1) -- no protection against pre-gate kernels joining this LUN");
 		}
 		/* B1 (D-MIXED-VERSION-UNGATED-REPLAY): every admitted branch
 		 * of the C7 chain above — gated exact-match or the explicit
@@ -5329,7 +5344,7 @@ xfs_fs_fill_super(
 		 */
 		mp->m_mxfs_acct = mxfs_depart_acct_alloc();
 		if (!mp->m_mxfs_acct) {
-			xfs_alert(mp, "MXFS: departure accounting allocation failed — aborting mount of cluster (envelope) volume");
+			xfs_alert(mp, "MXFS: departure accounting allocation failed -- aborting mount of cluster (envelope) volume");
 			error = -ENOMEM;
 			goto out_filestream_unmount;
 		}
@@ -5358,7 +5373,7 @@ xfs_fs_fill_super(
 			 * LUN).  Abort the mount; repair tooling (chk_mxfs)
 			 * works on the unmounted device.
 			 */
-			xfs_alert(mp, "MXFS DLM init failed — aborting mount of cluster (envelope) volume");
+			xfs_alert(mp, "MXFS DLM init failed -- aborting mount of cluster (envelope) volume");
 			if (why && why[0]) {
 				errorfc(fc, "%s", strncmp(why, "mxfs: ", 6) ? why : why + 6);
 				error = -EPERM;
@@ -5411,7 +5426,7 @@ xfs_fs_fill_super(
 						&slice);
 				if (lrc) {
 					xfs_alert(mp,
-	"MXFS: P-SLIFE-NOSLICE slot=%d rc=%d — the claimed slot has no log slice; refusing mount",
+	"MXFS: P-SLIFE-NOSLICE slot=%d rc=%d -- the claimed slot has no log slice; refusing mount",
 						  mp->m_mxfs_node_slot, lrc);
 					error = lrc;
 					goto out_filestream_unmount;
@@ -5447,7 +5462,7 @@ xfs_fs_fill_super(
 					       log_off + (uint64_t)slice * plen;
 					if ((uint64_t)slice * plen + plen > log_len) {
 						xfs_alert(mp,
-		"MXFS: P-SLIFE-GEOM slot=%d slice=%u slice_bytes=%llu log_bytes=%llu — the slice does not lie inside the internal log; refusing mount",
+		"MXFS: P-SLIFE-GEOM slot=%d slice=%u slice_bytes=%llu log_bytes=%llu -- the slice does not lie inside the internal log; refusing mount",
 							  mp->m_mxfs_node_slot, slice,
 							  (unsigned long long)plen,
 							  (unsigned long long)log_len);
@@ -5460,11 +5475,11 @@ xfs_fs_fill_super(
 						&before, &after, &zms);
 				if (lrc == -ENODEV) {
 					xfs_warn(mp,
-	"MXFS: P-SLIFE-LEGACY slot=%d slice=%u — this volume carries no slice lifecycle region (formatted before 0.88.0): the slice payload is trusted as mkfs left it, unverified; re-mkfs to get the claim-time zero",
+	"MXFS: P-SLIFE-LEGACY slot=%d slice=%u -- this volume carries no slice lifecycle region (formatted before 0.88.0): the slice payload is trusted as mkfs left it, unverified; re-mkfs to get the claim-time zero",
 						 mp->m_mxfs_node_slot, slice);
 				} else if (lrc) {
 					xfs_alert(mp,
-	"MXFS: P-SLIFE-REFUSED slot=%d slice=%u rc=%d before=%s after=%s — the slice lifecycle could not be brought to READY; refusing mount (nothing is journaled into an unverified payload)",
+	"MXFS: P-SLIFE-REFUSED slot=%d slice=%u rc=%d before=%s after=%s -- the slice lifecycle could not be brought to READY; refusing mount (nothing is journaled into an unverified payload)",
 						  mp->m_mxfs_node_slot, slice, lrc,
 						  mxfs_v5_dlm_slice_lifecycle_name(before),
 						  mxfs_v5_dlm_slice_lifecycle_name(after));
@@ -5472,7 +5487,7 @@ xfs_fs_fill_super(
 					goto out_filestream_unmount;
 				} else {
 					mxfs_xfs_probe(mp,
-	"MXFS: P-SLIFE slot=%d slice=%u before=%s after=%s zeroed_bytes=%llu zero_ms=%u — slice lifecycle at claim",
+	"MXFS: P-SLIFE slot=%d slice=%u before=%s after=%s zeroed_bytes=%llu zero_ms=%u -- slice lifecycle at claim",
 						   mp->m_mxfs_node_slot, slice,
 						   mxfs_v5_dlm_slice_lifecycle_name(before),
 						   mxfs_v5_dlm_slice_lifecycle_name(after),
@@ -5493,7 +5508,7 @@ xfs_fs_fill_super(
 			if (mp->m_mxfs_node_slot >= 0 && mp->m_sb.sb_agcount > 0 &&
 			    (xfs_agnumber_t)mp->m_mxfs_node_slot >=
 						mp->m_sb.sb_agcount)
-				xfs_warn(mp, "MXFS P-AGCOUNT-COLLISION: node slot %d >= agcount %u — home AG %u is SHARED with slot %u; pace degrades under contention (sizing rule: agcount >= active nodes, 2x for the perf class; grow the device or reformat)",
+				xfs_warn(mp, "MXFS P-AGCOUNT-COLLISION: node slot %d >= agcount %u -- home AG %u is SHARED with slot %u; pace degrades under contention (sizing rule: agcount >= active nodes, 2x for the perf class; grow the device or reformat)",
 					 mp->m_mxfs_node_slot, mp->m_sb.sb_agcount,
 					 (unsigned)(mp->m_mxfs_node_slot %
 						    mp->m_sb.sb_agcount),
@@ -5558,7 +5573,7 @@ xfs_fs_fill_super(
 		if (!error && unlikely(mxfs_dbg_admission_refuse)) {
 			mxfs_dbg_admission_refuse = 0;	/* one shot */
 			xfs_alert(mp,
-"MXFS: P291-ADMISSION-REFUSE-INJECTED — TEST: the admission commit succeeded and is being discarded, so this mount takes the unwind that calls xfs_unmountfs with the DLM already detached");
+"MXFS: P291-ADMISSION-REFUSE-INJECTED -- TEST: the admission commit succeeded and is being discarded, so this mount takes the unwind that calls xfs_unmountfs with the DLM already detached");
 			error = -EIO;
 		}
 		if (error)
@@ -5639,6 +5654,9 @@ xfs_fs_fill_super(
 	if (mp->m_mxfs_dlm) {
 		void *v5dlm = mp->m_mxfs_dlm;
 
+		/* the log worker runs from xfs_mountfs on; stop it before the
+		 * context it acquires through is freed, as put_super does */
+		cancel_delayed_work_sync(&mp->m_log->l_work);
 		mp->m_mxfs_dlm = NULL;	/* no-op any queued withdraw */
 		synchronize_rcu();	/* and wait out a sysfs reader of it */
 		cancel_work_sync(&mp->m_mxfs_withdraw_work);
@@ -5678,11 +5696,11 @@ xfs_fs_fill_super(
 
 			mxfs_dbg_mount_unwind_park_ms = 0;
 			xfs_alert(mp,
-"MXFS: P291-AUTH-UNWIND-PARK ms=%d — TEST: parking the mount unwind past the authority lease; xfs_unmountfs below is run by a node that has stopped proving liveness",
+"MXFS: P291-AUTH-UNWIND-PARK ms=%d -- TEST: parking the mount unwind past the authority lease; xfs_unmountfs below is run by a node that has stopped proving liveness",
 				  hold);
 			msleep(hold);
 			xfs_alert(mp,
-"MXFS: P291-AUTH-UNWIND-PARK-END — TEST: the mount unwind resumes");
+"MXFS: P291-AUTH-UNWIND-PARK-END -- TEST: the mount unwind resumes");
 		}
 	}
 	mxfs_departure_quiescing(mp);
@@ -5694,7 +5712,7 @@ xfs_fs_fill_super(
 	late_flush_rc = blkdev_issue_flush(mp->m_ddev_targp->bt_bdev);
 	if (late_flush_rc)
 		xfs_alert(mp,
-"MXFS: P277-FINAL-FLUSH-FAILED rc=%d before slot release (mount unwind) — departure treated as DIRTY",
+"MXFS: P277-FINAL-FLUSH-FAILED rc=%d before slot release (mount unwind) -- departure treated as DIRTY",
 			  late_flush_rc);
 	late_drained = mxfs_departure_freeze_drain(mp, "mount-unwind");
 	goto out_free_rtsb;
@@ -6082,7 +6100,7 @@ mxfs_report_residual_inodes(
 				held++;
 				if (held > 16)
 					continue;
-				mxfs_probe("mxfs: P199-UNMOUNT-RESIDUAL-INODE ino=%llu icount=%d mode=0%o nlink=%u dlm_mode=%u dlm_state=%u ex_h=%u pr_h=%u pin=%u bast_pending=%d unpublished=%d iflags=0x%lx pincount=%d in_ail=%d — still in the ICI radix tree at unmount; generic_shutdown_super will report it busy\n",
+				mxfs_probe("mxfs: P199-UNMOUNT-RESIDUAL-INODE ino=%llu icount=%d mode=0%o nlink=%u dlm_mode=%u dlm_state=%u ex_h=%u pr_h=%u pin=%u bast_pending=%d unpublished=%d iflags=0x%lx pincount=%d in_ail=%d -- still in the ICI radix tree at unmount; generic_shutdown_super will report it busy\n",
 					(unsigned long long)ip->i_ino,
 					atomic_read(&vip->i_count),
 					vip->i_mode, vip->i_nlink,
@@ -6101,7 +6119,7 @@ mxfs_report_residual_inodes(
 		} while (nr_found == 32);
 	}
 	if (held)
-		mxfs_probe("mxfs: P199-UNMOUNT-RESIDUAL-TOTAL in_tree=%d still_referenced=%d (printed at most 16) — if the VFS then warns at fs/super.c generic_shutdown_super, the leak is among these\n",
+		mxfs_probe("mxfs: P199-UNMOUNT-RESIDUAL-TOTAL in_tree=%d still_referenced=%d (printed at most 16) -- if the VFS then warns at fs/super.c generic_shutdown_super, the leak is among these\n",
 			total, held);
 }
 
@@ -6510,7 +6528,7 @@ xfs_destroy_workqueues(void)
  */
 module_param_named(dbg_auth_tail_blind, mxfs_dbg_auth_tail_blind, int, 0644);
 MODULE_PARM_DESC(dbg_auth_tail_blind,
-	"DEBUG: admit a mutating submission on a clustered mount whose DLM is already detached WITHOUT consulting the authority lease — the pre-fix gate, for measuring the before and the after on one build (0=off)");
+	"DEBUG: admit a mutating submission on a clustered mount whose DLM is already detached WITHOUT consulting the authority lease -- the pre-fix gate, for measuring the before and the after on one build (0=off)");
 
 module_param_named(dbg_unmount_tail_delay_ms, mxfs_dbg_unmount_tail_delay_ms, int, 0644);
 MODULE_PARM_DESC(dbg_unmount_tail_delay_ms,
@@ -6518,7 +6536,7 @@ MODULE_PARM_DESC(dbg_unmount_tail_delay_ms,
 
 module_param_named(dbg_admit_park_site, mxfs_dbg_admit_park_site, charp, 0644);
 MODULE_PARM_DESC(dbg_admit_park_site,
-	"DEBUG: which class of submission the post-admission park applies to — log, data, dio, dio-zoned or meta; trailing whitespace is ignored so a shell echo works, and an empty or all-whitespace value is unarmed");
+	"DEBUG: which class of submission the post-admission park applies to -- log, data, dio, dio-zoned or meta; trailing whitespace is ignored so a shell echo works, and an empty or all-whitespace value is unarmed");
 
 module_param_named(dbg_admit_park_ms, mxfs_dbg_admit_park_ms, int, 0644);
 MODULE_PARM_DESC(dbg_admit_park_ms,
@@ -6677,7 +6695,7 @@ extern unsigned int mxfs_iunlink_slot_buckets;
 module_param_named(iunlink_slot_buckets, mxfs_iunlink_slot_buckets, uint, 0644);
 MODULE_PARM_DESC(iunlink_slot_buckets,
 	"Multi-node AGI unlinked-list bucket choice: 1 (default) = this "
-	"node's disklock slot (private per-node buckets — cross-node zombie "
+	"node's disklock slot (private per-node buckets -- cross-node zombie "
 	"adjacency structurally impossible); 0 = legacy agino%64 hashing "
 	"(A/B control). MUST be uniform across the cluster; removals of "
 	"entries inserted under the other setting stay correct via the "
@@ -6792,7 +6810,7 @@ init_xfs_fs(void)
 	 * already-loaded module swallows params). */
 	if (mxfs_lease_timeout_ms && !mxfs_dead_timeout_ms)
 		printk(KERN_WARNING "mxfs: lease_timeout_ms=%u is DEPRECATED and "
-		       "has never configured the lease — it is the disklock "
+		       "has never configured the lease -- it is the disklock "
 		       "dead-detection threshold.  Use dead_timeout_ms.  The "
 		       "lease timeout stays 600000 ms by design .\n",
 		       mxfs_lease_timeout_ms);
@@ -6806,7 +6824,7 @@ init_xfs_fs(void)
 	(void)mxfs_host_identity_init();
 	/* host-wide departure/re-registration lock (v5_mount.h). */
 	if (mxfs_v5_dlm_global_init())
-		printk(KERN_ERR "mxfs: departure lock alloc failed — same-boot "
+		printk(KERN_ERR "mxfs: departure lock alloc failed -- same-boot "
 		       "remount vs. late departure is UNSERIALIZED\n");
 
 	mxfs_compute_cache_caps();
@@ -6917,6 +6935,7 @@ init_xfs_fs(void)
 	mxfs_pal_drbd_exit();
 	mxfs_pal_lu_reset_exit();
 	xfs_cleanup_procfs();
+	mxfs_slot_ring_exit();
  out_mru_cache_uninit:
 	xfs_mru_cache_uninit();
  out_destroy_sbref_wq:
@@ -6960,6 +6979,7 @@ exit_xfs_fs(void)
 	mxfs_pal_drbd_exit();
 	mxfs_pal_lu_reset_exit();
 	xfs_cleanup_procfs();
+	mxfs_slot_ring_exit();
 	xfs_mru_cache_uninit();
 	xfs_destroy_workqueues();
 	xfs_destroy_caches();
@@ -6991,6 +7011,6 @@ module_exit(exit_xfs_fs);
 
 MODULE_AUTHOR("Silicon Graphics, Inc.");
 MODULE_AUTHOR("Stephen P. Shoecraft (MXFS)");
-MODULE_DESCRIPTION("MXFS — Multinode XFS with " XFS_BUILD_OPTIONS " enabled");
+MODULE_DESCRIPTION("MXFS -- Multinode XFS with " XFS_BUILD_OPTIONS " enabled");
 MODULE_LICENSE("GPL");
 MODULE_VERSION(MXFS_KMOD_VERSION);

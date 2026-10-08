@@ -374,7 +374,7 @@ retry:
 	 */
 	if (unlikely(READ_ONCE(mp->m_mxfs_sb_sealed))) {
 		atomic_inc(&mp->m_mxfs_seal_trans);
-		mxfs_probe("mxfs: P-SB-SEAL-TRANS slot=%u logres=%u comm=%s caller=%pS — transaction allocated after the SB summary seal\n",
+		mxfs_probe("mxfs: P-SB-SEAL-TRANS slot=%u logres=%u comm=%s caller=%pS -- transaction allocated after the SB summary seal\n",
 			mp->m_mxfs_node_slot, resp->tr_logres, current->comm,
 			(void *)_RET_IP_);
 	}
@@ -391,6 +391,9 @@ retry:
 		error = xfs_blockgc_flush_all(mp);
 		if (error)
 			return error;
+		/* and count what the peers have freed since this node last
+		 * held their AGs */
+		mxfs_freecount_refresh_enospc(mp);
 		want_retry = false;
 		goto retry;
 	}
@@ -481,7 +484,7 @@ xfs_trans_mod_sb(
 				 * line.  A shutdown with no such line was
 				 * attributed by reading code; this is the instrument.
 				 */
-				pr_err("mxfs: P-TRANS-BLKRES-OVERRUN comm=%s pid=%d blk_res=%u blk_res_used=%u delta=%lld — this transaction consumed more blocks than it reserved; shutting down\n",
+				pr_err("mxfs: P-TRANS-BLKRES-OVERRUN comm=%s pid=%d blk_res=%u blk_res_used=%u delta=%lld -- this transaction consumed more blocks than it reserved; shutting down\n",
 				       current->comm, task_pid_nr(current),
 				       tp->t_blk_res, tp->t_blk_res_used,
 				       (long long)delta);

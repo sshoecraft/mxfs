@@ -860,7 +860,7 @@ int mxfs_journal_open(struct mxfs_journal_ctx *ctx, mxfs_bdev_t *dev,
 	if (stored_crc != computed_crc) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: journal metadata is corrupt (checksum mismatch) "
-			     "— run chk_mxfs to repair");
+			     "-- run chk_mxfs to repair");
 		return -EIO;
 	}
 
@@ -925,7 +925,7 @@ int mxfs_journal_slot_open(struct mxfs_journal_ctx *ctx, int slot)
 	if (stored_crc != computed_crc) {
 		mxfs_pal_log(MXFS_LOG_WARN,
 			     "mxfs: journal slot %d header checksum invalid, "
-			     "reinitializing (no data loss — slot was from "
+			     "reinitializing (no data loss -- slot was from "
 			     "previous session)", slot);
 		/* Treat as empty slot */
 		hdr.head_sector = 1;

@@ -628,6 +628,200 @@ int main(int argc, char **argv)
         mxfs_dlm_unlock(A->dlm, &dr[1]);
     }
 
+    /* 14 A RELEASE LOST AGAINST A DEAD MASTER IS NEVER RESUMED UNDER ITS ID.
+     * A holds R5 EX from master E and releases it; E dies before the release
+     * is retired, so E's page still records A as the holder under that seq.
+     * A, alone, takes E's pages over and imports the record as a holder of
+     * its own.  A's next lock of R5 adopts the record — and must not be
+     * handed the released seq back: in the filesystem the release already
+     * published its clean-release marker for that seq, the inode layer
+     * refuses to install it, and every image of the resumed tenure is logged
+     * with no authority (a total outage then refuses the volume).  The lock
+     * comes straight after the takeover, before the release's retry tick can
+     * retire the record, which is the order the 2026-10-07 survivor met. */
+    {
+        mxfs_node_id_t ids2e[2] = { 11, 77 }, ids1[1] = { 11 };
+        struct mxfs_resource_id R5;
+        struct vnode *E;
+        uint64_t s5 = 0, adopted0;
+
+        E = node_up(1, 77, 7700, 4, 1);
+        membership(ids2e, 2);
+        mxfs_pal_sleep_ms(50);
+        R5 = res_mastered_by(A, 77, 8000000);
+        rc = lock_sync(A, &R5, MXFS_LOCK_EX, &granted);
+        CHECK(rc == 0 && granted == MXFS_LOCK_EX &&
+              mxfs_dlm_grant_id(A->dlm, &R5, &auth, &s5, &lin) && s5 != 0,
+              "14 A holds R5 EX from master E under seq %llu", (unsigned long long)s5);
+        node_down(E);                               /* E dies holding A's record */
+        rc = mxfs_dlm_unlock(A->dlm, &R5);          /* the release E never retires */
+        CHECK(rc == 0 && mxfs_dlm_held_mode(A->dlm, &R5) == MXFS_LOCK_NL,
+              "14 A's release leaves no entry of its own (rc=%d)", rc);
+        membership(ids1, 1);
+        rc = mxfs_dlm_handoff_takeover(A->dlm, 77, 7700);
+        CHECK(rc > 0, "14 A takes the dead master's pages over rc=%d", rc);
+        rc = probe_lookup(&R5, &e);
+        CHECK(rc == 0 && e.state == MXFS_TAUTH_ST_ACTIVE && e.ex_node == 11 && e.grant_seq64 == s5,
+              "14 platter: E's page still records A under seq %llu", (unsigned long long)e.grant_seq64);
+        adopted0 = A->dlm->ledger_imports_adopted;
+        rc = lock_sync(A, &R5, MXFS_LOCK_EX, &granted);
+        CHECK(rc == 0 && granted == MXFS_LOCK_EX &&
+              A->dlm->ledger_imports_adopted == adopted0 + 1,
+              "14 A's next EX adopts its imported record (rc=%d adopted +%llu)",
+              rc, (unsigned long long)(A->dlm->ledger_imports_adopted - adopted0));
+        CHECK(mxfs_dlm_grant_id(A->dlm, &R5, &auth, &seq, &lin) && seq != 0 && seq != s5,
+              "14 the adopted tenure carries a fresh seq %llu, not the released %llu",
+              (unsigned long long)seq, (unsigned long long)s5);
+        rc = probe_lookup(&R5, &e);
+        CHECK(rc == 0 && e.ex_node == 11 && e.grant_seq64 == seq && e.last_grant_seq64 == s5,
+              "14 platter: seq %llu, the released %llu retired as last_grant_seq64",
+              (unsigned long long)e.grant_seq64, (unsigned long long)e.last_grant_seq64);
+        mxfs_dlm_unlock(A->dlm, &R5);
+        settle(A);
+    }
+
+    /* 15 THE REMOTE TWIN.  F holds R6 EX from master G and releases it; G
+     * dies before retiring the release; A takes G's pages over and is R6's
+     * master in the view without G.  F's next EX reaches A as a request for
+     * a record A imported as F's own, and must be granted under a fresh seq,
+     * not re-affirmed under the one F released. */
+    {
+        mxfs_node_id_t ids3fg[3] = { 11, 88, 99 }, ids2f[2] = { 11, 88 };
+        struct mxfs_resource_id R6;
+        struct vnode *F, *Gn;
+        uint64_t s6 = 0, fs = 0;
+
+        F = node_up(1, 88, 8800, 5, 1);
+        Gn = node_up(2, 99, 9900, 6, 1);
+        membership(ids3fg, 3);
+        mxfs_pal_sleep_ms(50);
+        R6 = res_mastered_by(F, 99, 9000000);
+        while (tl_page(&R6) % 6 != 2)               /* G's in {11,88,99}, A's in {11,88} */
+            R6 = res_mastered_by(F, 99, R6.ino + 1);
+        rc = lock_sync(F, &R6, MXFS_LOCK_EX, &granted);
+        CHECK(rc == 0 && granted == MXFS_LOCK_EX &&
+              mxfs_dlm_grant_id(F->dlm, &R6, &auth, &s6, &lin) && s6 != 0,
+              "15 F holds R6 EX from master G under seq %llu", (unsigned long long)s6);
+        node_down(Gn);                              /* G dies holding F's record */
+        rc = mxfs_dlm_unlock(F->dlm, &R6);          /* the release G never retires */
+        CHECK(rc == 0 && mxfs_dlm_held_mode(F->dlm, &R6) == MXFS_LOCK_NL,
+              "15 F's release leaves no entry of its own (rc=%d)", rc);
+        membership(ids2f, 2);
+        rc = mxfs_dlm_handoff_takeover(A->dlm, 99, 9900);
+        CHECK(rc > 0 && mxfs_dlm_resource_master(A->dlm, &R6) == 11,
+              "15 A takes the dead master's pages over rc=%d and masters R6", rc);
+        rc = probe_lookup(&R6, &e);
+        CHECK(rc == 0 && e.state == MXFS_TAUTH_ST_ACTIVE && e.ex_node == 88 && e.grant_seq64 == s6,
+              "15 platter: G's page still records F under seq %llu", (unsigned long long)e.grant_seq64);
+        rc = lock_sync(F, &R6, MXFS_LOCK_EX, &granted);
+        CHECK(rc == 0 && granted == MXFS_LOCK_EX &&
+              mxfs_dlm_grant_id(F->dlm, &R6, &auth, &fs, &lin) && fs != 0 && fs != s6,
+              "15 F's next EX carries a fresh seq %llu, not the released %llu (rc=%d)",
+              (unsigned long long)fs, (unsigned long long)s6, rc);
+        rc = probe_lookup(&R6, &e);
+        CHECK(rc == 0 && e.ex_node == 88 && e.grant_seq64 == fs && e.last_grant_seq64 == s6,
+              "15 platter: seq %llu, the released %llu retired as last_grant_seq64",
+              (unsigned long long)e.grant_seq64, (unsigned long long)e.last_grant_seq64);
+        mxfs_dlm_unlock(F->dlm, &R6);
+        settle(F);
+        node_down(F);
+    }
+
+    /* 16 A REFUSED RE-GRANT IS RETRIED AS A RE-GRANT.  Case 14 again, with
+     * the adopting re-grant's ledger commit refused once.  The refusal puts
+     * the record back as it was; it must go back as an IMPORT, or the retry
+     * takes the already-granted shortcut and hands the released seq back
+     * after all — the case-14 defect, reached through one refused write. */
+    {
+        mxfs_node_id_t ids2h[2] = { 11, 66 }, ids1[1] = { 11 };
+        struct mxfs_resource_id R7;
+        struct vnode *H;
+        uint64_t s7 = 0, adopted0;
+
+        H = node_up(1, 66, 6600, 7, 1);
+        membership(ids2h, 2);
+        mxfs_pal_sleep_ms(50);
+        R7 = res_mastered_by(A, 66, 10000000);
+        rc = lock_sync(A, &R7, MXFS_LOCK_EX, &granted);
+        CHECK(rc == 0 && granted == MXFS_LOCK_EX &&
+              mxfs_dlm_grant_id(A->dlm, &R7, &auth, &s7, &lin) && s7 != 0,
+              "16 A holds R7 EX from master H under seq %llu", (unsigned long long)s7);
+        node_down(H);
+        rc = mxfs_dlm_unlock(A->dlm, &R7);
+        CHECK(rc == 0 && mxfs_dlm_held_mode(A->dlm, &R7) == MXFS_LOCK_NL,
+              "16 A's release leaves no entry of its own (rc=%d)", rc);
+        membership(ids1, 1);
+        rc = mxfs_dlm_handoff_takeover(A->dlm, 66, 6600);
+        CHECK(rc > 0, "16 A takes the dead master's pages over rc=%d", rc);
+        adopted0 = A->dlm->ledger_imports_adopted;
+        A->ledger.fail_commit_once_rc = -EBUSY;     /* the re-grant's page write: refused, not retried */
+        rc = lock_sync(A, &R7, MXFS_LOCK_EX, &granted);
+        CHECK(rc != 0 && A->ledger.fail_commit_once_rc == 0,
+              "16 the re-grant's commit is refused (rc=%d, knob consumed)", rc);
+        rc = probe_lookup(&R7, &e);
+        CHECK(rc == 0 && e.ex_node == 11 && e.grant_seq64 == s7,
+              "16 platter: the refused re-grant left seq %llu", (unsigned long long)e.grant_seq64);
+        rc = lock_sync(A, &R7, MXFS_LOCK_EX, &granted);
+        CHECK(rc == 0 && granted == MXFS_LOCK_EX &&
+              A->dlm->ledger_imports_adopted == adopted0 + 2,
+              "16 the retry adopts the import again (rc=%d adopted +%llu)",
+              rc, (unsigned long long)(A->dlm->ledger_imports_adopted - adopted0));
+        CHECK(mxfs_dlm_grant_id(A->dlm, &R7, &auth, &seq, &lin) && seq != 0 && seq != s7,
+              "16 the retried tenure carries a fresh seq %llu, not the released %llu",
+              (unsigned long long)seq, (unsigned long long)s7);
+        rc = probe_lookup(&R7, &e);
+        CHECK(rc == 0 && e.ex_node == 11 && e.grant_seq64 == seq && e.last_grant_seq64 == s7,
+              "16 platter: seq %llu, the released %llu retired as last_grant_seq64",
+              (unsigned long long)e.grant_seq64, (unsigned long long)e.last_grant_seq64);
+        mxfs_dlm_unlock(A->dlm, &R7);
+        settle(A);
+    }
+
+    /* 17 A LATE DENY ANSWERS ONLY THE REQUEST IT WAS SENT FOR.  B probes R8
+     * without queueing while A holds it; A's deny (would-block) reaches B
+     * only after the probe's attempt gave up, as a deny from a master slowed
+     * by its ledger writes does.  B meanwhile asks for R8 for real (a
+     * blocking acquire, queued at A).  The late deny must not complete that
+     * wait: in the filesystem the blocking acquire is an AG lock inside a
+     * dirty transaction and a failure there shuts the mount down.  Measured
+     * on the physical DRBD pair 2026-10-07 20:14:54: 'DLM AG lock failed:
+     * ag=2 rc=-11', then xfs_defer_finish_noroll's shutdown. */
+    {
+        mxfs_node_id_t ids2b[2] = { 11, 55 };
+        struct mxfs_resource_id R8;
+        struct vnode *B;
+        struct lock_job *j;
+        uint64_t t0;
+        int held;
+
+        B = node_up(1, 55, 5500, 8, 1);
+        membership(ids2b, 2);
+        mxfs_pal_sleep_ms(50);
+        R8 = res_mastered_by(B, 11, 11000000);
+        rc = lock_sync(A, &R8, MXFS_LOCK_EX, &granted);
+        CHECK(rc == 0 && granted == MXFS_LOCK_EX, "17 A holds R8 EX (master A) rc=%d", rc);
+        B->hold_denies = 1;
+        t0 = mxfs_pal_time_ms();
+        rc = mxfs_dlm_lock_retries(B->dlm, &R8, MXFS_LOCK_EX, MXFS_LKF_NOQUEUE, &granted, 1);
+        CHECK(rc == -EAGAIN && B->hold_denies == 0,
+              "17 B's no-queue probe gives up with its deny still in flight (rc=%d after %llu ms)",
+              rc, (unsigned long long)(mxfs_pal_time_ms() - t0));
+        j = lock_async(B, &R8, MXFS_LOCK_EX, 5);
+        mxfs_pal_sleep_ms(200);
+        held = release_held_denies(B);
+        mxfs_pal_sleep_ms(200);
+        CHECK(held == 1 && !j->done,
+              "17 the probe's late deny does not answer B's blocking acquire (delivered %d, done=%d rc=%d)",
+              held, j->done, j->done ? j->rc : 0);
+        mxfs_dlm_unlock(A->dlm, &R8);
+        CHECK(lock_wait(j, 5000) && j->rc == 0 && j->granted == MXFS_LOCK_EX,
+              "17 B's blocking acquire is granted once A releases (rc=%d)", j->rc);
+        lock_finish(j);
+        mxfs_dlm_unlock(B->dlm, &R8);
+        settle(B);
+        node_down(B);
+    }
+
     node_down(A);
     mxfs_tauth_ledger_close(&probe);
     mxfs_pal_bdev_close(dev);

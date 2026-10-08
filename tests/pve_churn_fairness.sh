@@ -36,6 +36,11 @@
 #   ARM_S      seconds between the arming and T (default 20)
 #   FAIR_MIN   the least ratio of the slower host's iterations to the
 #              faster's that passes (default 0.5)
+#   MKDIR_ON   the participant that makes the shared directory, 0 or 1
+#              (default 0): its maker starts out holding the directory's lock
+#   PROBES=1   turn the lock-tenure probes on for the run and report, per
+#              host and inode, how long each EX tenure was held and how many
+#              operations it served (tools/tenure_report.py)
 #
 # Evidence: tests/evidence/pve_churn_fairness/<UTC stamp>-<participant 0>/
 set -u
@@ -48,6 +53,7 @@ CHURN=${CHURN:-4}
 WORK_S=${WORK_S:-40}
 ARM_S=${ARM_S:-20}
 FAIR_MIN=${FAIR_MIN:-0.5}
+MKDIR_ON=${MKDIR_ON:-0}
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
 TAG=churnfair-$STAMP
 if python3 -I -c 'import ipaddress, sys; sys.exit(0 if ipaddress.ip_address(sys.argv[1]) < ipaddress.ip_address(sys.argv[2]) else 1)' "${PAIR[0]}" "${PAIR[1]}"; then
@@ -76,6 +82,7 @@ done
 LOOP=$(cat <<'EOF'
 d=$1; k=$2; T=$3; end=$4; tag=$5
 h=$(hostname); i=0
+e=/dev/shm/$tag.err.$k
 echo $$ > /dev/shm/$tag.pid.$k
 python3 -I -c 'import sys, time; time.sleep(max(0.0, float(sys.argv[1]) - time.time()))' "$T"
 exec 9>/dev/shm/$tag.ops.$k
@@ -83,16 +90,18 @@ endus=$((end * 1000000))
 while [ "${EPOCHREALTIME/./}" -lt "$endus" ]; do
     i=$((i + 1))
     t0=${EPOCHREALTIME/./}
-    echo "$h $i" >> $d/shared.$k.log || { echo "ERR append $i" >&9; break; }
+    # each operation's stderr (the shell's own open errors included: the 2>
+    # is applied before the >> it would report on) goes into its ERR line
+    echo "$h $i" 2>$e >> $d/shared.$k.log || { echo "ERR append $i $(tr '\n' ' ' <$e)" >&9; break; }
     t1=${EPOCHREALTIME/./}
-    echo "$h $i" > $d/$h.$k.$i || { echo "ERR create $i" >&9; break; }
+    echo "$h $i" 2>$e > $d/$h.$k.$i || { echo "ERR create $i $(tr '\n' ' ' <$e)" >&9; break; }
     t2=${EPOCHREALTIME/./}
-    mv $d/$h.$k.$i $d/$h.$k.$i.r || { echo "ERR rename $i" >&9; break; }
+    mv $d/$h.$k.$i $d/$h.$k.$i.r 2>$e || { echo "ERR rename $i $(tr '\n' ' ' <$e)" >&9; break; }
     t3=${EPOCHREALTIME/./}
-    if [ $i -gt 20 ]; then rm -f $d/$h.$k.$((i - 20)).r || { echo "ERR remove $i" >&9; break; }; fi
+    if [ $i -gt 20 ]; then rm -f $d/$h.$k.$((i - 20)).r 2>$e || { echo "ERR remove $i $(tr '\n' ' ' <$e)" >&9; break; }; fi
     t4=${EPOCHREALTIME/./}
     t5=$t4
-    if [ $((i % 25)) = 0 ]; then sync -f $d/shared.$k.log || { echo "ERR sync $i" >&9; break; }; t5=${EPOCHREALTIME/./}; fi
+    if [ $((i % 25)) = 0 ]; then sync -f $d/shared.$k.log 2>$e || { echo "ERR sync $i $(tr '\n' ' ' <$e)" >&9; break; }; t5=${EPOCHREALTIME/./}; fi
     echo "$i $((t1 - t0)) $((t2 - t1)) $((t3 - t2)) $((t4 - t3)) $((t5 - t4))" >&9
 done
 echo $i > /dev/shm/$tag.count.$k
@@ -119,7 +128,32 @@ done > /dev/shm/$tag.samples
 EOF
 )
 
-on "$P0" "mkdir -p $D && echo MADE" 30 | grep -q MADE || { say "ABORT: could not make $D"; exit 1; }
+case "$MKDIR_ON" in 0) MK=$P0 ;; 1) MK=$P1 ;; *) say "ABORT: MKDIR_ON must be 0 or 1"; exit 2 ;; esac
+on "$MK" "mkdir -p $D && echo MADE" 30 | grep -q MADE || { say "ABORT: could not make $D"; exit 1; }
+DIRINO=$(on "$MK" "stat -c %i $D" 20 | tail -1)
+say "shared directory $D is inode $DIRINO, made on participant $MKDIR_ON ($MK)"
+# PROBES=1: the lock-tenure probes for the run (dynamic debug, both hosts):
+# P70-BP at every release (held_ms, ops in the tenure, grant-to-first-op and
+# last-op-to-release), P483-DIRTENURE (creates per directory tenure), P6-FAIRQ
+# (a request queued at the master behind an older waiter, with its age) and
+# P-EX-TENURE-CAP (the directory tenure cap closing the fast path)
+PROBE_FMTS="P70-BP P483-DIRTENURE P6-FAIRQ P-EX-TENURE-CAP P7S-BAST-FIRE P7B-BASTNOTIFY"
+probes() {  # <host> +p|-p
+    local f ino=0
+    for f in $PROBE_FMTS; do
+        on "$1" "echo 'module mxfs format \"$f\" $2' > /proc/dynamic_debug/control" 15
+    done
+    # P7S (the master firing a BAST) and P7B (the holder receiving one) print
+    # for dbg_probe_ino only: the shared directory, so the run names its master
+    [ "$2" = +p ] && ino=$DIRINO
+    on "$1" "echo $ino > /sys/module/mxfs/parameters/dbg_probe_ino" 15
+}
+if [ "${PROBES:-0}" = 1 ]; then
+    for h in "$P0" "$P1"; do
+        probes "$h" +p
+        on "$h" "echo '<5>mxfs-test: churnfair $TAG start' > /dev/kmsg" 15
+    done
+fi
 T=$(( $(date +%s) + ARM_S ))
 END=$(( T + WORK_S ))
 say "arming $CHURN loops per host in $D for $(date -d @$T +%H:%M:%S) (T=$T), $WORK_S s"
@@ -145,6 +179,12 @@ for h in "$P0" "$P1"; do
     on "$h" "cat /dev/shm/$TAG.samples 2>/dev/null" 60 > "$EVID/samples.$h"
     on "$h" "rm -f /dev/shm/$TAG.*; echo CLEAN" 20 >/dev/null
 done
+if [ "${PROBES:-0}" = 1 ]; then
+    for h in "$P0" "$P1"; do
+        probes "$h" -p
+        on "$h" "journalctl -k -b --no-pager -o short-monotonic | sed -n '/mxfs-test: churnfair $TAG start/,\$p'" 120 > "$EVID/klog.$h"
+    done
+fi
 on "$P0" "rm -rf $D; echo GONE" 120 >/dev/null
 
 python3 -I - "$EVID" "$P0" "$P1" "$CHURN" "$FAIR_MIN" <<'PY' | tee -a "$EVID/log"
@@ -199,5 +239,8 @@ if errs or ratio < fair_min:
 print("PASS")
 PY
 rc=${PIPESTATUS[0]}
+if [ "${PROBES:-0}" = 1 ]; then
+    python3 "$REPO/tools/tenure_report.py" "$EVID" "$DIRINO" "$P0" "$P1" | tee -a "$EVID/log"
+fi
 say "evidence $EVID"
 exit "$rc"

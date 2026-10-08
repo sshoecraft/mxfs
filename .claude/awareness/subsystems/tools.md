@@ -1707,3 +1707,34 @@ bad block.  This is the only pass that sees a *lost* name: the inode it named
 stays valid.  To tell a child whose `..` names a reused incarnation of its
 removed parent from a real lost update, compare crtimes with
 `tools/mxfs_dinode.py --img IMG INO...`.
+
+### chk_mxfs: the quarantine repair, fork ownership, DRBD exclusion (0.90.95 worktree, operator-repair track)
+
+Design: `docs/quarantine-repair.md`.
+- `--accept-quarantine-loss SLOT --confirm DIGEST --archive-to PATH` runs the
+  whole ruling (steps 1-9): admission lock = the bootstrap record REFUSED with
+  reason `OPERATOR_REPAIR` (6), repair journal in bootstrap-region sector 56
+  (pre-image of the record in 57), archive of the verdict plus the raw slice
+  (`PATH.slice`), a dry-run FORECAST (`dry_run_writes`) before LOSS_ACCEPTED,
+  slice lifecycle -> ZEROING + full overwrite, two repair passes + one clean
+  check pass (`full_check()` / `reset_check_state()`, `discarded_slot`), slot
+  sector zeroed, record -> IDLE.  Accepts the ADOPTED form (escrow
+  `K_REPLAY_REFUSED`, K holding the adopter's record) straight from the
+  escrow.  Resumes from the journal; `MXFS_CHK_REPAIR_CRASH_AT=<phase>|SLICE_HALF`
+  is a test-only crash point.  Refuses a slot whose record does not validate as
+  TCP (CAW grants are not purged).
+- `--clear-bootstrap` refuses a term whose escrow is K_CLAIMED..K_REPLAY_REFUSED
+  while K still holds the adopter's record, and abandons an operator lock only
+  before LOSS_ACCEPTED.
+- `check_fork_owners` ("Inode fork ownership"): every data/attr fork extent and
+  bmbt block must be allocated (not free in BNO, not in an inode chunk, not named
+  twice).  Its one repair (`fo_repair_ag`) rebuilds single-leaf BNO/CNT trees
+  without fork-owned blocks.  Pitfall it found: the old checker called an image
+  with 51 fork blocks free in BNO "filesystem clean".
+- SB fdblocks expectation is now Σ(freeblks + flcount + btreeblks).
+- `tools/mxfs_offline.h`: DRBD exclusion from `/proc/drbd` (8.4 per-minor line),
+  `mxfs_off_writer_recheck()`; mxfs_admin gets it too.
+- `tools/recov_forge`: `mkguard --feat F` writes the victim's feature block;
+  plain pread/pwrite on an image file.
+- Tests: `tests/chk_quarantine_repair_unit.sh` (image on /dev/shm, archive on
+  /var/tmp), `tests/drbd_quarantine_repair.sh full|verify` (rig g2).

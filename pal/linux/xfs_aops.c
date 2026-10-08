@@ -77,6 +77,7 @@ xfs_setfilesize(
 		return error;
 
 	xfs_ilock(ip, XFS_ILOCK_EXCL);
+	mxfs_dbg_sfs_hold(ip);
 	isize = xfs_new_eof(ip, offset + size);
 	/* P-SFS (instrumented for the drc size=0 loss):
 	 * xfs_new_eof clamps to VFS i_size — if a reload/evict reset the
@@ -193,7 +194,7 @@ xfs_end_ioend(
 			 * must not be what a fenced node's user sees.  Counted
 			 * above for the withdraw inspection; reported as EIO.
 			 */
-			pr_warn_ratelimited("mxfs: P-EBADE-BOUNDARY data ino=%llu off=%lld len=%zu — reservation conflict on writeback, reporting EIO (fence in progress)\n",
+			pr_warn_ratelimited("mxfs: P-EBADE-BOUNDARY data ino=%llu off=%lld len=%zu -- reservation conflict on writeback, reporting EIO (fence in progress)\n",
 				(unsigned long long)ip->i_ino, (long long)offset,
 				size);
 			error = -EIO;
@@ -471,7 +472,7 @@ MODULE_PARM_DESC(teardown_arm_gate,
 int mxfs_bast_qfalse_inject;
 module_param_named(bast_qfalse_inject, mxfs_bast_qfalse_inject, int, 0644);
 MODULE_PARM_DESC(bast_qfalse_inject,
-	"TEST-ONLY: bast_work_fn self-requeues at entry (own donated ref) so queue_work collisions hit the false branch deterministically — exercises the P226 extra-ref drop (D-UNMOUNT-BUSY-INODES verification); 0=off (default), 1=inject");
+	"TEST-ONLY: bast_work_fn self-requeues at entry (own donated ref) so queue_work collisions hit the false branch deterministically -- exercises the P226 extra-ref drop (D-UNMOUNT-BUSY-INODES verification); 0=off (default), 1=inject");
 
 /*
  * P85: gate the inode-drain skip census + the FUA home-dinode compare
@@ -511,7 +512,7 @@ MODULE_PARM_DESC(inode_drain_probe,
 int mxfs_rel_stale_inject;
 module_param_named(rel_stale_inject, mxfs_rel_stale_inject, int, 0644);
 MODULE_PARM_DESC(rel_stale_inject,
-	"TEST-ONLY: force the stranded (-ESTALE) verdict on inode DLM releases while shutdown/unmounting is set — drives the P6G teardown-era dwork-arm decision deterministically (D-DWORK-TEARDOWN-LASTREF-LEAK A/B); 0=off (default), 1=inject");
+	"TEST-ONLY: force the stranded (-ESTALE) verdict on inode DLM releases while shutdown/unmounting is set -- drives the P6G teardown-era dwork-arm decision deterministically (D-DWORK-TEARDOWN-LASTREF-LEAK A/B); 0=off (default), 1=inject");
 
 /* A/B (32/caw dir_reuse, same build 0.11.319): knob-on = 6 rounds,
  * knob-off = 7 — CREATEINT moves refresh+evict+FUA-reread INSIDE the
@@ -529,7 +530,7 @@ MODULE_PARM_DESC(create_intent_ex,
 int mxfs_evict_retain_pr = 1;
 module_param_named(evict_retain_pr, mxfs_evict_retain_pr, int, 0644);
 MODULE_PARM_DESC(evict_retain_pr,
-	"retain a clean PR DLM grant across inode eviction (demand-released via the no-inode BAST path) instead of CAS-clearing it at evict — kills the 32-way drop_caches unlock convoy on hot shared slots; 0=legacy eager unlock, 1=on (default)");
+	"retain a clean PR DLM grant across inode eviction (demand-released via the no-inode BAST path) instead of CAS-clearing it at evict -- kills the 32-way drop_caches unlock convoy on hot shared slots; 0=legacy eager unlock, 1=on (default)");
 
 int mxfs_cancel_ref_release;
 module_param_named(cancel_ref_release, mxfs_cancel_ref_release, int, 0644);
@@ -540,7 +541,7 @@ MODULE_PARM_DESC(cancel_ref_release,
 int mxfs_fix28_drain_stall_ms;
 module_param_named(fix28_drain_stall_ms, mxfs_fix28_drain_stall_ms, int, 0644);
 MODULE_PARM_DESC(fix28_drain_stall_ms,
-	"DEBUG: stall the release drain once, mid-batch, inside its drain-site-2 page flush so a writeback submitter can park in the demote-wait holding a folio of that same batch — closes the ABBA cycle deterministically (0=off)");
+	"DEBUG: stall the release drain once, mid-batch, inside its drain-site-2 page flush so a writeback submitter can park in the demote-wait holding a folio of that same batch -- closes the ABBA cycle deterministically (0=off)");
 
 /* FIX-27 A/B gate: 0 reproduces the earlier deadlock (shared-class writeback
  * submitters are NOT admitted through a BAST/DEMOTING demote-wait), 1 = fixed.
@@ -927,7 +928,7 @@ xfs_map_blocks(
 	    ip->i_dlm_drain_site == 2 &&
 	    !ip->i_dlm_drain_stalled) {
 		ip->i_dlm_drain_stalled = 1;
-		pr_warn("mxfs: P28-DRAINHOLD ino=%llu off=%lld stall_ms=%d — drain holding a folio mid-batch at site 2 so a writeback submitter can park on a later folio of the same batch\n",
+		pr_warn("mxfs: P28-DRAINHOLD ino=%llu off=%lld stall_ms=%d -- drain holding a folio mid-batch at site 2 so a writeback submitter can park on a later folio of the same batch\n",
 			(unsigned long long)ip->i_ino, (long long)offset,
 			mxfs_fix28_drain_stall_ms);
 		msleep(mxfs_fix28_drain_stall_ms);
@@ -1170,7 +1171,7 @@ mxfs_ioend_write_admitted(
 		if (likely(!mxfs_dbg_refuse_data_take()))
 			return true;
 		pr_err_ratelimited(
-		    "mxfs: P293-TEST-REFUSED-DATA ino=%llu off=%lld size=%zu ioend=%p comm=%s — TEST: this data writeback is refused as a closed authority refuses it (-EIO, no bio issued) while the lease is still live\n",
+		    "mxfs: P293-TEST-REFUSED-DATA ino=%llu off=%lld size=%zu ioend=%p comm=%s -- TEST: this data writeback is refused as a closed authority refuses it (-EIO, no bio issued) while the lease is still live\n",
 		    (unsigned long long)ip->i_ino,
 		    (long long)ioend->io_offset,
 		    (size_t)ioend->io_size, ioend, current->comm);
@@ -1178,7 +1179,7 @@ mxfs_ioend_write_admitted(
 	}
 
 	pr_err_ratelimited(
-	    "mxfs: P290-AUTH-REFUSED-DATA ino=%llu off=%lld size=%zu ioend=%p comm=%s — this node's authority over the shared LUN has expired; the data writeback is REFUSED (-EIO) and no bio is issued\n",
+	    "mxfs: P290-AUTH-REFUSED-DATA ino=%llu off=%lld size=%zu ioend=%p comm=%s -- this node's authority over the shared LUN has expired; the data writeback is REFUSED (-EIO) and no bio is issued\n",
 	    (unsigned long long)ip->i_ino,
 	    (long long)ioend->io_offset,
 	    (size_t)ioend->io_size, ioend, current->comm);
@@ -1195,11 +1196,14 @@ mxfs_ioend_write_admitted(
  * is left.
  *
  * Where iomap still chains an ioend's bios (the bio is not embedded in the
- * ioend), the bios ahead of the last are submitted by iomap as each one fills,
- * before any filesystem hook runs, and the last completes only after all of
- * them.  So their bytes are charged to this bio's first piece and held until
- * it ends: a writer cannot start another ioend until this one is admitted,
- * though the one it builds meanwhile is in flight unbounded.
+ * ioend), ->map_blocks ends an ioend whose bio is full on a bounded mount
+ * (mxfs_ioend_end_at_full_bio), so there is no bio ahead of this one.  On such
+ * a kernel without the ioend batch counter that needs, the bios ahead of the
+ * last are submitted by iomap as each one fills, before any filesystem hook
+ * runs, and the last completes only after all of them.  So their bytes are
+ * charged to this bio's first piece and held until it ends: a writer cannot
+ * start another ioend until this one is admitted, though the one it builds
+ * meanwhile is in flight unbounded, and P-DRBD-IOQ-UNBOUNDED counts them.
  */
 static int
 mxfs_ioend_bound_admit(
@@ -1346,7 +1350,7 @@ xfs_writeback_submit(
 	 */
 	if (unlikely(ioend == xwpc->ended) && !xwpc->ended_again++)
 		pr_err_ratelimited(
-		    "mxfs: P294-WB-ENDED-IOEND-AGAIN ino=%llu ioend=%p error=%d comm=%s — iomap handed back an ioend this writeback pass already ended with an error, and it is about to be ended again\n",
+		    "mxfs: P294-WB-ENDED-IOEND-AGAIN ino=%llu ioend=%p error=%d comm=%s -- iomap handed back an ioend this writeback pass already ended with an error, and it is about to be ended again\n",
 		    (unsigned long long)XFS_I(wpc->inode)->i_ino, ioend, error,
 		    current->comm);
 
@@ -1435,7 +1439,54 @@ xfs_discard_folio(
 }
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
-#ifdef MXFS_HAVE_IOMAP_MAP_BLOCKS_LEN
+#if !defined(MXFS_HAVE_IOMAP_IOEND_BIO_EMBEDDED) && \
+    defined(MXFS_HAVE_IOMAP_IOEND_IO_FOLIOS)
+/*
+ * THE DRBD WRITE BOUND where iomap chains an ioend's bios (the bio is not
+ * embedded in the ioend: 6.8 and older).  iomap adds a writeback's blocks to
+ * the ioend it is building; when that ioend's bio has no free vector it
+ * allocates the next, chains the two and submits the full one itself, and
+ * ->prepare_ioend, the only hook the bound has, runs for the last bio alone.
+ * Every bio before it went to the device unbounded.  Measured on the rig's
+ * DRBD pair (6.8.0-101), two 4 KiB buffered sequential writers per host: an
+ * ioend of 4 KiB folios fills its bio at 1 MiB, and of 2 GiB each host wrote,
+ * 256 and 162 MiB went out that way in ioends of up to 16 MiB, with up to 44
+ * writes in flight on the device against a bound of 4 MiB.  With 1 MiB
+ * writes the page cache holds large folios, a bio holds far more, and none
+ * chained in the same run.
+ *
+ * ->map_blocks runs before every block iomap adds to an ioend (read from the
+ * running 6.8.0-101's iomap_writepage_map), so on a mount with a bound an
+ * ioend whose bio is full is ended there instead: its batch is marked full.
+ * A full batch (IOEND_BATCH_SIZE folios) is iomap's own reason to end an
+ * ioend, checked before the block is added, so iomap queues this one for
+ * submission through ->prepare_ioend and puts the block in a new ioend.  No
+ * ioend then spans more than one bio, iomap never chains one, and every byte
+ * of writeback is admitted by the bound before it is submitted.  The counter
+ * is read by nothing else.
+ */
+#define MXFS_IOEND_BATCH_FULL	(1U << 30)	/* past any batch size; never wraps */
+
+static void
+mxfs_ioend_end_at_full_bio(
+	struct iomap_writepage_ctx	*wpc)
+{
+	struct iomap_ioend		*ioend = wpc->ioend;
+
+	if (!ioend || !XFS_I(ioend->io_inode)->i_mount->m_mxfs_ioq)
+		return;
+	if (ioend->io_bio->bi_vcnt >= ioend->io_bio->bi_max_vecs &&
+	    ioend->io_folios < MXFS_IOEND_BATCH_FULL)
+		ioend->io_folios = MXFS_IOEND_BATCH_FULL;
+}
+#else
+static inline void
+mxfs_ioend_end_at_full_bio(
+	struct iomap_writepage_ctx	*wpc)
+{
+}
+#endif
+
 /*
  * ->map_blocks gained the length of the dirty range before 6.17 (6.12 stable
  * has it).  xfs_map_blocks maps the extent covering offset and iomap asks
@@ -1443,18 +1494,23 @@ xfs_discard_folio(
  * already calls it, so the length is not needed.
  */
 static int
-xfs_map_blocks_len(
+mxfs_writeback_map_blocks(
 	struct iomap_writepage_ctx *wpc,
 	struct inode		*inode,
+#ifdef MXFS_HAVE_IOMAP_MAP_BLOCKS_LEN
 	loff_t			offset,
 	unsigned int		len)
-{
-	return xfs_map_blocks(wpc, inode, offset);
-}
-#define mxfs_writeback_map_blocks	xfs_map_blocks_len
 #else
-#define mxfs_writeback_map_blocks	xfs_map_blocks
+	loff_t			offset)
 #endif
+{
+	int			error = xfs_map_blocks(wpc, inode, offset);
+
+	if (!error)
+		mxfs_ioend_end_at_full_bio(wpc);
+	return error;
+}
+
 static const struct iomap_writeback_ops xfs_writeback_ops = {
 	.map_blocks		= mxfs_writeback_map_blocks,
 	.prepare_ioend		= xfs_prepare_ioend,
@@ -1507,7 +1563,7 @@ xfs_vm_writepages(
 	ret = iomap_writepages(&wpc.ctx);
 	if (unlikely(wpc.ended_again))
 		pr_err_ratelimited(
-		    "mxfs: P294-WB-ENDED-IOEND-AGAIN-PASS ino=%llu again=%u ret=%d sync=%d comm=%s — this writeback pass handed an ioend it had already ended back for submission this many times\n",
+		    "mxfs: P294-WB-ENDED-IOEND-AGAIN-PASS ino=%llu again=%u ret=%d sync=%d comm=%s -- this writeback pass handed an ioend it had already ended back for submission this many times\n",
 		    (unsigned long long)XFS_I(mapping->host)->i_ino,
 		    wpc.ended_again, ret, wbc->sync_mode == WB_SYNC_ALL,
 		    current->comm);

@@ -257,7 +257,7 @@ mxfs_dbg_disk_di_mode(struct xfs_mount *mp, xfs_ino_t ino, uint32_t *genp)
 			if (fmode != mode ||
 			    (genp && fgen != *genp)) {
 				mxfs_probe_ratelimited(
-					"mxfs: P103-FUA-DIVERGE ino=%llu agno=%u fua_mode=0%o fua_gen=%u coh_mode=0%o coh_gen=%u — FUA-platter disagrees with coherent SCST view\n",
+					"mxfs: P103-FUA-DIVERGE ino=%llu agno=%u fua_mode=0%o fua_gen=%u coh_mode=0%o coh_gen=%u -- FUA-platter disagrees with coherent SCST view\n",
 					(unsigned long long)ino,
 					(unsigned)agno,
 					(unsigned)fmode, fgen,
@@ -415,7 +415,7 @@ mxfs_p949_compare_fua(struct xfs_mount *mp, struct block_device *bdev,
 		return;
 	frc = mxfs_pal_scsi_read_fua_bdev(bdev, lba, fua, blen);
 	if (frc) {
-		mxfs_probe_ratelimited("mxfs: P949-FUA-READ-FAIL ino=%llu lba=%llu rc=%d — the plain read said 'no inode magic' and the FUA re-read could not be issued, so the disagreement is untested at this home\n",
+		mxfs_probe_ratelimited("mxfs: P949-FUA-READ-FAIL ino=%llu lba=%llu rc=%d -- the plain read said 'no inode magic' and the FUA re-read could not be issued, so the disagreement is untested at this home\n",
 			(unsigned long long)ino, (unsigned long long)lba, frc);
 		kfree(fua);
 		return;
@@ -429,7 +429,7 @@ mxfs_p949_compare_fua(struct xfs_mount *mp, struct block_device *bdev,
 		 * a question like this stays open for another campaign.
 		 */
 		xfs_alert(mp,
-"MXFS: P949-PLAIN-STALE ino=%llu lba=%llu — the PLAIN read of this home reports NO inode magic while a FUA read of the SAME LBA reports a dinode (mode=0%o gen=%u); the create-path candidate validator is deciding on a NON-COHERENT read. plain blk[0..3]=%02x%02x%02x%02x home[0..7]=%02x%02x%02x%02x%02x%02x%02x%02x",
+"MXFS: P949-PLAIN-STALE ino=%llu lba=%llu -- the PLAIN read of this home reports NO inode magic while a FUA read of the SAME LBA reports a dinode (mode=0%o gen=%u); the create-path candidate validator is deciding on a NON-COHERENT read. plain blk[0..3]=%02x%02x%02x%02x home[0..7]=%02x%02x%02x%02x%02x%02x%02x%02x",
 			  (unsigned long long)ino, (unsigned long long)lba,
 			  be16_to_cpup((const __be16 *)(fk + 2)),
 			  be32_to_cpup((const __be32 *)(fk + 0x5c)),
@@ -461,7 +461,7 @@ mxfs_p949_compare_fua(struct xfs_mount *mp, struct block_device *bdev,
 	 */
 	if (pb[0] | pb[1] | pb[2] | pb[3] | fb[0] | fb[1] | fb[2] | fb[3]) {
 		xfs_alert(mp,
-"MXFS: P949-HOME-FOREIGN ino=%llu lba=%llu — this home holds no dinode but is NOT empty, on BOTH a plain and a FUA read: the medium carries somebody else's metadata at a block the inode allocator believes is a free inode's home. plain blk[0..3]=%02x%02x%02x%02x ('%c%c%c%c') fua blk[0..3]=%02x%02x%02x%02x ('%c%c%c%c') fua home[0..7]=%02x%02x%02x%02x%02x%02x%02x%02x",
+"MXFS: P949-HOME-FOREIGN ino=%llu lba=%llu -- this home holds no dinode but is NOT empty, on BOTH a plain and a FUA read: the medium carries somebody else's metadata at a block the inode allocator believes is a free inode's home. plain blk[0..3]=%02x%02x%02x%02x ('%c%c%c%c') fua blk[0..3]=%02x%02x%02x%02x ('%c%c%c%c') fua home[0..7]=%02x%02x%02x%02x%02x%02x%02x%02x",
 			  (unsigned long long)ino, (unsigned long long)lba,
 			  pb[0], pb[1], pb[2], pb[3],
 			  mxfs_p949_pchar(pb[0]),
@@ -476,7 +476,7 @@ mxfs_p949_compare_fua(struct xfs_mount *mp, struct block_device *bdev,
 			  fk[0], fk[1], fk[2], fk[3],
 			  fk[4], fk[5], fk[6], fk[7]);
 	} else if (atomic_inc_return(&p949_agree) <= 16) {
-		mxfs_probe("mxfs: P949-HOME-EMPTY ino=%llu lba=%llu — the plain AND the FUA read of this home agree it holds no dinode and its block is all zeroes; a carved chunk whose durable init did not land, owned by nobody\n",
+		mxfs_probe("mxfs: P949-HOME-EMPTY ino=%llu lba=%llu -- the plain AND the FUA read of this home agree it holds no dinode and its block is all zeroes; a carved chunk whose durable init did not land, owned by nobody\n",
 			(unsigned long long)ino, (unsigned long long)lba);
 	}
 	kfree(fua);

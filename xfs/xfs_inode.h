@@ -282,7 +282,7 @@ typedef struct xfs_inode {
 	 * so di_changecount is monotonic across incarnations of an inode number —
 	 * the node-independent foreign-replay skip rule depends on that. */
 	uint64_t		i_mxfs_prev_changecount;
-	bool			i_dlm_stale;	/* needs reload from disk after BAST */ uint8_t i_dlm_stale_src; /* code of the LAST i_dlm_stale=true setter (1=readdir 2=consumer_refresh 3=modify_prelock 4=adopt_fmt 5=bast_process_rel 6=bast_notify_acq 7=ilock_slow_prereload 8=fastpath_rearm 9-13=dlm_misc 14-17=iget 18-20=inode_misc 21-23=super 24=iflush_deadincarn 25=iflush_dirvalid_epoch 26=reload_identical_keepfork 27=file_rw_bail) — P11-ACQSTALE-SELFBAST forensics */ uint8_t i_dlm_bastq_src; /* site that queued the last bast_work/dwork (1=ilock_end_refire 2=demwait_redrive 3=notify_idle 4=notify_orphan 5=notify_immediate 6=ilock_begin_recov 7=acq_selfbast 9=mht_arm 10=stranded_arm 11=batch_arm 12=sf_tenure_arm 13=grantwin_park 14=close_release 15=pr_idle_release 16=dir_ex_sweep) */
+	bool			i_dlm_stale;	/* needs reload from disk after BAST */ uint8_t i_dlm_stale_src; /* code of the LAST i_dlm_stale=true setter (1=readdir 2=consumer_refresh 3=modify_prelock 4=adopt_fmt 5=bast_process_rel 6=bast_notify_acq 7=ilock_slow_prereload 8=fastpath_rearm 9-13=dlm_misc 14-17=iget 18-20=inode_misc 21-23=super 24=iflush_deadincarn 25=iflush_dirvalid_epoch 26=reload_identical_keepfork 27=file_rw_bail 29=recycle_phantom) — P11-ACQSTALE-SELFBAST forensics */ uint8_t i_dlm_bastq_src; /* site that queued the last bast_work/dwork (1=ilock_end_refire 2=demwait_redrive 3=notify_idle 4=notify_orphan 5=notify_immediate 6=ilock_begin_recov 7=acq_selfbast 9=mht_arm 10=stranded_arm 11=batch_arm 12=sf_tenure_arm 13=grantwin_park 14=close_release 15=pr_idle_release 16=dir_ex_sweep) */
 	u64			i_dlm_bastq_qns; /* P296-BASTQLAT (D-503 instrumented): expected-run ktime of the last SUCCESSFUL bast work/dwork arm — queue time for the immediate work, queue time + delay for the dwork (so work-fn-entry minus this = pure queue-to-run EXCESS, not the intended MHT delay).  Stamped under m_mxfs_arm_lock only when queue(_delayed)_work returned true (a false = already pending — the earlier stamp stays authoritative).  Read+cleared locklessly at both work-fn entries; a re-arm racing that read can make the delta negative, which the probe discards. */
 	bool			i_dlm_bast_during_acq; /* a peer BAST arrived while this node was in ISTATE_ACQUIRING (slow-path DLM acquire in flight).  SEPARATE flag from i_dlm_stale: the post-acquire reload CLEARS i_dlm_stale before the post-publish reads it, so reusing i_dlm_stale to defer the BAST silently SWALLOWED the revoke — the holder kept the grant cached idle and the peer's request stalled the full 6000ms MXFS_LOCK_ACQUIRE_WAIT_MS until its retry re-fired the BAST (the dir_reuse 2/tcp ~6s handoff, PROVEN 9 ACQUIRING-EX BASTs lost/run).  Set by bast_notify's ACQUIRING branch; honored at the slow-path post-publish (-> ISTATE_BAST + drain) regardless of reload; cleared there. */
 	struct task_struct	*i_dlm_tries_owner; /* ABBA breaker: task for which the NEXT slow-path acquire of THIS inode is retry-bounded (set by xfs_lock_two_inodes around its SECOND ilock_begin while it holds the first inode's grant-hold).  Gating by task means a concurrent acquirer of the same inode never inherits the bound. */
@@ -520,6 +520,9 @@ typedef struct xfs_inode {
 	 */
 	uint64_t		i_mxfs_relmark_res;
 	uint64_t		i_mxfs_relmark_epoch;
+	/* the lineage the marker carried: a replayer matches a marker on it
+	 * too, so the refusal line names both sides' lineage */
+	uint64_t		i_mxfs_relmark_lineage;
 	/*
 	 * The {grant epoch, lineage} of the last token the capture stamped
 	 * from this inode's certificate.  A grant that leaves through inode
@@ -1908,7 +1911,7 @@ mxfs_quar_gate_op(struct xfs_inode *ip, const char *op)
 	if (unlikely(error))
 		/* 0.75.22: name the predicate that refused (s515d: the refusal
 		 * fired with none of the DLM's blocked-recovery lines) */
-		pr_warn_ratelimited("mxfs: P240-QUAR-NSOP-REFUSE op=%s ino=%llu rc=%d comm=%s incarn_stale=%d rblk=%d quar_flag=%d quar_map=%d — inode in a quarantined victim domain, a stale incarnation, or held/mastered by a node in blocked recovery; namespace op refused before any transaction\n",
+		pr_warn_ratelimited("mxfs: P240-QUAR-NSOP-REFUSE op=%s ino=%llu rc=%d comm=%s incarn_stale=%d rblk=%d quar_flag=%d quar_map=%d -- inode in a quarantined victim domain, a stale incarnation, or held/mastered by a node in blocked recovery; namespace op refused before any transaction\n",
 				    op, (unsigned long long)ip->i_ino, error,
 				    current->comm,
 				    xfs_iflags_test(ip, MXFS_IF_INCARN_STALE) ? 1 : 0,
@@ -1966,7 +1969,7 @@ mxfs_quar_gate_locked(struct xfs_inode *ip, const char *op)
 		    !mxfs_dlm_mount_is_single_node(ip->i_mount) &&
 		    READ_ONCE(ip->i_dlm_mode) == 0 /* MXFS_LOCK_NL */ &&
 		    READ_ONCE(ip->i_dlm_ex_holders) == 0) {
-			pr_warn_ratelimited("mxfs: P240-RBLK-NSOP-REFUSE op=%s ino=%llu dlm_mode=%u comm=%s — the DLM denied this inode's acquire (grant held by a dead node in blocked or refused recovery); namespace op refused after the lock, before any transaction dirt\n",
+			pr_warn_ratelimited("mxfs: P240-RBLK-NSOP-REFUSE op=%s ino=%llu dlm_mode=%u comm=%s -- the DLM denied this inode's acquire (grant held by a dead node in blocked or refused recovery); namespace op refused after the lock, before any transaction dirt\n",
 					    op, (unsigned long long)ip->i_ino,
 					    READ_ONCE(ip->i_dlm_mode), current->comm);
 			error = -EIO;
@@ -2061,7 +2064,7 @@ static inline void mxfs_rmc_unpaired(struct xfs_inode *ip, const char *site,
 
 	if (atomic_inc_return(&rmcu_n) > 50)
 		return;
-	pr_alert("mxfs: P9-RMC-UNPAIRED-%s ino=%llu new=%u rmcnt=%ld last0=%pS lastclr=%pS comm=%s — 0->N dec with UNACCOUNTED zero\n",
+	pr_alert("mxfs: P9-RMC-UNPAIRED-%s ino=%llu new=%u rmcnt=%ld last0=%pS lastclr=%pS comm=%s -- 0->N dec with UNACCOUNTED zero\n",
 		site, (unsigned long long)ip->i_ino, newn,
 		atomic_long_read(&VFS_I(ip)->i_sb->s_remove_count),
 		ip->i_rmc_last0_ra, ip->i_rmc_lastclr_ra,

@@ -65,7 +65,7 @@ value_now_into pgetv2 "$NODE" 10 "$OUT/pget_2.txt" '^-?[0-9]+$' "a knob read on 
 ck "the refused set left the knob unchanged" "$pgetv2" "$pgetv0"
 measure "$NODE" 25 "$OUT/dmesg_$NODE.txt" '^DMESG_END$' "the kernel log on $NODE from the lap marker" "dmesg | sed -n \"/$MARK/,\\\$p\"; echo DMESG_END"
 ck "refusal names icluster_dlm (P-line)" "$(grep -ac 'foreign_replay_token_enforce=1 REFUSED: icluster_dlm=1' "$OUT/dmesg_$NODE.txt")" "1"
-ck "exactly one unmet prerequisite counted" "$(grep -ac 'stays 0 — 1 prerequisite(s) unmet' "$OUT/dmesg_$NODE.txt")" "1"
+ck "exactly one unmet prerequisite counted" "$(grep -ac 'stays 0 -- 1 prerequisite(s) unmet' "$OUT/dmesg_$NODE.txt")" "1"
 value_now_into psetv2 "$NODE" 10 "$OUT/pset_2.txt" '^(OK|REFUSED)$' "a knob set on $NODE" "echo 0 > $P/foreign_replay_token_enforce 2>/dev/null && echo OK || echo REFUSED"
 ck "disarm still allowed" "$psetv2" "OK"
 

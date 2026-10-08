@@ -598,9 +598,9 @@ def peer_facts(res, peer, peer_addr):
     `drbdadm role`, MOUNTS the number of MXFS mounts, REFCNT the module's
     reference count, BOOT its boot id, BOOTSTATE what its boot program
     published (BOOT_STATE_FMT; 'none' when there is no such file),
-    BOOTLIVE whether that program is still running, and RECOVERY its mount's
-    /sys/fs/mxfs/<dev>/recovery_pending ('none' with no such mount or a
-    module without it)."""
+    BOOTLIVE whether that program is still running, RECOVERY its mount's
+    /sys/fs/mxfs/<dev>/recovery_pending and OTHERSLOTS its other_slots_held
+    ('none' with no such mount or a module without it)."""
     # Authenticate the peer the way Proxmox's own migrations do: its key from
     # the cluster's per-node file under its node name (PVE 9 keeps no cluster
     # host keys in the shared known_hosts).  Elsewhere, the system's known
@@ -620,6 +620,8 @@ def peer_facts(res, peer, peer_addr):
                        "d=$(drbdadm sh-dev %s 2>/dev/null); "
                        "r=$(cat /sys/fs/mxfs/${d##*/}/recovery_pending 2>/dev/null); "
                        "echo RECOVERY=${r:-none}; "
+                       "o=$(cat /sys/fs/mxfs/${d##*/}/other_slots_held 2>/dev/null); "
+                       "echo OTHERSLOTS=${o:-none}; "
                        "s=$(cat %s 2>/dev/null); echo BOOTSTATE=${s:-none}; "
                        "p=${s##* pid=}; p=${p%%%% *}; "
                        "[ -n \"$s\" ] && kill -0 \"$p\" 2>/dev/null && echo BOOTLIVE=1 || echo BOOTLIVE=0"
@@ -1230,9 +1232,16 @@ class Boot:
         (pve9-1 5.5 min, pve2 73 s), and the peer certified in that window.
 
         Waits while the peer answers that it has MXFS mounted and that its
-        mount's recovery_pending is 1, for at most PEER_RECOVERY_WAIT_S.  No
-        answer, no mount there, or a module without the attribute: the mount
-        goes ahead, and the module's own barrier decides as before."""
+        mount still counts a slot other than its own (other_slots_held, which
+        includes recovery_pending), for at most PEER_RECOVERY_WAIT_S.
+        recovery_pending alone was not enough: a node back before its old
+        incarnation was declared dead found nothing owed yet and promoted
+        (nested pair 2026-10-07: its unmount was stuck in the kernel, its
+        heartbeat ran until the reset, it booted again in 15 s, and its first
+        mount failed after 2 min).  A clean departure leaves no slot, so the
+        count is 0 at once.  No answer, no mount there, or a module without the
+        attribute (then recovery_pending as before): the mount goes ahead, and
+        the module's own barrier decides."""
         ep = drbd_endpoints(self.res)
         if not ep:
             return
@@ -1244,7 +1253,12 @@ class Boot:
                 if said:
                     log("%s: no answer from %s (%s); promoting" % (self.res, peer, why))
                 return
-            if f["MOUNTS"] == "0" or f.get("RECOVERY", "none") != "1":
+            held = f.get("OTHERSLOTS", "none")
+            if held == "none":
+                owed = f.get("RECOVERY", "none") == "1"
+            else:
+                owed = held != "0"
+            if f["MOUNTS"] == "0" or not owed:
                 if said:
                     log("%s: %s has recovered this node's previous incarnation (%d s); "
                         "promoting" % (self.res, peer, time.time() - t0))
@@ -1379,7 +1393,16 @@ def cmd_stop(res, mountpoint):
     dev = drbd_device(res)
     mnt = mxfs_mounted_on(dev)
     if mnt:
-        rc, _ = run(["umount", mnt], timeout=170)
+        # Bounded without waiting on the child: subprocess.run kills a timed-out
+        # umount and then waits for it, and an unmount stuck in the kernel never
+        # dies, so the stop sat there until systemd killed it at its own 180 s
+        # and this line was never logged (pve1, 2026-10-07).
+        rc = bounded_umount(mnt, 170)
+        if rc is None:
+            log("%s: umount of %s has not returned in 170 s: it is stuck in the kernel; "
+                "DRBD stays Primary under it, so the peer will treat this node's departure "
+                "as a loss" % (res, mnt), crit=True)
+            return 1
         if rc != 0:
             log("%s: umount of %s failed (rc=%d); DRBD stays Primary under it, so the "
                 "peer will treat this node's departure as a loss" % (res, mnt, rc), crit=True)

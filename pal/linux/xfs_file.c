@@ -305,7 +305,7 @@ xfs_ilock_iocb_write(
 	ret = mxfs_ilock_fallible(ip, lock_mode);
 	if (ret)
 		pr_warn_ratelimited(
-		    "mxfs: P958-WRITE-REFUSED ino=%llu stage=%s mode=%s rc=%d comm=%s — write refused: the cluster acquire was abandoned; failing the write with nothing held instead of waiting on it\n",
+		    "mxfs: P958-WRITE-REFUSED ino=%llu stage=%s mode=%s rc=%d comm=%s -- write refused: the cluster acquire was abandoned; failing the write with nothing held instead of waiting on it\n",
 			(unsigned long long)ip->i_ino, stage,
 			lock_mode == XFS_IOLOCK_EXCL ? "excl" : "shared", ret,
 			current->comm);
@@ -402,7 +402,7 @@ xfs_file_dio_read(
 		extern atomic_t mxfs_dio_hipri_refused;
 
 		atomic_inc(&mxfs_dio_hipri_refused);
-		pr_warn_ratelimited("mxfs: P971-DIO-HIPRI-REFUSED ino=%llu op=read comm=%s — polled direct I/O is not supported on a clustered mount\n",
+		pr_warn_ratelimited("mxfs: P971-DIO-HIPRI-REFUSED ino=%llu op=read comm=%s -- polled direct I/O is not supported on a clustered mount\n",
 			(unsigned long long)ip->i_ino, current->comm);
 		return -EOPNOTSUPP;
 	}
@@ -992,7 +992,7 @@ xfs_dio_zoned_submit_io(
 	 * bio submission.  Same refusal, same error completion as the
 	 * over-reservation arm below. */
 	if (!mxfs_mount_write_admitted(mp, "dio-zoned")) {
-		pr_err_ratelimited("mxfs: P290-AUTH-REFUSED-DIO ino=%llu zoned off=%lld — this node's authority over the shared LUN has expired; the direct write is REFUSED\n",
+		pr_err_ratelimited("mxfs: P290-AUTH-REFUSED-DIO ino=%llu zoned off=%lld -- this node's authority over the shared LUN has expired; the direct write is REFUSED\n",
 			(unsigned long long)XFS_I(iter->inode)->i_ino,
 			(long long)file_offset);
 		bio_io_error(bio);
@@ -1322,7 +1322,7 @@ xfs_file_dio_write(
 	 * that an already-issued SCSI command can never execute later.
 	 */
 	if (!mxfs_mount_write_admitted(ip->i_mount, "dio")) {
-		pr_err_ratelimited("mxfs: P290-AUTH-REFUSED-DIO ino=%llu pos=%lld count=%zu comm=%s — this node's authority over the shared LUN has expired; the direct write is REFUSED (-EIO)\n",
+		pr_err_ratelimited("mxfs: P290-AUTH-REFUSED-DIO ino=%llu pos=%lld count=%zu comm=%s -- this node's authority over the shared LUN has expired; the direct write is REFUSED (-EIO)\n",
 			(unsigned long long)ip->i_ino,
 			(long long)iocb->ki_pos, count, current->comm);
 		return -EIO;
@@ -1334,7 +1334,7 @@ xfs_file_dio_write(
 		extern atomic_t mxfs_dio_hipri_refused;
 
 		atomic_inc(&mxfs_dio_hipri_refused);
-		pr_warn_ratelimited("mxfs: P971-DIO-HIPRI-REFUSED ino=%llu op=write comm=%s — polled direct I/O is not supported on a clustered mount\n",
+		pr_warn_ratelimited("mxfs: P971-DIO-HIPRI-REFUSED ino=%llu op=write comm=%s -- polled direct I/O is not supported on a clustered mount\n",
 			(unsigned long long)ip->i_ino, current->comm);
 		return -EOPNOTSUPP;
 	}
@@ -1439,11 +1439,22 @@ write_retry:
 		struct xfs_icwalk	icw = {0};
 
 		cleared_space = true;
-		xfs_flush_inodes(ip->i_mount);
+		/*
+		 * MXFS: the flush exists to turn delayed allocations into real
+		 * ones and give back their worst-case reservations.  A cluster
+		 * mount allocates at write time, so with no delayed blocks
+		 * outstanding the flush frees nothing; it only makes this
+		 * refused writer wait, under its IOLOCK, for every dirty page on
+		 * the host to reach the disk (on the physical DRBD pair a dd sat
+		 * in it past 150 s and was reported hung).
+		 */
+		if (percpu_counter_sum(&ip->i_mount->m_delalloc_blks) > 0)
+			xfs_flush_inodes(ip->i_mount);
 
 		xfs_iunlock(ip, iolock);
 		icw.icw_flags = XFS_ICWALK_FLAG_SYNC;
 		xfs_blockgc_free_space(ip->i_mount, &icw);
+		mxfs_freecount_refresh_enospc(ip->i_mount);
 		goto write_retry;
 	}
 
@@ -1854,7 +1865,7 @@ __xfs_file_fallocate(
 		error = mxfs_ilock_fallible(ip, iolock);
 		if (error) {
 			pr_warn_ratelimited(
-			    "mxfs: P958-FALLOCATE-REFUSED ino=%llu fmode=0x%x rc=%ld comm=%s — fallocate refused: the cluster acquire was abandoned; failing it with nothing held instead of waiting on it\n",
+			    "mxfs: P958-FALLOCATE-REFUSED ino=%llu fmode=0x%x rc=%ld comm=%s -- fallocate refused: the cluster acquire was abandoned; failing it with nothing held instead of waiting on it\n",
 				(unsigned long long)ip->i_ino, mode, error,
 				current->comm);
 			return error;
@@ -2133,7 +2144,7 @@ mxfs_dbg_incarn_racewin(
 	if (likely(!ms) ||
 	    READ_ONCE(mxfs_dbg_incarn_race_ino) != ip->i_ino)
 		return;
-	mxfs_probe("mxfs: P-D512-RACEWIN ino=%llu site=%s ms=%u — holding post-gate race window\n",
+	mxfs_probe("mxfs: P-D512-RACEWIN ino=%llu site=%s ms=%u -- holding post-gate race window\n",
 		(unsigned long long)ip->i_ino, site, ms);
 	msleep(ms);
 }
@@ -2151,7 +2162,7 @@ xfs_file_open(
 	    XFS_M(inode->i_sb)->m_mxfs_dlm &&
 	    READ_ONCE(mxfs_dbg_incarn_poison_ino) == XFS_I(inode)->i_ino) {
 		WRITE_ONCE(mxfs_dbg_incarn_poison_ino, 0);
-		pr_warn("mxfs: P34H-DBG-POISON ino=%llu — debug-forced incarnation poison at open\n",
+		pr_warn("mxfs: P34H-DBG-POISON ino=%llu -- debug-forced incarnation poison at open\n",
 			(unsigned long long)XFS_I(inode)->i_ino);
 		mxfs_incarn_poison(XFS_I(inode));
 	}

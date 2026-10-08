@@ -525,6 +525,14 @@ struct xlog {
 	bool			l_mxfs_cert_single_node;
 	uint32_t		l_mxfs_untagged_skips;
 	/*
+	 * Of those, on a fresh claim's adopted slice (XLOG_MXFS_ADOPTED_SLICE):
+	 * the transactions refused only because the prior incarnation's
+	 * authority is gone (its recovery completed: manifest purged, nothing
+	 * held, no FENCED descriptor), the designed outcome there.  Reported
+	 * as one line when the replay ends instead of one per transaction.
+	 */
+	uint32_t		l_mxfs_adopted_prior_skips;
+	/*
 	 * (#94 D-IDLE-SLICE-WSKIP-REFUSAL-AG-QUARANTINE-0130):
 	 * counter-only SB transactions the blanket ATOMIC-SKIP classified
 	 * CLEAN and skipped without refusal.  Lazy SB counters are

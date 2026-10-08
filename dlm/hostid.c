@@ -137,7 +137,7 @@ int mxfs_host_identity_init(void)
 	if (h->host_valid)
 		mxfs_uuid_format(h->host_uuid, host);
 	mxfs_pal_log(MXFS_LOG_DEBUG,
-		     "mxfs: P-HOSTID host=%s (%s) boot=%s — %s",
+		     "mxfs: P-HOSTID host=%s (%s) boot=%s -- %s",
 		     host,
 		     h->host_src == MXFS_HOSTID_SRC_MACHINE_ID ? "machine-id" :
 		     h->host_src == MXFS_HOSTID_SRC_INITIATOR ? "initiator-name" :

@@ -1428,7 +1428,7 @@ _Static_assert(sizeof(struct mxfs_hb_identity) == 64,
 _Static_assert(offsetof(struct mxfs_disklock_heartbeat, ident) == 360,
 	       "the identity block sits between the body union and prov");
 _Static_assert(sizeof(struct mxfs_mepoch_rec) == 44,
-	       "mxfs_mepoch_rec is 44 bytes on disk (§7.C)");
+	       "mxfs_mepoch_rec is 44 bytes on disk (sect.7.C)");
 _Static_assert(sizeof(struct mxfs_hb_feature) == 12,
 	       "mxfs_hb_feature is the 12-byte HB tail (C7)");
 #endif
@@ -3337,6 +3337,17 @@ mxfs_node_id_t mxfs_disklock_get_slot_node_id(struct mxfs_disklock_ctx *ctx,
  * sample answer is fine for its only caller (the CAW wait-timeout
  * liveness extension, which re-asks every poll round). */
 bool mxfs_disklock_slot_live(struct mxfs_disklock_ctx *ctx, int slot);
+/*
+ * How many heartbeat slots other than this node's own it still counts: a slot
+ * whose occupant it monitors as live, or a dead one whose recovery it still
+ * owes.  A DRBD node coming back after an unclean departure reads its peer's
+ * count (sysfs other_slots_held) and stays Secondary while it is not 0: its
+ * previous incarnation's slot is live until the death window expires and
+ * pending until it is recovered, and the peer can prove that incarnation ended
+ * only while this node is Secondary.  Advisory, lock-free read of the hb
+ * thread's tracker, like mxfs_disklock_slot_live; the caller polls.
+ */
+int mxfs_disklock_other_slots_held(struct mxfs_disklock_ctx *ctx);
 /*
  * — DISK TRUTH about which mount incarnation OCCUPIES a slot.
  *

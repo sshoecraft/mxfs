@@ -91,6 +91,7 @@ tests/logs/
 /tests/tauth/concurrent_release_test
 /tests/tauth/dlm_ledger_test
 /tests/tauth/formation_test
+/tests/tauth/group_commit_test
 /tests/tauth/ledger_test
 /tests/tauth/pageof
 /tests/tauth/stale_image_release_test

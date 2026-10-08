@@ -22,12 +22,14 @@
 #           round and hung-node test on each configuration, sVirt on RHEL
 #   LOWER   (default: the release matrix's node counts below CLAIM, largest
 #           first — "8 4 2" under CLAIM=16, "2" under CLAIM=4)  every count's laps, and
-#           then ONE tests/board_4node_chain.sh bL_V call running every
-#           configuration of the release matrix at every one of those counts
-#           side by side (tools/configuration.py release-matrix --nodes
-#           <count>): the i-th configuration at <count> on rig group g<count>,
-#           the next on g<count>b, each on a pool LUN of its own.  The boards
-#           come last so their read-back sees every lap
+#           then the boards of every configuration of the release matrix at
+#           every one of those counts (tools/configuration.py release-matrix
+#           --nodes <count>): the i-th configuration at <count> on rig group
+#           g<count>, the next on g<count>b, each on a pool LUN of its own,
+#           side by side in waves of groups that share no node
+#           (tests/board_4node_chain.sh bL<wave>_V), once the host preflight
+#           passes after the groups' power-up.  The boards come last so their
+#           read-back sees every lap
 #   POWER, PLATFORM_GROUPS  passed on to tests/full_verify.sh, which documents
 #           them.  With POWER=1 the chain also starts with every platform set
 #           off and the rig's CLAIM nodes up, so the laps and the boards run
@@ -97,6 +99,22 @@ step() {  # step <name> <command...>: run it, log its output and rc
     local rc=$?
     echo "=== rc=$rc: $name ($(date -u +%FT%TZ)) ===" | tee -a "$L"
     return $rc
+}
+
+SETTLE_BUDGET=120   # a set of guests boots and logs in within ~40 s; the burst itself lasts seconds
+wait_host_settled() {  # until the host preflight passes, at most SETTLE_BUDGET s
+    local t0=$SECONDS out="$EV/release_verify_${V}_preflight.out"
+    while :; do
+        if scripts/clyde_preflight.sh > "$out" 2>&1; then
+            tail -1 "$out"
+            return 0
+        fi
+        if [ $((SECONDS - t0)) -ge "$SETTLE_BUDGET" ]; then
+            grep -aE 'FAIL|clyde_preflight:' "$out"
+            return 1
+        fi
+        sleep 10
+    done
 }
 
 laps_at() {  # laps_at <nodes>: every LAPS entry for that node count, in order
@@ -177,7 +195,39 @@ if [ "${#boards[@]}" -gt 0 ]; then
         step "rig off" scripts/lab_power.sh down "rig:${RIG_MAX:-$CLAIM}"
         step "board groups up" scripts/lab_power.sh up "${sets[@]}"
     fi
-    step "boards nodes=[$counts ] side by side" tests/board_4node_chain.sh "bL_$V" "${boards[@]}"
+    # Guests booting put ~45 kernel lines/s on clyde for a few seconds (SCST
+    # session threads, bridge ports), over the host preflight's 40/s gate, and
+    # a run.sh that starts inside that burst is refused: 0.90.107's
+    # 2/disk/caw/direct board never ran.  No board starts before the gate
+    # passes.
+    step "host settled" wait_host_settled
+    # Boards run side by side only on groups with no node in common.  g16 holds
+    # every node of g8, g4, g2 and g2b, and a run.sh that finds one of its
+    # nodes held by another run refuses (0.90.107: the 16-node board and
+    # 2/net/mesh/direct never ran).  So the boards go in waves, in argument
+    # order: a board joins the first wave none of whose groups shares a node
+    # with its own, and the waves run one after another.
+    waves=(); wave_nodes=()
+    for b in "${boards[@]}"; do
+        nodes=$(tools/mxfs_lab.sh group "${b##*@}")
+        placed=0
+        for w in "${!waves[@]}"; do
+            clash=0
+            for n in $nodes; do
+                case "${wave_nodes[$w]}" in *" $n "*) clash=1; break ;; esac
+            done
+            if [ "$clash" = 0 ]; then
+                waves[w]="${waves[$w]} $b"; wave_nodes[w]="${wave_nodes[$w]} $nodes "
+                placed=1; break
+            fi
+        done
+        [ "$placed" = 1 ] || { waves+=("$b"); wave_nodes+=(" $nodes "); }
+    done
+    for w in "${!waves[@]}"; do
+        # shellcheck disable=SC2086  # one argument per board
+        step "boards wave $((w + 1))/${#waves[@]} nodes=[$counts ]:${waves[$w]}" \
+            tests/board_4node_chain.sh "bL$((w + 1))_$V" ${waves[$w]}
+    done
     for cfg in "${cfgs[@]}"; do
         echo "=== board $cfg ===" >> "$L"
         python3 tools/criteria.py "$cfg" | grep -vE '\| PASS ' | cut -c1-160 >> "$L"

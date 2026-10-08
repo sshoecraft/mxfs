@@ -847,7 +847,7 @@ xfs_dir_lookup(
 				dp->i_mxfs_dirty_seq == dp->i_mxfs_ex_grant_seq;
 
 			mxfs_probe_ratelimited(
-				"mxfs: P194-EPOCH-STALE-OP ino=%llu op=lookup grant_epoch=%u valid_epoch=%u dlm_mode=%u fmt=%d nx=%llu size=%lld dirty_here=%d gate=%d name=%.*s comm=%s — directory operation on a base NOT coherent with the epoch on our grant\n",
+				"mxfs: P194-EPOCH-STALE-OP ino=%llu op=lookup grant_epoch=%u valid_epoch=%u dlm_mode=%u fmt=%d nx=%llu size=%lld dirty_here=%d gate=%d name=%.*s comm=%s -- directory operation on a base NOT coherent with the epoch on our grant\n",
 				(unsigned long long)dp->i_ino, ge,
 				dp->i_dlm_dir_valid_epoch, dp->i_dlm_mode,
 				dp->i_df.if_format,
@@ -928,7 +928,7 @@ xfs_dir_lookup(
 					 * baseline_unset=1, the creator baseline
 					 * IS the root and the fix is scoped.
 					 */
-					mxfs_probe("mxfs: P195-STALE-BASE-ALREADY-DIRTY ino=%llu grant_epoch=%u valid_epoch=%u grant_gen=%u cached_gen=%u gen_moved=%d dirty_seq=%llu ex_grant_seq=%llu self_created=%d baseline_unset=%d bvalid=%d base_state=%u fmt=%d comm=%s — this tenure ALREADY mutated an epoch-stale base; neither keep-mine nor adopt-disk is correct here\n",
+					mxfs_probe("mxfs: P195-STALE-BASE-ALREADY-DIRTY ino=%llu grant_epoch=%u valid_epoch=%u grant_gen=%u cached_gen=%u gen_moved=%d dirty_seq=%llu ex_grant_seq=%llu self_created=%d baseline_unset=%d bvalid=%d base_state=%u fmt=%d comm=%s -- this tenure ALREADY mutated an epoch-stale base; neither keep-mine nor adopt-disk is correct here\n",
 						(unsigned long long)dp->i_ino,
 						ge, dp->i_dlm_dir_valid_epoch,
 						gg, dp->i_dlm_cached_grant_gen,
@@ -1689,7 +1689,7 @@ xfs_dir_remove_child(
 		 * 8/net/mesh/mpath; this names the node and the moment it shows.
 		 */
 		if (VFS_I(dp)->i_nlink < 2 && VFS_I(dp)->i_nlink != 0)
-			pr_err_ratelimited("mxfs: P-DIR-NLINK-SHORT dp=%llu nlink=%u cc=%llu child=%llu name=\"%.*s\" dlm_mode=%d comm=%s realns=%llu — a live directory's link count went below 2 at rmdir: an earlier subdirectory increment of it was lost\n",
+			pr_err_ratelimited("mxfs: P-DIR-NLINK-SHORT dp=%llu nlink=%u cc=%llu child=%llu name=\"%.*s\" dlm_mode=%d comm=%s realns=%llu -- a live directory's link count went below 2 at rmdir: an earlier subdirectory increment of it was lost\n",
 				(unsigned long long)dp->i_ino,
 				VFS_I(dp)->i_nlink,
 				(unsigned long long)inode_peek_iversion(VFS_I(dp)),
@@ -1753,7 +1753,7 @@ xfs_dir_remove_child(
 		if (VFS_I(ip)->i_nlink == 0 &&
 		    tp->t_mountp->m_mxfs_dlm &&
 		    !mxfs_v5_dlm_is_single_node(tp->t_mountp->m_mxfs_dlm)) {
-			pr_warn("mxfs: MX-REMOVE-DEADCHILD dp=%llu ip=%llu name=\"%.*s\" nlink=0 — peer already unlinked+freed; clean -ENOENT (was dirty-cancel shutdown)",
+			pr_warn("mxfs: MX-REMOVE-DEADCHILD dp=%llu ip=%llu name=\"%.*s\" nlink=0 -- peer already unlinked+freed; clean -ENOENT (was dirty-cancel shutdown)",
 				(unsigned long long)dp->i_ino,
 				(unsigned long long)ip->i_ino,
 				name->len, (const char *)name->name);
@@ -2010,7 +2010,7 @@ mxfs_dir_rename_fail(
 {
 	if (likely(!error) || !mp->m_mxfs_dlm)
 		return;
-	mxfs_probe_ratelimited("mxfs: P217-RENAME-FAILSITE site=%s rc=%d ino=%llu fmt=%u if_bytes=%lld size=%lld nextents=%llu comm=%s — first failing helper inside xfs_dir_rename_children; the caller cancels a DIRTY transaction next\n",
+	mxfs_probe_ratelimited("mxfs: P217-RENAME-FAILSITE site=%s rc=%d ino=%llu fmt=%u if_bytes=%lld size=%lld nextents=%llu comm=%s -- first failing helper inside xfs_dir_rename_children; the caller cancels a DIRTY transaction next\n",
 		site, error,
 		(unsigned long long)(subject ? subject->i_ino : 0),
 		subject ? subject->i_df.if_format : 0,

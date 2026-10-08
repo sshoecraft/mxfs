@@ -951,7 +951,7 @@ xfs_dir3_data_init(
 					(d2_fsb - d2_got.br_startblock);
 				if (mapped != d2_off &&
 				    atomic_inc_return(&p54dm) <= 4000)
-					mxfs_probe("mxfs: P54-DOUBLEMAP ino=%llu new_lblk=%d daddr=%lld pfsb=%llu already_mapped_off=%llu init_off=%llu — daddr already mapped by THIS dir at a different logical block = dir-block DOUBLE-ALLOC about to zero live data\n",
+					mxfs_probe("mxfs: P54-DOUBLEMAP ino=%llu new_lblk=%d daddr=%lld pfsb=%llu already_mapped_off=%llu init_off=%llu -- daddr already mapped by THIS dir at a different logical block = dir-block DOUBLE-ALLOC about to zero live data\n",
 						(unsigned long long)dp->i_ino,
 						(int)blkno,
 						(long long)xfs_buf_daddr(bp),
@@ -1024,7 +1024,7 @@ xfs_dir3_data_init(
 							(dm_fsb - dm_got.br_startblock);
 						if (mapped != dm_off &&
 						    atomic_inc_return(&p32b_n) <= 800)
-							mxfs_probe("mxfs: P32B-DOUBLEMAP ino=%llu new_lblk=%d daddr=%lld pfsb=%llu already_mapped_off=%llu init_off=%llu — daddr already mapped by THIS dir at a different logical block = dir-block DOUBLE-ALLOC\n",
+							mxfs_probe("mxfs: P32B-DOUBLEMAP ino=%llu new_lblk=%d daddr=%lld pfsb=%llu already_mapped_off=%llu init_off=%llu -- daddr already mapped by THIS dir at a different logical block = dir-block DOUBLE-ALLOC\n",
 								(unsigned long long)dp->i_ino,
 								(int)blkno,
 								(long long)xfs_buf_daddr(bp),
@@ -1148,7 +1148,7 @@ xfs_dir3_data_init(
 						 * the dirty fork belongs to an earlier EX
 						 * tenure (we yielded EX in between => the
 						 * reacquire did not reload = case b). */
-						mxfs_probe("mxfs: P31E-DATAINIT-ABA ino=%llu lblk=%d daddr=%lld caller=%pS disk_magic=0x%08x disk_owner=%llu live_dirents=%d first_name=\"%s\" incore_fmt=%d incore_nx=%llu incore_size=%lld dir_gen=%llu loaded_gen=%u dlm_mode=%u dlm_state=%u stale=%d selfc=%d unpub=%d reused=%d bast_pend=%d ex_gseq=%llu dirty_seq=%llu comm=%s — get_buf/init about to ZERO a block holding live peer dirents\n",
+						mxfs_probe("mxfs: P31E-DATAINIT-ABA ino=%llu lblk=%d daddr=%lld caller=%pS disk_magic=0x%08x disk_owner=%llu live_dirents=%d first_name=\"%s\" incore_fmt=%d incore_nx=%llu incore_size=%lld dir_gen=%llu loaded_gen=%u dlm_mode=%u dlm_state=%u stale=%d selfc=%d unpub=%d reused=%d bast_pend=%d ex_gseq=%llu dirty_seq=%llu comm=%s -- get_buf/init about to ZERO a block holding live peer dirents\n",
 							(unsigned long long)p31e_dp->i_ino,
 							(int)blkno,
 							(long long)xfs_buf_daddr(bp),
@@ -1204,7 +1204,7 @@ xfs_dir3_data_init(
 		{
 			static atomic_t pdi0 = ATOMIC_INIT(0);
 			if (atomic_inc_return(&pdi0) <= 3000)
-				mxfs_probe("mxfs: P62-DATAINIT-BLK0 ino=%llu daddr=%lld buf_done=%d cached_has_n1f1=%d i_gen=%u dlm_mode=%u comm=%s — about to ZERO+init dir logical block0\n",
+				mxfs_probe("mxfs: P62-DATAINIT-BLK0 ino=%llu daddr=%lld buf_done=%d cached_has_n1f1=%d i_gen=%u dlm_mode=%u comm=%s -- about to ZERO+init dir logical block0\n",
 					(unsigned long long)dp->i_ino,
 					(long long)xfs_buf_daddr(bp), done, has_n1f1,
 					VFS_I(dp)->i_generation, dp->i_dlm_mode,
@@ -1236,7 +1236,7 @@ xfs_dir3_data_init(
 					uint32_t m = be32_to_cpu(dmagic);
 					if (m == MXFS_DIR3_BLOCK_MAGIC ||
 					    m == MXFS_DIR3_DATA_MAGIC) {
-						mxfs_probe("mxfs: P-DBLALLOC-BIRTH ino=%llu daddr=%lld disk_magic=0x%x disk_owner=%llu foreign=%d — allocating dir block0 over a %s on-disk dir block\n",
+						mxfs_probe("mxfs: P-DBLALLOC-BIRTH ino=%llu daddr=%lld disk_magic=0x%x disk_owner=%llu foreign=%d -- allocating dir block0 over a %s on-disk dir block\n",
 							(unsigned long long)dp->i_ino,
 							(long long)xfs_buf_daddr(bp),
 							m, (unsigned long long)downer,
@@ -1268,7 +1268,7 @@ xfs_dir3_data_init(
 									struct xfs_agf *dagf = ab;
 									uint32_t dfree = be32_to_cpu(dagf->agf_freeblks);
 									uint32_t dlong = be32_to_cpu(dagf->agf_longest);
-									mxfs_probe("mxfs: P-DBLALLOC-AGF ino=%llu agno=%u incore_freeblks=%u disk_freeblks=%u incore_longest=%u disk_longest=%u agf_differ=%d — %s\n",
+									mxfs_probe("mxfs: P-DBLALLOC-AGF ino=%llu agno=%u incore_freeblks=%u disk_freeblks=%u incore_longest=%u disk_longest=%u agf_differ=%d -- %s\n",
 										(unsigned long long)dp->i_ino,
 										agno,
 										(unsigned)pag->pagf_freeblks,
@@ -1625,7 +1625,7 @@ xfs_dir2_data_log_entry(
 					int cdelwri = !!(bp->b_flags & _XBF_DELWRI_Q);
 					int cdone = !!(bp->b_flags & XBF_DONE);
 					mxfs_probe_ratelimited(
-					    "mxfs: P13-COLLIDE ino=%llu daddr=%lld off=%u our=[%.*s] disk=[%.*s] comm=%s dirty=%d inail=%d pin=%d delwri=%d done=%d bufgen=%llu dirgen=%llu cohgen=%u dmagic=0x%x downer=%llu ourdir=%d — placing onto a DIFFERENT durable dirent (stale-base free-slot double-alloc)\n",
+					    "mxfs: P13-COLLIDE ino=%llu daddr=%lld off=%u our=[%.*s] disk=[%.*s] comm=%s dirty=%d inail=%d pin=%d delwri=%d done=%d bufgen=%llu dirgen=%llu cohgen=%u dmagic=0x%x downer=%llu ourdir=%d -- placing onto a DIFFERENT durable dirent (stale-base free-slot double-alloc)\n",
 					    (unsigned long long)args->dp->i_ino,
 					    (long long)bp->b_maps[0].bm_bn, off,
 					    (int)dep->namelen, dep->name,
@@ -1709,7 +1709,7 @@ xfs_dir2_data_log_entry(
 					     * args.  vsnprintf then read an uninitialised va_arg,
 					     * so this probe's own summary line printed garbage.
 					     * missing= above already carries the count. */
-					    "mxfs: P49-STALEBASE ino=%llu daddr=%lld adding=[%.*s] missing=%d firstmiss=[%s] dirty=%d inail=%d pin=%d delwri=%d done=%d buf_epoch=%llu valid_epoch=%llu prior_tenure=%d dirgen=%llu — in-core base missing the durable peer dirent(s) listed above; whole-block writeback will clobber them\n",
+					    "mxfs: P49-STALEBASE ino=%llu daddr=%lld adding=[%.*s] missing=%d firstmiss=[%s] dirty=%d inail=%d pin=%d delwri=%d done=%d buf_epoch=%llu valid_epoch=%llu prior_tenure=%d dirgen=%llu -- in-core base missing the durable peer dirent(s) listed above; whole-block writeback will clobber them\n",
 					    (unsigned long long)args->dp->i_ino,
 					    (long long)bp->b_maps[0].bm_bn,
 					    (int)dep->namelen, dep->name,
@@ -2169,7 +2169,7 @@ mxfs_dir_addname_coherent_refresh(
 		if (b_inail && dp->i_ino <= 256) {
 			static atomic_t p54id = ATOMIC_INIT(0);
 			if (atomic_inc_return(&p54id) <= 4000)
-				pr_warn("mxfs: P54-INAIL-DESTAGED ino=%llu daddr=%lld — in-AIL destaged-zombie dir block now FUA-compared (was keep-guard-skipped); candidate residual clobber site\n",
+				pr_warn("mxfs: P54-INAIL-DESTAGED ino=%llu daddr=%lld -- in-AIL destaged-zombie dir block now FUA-compared (was keep-guard-skipped); candidate residual clobber site\n",
 					(unsigned long long)dp->i_ino,
 					(long long)dbp->b_maps[0].bm_bn);
 		}
@@ -2213,7 +2213,7 @@ mxfs_dir_addname_coherent_refresh(
 				dbp->b_flags &= ~(XBF_DONE | _XBF_FUA_FRESH);
 				dbp->b_mxfs_dir_gen = 0;
 				ret = 1;
-				mxfs_probe_ratelimited("mxfs: P28C-STALE ino=%llu daddr=%lld dir_gen=%llu — CLEAN in-core dir block stale vs platter; invalidate+reread\n",
+				mxfs_probe_ratelimited("mxfs: P28C-STALE ino=%llu daddr=%lld dir_gen=%llu -- CLEAN in-core dir block stale vs platter; invalidate+reread\n",
 					(unsigned long long)dp->i_ino,
 					(long long)dbp->b_maps[0].bm_bn,
 					(unsigned long long)dp->i_dlm_dir_gen);
@@ -2251,7 +2251,7 @@ mxfs_dir_addname_coherent_refresh(
 			dbp->b_flags &= ~(XBF_DONE | _XBF_FUA_FRESH);
 			dbp->b_mxfs_dir_gen = 0;
 			ret = 1;
-			mxfs_probe_ratelimited("mxfs: P2-LEAF-EPOCHSTALE ino=%llu daddr=%lld b_ep=%u master_ep=%u — leaf/block addname epoch-stale base; invalidate+reread\n",
+			mxfs_probe_ratelimited("mxfs: P2-LEAF-EPOCHSTALE ino=%llu daddr=%lld b_ep=%u master_ep=%u -- leaf/block addname epoch-stale base; invalidate+reread\n",
 				(unsigned long long)dp->i_ino,
 				(long long)dbp->b_maps[0].bm_bn,
 				dbp->b_mxfs_dir_epoch, master_ep);
@@ -2307,7 +2307,7 @@ xfs_dir2_data_use_free(
 		    ufdp->i_dlm_mode != MXFS_LOCK_EX) {
 			static atomic_t p54nx = ATOMIC_INIT(0);
 			if (atomic_inc_return(&p54nx) <= 4000)
-				mxfs_probe("mxfs: P54-NOTEX-MODIFY ino=%llu dlm_mode=%d daddr=%lld off=%u len=%u comm=%s — placing a dirent while NOT holding dir DLM EX (serialization hole)\n",
+				mxfs_probe("mxfs: P54-NOTEX-MODIFY ino=%llu dlm_mode=%d daddr=%lld off=%u len=%u comm=%s -- placing a dirent while NOT holding dir DLM EX (serialization hole)\n",
 					(unsigned long long)ufdp->i_ino,
 					ufdp->i_dlm_mode,
 					(long long)bp->b_maps[0].bm_bn,

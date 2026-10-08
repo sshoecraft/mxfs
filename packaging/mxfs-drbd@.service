@@ -26,6 +26,14 @@ ExecStart=/usr/sbin/mxfs-drbd-fence-self boot %i ${MOUNTPOINT}
 # withdrawn MXFS mount answers that with ESTALE, which reads as unmounted.
 ExecStop=/usr/sbin/mxfs-drbd-fence-self stop %i ${MOUNTPOINT}
 TimeoutStopSec=180
+# Only the program itself is signalled on the way down.  An unmount stuck in
+# the kernel cannot be killed, and with the default (the whole control group)
+# systemd sent it SIGTERM and then SIGKILL after the stop gave up, waiting the
+# full TimeoutStopSec after each: the unit's stop took 9 min of a 13 min reboot
+# on a nested pve host whose unmount was held in the kernel.  Nothing else
+# lives in this unit's group: guests run in their own scopes, the guard in its
+# own unit.
+KillMode=process
 
 [Install]
 WantedBy=multi-user.target

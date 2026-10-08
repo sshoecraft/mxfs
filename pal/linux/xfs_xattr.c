@@ -99,7 +99,7 @@ xfs_attr_change(
 	 */
 	if (mxfs_is_dirshard_parent(args->dp)) {
 		xfs_warn_ratelimited(mp,
-			"MXFS P-DIRSHARD-XATTR-REFUSED ino=%llu op=%d namelen=%u comm=%s — xattr change on a sharded directory refused (Model A)",
+			"MXFS P-DIRSHARD-XATTR-REFUSED ino=%llu op=%d namelen=%u comm=%s -- xattr change on a sharded directory refused (Model A)",
 			(unsigned long long)args->dp->i_ino, (int)op,
 			(unsigned)args->namelen, current->comm);
 		return -EOPNOTSUPP;

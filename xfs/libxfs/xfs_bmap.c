@@ -1331,7 +1331,7 @@ xfs_iread_bmbt_block(
 					    cpu_to_be16(MXFS_DINODE_MAGIC) &&
 				    disk_nx >= ir->loaded + num_recs) {
 					if (mxfs_dirwr_enabled || mxfs_instr_enabled)
-						mxfs_probe("mxfs: P70-DINO-RECONCILE ino=%llu loaded=%llu num_recs=%u stale_if_nextents=%llu disk_nx=%llu — adopting fresh on-disk di_nextents\n",
+						mxfs_probe("mxfs: P70-DINO-RECONCILE ino=%llu loaded=%llu num_recs=%u stale_if_nextents=%llu disk_nx=%llu -- adopting fresh on-disk di_nextents\n",
 							(unsigned long long)ip->i_ino,
 							(unsigned long long)ir->loaded,
 							(unsigned)num_recs,
@@ -5411,7 +5411,7 @@ xfs_bmap_del_extent_real(
 				if (rrc == 0)
 					samelun = !memcmp(raw, lbp->b_addr,
 							  blen);
-				mxfs_probe("mxfs: P75-BMBT-DEL-MISMATCH ino=%llu got_off=%llu got_blk=%lld got_cnt=%llu leaf_daddr=%lld leaf_recs=%u leaf_lsn=0x%llx bflags=0x%x fua_fresh=%d samelun=%d rrc=%d dlm_mode=%u comm=%s — %s\n",
+				mxfs_probe("mxfs: P75-BMBT-DEL-MISMATCH ino=%llu got_off=%llu got_blk=%lld got_cnt=%llu leaf_daddr=%lld leaf_recs=%u leaf_lsn=0x%llx bflags=0x%x fua_fresh=%d samelun=%d rrc=%d dlm_mode=%u comm=%s -- %s\n",
 					(unsigned long long)ip->i_ino,
 					(unsigned long long)got.br_startoff,
 					(long long)got.br_startblock,
@@ -5425,9 +5425,9 @@ xfs_bmap_del_extent_real(
 					samelun, rrc,
 					ip->i_dlm_mode, current->comm,
 					samelun == 1 ?
-					"LUN==cache ⇒ IEXT STALE (kept across tenure)" :
+					"LUN==cache => IEXT STALE (kept across tenure)" :
 					samelun == 0 ?
-					"LUN!=cache ⇒ STALE CACHED bmbt leaf (evict miss)" :
+					"LUN!=cache => STALE CACHED bmbt leaf (evict miss)" :
 					"raw read failed");
 				/* P75b: absence vs RESHAPE — dump the
 				 * leaf records overlapping/nearest got_off and

@@ -144,6 +144,11 @@ probe IOMAP_DIO_RW_PRIVATE '#include <linux/iomap.h>' \
 # compiles and completes against whatever bi_private holds.
 probe IOMAP_IOEND_BIO_EMBEDDED '#include <linux/iomap.h>' \
     'struct bio *p(struct bio *b) { return &iomap_ioend_from_bio(b)->io_bio; }'
+# Where the bio is not embedded, iomap chains an ioend's bios and submits all
+# but the last itself; the ioend's batch counter is how MXFS ends one before
+# its bio fills (pal/linux/xfs_aops.c, the DRBD write bound).
+probe IOMAP_IOEND_IO_FOLIOS '#include <linux/iomap.h>' \
+    'u32 *p(struct iomap_ioend *e) { return &e->io_folios; }'
 probe IOMAP_IOEND_FLAGS '#include <linux/iomap.h>' \
     'unsigned int p(struct iomap_ioend *e) { return e->io_flags & (IOMAP_IOEND_UNWRITTEN | IOMAP_IOEND_SHARED); }'
 probe IOMAP_MAP_BLOCKS_LEN '#include <linux/iomap.h>' \

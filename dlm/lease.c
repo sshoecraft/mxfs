@@ -674,7 +674,7 @@ int mxfs_lease_unregister_node(struct mxfs_lease_ctx *ctx,
 
 		mxfs_pal_mutex_unlock(ctx->lock);
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-LEASE-COUNT-INSANE ctx=%p node=%u node_count=%d — "
+			     "mxfs: P-LEASE-COUNT-INSANE ctx=%p node=%u node_count=%d -- "
 			     "the lease context is not live (freed under its caller); "
 			     "unregister refused",
 			     ctx, node_id, bad);
@@ -746,7 +746,7 @@ int mxfs_lease_process_renewal(struct mxfs_lease_ctx *ctx,
 			mxfs_pal_mutex_unlock(ctx->lock);
 			pr_warn_ratelimited(
 			    "mxfs: lease: P-LEASE-INCARNATION-MISMATCH node %u renews "
-			    "as incarnation %llu but the entry holds %llu — not "
+			    "as incarnation %llu but the entry holds %llu -- not "
 			    "liveness; the held incarnation must be recovered first\n",
 			    node_id, (unsigned long long)incarnation,
 			    (unsigned long long)held);

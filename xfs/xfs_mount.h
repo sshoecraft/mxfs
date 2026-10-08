@@ -633,6 +633,16 @@ typedef struct xfs_mount {
 	 */
 	struct mutex		m_mxfs_sb_summary_mutex;
 	bool			m_mxfs_sb_cover_durable;
+	/*
+	 * Bringing a peer's allocations and frees into this node's admission
+	 * counters (xfs_mxfs_sb.c): the ENOSPC sweep runs one at a time and at
+	 * most once a second, statfs reads the AG headers at most once a second.
+	 */
+	struct mutex		m_mxfs_cnt_sweep_mutex;
+	struct task_struct	*m_mxfs_cnt_sweep_owner;
+	u64			m_mxfs_cnt_sweep_ns;
+	u64			m_mxfs_cnt_statfs_ns;
+	struct work_struct	m_mxfs_cnt_statfs_work;	/* the medium read */
 	/* ( a864) shutdown withdrawal: queued once by
 	 * xfs_do_force_shutdown (which must not sleep) to stop the disklock
 	 * heartbeat + mark the DLM ctx withdrawn, so a shut-down node LEAVES

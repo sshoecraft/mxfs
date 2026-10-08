@@ -160,6 +160,46 @@ a record.  Corruption / duplicate key / bad seq / broken probe chain ⇒ UNKNOWN
 6. Stable seal cut; replay/reuse exclusion (no incompatible successor grant on
    R until V's replay verdict for R is fixed and published).
 
+### Group commit — concurrent page commits share their barriers
+Invariant 1 allows one flush per batch, and on a DRBD pair that is where a
+commit's cost is: each page commit is two emulated compare-and-swaps (each a
+bakery acquisition of the pair-wide swap lock — three replicated register
+writes and a replicated FUA target write), three flushes and a FUA body write,
+in series.  When a peer's exclusive request makes a host release all its idle
+read grants at once (the dir-EX sweep), hundreds of single-page commits are in
+flight together; measured on the physical pair, ~880 of them took 1.1-1.8 s
+each, and releasers re-sent while their masters were still committing.
+
+So single-page commits of different pages that meet in flight are written as
+one batched store commit (`lpage_write_grouped`, gc_lock in
+`tauth_ledger.h`).  What is shared and what is not:
+
+- **Shared:** the barrier phases only (`mxfs_tauth_page_write_barriers`) —
+  every ticket swap queued together, one flush, every body written, one flush,
+  every publish swap queued together, one flush.
+- **Per page, in the committer's own thread:** the base read of both copies
+  and the base-token check (`mxfs_tauth_page_write_base`) before it queues,
+  and the readback of its published copy (`mxfs_tauth_page_write_readback`)
+  after.  Done by the batch's writer instead, a batch of N cost 3N reads in
+  series and the storm's commits got slower, not faster (rig A/B).
+- **Unchanged:** each page is its own conditional commit — its own base token,
+  ticket, body, publish and readback, and a page that fails a step drops out
+  of the steps after it without touching the others.  Bodies are written FUA
+  as a single commit's are: on DRBD an empty flush completes on the local
+  flush alone (`QUEUE_AS_DRBD_BARRIER`), so only a FUA write is durable on the
+  peer when it completes.  Each committer holds its page's lock until it has
+  its own result, so two commits of one page never share a batch and nothing
+  is delivered before its record is durable.
+- A commit that finds nobody else queued is written alone; the torn-write test
+  knob always writes alone.  Usermode proof: `tests/tauth/group_commit_test`.
+- **Off by default** (`tauth_group_commit`).  On the rig's DRBD pair, whose
+  disks flush in ~0.1 ms, it cut flushes per commit from 3.0 to 0.2-1.1 and
+  made release-storm commits no faster (interleaved A/B with
+  `tests/drbd_ledger_storm_ab.sh`: 73 and 122 ms against 68 and 66 ms): the
+  barriers it shares cost almost nothing there, while a commit that arrives
+  during a batch waits for it.  The flushes it removes are what the physical
+  pair pays for (1.6-41 ms each).  Open: the same A/B on the physical pair.
+
 ### Mastership handoff (this is the D-0287 fix)
 Dead master M: FENCE(M) → read M's latest valid durable pages → DURABLE_IMPORT
 at M2 (INACTIVE) → config/activation barrier → first grant on M2.
@@ -464,7 +504,20 @@ filesystem can let go of it.
      a BAST that finds the mirror holding a generation-less grant of ours with
      nothing in-core adopts and releases it through the ordinary gen-aware
      unlock (`mxfs_dlm_unlock_genless`, `P-REL-NOTHING-MIRROR-HELD`), so the
-     peer's request is served rather than parked for ever.  A record under our
+     peer's request is served rather than parked for ever.  **An imported
+     EXCLUSIVE record of ours is adopted through a ledger re-grant, never
+     under the grant id it was imported with** — locally
+     (`P-TAUTH-ADOPT-REGRANT`) and when the owner's request reaches the master
+     that imported it (`P-TAUTH-REAFFIRM-REGRANT`).  Such a record is most
+     often a release whose master died before retiring it, and that release
+     already published this node's clean-release marker for the id; the inode
+     layer refuses to install an id its journal certifies released, so a
+     tenure resumed under it logs every image with no authority, and a replay
+     of that log after a total outage refuses it for good.  The re-grant is a
+     new seq and lineage for a tenure that starts now (the old seq is retired
+     as `last_grant_seq64`).  A refused re-grant commit restores the record as
+     an import (`dlm_txn_item.reimport`), so the retry re-grants again rather
+     than taking the already-granted shortcut.  A record under our
      node id but ANOTHER incarnation is never adopted
      (`P-TAUTH-ADOPT-INC-MISMATCH`, the request retries): that incarnation's
      departure purge retires it.  Measured before the rules existed (2/tcp
@@ -630,6 +683,31 @@ filesystem can let go of it.
      (`stale_writes`).  Usermode: `mxfs_pal_bdev_compare_and_write`
      emulates the sector CAW on a regular file under a process mutex.
      Ruling: `docs/rulings/tauth-conditional-commit-ticket-caw.md`.
+     On a DRBD device the store is `fua_durable` (set by the mount): every
+     swap's target write is FUA (the emulator, `pal/linux/drbd.c`), a FUA
+     write completes once the peer's disk holds it, and an empty flush is
+     the local disk's flush plus a barrier the peer drains at.  There the
+     three flushes are omitted, the ordering coming from each FUA write
+     completing before the next step is issued, and a batched commit writes
+     its bodies FUA instead of relying on the flush after them.  Any other
+     device keeps the flushes: a SCSI target may drop FUA.
+     A DRBD store also commits a single page in ONE swap (`span_commit`,
+     `mxfs_pal_bdev_compare_and_write_span`): compare the spare's sector 0
+     as step 1 read it, and on a match FUA-write the whole stamped image,
+     inside one acquisition of the emulator's lock.  The ticket exists
+     because a SCSI COMPARE AND WRITE covers sector 0 alone, so the body
+     must land outside any swap with the copy marked invalid meanwhile;
+     where every swap is emulated, one swap covers the page.  What the
+     ticket protocol guarantees is kept: the swap's compare is the same one
+     the ticket swap made, so of two writers that read the same base exactly
+     one changes the spare and the other is `-ESTALE` with nothing written;
+     a live ticket of an older writer still answers `-EBUSY` from step 2;
+     a write torn by a crash fails the page CRC and the other copy stays
+     the truth, as an abandoned ticket leaves it; an error after the compare
+     matched is uncertain and handled as a failed publish (poison and
+     reconcile from the platter).  Batched commits (`page_write_many`, the
+     group commit) keep the ticket protocol.  A device that answers
+     `-EOPNOTSUPP` clears the flag and commits with tickets from then on.
    - `v5_mount.c` (sess424): `bootstrap_cb` = `mxfs_disklock_lowest_live_slot
      == local_slot`; `bootstrap_node_cb` (sess426) = that slot's node/inc
      via `v5_slot_node_cb`; `node_inc_cb` = node → the incarnation the disklock

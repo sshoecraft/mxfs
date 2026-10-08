@@ -308,7 +308,7 @@ xfs_dir2_block_to_sf(
 
 		if (unlikely(mxfs_dirwr_enabled || mxfs_instr_enabled))
 			mxfs_probe_ratelimited(
-				"mxfs: P-BLOCK2SF-SUPPRESS ino=%llu sfsize=%d — multinode dir stays block format (force_block shrink-side)\n",
+				"mxfs: P-BLOCK2SF-SUPPRESS ino=%llu sfsize=%d -- multinode dir stays block format (force_block shrink-side)\n",
 				(unsigned long long)dp->i_ino, size);
 		return 0;
 	}

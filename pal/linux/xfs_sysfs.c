@@ -123,9 +123,41 @@ recovery_pending_show(
 }
 XFS_SYSFS_ATTR_RO(recovery_pending);
 
+/*
+ * .../mxfs/<dev>/other_slots_held: how many heartbeat slots other than this
+ * mount's own its monitor still counts -- an occupant it sees heartbeating, or
+ * a dead one whose recovery it still owes.
+ *
+ * recovery_pending alone misses a node coming back faster than its old
+ * incarnation is declared dead: a host whose unmount was stuck in the kernel
+ * kept heartbeating until it was reset, so its peer owed no recovery yet when
+ * the host booted again 15 s later, the host promoted, and the peer could no
+ * longer prove the old incarnation ended (nested pve pair, 2026-10-07: the
+ * first mount failed after 2 min).  The old slot is counted here from the
+ * start, until it is recovered.  Read under RCU like recovery_pending.
+ */
+static ssize_t
+other_slots_held_show(
+	struct kobject		*kobj,
+	char			*buf)
+{
+	struct xfs_mount	*mp = kobj_to_mp(kobj);
+	struct mxfs_v5_dlm	*dlm;
+	int			n = 0;
+
+	rcu_read_lock();
+	dlm = READ_ONCE(mp->m_mxfs_dlm);
+	if (dlm)
+		n = mxfs_v5_dlm_other_slots_held(dlm);
+	rcu_read_unlock();
+	return sysfs_emit(buf, "%d\n", n);
+}
+XFS_SYSFS_ATTR_RO(other_slots_held);
+
 static struct attribute *xfs_mp_attrs[] = {
 	ATTR_LIST(shutdown),
 	ATTR_LIST(recovery_pending),
+	ATTR_LIST(other_slots_held),
 	NULL,
 };
 ATTRIBUTE_GROUPS(xfs_mp);

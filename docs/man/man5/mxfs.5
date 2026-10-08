@@ -57,11 +57,12 @@ members.  The default
 .PP
 Both transports fence a dead node with SCSI persistent reservations on the
 shared LUN, so both need storage that implements them, and both read
-through the LUN with SCSI FUA reads for coherency.  Released cluster sizes
-are 2, 4, 8 and 16 nodes on either transport, on one iSCSI path per node or
-through dm-multipath; two nodes on DRBD dual-primary, which needs no shared
-LUN and fences through a fence authority instead, are released on TCP.  See
-the README.
+through the LUN with SCSI FUA reads for coherency.  Released, on one iSCSI
+path per node: CAW at 2, 4, 8 and 16 nodes, TCP at 2 and 4 nodes.  TCP at 8
+and 16 nodes, and dm-multipath on either transport, were verified in 0.90.51
+and are not claimed by the current release.  Two nodes on DRBD dual-primary,
+which needs no shared LUN and fences through a fence authority instead, are
+released on TCP.  See the README.
 .SS Three-Layer Fencing (CAW DLM only)
 .IP 1. 3
 .B SCSI-3 Persistent Reservations
@@ -180,8 +181,9 @@ release packages set), 0 = CAW (locks on the shared device via SCSI COMPARE
 AND WRITE; a device without it is refused at mount).  It only chooses when
 a cluster forms: a force_transport=0 mount of a volume that already has
 members joins their transport, and a force_transport=1 mount of a volume
-with CAW members is refused.  Both are released for clusters of two, four,
-eight and sixteen nodes.
+with CAW members is refused.  CAW is released for clusters of two, four,
+eight and sixteen nodes, TCP for two and four (see the README for the sizes
+an earlier release verified).
 .TP
 .BI cache_mem_pct= N
 Percentage of host RAM available as the total cache budget (1\(en50,
@@ -276,9 +278,10 @@ at mount.
 .BR direct ).
 .IP \(bu 3
 .B iSCSI through dm-multipath, two paths per node
-\(em verified, with paths taken away under load (attachment
+\(em verified in 0.90.51, with paths taken away under load (attachment
 .BR mpath ;
-use the settings in tools/mpath_settings.sh).
+use the settings in tools/mpath_settings.sh); not claimed by the current
+release, which open defects found since then reach.
 .IP \(bu 3
 .B DRBD dual-primary, two nodes, no shared LUN
 \(em verified (attachment

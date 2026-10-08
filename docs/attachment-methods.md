@@ -113,7 +113,7 @@ configuration that uses one is refused until it exists.
 | `direct` | yes | Its own initiator, one path: bare metal, or an in-guest iSCSI login. | `scripts/rig.sh N/<class>/<method>/direct` |
 | `mpath` | yes | Its own initiator over two or more paths, assembled by dm-multipath. | `scripts/rig.sh N/<class>/<method>/mpath` |
 | `pass` | yes | The hypervisor's initiator. The disk is passed into the VM as a SCSI LUN (QEMU SCSI passthrough, VMware RDM). | `scripts/rig.sh N/<class>/<method>/pass` |
-| `drbd` | yes | DRBD dual-primary: each node's local disk, replicated synchronously to the other. Released as `2/net/mesh/drbd` in 0.90.41, withdrawn on 2026-10-06 (README). | `scripts/drbd_rig.sh` (a rig and a board of its own: see below) |
+| `drbd` | yes | DRBD dual-primary: each node's local disk, replicated synchronously to the other. Released as `2/net/mesh/drbd` in 0.90.41, withdrawn on 2026-10-06, released again in 0.90.107 (README). | `scripts/drbd_rig.sh` (a rig and a board of its own: see below) |
 
 Each attachment has its own way of breaking the requirements above:
 
@@ -156,20 +156,38 @@ in `docs/rulings/drbd-dual-primary-attachment.md`):
 2. **A compare-and-swap built on the device.** Every record the network lock
    manager updates with COMPARE AND WRITE (heartbeat, slot claim, recovery
    milestones, bootstrap owner, ledger tickets) is updated on DRBD by a
-   read-compare-write held under a two-party Lamport bakery lock in reserved
-   sectors 48-50 of the bootstrap region. Each register is written only by its
-   owner, protocol C completes a write only once both disks hold it, and the
-   registers bind the filesystem, the participant index and both endpoints so
-   a pair that disagree about who is participant 0 refuses instead of sharing a
-   register. The swap is atomic only against other swaps, so no plain write may
-   touch a protected sector. Swaps are group-committed: every swap on one node
-   queues, and whichever caller holds the node's lock serves all queued swaps
-   (up to 32) inside one bakery acquisition, each read-compare-write in queue
-   order, releasing once after every target write has completed. A swap costs
-   a doorway (two replicated writes and a read) and a release (one write) on
-   top of its own read-compare-write; served one at a time under a lock
-   workload, swaps queued for 130 ms on average behind each other and pushed
-   lock handoffs past the 1 s acquire wait.
+   read-compare-write held under a two-party lock in reserved sectors 48-50 of
+   the bootstrap region. Each register is written only by its owner, protocol
+   C completes a write only once both disks hold it, and the registers bind
+   the filesystem, the participant index and both endpoints so a pair that
+   disagree about who is participant 0 refuses instead of sharing a register.
+   The swap is atomic only against other swaps, so no plain write may touch a
+   protected sector. Swaps are group-committed: every swap on one node queues,
+   and whichever caller holds the node's lock serves all queued swaps (up to
+   32) inside one acquisition, each read-compare-write in queue order,
+   releasing once after every target write has completed; served one at a
+   time under a lock workload, swaps queued for 130 ms on average behind each
+   other and pushed lock handoffs past the 1 s acquire wait.
+
+   The lock is a one-bit lock for two (Burns and Lamport): a participant
+   raises its flag, then reads the other's; participant 0 waits for the
+   other's flag to drop, participant 1 lowers its own and waits, then tries
+   again. Participant 1's `want` stays set from its first lost race to its
+   release and participant 0 does not raise while it is set (for at most 4 s),
+   so 0 cannot take the lock again and again past a waiting 1. Mutual
+   exclusion rests on the property the bakery used: of two participants that
+   each raise and then read the other after their own write completed, at
+   least one sees the other's flag. `tests/drbd_cas_lock_model.py` checks it
+   over every interleaving and every order in which a write lands on the two
+   disks. It replaced a two-party Lamport bakery because each replicated write
+   on a busy pair of non-NCQ SATA disks takes up to ~2 s, and the bakery paid
+   three register writes per acquisition (choosing, the ticket, the release)
+   beside the target's own: a heartbeat swap took up to 11.6 s. This lock
+   enters with one register write, and the release is written after the
+   callers have their results (the next writer of the register waits for it),
+   so a swap waits for one register write and its target write. A register of
+   the bakery's version reads as busy unless both of its fields are zero, so a
+   pair running the two versions fails its swaps instead of both entering.
 3. **A fence proof profile of its own, kind 25 (`DRBD_STONITH_WITNESSED_V1`).**
    DRBD's `fencing resource-and-stonith` freezes a Primary's I/O when it loses
    its peer and runs the fence-peer handler (`tools/mxfs_drbd_fence_peer.sh`),

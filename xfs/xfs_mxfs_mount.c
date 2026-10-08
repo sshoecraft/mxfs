@@ -97,7 +97,7 @@ mxfs_barrier_classify_slot(
 	if (*fswide)
 		xfs_alert(mp,
 			"MXFS mount ABORTED: slice slot=%u carries a terminal "
-			"recovery refusal quarantining the WHOLE filesystem — "
+			"recovery refusal quarantining the WHOLE filesystem -- "
 			"every operation would fail with EIO.  Repair the "
 			"victim's slice targets, clear the outcome record, "
 			"and remount", slot);
@@ -129,7 +129,7 @@ mxfs_barrier_clock(
 	mxfs_xfs_probe(mp,
 		"MXFS mount barrier: P-BARRIER-CLOCK result=%s wait_ms=%u "
 		"bound_ms=%u overrun_ms=%u rounds=%d last_round_ms=%u "
-		"total_ms=%u — the admission wait is bounded by elapsed time; "
+		"total_ms=%u -- the admission wait is bounded by elapsed time; "
 		"an overrun larger than the last round is a defect",
 		result, wait_ms, bound_ms,
 		wait_ms > bound_ms ? wait_ms - bound_ms : 0, rounds,
@@ -283,7 +283,7 @@ mxfs_mount_barrier_run(
 	if (error) {
 		xfs_alert(mp,
 			"MXFS mount ABORTED: could not flush the shared "
-			"device (%d) before recovery publication — our own "
+			"device (%d) before recovery publication -- our own "
 			"replayed images are not certifiably durable",
 			error);
 		return error;
@@ -314,7 +314,7 @@ mxfs_mount_barrier_run(
 	error = mxfs_v5_dlm_mount_recovery_cohort(mp->m_mxfs_dlm, &cohort);
 	if (error)
 		xfs_alert(mp,
-			"MXFS mount recovery cohort failed (%d) — deferred "
+			"MXFS mount recovery cohort failed (%d) -- deferred "
 			"peer slices stay unreplayed", error);
 
 	/*
@@ -338,14 +338,14 @@ mxfs_mount_barrier_run(
 			"the SCSI PR path (or clear the dead node) and retry "
 			"the mount.",
 			(unsigned long long)residue, nres, nex,
-			blocking < 0 ? " [census incomplete — assumed "
+			blocking < 0 ? " [census incomplete -- assumed "
 				       "blocking]" : "");
 		return -EIO;
 	}
 	if (residue)
 		xfs_alert(mp,
 			"MXFS mount recovery: peer slot mask 0x%llx confirmed "
-			"dead but unfenceable — it owns nothing, so the mount "
+			"dead but unfenceable -- it owns nothing, so the mount "
 			"proceeds; its slice stays unreplayed until the "
 			"post-mount settle can fence it",
 			(unsigned long long)residue);
@@ -395,7 +395,7 @@ replay_rounds:
 		mxfs_dbg_barrier_hold_ms = 0;	/* one shot */
 		xfs_alert(mp,
 			"MXFS mount recovery barrier: P-DBG-BARRIER-HOLD start "
-			"ms=%d — TEST hold with the mount-phase death record "
+			"ms=%d -- TEST hold with the mount-phase death record "
 			"armed, nothing drained yet", hold);
 		while (slept < hold && !xfs_is_shutdown(mp)) {
 			msleep(1000);
@@ -435,7 +435,7 @@ replay_rounds:
 		if (error)
 			xfs_alert(mp,
 				"MXFS mount recovery: requires-recovery sweep "
-				"failed (%d) — treating the cut as dirty",
+				"failed (%d) -- treating the cut as dirty",
 				error);
 
 		/*
@@ -460,7 +460,7 @@ replay_rounds:
 				xfs_notice(mp,
 					"MXFS mount recovery: slot mask 0x%llx "
 					"recovered by a survivor while this mount "
-					"waited — retired from the admission cut",
+					"waited -- retired from the admission cut",
 					(unsigned long long)elsewhere);
 				cohort &= ~elsewhere;
 				drained &= ~elsewhere;
@@ -544,7 +544,7 @@ replay_rounds:
 				deadline = t_loop + msecs_to_jiffies(wait_bound);
 			}
 			xfs_notice(mp,
-				"MXFS mount barrier: P-BARRIER-GHOST-EXTEND undeclared=%d window_ms=%u bound_ms=%u — %d frozen heartbeat record(s) are not yet declared dead; admission is held until each is resolved (declared dead and replayed, or seen heartbeating), covering their dead window plus a fence and replay budget",
+				"MXFS mount barrier: P-BARRIER-GHOST-EXTEND undeclared=%d window_ms=%u bound_ms=%u -- %d frozen heartbeat record(s) are not yet declared dead; admission is held until each is resolved (declared dead and replayed, or seen heartbeating), covering their dead window plus a fence and replay budget",
 				undecl, deadwin, wait_bound, undecl);
 		}
 		/*
@@ -623,7 +623,7 @@ replay_rounds:
 						"verdict this node could not "
 						"classify (unreadable or "
 						"still landing) after %u ms "
-						"— neither replayable nor "
+						"-- neither replayable nor "
 						"provably quarantined.  "
 						"Inspect the victim's "
 						"heartbeat sector and retry "
@@ -636,7 +636,7 @@ replay_rounds:
 						"MXFS mount ABORTED: %d frozen "
 						"heartbeat record(s) were still "
 						"neither declared dead nor seen "
-						"heartbeating after %u ms — "
+						"heartbeating after %u ms -- "
 						"admitting this mount would let "
 						"it take locks over slices whose "
 						"owner may be gone.  Inspect the "
@@ -647,7 +647,7 @@ replay_rounds:
 				xfs_alert(mp,
 					"MXFS mount ABORTED: slot mask 0x%llx "
 					"still requires recovery after %d "
-					"inline replay round(s) and %u ms — "
+					"inline replay round(s) and %u ms -- "
 					"admitting this mount would let it "
 					"take locks over unreplayed slices.  "
 					"The slices stay frozen and pending; "
@@ -699,7 +699,7 @@ replay_rounds:
 		if (round > 1 && todo)
 			xfs_notice(mp,
 				"MXFS mount recovery: slot mask 0x%llx still "
-				"requires recovery — replay round %d",
+				"requires recovery -- replay round %d",
 				(unsigned long long)todo, round);
 		for (slot = 0; slot < 64; slot++) {
 			unsigned int	budget_ms;
@@ -796,14 +796,14 @@ replay_rounds:
 				 * gate polls until the owner completes. */
 				xfs_notice(mp,
 					"MXFS mount recovery: slice slot=%u is "
-					"being recovered by another survivor — "
+					"being recovered by another survivor -- "
 					"waiting for completion", slot);
 				continue;
 			}
 			if (rc) {
 				xfs_alert(mp,
 					"MXFS mount recovery: slice slot=%u NOT "
-					"replayed (%d) — the dead node is not "
+					"replayed (%d) -- the dead node is not "
 					"provably excluded from the LUN.  Its "
 					"grants stay frozen; later rounds and "
 					"the admission gate retry once a fence "
@@ -826,7 +826,7 @@ replay_rounds:
 						   t_loop, wait_bound, round,
 						   last_round_ms);
 				xfs_alert(mp,
-					"MXFS mount ABORTED: P-DBG-BARRIER-REFUSE-AFTER-CLAIM slot=%u relinquish_rc=%d — TEST ONLY: the recovery lease was claimed and is given back; the descriptor stays certified and unowned for the next mount",
+					"MXFS mount ABORTED: P-DBG-BARRIER-REFUSE-AFTER-CLAIM slot=%u relinquish_rc=%d -- TEST ONLY: the recovery lease was claimed and is given back; the descriptor stays certified and unowned for the next mount",
 					slot, lrc);
 				return -EBUSY;
 			}
@@ -843,7 +843,7 @@ replay_rounds:
 			if (mxfs_dlm_invalidate_cached_views(mp)) {
 				xfs_alert(mp,
 					"MXFS mount recovery: slice slot=%u NOT "
-					"replayed — cached views could not be dropped "
+					"replayed -- cached views could not be dropped "
 					"first, so replay could neither read current "
 					"disk state nor survive our own writeback",
 					slot);
@@ -902,7 +902,7 @@ replay_rounds:
 							       &dstage) == 0 &&
 				    dstage >= MXFS_RECOV_STAGE_IMAGES_REPLAYED) {
 					xfs_notice(mp,
-						"MXFS mount recovery: slice slot=%u descriptor already at stage %u (IMAGES_REPLAYED durable) — skipping the slice replay and completing the remaining ladder",
+						"MXFS mount recovery: slice slot=%u descriptor already at stage %u (IMAGES_REPLAYED durable) -- skipping the slice replay and completing the remaining ladder",
 						slot, dstage);
 					goto barrier_slice_replayed;
 				}
@@ -963,7 +963,7 @@ replay_rounds:
 						xfs_alert(mp,
 							"MXFS mount recovery: slice slot=%u "
 							"replay refused but cached views could "
-							"not be invalidated — nothing published, "
+							"not be invalidated -- nothing published, "
 							"the slot stays in the cut",
 							slot);
 						continue;
@@ -993,7 +993,7 @@ replay_rounds:
 							if (mxfs_v5_dlm_bootstrap_adopted(
 								    mp->m_mxfs_dlm)) {
 								xfs_alert(mp,
-				"MXFS mount ABORTED: the whole-cluster bootstrap term is REFUSED by terminal slot %u — the barrier stops here; admission stays closed",
+				"MXFS mount ABORTED: the whole-cluster bootstrap term is REFUSED by terminal slot %u -- the barrier stops here; admission stays closed",
 									  slot);
 								goto abort_fswide;
 							}
@@ -1013,14 +1013,14 @@ replay_rounds:
 						xfs_alert(mp,
 							"MXFS mount recovery: slice slot=%u "
 							"replay refused but the verdict could "
-							"not be published — the slot stays in "
+							"not be published -- the slot stays in "
 							"the cut and will be retried",
 							slot);
 						continue;
 					}
 					xfs_alert(mp,
 						"MXFS mount recovery: slice slot=%u "
-						"replay FAILED (%d) — the slot stays "
+						"replay FAILED (%d) -- the slot stays "
 						"unpublished, its grants stay frozen "
 						"and it will be replayed again",
 						slot, error);
@@ -1034,7 +1034,7 @@ replay_rounds:
 					xfs_alert(mp,
 						"MXFS mount recovery: slice slot=%u "
 						"replayed but its obligation verdict "
-						"could not be parked — the slot stays "
+						"could not be parked -- the slot stays "
 						"in the cut and will be retried", slot);
 					continue;
 				}
@@ -1059,7 +1059,7 @@ barrier_slice_replayed:
 				mxfs_dlm_invalidate_cached_views(mp);
 				xfs_alert(mp,
 					"MXFS mount recovery: slice slot=%u replayed "
-					"but its durability flush FAILED (%d) — the "
+					"but its durability flush FAILED (%d) -- the "
 					"slot stays unpublished and will be replayed "
 					"again", slot, error);
 				continue;
@@ -1072,7 +1072,7 @@ barrier_slice_replayed:
 				xfs_alert(mp,
 					"MXFS mount recovery: slice slot=%u replayed "
 					"but our cached views could not be dropped "
-					"afterwards (%d) — a retained buffer would "
+					"afterwards (%d) -- a retained buffer would "
 					"overwrite the recovered images, so the slot "
 					"stays unpublished and will be replayed again",
 					slot, error);
@@ -1142,14 +1142,14 @@ barrier_slice_replayed:
 					xfs_alert(mp,
 						"MXFS mount recovery: slice slot=%u "
 						"replayed but its publication failed "
-						"(%d) — retried when the cut is "
+						"(%d) -- retried when the cut is "
 						"clean; until then its grants stay "
 						"held and peers waiting on it keep "
 						"waiting", slot, perr);
 				else
 					xfs_notice(mp,
 						"MXFS mount recovery: P-BARRIER-SLICE-"
-						"PUBLISHED slot=%u — replayed and "
+						"PUBLISHED slot=%u -- replayed and "
 						"published inside the cut; a peer "
 						"waiting on this slice may now retire "
 						"it", slot);
@@ -1178,7 +1178,7 @@ barrier_slice_replayed:
 				"MXFS mount ABORTED: slot mask 0x%llx was "
 				"recovered by another survivor during this "
 				"mount but our cached views could not be "
-				"dropped (%d) — a retained buffer would carry "
+				"dropped (%d) -- a retained buffer would carry "
 				"pre-recovery images",
 				(unsigned long long)(seen & ~replayed), error);
 			return error;
@@ -1195,7 +1195,7 @@ barrier_slice_replayed:
 	if (drained & ~replayed & ~terminal) {
 		xfs_alert(mp,
 			"MXFS mount recovery: peer slot mask 0x%llx died during "
-			"this mount but was not replayed in %d round(s) — "
+			"this mount but was not replayed in %d round(s) -- "
 			"deferred to the post-mount settle; their grants stay "
 			"frozen and can stall log recovery below",
 			(unsigned long long)(drained & ~replayed & ~terminal),
@@ -1226,7 +1226,7 @@ barrier_slice_replayed:
 		xfs_alert(mp,
 			"MXFS mount recovery barrier INCOMPLETE (shutdown): "
 			"cohort=0x%llx late=0x%llx pending=0x%llx "
-			"replayed=0x%llx — unreplayed slices stay frozen and "
+			"replayed=0x%llx -- unreplayed slices stay frozen and "
 			"unpublished",
 			(unsigned long long)cohort,
 			(unsigned long long)drained,
@@ -1264,7 +1264,7 @@ barrier_slice_replayed:
 					drained & replayed & ~published);
 			xfs_alert(mp,
 				"MXFS mount ABORTED: replayed=0x%llx but only "
-				"published=0x%llx (%d) — the unpublished "
+				"published=0x%llx (%d) -- the unpublished "
 				"slices' grants are still held by nodes that "
 				"cannot release them, so log recovery below "
 				"would block on them.  The slices stay marked "
@@ -1289,7 +1289,7 @@ barrier_slice_replayed:
 	error = rerun ? 0 : mxfs_v5_dlm_settle_own_slot(mp->m_mxfs_dlm);
 	if (error)
 		xfs_alert(mp,
-			"MXFS mount settle incomplete (%d) — some authority "
+			"MXFS mount settle incomplete (%d) -- some authority "
 			"entries from a previous incarnation were not "
 			"reclaimed; peers may block on them until this node "
 			"unmounts", error);
@@ -1328,7 +1328,7 @@ barrier_slice_replayed:
 	if (error) {
 		xfs_alert(mp,
 			"MXFS mount ABORTED: whole-cluster bootstrap did not reach "
-			"RECOVERY_COMPLETE (%d) — admission stays closed; see the "
+			"RECOVERY_COMPLETE (%d) -- admission stays closed; see the "
 			"P-BOOT-* lines", error);
 		return error;
 	}
@@ -1354,7 +1354,7 @@ abort_cancelled:
 	xfs_alert(mp,
 		"MXFS mount ABORTED: P-BARRIER-CANCELLED a fatal signal is "
 		"pending on the mount task after %u ms of the admission wait "
-		"(slot mask 0x%llx still requires recovery) — nothing was "
+		"(slot mask 0x%llx still requires recovery) -- nothing was "
 		"admitted; the slices stay frozen and pending for the next "
 		"mount or a survivor",
 		waited_ms, (unsigned long long)todo);
@@ -1381,7 +1381,7 @@ abort_fswide:
 			   last_round_ms);
 	xfs_alert(mp,
 		"MXFS mount ABORTED: a terminal recovery refusal quarantines "
-		"the WHOLE filesystem (terminal=0x%llx) — every operation "
+		"the WHOLE filesystem (terminal=0x%llx) -- every operation "
 		"this mount could admit would fail with EIO.  Repair the "
 		"refused slice targets, clear the outcome record, and "
 		"remount",
@@ -1400,7 +1400,7 @@ mxfs_dlm_mount_recovery_barrier(
 
 		mxfs_dbg_barrier_admit_hold_ms = 0;	/* one shot */
 		xfs_alert(mp,
-			"MXFS mount barrier: P-DBG-ADMIT-HOLD start ms=%d — TEST hold after admission, before the root lookup",
+			"MXFS mount barrier: P-DBG-ADMIT-HOLD start ms=%d -- TEST hold after admission, before the root lookup",
 			hold);
 		while (slept < hold && !xfs_is_shutdown(mp)) {
 			msleep(1000);
@@ -1477,19 +1477,19 @@ mxfs_dlm_mount_late_death_rebarrier(
 		return error;
 	if (*laps >= MXFS_MOUNT_LATE_DEATH_RERUNS) {
 		xfs_alert(mp,
-			"MXFS mount: P-MPHASE-REBARRIER-EXHAUSTED laps=%d error=%d — peers keep dying during this mount; refusing it",
+			"MXFS mount: P-MPHASE-REBARRIER-EXHAUSTED laps=%d error=%d -- peers keep dying during this mount; refusing it",
 			*laps, error);
 		return error;
 	}
 	(*laps)++;
 	mask = mxfs_v5_dlm_mount_peek_late_deaths(mp->m_mxfs_dlm);
 	xfs_warn(mp,
-		"MXFS mount: P-MPHASE-REBARRIER lap=%d error=%d late=0x%llx — the root lookup gave up on a grant held by a peer that died during this mount; running the recovery barrier again to replay it, then retrying the lookup",
+		"MXFS mount: P-MPHASE-REBARRIER lap=%d error=%d late=0x%llx -- the root lookup gave up on a grant held by a peer that died during this mount; running the recovery barrier again to replay it, then retrying the lookup",
 		*laps, error, (unsigned long long)mask);
 	rc = mxfs_mount_barrier_run(mp, true);
 	if (rc) {
 		xfs_alert(mp,
-			"MXFS mount: P-MPHASE-REBARRIER-FAILED lap=%d rc=%d — the late death could not be replayed; the mount is refused",
+			"MXFS mount: P-MPHASE-REBARRIER-FAILED lap=%d rc=%d -- the late death could not be replayed; the mount is refused",
 			*laps, rc);
 		return rc;
 	}
@@ -1524,7 +1524,7 @@ mxfs_dlm_mount_recovery_settle(
 	error = mxfs_v5_dlm_mount_settle(mp->m_mxfs_dlm);
 	if (error)
 		xfs_alert(mp,
-			"MXFS mount settle residue retry failed (%d) — "
+			"MXFS mount settle residue retry failed (%d) -- "
 			"unfenced peer slices stay frozen and unreplayed",
 			error);
 }

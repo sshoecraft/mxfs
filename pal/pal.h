@@ -149,6 +149,14 @@ int mxfs_pal_bdev_write_scatter_prio(mxfs_bdev_t *dev,
                                       void * const *bufs,
                                       const uint32_t *lens,
                                       int count);
+/* The same coordination writes, each durable on completion as
+ * mxfs_pal_bdev_write_fua's — replicated durable, too, where a following
+ * empty flush would not be (DRBD completes one on the local flush alone). */
+int mxfs_pal_bdev_write_scatter_fua(mxfs_bdev_t *dev,
+                                     const uint64_t *offsets,
+                                     void * const *bufs,
+                                     const uint32_t *lens,
+                                     int count);
 
 /*
  * Read len bytes asynchronously using pipelined bio submission.
@@ -1386,6 +1394,10 @@ int mxfs_pal_drbd_cas_emulate(mxfs_bdev_t *dev, uint64_t offset,
 int mxfs_pal_drbd_cas_emulate_many(mxfs_bdev_t *dev, int n, const uint64_t *offsets,
                                    const void *const *compare_bufs,
                                    const void *const *write_bufs, int *rcs);
+/* The emulated span swap (mxfs_pal_bdev_compare_and_write_span). */
+int mxfs_pal_drbd_cas_emulate_span(mxfs_bdev_t *dev, uint64_t offset,
+                                   const void *compare_buf, const void *write_buf,
+                                   uint32_t write_len);
 
 /* ─── SCSI COMPARE AND WRITE ───
  *
@@ -1421,6 +1433,23 @@ int mxfs_pal_bdev_compare_and_write_many(mxfs_bdev_t *dev, int n,
                                          const void *const *compare_bufs,
                                          const void *const *write_bufs,
                                          int *rcs);
+
+/*
+ * A swap that writes past the sector it compares: compare the 512-byte
+ * sector at `offset` with compare_buf and, on a match, write `write_len`
+ * bytes (a multiple of 512, at most 4096) from write_buf starting at that
+ * sector, with FUA, atomically with respect to every other swap on the
+ * device.  Only where every swap is emulated: the DRBD attachment (a whole
+ * page inside one acquisition of the pair's lock) and the usermode file.  A
+ * SCSI COMPARE AND WRITE covers the compared sector alone, so a SCSI device
+ * answers -EOPNOTSUPP and the caller keeps its multi-step protocol.  Results
+ * as mxfs_pal_bdev_compare_and_write; an error after the compare matched
+ * leaves the range in doubt (written, partly written, or not).
+ */
+int mxfs_pal_bdev_compare_and_write_span(mxfs_bdev_t *dev, uint64_t offset,
+                                         const void *compare_buf,
+                                         const void *write_buf,
+                                         uint32_t write_len);
 
 /*
  * Drop the cached backing-path (scsi_device) references held for stacked

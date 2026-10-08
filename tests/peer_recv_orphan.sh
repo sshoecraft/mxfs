@@ -127,7 +127,7 @@ one_lap() {  # one_lap <i>: sets LAP_VERDICT to CLEAN, BAD or ABORT and adds to 
             echo REPEATS=\$(dmesg | grep -a -c 'P-PEER-TEARDOWN-REPEAT')
             echo UNLOCKED=\$(dmesg | grep -a -c 'P-PEER-RECV-UNLOCKED')
             echo '== the setups as the ring has them, fields only'
-            dmesg | grep -a 'P-PEER-' | sed -e 's/^\\[[^]]*\\] *//' -e 's/ — .*//' | cut -c1-240" > "$EV/ring_$h.txt" ) & pids+=($!)
+            dmesg | grep -a 'P-PEER-' | sed -e 's/^\\[[^]]*\\] *//' -e 's/ -- .*//' | cut -c1-240" > "$EV/ring_$h.txt" ) & pids+=($!)
     done
     wait "${pids[@]}"
 
@@ -147,7 +147,7 @@ one_lap() {  # one_lap <i>: sets LAP_VERDICT to CLEAN, BAD or ABORT and adds to 
             echo REAPS_RECV=\$(dmesg | grep -a 'P-THREAD-REAP pid=' | grep -a -c 'fn=mxfs_peer_recv_fn')
             echo FAULTS=\$(dmesg | grep -a -c -E '$FAULTS')
             echo '== the unload as the ring has it, fields only'
-            dmesg | grep -a 'P-THREAD-' | sed -e 's/^\\[[^]]*\\] *//' -e 's/ — .*//' | cut -c1-240" > "$EV/unload_$h.txt" ) & pids+=($!)
+            dmesg | grep -a 'P-THREAD-' | sed -e 's/^\\[[^]]*\\] *//' -e 's/ -- .*//' | cut -c1-240" > "$EV/unload_$h.txt" ) & pids+=($!)
     done
     wait "${pids[@]}"
 

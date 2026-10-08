@@ -223,7 +223,7 @@ mxfs_dlm_rearm_unpublished(
 
 	if (rearmed)
 		mxfs_probe_ratelimited(
-		    "mxfs: P128-REARM-UNPUB ino=%llu dlm_mode=%u — cache-hit CREATE on reused inode, deferred-publish re-armed\n",
+		    "mxfs: P128-REARM-UNPUB ino=%llu dlm_mode=%u -- cache-hit CREATE on reused inode, deferred-publish re-armed\n",
 			(unsigned long long)ip->i_ino, ip->i_dlm_mode);
 }
 
@@ -379,7 +379,7 @@ mxfs_dlm_unpub_child_settle(
 				static atomic_t p15j_n =
 					ATOMIC_INIT(0);
 				if (atomic_inc_return(&p15j_n) <= 400)
-					mxfs_probe("mxfs: P15J-PUBSKIP-FLUSH ino=%llu daddr=%lld waited_ms=%d settled=%d — evicted-unpublished child made durable before dir handoff\n",
+					mxfs_probe("mxfs: P15J-PUBSKIP-FLUSH ino=%llu daddr=%lld waited_ms=%d settled=%d -- evicted-unpublished child made durable before dir handoff\n",
 						(unsigned long long)ino,
 						(long long)fi_imap.im_blkno,
 						fi_i * 2,
@@ -495,7 +495,7 @@ mxfs_dlm_creator_baseline_apply(
 		static atomic_t p210n = ATOMIC_INIT(0);
 
 		if (atomic_inc_return(&p210n) <= 600)
-			mxfs_probe("mxfs: P210-CREATOR-BASELINE ino=%llu site=%u bep=%u bgg=%u old_ep=%u old_gg=%u mask=%d state=%u — self-created dir reached its first real EX grant\n",
+			mxfs_probe("mxfs: P210-CREATOR-BASELINE ino=%llu site=%u bep=%u bgg=%u old_ep=%u old_gg=%u mask=%d state=%u -- self-created dir reached its first real EX grant\n",
 				(unsigned long long)ip->i_ino, site,
 				bep, bgg, old_ep, old_gg,
 				mxfs_creator_baseline_stamp,
@@ -620,7 +620,7 @@ mxfs_dlm_publish_drain_loop(
 		if (pre_mode != MXFS_LOCK_EX) {
 			static atomic_t p78s_n = ATOMIC_INIT(0);
 			if (atomic_inc_return(&p78s_n) <= 2000)
-				mxfs_probe("mxfs: P78-PUB-SKIP ino=%llu pre_mode=%u pre_state=%u — FS-layer EX gone; phantom master claim skipped\n",
+				mxfs_probe("mxfs: P78-PUB-SKIP ino=%llu pre_mode=%u pre_state=%u -- FS-layer EX gone; phantom master claim skipped\n",
 					(unsigned long long)ino,
 					pre_mode, pre_state);
 			/*
@@ -771,7 +771,7 @@ mxfs_dlm_publish_drain_loop(
 								ino;
 					}
 					if (atomic_inc_return(&ppedm_n) <= 400)
-						mxfs_probe("mxfs: P-PUB-EDEMOTE-DEFER ino=%llu mode=%u ran=%d claim_rc=%d — live holder kept the grant\n",
+						mxfs_probe("mxfs: P-PUB-EDEMOTE-DEFER ino=%llu mode=%u ran=%d claim_rc=%d -- live holder kept the grant\n",
 							(unsigned long long)ino,
 							dip->i_dlm_mode,
 							run_bp ? 1 : 0, crc);
@@ -1041,7 +1041,7 @@ mxfs_dlm_publish_unpublished(
 			static atomic_t ptmo_n = ATOMIC_INIT(0);
 
 			if (atomic_inc_return(&ptmo_n) <= 200)
-				pr_warn("mxfs: P-PUB-DRAIN-TIMEOUT parent=%llu agno=%d backlog=%u — %ums publish window expired; handoff proceeds, claims land async (cross-node bast cycle broken)\n",
+				pr_warn("mxfs: P-PUB-DRAIN-TIMEOUT parent=%llu agno=%d backlog=%u -- %ums publish window expired; handoff proceeds, claims land async (cross-node bast cycle broken)\n",
 					(unsigned long long)parent_ino,
 					agno == NULLAGNUMBER ? -1 : (int)agno,
 					backlog,
@@ -1243,7 +1243,7 @@ mxfs_dlm_publish_dirs_work(
 
 			pubip = NULL;
 			if (nn <= 64 || (nn & 1023) == 0)
-				mxfs_probe("mxfs: P24-WORKER-NOREF n=%lld ino=%llu rc=%d — no reference to the inode: not claimed, left on the unpublished list for its first exclusive modify\n",
+				mxfs_probe("mxfs: P24-WORKER-NOREF n=%lld ino=%llu rc=%d -- no reference to the inode: not claimed, left on the unpublished list for its first exclusive modify\n",
 					nn, (unsigned long long)ino, iget_rc);
 			if (n_noref >= ARRAY_SIZE(noref))
 				break;
@@ -1361,7 +1361,7 @@ mxfs_dlm_publish_inode(
 		 * dinode is never flushed for them (cross_write_read size=0).
 		 */
 		mxfs_probe_ratelimited(
-		    "mxfs: P128-PUBLISH-BAIL ino=%llu dlm_mode=%u dlm_state=%u — create on reused inode, unpub flag clear, NOT acquiring slot\n",
+		    "mxfs: P128-PUBLISH-BAIL ino=%llu dlm_mode=%u dlm_state=%u -- create on reused inode, unpub flag clear, NOT acquiring slot\n",
 			(unsigned long long)ip->i_ino,
 			ip->i_dlm_mode, ip->i_dlm_state);
 		return;

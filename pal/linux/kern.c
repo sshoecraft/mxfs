@@ -1017,7 +1017,7 @@ static struct scsi_device *mxfs_bdev_to_sdev(struct block_device *bdev)
 			}
 		}
 		spin_unlock(&mxfs_sdev_cache_lock);
-		mxfs_probe("mxfs: P-MPATH-RESOLVE cached disk %s for %u:%u (%s) is not one of its slaves — re-resolving\n",
+		mxfs_probe("mxfs: P-MPATH-RESOLVE cached disk %s for %u:%u (%s) is not one of its slaves -- re-resolving\n",
 			name[0] ? name : "?", MAJOR(bdev->bd_dev),
 			MINOR(bdev->bd_dev), bdev->bd_disk->disk_name);
 		scsi_device_put(sdev);			/* the reference taken above */
@@ -1028,7 +1028,7 @@ static struct scsi_device *mxfs_bdev_to_sdev(struct block_device *bdev)
 		}
 	}
 	if (stale) {
-		mxfs_probe("mxfs: P-MPATH-RESOLVE cached backing path for %u:%u went offline — re-resolving\n",
+		mxfs_probe("mxfs: P-MPATH-RESOLVE cached backing path for %u:%u went offline -- re-resolving\n",
 			MAJOR(bdev->bd_dev), MINOR(bdev->bd_dev));
 		scsi_device_put(stale);
 	}
@@ -1465,7 +1465,7 @@ static int mxfs_pal_scsi_read_fua_bdev_body(struct block_device *bdev,
 				static atomic_t p_fuadl_n = ATOMIC_INIT(0);
 
 				if (atomic_inc_return(&p_fuadl_n) <= 200)
-					mxfs_probe("mxfs: P302-FUA-READ-DEADLINE lba=%llu len=%u tries=%d — per-task I/O budget exhausted; abandoning the read (no sample, NOT a proof of anything)\n",
+					mxfs_probe("mxfs: P302-FUA-READ-DEADLINE lba=%llu len=%u tries=%d -- per-task I/O budget exhausted; abandoning the read (no sample, NOT a proof of anything)\n",
 						(unsigned long long)lba_512,
 						len, fua_try);
 				scsi_device_put(sdev);
@@ -1486,7 +1486,7 @@ static int mxfs_pal_scsi_read_fua_bdev_body(struct block_device *bdev,
 				static atomic_t p_fuainj_n = ATOMIC_INIT(0);
 
 				if (atomic_inc_return(&p_fuainj_n) <= 200)
-					mxfs_probe("mxfs: P302-INJECT lba=%llu try=%d budget_ms=%ld comm=%s pid=%d — test failure of a budgeted FUA read, command not issued\n",
+					mxfs_probe("mxfs: P302-INJECT lba=%llu try=%d budget_ms=%ld comm=%s pid=%d -- test failure of a budgeted FUA read, command not issued\n",
 						(unsigned long long)lba_512,
 						fua_try + 1, budget_ms,
 						current->comm, current->pid);
@@ -1535,7 +1535,7 @@ static int mxfs_pal_scsi_read_fua_bdev_body(struct block_device *bdev,
 					static atomic_t p_fuarepath_n = ATOMIC_INIT(0);
 
 					if (atomic_inc_return(&p_fuarepath_n) <= 400)
-						mxfs_probe("mxfs: P-FUA-READ-REPATH lba=%llu ret=0x%x try=%d from_host=%d to_host=%d comm=%s pid=%d — the resolved path is gone; the read moves to %s\n",
+						mxfs_probe("mxfs: P-FUA-READ-REPATH lba=%llu ret=0x%x try=%d from_host=%d to_host=%d comm=%s pid=%d -- the resolved path is gone; the read moves to %s\n",
 							(unsigned long long)lba_512,
 							ret, fua_try + 1, ohost,
 							nsdev ? nsdev->host->host_no : -1,
@@ -1603,7 +1603,7 @@ static int mxfs_pal_scsi_read_fua_bdev_body(struct block_device *bdev,
 		    sshdr.sense_key == ILLEGAL_REQUEST) {
 			WRITE_ONCE(mxfs_fua_read_unsupported, 1);
 			pr_warn_once("mxfs: SCSI READ(16)+FUA rejected by target "
-				"(ILLEGAL REQUEST asc=0x%x) — falling back to plain "
+				"(ILLEGAL REQUEST asc=0x%x) -- falling back to plain "
 				"bio reads (write-through backstore assumed)\n",
 				sshdr.asc);
 			return mxfs_pal_bdev_read_plain_bdev(bdev, lba_512,
@@ -2082,6 +2082,25 @@ int mxfs_pal_bdev_write_scatter_prio(mxfs_bdev_t *dev,
 				  REQ_OP_WRITE | REQ_PRIO | REQ_SYNC);
 }
 
+/*
+ * The same writes, each with FUA: durable on completion as
+ * mxfs_pal_bdev_write_fua's are.  Not the same as the scatter above followed by
+ * a flush on every device: on DRBD an empty flush is mapped to a P_BARRIER and
+ * completes on the LOCAL flush alone (drbd_process_write_request,
+ * QUEUE_AS_DRBD_BARRIER), so the peer's copy can still sit in its volatile
+ * cache, while a FUA write is replicated as DP_FUA and acknowledged by the peer
+ * only once its disk holds it.
+ */
+int mxfs_pal_bdev_write_scatter_fua(mxfs_bdev_t *dev,
+				     const uint64_t *offsets,
+				     void * const *bufs,
+				     const uint32_t *lens,
+				     int count)
+{
+	return bdev_write_scatter(dev, offsets, bufs, lens, count,
+				  REQ_OP_WRITE | REQ_FUA | REQ_PRIO | REQ_SYNC);
+}
+
 int mxfs_pal_bdev_read_async(mxfs_bdev_t *dev, uint64_t offset,
 			      void *buf, uint32_t len)
 {
@@ -2494,13 +2513,13 @@ int mxfs_pal_thread_reap_unjoined(void)
 		spin_unlock_irqrestore(&mxfs_thread_live_lock, flags);
 		if (!t)
 			break;
-		pr_err("mxfs: P-THREAD-REAP pid=%d fn=%ps site=%pS fn_returned=%d age_ms=%u — no join freed this thread; the module's exit stops it before the unload frees its text\n",
+		pr_err("mxfs: P-THREAD-REAP pid=%d fn=%ps site=%pS fn_returned=%d age_ms=%u -- no join freed this thread; the module's exit stops it before the unload frees its text\n",
 		       t->pid, t->fn, t->site,
 		       completion_done(&t->exited) ? 1 : 0,
 		       jiffies_to_msecs(jiffies - t->born));
 		while (!wait_for_completion_timeout(&t->exited,
 						    msecs_to_jiffies(30000)))
-			pr_err("mxfs: P-THREAD-REAP-WAIT pid=%d fn=%ps site=%pS — its function has not returned; the unload waits for it\n",
+			pr_err("mxfs: P-THREAD-REAP-WAIT pid=%d fn=%ps site=%pS -- its function has not returned; the unload waits for it\n",
 			       t->pid, t->fn, t->site);
 		kthread_stop(t->task);
 		kfree(t);
@@ -4096,11 +4115,11 @@ MODULE_PARM_DESC(dbg_settle_pause_ms,
 static int mxfs_dbg_settle_inval_after_mint;
 module_param_named(dbg_settle_inval_after_mint, mxfs_dbg_settle_inval_after_mint, int, 0644);
 MODULE_PARM_DESC(dbg_settle_inval_after_mint,
-	"DEBUG one-shot: invalidate the key-state snapshot after the proof token is minted (as a PR mutation would) — the CAS must be refused. Never enable in production.");
+	"DEBUG one-shot: invalidate the key-state snapshot after the proof token is minted (as a PR mutation would) -- the CAS must be refused. Never enable in production.");
 static int mxfs_dbg_settle_double_consume;
 module_param_named(dbg_settle_double_consume, mxfs_dbg_settle_double_consume, int, 0644);
 MODULE_PARM_DESC(dbg_settle_double_consume,
-	"DEBUG one-shot: consume the proof token twice at the CAS — the second must be refused. Never enable in production.");
+	"DEBUG one-shot: consume the proof token twice at the CAS -- the second must be refused. Never enable in production.");
 static int mxfs_dbg_probe_hang_ms;
 module_param_named(dbg_probe_hang_ms, mxfs_dbg_probe_hang_ms, int, 0644);
 MODULE_PARM_DESC(dbg_probe_hang_ms,
@@ -4277,7 +4296,7 @@ bool mxfs_pal_dbg_cas_nocaw(unsigned int opbit, const char *what)
 	if (likely(!(v & (int)opbit)))
 		return false;
 	mxfs_pal_log(MXFS_LOG_INFO,
-		     "mxfs-pal: P-DBG-CAS-NOCAW op=%s — injecting -EOPNOTSUPP for "
+		     "mxfs-pal: P-DBG-CAS-NOCAW op=%s -- injecting -EOPNOTSUPP for "
 		     "this record CAS (mask=0x%x)", what, v);
 	return true;
 }
@@ -4831,7 +4850,7 @@ static int mxfs_pr_mp_unregister(struct block_device *bdev, u64 key)
 						mxfs_prin_resv_type(t.p[last]),
 						key, key);
 
-			pr_info("mxfs: P-PR-PATHS-RETIRED-BY-PREEMPT %s key=0x%llx — %d of %d path(s) could not be unregistered directly; PREEMPT of our own key from a reachable path rc=%d\n",
+			pr_info("mxfs: P-PR-PATHS-RETIRED-BY-PREEMPT %s key=0x%llx -- %d of %d path(s) could not be unregistered directly; PREEMPT of our own key from a reachable path rc=%d\n",
 				bdev->bd_disk->disk_name,
 				(unsigned long long)key, owed, t.n, r);
 		}
@@ -4873,7 +4892,7 @@ int mxfs_pal_scsi_pr_own_nexuses(mxfs_bdev_t *dev, uint64_t key, uint32_t type,
 		if (t.r[i] == 0)
 			n++;
 	}
-	pr_info("mxfs: P-PR-OWN-NEXUSES %s key=0x%llx paths=%d answered_good=%d — a matching RESERVE down each path; GOOD only from a nexus that holds the key\n",
+	pr_info("mxfs: P-PR-OWN-NEXUSES %s key=0x%llx paths=%d answered_good=%d -- a matching RESERVE down each path; GOOD only from a nexus that holds the key\n",
 		dev->bdev->bd_disk->disk_name, (unsigned long long)key, t.n, n);
 	if (good)
 		*good = n;
@@ -4919,7 +4938,7 @@ int mxfs_pal_scsi_pr_collapse_to_one_nexus(mxfs_bdev_t *dev, uint64_t key,
 		return -ENOTUNIQ;
 	}
 	r = mxfs_prout_path(t.p[one], 0x04, (u8)type, key, key);
-	pr_warn("mxfs: P-PR-COLLAPSED-TO-ONE-NEXUS %s key=0x%llx paths=%d path %d:%d:%d:%llu preempt_rc=%d — our key removed from every nexus but this one; the others are registered again when they answer\n",
+	pr_warn("mxfs: P-PR-COLLAPSED-TO-ONE-NEXUS %s key=0x%llx paths=%d path %d:%d:%d:%llu preempt_rc=%d -- our key removed from every nexus but this one; the others are registered again when they answer\n",
 		dev->bdev->bd_disk->disk_name, (unsigned long long)key, t.n,
 		t.p[one]->host->host_no, t.p[one]->channel, t.p[one]->id,
 		(unsigned long long)t.p[one]->lun, r);
@@ -5025,7 +5044,7 @@ int mxfs_pal_scsi_pr_fill_paths(mxfs_bdev_t *dev, uint64_t key, int *added)
 			 * REGISTER of ours with an unknown outcome is out. */
 			if (unverified && mxfs_prin_key_count(p, key) < 2) {
 				r = mxfs_prout_path(p, 0x00, 0, key, 0);
-				pr_warn("mxfs: P-PR-PATH-FILL-UNDONE %s path %d:%d:%d:%llu key=0x%llx — the key was found on this path alone after a REGISTER whose outcome was unknown; unregistered rc=%d\n",
+				pr_warn("mxfs: P-PR-PATH-FILL-UNDONE %s path %d:%d:%d:%llu key=0x%llx -- the key was found on this path alone after a REGISTER whose outcome was unknown; unregistered rc=%d\n",
 					dev->bdev->bd_disk->disk_name,
 					p->host->host_no, p->channel, p->id,
 					(unsigned long long)p->lun,
@@ -5047,7 +5066,7 @@ int mxfs_pal_scsi_pr_fill_paths(mxfs_bdev_t *dev, uint64_t key, int *added)
 			continue;
 		}
 		if (c == 0) {
-			pr_warn("mxfs: P-PR-PATH-FILL-KEY-GONE %s path %d:%d:%d:%llu key=0x%llx — the key is registered nowhere, so this path is not registered either\n",
+			pr_warn("mxfs: P-PR-PATH-FILL-KEY-GONE %s path %d:%d:%d:%llu key=0x%llx -- the key is registered nowhere, so this path is not registered either\n",
 				dev->bdev->bd_disk->disk_name, p->host->host_no,
 				p->channel, p->id, (unsigned long long)p->lun,
 				(unsigned long long)key);
@@ -5057,14 +5076,14 @@ int mxfs_pal_scsi_pr_fill_paths(mxfs_bdev_t *dev, uint64_t key, int *added)
 		if (unlikely(mxfs_dbg_pr_fill_pause_ms > 0)) {
 			int ms = xchg(&mxfs_dbg_pr_fill_pause_ms, 0);
 
-			pr_warn("mxfs: P-DBG-PR-FILL-PAUSE %s key=0x%llx ms=%d — TEST: holding between the key check and the late REGISTER\n",
+			pr_warn("mxfs: P-DBG-PR-FILL-PAUSE %s key=0x%llx ms=%d -- TEST: holding between the key check and the late REGISTER\n",
 				dev->bdev->bd_disk->disk_name,
 				(unsigned long long)key, ms);
 			msleep(ms);
 		}
 		r = mxfs_prout_path(p, 0x00, 0, 0, key);
 		if (r == SAM_STAT_RESERVATION_CONFLICT) {
-			pr_warn_ratelimited("mxfs: P-PR-PATH-FILL-FOREIGN %s path %d:%d:%d:%llu — this path's nexus holds a registration that is not key 0x%llx; it is left alone and stays unusable\n",
+			pr_warn_ratelimited("mxfs: P-PR-PATH-FILL-FOREIGN %s path %d:%d:%d:%llu -- this path's nexus holds a registration that is not key 0x%llx; it is left alone and stays unusable\n",
 				dev->bdev->bd_disk->disk_name, p->host->host_no,
 				p->channel, p->id, (unsigned long long)p->lun,
 				(unsigned long long)key);
@@ -5084,7 +5103,7 @@ int mxfs_pal_scsi_pr_fill_paths(mxfs_bdev_t *dev, uint64_t key, int *added)
 				spin_unlock(&mxfs_pr_map_lock);
 				unverified = true;
 			}
-			pr_warn("mxfs: P-PR-PATH-FILL-UNDONE %s path %d:%d:%d:%llu key=0x%llx register_rc=%d key_count_after=%d unregister_rc=%d — %s\n",
+			pr_warn("mxfs: P-PR-PATH-FILL-UNDONE %s path %d:%d:%d:%llu key=0x%llx register_rc=%d key_count_after=%d unregister_rc=%d -- %s\n",
 				dev->bdev->bd_disk->disk_name, p->host->host_no,
 				p->channel, p->id, (unsigned long long)p->lun,
 				(unsigned long long)key, r, c, u,
@@ -5097,7 +5116,7 @@ int mxfs_pal_scsi_pr_fill_paths(mxfs_bdev_t *dev, uint64_t key, int *added)
 				ret = -EAGAIN;
 			continue;
 		}
-		pr_info("mxfs: P-PR-PATH-FILLED %s path %d:%d:%d:%llu key=0x%llx registrations_of_key=%d — a path that held no registration now does, verified against the key's other registrations\n",
+		pr_info("mxfs: P-PR-PATH-FILLED %s path %d:%d:%d:%llu key=0x%llx registrations_of_key=%d -- a path that held no registration now does, verified against the key's other registrations\n",
 			dev->bdev->bd_disk->disk_name, p->host->host_no,
 			p->channel, p->id, (unsigned long long)p->lun,
 			(unsigned long long)key, c);
@@ -5533,12 +5552,12 @@ prout_submit:
 	    victim_key == mxfs_dbg_prout_lose_key) {
 		mxfs_dbg_prout_lose_key = 0;		/* one-shot */
 		if (ret) {
-			pr_warn("mxfs: P305-PROUT-LOSS-NOTQUALIFIED victim_key=0x%llx my_key=0x%llx type=0x%x real_rc=%d sense=%d/0x%x/0x%x — TEST ONLY: the armed PREEMPT AND ABORT did not produce the successful completion this injection withholds, so the lost-response state was NOT reached; the real result is passed through unchanged and the gate is disarmed\n",
+			pr_warn("mxfs: P305-PROUT-LOSS-NOTQUALIFIED victim_key=0x%llx my_key=0x%llx type=0x%x real_rc=%d sense=%d/0x%x/0x%x -- TEST ONLY: the armed PREEMPT AND ABORT did not produce the successful completion this injection withholds, so the lost-response state was NOT reached; the real result is passed through unchanged and the gate is disarmed\n",
 				(unsigned long long)victim_key,
 				(unsigned long long)my_key, type, ret,
 				sshdr.sense_key, sshdr.asc, sshdr.ascq);
 		} else {
-			pr_warn("mxfs: P305-PROUT-RESPONSE-LOST victim_key=0x%llx my_key=0x%llx type=0x%x sa=0x05 real_rc=0 — TEST ONLY WITNESS: the PREEMPT AND ABORT above COMPLETED SUCCESSFULLY against the target (its registration is removed and its task set aborted); its result is being WITHHELD from the fencing caller, which sees -ETIMEDOUT and must not certify exclusion from it.  This line is evidence for the test only; no MXFS path reads it, and this result is never delivered later\n",
+			pr_warn("mxfs: P305-PROUT-RESPONSE-LOST victim_key=0x%llx my_key=0x%llx type=0x%x sa=0x05 real_rc=0 -- TEST ONLY WITNESS: the PREEMPT AND ABORT above COMPLETED SUCCESSFULLY against the target (its registration is removed and its task set aborted); its result is being WITHHELD from the fencing caller, which sees -ETIMEDOUT and must not certify exclusion from it.  This line is evidence for the test only; no MXFS path reads it, and this result is never delivered later\n",
 				(unsigned long long)victim_key,
 				(unsigned long long)my_key, type);
 			ret = -ETIMEDOUT;
@@ -5558,7 +5577,7 @@ prout_submit:
 		ret = SAM_STAT_RESERVATION_CONFLICT;
 	if (ret && !(ret == SAM_STAT_RESERVATION_CONFLICT || ret == -EBUSY))
 		pr_warn("mxfs: P302-PROUT-ABORT-FAIL victim_key=0x%llx rc=%d "
-			"sense=%d/0x%x/0x%x — PREEMPT AND ABORT did not "
+			"sense=%d/0x%x/0x%x -- PREEMPT AND ABORT did not "
 			"complete; exclusion is NOT proved\n",
 			(unsigned long long)victim_key, ret,
 			sshdr.sense_key, sshdr.asc, sshdr.ascq);
@@ -5799,7 +5818,7 @@ int mxfs_pal_scsi_pr_preempt(mxfs_bdev_t *dev, uint64_t my_key,
 			 * slice stays blocked instead of being replayed under a
 			 * false proof.
 			 */
-			pr_warn("mxfs: P302-PROUT-NO-SDEV victim_key=0x%llx — no "
+			pr_warn("mxfs: P302-PROUT-NO-SDEV victim_key=0x%llx -- no "
 				"underlying SCSI device; PREEMPT AND ABORT "
 				"cannot be issued and exclusion is NOT proved\n",
 				(unsigned long long)victim_key);
@@ -6190,7 +6209,7 @@ int mxfs_pal_scsi_pr_unregister_bdev(struct block_device *bdev, uint64_t key)
 			mxfs_pal_log(MXFS_LOG_WARN,
 				     "mxfs-pal: P301-PR-UNREG-INCOMPLETE key "
 				     "0x%llx still registered after unregister "
-				     "(rc=%d, attempt %d/%d) — retrying",
+				     "(rc=%d, attempt %d/%d) -- retrying",
 				     (unsigned long long)key, ret, attempt + 1,
 				     MXFS_PR_VERIFY_ATTEMPTS);
 		} else if (vr == -EOPNOTSUPP) {
@@ -6201,7 +6220,7 @@ int mxfs_pal_scsi_pr_unregister_bdev(struct block_device *bdev, uint64_t key)
 			 */
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "mxfs-pal: P301-PR-UNREG-UNVERIFIABLE key "
-				     "0x%llx — this target does not answer "
+				     "0x%llx -- this target does not answer "
 				     "PERSISTENT RESERVE IN / READ KEYS, so "
 				     "retirement of this incarnation's storage "
 				     "authority CANNOT be proved (unregister "
@@ -6224,7 +6243,7 @@ int mxfs_pal_scsi_pr_unregister_bdev(struct block_device *bdev, uint64_t key)
 
 	mxfs_pal_log(MXFS_LOG_ERR,
 		     "mxfs-pal: P301-PR-AUTHORITY-NOT-RETIRED key 0x%llx is "
-		     "STILL REGISTERED (or unverifiable) after %d attempts — "
+		     "STILL REGISTERED (or unverifiable) after %d attempts -- "
 		     "this initiator can still write to the shared LUN.  "
 		     "Departure is NOT complete; the cluster must fence this "
 		     "key.  See D-CLEAN-UNMOUNT-LEAKS-PR-REGISTRATION-377.",
@@ -6559,7 +6578,7 @@ module_param_named(caw_path, mxfs_caw_path, int, 0644);
 MODULE_PARM_DESC(caw_path,
                  "CAW submission path: 0=scsi_execute_cmd (legacy, broken "
                  "under stress per), 1=manual-bio (default,"
-                 "path A — partial fix).");
+                 "path A -- partial fix).");
 
 /*
  * v0.3.128 post-CAS blkdev_issue_flush.
@@ -6589,7 +6608,7 @@ static int mxfs_caw_flush;
 module_param_named(caw_flush, mxfs_caw_flush, int, 0644);
 MODULE_PARM_DESC(caw_flush,
                  "blkdev_issue_flush after CAS-success: 0=off (default), "
-                 "1=force device flush (— root-cause workaround for"
+                 "1=force device flush (-- root-cause workaround for"
                  "no-FUA underlying device).");
 
 /*
@@ -6927,7 +6946,7 @@ caw_submit:
 		 * hunt through the ledger publish path. */
 		if ((cdb[1] & 0x08) && scsi_sense_valid(&sshdr) &&
 		    sshdr.sense_key == ILLEGAL_REQUEST) {
-			pr_warn_once("mxfs: COMPARE AND WRITE with FUA rejected by target (ILLEGAL REQUEST asc=0x%x ascq=0x%x) — this target cannot honour the crash-durable domain; either declare fua_disable=1 (write-through target, power loss out of scope) or use a target that accepts FUA\n",
+			pr_warn_once("mxfs: COMPARE AND WRITE with FUA rejected by target (ILLEGAL REQUEST asc=0x%x ascq=0x%x) -- this target cannot honour the crash-durable domain; either declare fua_disable=1 (write-through target, power loss out of scope) or use a target that accepts FUA\n",
 				     sshdr.asc, sshdr.ascq);
 		}
 		ret = -EIO;
@@ -7007,7 +7026,7 @@ caw_submit:
 	 * caller's existing miscompare-retry path.
 	 */
 	atomic64_inc(&mxfs_caw_verify_mismatch);
-	mxfs_probe_ratelimited("mxfs: P71-INSTR caw verify-mismatch lba=%llu — kernel SCSI passthrough non-persist (root cause #2); returning -EAGAIN\n",
+	mxfs_probe_ratelimited("mxfs: P71-INSTR caw verify-mismatch lba=%llu -- kernel SCSI passthrough non-persist (root cause #2); returning -EAGAIN\n",
 		(unsigned long long)lba);
 	ret = -EAGAIN;
 
@@ -7042,6 +7061,25 @@ int mxfs_pal_bdev_compare_and_write_many(mxfs_bdev_t *dev, int n,
 							 compare_bufs[i],
 							 write_bufs[i]);
 	return 0;
+}
+
+int mxfs_pal_bdev_compare_and_write_span(mxfs_bdev_t *dev, uint64_t offset,
+					 const void *compare_buf,
+					 const void *write_buf,
+					 uint32_t write_len)
+{
+	struct scsi_device *sdev;
+
+	if (!dev || !dev->bdev || !compare_buf || !write_buf)
+		return -EINVAL;
+	/* a SCSI COMPARE AND WRITE covers the compared sector alone */
+	sdev = mxfs_bdev_to_sdev(dev->bdev);
+	if (sdev) {
+		scsi_device_put(sdev);
+		return -EOPNOTSUPP;
+	}
+	return mxfs_pal_drbd_cas_emulate_span(dev, offset, compare_buf, write_buf,
+					      write_len);
 }
 
 struct block_device *mxfs_pal_bdev_get_bdev(mxfs_bdev_t *dev)

@@ -138,7 +138,7 @@ mxfs_noino_dump_ail_min(
 	lip = xfs_ail_min(ailp);
 	if (!lip) {
 		spin_unlock(&ailp->ail_lock);
-		mxfs_probe("mxfs: P-AILMIN ino=%llu — AIL empty at dump\n",
+		mxfs_probe("mxfs: P-AILMIN ino=%llu -- AIL empty at dump\n",
 			(unsigned long long)ino);
 		return;
 	}
@@ -197,7 +197,7 @@ mxfs_noino_dump_ail_min(
 		int wait0 = (a0 != NULLAGNUMBER) ?
 			mxfs_noino_agwait_inflight(mp, a0) : -1;
 
-		mxfs_probe("mxfs: P-AILMIN ino=%llu EFI lsn=0x%llx nextents=%u ag0=%u agwait_inflight=%d liflags=0x%lx — extent-free intent: EFD pending on that AG's lock\n",
+		mxfs_probe("mxfs: P-AILMIN ino=%llu EFI lsn=0x%llx nextents=%u ag0=%u agwait_inflight=%d liflags=0x%lx -- extent-free intent: EFD pending on that AG's lock\n",
 			(unsigned long long)ino,
 			(unsigned long long)lip->li_lsn, nx, a0, wait0,
 			lip->li_flags);
@@ -372,7 +372,7 @@ mxfs_noino_drain_mxfs_buflists(
 	unsigned int		drained_ags;
 
 	drained_ags = mxfs_dlm_ag_drain_all_alloc_buflists(mp);
-	pr_warn("mxfs: P-NOINO-LISTDRAIN ino=%llu ags=%u — fence stalled; drained mxfs alloc buflists (xfsaild cannot write _XBF_MXFS_ALLOC_QUEUED bufs)\n",
+	pr_warn("mxfs: P-NOINO-LISTDRAIN ino=%llu ags=%u -- fence stalled; drained mxfs alloc buflists (xfsaild cannot write _XBF_MXFS_ALLOC_QUEUED bufs)\n",
 		(unsigned long long)ino, drained_ags);
 }
 
@@ -458,7 +458,7 @@ mxfs_noino_drain_fence(
 			 */
 			convoy_stalls++;
 			if (convoy_stalls == 1 || (convoy_stalls % 4) == 0)
-				pr_warn("mxfs: P-NOINO-CONVOY ino=%llu try=%d min=0x%llx item=0x%x ag=%u agwait_ms=%llu frozen=%d chargeable=%d — AIL min frozen behind a local blocking AG wait; not charged as a wedge\n",
+				pr_warn("mxfs: P-NOINO-CONVOY ino=%llu try=%d min=0x%llx item=0x%x ag=%u agwait_ms=%llu frozen=%d chargeable=%d -- AIL min frozen behind a local blocking AG wait; not charged as a wedge\n",
 					(unsigned long long)ino, try,
 					(unsigned long long)min_now, cv_type,
 					cv_ag, (unsigned long long)cv_wait_ms,
@@ -495,7 +495,7 @@ mxfs_noino_drain_fence(
 			if (stall == 3)
 				mxfs_noino_drain_mxfs_buflists(mp, ino);
 			if (stall >= MXFS_NOINO_STALL_TRIES) {
-				pr_warn("mxfs: P-NOINO-DRAIN-STUCK ino=%llu try=%d — AIL min frozen at 0x%llx across %d bounded pushes (post-listdrain) convoy_stalls=%d\n",
+				pr_warn("mxfs: P-NOINO-DRAIN-STUCK ino=%llu try=%d -- AIL min frozen at 0x%llx across %d bounded pushes (post-listdrain) convoy_stalls=%d\n",
 					(unsigned long long)ino, try,
 					(unsigned long long)min_now, stall,
 					convoy_stalls);
@@ -503,11 +503,11 @@ mxfs_noino_drain_fence(
 			}
 		}
 		if ((try % 5) == 4)
-			pr_warn("mxfs: P-NOINO-DRAIN-RETRY ino=%llu try=%d min=0x%llx stall=%d convoy=%d — pre-release AIL target not yet landed\n",
+			pr_warn("mxfs: P-NOINO-DRAIN-RETRY ino=%llu try=%d min=0x%llx stall=%d convoy=%d -- pre-release AIL target not yet landed\n",
 				(unsigned long long)ino, try,
 				(unsigned long long)min_now, stall, convoy_stalls);
 	}
-	pr_warn("mxfs: P-NOINO-DRAIN-STUCK ino=%llu — hard cap %d tries exceeded (AIL advancing or convoy-frozen but never caught the snapshot target) convoy_stalls=%d last_ag=%u agwait_ms=%llu\n",
+	pr_warn("mxfs: P-NOINO-DRAIN-STUCK ino=%llu -- hard cap %d tries exceeded (AIL advancing or convoy-frozen but never caught the snapshot target) convoy_stalls=%d last_ag=%u agwait_ms=%llu\n",
 		(unsigned long long)ino, MXFS_NOINO_MAX_TRIES, convoy_stalls,
 		cv_ag, (unsigned long long)cv_wait_ms);
 	return false;
@@ -554,7 +554,7 @@ mxfs_dlm_noino_bast_work_fn(
 	 */
 	drained = mxfs_noino_drain_fence(mp, ino, landed);
 	if (!drained && !xfs_is_shutdown(mp)) {
-		pr_warn("mxfs: P-NOINO-RELFENCE-WEDGE ino=%llu — shutdown (un-durable no-inode lock NOT released)\n",
+		pr_warn("mxfs: P-NOINO-RELFENCE-WEDGE ino=%llu -- shutdown (un-durable no-inode lock NOT released)\n",
 			(unsigned long long)ino);
 		xfs_force_shutdown(mp, SHUTDOWN_META_IO_ERROR);
 		if (mxfs_noino_bast_dedup)
@@ -590,7 +590,7 @@ mxfs_dlm_noino_bast_work_fn(
 					ATOMIC_INIT(0);
 
 				if (atomic_inc_return(&p_noino_live_cap) <= 200)
-					pr_warn("mxfs: P-NOINO-LIVE-SKIP ino=%llu — inode re-instantiated with a granted mode during the drain fence; release skipped (live tenure owns the slot)\n",
+					pr_warn("mxfs: P-NOINO-LIVE-SKIP ino=%llu -- inode re-instantiated with a granted mode during the drain fence; release skipped (live tenure owns the slot)\n",
 						(unsigned long long)ino);
 				if (mxfs_noino_bast_dedup)
 					mxfs_noino_inflight_remove(mp, ino);
@@ -608,7 +608,7 @@ mxfs_dlm_noino_bast_work_fn(
 			static atomic_t p_noino_stale_cap = ATOMIC_INIT(0);
 
 			if (atomic_inc_return(&p_noino_stale_cap) <= 200)
-				pr_warn("mxfs: P-NOINO-STALE-RELEASE ino=%llu rel_gen=%u — local re-acquire owns a newer tenure; release refused (fresh grant preserved)\n",
+				pr_warn("mxfs: P-NOINO-STALE-RELEASE ino=%llu rel_gen=%u -- local re-acquire owns a newer tenure; release refused (fresh grant preserved)\n",
 					(unsigned long long)ino, w->rel_gen);
 		}
 	}
@@ -660,14 +660,14 @@ mxfs_noino_lc_work_fn(
 	spin_unlock_irqrestore(&mxfs_noino_lc_lock, flags);
 	if (age_ms >= (u64)mxfs_noino_lifecycle_max_ms) {
 		atomic64_inc(&mxfs_noino_lifecycle_timeouts);
-		pr_warn("mxfs: P-NOINO-LIFECYCLE-TIMEOUT ino=%llu class=%s iflags=0x%lx nlink=%u age_ms=%llu requeues=%u — local lifecycle op still running; falling through to the fence\n",
+		pr_warn("mxfs: P-NOINO-LIFECYCLE-TIMEOUT ino=%llu class=%s iflags=0x%lx nlink=%u age_ms=%llu requeues=%u -- local lifecycle op still running; falling through to the fence\n",
 			(unsigned long long)ino, xfs_ino_lifecycle_name(lc), fl,
 			nl, (unsigned long long)age_ms, w->n);
 	} else {
 		static atomic_t p_lcdone_n = ATOMIC_INIT(0);
 
 		if ((unsigned)atomic_inc_return(&p_lcdone_n) <= 64)
-			mxfs_probe("mxfs: P-NOINO-LIFECYCLE-DONE ino=%llu class=%s age_ms=%llu requeues=%u — lifecycle op finished; re-driving the BAST\n",
+			mxfs_probe("mxfs: P-NOINO-LIFECYCLE-DONE ino=%llu class=%s age_ms=%llu requeues=%u -- lifecycle op finished; re-driving the BAST\n",
 				(unsigned long long)ino,
 				xfs_ino_lifecycle_name(lc),
 				(unsigned long long)age_ms, w->n);

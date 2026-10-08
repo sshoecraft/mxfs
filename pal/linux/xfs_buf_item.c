@@ -179,7 +179,7 @@ xfs_buf_item_relse(
 		static atomic_t p_relse = ATOMIC_INIT(0);
 
 		if (atomic_inc_return(&p_relse) <= 100)
-			pr_warn("mxfs: P-AGMETA-RELSE-OUTSTANDING daddr=%lld len=%u ops=%s bli_flags=0x%x li_flags=0x%lx dirty=%d stale=%d aborted=%d inail=%d pin=%d hold=%d why=%s caller=%pS — a buf log item is being retired with its AG-meta track hold still outstanding; neither the write completion nor a reclaim consumed the token, so the hold and the AG's pending count leak from here\n",
+			pr_warn("mxfs: P-AGMETA-RELSE-OUTSTANDING daddr=%lld len=%u ops=%s bli_flags=0x%x li_flags=0x%lx dirty=%d stale=%d aborted=%d inail=%d pin=%d hold=%d why=%s caller=%pS -- a buf log item is being retired with its AG-meta track hold still outstanding; neither the write completion nor a reclaim consumed the token, so the hold and the AG's pending count leak from here\n",
 				(long long)bp->b_maps[0].bm_bn, bp->b_length,
 				(bp->b_ops && bp->b_ops->name) ? bp->b_ops->name : "?",
 				bip->bli_flags, bip->bli_item.li_flags,
@@ -1377,7 +1377,7 @@ mxfs_auth_classify(
 			auth = true;
 			atomic64_inc(&mxfs_tokcls_iunlink_ag);
 			if (atomic_inc_return(&iunl_n) <= 24)
-				mxfs_probe("mxfs: P-IUNLINK-AGCLASS blkno=%lld len=%u ag=%u epoch=%llu ino0=%llu comm=%s — di_next_unlinked image classified under the AG grant (fix shape B)\n",
+				mxfs_probe("mxfs: P-IUNLINK-AGCLASS blkno=%lld len=%u ag=%u epoch=%llu ino0=%llu comm=%s -- di_next_unlinked image classified under the AG grant (fix shape B)\n",
 					(long long)blkno, (unsigned)bp->b_length,
 					(unsigned)agno, (unsigned long long)ge,
 					(unsigned long long)be64_to_cpu(
@@ -1401,7 +1401,7 @@ mxfs_auth_classify(
 			static atomic_t dinona_n = ATOMIC_INIT(0);
 
 			if (atomic_inc_return(&dinona_n) <= 48)
-				mxfs_probe("mxfs: P239-DINO-NOAUTH blkno=%lld len=%u ag=%u ge=%llu bli_flags=0x%x blf_flags=0x%x inode_ops=%d comm=%s — inode-cluster image is not AG-authorized and the inode arm has no owner for it\n",
+				mxfs_probe("mxfs: P239-DINO-NOAUTH blkno=%lld len=%u ag=%u ge=%llu bli_flags=0x%x blf_flags=0x%x inode_ops=%d comm=%s -- inode-cluster image is not AG-authorized and the inode arm has no owner for it\n",
 					(long long)blkno, (unsigned)bp->b_length,
 					(unsigned)agno, (unsigned long long)ge,
 					(unsigned)bip->bli_flags,
@@ -1531,7 +1531,7 @@ mxfs_dbg_cancel_token_forge_apply(
 	else
 		cap->mba_resource += 1;
 	if (atomic64_inc_return(&mxfs_dbg_cancel_forged) <= 400)
-		mxfs_probe("mxfs: P-DBG-CANCEL-FORGE mode=%d blkno=%lld len=%u blft=%u class=%u res=%llu epoch=%llu owner_ino=%llu comm=%s — INJECTED: CANCEL proof forged\n",
+		mxfs_probe("mxfs: P-DBG-CANCEL-FORGE mode=%d blkno=%lld len=%u blft=%u class=%u res=%llu epoch=%llu owner_ino=%llu comm=%s -- INJECTED: CANCEL proof forged\n",
 			mode, (long long)bip->bli_formats[0].blf_blkno,
 			(unsigned)bip->bli_formats[0].blf_len,
 			(unsigned)cap->mba_blft, (unsigned)cap->mba_class,
@@ -1601,7 +1601,7 @@ mxfs_bli_auth_capture(
 		 * is compared, never replaced: only the witness may move.
 		 */
 		if (mxfs_authcap_inject == 2) {
-			mxfs_probe_ratelimited("mxfs: P-AUTHCAP-INJECT mode=2 blkno=%lld — leaving the re-type PENDING (token will be voided at commit)\n",
+			mxfs_probe_ratelimited("mxfs: P-AUTHCAP-INJECT mode=2 blkno=%lld -- leaving the re-type PENDING (token will be voided at commit)\n",
 				(long long)bip->bli_formats[0].blf_blkno);
 			return;
 		}
@@ -1630,7 +1630,7 @@ mxfs_bli_auth_capture(
 		} else if (now.mba_status == MXFS_AUTH_ST_VALID) {
 			/* proves a DIFFERENT authority (or the injected one) */
 			if (mxfs_authcap_inject == 1)
-				mxfs_probe_ratelimited("mxfs: P-AUTHCAP-INJECT mode=1 blkno=%lld — recording the re-proof as MIXED\n",
+				mxfs_probe_ratelimited("mxfs: P-AUTHCAP-INJECT mode=1 blkno=%lld -- recording the re-proof as MIXED\n",
 					(long long)bip->bli_formats[0].blf_blkno);
 			cap->mba_blft = now.mba_blft;
 			cap->mba_status = MXFS_AUTH_ST_MIXED;
@@ -2002,25 +2002,25 @@ mxfs_dbg_inject_logged_blf(
 		 * the window reaches here, and one line per reason is the
 		 * evidence; a flood is not.
 		 */
-		pr_err_ratelimited("mxfs: P-INJ-LOGGED-BLF-DECLINED daddr=%lld flags=0x%x mp=%d — not an inode-buffer image (or a cancel record); the knob stays armed\n",
+		pr_err_ratelimited("mxfs: P-INJ-LOGGED-BLF-DECLINED daddr=%lld flags=0x%x mp=%d -- not an inode-buffer image (or a cancel record); the knob stays armed\n",
 				   (long long)blfp->blf_blkno,
 				   (unsigned int)blfp->blf_flags, mp ? 1 : 0);
 		return;
 	}
 	if (blfp->blf_len < 2) {
-		pr_err("mxfs: P-INJ-LOGGED-BLF-DECLINED daddr=%lld len=%u — a one-block image cannot straddle anything; the knob stays armed\n",
+		pr_err("mxfs: P-INJ-LOGGED-BLF-DECLINED daddr=%lld len=%u -- a one-block image cannot straddle anything; the knob stays armed\n",
 		       (long long)blfp->blf_blkno, blfp->blf_len);
 		return;
 	}
 
 	agno = xfs_daddr_to_agno(mp, blfp->blf_blkno);
 	if (agno + 1 >= mp->m_sb.sb_agcount) {
-		pr_err("mxfs: P-INJ-LOGGED-BLF-DECLINED daddr=%lld agno=%u agcount=%u — the image sits in the last AG, so no daddr below it crosses a boundary; the knob stays armed\n",
+		pr_err("mxfs: P-INJ-LOGGED-BLF-DECLINED daddr=%lld agno=%u agcount=%u -- the image sits in the last AG, so no daddr below it crosses a boundary; the knob stays armed\n",
 		       (long long)blfp->blf_blkno, agno, mp->m_sb.sb_agcount);
 		return;
 	}
 	boundary = XFS_AGB_TO_DADDR(mp, agno + 1, 0);
-	pr_err("mxfs: P-INJ-LOGGED-BLF straddle daddr=%lld -> %lld len=%u agno=%u boundary=%lld — TEST: the LOG image now names an inode cluster that crosses an AG boundary; the buffer written to the platter is unchanged\n",
+	pr_err("mxfs: P-INJ-LOGGED-BLF straddle daddr=%lld -> %lld len=%u agno=%u boundary=%lld -- TEST: the LOG image now names an inode cluster that crosses an AG boundary; the buffer written to the platter is unchanged\n",
 	       (long long)blfp->blf_blkno, (long long)(boundary - 1),
 	       blfp->blf_len, agno, (long long)boundary);
 	blfp->blf_blkno = boundary - 1;
@@ -2043,7 +2043,7 @@ mxfs_dbg_inject_logged_agino(
 	if (!dst || !mp || !(blfp->blf_flags & XFS_BLF_INODE_BUF) ||
 	    (blfp->blf_flags & XFS_BLF_CANCEL)) {
 		/* see the companion note in mxfs_dbg_inject_logged_blf */
-		pr_err_ratelimited("mxfs: P-INJ-LOGGED-AGINO-DECLINED daddr=%lld flags=0x%x dst=%d mp=%d — not an inode-buffer image (or a cancel record); the knob stays armed\n",
+		pr_err_ratelimited("mxfs: P-INJ-LOGGED-AGINO-DECLINED daddr=%lld flags=0x%x dst=%d mp=%d -- not an inode-buffer image (or a cancel record); the knob stays armed\n",
 				   (long long)blfp->blf_blkno,
 				   (unsigned int)blfp->blf_flags,
 				   dst ? 1 : 0, mp ? 1 : 0);
@@ -2052,7 +2052,7 @@ mxfs_dbg_inject_logged_agino(
 
 	isize = mp->m_sb.sb_inodesize;
 	if (!isize) {
-		pr_err_ratelimited("mxfs: P-INJ-LOGGED-AGINO-DECLINED daddr=%lld — the mount reports inode size 0; the knob stays armed\n",
+		pr_err_ratelimited("mxfs: P-INJ-LOGGED-AGINO-DECLINED daddr=%lld -- the mount reports inode size 0; the knob stays armed\n",
 				   (long long)blfp->blf_blkno);
 		return;
 	}
@@ -2067,7 +2067,7 @@ mxfs_dbg_inject_logged_agino(
 		if (nu + sizeof(__be32) > seg_end)
 			break;
 		p = (__be32 *)((char *)dst + (nu - seg_start));
-		pr_err("mxfs: P-INJ-LOGGED-AGINO daddr=%lld inode=%u di_next_unlinked 0x%x -> 0x%x — TEST: the LOG image now carries an agino no AG of this filesystem contains; the buffer written to the platter is unchanged\n",
+		pr_err("mxfs: P-INJ-LOGGED-AGINO daddr=%lld inode=%u di_next_unlinked 0x%x -> 0x%x -- TEST: the LOG image now carries an agino no AG of this filesystem contains; the buffer written to the platter is unchanged\n",
 		       (long long)blfp->blf_blkno, i, be32_to_cpu(*p),
 		       (unsigned int)mxfs_dbg_recov_inject_agino);
 		*p = cpu_to_be32((uint32_t)mxfs_dbg_recov_inject_agino);
@@ -2079,7 +2079,7 @@ mxfs_dbg_inject_logged_agino(
 	 * at all — the third way this arm used to fail without saying so.
 	 * The range is printed because it is what decides the answer.
 	 */
-	pr_err_ratelimited("mxfs: P-INJ-LOGGED-AGINO-DECLINED daddr=%lld seg=[%u,%u) ninodes=%u isize=%u — an inode-buffer image, but its logged range carries no di_next_unlinked; the knob stays armed\n",
+	pr_err_ratelimited("mxfs: P-INJ-LOGGED-AGINO-DECLINED daddr=%lld seg=[%u,%u) ninodes=%u isize=%u -- an inode-buffer image, but its logged range carries no di_next_unlinked; the knob stays armed\n",
 			   (long long)blfp->blf_blkno, seg_start, seg_end,
 			   ninodes, isize);
 }
@@ -2506,7 +2506,7 @@ xfs_buf_item_finish_stale(
 		int hold = bp->b_hold;
 
 		if (hold != 1)
-			pr_warn_ratelimited("mxfs: P-STALE-FIN daddr=%lld ops=%s hold=%d pin=%d flags=0x%x agmeta_hold=%d — stale AG-meta completion leaves more than the caller's reference (leak source)\n",
+			pr_warn_ratelimited("mxfs: P-STALE-FIN daddr=%lld ops=%s hold=%d pin=%d flags=0x%x agmeta_hold=%d -- stale AG-meta completion leaves more than the caller's reference (leak source)\n",
 				(long long)bp->b_maps[0].bm_bn,
 				(bp->b_ops && bp->b_ops->name) ? bp->b_ops->name : "?",
 				hold, atomic_read(&bp->b_pin_count), bp->b_flags,
@@ -2690,7 +2690,7 @@ mxfs_bli_refuse_account(
 		bip->bli_mxfs_refuse_count = 1;
 		if (bp->b_mount)
 			atomic64_inc(&bp->b_mount->m_mxfs_ailpin_refused_n);
-		mxfs_probe_ratelimited("mxfs: P126-XFSAILD-REFUSE arm=%s agno=%u daddr=%lld ops=%s lsn=0x%llx owner=%llu cap_class=%u cap_st=%u cap_epoch=%llu cap_win=%llu cur_epoch=%llu cached=%d holders=%d in_ail=%d dirty=%d pin=%d — committed image for a grant this node does not hold; not written\n",
+		mxfs_probe_ratelimited("mxfs: P126-XFSAILD-REFUSE arm=%s agno=%u daddr=%lld ops=%s lsn=0x%llx owner=%llu cap_class=%u cap_st=%u cap_epoch=%llu cap_win=%llu cur_epoch=%llu cached=%d holders=%d in_ail=%d dirty=%d pin=%d -- committed image for a grant this node does not hold; not written\n",
 			arm, agno, (long long)bp->b_maps[0].bm_bn,
 			mxfs_agmeta_ops_name(bp),
 			(unsigned long long)lip->li_lsn,
@@ -2724,7 +2724,7 @@ mxfs_bli_refuse_account(
 		struct xfs_mount	*mp = bp->b_mount;
 
 		bip->bli_mxfs_refuse_reported = 1;
-		pr_alert("mxfs: P126-AIL-PINNED arm=%s agno=%u daddr=%lld ops=%s lsn=0x%llx owner=%llu cap_class=%u cap_st=%u cap_epoch=%llu cap_win=%llu cur_epoch=%llu cached=%d holders=%d age_ms=%u count=%u — this node committed a change to metadata it holds no grant for: writing it would clobber the holder, dropping it would lose a committed change, and nothing will ever make it writable\n",
+		pr_alert("mxfs: P126-AIL-PINNED arm=%s agno=%u daddr=%lld ops=%s lsn=0x%llx owner=%llu cap_class=%u cap_st=%u cap_epoch=%llu cap_win=%llu cur_epoch=%llu cached=%d holders=%d age_ms=%u count=%u -- this node committed a change to metadata it holds no grant for: writing it would clobber the holder, dropping it would lose a committed change, and nothing will ever make it writable\n",
 			arm, agno, (long long)bp->b_maps[0].bm_bn,
 			mxfs_agmeta_ops_name(bp),
 			(unsigned long long)lip->li_lsn,
@@ -2789,7 +2789,7 @@ mxfs_bli_refuse_clear(
 	}
 	if (age_ms >= READ_ONCE(mxfs_ailpin_clear_report_ms) ||
 	    bip->bli_mxfs_refuse_reported)
-		pr_warn_ratelimited("mxfs: P126-REFUSE-CLEARED daddr=%lld ops=%s lsn_first=0x%llx lsn_last=0x%llx age_ms=%u count=%u pinned_reported=%u shutdown=%d ioerr=%d — a refused image was retired\n",
+		pr_warn_ratelimited("mxfs: P126-REFUSE-CLEARED daddr=%lld ops=%s lsn_first=0x%llx lsn_last=0x%llx age_ms=%u count=%u pinned_reported=%u shutdown=%d ioerr=%d -- a refused image was retired\n",
 			(long long)bp->b_maps[0].bm_bn,
 			mxfs_agmeta_ops_name(bp),
 			(unsigned long long)bip->bli_mxfs_refuse_lsn,
@@ -2819,7 +2819,7 @@ mxfs_ailpin_work_fn(
 						   m_mxfs_ailpin_work);
 
 	xfs_alert(mp,
-	"mxfs: P126-AIL-PINNED-MOUNT arm=%s agno=%u daddr=%lld ops=%s lsn=0x%llx age_ms=%u count=%u — this node committed a change to metadata it holds no grant for and xfsaild has refused it past the grace period; it can be neither written (clobbers the holder) nor dropped (loses a committed change); shutting down so the log tail is released and the slice goes to recovery",
+	"mxfs: P126-AIL-PINNED-MOUNT arm=%s agno=%u daddr=%lld ops=%s lsn=0x%llx age_ms=%u count=%u -- this node committed a change to metadata it holds no grant for and xfsaild has refused it past the grace period; it can be neither written (clobbers the holder) nor dropped (loses a committed change); shutting down so the log tail is released and the slice goes to recovery",
 		mp->m_mxfs_ailpin_arm ? mp->m_mxfs_ailpin_arm : "?",
 		mp->m_mxfs_ailpin_agno, (long long)mp->m_mxfs_ailpin_daddr,
 		mp->m_mxfs_ailpin_ops ? mp->m_mxfs_ailpin_ops : "?",
@@ -2910,7 +2910,7 @@ xfs_buf_item_push(
 							pag_agno(pag), 0, e0,
 							cached, holders);
 			else
-				mxfs_probe_ratelimited("mxfs: P126-XFSAILD-REFUSE-TRANSIENT agno=%u daddr=%lld ops=%s epoch=%llu/%llu cached=%d holders=%d — not held at the predicate, hold state in motion; retained, not written\n",
+				mxfs_probe_ratelimited("mxfs: P126-XFSAILD-REFUSE-TRANSIENT agno=%u daddr=%lld ops=%s epoch=%llu/%llu cached=%d holders=%d -- not held at the predicate, hold state in motion; retained, not written\n",
 					pag_agno(pag),
 					(long long)bp->b_maps[0].bm_bn,
 					mxfs_agmeta_ops_name(bp),
@@ -2934,7 +2934,7 @@ xfs_buf_item_push(
 		uint64_t	ge = READ_ONCE(bp->b_pag->pag_mxfs_grant_epoch);
 
 		if (ge && ge != bip->bli_mxfs_auth.mba_epoch)
-			mxfs_probe_ratelimited("mxfs: P126-EPOCH-MISMATCH agno=%u daddr=%lld ops=%s lsn=0x%llx cap_epoch=%llu cur_epoch=%llu cap_win=%llu — held now, but the image was committed under an earlier tenure and never re-logged; written as before, counted here\n",
+			mxfs_probe_ratelimited("mxfs: P126-EPOCH-MISMATCH agno=%u daddr=%lld ops=%s lsn=0x%llx cap_epoch=%llu cur_epoch=%llu cap_win=%llu -- held now, but the image was committed under an earlier tenure and never re-logged; written as before, counted here\n",
 				pag_agno(bp->b_pag),
 				(long long)bp->b_maps[0].bm_bn,
 				mxfs_agmeta_ops_name(bp),
@@ -3005,7 +3005,7 @@ xfs_buf_item_push(
 	 * write is DONE=1 or undestaged and never matches (see predicate).
 	 */
 	if (mxfs_dir_zombie_push_retire(bp)) {
-		mxfs_probe_ratelimited("mxfs: P33-PUSH-RETIRE daddr=%lld in_ail=%d dirty=%d pin=%d — staling DONE=0 destaged zombie dir buffer instead of reflushing stale over peer add\n",
+		mxfs_probe_ratelimited("mxfs: P33-PUSH-RETIRE daddr=%lld in_ail=%d dirty=%d pin=%d -- staling DONE=0 destaged zombie dir buffer instead of reflushing stale over peer add\n",
 			(long long)bp->b_maps[0].bm_bn,
 			test_bit(XFS_LI_IN_AIL, &bip->bli_item.li_flags) ? 1 : 0,
 			(bip->bli_flags & XFS_BLI_DIRTY) ? 1 : 0,
@@ -3534,7 +3534,7 @@ xfs_buf_item_done(
 		int n = atomic_inc_return(&pbdd_n);
 
 		if (n <= 200) {
-			pr_warn("mxfs: P-BLI-DOUBLEDONE daddr=%lld ops=%s flags=0x%x comm=%s — concurrent xfs_buf_item_done lost the claim race (double completion/retire on one buffer)\n",
+			pr_warn("mxfs: P-BLI-DOUBLEDONE daddr=%lld ops=%s flags=0x%x comm=%s -- concurrent xfs_buf_item_done lost the claim race (double completion/retire on one buffer)\n",
 			    (long long)bp->b_maps[0].bm_bn,
 			    bp->b_ops && bp->b_ops->name ? bp->b_ops->name : "?",
 			    (unsigned int)bp->b_flags, current->comm);

@@ -402,7 +402,7 @@ mxfs_icensus_note(
 			 * open (fail closed) and the domain widens */
 			c->malformed++;
 			xfs_warn(log->l_mp,
-	"MXFS %s replay: P226-ICENSUS-MALFORMED done type 0x%x len=%zu lsn=0x%llx — cannot pair, its intent stays open",
+	"MXFS %s replay: P226-ICENSUS-MALFORMED done type 0x%x len=%zu lsn=0x%llx -- cannot pair, its intent stays open",
 				 src, t, item->ri_buf[0].iov_len,
 				 (unsigned long long)lsn);
 			return;
@@ -425,7 +425,7 @@ mxfs_icensus_note(
 				if (c->notices < MXFS_ICENSUS_NOTICES) {
 					c->notices++;
 					xfs_warn(log->l_mp,
-	"MXFS %s replay: P226-ICENSUS-DONE-AMBIGUOUS type 0x%x id=0x%llx lsn=0x%llx done_txn_verdict=%u — the done rides in a transaction that did not apply; its intent (type 0x%x verdict=%u) stays open as QUARANTINE",
+	"MXFS %s replay: P226-ICENSUS-DONE-AMBIGUOUS type 0x%x id=0x%llx lsn=0x%llx done_txn_verdict=%u -- the done rides in a transaction that did not apply; its intent (type 0x%x verdict=%u) stays open as QUARANTINE",
 						 src, t, (unsigned long long)id,
 						 (unsigned long long)lsn,
 						 verdict, e->type, e->verdict);
@@ -495,7 +495,7 @@ mxfs_icensus_note(
 	if (c->notices < MXFS_ICENSUS_NOTICES) {
 		c->notices++;
 		xfs_notice(log->l_mp,
-	"MXFS %s replay: P226-ICENSUS-INTENT type 0x%x id=0x%llx lsn=0x%llx verdict=%u nextents=%u ag_mask=0x%llx fswide=%d malformed=%d (open=%u) — not applied, tracked",
+	"MXFS %s replay: P226-ICENSUS-INTENT type 0x%x id=0x%llx lsn=0x%llx verdict=%u nextents=%u ag_mask=0x%llx fswide=%d malformed=%d (open=%u) -- not applied, tracked",
 			   src, t, (unsigned long long)e->id,
 			   (unsigned long long)lsn, verdict, e->nextents,
 			   (unsigned long long)e->ag_mask, (int)e->fswide,
@@ -703,7 +703,7 @@ mxfs_icensus_undischarged(
 				if (shown++ >= 16)
 					break;
 				xfs_warn(log->l_mp,
-	"MXFS %s replay: P226-ICENSUS-OPEN type 0x%x id=0x%llx lsn=0x%llx verdict=%u nextents=%u ag_mask=0x%llx fswide=%d malformed=%d — obligation undischarged in the slice",
+	"MXFS %s replay: P226-ICENSUS-OPEN type 0x%x id=0x%llx lsn=0x%llx verdict=%u nextents=%u ag_mask=0x%llx fswide=%d malformed=%d -- obligation undischarged in the slice",
 					 src, e->type, (unsigned long long)e->id,
 					 (unsigned long long)e->lsn, e->verdict,
 					 e->nextents,

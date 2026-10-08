@@ -143,7 +143,7 @@ mxfs_relmark_publish(
 				XFS_TRANS_NO_WRITECOUNT, &tp);
 	if (error) {
 		atomic64_inc(&mxfs_relmark_publish_fail);
-		mxfs_probe_ratelimited("mxfs: P-RELMARK-FAIL class=%u res=%llu gepoch=%llu who=%s rc=%d — clean-release marker NOT published (transaction)\n",
+		mxfs_probe_ratelimited("mxfs: P-RELMARK-FAIL class=%u res=%llu gepoch=%llu who=%s rc=%d -- clean-release marker NOT published (transaction)\n",
 			(unsigned)auth_class, (unsigned long long)resource,
 			(unsigned long long)grant_epoch, who ? who : "?",
 			error);
@@ -172,7 +172,7 @@ mxfs_relmark_publish(
 	error = xfs_trans_commit(tp);
 	if (error) {
 		atomic64_inc(&mxfs_relmark_publish_fail);
-		mxfs_probe_ratelimited("mxfs: P-RELMARK-FAIL class=%u res=%llu gepoch=%llu who=%s rc=%d — clean-release marker NOT durable (commit)\n",
+		mxfs_probe_ratelimited("mxfs: P-RELMARK-FAIL class=%u res=%llu gepoch=%llu who=%s rc=%d -- clean-release marker NOT durable (commit)\n",
 			(unsigned)auth_class, (unsigned long long)resource,
 			(unsigned long long)grant_epoch, who ? who : "?",
 			error);

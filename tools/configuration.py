@@ -399,11 +399,12 @@ def selftest() -> int:
     expect("translate xfs", translate_retired("1/xfs"), "1/xfs")
     expect("shape", parse("8/net/mesh/direct").shape, "net-mesh-direct")
     expect("shape xfs", parse("1/xfs").shape, "xfs")
-    expect("release matrix", len(release_matrix()), 16)
-    expect("release at 8", [c.key for c in release_matrix(8)],
-           ["8/net/mesh/direct", "8/disk/caw/direct", "8/net/mesh/mpath", "8/disk/caw/mpath"])
-    expect("release at 16", [c.key for c in release_matrix(16)],
-           ["16/net/mesh/direct", "16/disk/caw/direct", "16/net/mesh/mpath", "16/disk/caw/mpath"])
+    expect("release matrix", len(release_matrix()), 6)
+    expect("release at 2", [c.key for c in release_matrix(2)],
+           ["2/net/mesh/direct", "2/disk/caw/direct"])
+    expect("release at 16", [c.key for c in release_matrix(16)], ["16/disk/caw/direct"])
+    expect("released earlier, not in the matrix",
+           sorted(set(DEFS.get("released_earlier", {})) - {"_"} & set(DEFS["release_matrix"])), [])
 
     for line in failures:
         print("FAIL", line)

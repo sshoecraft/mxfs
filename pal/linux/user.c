@@ -219,6 +219,20 @@ int mxfs_pal_bdev_write_scatter_prio(mxfs_bdev_t *dev,
 	return mxfs_pal_bdev_write_scatter(dev, offsets, bufs, lens, count);
 }
 
+/* Each write durable when the call returns, as mxfs_pal_bdev_write_fua's. */
+int mxfs_pal_bdev_write_scatter_fua(mxfs_bdev_t *dev,
+				     const uint64_t *offsets,
+				     void * const *bufs,
+				     const uint32_t *lens,
+				     int count)
+{
+	int ret = mxfs_pal_bdev_write_scatter(dev, offsets, bufs, lens, count);
+
+	if (ret)
+		return ret;
+	return mxfs_pal_bdev_flush(dev);
+}
+
 int mxfs_pal_bdev_read_async(mxfs_bdev_t *dev, uint64_t offset,
 			      void *buf, uint32_t len)
 {
@@ -567,10 +581,27 @@ void mxfs_pal_rwlock_destroy(mxfs_rwlock_t *rw)
 	free(rw);
 }
 
+/*
+ * A failed acquire must stop the process, never return as if it had locked.
+ * glibc answers a recursive acquisition by the thread that already holds the
+ * write lock with EDEADLK and takes nothing; the caller then runs its critical
+ * section unlocked and its unlock releases the OUTER holder's lock.  The
+ * kernel rwsem has no such answer: the same recursion waits on itself forever.
+ * Aborting here makes user mode fail where the kernel would hang.
+ */
+static void rwlock_failed(const char *fn, const char *op, int rc)
+{
+	fprintf(stderr, "%s: %s failed: %s%s\n", fn, op, strerror(rc),
+		rc == EDEADLK ? " -- a recursive acquisition; the kernel rwsem would wait on itself forever" : "");
+	abort();
+}
+
 void mxfs_pal_rwlock_rdlock(mxfs_rwlock_t *rw)
 {
-	if (rw)
-		pthread_rwlock_rdlock(&rw->rwl);
+	int rc;
+
+	if (rw && (rc = pthread_rwlock_rdlock(&rw->rwl)) != 0)
+		rwlock_failed(__func__, "pthread_rwlock_rdlock", rc);
 }
 
 /*  — user mode can always sleep (see pal.h). */
@@ -589,8 +620,10 @@ int mxfs_pal_rwlock_tryrdlock(mxfs_rwlock_t *rw)
 
 void mxfs_pal_rwlock_wrlock(mxfs_rwlock_t *rw)
 {
-	if (rw)
-		pthread_rwlock_wrlock(&rw->rwl);
+	int rc;
+
+	if (rw && (rc = pthread_rwlock_wrlock(&rw->rwl)) != 0)
+		rwlock_failed(__func__, "pthread_rwlock_wrlock", rc);
 }
 
 void mxfs_pal_rwlock_unlock(mxfs_rwlock_t *rw)
@@ -2182,6 +2215,54 @@ void mxfs_pal_sdev_cache_release(void)
 {
 }
 
+/*
+ * (D-0347): a REGULAR FILE backs the usermode tests — emulate the sector CAW
+ * under one process-wide lock (atomic for every thread of the harness; the
+ * kernel PAL issues the real SCSI command).  The span swap takes the same
+ * lock, so the two exclude each other as the DRBD emulator's do.  1 = not a
+ * regular file.
+ */
+static pthread_mutex_t user_caw_lock = PTHREAD_MUTEX_INITIALIZER;
+
+static int user_file_swap(mxfs_bdev_t *dev, uint64_t offset, const void *compare_buf,
+			  const void *write_buf, uint32_t write_len)
+{
+	struct stat st;
+	uint8_t cur[512];
+	off_t o = (off_t)(offset + dev->base_offset);
+	ssize_t n;
+	int rc = 0;
+
+	if (fstat(dev->fd, &st) != 0 || !S_ISREG(st.st_mode))
+		return 1;
+	pthread_mutex_lock(&user_caw_lock);
+	n = pread(dev->fd, cur, 512, o);
+	if (n != 512)
+		rc = n < 0 ? -errno : -EIO;
+	else if (memcmp(cur, compare_buf, 512) != 0)
+		rc = -EAGAIN;
+	else if (pwrite(dev->fd, write_buf, write_len, o) != (ssize_t)write_len)
+		rc = -EIO;
+	else if (fdatasync(dev->fd) != 0)
+		rc = -errno;
+	pthread_mutex_unlock(&user_caw_lock);
+	return rc;
+}
+
+int mxfs_pal_bdev_compare_and_write_span(mxfs_bdev_t *dev, uint64_t offset,
+					 const void *compare_buf,
+					 const void *write_buf,
+					 uint32_t write_len)
+{
+	int rc;
+
+	if (!dev || dev->fd < 0 || !compare_buf || !write_buf ||
+	    write_len < 512 || write_len > 4096 || (write_len & 511))
+		return -EINVAL;
+	rc = user_file_swap(dev, offset, compare_buf, write_buf, write_len);
+	return rc == 1 ? -EOPNOTSUPP : rc;     /* a device: SCSI covers one sector */
+}
+
 int mxfs_pal_bdev_compare_and_write(mxfs_bdev_t *dev, uint64_t offset,
 				     const void *compare_buf,
 				     const void *write_buf)
@@ -2196,33 +2277,9 @@ int mxfs_pal_bdev_compare_and_write(mxfs_bdev_t *dev, uint64_t offset,
 	if (!dev || dev->fd < 0 || !compare_buf || !write_buf)
 		return -EINVAL;
 
-	/* (D-0347): a REGULAR FILE backs the usermode tests — emulate
-	 * the sector CAW under one process-wide lock (atomic for every thread
-	 * of the harness; the kernel PAL issues the real SCSI command). */
-	{
-		struct stat st;
-
-		if (fstat(dev->fd, &st) == 0 && S_ISREG(st.st_mode)) {
-			static pthread_mutex_t caw_lock = PTHREAD_MUTEX_INITIALIZER;
-			uint8_t cur[512];
-			off_t o = (off_t)(offset + dev->base_offset);
-			ssize_t n;
-			int rc = 0;
-
-			pthread_mutex_lock(&caw_lock);
-			n = pread(dev->fd, cur, 512, o);
-			if (n != 512)
-				rc = n < 0 ? -errno : -EIO;
-			else if (memcmp(cur, compare_buf, 512) != 0)
-				rc = -EAGAIN;
-			else if (pwrite(dev->fd, write_buf, 512, o) != 512)
-				rc = -EIO;
-			else if (fdatasync(dev->fd) != 0)
-				rc = -errno;
-			pthread_mutex_unlock(&caw_lock);
-			return rc;
-		}
-	}
+	ret = user_file_swap(dev, offset, compare_buf, write_buf, 512);
+	if (ret != 1)
+		return ret;
 
 	lba = (offset + dev->base_offset) / 512;
 

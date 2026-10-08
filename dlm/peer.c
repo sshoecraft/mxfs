@@ -260,7 +260,7 @@ static int start_recv_thread(struct mxfs_peer_ctx *ctx, struct mxfs_peer *peer,
 	if (peer->recv_thread)
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "P-PEER-RECV-OVERWRITE node=%u by=%s "
-			     "old_pid=%d new_pid=%d delay_ms=%u n=%d — a receive "
+			     "old_pid=%d new_pid=%d delay_ms=%u n=%d -- a receive "
 			     "thread's handle is stored over one still stored; "
 			     "nothing joins the thread it named",
 			     peer->node_id, who,
@@ -321,7 +321,7 @@ static void peer_teardown_locked(struct mxfs_peer_ctx *ctx,
 				break;
 			mxfs_pal_log(MXFS_LOG_WARN,
 				     "P-PEER-TEARDOWN-REPEAT node=%u by=%s "
-				     "round=%d sock=%d thread_pid=%d n=%d — a "
+				     "round=%d sock=%d thread_pid=%d n=%d -- a "
 				     "connection was installed while the one "
 				     "before it was being joined; taken down too",
 				     peer->node_id, who, rounds,
@@ -1107,7 +1107,7 @@ int mxfs_peer_send(struct mxfs_peer_ctx *ctx, mxfs_node_id_t node_id,
 			mxfs_pal_mutex_unlock(peer->send_lock);
 			mxfs_pal_log(MXFS_LOG_WARN,
 				     "mxfs: send to node %u timed out (slow peer under "
-				     "load) — keeping connection, caller will retry "
+				     "load) -- keeping connection, caller will retry "
 				     "(keepalive/lease detect true death)", node_id);
 			return -EAGAIN;
 		}

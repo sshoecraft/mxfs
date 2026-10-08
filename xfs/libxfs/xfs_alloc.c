@@ -2300,7 +2300,7 @@ xfs_free_ag_extent(
 				    !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm) &&
 				    (uint64_t)ltbno + ltlen >= (uint64_t)bno + len) {
 					pr_warn_ratelimited(
-					    "mxfs: P3-SKIP-DBLFREE agno=%u bno=%u len=%u already-free ltbno=%u ltlen=%u comm=%s — stale-map redundant free skipped (no shutdown)\n",
+					    "mxfs: P3-SKIP-DBLFREE agno=%u bno=%u len=%u already-free ltbno=%u ltlen=%u comm=%s -- stale-map redundant free skipped (no shutdown)\n",
 						(unsigned)pag_agno(pag),
 						(unsigned)bno, (unsigned)len,
 						(unsigned)ltbno, (unsigned)ltlen,
@@ -3858,6 +3858,10 @@ xfs_alloc_read_agf(
 
 	agf = agfbp->b_addr;
 	if (!xfs_perag_initialised_agf(pag)) {
+		/* MXFS: a rebuild after a peer's tenure folds the peer's
+		 * changes into the counters, the allocbt share included */
+		bool	allocbt_counted = mxfs_pag_agf_reinit(pag, agf);
+
 		pag->pagf_freeblks = be32_to_cpu(agf->agf_freeblks);
 		pag->pagf_btreeblks = be32_to_cpu(agf->agf_btreeblks);
 		pag->pagf_flcount = be32_to_cpu(agf->agf_flcount);
@@ -3881,7 +3885,7 @@ xfs_alloc_read_agf(
 		allocbt_blks = pag->pagf_btreeblks;
 		if (xfs_has_rmapbt(mp))
 			allocbt_blks -= be32_to_cpu(agf->agf_rmap_blocks) - 1;
-		if (allocbt_blks > 0)
+		if (allocbt_blks > 0 && !allocbt_counted)
 			atomic64_add(allocbt_blks, &mp->m_allocbt_blks);
 
 		set_bit(XFS_AGSTATE_AGF_INIT, &pag->pag_opstate);
@@ -4447,7 +4451,7 @@ xfs_alloc_vextent_finish(
 							struct xfs_agf *dagf2 = ab2;
 							uint32_t dfree2 = be32_to_cpu(
 								dagf2->agf_freeblks);
-							mxfs_probe("mxfs: P-DBLALLOC-AGF agno=%u incore_freeblks=%u disk_freeblks=%u differ=%d — %s\n",
+							mxfs_probe("mxfs: P-DBLALLOC-AGF agno=%u incore_freeblks=%u disk_freeblks=%u differ=%d -- %s\n",
 								da_agno,
 								(unsigned)args->pag->pagf_freeblks,
 								dfree2,
@@ -4640,7 +4644,7 @@ restart:
 		 * through here and still meet the gate.
 		 */
 		if (unlikely(mxfs_quarantine_covers_agno(mp, agno))) {
-			pr_warn_ratelimited("mxfs: P538-AG-SKIP agno=%u start=%u comm=%s — quarantined AG left out of the extent walk\n",
+			pr_warn_ratelimited("mxfs: P538-AG-SKIP agno=%u start=%u comm=%s -- quarantined AG left out of the extent walk\n",
 				agno, start_agno, current->comm);
 			trace_xfs_alloc_vextent_loopfailed(args);
 			continue;
@@ -4683,7 +4687,7 @@ restart:
 		 * it on every error path), so agbp set ⇒ hold owned here.
 		 */
 		if (args->agbp) {
-			pr_warn("mxfs: P272-AGITER-ERRLEAK agno=%u err=%d comm=%s tp=%p — deferring AG DLM unlock on error unwind\n",
+			pr_warn("mxfs: P272-AGITER-ERRLEAK agno=%u err=%d comm=%s tp=%p -- deferring AG DLM unlock on error unwind\n",
 				args->agno, error, current->comm, args->tp);
 			mxfs_ag_dlm_unlock_deferred(args->tp, args->pag);
 		}
@@ -4967,7 +4971,7 @@ __xfs_free_extent(
 
 		if (tp->t_mxfs_ag_relsafe == MXFS_AG_RELSAFE_NOTDEFER) {
 			if (!list_empty(&tp->t_mxfs_ag_unlocks))
-				mxfs_probe("mxfs: P271-AGNOTDEFER want ag=%u comm=%s — retained grants outside defer, blocking (audit)\n",
+				mxfs_probe("mxfs: P271-AGNOTDEFER want ag=%u comm=%s -- retained grants outside defer, blocking (audit)\n",
 					pag_agno(pag), current->comm);
 			error = mxfs_ag_dlm_lock(mp, pag);
 		} else {
@@ -4978,7 +4982,7 @@ __xfs_free_extent(
 				tp->t_mxfs_ag_want = pag;
 			}
 			if (mxfs_probe_on() && __ratelimit(&mxfs_agwant_rl))
-				mxfs_probe("mxfs: P271-AGWANT want ag=%u relsafe=%u comm=%s — requeueing to post-roll seam\n",
+				mxfs_probe("mxfs: P271-AGWANT want ag=%u relsafe=%u comm=%s -- requeueing to post-roll seam\n",
 					pag_agno(pag), tp->t_mxfs_ag_relsafe,
 					current->comm);
 			return -EAGAIN;

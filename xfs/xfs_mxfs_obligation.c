@@ -52,7 +52,7 @@ module_param_named(f4_gate, mxfs_f4_gate, int, 0644);
 MODULE_PARM_DESC(f4_gate,
 		 "F4 committed-never-submitted obligations block the dir "
 		 "release proof (0=telemetry only default; 1=extra durable "
-		 "passes + defer while open — NOT yet sound for enforcement, "
+		 "passes + defer while open -- NOT yet sound for enforcement, "
 		 "see ruling items 4-5)");
 
 static atomic64_t mxfs_f4_genctr;	/* global monotonic commit generation */
@@ -164,7 +164,7 @@ mxfs_f4_registry_destroy(struct xfs_mount *mp)
 	 * orphan hook or a record leaked — both are registry defects.
 	 */
 	if (live || orphan)
-		pr_warn("mxfs: P286-F4-TEARDOWN-OPEN live=%d orphan=%d — obligations still open at registry destroy\n",
+		pr_warn("mxfs: P286-F4-TEARDOWN-OPEN live=%d orphan=%d -- obligations still open at registry destroy\n",
 			live, orphan);
 	mxfs_probe("mxfs: F4-REGISTRY-TOTAL opens=%lld recommits=%lld retires=%lld stale_cancels=%lld shutdown_cancels=%lld abort_keeps=%lld orphans=%lld suppress_skips=%lld ordered=%lld unknown=%d open_at_destroy=%d\n",
 		(long long)atomic64_read(&reg->f4_opens),
@@ -251,7 +251,7 @@ mxfs_icwr_registry_destroy(struct xfs_mount *mp)
 	}
 	spin_unlock(&reg->icwr_lock);
 	if (leaked)
-		pr_warn("mxfs: P288-ICWR-TEARDOWN-LEAK inflight=%d — counted inode-cluster writes never completed (orphans=%lld)\n",
+		pr_warn("mxfs: P288-ICWR-TEARDOWN-LEAK inflight=%d -- counted inode-cluster writes never completed (orphans=%lld)\n",
 			leaked, (long long)atomic64_read(&reg->icwr_orphans));
 	mxfs_probe("mxfs: ICWR-REGISTRY-TOTAL submits=%lld completes=%lld resubmit_keeps=%lld orphans=%lld underflows=%lld untracked=%lld entries=%d leaked_inflight=%d\n",
 		(long long)atomic64_read(&reg->icwr_submits),
@@ -288,7 +288,7 @@ mxfs_icwr_submit(struct xfs_buf *bp)
 		 * logical write is still capable of landing (ruling item A).
 		 */
 		atomic64_inc(&reg->icwr_resubmit_keeps);
-		mxfs_probe_ratelimited("mxfs: P287-ICWR-RESUBMIT daddr=%lld inflight=%d — counted inode-cluster write resubmitted before completion; keeping single token\n",
+		mxfs_probe_ratelimited("mxfs: P287-ICWR-RESUBMIT daddr=%lld inflight=%d -- counted inode-cluster write resubmitted before completion; keeping single token\n",
 				    (long long)bp->b_maps[0].bm_bn,
 				    bp->b_mxfs_icwr_ent ?
 					atomic_read(&bp->b_mxfs_icwr_ent->ie_inflight) : -1);
@@ -305,7 +305,7 @@ mxfs_icwr_submit(struct xfs_buf *bp)
 		 * kill.
 		 */
 		atomic64_inc(&reg->icwr_untracked);
-		pr_warn_ratelimited("mxfs: P287-ICWR-UNTRACKED daddr=%lld — icwr entry alloc failed; cluster proofs poisoned conservative\n",
+		pr_warn_ratelimited("mxfs: P287-ICWR-UNTRACKED daddr=%lld -- icwr entry alloc failed; cluster proofs poisoned conservative\n",
 				    (long long)bp->b_maps[0].bm_bn);
 		return;
 	}
@@ -346,7 +346,7 @@ mxfs_icwr_complete(struct xfs_buf *bp)
 		if (unlikely(now < 0)) {
 			atomic_set(&ent->ie_inflight, 0);
 			atomic64_inc(&reg->icwr_underflows);
-			mxfs_probe_ratelimited("mxfs: P287-ICWR-UNDERFLOW daddr=%lld — keyed inflight went negative; clamped\n",
+			mxfs_probe_ratelimited("mxfs: P287-ICWR-UNDERFLOW daddr=%lld -- keyed inflight went negative; clamped\n",
 					    (long long)ent->ie_daddr);
 		}
 	}
@@ -376,7 +376,7 @@ mxfs_icwr_buf_free(struct xfs_buf *bp)
 		if (atomic_dec_return(&bp->b_mount->m_mxfs_iclus_wr_inflight) < 0)
 			atomic_set(&bp->b_mount->m_mxfs_iclus_wr_inflight, 0);
 	}
-	pr_alert("mxfs: P288-ICWR-ORPHAN daddr=%lld ent=%d — counted inode-cluster write buffer freed without completion; keyed entry kept inflight (fail closed)\n",
+	pr_alert("mxfs: P288-ICWR-ORPHAN daddr=%lld ent=%d -- counted inode-cluster write buffer freed without completion; keyed entry kept inflight (fail closed)\n",
 		 (long long)(bp->b_mxfs_icwr_ent ?
 			     bp->b_mxfs_icwr_ent->ie_daddr : -1),
 		 bp->b_mxfs_icwr_ent ?
@@ -437,7 +437,7 @@ mxfs_f4_commit(struct xfs_buf *bp, unsigned int bli_flags)
 			 * open — rehash under the new owner, conservatively
 			 * keeping the record (ruling item 8 assert) */
 			mxfs_probe_ratelimited(
-			    "mxfs: P284-F4-OWNER-MISMATCH daddr=%lld old_ino=%llu new_ino=%llu gen=%llu — owner changed under an open obligation\n",
+			    "mxfs: P284-F4-OWNER-MISMATCH daddr=%lld old_ino=%llu new_ino=%llu gen=%llu -- owner changed under an open obligation\n",
 				(long long)rec->f4_daddr,
 				(unsigned long long)rec->f4_ino,
 				(unsigned long long)owner,
@@ -501,7 +501,7 @@ mxfs_f4_cancel(struct xfs_buf *bp, enum mxfs_f4_cancel_why why)
 		rec->f4_aborted = 1;
 		atomic64_inc(&reg->f4_abort_keeps);
 		pr_warn_ratelimited(
-		    "mxfs: P284-F4-ABORT-KEEP ino=%llu daddr=%lld gen=%llu — aborted without shutdown; obligation kept open\n",
+		    "mxfs: P284-F4-ABORT-KEEP ino=%llu daddr=%lld gen=%llu -- aborted without shutdown; obligation kept open\n",
 			(unsigned long long)rec->f4_ino,
 			(long long)rec->f4_daddr,
 			(unsigned long long)rec->f4_gen);
@@ -534,7 +534,7 @@ mxfs_f4_write_complete(struct xfs_buf *bp)
 		 * lets release re-drive the buffer (ruling item 1). */
 		atomic64_inc(&reg->f4_suppress_skips);
 		pr_warn_ratelimited(
-		    "mxfs: P287-F4-SUPPRESSED-COMPLETION ino=%llu daddr=%lld gen=%llu — fence suppressed the covering write; obligation stays open\n",
+		    "mxfs: P287-F4-SUPPRESSED-COMPLETION ino=%llu daddr=%lld gen=%llu -- fence suppressed the covering write; obligation stays open\n",
 			(unsigned long long)rec->f4_ino,
 			(long long)rec->f4_daddr,
 			(unsigned long long)rec->f4_gen);
@@ -571,7 +571,7 @@ mxfs_f4_buf_free(struct xfs_buf *bp)
 	spin_unlock(&reg->f4_lock);
 	atomic64_inc(&reg->f4_orphans);
 	bp->b_mxfs_f4_rec = NULL;
-	pr_warn("mxfs: P286-F4-ORPHAN ino=%llu daddr=%lld len=%u gen=%llu aborted=%u shutdown=%d — buffer freed with committed-never-submitted obligation open; record kept\n",
+	pr_warn("mxfs: P286-F4-ORPHAN ino=%llu daddr=%lld len=%u gen=%llu aborted=%u shutdown=%d -- buffer freed with committed-never-submitted obligation open; record kept\n",
 		(unsigned long long)rec->f4_ino, (long long)rec->f4_daddr,
 		rec->f4_length, (unsigned long long)rec->f4_gen,
 		rec->f4_aborted, xfs_is_shutdown(mp) ? 1 : 0);
@@ -689,7 +689,7 @@ mxfs_relbar_f4_census(struct xfs_inode *ip, long f4_open, int f4_unknown,
 	static atomic_t p285_n = ATOMIC_INIT(0);
 
 	if (atomic_inc_return(&p285_n) <= 400)
-		mxfs_probe("mxfs: P285-F4-CENSUS ino=%llu site=%s f4_open=%ld unknown=%d pend=%llu dur=%llu gate=%d — dir release proof walked clean with committed-never-submitted obligations open\n",
+		mxfs_probe("mxfs: P285-F4-CENSUS ino=%llu site=%s f4_open=%ld unknown=%d pend=%llu dur=%llu gate=%d -- dir release proof walked clean with committed-never-submitted obligations open\n",
 			(unsigned long long)ip->i_ino, site, f4_open,
 			f4_unknown,
 			(unsigned long long)READ_ONCE(ip->i_mxfs_pub_pending_seq),
@@ -784,7 +784,7 @@ mxfs_oblf_note(
 	spin_unlock(&mp->m_mxfs_oblf_lock);
 	if (!changed)
 		return;
-	mxfs_probe("mxfs: P-OBLF-%s slot=%d victim=%u/%llu seq=%u ag_mask=0x%llx fswide=%d — obligation freeze union 0x%llx/%d -> 0x%llx/%d\n",
+	mxfs_probe("mxfs: P-OBLF-%s slot=%d victim=%u/%llu seq=%u ag_mask=0x%llx fswide=%d -- obligation freeze union 0x%llx/%d -> 0x%llx/%d\n",
 		state == MXFS_OBL_OPEN ? "INSTALL" :
 		state == MXFS_OBL_INVALID ? "INSTALL-INVALID" : "LIFT",
 		slot, victim_node, (unsigned long long)victim_epoch, pub_seq,

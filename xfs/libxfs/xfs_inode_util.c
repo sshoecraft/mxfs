@@ -306,7 +306,7 @@ mxfs_dinode_nu_write(
 	}
 	nuoff = ip->i_imap.im_boffset +
 		offsetof(struct xfs_dinode, di_next_unlinked);
-	pr_warn("mxfs: %s ino=0x%llx fossil_next=0x%x new=0x%x disk_gen=%u incore_gen=%u — %s\n",
+	pr_warn("mxfs: %s ino=0x%llx fossil_next=0x%x new=0x%x disk_gen=%u incore_gen=%u -- %s\n",
 		probe, (unsigned long long)ip->i_ino,
 		be32_to_cpu(nudip->di_next_unlinked), want,
 		be32_to_cpu(nudip->di_gen), VFS_I(ip)->i_generation, why);
@@ -471,7 +471,7 @@ xfs_inode_init(
 			int cerr;
 
 			if (ip->i_next_unlinked != NULLAGINO) {
-				mxfs_probe("mxfs: P-CREATE-NUFIX-CORE ino=0x%llx core_next=0x%x — freshly allocated ino carried an in-core chain value; reset to NULLAGINO\n",
+				mxfs_probe("mxfs: P-CREATE-NUFIX-CORE ino=0x%llx core_next=0x%x -- freshly allocated ino carried an in-core chain value; reset to NULLAGINO\n",
 					(unsigned long long)ip->i_ino,
 					ip->i_next_unlinked);
 				ip->i_next_unlinked = NULLAGINO;
@@ -774,7 +774,7 @@ xfs_iunlink_insert_inode(
 		if (ip->i_next_unlinked != NULLAGINO) {
 			int fix = READ_ONCE(mxfs_iunl_fossil_fix);
 
-			mxfs_probe("mxfs: P-IUNL-FOSSIL-ENTRY ino=%llu agino=0x%x bucket=%d fossil_next=0x%x head=0x%x gen=%u nlink=%u prev=0x%x ub=%d lu=%d au=%d cert=%u fix=%d comm=%s — insert-path inode carried an in-core next pointer%s\n",
+			mxfs_probe("mxfs: P-IUNL-FOSSIL-ENTRY ino=%llu agino=0x%x bucket=%d fossil_next=0x%x head=0x%x gen=%u nlink=%u prev=0x%x ub=%d lu=%d au=%d cert=%u fix=%d comm=%s -- insert-path inode carried an in-core next pointer%s\n",
 				(unsigned long long)ip->i_ino, agino,
 				(int)bucket_index, ip->i_next_unlinked,
 				next_agino, VFS_I(ip)->i_generation,
@@ -785,7 +785,7 @@ xfs_iunlink_insert_inode(
 				READ_ONCE(ip->i_mxfs_nu_cert_valid), fix,
 				current->comm,
 				fix ? "; reset to NULLAGINO" :
-				      "; FIX DISABLED (control arm) — kept");
+				      "; FIX DISABLED (control arm) -- kept");
 			if (fix)
 				ip->i_next_unlinked = NULLAGINO;
 		}
@@ -817,7 +817,7 @@ xfs_iunlink_insert_inode(
 		 */
 		if (next_agino == agino && mp->m_mxfs_dlm &&
 		    !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm)) {
-			pr_warn("mxfs: P-IUNLINK-RECYCLE-HEAL ino=0x%llx agino=0x%x bucket=%d — adopting leaked prior-life bucket entry as this unlink's insert\n",
+			pr_warn("mxfs: P-IUNLINK-RECYCLE-HEAL ino=0x%llx agino=0x%x bucket=%d -- adopting leaked prior-life bucket entry as this unlink's insert\n",
 				(unsigned long long)ip->i_ino, agino,
 				(int)bucket_index);
 			ip->i_next_unlinked = NULLAGINO;
@@ -926,7 +926,7 @@ xfs_iunlink_insert_inode(
 		if (mp->m_mxfs_dlm &&
 		    !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm) &&
 		    ip->i_next_unlinked == next_agino) {
-			mxfs_probe("mxfs: P-IUNL-FOSSIL-RESET ino=%llu agino=0x%x bucket=%d fossil_next=0x%x head=0x%x gen=%u comm=%s — insert-path i_next_unlinked is a reloaded prior-life fossil; resetting to NULLAGINO before insert\n",
+			mxfs_probe("mxfs: P-IUNL-FOSSIL-RESET ino=%llu agino=0x%x bucket=%d fossil_next=0x%x head=0x%x gen=%u comm=%s -- insert-path i_next_unlinked is a reloaded prior-life fossil; resetting to NULLAGINO before insert\n",
 				(unsigned long long)ip->i_ino, agino,
 				(int)bucket_index, ip->i_next_unlinked,
 				next_agino, VFS_I(ip)->i_generation,
@@ -1263,7 +1263,7 @@ xfs_iunlink_remove_inode(
 			/* the ONLY silent -EFSCORRUPTED exit in this
 			 * function — the run2 ring's -117 had no P71-INSTR, no
 			 * XFS_CORRUPTION_ERROR, no P82-REM.  Name it. */
-			mxfs_probe("mxfs: P-UNLREM-NOPREV ino=%llu agino=0x%x bucket=%d head=0x%x prev=0x%x next=0x%x lu=%d au=%d comm=%s — mid-list remove, prev not in-core\n",
+			mxfs_probe("mxfs: P-UNLREM-NOPREV ino=%llu agino=0x%x bucket=%d head=0x%x prev=0x%x next=0x%x lu=%d au=%d comm=%s -- mid-list remove, prev not in-core\n",
 				(unsigned long long)ip->i_ino, agino,
 				(int)bucket_index, head_agino,
 				ip->i_prev_unlinked, ip->i_next_unlinked,
@@ -1340,7 +1340,7 @@ xfs_iunlink_remove(
 		static atomic_t nt_n = ATOMIC_INIT(0);
 
 		if (atomic_inc_return(&nt_n) <= 2000)
-			mxfs_probe("mxfs: P-IUNL-RM-NOTENURE ino=%llu agno=%u holders=%d cached=%d demoting=%d tenure=%llu agi_btenure=%llu nlink=%u comm=%s realns=%llu — AGI unlinked-list REMOVE with no local AG-DLM holder\n",
+			mxfs_probe("mxfs: P-IUNL-RM-NOTENURE ino=%llu agno=%u holders=%d cached=%d demoting=%d tenure=%llu agi_btenure=%llu nlink=%u comm=%s realns=%llu -- AGI unlinked-list REMOVE with no local AG-DLM holder\n",
 				(unsigned long long)ip->i_ino, pag_agno(pag),
 				READ_ONCE(pag->pag_dlm_holders),
 				pag->pag_dlm_cached ? 1 : 0,

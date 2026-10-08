@@ -455,7 +455,7 @@ xlog_recover_inode_commit_pass2(
 				static atomic_t plag_n = ATOMIC_INIT(0);
 
 				if (atomic_inc_return(&plag_n) <= 200)
-					pr_warn("mxfs: P77-GATE-LAG-INJECT ino=%lld buf_cc=%llu reads_as=%llu log_cc=%llu — TEST: the gate sees the slot %u changes behind\n",
+					pr_warn("mxfs: P77-GATE-LAG-INJECT ino=%lld buf_cc=%llu reads_as=%llu log_cc=%llu -- TEST: the gate sees the slot %u changes behind\n",
 						(long long)in_f->ilf_ino,
 						(unsigned long long)disk_cc,
 						(unsigned long long)(disk_cc > lag ? disk_cc - lag : 0),
@@ -519,14 +519,14 @@ xlog_recover_inode_commit_pass2(
 						&pcc);
 
 				if (prc && prc != -ENOENT) {
-					pr_warn_ratelimited("mxfs: P77-PLATTER-CC-FAIL ino=%lld rc=%d — platter read for the replay gate failed; failing this replay\n",
+					pr_warn_ratelimited("mxfs: P77-PLATTER-CC-FAIL ino=%lld rc=%d -- platter read for the replay gate failed; failing this replay\n",
 						(long long)in_f->ilf_ino, prc);
 					error = prc;
 					goto out_release;
 				}
 				if (prc == 0 && pcc != disk_cc &&
 				    (pcc >= log_cc) != (disk_cc >= log_cc))
-					pr_warn_ratelimited("mxfs: P77-STALE-BASE-VERDICT ino=%lld buf_cc=%llu platter_cc=%llu log_cc=%llu buf_verdict=%s verdict=%s — the slot and the platter disagree; the gate follows the newer count\n",
+					pr_warn_ratelimited("mxfs: P77-STALE-BASE-VERDICT ino=%lld buf_cc=%llu platter_cc=%llu log_cc=%llu buf_verdict=%s verdict=%s -- the slot and the platter disagree; the gate follows the newer count\n",
 						(long long)in_f->ilf_ino,
 						(unsigned long long)disk_cc,
 						(unsigned long long)pcc,
@@ -565,7 +565,7 @@ xlog_recover_inode_commit_pass2(
 
 				if (atomic_inc_return(&own_inolsn_n) <= 2000)
 					xfs_notice(mp,
-	"MXFS own recovery: P-OWN-INODE-LSN ino=%lld txn_lsn=0x%llx disk_di_lsn=0x%llx disk_cc=%llu log_cc=%llu verdict=SKIP — on-disk di_lsn vetoed this node's own slice image on a clustered mount (D-0521)",
+	"MXFS own recovery: P-OWN-INODE-LSN ino=%lld txn_lsn=0x%llx disk_di_lsn=0x%llx disk_cc=%llu log_cc=%llu verdict=SKIP -- on-disk di_lsn vetoed this node's own slice image on a clustered mount (D-0521)",
 						   (long long)in_f->ilf_ino,
 						   (unsigned long long)current_lsn,
 						   (unsigned long long)lsn,

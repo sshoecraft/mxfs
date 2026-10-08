@@ -113,7 +113,7 @@ mxfs_ilock_map_recheck(
 
 		if (atomic_inc_return(&p192_n) <= 2000)
 			mxfs_probe_ratelimited(
-				"mxfs: P192-ILOCK-MAP-RACE ino=%llu fork=%s fmt=%d nextents=%llu comm=%s — fork needed an iread AFTER xfs_ilock returned SHARED (DLM acquire hook reloaded the inode); upgrading to EXCL\n",
+				"mxfs: P192-ILOCK-MAP-RACE ino=%llu fork=%s fmt=%d nextents=%llu comm=%s -- fork needed an iread AFTER xfs_ilock returned SHARED (DLM acquire hook reloaded the inode); upgrading to EXCL\n",
 				(unsigned long long)ip->i_ino, which,
 				ifp->if_format,
 				(unsigned long long)ifp->if_nextents,
@@ -1218,7 +1218,7 @@ dlm_two_again:
 					pre0 = false;
 					abba_laps++;
 					mxfs_probe_ratelimited(
-					    "mxfs: P-ABBA-BACKOFF ino0=%llu ino1=%llu lap=%d comm=%s — second-inode DLM contended; dropped first, backing off\n",
+					    "mxfs: P-ABBA-BACKOFF ino0=%llu ino1=%llu lap=%d comm=%s -- second-inode DLM contended; dropped first, backing off\n",
 						(unsigned long long)ip0->i_ino,
 						(unsigned long long)ip1->i_ino,
 						abba_laps, current->comm);
@@ -1740,7 +1740,7 @@ retry_iget:
 		static atomic_t pnth = ATOMIC_INIT(0);
 
 		if (atomic_inc_return(&pnth) % mxfs_dbg_poison_nth == 0) {
-			pr_warn("mxfs: P566-POISON-INJECT ino=%llu name=%.*s — synthetic poison (dbg_poison_nth); retirement must still return the live incarnation\n",
+			pr_warn("mxfs: P566-POISON-INJECT ino=%llu name=%.*s -- synthetic poison (dbg_poison_nth); retirement must still return the live incarnation\n",
 				(unsigned long long)(*ipp)->i_ino,
 				name->len, (const char *)name->name);
 			mxfs_incarn_poison(*ipp);
@@ -1872,7 +1872,7 @@ retry_iget:
 			 * nearby.
 			 */
 			pr_warn_ratelimited(
-				"mxfs: P34H-POISON-EVICT ino=%llu gen=%u try=%d i_count=%d i_state=0x%lx nlink=%u iflags=0x%lx pin=%d ili=0x%x in_ail=%d dlm_mode=%u reclaimable=%d need_inact=%d inactivating=%d iflushing=%d — retiring poisoned shell for re-iget\n",
+				"mxfs: P34H-POISON-EVICT ino=%llu gen=%u try=%d i_count=%d i_state=0x%lx nlink=%u iflags=0x%lx pin=%d ili=0x%x in_ail=%d dlm_mode=%u reclaimable=%d need_inact=%d inactivating=%d iflushing=%d -- retiring poisoned shell for re-iget\n",
 				(unsigned long long)(*ipp)->i_ino,
 				vi->i_generation, poison_tries,
 				atomic_read(&vi->i_count), mxfs_istate(vi),
@@ -2015,7 +2015,7 @@ retry_iget:
 			if (mxfs_poison_retire_wait != 0 &&
 			    drained_at >= 0 && poison_drains++ < 2) {
 				pr_warn(
-					"mxfs: P567-POISON-DRAINRETIRE ino=%llu gen=%u drained_at_ms=%d drain=%d tries=%d name=%.*s — reference drained after the try budget; retiring on the observation instead of failing the lookup\n",
+					"mxfs: P567-POISON-DRAINRETIRE ino=%llu gen=%u drained_at_ms=%d drain=%d tries=%d name=%.*s -- reference drained after the try budget; retiring on the observation instead of failing the lookup\n",
 					(unsigned long long)(*ipp)->i_ino,
 					vi->i_generation, drained_at,
 					poison_drains, poison_tries,
@@ -2088,7 +2088,7 @@ retry_iget:
 				(*ipp)->i_mxfs_grab_file, (*ipp)->i_mxfs_grab_line);
 		}
 		pr_warn(
-			"mxfs: P34H-POISON-UNRETIRED ino=%llu gen=%u i_count=%d i_state=0x%lx tries=%d name=%.*s — retirement failed; failing lookup -ESTALE rather than serving a dead incarnation\n",
+			"mxfs: P34H-POISON-UNRETIRED ino=%llu gen=%u i_count=%d i_state=0x%lx tries=%d name=%.*s -- retirement failed; failing lookup -ESTALE rather than serving a dead incarnation\n",
 			(unsigned long long)(*ipp)->i_ino,
 			vi->i_generation, atomic_read(&vi->i_count),
 			mxfs_istate(vi), poison_tries,
@@ -2160,7 +2160,7 @@ retry_iget:
 
 			reuse_coord = 1;
 			mxfs_probe_ratelimited(
-				"mxfs: P346-REUSE-COORD ino=%llu gen=%u dgen=%u name=%.*s — dirent names a slot that reads free; one coordinated PR acquire so a creator's undrained new incarnation is destaged before this shell is judged\n",
+				"mxfs: P346-REUSE-COORD ino=%llu gen=%u dgen=%u name=%.*s -- dirent names a slot that reads free; one coordinated PR acquire so a creator's undrained new incarnation is destaged before this shell is judged\n",
 				(unsigned long long)(*ipp)->i_ino,
 				vi->i_generation, s91_dgen,
 				name->len, (const char *)name->name);
@@ -2178,7 +2178,7 @@ retry_iget:
 		    s91_dmode == (VFS_I(*ipp)->i_mode & 0xFFFF) &&
 		    s91_dgen == (uint32_t)VFS_I(*ipp)->i_generation) {
 			mxfs_probe_ratelimited(
-				"mxfs: P91-CAW-FALSEPOS-CLEAR ino=%llu gen=%u dmode=0%o — current incarnation, clearing stuck ISTALE_CAW\n",
+				"mxfs: P91-CAW-FALSEPOS-CLEAR ino=%llu gen=%u dmode=0%o -- current incarnation, clearing stuck ISTALE_CAW\n",
 				(unsigned long long)(*ipp)->i_ino,
 				vi->i_generation, s91_dmode);
 			(*ipp)->i_dlm_stale = false;
@@ -2578,7 +2578,7 @@ retry_iget:
 					 * is the existing staleness signal for
 					 * that; print both plus the gens.
 					 */
-					mxfs_probe("mxfs: P201-TYPEFLIP-UNRESOLVED-FAIL ino=%llu incore_ftype=%u dirent_ftype=%u incore_mode=0%o incore_gen=%u pino=%llu p_fmt=%d p_valid_epoch=%u p_dir_gen=%llu p_loaded_gen=%u p_stale=%d name=%.*s comm=%s — type flip UNRESOLVED after %d rounds; failing the lookup with -ESTALE rather than publishing a dirent/inode type mismatch\n",
+					mxfs_probe("mxfs: P201-TYPEFLIP-UNRESOLVED-FAIL ino=%llu incore_ftype=%u dirent_ftype=%u incore_mode=0%o incore_gen=%u pino=%llu p_fmt=%d p_valid_epoch=%u p_dir_gen=%llu p_loaded_gen=%u p_stale=%d name=%.*s comm=%s -- type flip UNRESOLVED after %d rounds; failing the lookup with -ESTALE rather than publishing a dirent/inode type mismatch\n",
 						(unsigned long long)(*ipp)->i_ino,
 						VFS_I(*ipp)->i_mode ?
 						  xfs_mode_to_ftype(VFS_I(*ipp)->i_mode) : 0,
@@ -2639,7 +2639,7 @@ retry_iget:
 				    !xfs_is_shutdown(dp->i_mount)) {
 					relookups++;
 					mxfs_probe_ratelimited(
-						"mxfs: P201-RELOOKUP ino=%llu pino=%llu name=%.*s lap=%d p_stale=%d why=%s comm=%s — the entry is behind what the number names now; reading the parent again\n",
+						"mxfs: P201-RELOOKUP ino=%llu pino=%llu name=%.*s lap=%d p_stale=%d why=%s comm=%s -- the entry is behind what the number names now; reading the parent again\n",
 						(unsigned long long)(*ipp)->i_ino,
 						(unsigned long long)dp->i_ino,
 						name->len, (const char *)name->name,
@@ -3253,7 +3253,7 @@ xfs_create(
 		if (unlikely(mxfs_dbg_dialloc_shutdown) && mp->m_mxfs_dlm &&
 		    !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm) &&
 		    cmpxchg(&mxfs_dbg_dialloc_shutdown, 1, 0) == 1) {
-			pr_warn("mxfs: P-DBG-DIALLOC-SHUTDOWN ino=%llu agno=%llu trans_dirty=%d comm=%s — injecting dirty trans_cancel to exercise AGI umount-wedge reclaim\n",
+			pr_warn("mxfs: P-DBG-DIALLOC-SHUTDOWN ino=%llu agno=%llu trans_dirty=%d comm=%s -- injecting dirty trans_cancel to exercise AGI umount-wedge reclaim\n",
 				(unsigned long long)ino,
 				(unsigned long long)XFS_INO_TO_AGNO(mp, ino),
 				(tp->t_flags & XFS_TRANS_DIRTY) ? 1 : 0,
@@ -3533,7 +3533,7 @@ xfs_create(
 		 * about an inode number nobody handed out.
 		 */
 		if (mp->m_mxfs_dlm && ino == NULLFSINO) {
-			mxfs_probe_ratelimited("mxfs: P-CR62 new_ino=NONE agno=n/a err=%d verdict=DIALLOC-FAILED-BEFORE-PICK — no inode number was allocated, so there is no dinode to classify; the errno above is the whole result\n",
+			mxfs_probe_ratelimited("mxfs: P-CR62 new_ino=NONE agno=n/a err=%d verdict=DIALLOC-FAILED-BEFORE-PICK -- no inode number was allocated, so there is no dinode to classify; the errno above is the whole result\n",
 				error);
 		} else if (mp->m_mxfs_dlm) {
 			extern uint16_t mxfs_dbg_disk_di_mode(struct xfs_mount *,
@@ -3993,7 +3993,7 @@ xfs_create(
 		spin_unlock(&dp->i_flags_lock);
 
 		if (oldn)
-			mxfs_probe("mxfs: P483-DIRTENURE parent=%llu epoch=%lu creates=%u wall_ms=%llu mean_ms=%llu gap_ms=%llu next_epoch=%lu endsrc=%u:%u comm=%s — creates completed in one tenure of this directory's grant. gap_ms is the wait between the last create of that tenure and this one: near a full rotation means the directory really went round the fleet, a millisecond or two means it never left and the cost is not queueing\n",
+			mxfs_probe("mxfs: P483-DIRTENURE parent=%llu epoch=%lu creates=%u wall_ms=%llu mean_ms=%llu gap_ms=%llu next_epoch=%lu endsrc=%u:%u comm=%s -- creates completed in one tenure of this directory's grant. gap_ms is the wait between the last create of that tenure and this one: near a full rotation means the directory really went round the fleet, a millisecond or two means it never left and the cost is not queueing\n",
 				(unsigned long long)dp->i_ino, oldep, oldn,
 				(unsigned long long)oldms,
 				(unsigned long long)(oldms / oldn),
@@ -4382,7 +4382,7 @@ xfs_link(
 			static atomic_t	p206ln = ATOMIC_INIT(0);
 
 			if (atomic_inc_return(&p206ln) <= 400)
-				mxfs_probe("mxfs: P206-LINK-FTYPE-STALE sip=%llu name=\"%.*s\" write_ft=%u live_ft=%u live_mode=0%o gen=%u stale=%d dlm_mode=%d tdp=%llu reval=%d comm=%s — dirent ftype snapshotted before the ILOCK contradicts the inode's post-reload type\n",
+				mxfs_probe("mxfs: P206-LINK-FTYPE-STALE sip=%llu name=\"%.*s\" write_ft=%u live_ft=%u live_mode=0%o gen=%u stale=%d dlm_mode=%d tdp=%llu reval=%d comm=%s -- dirent ftype snapshotted before the ILOCK contradicts the inode's post-reload type\n",
 					(unsigned long long)sip->i_ino,
 					target_name->len,
 					(const char *)target_name->name,
@@ -4741,7 +4741,7 @@ mxfs_iunlink_find_bucket(
 		static atomic_t nh = ATOMIC_INIT(0);
 
 		if (atomic_inc_return(&nh) <= 100)
-			mxfs_probe("mxfs: P-UNLFIND-NOTENURE agno=%u agino=0x%x comm=%s — bucket find without a local AG-DLM holder\n",
+			mxfs_probe("mxfs: P-UNLFIND-NOTENURE agno=%u agino=0x%x comm=%s -- bucket find without a local AG-DLM holder\n",
 				pag_agno(pag), target, current->comm);
 	}
 	error = xfs_read_agi(pag, tp, 0, &agibp);
@@ -4833,13 +4833,13 @@ mxfs_ifree_unlinked_preflight(
 		 */
 		error = mxfs_iunlink_find_bucket(pag, tp, agino, &bucket);
 		if (error || bucket < 0) {
-			mxfs_probe("mxfs: P-UNLPRE-NOBUCKET ino=%llu agino=0x%x prev=0x%x nlink=%u find_rc=%d — not on any bucket; deferring\n",
+			mxfs_probe("mxfs: P-UNLPRE-NOBUCKET ino=%llu agino=0x%x prev=0x%x nlink=%u find_rc=%d -- not on any bucket; deferring\n",
 				(unsigned long long)ip->i_ino, agino,
 				ip->i_prev_unlinked, VFS_I(ip)->i_nlink,
 				error);
 			return error ? error : -EAGAIN;
 		}
-		mxfs_probe("mxfs: P-UNLPRE-FOUND ino=%llu agino=0x%x bucket=%d legacy_bucket=%d slot_bucket=%d — unstamped member resolved on the platter\n",
+		mxfs_probe("mxfs: P-UNLPRE-FOUND ino=%llu agino=0x%x bucket=%d legacy_bucket=%d slot_bucket=%d -- unstamped member resolved on the platter\n",
 			(unsigned long long)ip->i_ino, agino, (int)bucket,
 			(int)(agino % XFS_AGI_UNLINKED_BUCKETS),
 			(int)(mp->m_mxfs_node_slot % XFS_AGI_UNLINKED_BUCKETS));
@@ -4858,7 +4858,7 @@ mxfs_ifree_unlinked_preflight(
 		bool			incore = false;
 
 		if (++hops > 100000) {
-			mxfs_probe("mxfs: P-UNLPRE-LOOP ino=%llu bucket=%d hops=%ld — cycle in unlinked chain\n",
+			mxfs_probe("mxfs: P-UNLPRE-LOOP ino=%llu bucket=%d hops=%ld -- cycle in unlinked chain\n",
 				(unsigned long long)ip->i_ino, (int)bucket,
 				hops);
 			error = -EFSCORRUPTED;
@@ -5146,7 +5146,7 @@ xfs_inactive_ifree(
 						WRITE_ONCE(mxfs_ifr_agi_shadow_mismatch_n,
 						    READ_ONCE(mxfs_ifr_agi_shadow_mismatch_n) + 1);
 						if (atomic_inc_return(&pifrs_n) <= 100)
-							mxfs_probe("mxfs: P-IFR-AGI-STALE-SHADOW ino=%llu agno=%u incore_head=0x%x disk_head=0x%x agi_gen=%llu — sampled clean-but-divergent AGI at ifree under our tenure; in-core decision kept (shadow arm)\n",
+							mxfs_probe("mxfs: P-IFR-AGI-STALE-SHADOW ino=%llu agno=%u incore_head=0x%x disk_head=0x%x agi_gen=%llu -- sampled clean-but-divergent AGI at ifree under our tenure; in-core decision kept (shadow arm)\n",
 								(unsigned long long)ip->i_ino,
 								pag_agno(pag),
 								be32_to_cpu(ck_agi->agi_unlinked[
@@ -5178,7 +5178,7 @@ xfs_inactive_ifree(
 					static atomic_t pifr_n = ATOMIC_INIT(0);
 
 					if (atomic_inc_return(&pifr_n) <= 100)
-					mxfs_probe("mxfs: P-IFR-AGI-STALE ino=%llu agno=%u bucket=%d incore_head=0x%x disk_head=0x%x agi_gen=%llu — clean-but-divergent AGI; revalidating on the disk-side image\n",
+					mxfs_probe("mxfs: P-IFR-AGI-STALE ino=%llu agno=%u bucket=%d incore_head=0x%x disk_head=0x%x agi_gen=%llu -- clean-but-divergent AGI; revalidating on the disk-side image\n",
 						(unsigned long long)ip->i_ino,
 						pag_agno(pag),
 						(int)(ip->i_unlinked_bucket >= 0 ?
@@ -5241,7 +5241,7 @@ xfs_inactive_ifree(
 						}
 					}
 					if (found >= 0) {
-						mxfs_probe("mxfs: P-IFR-BUCKET-MISMATCH ino=%llu computed=%d actual_head_at=%d ub=%d — entry IS listed; proceeding with free on the real bucket\n",
+						mxfs_probe("mxfs: P-IFR-BUCKET-MISMATCH ino=%llu computed=%d actual_head_at=%d ub=%d -- entry IS listed; proceeding with free on the real bucket\n",
 							(unsigned long long)ip->i_ino,
 							ck_bucket, found,
 							(int)ip->i_unlinked_bucket);
@@ -5257,7 +5257,7 @@ xfs_inactive_ifree(
 		}
 		if (ifr_skip) {
 			mxfs_probe_ratelimited(
-			    "mxfs: IFREE-REVALIDATE-SKIP ino=%llu gen=%u mode=0%o prev_unlinked=0x%x next_unlinked=0x%x why=%s — peer freed during inactivation; clean skip, no double-free\n",
+			    "mxfs: IFREE-REVALIDATE-SKIP ino=%llu gen=%u mode=0%o prev_unlinked=0x%x next_unlinked=0x%x why=%s -- peer freed during inactivation; clean skip, no double-free\n",
 				(unsigned long long)ip->i_ino,
 				VFS_I(ip)->i_generation, VFS_I(ip)->i_mode,
 				ip->i_prev_unlinked, ip->i_next_unlinked,
@@ -5289,7 +5289,7 @@ xfs_inactive_ifree(
 		error = mxfs_ifree_unlinked_preflight(tp, pag, ip,
 						      &mxfs_pflt_pin);
 		if (error) {
-			mxfs_probe("mxfs: P-UNLPRE-SKIP ino=%llu rc=%d — deferring free; zombie durable, reap retries\n",
+			mxfs_probe("mxfs: P-UNLPRE-SKIP ino=%llu rc=%d -- deferring free; zombie durable, reap retries\n",
 				(unsigned long long)ip->i_ino, error);
 			xfs_trans_cancel(tp);
 			xfs_iunlock(ip, XFS_ILOCK_EXCL);
@@ -5336,7 +5336,7 @@ xfs_inactive_ifree(
 		 * contains us) and succeed so the shell just reclaims.
 		 */
 		mxfs_probe_ratelimited(
-		    "mxfs: IFREE-REVALIDATE-SKIP ino=%llu gen=%u mode=0%o prev_unlinked=0x%x next_unlinked=0x%x why=inobt-already-free — peer freed during inactivation; clean skip, no double-free\n",
+		    "mxfs: IFREE-REVALIDATE-SKIP ino=%llu gen=%u mode=0%o prev_unlinked=0x%x next_unlinked=0x%x why=inobt-already-free -- peer freed during inactivation; clean skip, no double-free\n",
 			(unsigned long long)ip->i_ino,
 			VFS_I(ip)->i_generation, VFS_I(ip)->i_mode,
 			ip->i_prev_unlinked, ip->i_next_unlinked);
@@ -5500,7 +5500,7 @@ xfs_inactive_ifree(
 			if (!mxfs_ail_drain_inode_sync_bounded(ip,
 					(unsigned int)mxfs_ifree_drain_ms))
 				mxfs_probe_ratelimited(
-				    "mxfs: P-IFREE-DRAIN-BOUND ino=%llu not durable in %dms — deferring to BAST drain pipeline\n",
+				    "mxfs: P-IFREE-DRAIN-BOUND ino=%llu not durable in %dms -- deferring to BAST drain pipeline\n",
 					(unsigned long long)ip->i_ino,
 					mxfs_ifree_drain_ms);
 		}
@@ -5793,7 +5793,7 @@ xfs_inactive(
 				static atomic_t fz_n = ATOMIC_INIT(0);
 
 				if (atomic_inc_return(&fz_n) <= 200)
-					mxfs_probe("mxfs: P-INACT-FOREIGN-ZOMBIE-SKIP ino=%llu gen=%u nlink=%u ub=%d prev=0x%x — not this node's bucket member; skipping destructive inactivation\n",
+					mxfs_probe("mxfs: P-INACT-FOREIGN-ZOMBIE-SKIP ino=%llu gen=%u nlink=%u ub=%d prev=0x%x -- not this node's bucket member; skipping destructive inactivation\n",
 						(unsigned long long)ip->i_ino,
 						VFS_I(ip)->i_generation,
 						VFS_I(ip)->i_nlink,
@@ -5825,7 +5825,7 @@ xfs_inactive(
 				memset(&mxfs_inact_gres, 0xff,
 				       sizeof(mxfs_inact_gres));
 				mxfs_lkrc = -EDEADLK;
-				pr_warn("mxfs: P-INACT-CERT-INJECT3 ino=%llu — forcing the -EDEADLK retry with a poisoned grant result\n",
+				pr_warn("mxfs: P-INACT-CERT-INJECT3 ino=%llu -- forcing the -EDEADLK retry with a poisoned grant result\n",
 					(unsigned long long)ip->i_ino);
 			}
 			if (mxfs_lkrc == -EDEADLK) {
@@ -5963,7 +5963,7 @@ xfs_inactive(
 				 */
 				if (!mxfs_inact_cert && why != MXFS_AUTH_TRY_UNPUB) {
 					if (atomic_inc_return(&inact_refused_n) <= 200)
-						pr_warn("mxfs: P-INACT-CERT-REFUSED ino=%llu gen=%u try=%u auth_state=%u gres_status=%u gres_epoch=%llu routed=%d bucket=%d — certificate refused; deferring destructive inactivation (no dirty under an uncertified tenure)\n",
+						pr_warn("mxfs: P-INACT-CERT-REFUSED ino=%llu gen=%u try=%u auth_state=%u gres_status=%u gres_epoch=%llu routed=%d bucket=%d -- certificate refused; deferring destructive inactivation (no dirty under an uncertified tenure)\n",
 							(unsigned long long)ip->i_ino,
 							VFS_I(ip)->i_generation,
 							(unsigned)why,
@@ -5987,7 +5987,7 @@ xfs_inactive(
 					 * (routing/relmark-class); escalate —
 					 * never by permitting the free. */
 					if (nref > MXFS_INACT_CERT_REFUSE_MAX) {
-						pr_err("mxfs: P-INACT-CERT-REFUSED-ESCALATE ino=%llu refusals=%d try=%u — permanent certificate refusal; failing closed (shutdown)\n",
+						pr_err("mxfs: P-INACT-CERT-REFUSED-ESCALATE ino=%llu refusals=%d try=%u -- permanent certificate refusal; failing closed (shutdown)\n",
 							(unsigned long long)ip->i_ino,
 							nref, (unsigned)why);
 						xfs_force_shutdown(mp,
@@ -6117,7 +6117,7 @@ xfs_inactive(
 							ATOMIC_INIT(0);
 
 						if (atomic_inc_return(&pbmd_n) <= 60)
-							mxfs_probe("mxfs: P-B-MODE-DIVERGE ino=%llu raw_mode=0%o raw_gen=%u coh_mode=0%o coh_gen=%u — authority guard raw disk-mode read diverges from coherent read\n",
+							mxfs_probe("mxfs: P-B-MODE-DIVERGE ino=%llu raw_mode=0%o raw_gen=%u coh_mode=0%o coh_gen=%u -- authority guard raw disk-mode read diverges from coherent read\n",
 								(unsigned long long)ip->i_ino,
 								mxfs_dmode, mxfs_dgen,
 								bcm, bcg);
@@ -6240,7 +6240,7 @@ xfs_inactive(
 			/* 3000→300 — printk-storm DoS (see P82-ADD). */
 			static atomic_t p2lex_n = ATOMIC_INIT(0);
 			if (atomic_inc_return(&p2lex_n) <= 300)
-				mxfs_probe("mxfs: P2L-EX-GENMIS ino=%llu incore_gen=%u disk_gen=%u dlm_mode=%u dlm_locked=%d local_unlink=%d ip=%px pid=%d comm=%s — gen-mismatch B2-skip fired while holding a non-NL grant (forensic only, NOT proceeding destructively — see comment above)\n",
+				mxfs_probe("mxfs: P2L-EX-GENMIS ino=%llu incore_gen=%u disk_gen=%u dlm_mode=%u dlm_locked=%d local_unlink=%d ip=%px pid=%d comm=%s -- gen-mismatch B2-skip fired while holding a non-NL grant (forensic only, NOT proceeding destructively -- see comment above)\n",
 					(unsigned long long)ip->i_ino,
 					mxfs_igen, mxfs_dgen, ip->i_dlm_mode,
 					mxfs_inact_dlm_locked ? 1 : 0,
@@ -6407,7 +6407,7 @@ xfs_inactive(
 			static atomic_t p2lof_n = ATOMIC_INIT(0);
 
 			if (atomic_inc_return(&p2lof_n) <= 300)
-				pr_warn("mxfs: P2L-OWNFREE ino=%llu agno=%u incore_gen=%u disk_gen=%u — disk-free is our unpublished life; proceeding with authorized free (no skip/leak)\n",
+				pr_warn("mxfs: P2L-OWNFREE ino=%llu agno=%u incore_gen=%u disk_gen=%u -- disk-free is our unpublished life; proceeding with authorized free (no skip/leak)\n",
 					(unsigned long long)ip->i_ino,
 					(unsigned)XFS_INO_TO_AGNO(mp, ip->i_ino),
 					mxfs_igen, mxfs_dgen);
@@ -6439,7 +6439,7 @@ xfs_inactive(
 			static atomic_t p2ll_n = ATOMIC_INIT(0);
 			if (mxfs_local_unlink &&
 			    atomic_inc_return(&p2ll_n) <= 300)
-				pr_warn("mxfs: P2L-INACT-LEAK ino=%llu agno=%u agino=0x%x bucket=%d dlm_mode=%u dlm_locked=%d reason=%s — RIGHTFUL FREER SKIPPING (AGI bucket entry leaked) ip=%px pid=%d comm=%s\n",
+				pr_warn("mxfs: P2L-INACT-LEAK ino=%llu agno=%u agino=0x%x bucket=%d dlm_mode=%u dlm_locked=%d reason=%s -- RIGHTFUL FREER SKIPPING (AGI bucket entry leaked) ip=%px pid=%d comm=%s\n",
 					(unsigned long long)ip->i_ino,
 					(unsigned)XFS_INO_TO_AGNO(mp, ip->i_ino),
 					XFS_INO_TO_AGINO(mp, ip->i_ino),
@@ -6447,7 +6447,7 @@ xfs_inactive(
 					ip->i_dlm_mode,
 					mxfs_inact_dlm_locked ? 1 : 0,
 					mxfs_reason, ip, current->pid, current->comm);
-			mxfs_probe_ratelimited("mxfs: INACT-SKIP-STALE ino=%llu agno=%u incore_mode=0%o incore_gen=%u disk_mode=0%o disk_gen=%u coh_nlink=%d dlm_mode=%u local_unlink=%d reason=%s — skipping destructive inactivation to avoid double-free ip=%px pid=%d comm=%s\n",
+			mxfs_probe_ratelimited("mxfs: INACT-SKIP-STALE ino=%llu agno=%u incore_mode=0%o incore_gen=%u disk_mode=0%o disk_gen=%u coh_nlink=%d dlm_mode=%u local_unlink=%d reason=%s -- skipping destructive inactivation to avoid double-free ip=%px pid=%d comm=%s\n",
 				(unsigned long long)ip->i_ino,
 				(unsigned)XFS_INO_TO_AGNO(mp, ip->i_ino),
 				(unsigned)VFS_I(ip)->i_mode, mxfs_igen,
@@ -6509,7 +6509,7 @@ xfs_inactive(
 					if (ulpag)
 						xfs_perag_put(ulpag);
 				}
-				pr_warn("mxfs: P2L-UNLEAK ino=%llu agno=%u agino=0x%x bucket=%d rc=%d — %s our AGI unlinked-list insert at inactivation skip\n",
+				pr_warn("mxfs: P2L-UNLEAK ino=%llu agno=%u agino=0x%x bucket=%d rc=%d -- %s our AGI unlinked-list insert at inactivation skip\n",
 					(unsigned long long)ip->i_ino,
 					(unsigned)XFS_INO_TO_AGNO(mp, ip->i_ino),
 					XFS_INO_TO_AGINO(mp, ip->i_ino),
@@ -6626,7 +6626,7 @@ xfs_inactive(
 			mxfs_dlm_iclus_covered(ip) ? 1 : 0, ip->i_dlm_mode);
 		if (mxfs_oh_rc) {
 			mxfs_probe_ratelimited(
-			    "mxfs: P87-OPEN-DEFER-ERR ino=%llu gen=%u rc=%d — open bitmap unreadable under EX; failing CLOSED (deferring free)\n",
+			    "mxfs: P87-OPEN-DEFER-ERR ino=%llu gen=%u rc=%d -- open bitmap unreadable under EX; failing CLOSED (deferring free)\n",
 				(unsigned long long)ip->i_ino,
 				VFS_I(ip)->i_generation, mxfs_oh_rc);
 			mxfs_defer_reap_add(mp, ip->i_ino,
@@ -6637,7 +6637,7 @@ xfs_inactive(
 		}
 		if (mxfs_oh & ~mxfs_self) {
 			mxfs_probe_ratelimited(
-			    "mxfs: P87-OPEN-DEFER ino=%llu gen=%u open_holders=0x%llx self=0x%llx bucket=%d — peer holds this unlinked inode open; deferring destructive inactivation\n",
+			    "mxfs: P87-OPEN-DEFER ino=%llu gen=%u open_holders=0x%llx self=0x%llx bucket=%d -- peer holds this unlinked inode open; deferring destructive inactivation\n",
 				(unsigned long long)ip->i_ino,
 				VFS_I(ip)->i_generation,
 				(unsigned long long)mxfs_oh,
@@ -6766,7 +6766,7 @@ out:
 		 * frees still unlock immediately below.
 		 */
 		mxfs_probe_ratelimited(
-		    "mxfs: P128-INACT-DEFER ino=%llu pin=%d ili=0x%x in_ail=%d — freed dinode undestaged; keeping grant cached\n",
+		    "mxfs: P128-INACT-DEFER ino=%llu pin=%d ili=0x%x in_ail=%d -- freed dinode undestaged; keeping grant cached\n",
 			(unsigned long long)ip->i_ino,
 			atomic_read(&ip->i_pincount),
 			ip->i_itemp ? ip->i_itemp->ili_fields : 0,
@@ -6845,7 +6845,7 @@ out:
 			rv = mxfs_dlm_inactive_authority_revoke(ip,
 						&mxfs_inact_cid, &st, &ep);
 			if (rv != MXFS_INACT_REVOKED)
-				pr_warn("mxfs: P-INACT-CERT-REVOKE-MISS ino=%llu rv=%d auth_state=%u auth_epoch=%llu cid_epoch=%llu cid_res=%llu gres_epoch=%llu — certificate at INACT-EXREL is not the one this inactivation installed\n",
+				pr_warn("mxfs: P-INACT-CERT-REVOKE-MISS ino=%llu rv=%d auth_state=%u auth_epoch=%llu cid_epoch=%llu cid_res=%llu gres_epoch=%llu -- certificate at INACT-EXREL is not the one this inactivation installed\n",
 					(unsigned long long)ip->i_ino, rv,
 					(unsigned)st,
 					(unsigned long long)ep,
@@ -6853,7 +6853,7 @@ out:
 					(unsigned long long)mxfs_inact_cid.resource,
 					(unsigned long long)mxfs_inact_gres.grant_epoch);
 			if (rv == MXFS_INACT_REVOKE_FOREIGN) {
-				pr_err("mxfs: P-INACT-CERT-FOREIGN ino=%llu — a proving certificate that is not this inactivation's tenure would outlive the grant release; failing closed (shutdown)\n",
+				pr_err("mxfs: P-INACT-CERT-FOREIGN ino=%llu -- a proving certificate that is not this inactivation's tenure would outlive the grant release; failing closed (shutdown)\n",
 					(unsigned long long)ip->i_ino);
 				xfs_force_shutdown(mp, SHUTDOWN_CORRUPT_INCORE);
 			} else if (rv == MXFS_INACT_REVOKE_GONE) {
@@ -6864,7 +6864,7 @@ out:
 				 * formatted after that point are classless, and
 				 * the actor believed the tenure over while we
 				 * still wrote under it.  Fail closed. */
-				pr_err("mxfs: P-INACT-CERT-GONE ino=%llu auth_state=%u — inactivation certificate lost before INACT-EXREL; failing closed (shutdown)\n",
+				pr_err("mxfs: P-INACT-CERT-GONE ino=%llu auth_state=%u -- inactivation certificate lost before INACT-EXREL; failing closed (shutdown)\n",
 					(unsigned long long)ip->i_ino,
 					(unsigned)st);
 				xfs_force_shutdown(mp, SHUTDOWN_CORRUPT_INCORE);
@@ -6886,7 +6886,7 @@ out:
 
 				atomic64_inc(&mxfs_relmark_inact_owed);
 				if (atomic_inc_return(&owed_n) <= 200)
-					mxfs_probe("mxfs: P-RELMARK-OWED site=inact-exrel ino=%llu gepoch=%llu lineage=%llu freed=%d routed=%d comm=%s — a tenure that stamped a token is released with no clean-release marker\n",
+					mxfs_probe("mxfs: P-RELMARK-OWED site=inact-exrel ino=%llu gepoch=%llu lineage=%llu freed=%d routed=%d comm=%s -- a tenure that stamped a token is released with no clean-release marker\n",
 						(unsigned long long)ip->i_ino,
 						(unsigned long long)mxfs_inact_cid.epoch,
 						(unsigned long long)mxfs_inact_cid.lineage,
@@ -7100,7 +7100,7 @@ xfs_iunlink_reload_next(
 		 *                          release-side visibility defect, NOT a
 		 *                          defect here) or the AGI really dangles
 		 */
-		pr_warn("mxfs: P84-UNL-RELOAD-LIVE agno=%u bucket=%d prev_agino=0x%x next_agino=0x%x ino=%llu cached=%d nlink=%u mode=0x%x gen=%u next_unlinked=0x%x agi_gen=%llu node_slot=%u comm=%s — the reloaded unlinked-list member is LINKED; upstream calls this AGI corruption and force-shuts the FS from inside a DIRTY transaction\n",
+		pr_warn("mxfs: P84-UNL-RELOAD-LIVE agno=%u bucket=%d prev_agino=0x%x next_agino=0x%x ino=%llu cached=%d nlink=%u mode=0x%x gen=%u next_unlinked=0x%x agi_gen=%llu node_slot=%u comm=%s -- the reloaded unlinked-list member is LINKED; upstream calls this AGI corruption and force-shuts the FS from inside a DIRTY transaction\n",
 			pag_agno(pag), (int)bucket, prev_agino, next_agino,
 			(unsigned long long)next_ip->i_ino,
 			cached_before ? 1 : 0,
@@ -7116,7 +7116,7 @@ xfs_iunlink_reload_next(
 	}
 
 	if (mp->m_mxfs_dlm)
-		mxfs_probe_ratelimited("mxfs: P84-UNL-RELOAD-OK agno=%u bucket=%d next_agino=0x%x cached=%d gen=%u node_slot=%u — reloaded member is genuinely unlinked (base rate for P84-UNL-RELOAD-LIVE)\n",
+		mxfs_probe_ratelimited("mxfs: P84-UNL-RELOAD-OK agno=%u bucket=%d next_agino=0x%x cached=%d gen=%u node_slot=%u -- reloaded member is genuinely unlinked (base rate for P84-UNL-RELOAD-LIVE)\n",
 			pag_agno(pag), (int)bucket, next_agino,
 			cached_before ? 1 : 0, VFS_I(next_ip)->i_generation,
 			mp->m_mxfs_node_slot);
@@ -8387,7 +8387,7 @@ retry:
 				static atomic_t p217r = ATOMIC_INIT(0);
 
 				if (atomic_inc_return(&p217r) <= 2000)
-					pr_warn("mxfs: P217-RENAME-TGT-PREFLIGHT target_dp=%llu vfs_tgt=%llu name=\"%.*s\" lookup_rc=%d cur_ino=%llu dirty=%d — target expectation stale under held locks; -ESTALE restart (retry_estale re-walk), no shutdown\n",
+					pr_warn("mxfs: P217-RENAME-TGT-PREFLIGHT target_dp=%llu vfs_tgt=%llu name=\"%.*s\" lookup_rc=%d cur_ino=%llu dirty=%d -- target expectation stale under held locks; -ESTALE restart (retry_estale re-walk), no shutdown\n",
 						(unsigned long long)target_dp->i_ino,
 						(unsigned long long)(target_ip ?
 							target_ip->i_ino : 0),
@@ -8446,7 +8446,7 @@ retry:
 			static atomic_t	p206n = ATOMIC_INIT(0);
 
 			if (atomic_inc_return(&p206n) <= 400)
-				mxfs_probe("mxfs: P206-RENAME-FTYPE-STALE src_ip=%llu name=\"%.*s\" write_ft=%u live_ft=%u live_mode=0%o gen=%u stale=%d dlm_mode=%d src_is_directory=%d src_dp=%llu target_dp=%llu reval=%d comm=%s — dirent ftype snapshotted before the ILOCK contradicts the inode's post-reload type\n",
+				mxfs_probe("mxfs: P206-RENAME-FTYPE-STALE src_ip=%llu name=\"%.*s\" write_ft=%u live_ft=%u live_mode=0%o gen=%u stale=%d dlm_mode=%d src_is_directory=%d src_dp=%llu target_dp=%llu reval=%d comm=%s -- dirent ftype snapshotted before the ILOCK contradicts the inode's post-reload type\n",
 					(unsigned long long)src_ip->i_ino,
 					target_name->len,
 					(const char *)target_name->name,
@@ -8624,7 +8624,7 @@ out_trans_cancel:
 		static atomic_t p217n = ATOMIC_INIT(0);
 
 		if (atomic_inc_return(&p217n) <= 400)
-			pr_warn("mxfs: P217-RENAME-DIRTYCANCEL rc=%d src_dp=%llu tgt_dp=%llu src=\"%.*s\" tgt=\"%.*s\" armed=%d pre[iv=%llu bytes=%u fmt=%d dgen=%llu ve=%u] now[iv=%llu bytes=%lld fmt=%d dgen=%llu ve=%u] exch=%d wip=%d comm=%s — dirty cancel imminent (0x8 shutdown); cookie names the class\n",
+			pr_warn("mxfs: P217-RENAME-DIRTYCANCEL rc=%d src_dp=%llu tgt_dp=%llu src=\"%.*s\" tgt=\"%.*s\" armed=%d pre[iv=%llu bytes=%u fmt=%d dgen=%llu ve=%u] now[iv=%llu bytes=%lld fmt=%d dgen=%llu ve=%u] exch=%d wip=%d comm=%s -- dirty cancel imminent (0x8 shutdown); cookie names the class\n",
 				error,
 				(unsigned long long)src_dp->i_ino,
 				(unsigned long long)target_dp->i_ino,
@@ -8935,7 +8935,7 @@ mxfs_iflush_fork_publish(
 		atomic_inc(&stale_total);
 		if (!logged)
 			memcpy(cp, want, wlen);
-		mxfs_probe_ratelimited("mxfs: P-IFLUSH-FORK-STALE ino=%llu fork=%d fmt=%d nextents=%llu size=%lld bytes=%d ili_fields=0x%x logged=%d zero_recs=%d daddr=%lld pin=%d dlm_mode=%u total=%d comm=%s — staged fork differed from the in-core fork%s\n",
+		mxfs_probe_ratelimited("mxfs: P-IFLUSH-FORK-STALE ino=%llu fork=%d fmt=%d nextents=%llu size=%lld bytes=%d ili_fields=0x%x logged=%d zero_recs=%d daddr=%lld pin=%d dlm_mode=%u total=%d comm=%s -- staged fork differed from the in-core fork%s\n",
 			(unsigned long long)ip->i_ino, whichfork,
 			ifp->if_format,
 			(unsigned long long)ifp->if_nextents,
@@ -9373,7 +9373,7 @@ xfs_iflush(
 				    !xfs_iflags_test(ip, MXFS_IF_DLM_RELFLUSH) &&
 				    ip->i_dlm_demoter == NULL) {
 					WRITE_ONCE(mxfs_pubob_launder_inject, inj - 1);
-					mxfs_probe("mxfs: P55B-INJECT-LAUNDER ino=%llu i_dlm_mode=%u pend=%llu dur=%llu left=%d — fault-injected launder of an owned PUBOB conversion\n",
+					mxfs_probe("mxfs: P55B-INJECT-LAUNDER ino=%llu i_dlm_mode=%u pend=%llu dur=%llu left=%d -- fault-injected launder of an owned PUBOB conversion\n",
 						(unsigned long long)ip->i_ino,
 						(unsigned)ip->i_dlm_mode,
 						(unsigned long long)ip->i_mxfs_pub_pending_seq,
@@ -9386,7 +9386,7 @@ xfs_iflush(
 				static atomic_t ppf = ATOMIC_INIT(0);
 
 				if (atomic_inc_return(&ppf) <= 4000)
-					mxfs_probe("mxfs: P55B-PUBOB-PR-FLUSH ino=%llu i_dlm_mode=%u mode=0%o gen=%u disk_nlink=%u pend=%llu dur=%llu comm=%s — flushing PR-held committed unlink conversion (not discarding)\n",
+					mxfs_probe("mxfs: P55B-PUBOB-PR-FLUSH ino=%llu i_dlm_mode=%u mode=0%o gen=%u disk_nlink=%u pend=%llu dur=%llu comm=%s -- flushing PR-held committed unlink conversion (not discarding)\n",
 						(unsigned long long)ip->i_ino,
 						(unsigned)ip->i_dlm_mode,
 						VFS_I(ip)->i_mode,
@@ -9401,7 +9401,7 @@ xfs_iflush(
 		if (mxfs_cores_commit_flush) {
 			static atomic_t ccf = ATOMIC_INIT(0);
 			if (atomic_inc_return(&ccf) <= 4000)
-				mxfs_probe("mxfs: P55-CORESIDENT-COMMIT-FLUSH ino=%llu i_dlm_mode=%u mode=0%o gen=%u in_ail=1 comm=%s — flushing PR-held committed change (not discarding)\n",
+				mxfs_probe("mxfs: P55-CORESIDENT-COMMIT-FLUSH ino=%llu i_dlm_mode=%u mode=0%o gen=%u in_ail=1 comm=%s -- flushing PR-held committed change (not discarding)\n",
 					(unsigned long long)ip->i_ino,
 					(unsigned)ip->i_dlm_mode,
 					VFS_I(ip)->i_mode,
@@ -9504,7 +9504,7 @@ xfs_iflush(
 	    !mxfs_cores_commit_flush && READ_ONCE(ip->i_mxfs_freeob) == 1 &&
 	    xfs_iflags_test(ip, MXFS_IF_PUBOB) && VFS_I(ip)->i_mode == 0 &&
 	    VFS_I(ip)->i_nlink == 0) {
-		mxfs_probe_ratelimited("mxfs: P55C-FREE-PENDING-DEFER ino=%llu gen=%u comm=%s — the free image is committed but its obligation is still FREE_PENDING; keeping it dirty until the commit transition, so it is written through the FREE-PUBLISH gate\n",
+		mxfs_probe_ratelimited("mxfs: P55C-FREE-PENDING-DEFER ino=%llu gen=%u comm=%s -- the free image is committed but its obligation is still FREE_PENDING; keeping it dirty until the commit transition, so it is written through the FREE-PUBLISH gate\n",
 			(unsigned long long)ip->i_ino, VFS_I(ip)->i_generation,
 			current->comm);
 		return -EAGAIN;
@@ -9556,7 +9556,7 @@ xfs_iflush(
 			if (pmode == 0xFFFF) {
 				mxfs_pubob_free_strike(mp, ip);
 				if (atomic_inc_return(&p55h_n) <= 500)
-					mxfs_probe("mxfs: P55C-HOME-READ-FAIL ino=%llu buf_mode=0%o buf_gen=%u flush=%llu dur=%llu — platter read failed while an own staged image is unlanded; keeping the free image dirty\n",
+					mxfs_probe("mxfs: P55C-HOME-READ-FAIL ino=%llu buf_mode=0%o buf_gen=%u flush=%llu dur=%llu -- platter read failed while an own staged image is unlanded; keeping the free image dirty\n",
 						(unsigned long long)ip->i_ino, dmode, dgen,
 						(unsigned long long)ip->i_mxfs_pub_flush_seq,
 						(unsigned long long)ip->i_mxfs_pub_durable_seq);
@@ -9564,7 +9564,7 @@ xfs_iflush(
 			}
 			if (pmode != dmode || pgen != dgen) {
 				if (atomic_inc_return(&p55h_n) <= 500)
-					mxfs_probe("mxfs: P55C-HOME-PLATTER ino=%llu buf_mode=0%o buf_gen=%u platter_mode=0%o platter_gen=%u flush=%llu dur=%llu — buffer slot is this node's unlanded staged image; classifying on the platter\n",
+					mxfs_probe("mxfs: P55C-HOME-PLATTER ino=%llu buf_mode=0%o buf_gen=%u platter_mode=0%o platter_gen=%u flush=%llu dur=%llu -- buffer slot is this node's unlanded staged image; classifying on the platter\n",
 						(unsigned long long)ip->i_ino, dmode, dgen,
 						pmode, pgen,
 						(unsigned long long)ip->i_mxfs_pub_flush_seq,
@@ -9590,7 +9590,7 @@ xfs_iflush(
 			 */
 			if (dmode == 0) {
 				if (atomic_inc_return(&p55c_n) <= 2000)
-					mxfs_probe("mxfs: P55C-FREE-HOME ino=%llu gen=%u disk_gen=%u — free image already at home%s; discharging\n",
+					mxfs_probe("mxfs: P55C-FREE-HOME ino=%llu gen=%u disk_gen=%u -- free image already at home%s; discharging\n",
 						(unsigned long long)ip->i_ino, ogen, dgen,
 						dgen == ogen ? "" : " (older/other free image)");
 				/* (0.38.4): settle the freed incarnation's
@@ -9636,7 +9636,7 @@ xfs_iflush(
 					xfs_perag_put(fpag);
 				if (how) {
 					if (atomic_inc_return(&p55c_n) <= 2000)
-						mxfs_probe("mxfs: P55C-FREE-%s ino=%llu gen=%u disk_gen=%u disk_mode=0%o epoch=%llu chain=%u via=%s comm=%s — writing the committed free image (FREE-PUBLISH)\n",
+						mxfs_probe("mxfs: P55C-FREE-%s ino=%llu gen=%u disk_gen=%u disk_mode=0%o epoch=%llu chain=%u via=%s comm=%s -- writing the committed free image (FREE-PUBLISH)\n",
 							dgen == (uint32_t)(ogen - 1u) ? "FLUSH" : "CHAIN",
 							(unsigned long long)ip->i_ino, ogen,
 							dgen, dmode,
@@ -9647,7 +9647,7 @@ xfs_iflush(
 				} else {
 					mxfs_pubob_free_strike(mp, ip);
 					if (atomic_inc_return(&p55c_n) <= 2000)
-						mxfs_probe("mxfs: P55C-FREE-DENIED ino=%llu gen=%u disk_gen=%u epoch=%llu ag_epoch=%llu chain=%u in_ail=%d strikes=%u comm=%s — no tenure sanction; keeping the free image dirty (never laundered)\n",
+						mxfs_probe("mxfs: P55C-FREE-DENIED ino=%llu gen=%u disk_gen=%u epoch=%llu ag_epoch=%llu chain=%u in_ail=%d strikes=%u comm=%s -- no tenure sanction; keeping the free image dirty (never laundered)\n",
 							(unsigned long long)ip->i_ino, ogen,
 							dgen, (unsigned long long)oepoch,
 							(unsigned long long)mxfs_ag_grant_epoch_of(mp, ip->i_ino),
@@ -9658,7 +9658,7 @@ xfs_iflush(
 					return -EAGAIN;
 				}
 			} else {
-				mxfs_probe("mxfs: P55C-FREE-FOREIGN ino=%llu gen=%u disk_gen=%u disk_mode=0%o — home dinode is NOT the incarnation this node freed (FREE-PUBLISH was crossed earlier); never writing this shell; discharging\n",
+				mxfs_probe("mxfs: P55C-FREE-FOREIGN ino=%llu gen=%u disk_gen=%u disk_mode=0%o -- home dinode is NOT the incarnation this node freed (FREE-PUBLISH was crossed earlier); never writing this shell; discharging\n",
 					(unsigned long long)ip->i_ino, ogen, dgen, dmode);
 				ip->i_mxfs_dead_incarn_gen = dgen ? dgen : 1;
 				mxfs_pubob_discharge(mp, ip, "foreign");
@@ -9846,7 +9846,7 @@ xfs_iflush(
 			static atomic_t p74skew = ATOMIC_INIT(0);
 
 			mxfs_probe_ratelimited(
-				"mxfs: P74-IFNEXT-SKEW ino=%llu if_nextents=%llu real_iext=%llu fmt=%d comm=%s — reconciling to real count (torn-dinode barrier)\n",
+				"mxfs: P74-IFNEXT-SKEW ino=%llu if_nextents=%llu real_iext=%llu fmt=%d comm=%s -- reconciling to real count (torn-dinode barrier)\n",
 				(unsigned long long)ip->i_ino,
 				(unsigned long long)ip->i_df.if_nextents,
 				(unsigned long long)real,
@@ -9945,7 +9945,7 @@ xfs_iflush(
 	    (xfs_extnum_t)be32_to_cpu(dip->di_nextents) > ip->i_df.if_nextents) {
 		static atomic_t p32nx = ATOMIC_INIT(0);
 		if (atomic_inc_return(&p32nx) <= 2000)
-			mxfs_probe("mxfs: P32-IFLUSH-NXSHRINK ino=%llu incore_nx=%llu disk_nx=%u incore_size=%lld disk_size=%lld relflush=%d dlm_mode=%u dirty_seq=%llu ex_gseq=%llu comm=%s — about to write SMALLER dir extent map over a larger on-disk one (extent-map revert)\n",
+			mxfs_probe("mxfs: P32-IFLUSH-NXSHRINK ino=%llu incore_nx=%llu disk_nx=%u incore_size=%lld disk_size=%lld relflush=%d dlm_mode=%u dirty_seq=%llu ex_gseq=%llu comm=%s -- about to write SMALLER dir extent map over a larger on-disk one (extent-map revert)\n",
 				(unsigned long long)ip->i_ino,
 				(unsigned long long)ip->i_df.if_nextents,
 				be32_to_cpu(dip->di_nextents),
@@ -9997,7 +9997,7 @@ xfs_iflush(
 			 * for an incarnation that has never been released. */
 			if (mxfs_dir_epoch_superseded(ip, cur_ep)) {
 				pr_warn_ratelimited(
-				    "mxfs: P32F-NXSHRINK-FENCE ino=%llu incore_nx=%llu disk_nx=%u valid_epoch=%u cur_epoch=%u dlm_mode=%u comm=%s — skip stale extent-map revert; reload on next acquire\n",
+				    "mxfs: P32F-NXSHRINK-FENCE ino=%llu incore_nx=%llu disk_nx=%u valid_epoch=%u cur_epoch=%u dlm_mode=%u comm=%s -- skip stale extent-map revert; reload on next acquire\n",
 				    (unsigned long long)ip->i_ino,
 				    (unsigned long long)ip->i_df.if_nextents,
 				    be32_to_cpu(dip->di_nextents),
@@ -10031,7 +10031,7 @@ xfs_iflush(
 	if (mp->m_mxfs_dlm && !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm) &&
 	    ip->i_mxfs_dead_incarn_gen) {
 		pr_warn_ratelimited(
-		    "mxfs: P32D-DEADINCARN-SKIP ino=%llu incore_gen=%u disk_gen=%u incore_mode=0%o dlm_mode=%u comm=%s — refusing flush of dead prior incarnation over live slot\n",
+		    "mxfs: P32D-DEADINCARN-SKIP ino=%llu incore_gen=%u disk_gen=%u incore_mode=0%o dlm_mode=%u comm=%s -- refusing flush of dead prior incarnation over live slot\n",
 			(unsigned long long)ip->i_ino,
 			VFS_I(ip)->i_generation,
 			be32_to_cpu(dip->di_gen),
@@ -10062,7 +10062,7 @@ xfs_iflush(
 			int fn = READ_ONCE(mxfs_iflush_fence_fault_n);
 
 			if (!fn || fh <= fn) {
-				pr_warn("mxfs: P-IFLUSH-FENCE-FAULT ino=%llu hit=%d bound=%d pend=%llu dur=%llu flush=%llu dlm_mode=%u comm=%s — INJECTED fenced flush; obligation deliberately left open\n",
+				pr_warn("mxfs: P-IFLUSH-FENCE-FAULT ino=%llu hit=%d bound=%d pend=%llu dur=%llu flush=%llu dlm_mode=%u comm=%s -- INJECTED fenced flush; obligation deliberately left open\n",
 					(unsigned long long)ip->i_ino, fh, fn,
 					(unsigned long long)ip->i_mxfs_pub_pending_seq,
 					(unsigned long long)ip->i_mxfs_pub_durable_seq,
@@ -10163,7 +10163,7 @@ xfs_iflush(
 				static atomic_t p32ed = ATOMIC_INIT(0);
 
 				if (atomic_inc_return(&p32ed) <= 400)
-					pr_warn("mxfs: P32E-RAWDIVERGE ino=%llu valid_epoch=%u valid_incarn=%u incarn=%u cur_epoch=%u unpub=%d self_created=%d pend=%llu dur=%llu flush=%llu comm=%s — raw compare would have fenced this dir flush; incarnation-qualified predicate says NOT superseded\n",
+					pr_warn("mxfs: P32E-RAWDIVERGE ino=%llu valid_epoch=%u valid_incarn=%u incarn=%u cur_epoch=%u unpub=%d self_created=%d pend=%llu dur=%llu flush=%llu comm=%s -- raw compare would have fenced this dir flush; incarnation-qualified predicate says NOT superseded\n",
 						(unsigned long long)ip->i_ino,
 						ip->i_dlm_dir_valid_epoch,
 						ip->i_dlm_dir_valid_incarn,
@@ -10178,7 +10178,7 @@ xfs_iflush(
 
 			if (p32e_sup) {
 				pr_warn_ratelimited(
-				    "mxfs: P32E-DIREPOCH-FENCE ino=%llu fmt=%d valid_epoch=%u cur_epoch=%u dlm_mode=%u comm=%s racebail_age_ms=%lld — skip stale dir flush (peer superseded since our copy); reload on next acquire\n",
+				    "mxfs: P32E-DIREPOCH-FENCE ino=%llu fmt=%d valid_epoch=%u cur_epoch=%u dlm_mode=%u comm=%s racebail_age_ms=%lld -- skip stale dir flush (peer superseded since our copy); reload on next acquire\n",
 				    (unsigned long long)ip->i_ino,
 				    ip->i_df.if_format,
 				    ip->i_dlm_dir_valid_epoch, cur_ep,
@@ -10271,7 +10271,7 @@ xfs_iflush(
 		    (ip->i_df.if_format == XFS_DINODE_FMT_EXTENTS ||
 		     ip->i_df.if_format == XFS_DINODE_FMT_BTREE)) {
 			pr_warn_ratelimited(
-			    "mxfs: P67-IFLUSH-OWNER-FENCE ino=%llu dlm_mode=%u fmt=%u nx=%llu — non-EX/non-RELFLUSH dir-inode flush; skip to keep owner's canonical extent map\n",
+			    "mxfs: P67-IFLUSH-OWNER-FENCE ino=%llu dlm_mode=%u fmt=%u nx=%llu -- non-EX/non-RELFLUSH dir-inode flush; skip to keep owner's canonical extent map\n",
 			    (unsigned long long)ip->i_ino, ip->i_dlm_mode,
 			    ip->i_df.if_format,
 			    (unsigned long long)ip->i_df.if_nextents);
@@ -10336,7 +10336,7 @@ xfs_iflush(
 		}
 		if (incore_b0 && disk_b0 && incore_b0 > disk_b0) {
 			pr_warn_ratelimited(
-				"mxfs: P65-IFLUSH-FENCE ino=%llu incore_b0=%llu disk_b0=%llu gen=%u dlm_mode=%u comm=%s — divergent (higher) dir block0; skip flush to keep canonical lower block0\n",
+				"mxfs: P65-IFLUSH-FENCE ino=%llu incore_b0=%llu disk_b0=%llu gen=%u dlm_mode=%u comm=%s -- divergent (higher) dir block0; skip flush to keep canonical lower block0\n",
 				(unsigned long long)ip->i_ino,
 				(unsigned long long)incore_b0,
 				(unsigned long long)disk_b0,
@@ -10403,7 +10403,7 @@ xfs_iflush(
 			 * set i_mxfs_dir_hole_known and are not reported.  Only a hole
 			 * with no known origin carries the divergent-grow signature. */
 			mxfs_probe_ratelimited(
-				"mxfs: P-IFLUSH-GAP-DETECT ino=%llu nextents=%llu disize=%lld gen=%u dlm_mode=%u comm=%s — in-core dir data fork has a HOLE between data blocks with no known origin (no local middle-block shrink, no holey disk adopt): possible divergent-grow torn map (DABUF_MAP_HOLE / leaf-addname-oops source)\n",
+				"mxfs: P-IFLUSH-GAP-DETECT ino=%llu nextents=%llu disize=%lld gen=%u dlm_mode=%u comm=%s -- in-core dir data fork has a HOLE between data blocks with no known origin (no local middle-block shrink, no holey disk adopt): possible divergent-grow torn map (DABUF_MAP_HOLE / leaf-addname-oops source)\n",
 				(unsigned long long)ip->i_ino,
 				(unsigned long long)ip->i_df.if_nextents,
 				(long long)ip->i_disk_size,
@@ -10565,7 +10565,7 @@ xfs_iflush(
 					       irec.br_blockcount)) {
 				unsigned char *fb = (unsigned char *)frp;
 
-				mxfs_probe("mxfs: P-IFLUSH-DIRTORN ino=%llu nx=%llu forkoff=%u startblk=0x%llx cnt=0x%llx first16=%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x comm=%s pid=%d realns=%llu — torn LOCAL->EXTENTS dir dinode about to be written; stack:\n",
+				mxfs_probe("mxfs: P-IFLUSH-DIRTORN ino=%llu nx=%llu forkoff=%u startblk=0x%llx cnt=0x%llx first16=%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x comm=%s pid=%d realns=%llu -- torn LOCAL->EXTENTS dir dinode about to be written; stack:\n",
 					(unsigned long long)ip->i_ino,
 					(unsigned long long)be64_to_cpu(dip->di_big_nextents),
 					dip->di_forkoff,
@@ -10693,7 +10693,7 @@ xfs_iflush(
 		smp_wmb();
 		WRITE_ONCE(ip->i_mxfs_freepub_epoch, p55c_claim_epoch);
 		if (atomic_inc_return(&p_fpc) <= 2000)
-			mxfs_probe("mxfs: P-FREEPUB-CLAIM ino=%llu gen=%u epoch=%llu seq=%llu bp=%px daddr=%lld img_mode=0%o comm=%s — free image staged under a FREE-publication claim\n",
+			mxfs_probe("mxfs: P-FREEPUB-CLAIM ino=%llu gen=%u epoch=%llu seq=%llu bp=%px daddr=%lld img_mode=0%o comm=%s -- free image staged under a FREE-publication claim\n",
 				(unsigned long long)ip->i_ino,
 				be32_to_cpu(dip->di_gen),
 				(unsigned long long)p55c_claim_epoch,
@@ -10753,7 +10753,7 @@ flush_out:
 			static atomic_t hoq = ATOMIC_INIT(0);
 
 			if (atomic_inc_return(&hoq) <= 400)
-				pr_warn("mxfs: P383-HOME-VS-OWED ino=%llu equal=%d why=%s pend=%llu dur=%llu flush=%llu cc_home=%llu iver=%llu mode=0%o dmode=%u gen_incore=%u gen_home=%u hmode=0%o hnlink=%u unpub=%d selfcr=%d deadgen=%u stale_src=%u relst=%u comm=%s — canonical comparison at a fence-abandoned publication\n",
+				pr_warn("mxfs: P383-HOME-VS-OWED ino=%llu equal=%d why=%s pend=%llu dur=%llu flush=%llu cc_home=%llu iver=%llu mode=0%o dmode=%u gen_incore=%u gen_home=%u hmode=0%o hnlink=%u unpub=%d selfcr=%d deadgen=%u stale_src=%u relst=%u comm=%s -- canonical comparison at a fence-abandoned publication\n",
 					(unsigned long long)ip->i_ino, eq ? 1 : 0,
 					why,
 					(unsigned long long)ip->i_mxfs_pub_pending_seq,
@@ -10994,7 +10994,7 @@ mxfs_clmerge_ledger_rollback(struct xfs_inode *oip, int slot, const char *arm,
 		oip->i_mxfs_pub_flush_seq = mrb_d;
 		xfs_iflags_set(oip, MXFS_IF_PUB_SKIPPED);
 		mxfs_probe_ratelimited(
-		    "mxfs: P238-CLMERGE-LEDGER-ROLLBACK ino=%llu slot=%d arm=%s cls=%s flush=%llu->%llu pend=%llu — overlay replaced a staged image; rolled the flush watermark back so the completion cannot discharge merged-away bytes\n",
+		    "mxfs: P238-CLMERGE-LEDGER-ROLLBACK ino=%llu slot=%d arm=%s cls=%s flush=%llu->%llu pend=%llu -- overlay replaced a staged image; rolled the flush watermark back so the completion cannot discharge merged-away bytes\n",
 			(unsigned long long)oip->i_ino, slot, arm,
 			mrb_fp ? "freepub-stale" :
 			mrb_rel ? "relflush" : "samegen-own",
@@ -11174,7 +11174,7 @@ mxfs_iflush_cluster_merge_dirs(
 				flushing |= (1ULL << slot);
 				authorit |= (1ULL << slot);
 				if (atomic_inc_return(&p_fpk) <= 2000)
-					mxfs_probe("mxfs: P-FREEPUB-KEEP ino=%llu slot=%d gen=%u epoch=%llu bp=%px comm=%s — merge keeps the claimed free image (no platter restore)\n",
+					mxfs_probe("mxfs: P-FREEPUB-KEEP ino=%llu slot=%d gen=%u epoch=%llu bp=%px comm=%s -- merge keeps the claimed free image (no platter restore)\n",
 						(unsigned long long)ip->i_ino, slot,
 						ip->i_mxfs_freepub_gen,
 						(unsigned long long)ip->i_mxfs_freepub_epoch,
@@ -11183,7 +11183,7 @@ mxfs_iflush_cluster_merge_dirs(
 			}
 			if (READ_ONCE(ip->i_mxfs_freepub_bp) == (void *)bp)
 				pr_warn_ratelimited(
-				    "mxfs: P-FREEPUB-CLAIM-STALE site=merge ino=%llu slot=%d why=%s gen=%u claim_epoch=%llu ag_epoch=%llu rel_epoch=%llu demoting=%d flush=%llu seq=%llu img_mode=0%o img_gen=%u comm=%s — claim on this buffer no longer validates; restore proceeds fail-closed\n",
+				    "mxfs: P-FREEPUB-CLAIM-STALE site=merge ino=%llu slot=%d why=%s gen=%u claim_epoch=%llu ag_epoch=%llu rel_epoch=%llu demoting=%d flush=%llu seq=%llu img_mode=0%o img_gen=%u comm=%s -- claim on this buffer no longer validates; restore proceeds fail-closed\n",
 					(unsigned long long)ip->i_ino, slot, fp_why,
 					ip->i_mxfs_freepub_gen,
 					(unsigned long long)ip->i_mxfs_freepub_epoch,
@@ -11346,7 +11346,7 @@ mxfs_iflush_cluster_merge_dirs(
 			 */
 			if (authorit & (1ULL << i)) {
 				mxfs_pal_log(MXFS_LOG_DEBUG,
-				    "mxfs: P-CLMERGE-AUTH-KEEP slot=%d buf_gen=%u disk_gen=%u — same-tenure new incarnation; buffer wins (platter lags)",
+				    "mxfs: P-CLMERGE-AUTH-KEEP slot=%d buf_gen=%u disk_gen=%u -- same-tenure new incarnation; buffer wins (platter lags)",
 				    i, be32_to_cpu(dbuf->di_gen),
 				    be32_to_cpu(ddisk->di_gen));
 				continue;
@@ -11361,7 +11361,7 @@ mxfs_iflush_cluster_merge_dirs(
 					(u64)be64_to_cpu(ddisk->di_changecount),
 					be32_to_cpu(ddisk->di_gen));
 				mxfs_pal_log(MXFS_LOG_WARN,
-				    "mxfs: P-CLMERGE-DEADINCARN slot=%d pre_buf_gen=%u disk_gen=%u — overlaid dead prior-incarnation dir slot with canonical disk image",
+				    "mxfs: P-CLMERGE-DEADINCARN slot=%d pre_buf_gen=%u disk_gen=%u -- overlaid dead prior-incarnation dir slot with canonical disk image",
 				    i, mxfs_pre_gen,
 				    be32_to_cpu(ddisk->di_gen));
 			}
@@ -11387,7 +11387,7 @@ mxfs_iflush_cluster_merge_dirs(
 		    be64_to_cpu(ddisk->di_changecount) <=
 		    be64_to_cpu(dbuf->di_changecount)) {
 			pr_warn_ratelimited(
-			    "mxfs: P243-CURSTAGE-KEEP ino=%llu slot=%d gen=%u dcc=%llu bcc=%llu flush=%llu dur=%llu — current-tenure staged image kept (leaked-commit provenance would have condemned it)\n",
+			    "mxfs: P243-CURSTAGE-KEEP ino=%llu slot=%d gen=%u dcc=%llu bcc=%llu flush=%llu dur=%llu -- current-tenure staged image kept (leaked-commit provenance would have condemned it)\n",
 				(unsigned long long)(i < 64 && slot_ip[i] ?
 					slot_ip[i]->i_ino : 0), i,
 				be32_to_cpu(dbuf->di_gen),
@@ -11819,7 +11819,7 @@ mxfs_pubob_relog_core(
 	xfs_trans_log_inode(tp, ip, XFS_ILOG_CORE);
 	error = xfs_trans_commit(tp);
 	WRITE_ONCE(ip->i_mxfs_pipe_relog, 0);
-	mxfs_probe_ratelimited("mxfs: P245-RELOG ino=%llu rc=%d pend=%llu dur=%llu dlm_mode=%u comm=%s — laundered obligation re-logged for the mandatory flush\n",
+	mxfs_probe_ratelimited("mxfs: P245-RELOG ino=%llu rc=%d pend=%llu dur=%llu dlm_mode=%u comm=%s -- laundered obligation re-logged for the mandatory flush\n",
 		(unsigned long long)ip->i_ino, error,
 		(unsigned long long)ip->i_mxfs_pub_pending_seq,
 		(unsigned long long)ip->i_mxfs_pub_durable_seq,
@@ -11973,7 +11973,7 @@ restart:
 			goto restart;
 		}
 		if (xfs_iflags_test(ip, MXFS_IF_PUBOB)) {
-			mxfs_probe_ratelimited("mxfs: P245-CLEAN-MISMATCH ino=%llu — obligation armed, item clean after re-log; nothing written\n",
+			mxfs_probe_ratelimited("mxfs: P245-CLEAN-MISMATCH ino=%llu -- obligation armed, item clean after re-log; nothing written\n",
 				(unsigned long long)ip->i_ino);
 			error = -ENOMSG;
 		}
@@ -12330,7 +12330,7 @@ xfs_inode_reload_unlinked_bucket(
 	    ip->i_unlinked_bucket < 0 &&
 	    !xfs_iflags_test(ip, MXFS_IF_LOCAL_UNLINK)) {
 		mxfs_probe_ratelimited(
-		    "mxfs: P85-UNL-FOREIGN-RELOAD-SKIP ino=%llu agino=0x%x — foreign cached zombie; not walking a peer's bucket\n",
+		    "mxfs: P85-UNL-FOREIGN-RELOAD-SKIP ino=%llu agino=0x%x -- foreign cached zombie; not walking a peer's bucket\n",
 			(unsigned long long)ip->i_ino, agino);
 		foundit = true;
 		goto out_agibp;

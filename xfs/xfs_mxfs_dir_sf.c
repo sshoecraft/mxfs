@@ -510,7 +510,7 @@ mxfs_dir_sf_merge_into(struct xfs_inode *ip, struct xfs_dir2_sf_hdr *base,
 		    !mxfs_sf_find(mp, ours, te->name, te->namelen) &&
 		    mxfs_sf_find(mp, base, te->name, te->namelen))
 			pr_warn_ratelimited(
-			    "mxfs: P64-SFM-SKIP-BASE ino=%llu name=%.*s in_theirs+base_not_ours base_n=%u ours_n=%u theirs_n=%u — DROPPED (suspected node1_f1 loss)\n",
+			    "mxfs: P64-SFM-SKIP-BASE ino=%llu name=%.*s in_theirs+base_not_ours base_n=%u ours_n=%u theirs_n=%u -- DROPPED (suspected node1_f1 loss)\n",
 			    (unsigned long long)ip->i_ino,
 			    te->namelen, te->name,
 			    base->count, ours->count, theirs->count);
@@ -802,7 +802,7 @@ mxfs_dir_sf_premerge_for_release(struct xfs_inode *ip)
 	}
 
 	if (atomic_inc_return(&p182n) <= 2000)
-		mxfs_probe("mxfs: P182-RELMERGE ino=%llu disk_size=%u merged_bytes=%lld nlink=%u chg=%llu disk_chg=%llu comm=%s realns=%llu — release drain reconciled its shortform image with the platter before publishing\n",
+		mxfs_probe("mxfs: P182-RELMERGE ino=%llu disk_size=%u merged_bytes=%lld nlink=%u chg=%llu disk_chg=%llu comm=%s realns=%llu -- release drain reconciled its shortform image with the platter before publishing\n",
 			(unsigned long long)ip->i_ino, disk_size,
 			(long long)ip->i_df.if_bytes, VFS_I(ip)->i_nlink,
 			(unsigned long long)inode_peek_iversion(VFS_I(ip)),
@@ -889,7 +889,7 @@ mxfs_dir_sf_refresh_if_disk_differs(struct xfs_inode *ip)
 			static atomic_t	pfn = ATOMIC_INIT(0);
 
 			if (atomic_inc_return(&pfn) <= 400)
-				pr_warn("mxfs: P-SF-REFRESH-READ-FAIL ino=%llu rc=%d dir_gen=%u loaded_gen=%u clean=%d comm=%s — the platter read of a shortform dir's coherence check failed; the in-core fork is kept unverified\n",
+				pr_warn("mxfs: P-SF-REFRESH-READ-FAIL ino=%llu rc=%d dir_gen=%u loaded_gen=%u clean=%d comm=%s -- the platter read of a shortform dir's coherence check failed; the in-core fork is kept unverified\n",
 					(unsigned long long)ip->i_ino, rrc,
 					ip->i_dlm_dir_gen, ip->i_dlm_dir_loaded_gen,
 					xfs_inode_clean(ip) ? 1 : 0, current->comm);
@@ -1011,7 +1011,7 @@ mxfs_dir_sf_refresh_if_disk_differs(struct xfs_inode *ip)
 	}
 	/* CLEAN: adopt the authoritative on-disk shortform. */
 	mxfs_probe_ratelimited(
-		"mxfs: P9-SFREFRESH ino=%llu incore_bytes=%lld disk_size=%u — clean in-core shortform fork differs from coherent disk; reloading\n",
+		"mxfs: P9-SFREFRESH ino=%llu incore_bytes=%lld disk_size=%u -- clean in-core shortform fork differs from coherent disk; reloading\n",
 		(unsigned long long)ip->i_ino,
 		(long long)ip->i_df.if_bytes, disk_size);
 	ip->i_dlm_stale = true; ip->i_dlm_stale_src = 9;

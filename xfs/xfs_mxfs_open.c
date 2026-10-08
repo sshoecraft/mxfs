@@ -88,13 +88,27 @@ MODULE_PARM_DESC(close_release,
  * during create/verify phases: writers hold the dir EX (an EX-held dir
  * being BAST'd does not trigger), and readers BASTing readers does not
  * happen.
+ *
+ * Not on the TCP transport (1 = compare-and-write only).  There every
+ * release is a durable ledger transition, and the sweep releases idle grants
+ * on files anywhere in the filesystem, not only under the directory being
+ * written, so it buys one revocation per child at the price of a commit for
+ * every grant the node holds, all of them re-taken (another commit each) by
+ * the next read.  Measured on the physical DRBD pair, interleaved A/B
+ * (tests/pve_knob_ab.sh): both hosts walking each other's files, ledger
+ * commits per host 4.7-4.8k off vs 10.0-10.2k on, commit latency 17-19 ms
+ * vs 93-104 ms, walks 63-73 s vs 77-118 s; even the unlink storm it was
+ * written for (tests/pve_peer_delete.sh: 400 files the peer had stat'ed)
+ * removed in 11.0-11.5 s off vs 14.8-15.4 s on.  2 = sweep on every
+ * transport, the former behaviour, kept to repeat that A/B.
  */
 int mxfs_dir_ex_bast_sweep = 1;
 module_param_named(dir_ex_bast_sweep, mxfs_dir_ex_bast_sweep, int, 0644);
 MODULE_PARM_DESC(dir_ex_bast_sweep,
                  "On losing a PR-held directory to a peer's EX request, "
                  "sweep-release this node's idle REGULAR-file PR grants "
-                 "(1=on default, 0=off)");
+                 "(1=on for compare-and-write only, default; 2=on for every "
+                 "transport; 0=off)");
 
 /*
  * Queue the drain-free demote of an idle CACHED PR grant on a regular
@@ -181,7 +195,7 @@ module_param_named(ex_close_release_ms, mxfs_ex_close_release_ms, int, 0644);
 MODULE_PARM_DESC(ex_close_release_ms,
                  "Release a REGULAR file's idle cached EX DLM grant this "
                  "many ms after its last close (write-once demote; "
-                 "0 = keep EX cached until BAST; default 0 — nonzero "
+                 "0 = keep EX cached until BAST; default 0 -- nonzero "
                  "reopens a proven ifree-clobber race, A/B only)");
 
 static bool
@@ -382,7 +396,7 @@ restart:
 				static atomic_t p95i_n = ATOMIC_INIT(0);
 
 				if (atomic_inc_return(&p95i_n) <= 200)
-					mxfs_probe("mxfs: P95-OPEN-INJECT ino=%llu waited_ms=%d landed_window=%d comm=%s — fault-injection hold before ilock ride\n",
+					mxfs_probe("mxfs: P95-OPEN-INJECT ino=%llu waited_ms=%d landed_window=%d comm=%s -- fault-injection hold before ilock ride\n",
 						(unsigned long long)ip->i_ino,
 						waited, hit ? 1 : 0,
 						current->comm);
@@ -408,7 +422,7 @@ restart:
 		if (local && mxfs_dlm_inode_lock_routed(ip, cur,
 						MXFS_AUTH_GEN_NONE) == 0)
 			mxfs_probe_ratelimited(
-			    "mxfs: P95-OPEN-CLUSTER-CONVERT ino=%llu mode=%u — local create-era grant converted to cluster coverage at open\n",
+			    "mxfs: P95-OPEN-CLUSTER-CONVERT ino=%llu mode=%u -- local create-era grant converted to cluster coverage at open\n",
 				(unsigned long long)ip->i_ino, cur);
 	}
 	/*
@@ -423,7 +437,7 @@ restart:
 	if (mxfs_acqfall_taken(&acqfall, &ret)) {
 		xfs_iunlock(ip, ride_flags);
 		pr_warn_ratelimited(
-		    "mxfs: P912-OPEN-UNRECEIPTED ino=%llu killed=%d rc=%d comm=%s — open refused: the inode's master never acknowledged the lock request (or this task was killed, or the page's takeover stalled); failing the open instead of waiting on it\n",
+		    "mxfs: P912-OPEN-UNRECEIPTED ino=%llu killed=%d rc=%d comm=%s -- open refused: the inode's master never acknowledged the lock request (or this task was killed, or the page's takeover stalled); failing the open instead of waiting on it\n",
 			(unsigned long long)ip->i_ino,
 			fatal_signal_pending(current) ? 1 : 0, ret, current->comm);
 		ret = fatal_signal_pending(current) ? -EINTR : ret;
@@ -461,10 +475,37 @@ restart:
 	if (ok && (VFS_I(ip)->i_mode & S_IFMT) == 0) {
 		xfs_iunlock(ip, ride_flags);
 		mxfs_probe_ratelimited(
-		    "mxfs: P95-OPEN-STALE-INCARNATION ino=%llu — acquire adopted a peer-freed image; -ESTALE for re-walk\n",
+		    "mxfs: P95-OPEN-STALE-INCARNATION ino=%llu -- acquire adopted a peer-freed image; -ESTALE for re-walk\n",
 			(unsigned long long)ip->i_ino);
 		ret = -ESTALE;
 		goto out;
+	}
+	/*
+	 * The ride's reload can also find that the platter holds a DIFFERENT
+	 * incarnation of this number: the peer freed the file this node still
+	 * had in core and a new file took the number.  The reload poisons the
+	 * shell (P34H-INCARN-POISON src=freshsrc), and before this check the
+	 * open went on to hand out an fd on it, so the caller's first write
+	 * failed ESTALE on a file that exists.  Measured on the nested DRBD
+	 * pair under tests/pve_churn_fairness.sh: every poison of a round ran
+	 * inside this ride (tests/pve_poison_caller_trace.sh, 3 of 3 stacks
+	 * through mxfs_dlm_open_protect) and each one became one failed write.
+	 * Refuse the open with the gate's verdict instead: -ESTALE makes the
+	 * VFS re-walk with LOOKUP_REVAL, d_revalidate drops the dentry of the
+	 * poisoned shell, and the lookup retires it and reads the live
+	 * incarnation, which this ride then protects.
+	 */
+	if (ok) {
+		int	grc = mxfs_inode_incarn_estale(ip);
+
+		if (grc) {
+			xfs_iunlock(ip, ride_flags);
+			mxfs_probe_ratelimited(
+			    "mxfs: P95-OPEN-POISONED-INCARNATION ino=%llu rc=%d -- the protecting acquire found a dead incarnation; refusing the open for a re-walk\n",
+				(unsigned long long)ip->i_ino, grc);
+			ret = grc;
+			goto out;
+		}
 	}
 	xfs_iunlock(ip, ride_flags);
 	if (!ok) {
@@ -517,7 +558,7 @@ restart:
 					static atomic_t p95s_n = ATOMIC_INIT(0);
 
 					if (atomic_inc_return(&p95s_n) <= 500)
-						pr_warn("mxfs: P95-OPEN-PROTECT-STUCK ino=%llu waited_s=%d epoch=%lu state=%u mode=%u comm=%s — open admission still waiting for release pipeline exit\n",
+						pr_warn("mxfs: P95-OPEN-PROTECT-STUCK ino=%llu waited_s=%d epoch=%lu state=%u mode=%u comm=%s -- open admission still waiting for release pipeline exit\n",
 							(unsigned long long)ip->i_ino,
 							stuck * 30, wait_epoch,
 							ip->i_dlm_state,
@@ -529,7 +570,7 @@ restart:
 				static atomic_t p95r_n = ATOMIC_INIT(0);
 
 				if (atomic_inc_return(&p95r_n) <= 2000)
-					mxfs_probe("mxfs: P95-OPEN-PROTECT-RESTART ino=%llu try=%d gated=%d nl_line=%u:%u nl_om=%u nl_age_us=%llu arm=%u comm=%s — live-NL at admission; cold-open restart\n",
+					mxfs_probe("mxfs: P95-OPEN-PROTECT-RESTART ino=%llu try=%d gated=%d nl_line=%u:%u nl_om=%u nl_age_us=%llu arm=%u comm=%s -- live-NL at admission; cold-open restart\n",
 						(unsigned long long)ip->i_ino,
 						restarts, gated ? 1 : 0,
 						MXFS_SITE_ARGS(sn_nlline), sn_nlom,
@@ -541,7 +582,7 @@ restart:
 		}
 
 		pr_warn_ratelimited(
-		    "mxfs: P95-OPEN-PROTECT-FAIL ino=%llu mode=%u state=%u exh=%u prh=%u acq=%u iclus=%u unpub=%u stale=%u ssrc=%u imode=%o gen=%u open_n=%d selfc=%u reusedc=%u nl_line=%u:%u nl_om=%u nl_pid=%d nl_comm=%s nl_age_us=%llu restarts=%d gated=%d arm=%u — no DLM grant after ilock at shutdown fence; failing the open (fail closed)\n",
+		    "mxfs: P95-OPEN-PROTECT-FAIL ino=%llu mode=%u state=%u exh=%u prh=%u acq=%u iclus=%u unpub=%u stale=%u ssrc=%u imode=%o gen=%u open_n=%d selfc=%u reusedc=%u nl_line=%u:%u nl_om=%u nl_pid=%d nl_comm=%s nl_age_us=%llu restarts=%d gated=%d arm=%u -- no DLM grant after ilock at shutdown fence; failing the open (fail closed)\n",
 			(unsigned long long)ip->i_ino, sn_mode, sn_state,
 			sn_exh, sn_prh, sn_acq, sn_iclus, sn_unpub,
 			sn_stale, sn_ssrc, VFS_I(ip)->i_mode,
@@ -594,7 +635,7 @@ mxfs_open_clear_ride_fn(
 			rc = -EBUSY;	/* a release is already on its way */
 	}
 	mxfs_probe_ratelimited(
-	    "mxfs: P977-OPEN-CLEAR-RIDE ino=%llu prot=%d pub=%d dlm_mode=%u rc=%d — %s\n",
+	    "mxfs: P977-OPEN-CLEAR-RIDE ino=%llu prot=%d pub=%d dlm_mode=%u rc=%d -- %s\n",
 		(unsigned long long)ip->i_ino, prot ? 1 : 0,
 		ip->i_mxfs_open_pub ? 1 : 0, ip->i_dlm_mode, rc,
 		rc == 0 ? "demote queued; its release publishes the clear" :
@@ -678,7 +719,7 @@ void mxfs_dlm_open_last_close(struct xfs_inode *ip)
 		mxfs_v5_dlm_inode_open_clear(mp->m_mxfs_dlm, ip->i_ino);
 		ip->i_mxfs_open_pub = false;
 		mxfs_probe_ratelimited(
-		    "mxfs: P91-OPEN-EAGER-CLEAR ino=%llu — last close, published open bit cleared\n",
+		    "mxfs: P91-OPEN-EAGER-CLEAR ino=%llu -- last close, published open bit cleared\n",
 			(unsigned long long)ip->i_ino);
 	}
 	/*
@@ -777,7 +818,7 @@ mxfs_dlm_pr_sweep_work_fn(struct work_struct *work)
 			spin_unlock(&sb->s_inode_list_lock);
 			WRITE_ONCE(mp->m_mxfs_pr_sweep_pinned, NULL);
 			iput(toput);
-			pr_warn("mxfs: P135-PRSWEEP-CYCLE visited=%lu ino=%lu ptr=%px comm=%s — s_inodes re-visited a recent entry WITHOUT reaching the head; bailing out (list corruption, not just a big cache)\n",
+			pr_warn("mxfs: P135-PRSWEEP-CYCLE visited=%lu ino=%lu ptr=%px comm=%s -- s_inodes re-visited a recent entry WITHOUT reaching the head; bailing out (list corruption, not just a big cache)\n",
 				visited, (unsigned long)inode->i_ino, inode,
 				current->comm);
 			return;
@@ -790,7 +831,7 @@ mxfs_dlm_pr_sweep_work_fn(struct work_struct *work)
 			spin_unlock(&sb->s_inode_list_lock);
 			WRITE_ONCE(mp->m_mxfs_pr_sweep_pinned, NULL);
 			iput(toput);
-			mxfs_probe("mxfs: P-PRSWEEP-CAP visited=%lu seen=%d swept=%d — bailing out (suspiciously long/cyclic s_inodes walk)\n",
+			mxfs_probe("mxfs: P-PRSWEEP-CAP visited=%lu seen=%d swept=%d -- bailing out (suspiciously long/cyclic s_inodes walk)\n",
 				visited, seen, swept);
 			return;
 		}
@@ -867,6 +908,10 @@ mxfs_dlm_pr_sweep_trigger(struct xfs_mount *mp)
 	if (!mxfs_dir_ex_bast_sweep || !mp->m_mxfs_dlm ||
 	    mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm))
 		return;
+	/* a release on TCP is a ledger transition: see dir_ex_bast_sweep */
+	if (mxfs_dir_ex_bast_sweep == 1 &&
+	    mxfs_v5_dlm_open_clear_rides_release(mp->m_mxfs_dlm))
+		return;
 	last = READ_ONCE(mp->m_mxfs_pr_sweep_last);
 	if (last && time_before(now, last + msecs_to_jiffies(3000)))
 		return;
@@ -900,5 +945,5 @@ int mxfs_dir_wseq_at_completion = 1;	/* correct fix per design review, left
 module_param_named(dir_wseq_at_completion, mxfs_dir_wseq_at_completion, int, 0644);
 MODULE_PARM_DESC(dir_wseq_at_completion,
                  "Stamp dir-metadata b_mxfs_written_seq at I/O completion "
-                 "not submit (default 0; correct but insufficient alone — "
+                 "not submit (default 0; correct but insufficient alone -- "
                  "closes the in-flight/skip-emulated undestaged mis-report)");

@@ -38,6 +38,7 @@ const char *mxfs_bootstrap_refuse_name(uint32_t reason)
 	case MXFS_BOOT_REFUSE_FENCE_UNPROVEN:   return "FENCE_UNPROVEN";
 	case MXFS_BOOT_REFUSE_RECONCILE:        return "RECONCILE";
 	case MXFS_BOOT_REFUSE_INHERITANCE_UNPROVEN: return "INHERITANCE_UNPROVEN";
+	case MXFS_BOOT_REFUSE_OPERATOR_REPAIR:  return "OPERATOR_REPAIR";
 	default:                                return "?";
 	}
 }
@@ -87,7 +88,7 @@ struct mxfs_bootstrap *mxfs_bootstrap_open(mxfs_bdev_t *dev, uint64_t offset,
 	 * lineage and takeover journal the protocol relies on — refuse */
 	if (size < MXFS_BOOT_REGION_BYTES) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-BOOT-REGION-SMALL size=%llu need=%u — the "
+			     "mxfs: P-BOOT-REGION-SMALL size=%llu need=%u -- the "
 			     "bootstrap region predates protocol gen %u; re-mkfs",
 			     (unsigned long long)size, MXFS_BOOT_REGION_BYTES,
 			     (unsigned)MXFS_PROTO_GEN);
@@ -127,7 +128,7 @@ static int bs_read_locked(struct mxfs_bootstrap *b,
 		return rc;
 	if (r->magic == 0) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-BOOT-UNFORMATTED off=%llu — the bootstrap "
+			     "mxfs: P-BOOT-UNFORMATTED off=%llu -- the bootstrap "
 			     "record carries no magic; mkfs never wrote it (or the "
 			     "sector is torn).  Failing closed",
 			     (unsigned long long)b->offset);
@@ -136,7 +137,7 @@ static int bs_read_locked(struct mxfs_bootstrap *b,
 	if (!mxfs_bootstrap_rec_valid(r)) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P-BOOT-INVALID magic=0x%08x ver=%u state=%u "
-			     "owner=%u crc=0x%08x want=0x%08x — refusing",
+			     "owner=%u crc=0x%08x want=0x%08x -- refusing",
 			     r->magic, r->ver, r->state, r->owner_node, r->crc32c,
 			     mxfs_bootstrap_rec_crc(r));
 		return -EUCLEAN;
@@ -146,7 +147,7 @@ static int bs_read_locked(struct mxfs_bootstrap *b,
 	 * form and is recorded at claim, never used to validate. */
 	if (memcmp(r->fs_uuid, b->fs_uuid, 16) != 0) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-BOOT-FOREIGN-VOLUME — the bootstrap record's "
+			     "mxfs: P-BOOT-FOREIGN-VOLUME -- the bootstrap record's "
 			     "fs_uuid is not this volume's (a re-mkfs that left the "
 			     "region, or a copied sector); refusing");
 		return -EXDEV;
@@ -238,7 +239,7 @@ int mxfs_bootstrap_claim(struct mxfs_bootstrap *b,
 	    cur->state != MXFS_BOOTSTRAP_RECOVERY_COMPLETE) {
 		mxfs_pal_log(MXFS_LOG_WARN,
 			     "mxfs: P-BOOT-CLAIM-BUSY state=%s term=%llu owner=%u/%llu "
-			     "key=0x%llx seq=%llu owner_stamp_ms=%llu — another "
+			     "key=0x%llx seq=%llu owner_stamp_ms=%llu -- another "
 			     "provisional owner holds the bootstrap; silence never "
 			     "authorises a takeover (fence its key first)",
 			     mxfs_bootstrap_state_name(cur->state),
@@ -322,7 +323,7 @@ int mxfs_bootstrap_reseal(struct mxfs_bootstrap *b,
 			    MXFS_FENCE_RECORD_BOOTSTRAP_OWNER,
 			    a->prev_fence_kind, &kwhy)) {
 			mxfs_pal_log(MXFS_LOG_ERR,
-				     "mxfs: P-BOOT-TAKEOVER-UNPROVEN kind=%s(%u) — only a "
+				     "mxfs: P-BOOT-TAKEOVER-UNPROVEN kind=%s(%u) -- only a "
 				     "certified key removal of a proof contract this build "
 				     "still supports authorises replacing a bootstrap "
 				     "owner; refusing: %s",
@@ -340,7 +341,7 @@ int mxfs_bootstrap_reseal(struct mxfs_bootstrap *b,
 		goto out;
 	if (memcmp(cur, prev, sizeof(*cur)) != 0) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-BOOT-TAKEOVER-MOVED term=%llu seq=%llu->%llu — "
+			     "mxfs: P-BOOT-TAKEOVER-MOVED term=%llu seq=%llu->%llu -- "
 			     "the record changed since the post-fence read; a fenced "
 			     "owner cannot write, so somebody else is at work",
 			     (unsigned long long)cur->term,
@@ -356,7 +357,7 @@ int mxfs_bootstrap_reseal(struct mxfs_bootstrap *b,
 	}
 	if (cur->lineage_count >= MXFS_BOOT_LIN_MAX) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-BOOT-LINEAGE-FULL term=%llu lineage=%u — this "
+			     "mxfs: P-BOOT-LINEAGE-FULL term=%llu lineage=%u -- this "
 			     "episode has been taken over %u times; operator repair",
 			     (unsigned long long)cur->term, cur->lineage_count,
 			     MXFS_BOOT_LIN_MAX);
@@ -436,7 +437,7 @@ static int bs_reload_ours_locked(struct mxfs_bootstrap *b,
 	    cur->owner_nonce != b->nonce) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P-BOOT-LOST at=%s ours=term %llu %u/%llu platter="
-			     "term %llu %u/%llu state=%s — the record no longer names "
+			     "term %llu %u/%llu state=%s -- the record no longer names "
 			     "this claim; ceasing to act as bootstrap owner",
 			     tag, (unsigned long long)b->img.term, b->img.owner_node,
 			     (unsigned long long)b->img.owner_epoch,
@@ -460,7 +461,7 @@ static int bs_own_cas_locked(struct mxfs_bootstrap *b,
 	else if (rc == -EAGAIN)
 		/* somebody wrote under us: we may have been taken over */
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-BOOT-CAS-LOST at=%s term=%llu — re-read and "
+			     "mxfs: P-BOOT-CAS-LOST at=%s term=%llu -- re-read and "
 			     "re-validate ownership before retrying", tag,
 			     (unsigned long long)cur->term);
 	return rc;
@@ -507,7 +508,7 @@ static int bs_own_transition(struct mxfs_bootstrap *b, uint16_t from_lo,
 		goto out;
 	if (cur->state < from_lo || cur->state > from_hi) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-BOOT-BAD-TRANSITION at=%s state=%s — not a "
+			     "mxfs: P-BOOT-BAD-TRANSITION at=%s state=%s -- not a "
 			     "legal predecessor of %s", tag,
 			     mxfs_bootstrap_state_name(cur->state),
 			     mxfs_bootstrap_state_name(to));
@@ -608,7 +609,7 @@ int mxfs_bootstrap_slot_complete(struct mxfs_bootstrap *b, int slot)
 	if (b && !(b->img.victim_bitmap & (1ULL << slot))) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P-BOOT-SLOT-NOT-SEALED slot=%d victims=0x%016llx "
-			     "— a completion for a slot outside the sealed manifest "
+			     "-- a completion for a slot outside the sealed manifest "
 			     "is refused", slot,
 			     (unsigned long long)b->img.victim_bitmap);
 		return -ENOENT;
@@ -658,7 +659,7 @@ int mxfs_bootstrap_complete(struct mxfs_bootstrap *b)
 	    b->img.registrants_done != b->img.registrants) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P-BOOT-INCOMPLETE victims=0x%016llx "
-			     "complete=0x%016llx registrants=%u/%u — global "
+			     "complete=0x%016llx registrants=%u/%u -- global "
 			     "RECOVERY_COMPLETE refused while any sealed victim or "
 			     "registrant is unresolved",
 			     (unsigned long long)b->img.victim_bitmap,
@@ -712,12 +713,12 @@ int mxfs_bootstrap_escrow_prepare(struct mxfs_bootstrap *b,
 	    b->img.escrow.victim_epoch == e->victim_epoch &&
 	    b->img.escrow.victim_key == e->victim_key) {
 		mxfs_pal_log(MXFS_LOG_DEBUG,
-			     "mxfs: P-BOOT-ESCROW-REPREPARE slot=%u — refreshing the "
+			     "mxfs: P-BOOT-ESCROW-REPREPARE slot=%u -- refreshing the "
 			     "PREPARED escrow's descriptor image for the resumed claim",
 			     e->slot);
 	} else if (b->img.escrow.state != MXFS_BOOT_ESCROW_NONE) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-BOOT-ESCROW-EXISTS state=%s slot=%u — this term "
+			     "mxfs: P-BOOT-ESCROW-EXISTS state=%s slot=%u -- this term "
 			     "already adopted a slot; a second adoption in the same "
 			     "term is refused (ruling STOP-SHIP 6)",
 			     mxfs_bootstrap_escrow_name(b->img.escrow.state),
@@ -746,7 +747,7 @@ int mxfs_bootstrap_escrow_prepare(struct mxfs_bootstrap *b,
 	mxfs_pal_free(back);
 	mxfs_pal_log(rc ? MXFS_LOG_ERR : MXFS_LOG_WARN,
 		     "mxfs: P-BOOT-ESCROW-READBACK slot=%u victim=%u/%llu key=0x%llx "
-		     "rc=%d — %s", e->slot, e->victim_node,
+		     "rc=%d -- %s", e->slot, e->victim_node,
 		     (unsigned long long)e->victim_epoch,
 		     (unsigned long long)e->victim_key, rc,
 		     rc ? "the escrow did not read back; K is NOT claimed" :
@@ -848,7 +849,7 @@ int mxfs_bootstrap_refuse(struct mxfs_bootstrap *b, uint32_t slot,
 	struct bs_refuse_args a = { slot, reason };
 
 	mxfs_pal_log(MXFS_LOG_ERR,
-		     "mxfs: P-BOOT-REFUSING slot=%u reason=%s — a sealed victim "
+		     "mxfs: P-BOOT-REFUSING slot=%u reason=%s -- a sealed victim "
 		     "cannot be recovered by this bootstrap; the volume stays "
 		     "refused to ACTIVE admission until operator repair "
 		     "(chk_mxfs --clear-bootstrap after the verdict is resolved)",
@@ -906,7 +907,7 @@ int mxfs_bootstrap_resume(struct mxfs_bootstrap *b,
 	rc = bs_cas_locked(b, cur, &b->img);
 	if (rc) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-BOOT-RESUME-CAS rc=%d term=%llu seq=%llu — the "
+			     "mxfs: P-BOOT-RESUME-CAS rc=%d term=%llu seq=%llu -- the "
 			     "record moved between the read and the resume write (a "
 			     "takeover contender resealed it, or another writer); "
 			     "this boot does not resume the term", rc,
@@ -921,7 +922,7 @@ int mxfs_bootstrap_resume(struct mxfs_bootstrap *b,
 	*epoch_out = cur->owner_epoch;
 	mxfs_pal_log(MXFS_LOG_WARN,
 		     "mxfs: P-BOOT-RESUME term=%llu state=%s node=%u inc=%llu "
-		     "key=0x%llx — this boot's earlier claim is resumed under the "
+		     "key=0x%llx -- this boot's earlier claim is resumed under the "
 		     "SAME term and provisional identity (no takeover, no fence)",
 		     (unsigned long long)cur->term,
 		     mxfs_bootstrap_state_name(cur->state), cur->owner_node,
@@ -1033,7 +1034,7 @@ int mxfs_bootstrap_manifest_read(struct mxfs_bootstrap *b, uint64_t term,
 		    s->crc32c != bs_mf_sector_crc(s)) {
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "mxfs: P-BOOT-MANIFEST-INVALID sector=%u magic=0x%08x "
-				     "ver=%u term=%llu (want %llu) idx=%u count=%u — the "
+				     "ver=%u term=%llu (want %llu) idx=%u count=%u -- the "
 				     "sealed manifest does not validate; failing closed",
 				     i, s->magic, s->ver, (unsigned long long)s->term,
 				     (unsigned long long)term, s->idx, s->count);
@@ -1054,7 +1055,7 @@ int mxfs_bootstrap_manifest_read(struct mxfs_bootstrap *b, uint64_t term,
 	if (rc == 0 && mxfs_bootstrap_manifest_hash(e, n) != hash) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P-BOOT-MANIFEST-HASH entries=%u have=0x%016llx "
-			     "want=0x%016llx — manifest and record disagree; failing "
+			     "want=0x%016llx -- manifest and record disagree; failing "
 			     "closed", n,
 			     (unsigned long long)mxfs_bootstrap_manifest_hash(e, n),
 			     (unsigned long long)hash);
@@ -1138,7 +1139,7 @@ int mxfs_bootstrap_survivor_scan(mxfs_bdev_t *dev, uint64_t disklock_offset,
 	if (!occupied) {
 		mxfs_pal_log(MXFS_LOG_DEBUG,
 			     "mxfs: P-BOOT-SCAN-EMPTY no occupied heartbeat record "
-			     "(unreadable=%u) — nothing to bootstrap", unread);
+			     "(unreadable=%u) -- nothing to bootstrap", unread);
 		*unread_out = unread;
 		goto out;
 	}
@@ -1166,7 +1167,7 @@ int mxfs_bootstrap_survivor_scan(mxfs_bdev_t *dev, uint64_t disklock_offset,
 				moved++;
 				mxfs_pal_log(MXFS_LOG_DEBUG,
 					     "mxfs: P-BOOT-SCAN-SURVIVOR slot=%u node=%u inc=%llu "
-					     "— record changed during the scan: a live member "
+					     "-- record changed during the scan: a live member "
 					     "exists; this is not a total outage",
 					     slot, a[slot].node_id,
 					     (unsigned long long)a[slot].epoch);
@@ -1220,7 +1221,7 @@ int mxfs_bootstrap_survivor_scan(mxfs_bdev_t *dev, uint64_t disklock_offset,
 				mxfs_pal_log(MXFS_LOG_WARN,
 					     "mxfs: P-BOOT-SCAN-TERMINAL-GUARD slot=%u "
 					     "victim=%u/%llu %s domain=%u ag_mask=0x%llx "
-					     "seq=%llu — fenced and quarantined before the "
+					     "seq=%llu -- fenced and quarantined before the "
 					     "outage; not a victim: nothing to fence, replay "
 					     "or zero (the admission barrier imports the "
 					     "quarantine)",
@@ -1235,7 +1236,7 @@ int mxfs_bootstrap_survivor_scan(mxfs_bdev_t *dev, uint64_t disklock_offset,
 				unread++;                   /* torn verdict: fail closed */
 				mxfs_pal_log(MXFS_LOG_ERR,
 					     "mxfs: P-BOOT-SCAN-GUARD-TORN slot=%u node=%u "
-					     "inc=%llu — QUARANTINED descriptor with an "
+					     "inc=%llu -- QUARANTINED descriptor with an "
 					     "outcome that does not validate; counted "
 					     "unreadable (bootstrap refused)",
 					     slot, r->node_id, (unsigned long long)r->epoch);
@@ -1296,7 +1297,7 @@ int mxfs_bootstrap_survivor_scan(mxfs_bdev_t *dev, uint64_t disklock_offset,
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "mxfs: P-BOOT-SCAN-NOIDENT slot=%u node=%u inc=%llu "
 				     "flags=0x%x ident{magic=0x%x ver=%u key=0x%llx "
-				     "gen=%u} — this victim's identity block does not "
+				     "gen=%u} -- this victim's identity block does not "
 				     "validate for its own record, so it carries no key a "
 				     "fence could name: a SCSI bootstrap cannot proceed "
 				     "(a DRBD mount writes no identity block and fences "
@@ -1317,14 +1318,14 @@ int mxfs_bootstrap_survivor_scan(mxfs_bdev_t *dev, uint64_t disklock_offset,
 		mxfs_pal_log(MXFS_LOG_WARN,
 			     "mxfs: P-BOOT-SCAN-TERMINAL-ONLY %u occupied record(s) "
 			     "unchanged for %llu ms, %u of them terminal guard(s) and "
-			     "no victim — not an outage; the ordinary path claims a "
+			     "no victim -- not an outage; the ordinary path claims a "
 			     "slot and admission imports the quarantine(s)",
 			     occupied, (unsigned long long)(mxfs_pal_time_ms() - t0),
 			     terminal);
 	else
 		mxfs_pal_log(MXFS_LOG_DEBUG,
 			     "mxfs: P-BOOT-SCAN-FROZEN %u occupied record(s) unchanged for "
-			     "%llu ms — TOTAL OUTAGE: %u victim(s) victims=0x%016llx "
+			     "%llu ms -- TOTAL OUTAGE: %u victim(s) victims=0x%016llx "
 			     "noident=%u terminal_guards=%u torn=%u", occupied,
 			     (unsigned long long)(mxfs_pal_time_ms() - t0), n,
 			     (unsigned long long)victims, noident, terminal,
@@ -1683,7 +1684,7 @@ int mxfs_slife_read(mxfs_bdev_t *dev, uint64_t region_off,
 		return rc;
 	if (out->magic == 0) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-SLIFE-UNFORMATTED slice=%u off=%llu — the "
+			     "mxfs: P-SLIFE-UNFORMATTED slice=%u off=%llu -- the "
 			     "lifecycle record carries no magic; mkfs never wrote it "
 			     "(or the sector is torn).  Failing closed",
 			     slice, (unsigned long long)off);
@@ -1697,7 +1698,7 @@ int mxfs_slife_read(mxfs_bdev_t *dev, uint64_t region_off,
 	    out->crc != slife_crc(out)) {
 		mxfs_pal_log(MXFS_LOG_ERR,
 			     "mxfs: P-SLIFE-INVALID slice=%u magic=0x%08x ver=%u "
-			     "rec_slice=%u state=%u crc=0x%08x want=0x%08x — "
+			     "rec_slice=%u state=%u crc=0x%08x want=0x%08x -- "
 			     "refusing",
 			     slice, out->magic, out->version, out->slice,
 			     out->state, out->crc, slife_crc(out));
@@ -1705,7 +1706,7 @@ int mxfs_slife_read(mxfs_bdev_t *dev, uint64_t region_off,
 	}
 	if (memcmp(out->fs_uuid, fs_uuid, 16) != 0) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-SLIFE-FOREIGN-VOLUME slice=%u — the lifecycle "
+			     "mxfs: P-SLIFE-FOREIGN-VOLUME slice=%u -- the lifecycle "
 			     "record's fs_uuid is not this volume's (a re-mkfs that "
 			     "left the region, or a copied sector); refusing",
 			     slice);
@@ -1730,7 +1731,7 @@ static int slife_write(mxfs_bdev_t *dev, uint64_t off,
 		return rc;
 	if (memcmp(&back, r, sizeof(back)) != 0) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-SLIFE-READBACK slice=%u state=%s — the FUA "
+			     "mxfs: P-SLIFE-READBACK slice=%u state=%s -- the FUA "
 			     "write of the lifecycle record does not read back; "
 			     "failing closed",
 			     r->slice, mxfs_slife_state_name(r->state));
@@ -1769,7 +1770,7 @@ int mxfs_slife_claim_init(mxfs_bdev_t *dev, uint64_t region_off,
 	}
 	if (!payload_len || (payload_len % 4096)) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-SLIFE-PAYLOAD slice=%u len=%llu — payload "
+			     "mxfs: P-SLIFE-PAYLOAD slice=%u len=%llu -- payload "
 			     "length is not a multiple of 4096; refusing",
 			     slice, (unsigned long long)payload_len);
 		return -EINVAL;
@@ -1786,7 +1787,7 @@ int mxfs_slife_claim_init(mxfs_bdev_t *dev, uint64_t region_off,
 		return rc;
 	mxfs_pal_log(MXFS_LOG_DEBUG,
 		     "mxfs: P-SLIFE-ZEROING slice=%u node=%llu epoch=%llu "
-		     "payload_off=%llu len=%llu — the slice payload is untrusted "
+		     "payload_off=%llu len=%llu -- the slice payload is untrusted "
 		     "(state was %s); zeroing it through the FUA path before this "
 		     "incarnation mounts its log",
 		     slice, (unsigned long long)node, (unsigned long long)epoch,
@@ -1810,7 +1811,7 @@ int mxfs_slife_claim_init(mxfs_bdev_t *dev, uint64_t region_off,
 		rc = mxfs_pal_bdev_write_fua(dev, payload_off + done, zb, len);
 		if (rc) {
 			mxfs_pal_log(MXFS_LOG_ERR,
-				     "mxfs: P-SLIFE-ZERO-IO slice=%u off=%llu rc=%d — "
+				     "mxfs: P-SLIFE-ZERO-IO slice=%u off=%llu rc=%d -- "
 				     "the zero did not complete; record left ZEROING",
 				     slice, (unsigned long long)(payload_off + done), rc);
 			goto out;
@@ -1820,7 +1821,7 @@ int mxfs_slife_claim_init(mxfs_bdev_t *dev, uint64_t region_off,
 	rc = mxfs_pal_bdev_flush(dev);
 	if (rc) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-SLIFE-FLUSH slice=%u rc=%d — the flush after "
+			     "mxfs: P-SLIFE-FLUSH slice=%u rc=%d -- the flush after "
 			     "the zero failed; record left ZEROING", slice, rc);
 		goto out;
 	}
@@ -1833,7 +1834,7 @@ int mxfs_slife_claim_init(mxfs_bdev_t *dev, uint64_t region_off,
 			goto out;
 		if (memcmp(rb, zb, len) != 0) {
 			mxfs_pal_log(MXFS_LOG_ERR,
-				     "mxfs: P-SLIFE-ZERO-READBACK slice=%u off=%llu — "
+				     "mxfs: P-SLIFE-ZERO-READBACK slice=%u off=%llu -- "
 				     "the zeroed payload does not read back as zero; the "
 				     "target did not persist the zero.  Record left "
 				     "ZEROING, mount refused",
@@ -1855,7 +1856,7 @@ int mxfs_slife_claim_init(mxfs_bdev_t *dev, uint64_t region_off,
 		*after = rec.state;
 	mxfs_pal_log(MXFS_LOG_DEBUG,
 		     "mxfs: P-SLIFE-READY slice=%u node=%llu epoch=%llu gen=%u "
-		     "zeroed=%llu zero_ms=%u — the slice payload is a verified "
+		     "zeroed=%llu zero_ms=%u -- the slice payload is a verified "
 		     "zero; the log may be mounted",
 		     slice, (unsigned long long)node, (unsigned long long)epoch,
 		     rec.generation, (unsigned long long)payload_len,

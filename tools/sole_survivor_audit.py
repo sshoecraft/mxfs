@@ -77,9 +77,11 @@ def enclosing_functions(lines):
 
 def source_files(root):
     for dirpath, dirnames, filenames in os.walk(root):
+        # .claude holds agent worktrees: whole copies of the tree, each of
+        # which would count every guard again as a new site
         dirnames[:] = [d for d in dirnames
-                       if d not in (".git", ".ccloop", ".ccmemory", "tests",
-                                    "bench", "packaging", "docs")]
+                       if d not in (".git", ".ccloop", ".ccmemory", ".claude",
+                                    "tests", "bench", "packaging", "docs")]
         for fn in filenames:
             if fn.endswith((".c", ".h")):
                 yield os.path.join(dirpath, fn)

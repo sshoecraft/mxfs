@@ -103,6 +103,30 @@ case "$out" in
         # grace (a cue: the module judges the exclusion itself).
         ( sleep 1; m=$(drbdadm sh-minor "$RES" 2>/dev/null) && [ -w /proc/fs/mxfs/drbd_excluded ] \
             && echo "$m" > /proc/fs/mxfs/drbd_excluded ) </dev/null >/dev/null 2>&1 &
+        # Resume the frozen I/O ourselves before DRBD has the exit code.  On 7
+        # DRBD 8.4 resumes it in its state machine, which writes the new
+        # current UUID to the metadata inside rcu_read_lock(): the write
+        # sleeps, and every peer death logged the kernel WARNING "Voluntary
+        # context switch within RCU read-side critical section" through
+        # drbd_uuid_new_current (measured on the rig, 2026-10-07).  `drbdadm
+        # resume-io` makes the same rotation outside RCU, so when the exit
+        # code arrives nothing is frozen.  Only for a Primary that lost its
+        # link: DRBD also runs this handler inside `drbdadm primary` for a
+        # disconnected Secondary, under the resource's admin mutex, which the
+        # command would wait on.  Bounded, never fatal, never killed (a
+        # command stuck in the kernel cannot be): DRBD resumes the I/O on the
+        # exit code as before.
+        if [ "$(drbdadm role "$RES" 2>/dev/null | cut -d/ -f1)" = Primary ] \
+           && [ "$(drbdadm cstate "$RES" 2>/dev/null)" != Connected ]; then
+            drbdadm resume-io "$RES" </dev/null >/dev/null 2>&1 &
+            rpid=$!
+            for i in $(seq 1 100); do kill -0 "$rpid" 2>/dev/null || break; sleep 0.1; done
+            if kill -0 "$rpid" 2>/dev/null; then
+                record RESUME_IO_PENDING "$peer" "drbdadm resume-io has not returned after 10 s; DRBD resumes the I/O on the exit code"
+            elif ! wait "$rpid"; then
+                record RESUME_IO_FAILED "$peer" "drbdadm resume-io failed; DRBD resumes the I/O on the exit code"
+            fi
+        fi
         exit 7 ;;
     *)
         record FAIL "$peer" "agent=$agent answer='$out'"

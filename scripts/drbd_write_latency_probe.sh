@@ -26,7 +26,10 @@
 #      scratch LVs in that pool, as the MXFS resource's own LV may be, and
 #      writes them in full first so no write of a phase provisions a chunk)
 #      DISK_WCE (empty: as found; 0 or 1 sets DISK's write cache on both hosts
-#      for the run and restores it at the end, see below)
+#      for the run and restores it at the end, see below)  PROBE_PRIOCLASS
+#      (empty: the probes' I/O priority as found; 1 = real-time, see below)
+#      RECEIVER_PRIOCLASS (empty: as found; 1 = each host's DRBD receiver
+#      thread real-time for the run, see below)
 # The vmio writer: O_DIRECT random writes (io_uring, queue depth 4) of 4/64/128/
 # 256 KiB in the proportion 35/25/20/20 (126 KiB on average, as an AlmaLinux
 # install's virtio disk wrote: 3.5 GiB in 29.5k writes) with an fdatasync
@@ -45,6 +48,17 @@ VG=${VG:-pve}; LV_SIZE=${LV_SIZE:-4G}; MINOR=${MINOR:-1}; PORT=${PORT:-7790}
 DISK=${DISK:-sda}; IDLE_S=${IDLE_S:-20}; BULK_S=${BULK_S:-90}
 BULK_JOBS=${BULK_JOBS:-4}; BULK_QD=${BULK_QD:-16}; BULK_BS=${BULK_BS:-1M}
 VMIO_S=${VMIO_S:-60}; MNT=${MNT:-/mnt/shared}; LV_THIN=${LV_THIN:-}
+# PROBE_PRIOCLASS=1: the reg and fua probes run in the real-time I/O priority
+# class (fio --prioclass=1 --prio=0), the bulk writers in the default one.
+# mq-deadline dispatches a real-time request ahead of every best-effort one
+# queued, so the probe then waits only for what the disk itself already holds
+# (one request at queue depth 1), not for the scheduler's queue.
+PROBE_PRIO=; [ -n "${PROBE_PRIOCLASS:-}" ] && PROBE_PRIO="--prioclass=$PROBE_PRIOCLASS --prio=0"
+# RECEIVER_PRIOCLASS=1: each host's DRBD receiver thread for the scratch
+# resource (it submits every write the peer replicates to this host's disk)
+# runs in that I/O priority class for the run.  A write is complete only when
+# both disks have it, and the peer's half waits in this host's queue.
+RECEIVER_PRIOCLASS=${RECEIVER_PRIOCLASS:-}
 RES=mxfsprobe; DEV=/dev/drbd$MINOR
 # a scratch LV of hostA's own for vmio-local, beside the resource's
 LOCAL_LV=${RES}l
@@ -134,6 +148,18 @@ log "$HA: $r"
 r=$(on "$HB" "drbdadm primary $RES 2>&1 | tail -1; drbdadm role $RES" 30)
 log "$HB: $r"
 case "$r" in *Primary/Primary*) ;; *) log "both nodes are not Primary"; exit 1 ;; esac
+if [ -n "$RECEIVER_PRIOCLASS" ]; then
+    # the kernel thread is drbd_r_<resource>, its comm cut to 15 characters
+    # (drbd_r_mxfsprob); matched by that prefix in /proc, not by exact name
+    PFX=$(printf 'drbd_r_%s' "$RES" | cut -c1-15)
+    for h in "$HA" "$HB"; do
+        r=$(on "$h" "p=; for d in /proc/[0-9]*; do read -r c < \$d/comm 2>/dev/null || continue; case \$c in $PFX*) p=\${d#/proc/}; break;; esac; done
+            [ -n \"\$p\" ] || { echo NO_RECEIVER; exit; }
+            ionice -c $RECEIVER_PRIOCLASS -n 0 -p \$p && echo \"receiver \$p: \$(ionice -p \$p)\"")
+        log "$h: $r"
+        case "$r" in *receiver*) ;; *) log "could not set the receiver's I/O priority on $h"; exit 1 ;; esac
+    done
+fi
 
 # Each node gets half of the device: probes at its start, bulk after them.
 SZ=$(on "$HA" "blockdev --getsize64 $DEV")
@@ -143,7 +169,7 @@ SLICE=$(( (HALF - 64) / BULK_JOBS ))   # MiB per bulk job
 # run_phase <name> <seconds> <bulk 0|1>
 run_phase() {
     local name=$1 secs=$2 bulk=$3 h base
-    log "== phase $name: ${secs}s, bulk=$bulk (jobs=$BULK_JOBS qd=$BULK_QD bs=$BULK_BS, slice ${SLICE}MiB per job)"
+    log "== phase $name: ${secs}s, bulk=$bulk (jobs=$BULK_JOBS qd=$BULK_QD bs=$BULK_BS, slice ${SLICE}MiB per job), probe prioclass ${PROBE_PRIOCLASS:-as found}"
     for h in "$HA" "$HB"; do
         if [ "$h" = "$HA" ]; then base=0; else base=$HALF; fi
         on "$h" "rm -f /tmp/$RES-*
@@ -156,7 +182,7 @@ run_phase() {
             fi
             for p in reg fua; do
                 if [ \$p = reg ]; then off=$((base + 4)); sync=0; else off=$((base + 8)); sync=1; fi
-                setsid fio --name=\$p --filename=$DEV --rw=write --bs=512 --direct=1 --sync=\$sync --ioengine=psync \
+                setsid fio --name=\$p --filename=$DEV --rw=write --bs=512 --direct=1 --sync=\$sync --ioengine=psync $PROBE_PRIO \
                     --thinktime=500ms --thinktime_blocks=1 --offset=\${off}M --size=256K --time_based --runtime=$secs \
                     --write_lat_log=/tmp/$RES-\$p --log_avg_msec=0 --output-format=json --output=/tmp/$RES-\$p.json >/dev/null 2>&1 </dev/null &
             done

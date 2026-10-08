@@ -389,7 +389,21 @@ load_result() {
 print(\"LOAD err=%d read_ios=%d write_ios=%d lat_max_ms=%.0f\" % (j[\"error\"], j[\"read\"][\"total_ios\"], j[\"write\"][\"total_ios\"], max(j[\"read\"][\"lat_ns\"][\"max\"], j[\"write\"][\"lat_ns\"][\"max\"]) / 1e6))'" $((LOAD_S + 60)) | grep '^LOAD '
 }
 
+# Physical hosts are never reset, crashed, rebooted or power-cycled from here:
+# IS_VM holds what systemd-detect-virt said for each host at the start, while
+# both were up, and every primitive that stops a host refuses one that is not
+# a virtual machine.
+declare -A IS_VM
+vm_check() {  # <host>
+    IS_VM[$1]=$(on "$1" "systemd-detect-virt --vm" 15 | tail -1)
+}
+vm_only() {  # <host> <what>
+    case "${IS_VM[$1]:-}" in
+        ""|none) die "refusing to $2 $1: not known to be a virtual machine (systemd-detect-virt: ${IS_VM[$1]:-not checked})" ;;
+    esac
+}
 reset_host() {  # <host>: sysrq b one second after the ssh session ends
+    vm_only "$1" reset
     on "$1" "echo 1 > /proc/sys/kernel/sysrq; nohup setsid sh -c 'sleep 1; echo b > /proc/sysrq-trigger' >/dev/null 2>&1 < /dev/null & echo RESET_ARMED" 15 | grep -q RESET_ARMED \
         || die "could not arm the reset on $1"
 }
@@ -400,6 +414,7 @@ reset_host() {  # <host>: sysrq b one second after the ssh session ends
 # nested pair it blocked until the softdog restarted the host 60 s later.
 power_off_host() {  # <host>
     local cmd
+    vm_only "$1" "power off"
     if [ -n "${PVE_POWER_OFF:-}" ]; then
         cmd=${PVE_POWER_OFF//\{name\}/${NAME[$1]}}
         cmd=${cmd//\{addr\}/$1}
@@ -414,6 +429,7 @@ power_off_host() {  # <host>
 # on, and the command waits for that boot before it resets the host again.
 power_on_host() {  # <host>
     local cmd=${PVE_POWER_ON//\{name\}/${NAME[$1]}}
+    vm_only "$1" "power on"
     cmd=${cmd//\{addr\}/$1}
     timeout $(( BOOT_BUDGET + 60 )) bash -c "$cmd" >>"$EVID/log" 2>&1 || die "could not power $1 on: $cmd"
 }
@@ -602,6 +618,7 @@ step_reboot() {
     b1=$(boot_id "$P1")
     say "reboot: rebooting $P1 cleanly under load on both"
     t0=$(date +%s)
+    vm_only "$P1" reboot
     on "$P1" "nohup setsid sh -c 'sleep 1; systemctl reboot' >/dev/null 2>&1 < /dev/null & echo REBOOTING" 15 | grep -q REBOOTING || die "could not reboot $P1"
     s=$(wait_rebooted "$P1" "$b1" "$BOOT_BUDGET") || die "$P1 did not come back within ${BOOT_BUDGET}s"
     say "  $P1 answered again $s s after the reboot began"
@@ -1087,6 +1104,21 @@ for s in "${STEPS[@]}"; do
         survivor-restart|released-restart|stale-promotion)
             [ -n "${PVE_POWER_ON:-}" ] || { echo "$s keeps a host powered off: set PVE_POWER_ON to the command that powers one on"; exit 2; } ;;
         *) echo "unknown step: $s"; exit 2 ;;
+    esac
+done
+# A step that resets, crashes, reboots or powers off a host, or makes one
+# restart itself, runs on virtual machines only.  The physical pair are
+# workstations over ten years old, and repeated resets killed one of them
+# (2026-10-07); those paths are proven on the nested pair.
+for s in "${STEPS[@]}"; do
+    case "$s" in
+        withdraw-both|withdraw-p1|withdraw-guests|slow-beat) ;;
+        *) for h in "$P0" "$P1"; do
+               vm_check "$h"
+               case "${IS_VM[$h]}" in
+                   ""|none) echo "refusing step $s: it resets or restarts a host, and $h is not a virtual machine (systemd-detect-virt: ${IS_VM[$h]:-no answer}); run it on the nested pair"; exit 2 ;;
+               esac
+           done ;;
     esac
 done
 say "pve pair failover: participant 0 $P0, participant 1 $P1; steps: ${STEPS[*]}; evidence $EVID"

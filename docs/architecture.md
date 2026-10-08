@@ -157,6 +157,30 @@ Each node preferentially allocates from a subset of AGs to minimize contention:
 - AG lock (LTYPE_AG, EX mode) held only during allocation, not during read/write
 - Result: nodes working on different files rarely contend on AG locks
 
+### Free Space Across Nodes
+
+Every node admits allocations against its own free-space and inode counters
+(XFS's percpu `m_free[XC_FREE_BLOCKS]`, `m_icount`, `m_ifree`), and every
+node's counters describe the same physical free space. Two rules follow.
+
+- **A node's counters follow what its peers allocate and free.** Its own
+  transactions move them directly. A peer's net change in an AG comes in as a
+  delta whenever that AG's headers come in: at the summary rebuild of every
+  fresh AG tenure; after statfs, read from the medium in a work item for AGs
+  the node does not hold (statfs never waits on that I/O); and on an ENOSPC retry, where each such AG is taken through its lock,
+  so a peer's free still in its log is written home before it is counted
+  (`xfs/xfs_mxfs_sb.c`). statfs reports the counters, so every node's df
+  agrees within a peer's log push.
+- **No delayed allocation.** A delalloc reservation is a promise drawn on one
+  node's counter that only becomes blocks at writeback, and the peer can
+  promise the same blocks; whichever writeback comes second has nothing to
+  allocate and discards data `write()` accepted. A cluster mount allocates
+  unwritten extents when a buffered write first reaches a hole, under the AG
+  locks, exactly as XFS does for a file with an extent size hint; writeback
+  converts them. What does not fit is refused at `write()`. This holds
+  whatever the membership, since a reservation made while alone would still
+  be outstanding when a peer mounts.
+
 ### BAST Flush Sequence
 
 When a BAST fires (another node needs a conflicting lock):

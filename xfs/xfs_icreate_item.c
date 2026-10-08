@@ -428,15 +428,15 @@ xlog_recover_icreate_commit_pass2(
 						  agbno, i, nbufs, rc,
 						  why ? why : "?",
 						  content ?
-	"— SYNCINIT chunk does not verify on the platter; refusing rather than re-initialising a cluster without per-cluster authority (verdict)" :
-	"— cluster could not be READ; aborting this attempt retryably (no verdict, nothing written)");
+	"-- SYNCINIT chunk does not verify on the platter; refusing rather than re-initialising a cluster without per-cluster authority (verdict)" :
+	"-- cluster could not be READ; aborting this attempt retryably (no verdict, nothing written)");
 					return content ? -EFSCORRUPTED : -EIO;
 				}
 			}
 			n = atomic_inc_return(&p_ver);
 			if (n <= 200)
 				xfs_notice(mp,
-	"MXFS %s replay: P-ICREATE-VERIFIED lsn=0x%llx agno=%u agbno=%u clusters=%d gen=%u — chunk already initialised on the platter (SYNCINIT); skipped, nothing written (n=%d)",
+	"MXFS %s replay: P-ICREATE-VERIFIED lsn=0x%llx agno=%u agbno=%u clusters=%d gen=%u -- chunk already initialised on the platter (SYNCINIT); skipped, nothing written (n=%d)",
 					   xlog_is_mxfs_foreign_replay(log) ?
 					   "foreign" : (xlog_is_mxfs_untrusted_replay(log) ?
 					   "adopted" : "own"),
@@ -447,7 +447,7 @@ xlog_recover_icreate_commit_pass2(
 		}
 		if (mxfs) {
 			xfs_alert(mp,
-	"MXFS replay: P-ICREATE-REFUSE lsn=0x%llx agno=%u agbno=%u — ICREATE record carries no writer-time SYNCINIT proof (iov_len=%zu); refusing the blind cluster re-init on an MXFS mount",
+	"MXFS replay: P-ICREATE-REFUSE lsn=0x%llx agno=%u agbno=%u -- ICREATE record carries no writer-time SYNCINIT proof (iov_len=%zu); refusing the blind cluster re-init on an MXFS mount",
 				  (unsigned long long)lsn, agno, agbno,
 				  item->ri_buf[0].iov_len);
 			return -EFSCORRUPTED;

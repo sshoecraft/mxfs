@@ -1073,7 +1073,7 @@ overflow_bail:
 		if (missing || extra) {
 			static atomic_t p496d = ATOMIC_INIT(0);
 			if (atomic_inc_return(&p496d) <= 400)
-				mxfs_probe("mxfs: P496-ACQ-DIVERGE ino=%llu missing=%d extra=%d acquired=%d derived=%d stale=%d ndb=%d src=%s comm=%s — index and data disagreed at tenure start, before this node modified anything\n",
+				mxfs_probe("mxfs: P496-ACQ-DIVERGE ino=%llu missing=%d extra=%d acquired=%d derived=%d stale=%d ndb=%d src=%s comm=%s -- index and data disagreed at tenure start, before this node modified anything\n",
 					(unsigned long long)dp->i_ino,
 					missing, extra, old_live, nent,
 					old_stale, ndb,
@@ -1083,7 +1083,7 @@ overflow_bail:
 		} else {
 			static atomic_t p496c = ATOMIC_INIT(0);
 			if (atomic_inc_return(&p496c) <= 400)
-				mxfs_probe("mxfs: P496-ACQ-CLEAN ino=%llu entries=%d ndb=%d src=%s — index and data agreed at tenure start\n",
+				mxfs_probe("mxfs: P496-ACQ-CLEAN ino=%llu entries=%d ndb=%d src=%s -- index and data agreed at tenure start\n",
 					(unsigned long long)dp->i_ino, nent, ndb,
 					mxfs_dir_leaf_rebuild >= 2 ?
 						"incore+platter" : "incore");
@@ -1323,7 +1323,7 @@ xfs_dir2_leaf_addname(
 			    !l_dirty && !l_pinned &&
 			    !(lbp->b_flags & _XBF_DELWRI_Q) &&
 			    !(l_inail && mxfs_dir_buf_is_undestaged(lbp))) {
-				mxfs_probe_ratelimited("mxfs: P2-LEAFHASH-EPOCHSTALE ino=%llu b_ep=%u master_ep=%u — leaf-index epoch-stale; invalidate+reread before hash insert\n",
+				mxfs_probe_ratelimited("mxfs: P2-LEAFHASH-EPOCHSTALE ino=%llu b_ep=%u master_ep=%u -- leaf-index epoch-stale; invalidate+reread before hash insert\n",
 					(unsigned long long)dp->i_ino,
 					lbp->b_mxfs_dir_epoch, master_ep);
 				lbp->b_flags &= ~(XBF_DONE | _XBF_FUA_FRESH);
@@ -1636,7 +1636,7 @@ xfs_dir2_leaf_addname(
 			(unsigned long long)ktime_get_real_ns());
 		}
 		if (grown == 0 && bf0 >= (BBTOB(dbp->b_length) / 2))
-			mxfs_probe_ratelimited("mxfs: P13-STALEREAD ino=%llu use_block=%d daddr=%lld aoff=%u bf0len=%u name=[%.*s] comm=%s — REUSED data block read near-EMPTY (stale/reverted read of a should-be-full block)\n",
+			mxfs_probe_ratelimited("mxfs: P13-STALEREAD ino=%llu use_block=%d daddr=%lld aoff=%u bf0len=%u name=[%.*s] comm=%s -- REUSED data block read near-EMPTY (stale/reverted read of a should-be-full block)\n",
 				(unsigned long long)dp->i_ino, use_block,
 				(long long)dbp->b_maps[0].bm_bn, aoff, bf0,
 				(int)args->namelen, args->name, current->comm);
@@ -2139,7 +2139,7 @@ mxfs_dir2_datascan_lookup(
 				uint64_t disk_nx = (fl2 & XFS_DIFLAG2_NREXT64) ?
 					big_nx : nx32;
 
-				mxfs_probe("mxfs: P33-DSCAN-ONDISK ino=%llu name=\"%.*s\" incore_fmt=%u incore_nx=%llu incore_size=%lld incore_gen=%u ndb=%d || disk_magic=0x%04x disk_fmt=%u disk_nx=%llu disk_size=%lld disk_gen=%u sameincarn=%d — disk smaller=durability/torn-disk; incore bigger=read rebuilt larger than disk\n",
+				mxfs_probe("mxfs: P33-DSCAN-ONDISK ino=%llu name=\"%.*s\" incore_fmt=%u incore_nx=%llu incore_size=%lld incore_gen=%u ndb=%d || disk_magic=0x%04x disk_fmt=%u disk_nx=%llu disk_size=%lld disk_gen=%u sameincarn=%d -- disk smaller=durability/torn-disk; incore bigger=read rebuilt larger than disk\n",
 					(unsigned long long)dp->i_ino,
 					args->namelen, args->name,
 					dp->i_df.if_format,
@@ -2166,7 +2166,7 @@ mxfs_dir2_datascan_lookup(
 				kfree(cb);
 		}
 	}
-	mxfs_probe_ratelimited("mxfs: P26-DSCAN-MISS ino=%llu ndb=%d scanned=%d name=\"%.*s\" (not in any data block; scanned=#live dirents seen — ~200=>match/encoding bug, <200=>under-read)\n",
+	mxfs_probe_ratelimited("mxfs: P26-DSCAN-MISS ino=%llu ndb=%d scanned=%d name=\"%.*s\" (not in any data block; scanned=#live dirents seen -- ~200=>match/encoding bug, <200=>under-read)\n",
 			(unsigned long long)dp->i_ino, ndb, scanned,
 			args->namelen, args->name);
 	/*
@@ -2290,7 +2290,7 @@ mxfs_dir2_leafless_removename(
 				    be64_to_cpu(dep->inumber) !=
 				    args->inumber) {
 					mxfs_probe_ratelimited(
-					    "mxfs: P73-LEAFLESS-RM-SKIP ino=%llu name=\"%.*s\" dep_ino=%llu arg_ino=%llu db=%d — name match, inode mismatch\n",
+					    "mxfs: P73-LEAFLESS-RM-SKIP ino=%llu name=\"%.*s\" dep_ino=%llu arg_ino=%llu db=%d -- name match, inode mismatch\n",
 					    (unsigned long long)dp->i_ino,
 					    args->namelen, args->name,
 					    (unsigned long long)be64_to_cpu(
@@ -2313,7 +2313,7 @@ mxfs_dir2_leafless_removename(
 					xfs_dir2_data_log_header(args, dbp);
 				xfs_dir3_data_check(dp, dbp);
 				mxfs_probe_ratelimited(
-				    "mxfs: P73-LEAFLESS-RM ino=%llu name=\"%.*s\" inum=%llu db=%d/%d — expunged leafless ghost dirent (leaf-hash hole unlink heal)\n",
+				    "mxfs: P73-LEAFLESS-RM ino=%llu name=\"%.*s\" inum=%llu db=%d/%d -- expunged leafless ghost dirent (leaf-hash hole unlink heal)\n",
 				    (unsigned long long)dp->i_ino,
 				    args->namelen, args->name,
 				    (unsigned long long)args->inumber,

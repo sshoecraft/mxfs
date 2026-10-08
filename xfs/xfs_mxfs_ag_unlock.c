@@ -33,7 +33,7 @@ MODULE_PARM_DESC(lazy_ag_drain,
                  "Defer AG-DLM alloc-buflist drain from per-trans unlock "
                  "to bast_work_fn release boundary: 0=eager (default, "
                  "original v0.3.128 behavior), 1=lazy (v0.3.130 v6a "
-                 "phase 2 experiment — amortizes FUA writes across "
+                 "phase 2 experiment -- amortizes FUA writes across "
                  "transactions held under cached AG-DLM).");
 
 /*
@@ -130,7 +130,7 @@ mxfs_ag_finish_claim(
 	if (pag->pag_dlm_finishing) {
 		WRITE_ONCE(mxfs_ag_release_dup_total,
 			   READ_ONCE(mxfs_ag_release_dup_total) + 1);
-		mxfs_probe_ratelimited("mxfs: P12-WORK ag=%u dup-finisher at=%s comm=%s total=%ld — the committed release is already being finished by another runner\n",
+		mxfs_probe_ratelimited("mxfs: P12-WORK ag=%u dup-finisher at=%s comm=%s total=%ld -- the committed release is already being finished by another runner\n",
 			pag_agno(pag), where, current->comm,
 			READ_ONCE(mxfs_ag_release_dup_total));
 		return false;
@@ -163,7 +163,7 @@ mxfs_ag_strand_inject_hit(xfs_agnumber_t agno, const char *src)
 	    mxfs_ag_strand_inject != (int)agno + 1)
 		return false;
 	mxfs_ag_strand_inject = 0;
-	pr_warn("mxfs: P200-STRAND-INJECT ag=%u src=%s — SKIPPING the wire unlock to strand this AG on purpose; expect P5N-AG-ORPHAN-NAK disk_held=1 repair=1 on the next peer BAST\n",
+	pr_warn("mxfs: P200-STRAND-INJECT ag=%u src=%s -- SKIPPING the wire unlock to strand this AG on purpose; expect P5N-AG-ORPHAN-NAK disk_held=1 repair=1 on the next peer BAST\n",
 		agno, src);
 	return true;
 }
@@ -231,7 +231,7 @@ module_param_named(ag_strand_repair, mxfs_ag_strand_repair, int, 0644);
 MODULE_PARM_DESC(ag_strand_repair,
                  "Re-adopt and release an AG whose CAW holder bit is set "
                  "on disk while this node has no in-core tenure "
-                 "(holders=0, !cached, !demoting, !release_pending) — the "
+                 "(holders=0, !cached, !demoting, !release_pending) -- the "
                  "state in which no peer BAST can ever schedule a release. "
                  "1=repair (default), 0=detect and report only.");
 
@@ -425,7 +425,7 @@ mxfs_ag_dlm_unlock(
 			u64 n = atomic64_inc_return(&p39_unlock_last_count);
 			if ((n & 63) == 1 || pag->pag_dlm_bast_pending ||
 			    schedule_bast)
-				mxfs_idbg("mxfs: P39-INSTR ag=%u UNLOCK-LAST cached=false→true bast_pending=%d schedule_bast=%d lazy_skip=%d yield_remaining=%d eff=%d skips_nb=%d realns=%llu (event#%llu)\n",
+				mxfs_idbg("mxfs: P39-INSTR ag=%u UNLOCK-LAST cached=false->true bast_pending=%d schedule_bast=%d lazy_skip=%d yield_remaining=%d eff=%d skips_nb=%d realns=%llu (event#%llu)\n",
 					pag_agno(pag),
 					pag->pag_dlm_bast_pending,
 					schedule_bast, lazy_skip,
@@ -704,7 +704,7 @@ mxfs_trans_agwait_handoff(
 			 * handoff proceeds regardless.
 			 */
 			if (lip->li_type == XFS_LI_BUF)
-				pr_warn_ratelimited("mxfs: P271-AGWAIT-HELDBUF ag=%u comm=%s — buf item joined at seam (audit)\n",
+				pr_warn_ratelimited("mxfs: P271-AGWAIT-HELDBUF ag=%u comm=%s -- buf item joined at seam (audit)\n",
 					pag_agno(pag), current->comm);
 			continue;
 		}
@@ -729,7 +729,7 @@ mxfs_trans_agwait_handoff(
 	for (i = 0; i < nips; i++)
 		xfs_iunlock(ips[i], XFS_ILOCK_EXCL);
 
-	mxfs_probe_ratelimited("mxfs: P271-AGWAIT-%s ag=%u inodes=%d comm=%s — blocking for peer-held AG with ILOCKs handed off\n",
+	mxfs_probe_ratelimited("mxfs: P271-AGWAIT-%s ag=%u inodes=%d comm=%s -- blocking for peer-held AG with ILOCKs handed off\n",
 		why, pag_agno(pag), nips, current->comm);
 
 	if (backoff_ms)
@@ -911,7 +911,7 @@ mxfs_trans_migrate_ag_unlocks(
 		static DEFINE_RATELIMIT_STATE(mig_rl, 5 * HZ, 2);
 
 		if (mxfs_probe_on() && __ratelimit(&mig_rl))
-			mxfs_probe("mxfs: P1-AGDUP-DROP dropped=%d kept=%d retain_all=%d — early AG-grant release at defer roll\n",
+			mxfs_probe("mxfs: P1-AGDUP-DROP dropped=%d kept=%d retain_all=%d -- early AG-grant release at defer roll\n",
 				dropped, kept, retain_all);
 	}
 }
@@ -1048,7 +1048,7 @@ mxfs_preacq_poll(
 		WRITE_ONCE(mxfs_preacq_poll_hit_n, mxfs_preacq_poll_hit_n + 1);
 	else if (error == -EAGAIN)
 		WRITE_ONCE(mxfs_preacq_poll_miss_n, mxfs_preacq_poll_miss_n + 1);
-	mxfs_probe_ratelimited("mxfs: P271-PREACQ-POLL ag=%u hit=%d waited_ms=%u rc=%d comm=%s — peer-held mandatory AG polled with the inode locks held\n",
+	mxfs_probe_ratelimited("mxfs: P271-PREACQ-POLL ag=%u hit=%d waited_ms=%u rc=%d comm=%s -- peer-held mandatory AG polled with the inode locks held\n",
 		pag_agno(pag), error == 0 ? 1 : 0, waited_ms, error,
 		current->comm);
 	return error;
@@ -1183,7 +1183,7 @@ restart:
 				}
 				if (++handoffs > 8) {
 					xfs_perag_put(pag);
-					mxfs_probe_ratelimited("mxfs: P271-PREACQ-EXHAUST ag=%u handoffs=%d comm=%s — caller must clean-cancel and retry the operation\n",
+					mxfs_probe_ratelimited("mxfs: P271-PREACQ-EXHAUST ag=%u handoffs=%d comm=%s -- caller must clean-cancel and retry the operation\n",
 						ags[i], handoffs - 1,
 						current->comm);
 					return -EAGAIN;
@@ -1375,7 +1375,7 @@ mxfs_trans_drain_inode_unlocks(
 				static atomic_t p152_n = ATOMIC_INIT(0);
 
 				if (atomic_inc_return(&p152_n) <= 2000)
-					mxfs_probe("mxfs: P152-TRANSDRAIN-PUNT ino=%llu dlm_mode=%u dlm_state=%u pid=%d comm=%s why=%s — BAST release punted to dwork\n",
+					mxfs_probe("mxfs: P152-TRANSDRAIN-PUNT ino=%llu dlm_mode=%u dlm_state=%u pid=%d comm=%s why=%s -- BAST release punted to dwork\n",
 						(unsigned long long)ip->i_ino,
 						(unsigned)ip->i_dlm_mode,
 						(unsigned)ip->i_dlm_state,
@@ -1509,7 +1509,7 @@ mxfs_trans_drain_inode_unlocks(
 		list_for_each_entry(res, &tp->t_mxfs_inode_unlocks, list)
 			n++;
 		atomic64_add(n, &mxfs_dem_drain_residue);
-		mxfs_probe("mxfs: P215-DRAIN-RESIDUE tp=%px left=%d pid=%d comm=%s — deferred inode unlocks appended after the drain iterator passed; their demoter claims will never be cleared\n",
+		mxfs_probe("mxfs: P215-DRAIN-RESIDUE tp=%px left=%d pid=%d comm=%s -- deferred inode unlocks appended after the drain iterator passed; their demoter claims will never be cleared\n",
 			tp, n, current->pid, current->comm);
 	}
 }
@@ -1591,7 +1591,7 @@ mxfs_dlm_ag_bast_notify(
 	    jiffies_to_msecs(jiffies - pag->pag_dlm_bast_pending_since)
 		    > 60000)
 		pr_warn_ratelimited(
-			"mxfs: P275-AG-DEMOTE-STUCK ag=%u page_ms=%u release_pending=%d — demote in flight (or quarantined) past 60s\n",
+			"mxfs: P275-AG-DEMOTE-STUCK ag=%u page_ms=%u release_pending=%d -- demote in flight (or quarantined) past 60s\n",
 			agno,
 			jiffies_to_msecs(jiffies -
 				pag->pag_dlm_bast_pending_since),
@@ -1644,7 +1644,7 @@ mxfs_dlm_ag_bast_notify(
 			struct pid *hp = find_get_pid(pag->pag_dlm_holder_pid);
 			struct task_struct *ht =
 				hp ? get_pid_task(hp, PIDTYPE_PID) : NULL;
-			mxfs_probe("mxfs: P12-HOLDERTASK ag=%u pid=%d comm=%s alive=%d — stack follows\n",
+			mxfs_probe("mxfs: P12-HOLDERTASK ag=%u pid=%d comm=%s alive=%d -- stack follows\n",
 				agno, pag->pag_dlm_holder_pid,
 				pag->pag_dlm_holder_comm, ht ? 1 : 0);
 			if (ht) {
@@ -1747,7 +1747,7 @@ mxfs_dlm_ag_bast_notify(
 		}
 
 		pr_warn_ratelimited(
-			"mxfs: P5N-AG-ORPHAN-NAK ag=%u src=bast-rx rc=%d disk_held=%d repair=%d — CAW holder bit on the platter with no in-core tenure is a STRANDED AG: no peer BAST can schedule its release\n",
+			"mxfs: P5N-AG-ORPHAN-NAK ag=%u src=bast-rx rc=%d disk_held=%d repair=%d -- CAW holder bit on the platter with no in-core tenure is a STRANDED AG: no peer BAST can schedule its release\n",
 			agno, nak_rc, held, readopt);
 
 		if (readopt) {
@@ -1766,7 +1766,7 @@ mxfs_dlm_ag_bast_notify(
 		else
 			requeued = schedule_work(&pag->pag_dlm_bast_work);
 		pr_warn_ratelimited(
-			"mxfs: P275-AG-STUCK-LATCH ag=%u page_ms=%u requeued=%d — bast_scheduled latched >30s with revocation still pending\n",
+			"mxfs: P275-AG-STUCK-LATCH ag=%u page_ms=%u requeued=%d -- bast_scheduled latched >30s with revocation still pending\n",
 			agno,
 			jiffies_to_msecs(jiffies -
 				pag->pag_dlm_bast_pending_since),
@@ -1819,7 +1819,7 @@ mxfs_dlm_ag_rx_readopt_mint(
 		pag->pag_dlm_bast_pending = false;
 		pag->pag_dlm_bast_scheduled = false;
 		mxfs_pag_dlm_unlock(pag, MXFS_SITE);
-		mxfs_probe("mxfs: P295-RX-READOPT-GONE ag=%u held=%d — stranded bit no longer ours; pending cleared\n",
+		mxfs_probe("mxfs: P295-RX-READOPT-GONE ag=%u held=%d -- stranded bit no longer ours; pending cleared\n",
 			pag_agno(pag), held);
 		return;
 	}
@@ -1838,12 +1838,12 @@ mxfs_dlm_ag_rx_readopt_mint(
 	mxfs_pag_dlm_unlock(pag, MXFS_SITE);
 
 	if (lrc == 0) {
-		mxfs_probe("mxfs: P295-RX-READOPT-MINTED ag=%u gep=%llu — strand re-minted through the attested acquire; unlock schedules the release\n",
+		mxfs_probe("mxfs: P295-RX-READOPT-MINTED ag=%u gep=%llu -- strand re-minted through the attested acquire; unlock schedules the release\n",
 			pag_agno(pag),
 			(unsigned long long)READ_ONCE(pag->pag_mxfs_grant_epoch));
 		mxfs_ag_dlm_unlock(mp, pag);
 	} else {
-		pr_warn("mxfs: P295-RX-READOPT-FAIL ag=%u rc=%d — mint refused, nothing published; bit still on platter, rx watchdog re-arms on the next BAST\n",
+		pr_warn("mxfs: P295-RX-READOPT-FAIL ag=%u rc=%d -- mint refused, nothing published; bit still on platter, rx watchdog re-arms on the next BAST\n",
 			pag_agno(pag), lrc);
 	}
 }
@@ -1892,7 +1892,7 @@ mxfs_pubob_unlock_census(
 	}
 	spin_unlock(&mp->m_mxfs_pubob_lock);
 	if (nfree || npend)
-		mxfs_probe("mxfs: P-FREEOB-XRELEASE ag=%u path=%s free=%d pending=%d chain_live=%d unlink=%d first_ino=%llu rel_epoch=%llu — committed free obligation(s) still open as the grant leaves this node\n",
+		mxfs_probe("mxfs: P-FREEOB-XRELEASE ag=%u path=%s free=%d pending=%d chain_live=%d unlink=%d first_ino=%llu rel_epoch=%llu -- committed free obligation(s) still open as the grant leaves this node\n",
 			pag_agno(pag), path, nfree, npend, nchain, nunl,
 			(unsigned long long)ino1,
 			(unsigned long long)READ_ONCE(pag->pag_mxfs_rel_epoch));
@@ -1956,7 +1956,7 @@ mxfs_ag_release_publish_gate(
 		 */
 		if (p87_split > 0 && READ_ONCE(pag->pag_mxfs_freeob_fatal) > 0 &&
 		    !xfs_is_shutdown(mp)) {
-			pr_err("mxfs: P-FREEOB-REFUSED ag=%u path=%s fatal=%d — FREE obligation bookkeeping violated (orphan or cross-tenure FREE_PENDING, see P-FREEOB-PENDING-FATAL); refusing to hand the AG to a peer: shutting down (fail-closed, journal carries the free)\n",
+			pr_err("mxfs: P-FREEOB-REFUSED ag=%u path=%s fatal=%d -- FREE obligation bookkeeping violated (orphan or cross-tenure FREE_PENDING, see P-FREEOB-PENDING-FATAL); refusing to hand the AG to a peer: shutting down (fail-closed, journal carries the free)\n",
 				pag_agno(pag), path,
 				READ_ONCE(pag->pag_mxfs_freeob_fatal));
 			xfs_force_shutdown(mp, SHUTDOWN_META_IO_ERROR);
@@ -1972,14 +1972,14 @@ mxfs_ag_release_publish_gate(
 			}
 			if (READ_ONCE(pag->pag_mxfs_freeob_split) > 0 &&
 			    !xfs_is_shutdown(mp)) {
-				pr_err("mxfs: P-FREEOB-REFUSED ag=%u path=%s unpublished=%d — refusing to hand the AG to a peer with a committed free whose home dinode still reads LIVE; shutting down (fail-closed, journal carries the free)\n",
+				pr_err("mxfs: P-FREEOB-REFUSED ag=%u path=%s unpublished=%d -- refusing to hand the AG to a peer with a committed free whose home dinode still reads LIVE; shutting down (fail-closed, journal carries the free)\n",
 					pag_agno(pag), path,
 					READ_ONCE(pag->pag_mxfs_freeob_split));
 				xfs_force_shutdown(mp, SHUTDOWN_META_IO_ERROR);
 			}
 		}
 		if (p87_split > 0)
-			mxfs_probe("mxfs: P87-PUBLISH-DEFER-EXHAUSTED ag=%u path=%s unrepaired=%d — split survived deferred repair; %s\n",
+			mxfs_probe("mxfs: P87-PUBLISH-DEFER-EXHAUSTED ag=%u path=%s unrepaired=%d -- split survived deferred repair; %s\n",
 				pag_agno(pag), path, p87_split,
 				mxfs_p87_refuse_unlock ?
 				"escalating to refusal" :
@@ -1987,7 +1987,7 @@ mxfs_ag_release_publish_gate(
 	}
 	if (p87_split > 0 && mxfs_p87_refuse_unlock &&
 	    !xfs_is_shutdown(mp)) {
-		pr_warn("mxfs: P87-PUBLISH-REFUSED ag=%u path=%s unrepaired_splits=%d — refusing to publish an unlinked-list head whose home dinode reads LINKED; shutting down rather than handing a peer metadata that will make it call this AGI corruption\n",
+		pr_warn("mxfs: P87-PUBLISH-REFUSED ag=%u path=%s unrepaired_splits=%d -- refusing to publish an unlinked-list head whose home dinode reads LINKED; shutting down rather than handing a peer metadata that will make it call this AGI corruption\n",
 			pag_agno(pag), path, p87_split);
 		xfs_force_shutdown(mp, SHUTDOWN_META_IO_ERROR);
 	}
@@ -2174,7 +2174,7 @@ mxfs_dlm_ag_bast_work_fn(
 				mxfs_ag_bast_stall_iters, 4,
 				mxfs_ag_prepass_push_iters);
 		if (aerr == -EAGAIN)
-			pr_warn_ratelimited("mxfs: P67-AG-BAST-STALL ag=%u — prepass push hit its bound (%d iters); proceeding, post-COMMIT drains carry Invariant 1\n",
+			pr_warn_ratelimited("mxfs: P67-AG-BAST-STALL ag=%u -- prepass push hit its bound (%d iters); proceeding, post-COMMIT drains carry Invariant 1\n",
 				pag_agno(pag), mxfs_ag_prepass_push_iters);
 	}
 	mxfs_blkdev_flush_epoch(mp);
@@ -2255,7 +2255,7 @@ mxfs_dlm_ag_bast_work_fn(
 		pag_agno(pag), pag->pag_dlm_readopt_n,
 		jiffies_to_msecs(jiffies - pag->pag_dlm_bast_pending_since));
 	mxfs_pag_dlm_unlock(pag, MXFS_SITE);
-	mxfs_idbg("mxfs: P39-INSTR ag=%u BAST-WORK-PHASE2 cached=true→false demoting=true realns=%llu\n",
+	mxfs_idbg("mxfs: P39-INSTR ag=%u BAST-WORK-PHASE2 cached=true->false demoting=true realns=%llu\n",
 		pag_agno(pag),
 		(unsigned long long)ktime_get_real_ns());
 
@@ -2421,7 +2421,7 @@ committed:
 			if (time_after(jiffies, deadline)) {
 				mxfs_pal_log(MXFS_LOG_WARN,
 					"mxfs: AG %u Phase-3 meta_pending=%d "
-					"timeout after 2s — forcing release",
+					"timeout after 2s -- forcing release",
 					pag_agno(pag), pending);
 				/*
 				 * INSTRUMENTATION:
@@ -2655,7 +2655,7 @@ committed:
 	    mxfs_v5_dlm_ag_strand_held(dlm, pag_agno(pag)) == 0) {
 		WRITE_ONCE(mxfs_ag_release_nogrant_total,
 			   READ_ONCE(mxfs_ag_release_nogrant_total) + 1);
-		mxfs_probe_ratelimited("mxfs: P12-AGREL-NOGRANT ag=%u comm=%s total=%ld — this release reached its unlock with no grant of ours in the table\n",
+		mxfs_probe_ratelimited("mxfs: P12-AGREL-NOGRANT ag=%u comm=%s total=%ld -- this release reached its unlock with no grant of ours in the table\n",
 			pag_agno(pag), current->comm,
 			READ_ONCE(mxfs_ag_release_nogrant_total));
 	}
@@ -2869,14 +2869,14 @@ committed:
 			   READ_ONCE(mxfs_ag_unlock_rearm_total) + 1);
 		lrc = mxfs_ag_dlm_lock(mp, pag);
 		if (lrc == 0) {
-			mxfs_probe("mxfs: P275-AGUNLK-REARM ag=%u — unlock left bit set, tenure re-minted, release will retry\n",
+			mxfs_probe("mxfs: P275-AGUNLK-REARM ag=%u -- unlock left bit set, tenure re-minted, release will retry\n",
 				pag_agno(pag));
 			mxfs_ag_dlm_unlock(mp, pag);
 		} else {
 			/* Re-acquire refused: no epoch, no cached flag.  The
 			 * rx readopt path is the backstop; requeue ourselves
 			 * so the retry does not depend on the next BAST. */
-			mxfs_probe("mxfs: P275-AGUNLK-REARM-FAIL ag=%u rc=%d — bit still set on platter with no in-core tenure, requeueing\n",
+			mxfs_probe("mxfs: P275-AGUNLK-REARM-FAIL ag=%u rc=%d -- bit still set on platter with no in-core tenure, requeueing\n",
 				pag_agno(pag), lrc);
 			mxfs_ag_bast_queue(mp, pag);
 		}
@@ -2898,7 +2898,7 @@ committed:
 		/* this runner is done; a requeued one may try the release again */
 		pag->pag_dlm_finishing = false;
 		mxfs_pag_dlm_unlock(pag, MXFS_SITE);
-		pr_warn("mxfs: P275-AGUNLK-QUARANTINE ag=%u — unlock outcome UNPROVABLE after re-verify; AG quarantined (demoting held, acquires blocked)\n",
+		pr_warn("mxfs: P275-AGUNLK-QUARANTINE ag=%u -- unlock outcome UNPROVABLE after re-verify; AG quarantined (demoting held, acquires blocked)\n",
 			pag_agno(pag));
 		break;
 	}
@@ -2983,7 +2983,7 @@ mxfs_dlm_ag_force_release_all(
 		mxfs_dlm_ag_drain_meta_buffers(pag);
 		if (!tracked || (mxfs_depart_submitted(mp, &sub1) && sub1 != sub0)) {
 			ags_drained++;
-			mxfs_probe("mxfs: P485-UMOUNT-DRAIN ag=%u wrote=%lu — the unmount release drain found and wrote buffers the put_super quiesce had left behind\n",
+			mxfs_probe("mxfs: P485-UMOUNT-DRAIN ag=%u wrote=%lu -- the unmount release drain found and wrote buffers the put_super quiesce had left behind\n",
 				pag_agno(pag), tracked ? sub1 - sub0 : 0UL);
 		}
 	}
@@ -3022,7 +3022,7 @@ mxfs_dlm_ag_force_release_all(
 			if (p) {
 				agm_ags++;
 				agm_total += p;
-				mxfs_probe("mxfs: P-AGMETA-PENDING-AT-UNMOUNT ag=%u pending=%d — an AG-meta track hold was never returned on this mount (buffer pinned for the module's life)\n",
+				mxfs_probe("mxfs: P-AGMETA-PENDING-AT-UNMOUNT ag=%u pending=%d -- an AG-meta track hold was never returned on this mount (buffer pinned for the module's life)\n",
 					pag_agno(pag), p);
 			}
 		}
@@ -3080,7 +3080,7 @@ mxfs_dlm_ag_force_release_all(
 				 * manifest evidence for the survivor's replay of
 				 * our WITHDRAWN slice; the v5 gate logged P306. */
 			} else if (us != MXFS_UNLOCK_RELEASED)
-				pr_warn("mxfs: P275-AGUNLK-UNMOUNT-NOTREL ag=%u state=%d — unmount release did not prove the bit clear; a dead-looking holder bit may survive this unmount\n",
+				pr_warn("mxfs: P275-AGUNLK-UNMOUNT-NOTREL ag=%u state=%d -- unmount release did not prove the bit clear; a dead-looking holder bit may survive this unmount\n",
 					agno, us);
 			atomic64_inc(&mxfs_dlm_stat_ag_release);
 
@@ -3111,7 +3111,7 @@ mxfs_dlm_ag_force_release_all(
 	 * of zero says nothing unless `released` and the audit's `ran` are
 	 * both non-zero.
 	 */
-	mxfs_probe("mxfs: P482-UMOUNT-AGREL ags_seen=%d ags_released=%d ags_drained=%d — AGs still held at put_super and unlocked here; the rest were released cooperatively and are NOT covered by the unmount audit; ags_drained is how many the release drains still found dirty after the quiesce\n",
+	mxfs_probe("mxfs: P482-UMOUNT-AGREL ags_seen=%d ags_released=%d ags_drained=%d -- AGs still held at put_super and unlocked here; the rest were released cooperatively and are NOT covered by the unmount audit; ags_drained is how many the release drains still found dirty after the quiesce\n",
 		ags_seen, ags_released, ags_drained);
 	mxfs_agifc_audit_coverage("unmount");
 }

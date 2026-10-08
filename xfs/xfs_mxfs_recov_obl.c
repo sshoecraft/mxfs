@@ -163,7 +163,7 @@ mxfs_recov_obl_complete(
 	rc = mxfs_v5_dlm_recovery_read_obl(dlm, (int)slot, &rec, ext, &count);
 	if (rc) {
 		xfs_alert(mp,
-	"MXFS: P-OBL-ENGINE-READ slot=%u rc=%d — the obligation record/list did not read back valid; nothing completed (the ladder holds the case)",
+	"MXFS: P-OBL-ENGINE-READ slot=%u rc=%d -- the obligation record/list did not read back valid; nothing completed (the ladder holds the case)",
 			  slot, rc);
 		rc = rc < 0 ? rc : -EPROTO;
 		goto out;
@@ -171,7 +171,7 @@ mxfs_recov_obl_complete(
 	if (!mxfs_recov_obl_is_open(&rec) || count != rec.count ||
 	    (rec.flags & MXFS_RECOV_OBL_F_FSWIDE)) {
 		xfs_alert(mp,
-	"MXFS: P-OBL-ENGINE-NOTOPEN slot=%u flags=0x%x count=%u/%u — not a completable OPEN case; nothing completed",
+	"MXFS: P-OBL-ENGINE-NOTOPEN slot=%u flags=0x%x count=%u/%u -- not a completable OPEN case; nothing completed",
 			  slot, rec.flags, count, rec.count);
 		rc = -EPROTO;
 		goto out;
@@ -184,7 +184,7 @@ mxfs_recov_obl_complete(
 	 */
 	if (xfs_has_rmapbt(mp) || xfs_has_reflink(mp)) {
 		xfs_alert(mp,
-	"MXFS: P-OBL-ENGINE-FEATURE slot=%u rmapbt=%d reflink=%d — this completion is defined for FINOBT-only geometry; publishing a TERMINAL outcome over ag_mask=0x%llx",
+	"MXFS: P-OBL-ENGINE-FEATURE slot=%u rmapbt=%d reflink=%d -- this completion is defined for FINOBT-only geometry; publishing a TERMINAL outcome over ag_mask=0x%llx",
 			  slot, xfs_has_rmapbt(mp) ? 1 : 0,
 			  xfs_has_reflink(mp) ? 1 : 0,
 			  (unsigned long long)rec.obl_ag_mask);
@@ -203,7 +203,7 @@ mxfs_recov_obl_complete(
 			    XFS_FSB_TO_AGBNO(mp, ext[i - 1].fsbno) +
 			    ext[i - 1].len)))) {
 			xfs_alert(mp,
-	"MXFS: P-OBL-ENGINE-GEOM slot=%u entry %u fsbno=%llu agno=%u len=%u — outside the mounted geometry or non-canonical; publishing a TERMINAL outcome",
+	"MXFS: P-OBL-ENGINE-GEOM slot=%u entry %u fsbno=%llu agno=%u len=%u -- outside the mounted geometry or non-canonical; publishing a TERMINAL outcome",
 				  slot, i, (unsigned long long)ext[i].fsbno,
 				  ext[i].agno, ext[i].len);
 			goto terminal;
@@ -211,7 +211,7 @@ mxfs_recov_obl_complete(
 	}
 
 	xfs_notice(mp,
-	"MXFS: P-OBL-ENGINE-START slot=%u count=%u ag_mask=0x%llx seq=%u — completing the dead peer's open EFI extents in live transactions",
+	"MXFS: P-OBL-ENGINE-START slot=%u count=%u ag_mask=0x%llx seq=%u -- completing the dead peer's open EFI extents in live transactions",
 		   slot, count, (unsigned long long)rec.obl_ag_mask, rec.pub_seq);
 	WRITE_ONCE(mp->m_mxfs_oblf_task, current);
 
@@ -239,7 +239,7 @@ mxfs_recov_obl_complete(
 						      MXFS_OBL_QUIESCE_MS);
 			if (rc) {
 				xfs_alert(mp,
-	"MXFS: P-OBL-ENGINE-QUIESCE slot=%u agno=%u rc=%d — the AG did not go quiet inside the budget; the case stays OPEN and retries",
+	"MXFS: P-OBL-ENGINE-QUIESCE slot=%u agno=%u rc=%d -- the AG did not go quiet inside the budget; the case stays OPEN and retries",
 					  slot, cur_agno, rc);
 				goto out_task;
 			}
@@ -255,7 +255,7 @@ mxfs_recov_obl_complete(
 		}
 		if (outcome == XBTREE_RECPACKING_SPARSE) {
 			xfs_alert(mp,
-	"MXFS: P-OBL-ENGINE-SPARSE slot=%u entry %u agno=%u agbno=%u len=%u — the extent is PARTIALLY free; neither freeing nor skipping is safe; publishing a TERMINAL outcome",
+	"MXFS: P-OBL-ENGINE-SPARSE slot=%u entry %u agno=%u agbno=%u len=%u -- the extent is PARTIALLY free; neither freeing nor skipping is safe; publishing a TERMINAL outcome",
 				  slot, i, cur_agno, agbno, ext[i].len);
 			goto terminal_task;
 		}
@@ -311,7 +311,7 @@ mxfs_recov_obl_complete(
 	rc = mxfs_recov_obl_home_flush(mp);
 	if (rc) {
 		xfs_alert(mp,
-	"MXFS: P-OBL-ENGINE-HOMEFLUSH-FAIL slot=%u rc=%d — the completion metadata is not proven home; no proof written, the case stays OPEN and retries",
+	"MXFS: P-OBL-ENGINE-HOMEFLUSH-FAIL slot=%u rc=%d -- the completion metadata is not proven home; no proof written, the case stays OPEN and retries",
 			  slot, rc);
 		goto out_task;
 	}
@@ -324,21 +324,21 @@ mxfs_recov_obl_complete(
 	rc = mxfs_v5_dlm_recovery_obl_done_write(dlm, (int)slot, proof);
 	if (rc) {
 		xfs_alert(mp,
-	"MXFS: P-OBL-ENGINE-PROOF-FAIL slot=%u rc=%d — the completion proof is not durable; the case stays OPEN and retries",
+	"MXFS: P-OBL-ENGINE-PROOF-FAIL slot=%u rc=%d -- the completion proof is not durable; the case stays OPEN and retries",
 			  slot, rc);
 		goto out_task;
 	}
 	rc = mxfs_v5_dlm_recovery_advance_obl_done(dlm, (int)slot);
 	if (rc) {
 		xfs_alert(mp,
-	"MXFS: P-OBL-ENGINE-DONE-FAIL slot=%u rc=%d — OBLIGATIONS_DONE did not land; the case stays OPEN and retries",
+	"MXFS: P-OBL-ENGINE-DONE-FAIL slot=%u rc=%d -- OBLIGATIONS_DONE did not land; the case stays OPEN and retries",
 			  slot, rc);
 		goto out_task;
 	}
 	WRITE_ONCE(mp->m_mxfs_oblf_task, NULL);
 	mxfs_oblf_note(mp, (int)slot, MXFS_OBL_NONE, 0, 0, 0, 0, false);
 	xfs_notice(mp,
-	"MXFS: P-OBL-COMPLETE slot=%u count=%u n_empty=%u n_full=%u ag_mask=0x%llx wall_ms=%u — every open EFI obligation of the dead peer is completed, home and proven; OBLIGATIONS_DONE durable, freeze lifted",
+	"MXFS: P-OBL-COMPLETE slot=%u count=%u n_empty=%u n_full=%u ag_mask=0x%llx wall_ms=%u -- every open EFI obligation of the dead peer is completed, home and proven; OBLIGATIONS_DONE durable, freeze lifted",
 		   slot, count, n_empty, n_full,
 		   (unsigned long long)rec.obl_ag_mask,
 		   jiffies_to_msecs(jiffies - t0));

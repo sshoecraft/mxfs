@@ -1,7 +1,8 @@
 # MXFS on two hosts with DRBD dual-primary
 
-**Not released: `2/net/mesh/drbd` was withdrawn on 2026-10-06** (see the top of
-the README).  Do not put data you need on it until a release lists it again.
+`2/net/mesh/drbd` is released from 0.90.107 (see the top of the README):
+verified on two physical Proxmox VE 9 hosts with DRBD 8.4.11, installed exactly
+as below.
 
 Two hosts, each with a local disk, and no shared storage: DRBD keeps the two
 disks identical and MXFS runs on top of both at once. This is the `2/net/mesh/drbd`
@@ -18,9 +19,14 @@ On both nodes, from the same version of the source:
 
 ```
 apt install drbd-utils git build-essential proxmox-headers-$(uname -r)
-git clone https://github.com/sshoecraft/mxfs && cd mxfs
+git clone --branch v0.90.107 https://github.com/sshoecraft/mxfs && cd mxfs
 make && make install
 ```
+
+`--branch` names the release; the repository's default branch is the
+development tree and is not a release.  To move to a later release, `git fetch
+--tags && git checkout v<version>` in the clone, then `make && make install`
+again on both nodes.
 
 A Proxmox VE host ships with none of `git`, a compiler or the kernel headers.
 On Debian or Ubuntu the headers package is `linux-headers-$(uname -r)`

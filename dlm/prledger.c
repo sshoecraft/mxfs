@@ -189,7 +189,7 @@ int mxfs_prledger_select(struct mxfs_prledger *l,
 			if (e->pr_key != k) {
 				mxfs_pal_log(MXFS_LOG_ERR,
 					     "mxfs: P-PRKEY-LEDGER-MISMATCH idx=%u ledger=0x%llx "
-					     "derived=0x%llx gen=%u — the ledger names a "
+					     "derived=0x%llx gen=%u -- the ledger names a "
 					     "different key for this boot on this LUN than "
 					     "the identity derives; refusing (an identity "
 					     "source changed under a live boot)",
@@ -204,7 +204,7 @@ int mxfs_prledger_select(struct mxfs_prledger *l,
 			*key_gen = e->key_gen;
 			mxfs_pal_log(MXFS_LOG_DEBUG,
 				     "mxfs: P-PRKEY-REUSED idx=%u key=0x%llx gen=%u "
-				     "state=%s — this boot already published a key for "
+				     "state=%s -- this boot already published a key for "
 				     "this LUN; reusing it, never minting a second",
 				     i, (unsigned long long)*key, *key_gen,
 				     mxfs_prledger_state_name(e->state));
@@ -212,7 +212,7 @@ int mxfs_prledger_select(struct mxfs_prledger *l,
 		}
 		if (prl_entry_owned(e) && e->pr_key == k) {
 			mxfs_pal_log(MXFS_LOG_ERR,
-				     "mxfs: P-PRKEY-COLLISION idx=%u key=0x%llx node=%u — "
+				     "mxfs: P-PRKEY-COLLISION idx=%u key=0x%llx node=%u -- "
 				     "another identity's ledger entry carries this boot's "
 				     "derived key; refusing (no redraw: the key must be "
 				     "reproducible by this boot)",
@@ -233,7 +233,7 @@ int mxfs_prledger_select(struct mxfs_prledger *l,
 		    key_present && !key_present(arg, e->pr_key)) {
 			mxfs_pal_log(MXFS_LOG_DEBUG,
 				     "mxfs: P-PRKEY-STALE-ENTRY idx=%u key=0x%llx node=%u "
-				     "— REGISTERED in the ledger but absent from READ "
+				     "-- REGISTERED in the ledger but absent from READ "
 				     "KEYS; reusable", i,
 				     (unsigned long long)e->pr_key, e->node_id);
 			free_idx = i;
@@ -241,7 +241,7 @@ int mxfs_prledger_select(struct mxfs_prledger *l,
 	}
 	if (free_idx == ~0U) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-PRKEY-LEDGER-FULL entries=%u — every registrant "
+			     "mxfs: P-PRKEY-LEDGER-FULL entries=%u -- every registrant "
 			     "entry is owned; no key can be published until a "
 			     "departure retires one or a fence certifies one.  "
 			     "Refusing to register",
@@ -257,7 +257,7 @@ int mxfs_prledger_select(struct mxfs_prledger *l,
 	*key_gen = 1;
 	mxfs_pal_log(MXFS_LOG_DEBUG,
 		     "mxfs: P-PRKEY-SELECTED key=0x%llx gen=1 free_idx=%u "
-		     "on_target=%d — derived from {host, boot, LUN}; published "
+		     "on_target=%d -- derived from {host, boot, LUN}; published "
 		     "to the ledger only after a verified REGISTER",
 		     (unsigned long long)k, free_idx, l->seen_on_target ? 1 : 0);
 out:
@@ -282,7 +282,7 @@ int mxfs_prledger_publish(struct mxfs_prledger *l, uint32_t node_id,
 		return -ENOENT;                 /* SELECT never ran */
 	if (l->seen_on_target && !nexus_reused) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-PRKEY-COLLISION key=0x%llx — READ KEYS showed "
+			     "mxfs: P-PRKEY-COLLISION key=0x%llx -- READ KEYS showed "
 			     "this boot's derived key before our REGISTER and the "
 			     "REGISTER did not find it on our own nexus: another "
 			     "initiator holds it.  Refusing; the caller must "
@@ -338,7 +338,7 @@ int mxfs_prledger_publish(struct mxfs_prledger *l, uint32_t node_id,
 		     (unsigned long long)l->derived_key, node_id,
 		     nexus_reused ? 1 : 0,
 		     (unsigned long long)(succ ? succ->old_key : 0), rc,
-		     rc ? " — the registration stands but is UNATTRIBUTED on the "
+		     rc ? " -- the registration stands but is UNATTRIBUTED on the "
 			  "LUN; refusing to proceed on it" : "");
 	mxfs_pal_mutex_unlock(l->lock);
 	mxfs_pal_free(cur);
@@ -363,7 +363,7 @@ static int prl_own_transition(struct mxfs_prledger *l, uint16_t state,
 	if (!mxfs_prledger_entry_valid(cur, (uint32_t)l->own_idx) ||
 	    !prl_entry_ours(l, cur) || cur->pr_key != l->own.pr_key) {
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs: P-PRKEY-ENTRY-LOST idx=%d key=0x%llx want=%s — "
+			     "mxfs: P-PRKEY-ENTRY-LOST idx=%d key=0x%llx want=%s -- "
 			     "our ledger entry no longer names us (state=%s "
 			     "key=0x%llx valid=%d)",
 			     l->own_idx, (unsigned long long)l->own.pr_key, tag,
@@ -535,7 +535,7 @@ int mxfs_prledger_find_predecessor(struct mxfs_prledger *l,
 		if (key_present && !key_present(arg, e->pr_key)) {
 			mxfs_pal_log(MXFS_LOG_DEBUG,
 				     "mxfs: P305-PR-PREDECESSOR-RETIRED idx=%u key=0x%llx "
-				     "— a previous boot of this host, but its key is no "
+				     "-- a previous boot of this host, but its key is no "
 				     "longer registered; not a candidate",
 				     i, (unsigned long long)e->pr_key);
 			continue;

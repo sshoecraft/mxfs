@@ -236,7 +236,7 @@ mxfs_report_leaked_inodes(void)
 		n++;
 		if (n > 16)
 			continue;
-		pr_warn("mxfs: P202-LEAKED-INODE-AT-UNLOAD ino=%llu ip=%px icount=%d i_state=0x%lx mode=0%o nlink=%u iflags=0x%lx pincount=%d dlm_mode=%u dlm_state=%u ex_h=%u pr_h=%u pin=%u bast_pending=%d unpublished=%d stale_src=%u bastq_src=%u itemp=%d in_ail=%d age_ms=%u GRAB=file%u:line%u dwork_pending=%d dwork_timer=%d bwork_pending=%d unpub_linked=%d demoter=%d dentries=%d lru_linked=%d sblist_linked=%d hashed=%d wcount=%d iget_caller=%pS — xfs_inode still allocated at module unload; this is why kmem_cache_destroy(mxfs_inode) reports objects in use\n",
+		pr_warn("mxfs: P202-LEAKED-INODE-AT-UNLOAD ino=%llu ip=%px icount=%d i_state=0x%lx mode=0%o nlink=%u iflags=0x%lx pincount=%d dlm_mode=%u dlm_state=%u ex_h=%u pr_h=%u pin=%u bast_pending=%d unpublished=%d stale_src=%u bastq_src=%u itemp=%d in_ail=%d age_ms=%u GRAB=file%u:line%u dwork_pending=%d dwork_timer=%d bwork_pending=%d unpub_linked=%d demoter=%d dentries=%d lru_linked=%d sblist_linked=%d hashed=%d wcount=%d iget_caller=%pS -- xfs_inode still allocated at module unload; this is why kmem_cache_destroy(mxfs_inode) reports objects in use\n",
 			(unsigned long long)ip->i_ino, ip,
 			atomic_read(&vip->i_count), mxfs_istate(vip),
 			vip->i_mode, vip->i_nlink, ip->i_flags,
@@ -295,7 +295,7 @@ mxfs_report_leaked_inodes(void)
 
 			hlist_for_each_entry(de, &vip->i_dentry, d_u.d_alias)
 				nd++;
-			mxfs_probe("mxfs: P206-OWNERS ino=%llu fsnotify=%d flctx=%d iprivate=%d nrpages=%lu readcount=%d dentry_count=%d i_state=0x%lx i_opflags=0x%x — which OWNER object still contains this inode\n",
+			mxfs_probe("mxfs: P206-OWNERS ino=%llu fsnotify=%d flctx=%d iprivate=%d nrpages=%lu readcount=%d dentry_count=%d i_state=0x%lx i_opflags=0x%x -- which OWNER object still contains this inode\n",
 				(unsigned long long)ip->i_ino,
 				rcu_access_pointer(vip->i_fsnotify_marks) ? 1 : 0,
 				vip->i_flctx ? 1 : 0,
@@ -365,7 +365,7 @@ mxfs_report_leaked_inodes(void)
 			 * through i_count==0 on our watch, which would
 			 * contradict lru_linked=1 and indicts the instrument.
 			 */
-			mxfs_probe("mxfs: P203-GRABLEVELS ino=%llu icount=%d over=%u zero_seq=%u tenure_grabs=%u tenure_age_ms=%u lru_linked=%d verdict=%s — slot N names the grab that took i_count to N WITHIN THE FINAL TENURE; with icount=1 slot 1 IS the outstanding reference\n",
+			mxfs_probe("mxfs: P203-GRABLEVELS ino=%llu icount=%d over=%u zero_seq=%u tenure_grabs=%u tenure_age_ms=%u lru_linked=%d verdict=%s -- slot N names the grab that took i_count to N WITHIN THE FINAL TENURE; with icount=1 slot 1 IS the outstanding reference\n",
 				(unsigned long long)ip->i_ino,
 				atomic_read(&vip->i_count),
 				ip->i_mxfs_grabst_over,
@@ -379,7 +379,7 @@ mxfs_report_leaked_inodes(void)
 				  "NEVER-HIT-ZERO (instrument suspect: contradicts lru_linked)" :
 				ip->i_mxfs_tenure_grabs == 0 ?
 				  "VFS-SIDE (no MXFS-tracked grab opened the final tenure)" :
-				  "MXFS-SIDE (a tracked grab opened the final tenure — see LEVEL[1])");
+				  "MXFS-SIDE (a tracked grab opened the final tenure -- see LEVEL[1])");
 			for (k = 0; k < MXFS_GRABST_N; k++) {
 				unsigned long who = ip->i_mxfs_grabst[k];
 
@@ -648,7 +648,7 @@ xfs_inode_free(
 	    xfs_iflags_test(ip, MXFS_IF_RMC_ACCT)) {
 		static atomic_t p9dl_n = ATOMIC_INIT(0);
 		if (atomic_inc_return(&p9dl_n) <= 30) {
-			pr_alert("mxfs: P9-RMC-DISCARD-LEAK ino=%llu rmcnt=%ld last0=%pS comm=%s — freeing accounted-zero inode with no destroy dec (+1 leak)\n",
+			pr_alert("mxfs: P9-RMC-DISCARD-LEAK ino=%llu rmcnt=%ld last0=%pS comm=%s -- freeing accounted-zero inode with no destroy dec (+1 leak)\n",
 				(unsigned long long)ip->i_ino,
 				atomic_long_read(&VFS_I(ip)->i_sb->s_remove_count),
 				ip->i_rmc_last0_ra, current->comm);
@@ -837,7 +837,7 @@ xfs_reinit_inode(
 	if (nlink == 0 && xfs_iflags_test(XFS_I(inode), MXFS_IF_RMC_ACCT)) {
 		static atomic_t p9di_n = ATOMIC_INIT(0);
 		if (atomic_inc_return(&p9di_n) <= 50) {
-			pr_alert("mxfs: P9-RMC-REINIT0-STILL-ACCT ino=%llu rmcnt=%ld comm=%s — recycled corpse still flagged accounted (destroy dec missing?)\n",
+			pr_alert("mxfs: P9-RMC-REINIT0-STILL-ACCT ino=%llu rmcnt=%ld comm=%s -- recycled corpse still flagged accounted (destroy dec missing?)\n",
 				(unsigned long long)XFS_I(inode)->i_ino,
 				atomic_long_read(&inode->i_sb->s_remove_count),
 				current->comm);
@@ -925,7 +925,7 @@ xfs_iget_recycle(
 		static atomic_t p139_n = ATOMIC_INIT(0);
 
 		if (atomic_inc_return(&p139_n) <= 200)
-			mxfs_probe("mxfs: P139-RECYCLE-UNLINKED ino=0x%llx ip=%px pid=%d comm=%s — recycling an inode whose i_sb_list is ALREADY empty (already evicted by someone else)\n",
+			mxfs_probe("mxfs: P139-RECYCLE-UNLINKED ino=0x%llx ip=%px pid=%d comm=%s -- recycling an inode whose i_sb_list is ALREADY empty (already evicted by someone else)\n",
 				(unsigned long long)ip->i_ino, ip, current->pid,
 				current->comm);
 	} else {
@@ -947,7 +947,7 @@ xfs_iget_recycle(
 		static atomic_t p142_n = ATOMIC_INIT(0);
 
 		if (atomic_inc_return(&p142_n) <= 200)
-			mxfs_probe("mxfs: P142-RECYCLE-STILL-LINKED ino=0x%llx ip=%px pid=%d comm=%s count=%d nlink=%u mode=0%o — recycling an IRECLAIMABLE inode whose i_sb_list is STILL LINKED (next=%px prev=%px)\n",
+			mxfs_probe("mxfs: P142-RECYCLE-STILL-LINKED ino=0x%llx ip=%px pid=%d comm=%s count=%d nlink=%u mode=0%o -- recycling an IRECLAIMABLE inode whose i_sb_list is STILL LINKED (next=%px prev=%px)\n",
 				(unsigned long long)ip->i_ino, ip, current->pid,
 				current->comm, atomic_read(&inode->i_count),
 				inode->i_nlink, inode->i_mode,
@@ -1092,7 +1092,7 @@ xfs_iget_recycle(
 			 */
 			if (mxfs_buf_has_uncheckpointed_mods(stale_bp)) {
 				mxfs_probe_ratelimited(
-				    "mxfs: P91-RECYCLE-PROTECT ino=0x%llx blkno=0x%llx flags=0x%x — keeping in-core authoritative cluster buffer\n",
+				    "mxfs: P91-RECYCLE-PROTECT ino=0x%llx blkno=0x%llx flags=0x%x -- keeping in-core authoritative cluster buffer\n",
 				    (unsigned long long)ip->i_ino,
 				    (unsigned long long)ip->i_imap.im_blkno,
 				    stale_bp->b_flags);
@@ -1154,7 +1154,7 @@ xfs_iget_recycle(
 
 					if (sdip->di_mode != dip->di_mode ||
 					    sdip->di_gen != dip->di_gen)
-						mxfs_probe("mxfs: P-CR63-SIDEREAD ino=%llu cached[mode=0%o gen=%u] platter[mode=0%o gen=%u] — protected cluster buf lagged the platter; verdict uses platter\n",
+						mxfs_probe("mxfs: P-CR63-SIDEREAD ino=%llu cached[mode=0%o gen=%u] platter[mode=0%o gen=%u] -- protected cluster buf lagged the platter; verdict uses platter\n",
 							(unsigned long long)ip->i_ino,
 							be16_to_cpu(dip->di_mode),
 							be32_to_cpu(dip->di_gen),
@@ -1227,7 +1227,7 @@ xfs_iget_recycle(
 				 * reclaim recovery below); the create errors
 				 * loudly instead of clobbering a live inode.
 				 */
-				mxfs_probe("mxfs: P-CR63-DEFER-DISKLIVE ino=%llu disk_mode=0%o disk_gen=%u incore_gen=%u — deferred deadshell CREATE found LIVE platter image; failing recycle\n",
+				mxfs_probe("mxfs: P-CR63-DEFER-DISKLIVE ino=%llu disk_mode=0%o disk_gen=%u incore_gen=%u -- deferred deadshell CREATE found LIVE platter image; failing recycle\n",
 					(unsigned long long)ip->i_ino,
 					be16_to_cpu(dip->di_mode),
 					be32_to_cpu(dip->di_gen),
@@ -1329,7 +1329,7 @@ xfs_iget_recycle(
 				 * into the new life (flag-leak). */
 				xfs_iflags_clear(ip, MXFS_IF_LOCAL_UNLINK | MXFS_IF_ADOPTED_UNLINK);
 				pr_warn_ratelimited(
-				    "mxfs: P-RECYCLE-SANITIZE ino=%llu disk_gen=%u — peer-freed dead shell reset to free (missed local uninit emulated)\n",
+				    "mxfs: P-RECYCLE-SANITIZE ino=%llu disk_gen=%u -- peer-freed dead shell reset to free (missed local uninit emulated)\n",
 				    (unsigned long long)ip->i_ino,
 				    be32_to_cpu(dip->di_gen));
 			}
@@ -1368,11 +1368,11 @@ xfs_iget_recycle(
 							&amode, &agen, &amagic);
 
 		if (arc) {
-			mxfs_probe("mxfs: P946-RECYCLE-ASSERT-READFAIL ino=%llu rc=%d — platter home unreadable at the create-path recycle; no verdict taken\n",
+			mxfs_probe("mxfs: P946-RECYCLE-ASSERT-READFAIL ino=%llu rc=%d -- platter home unreadable at the create-path recycle; no verdict taken\n",
 				(unsigned long long)ip->i_ino, arc);
 		} else if (amagic && amode != 0) {
 			mxfs_dbg_recycle_platter_note(true);
-			mxfs_probe("mxfs: P946-RECYCLE-ASSERT-DISKLIVE ino=%llu disk_mode=0%o disk_gen=%u incore_gen=%u deadshell=%d — create-path recycle of a number whose platter dinode is LIVE: the allocator handed out a number whose free is not on the platter; failing the recycle\n",
+			mxfs_probe("mxfs: P946-RECYCLE-ASSERT-DISKLIVE ino=%llu disk_mode=0%o disk_gen=%u incore_gen=%u deadshell=%d -- create-path recycle of a number whose platter dinode is LIVE: the allocator handed out a number whose free is not on the platter; failing the recycle\n",
 				(unsigned long long)ip->i_ino, amode, agen,
 				VFS_I(ip)->i_generation, deadshell_create ? 1 : 0);
 			error = -EFSCORRUPTED;
@@ -1394,7 +1394,7 @@ xfs_iget_recycle(
 	 * the platter, cache_coherency 0/32.
 	 */
 	if (!error && (create || deadshell_create) && ip->i_mxfs_dead_incarn_gen) {
-		pr_warn_ratelimited("mxfs: P-RECYCLE-DEADSTAMP-CLEAR ino=%llu old_stamp=%u incore_gen=%u — local re-allocation of a poisoned shell; the new life is writable\n",
+		pr_warn_ratelimited("mxfs: P-RECYCLE-DEADSTAMP-CLEAR ino=%llu old_stamp=%u incore_gen=%u -- local re-allocation of a poisoned shell; the new life is writable\n",
 			(unsigned long long)ip->i_ino, ip->i_mxfs_dead_incarn_gen,
 			VFS_I(ip)->i_generation);
 		ip->i_mxfs_dead_incarn_gen = 0;
@@ -1978,7 +1978,7 @@ xfs_iget_cache_hit(
 				iput(inode_grabbed);
 				return -EAGAIN;
 			}
-			mxfs_probe("mxfs: P-CR63-IGRAB-FAIL ino=0x%llx istate=0x%lx — mid-teardown shell falls through to check_free_state\n",
+			mxfs_probe("mxfs: P-CR63-IGRAB-FAIL ino=0x%llx istate=0x%lx -- mid-teardown shell falls through to check_free_state\n",
 				(unsigned long long)ip->i_ino,
 				mxfs_istate(VFS_I(ip)));
 		} else if (VFS_I(ip)->i_nlink == 0) {
@@ -1995,11 +1995,11 @@ xfs_iget_cache_hit(
 			 * state verdict to the recycle path's disk re-read.
 			 */
 			cr63_defer_deadshell = true;
-			pr_warn("mxfs: P-CR63-DEADSHELL-DEFER ino=0x%llx nlink=0 stale=%d — peer-freed dead shell; deferring free-state check to recycle disk evidence\n",
+			pr_warn("mxfs: P-CR63-DEADSHELL-DEFER ino=0x%llx nlink=0 stale=%d -- peer-freed dead shell; deferring free-state check to recycle disk evidence\n",
 				(unsigned long long)ip->i_ino,
 				ip->i_dlm_stale ? 1 : 0);
 		} else {
-			mxfs_probe("mxfs: P-CR63-DEADSHELL ino=0x%llx nlink=%u — IRECLAIMABLE stale-mode LINKED shell falls through to check_free_state\n",
+			mxfs_probe("mxfs: P-CR63-DEADSHELL ino=0x%llx nlink=%u -- IRECLAIMABLE stale-mode LINKED shell falls through to check_free_state\n",
 				(unsigned long long)ip->i_ino, VFS_I(ip)->i_nlink);
 		}
 	}
@@ -2453,7 +2453,7 @@ xfs_iget_cache_miss(
 				WRITE_ONCE(mxfs_untrusted_aglock_inject_eagain,
 					   READ_ONCE(mxfs_untrusted_aglock_inject_eagain) - 1);
 				error = -EAGAIN;
-				mxfs_probe("mxfs: P-IMAP-UNTRUSTED-AGLOCK-INJECT ino=%llu agno=%u comm=%s — TEST ONLY: the AG acquire is answered EAGAIN by injection (%d left)\n",
+				mxfs_probe("mxfs: P-IMAP-UNTRUSTED-AGLOCK-INJECT ino=%llu agno=%u comm=%s -- TEST ONLY: the AG acquire is answered EAGAIN by injection (%d left)\n",
 					(unsigned long long)ino, pag_agno(pag),
 					current->comm,
 					READ_ONCE(mxfs_untrusted_aglock_inject_eagain));
@@ -2467,7 +2467,7 @@ xfs_iget_cache_miss(
 				break;
 			budgets++;
 			pr_warn_ratelimited(
-			    "mxfs: P-IMAP-UNTRUSTED-AGLOCK-FAIL ino=%llu agno=%u rc=%d comm=%s budget=%d — untrusted iget: AG DLM acquire failed; refusing (not 'free')\n",
+			    "mxfs: P-IMAP-UNTRUSTED-AGLOCK-FAIL ino=%llu agno=%u rc=%d comm=%s budget=%d -- untrusted iget: AG DLM acquire failed; refusing (not 'free')\n",
 				(unsigned long long)ino, pag_agno(pag), error,
 				current->comm, budgets);
 			/* 0.90.6: the mount's root lookup, with a peer that
@@ -2477,7 +2477,7 @@ xfs_iget_cache_miss(
 			 * xfs_iget does not retry) so the mount re-runs its
 			 * barrier and looks again. */
 			if (mxfs_dlm_mount_late_death_blocks(mp, ino)) {
-				mxfs_probe("mxfs: P-MPHASE-AGLOCK-GIVEUP ino=%llu agno=%u rc=%d budgets=%d comm=%s — a peer that died during this mount holds the AG; failing the root lookup so the mount re-runs its barrier\n",
+				mxfs_probe("mxfs: P-MPHASE-AGLOCK-GIVEUP ino=%llu agno=%u rc=%d budgets=%d comm=%s -- a peer that died during this mount holds the AG; failing the root lookup so the mount re-runs its barrier\n",
 					(unsigned long long)ino, pag_agno(pag),
 					error, budgets, current->comm);
 				error = -EIO;
@@ -2488,7 +2488,7 @@ xfs_iget_cache_miss(
 			    !fatal_signal_pending(current))
 				continue;
 			if (error == -EAGAIN) {
-				mxfs_probe("mxfs: P-IMAP-UNTRUSTED-AGLOCK-GIVEUP ino=%llu agno=%u budgets=%d comm=%s — the AG's authority stayed unreachable for every budget; failing the lookup with EIO instead of retrying forever\n",
+				mxfs_probe("mxfs: P-IMAP-UNTRUSTED-AGLOCK-GIVEUP ino=%llu agno=%u budgets=%d comm=%s -- the AG's authority stayed unreachable for every budget; failing the lookup with EIO instead of retrying forever\n",
 					(unsigned long long)ino, pag_agno(pag),
 					budgets, current->comm);
 				error = -EIO;
@@ -2664,7 +2664,7 @@ xfs_iget_cache_miss(
 				 */
 				if (mxfs_buf_has_uncheckpointed_mods(stale_bp)) {
 					mxfs_probe_ratelimited(
-					    "mxfs: P91-CLUSTER-PROTECT ino=0x%llx blkno=0x%llx pin=%d li_empty=%d has_bli=%d flags=0x%x comm=%s — keeping in-core authoritative cluster buffer (would-be clobber averted)\n",
+					    "mxfs: P91-CLUSTER-PROTECT ino=0x%llx blkno=0x%llx pin=%d li_empty=%d has_bli=%d flags=0x%x comm=%s -- keeping in-core authoritative cluster buffer (would-be clobber averted)\n",
 					    (unsigned long long)ino,
 					    (unsigned long long)ip->i_imap.im_blkno,
 					    xfs_buf_ispinned(stale_bp) ? 1 : 0,
@@ -2975,12 +2975,12 @@ out_destroy:
 	    mp->m_mxfs_dlm && error) {
 		WRITE_ONCE(mxfs_dbg_poison_direct_free,
 			   READ_ONCE(mxfs_dbg_poison_direct_free) - 1);
-		pr_warn("mxfs: P-DBG-POISON-DIRECT-FREE ino=%llu error=%d — TEST: poisoning an uninserted inode on the miss path's direct-free exit\n",
+		pr_warn("mxfs: P-DBG-POISON-DIRECT-FREE ino=%llu error=%d -- TEST: poisoning an uninserted inode on the miss path's direct-free exit\n",
 			(unsigned long long)ino, error);
 		mxfs_incarn_poison(ip);
 	}
 	if (unlikely(atomic_read(&ip->i_mxfs_revoke_refs) > 0)) {
-		mxfs_probe("mxfs: P-REVOKE-DIRECT-FREE ino=%llu gen=%u error=%d revoke_refs=%d i_count=%d i_state=0x%lx iflags=0x%lx — uninserted inode freed directly while a queued incarnation revocation owns a reference to it\n",
+		mxfs_probe("mxfs: P-REVOKE-DIRECT-FREE ino=%llu gen=%u error=%d revoke_refs=%d i_count=%d i_state=0x%lx iflags=0x%lx -- uninserted inode freed directly while a queued incarnation revocation owns a reference to it\n",
 			(unsigned long long)ino, VFS_I(ip)->i_generation, error,
 			atomic_read(&ip->i_mxfs_revoke_refs),
 			atomic_read(&VFS_I(ip)->i_count), mxfs_istate(VFS_I(ip)),
@@ -4554,7 +4554,7 @@ xfs_inodegc_queue(
 				acct->inodegc_after_stop++;
 			spin_unlock(&acct->lock);
 			if (late)
-				mxfs_probe_ratelimited("mxfs: P485-INODEGC-AFTER-STOP ino=%llu nlink=%u comm=%s — inode queued for inactivation after unmount disabled the queue; it will never be inactivated\n",
+				mxfs_probe_ratelimited("mxfs: P485-INODEGC-AFTER-STOP ino=%llu nlink=%u comm=%s -- inode queued for inactivation after unmount disabled the queue; it will never be inactivated\n",
 					(unsigned long long)ip->i_ino,
 					VFS_I(ip)->i_nlink, current->comm);
 		}
@@ -4610,7 +4610,7 @@ xfs_inode_mark_reclaimable(
 	 * paths below.
 	 */
 	if (unlikely(READ_ONCE(mp->m_mxfs_pr_sweep_pinned) == VFS_I(ip))) {
-		mxfs_probe("mxfs: P136-SWEEPPIN-TRIPWIRE ino=0x%llx ip=%px pid=%d comm=%s — inode entering real eviction while pr_sweep still believes it holds a live igrab() pin on it\n",
+		mxfs_probe("mxfs: P136-SWEEPPIN-TRIPWIRE ino=0x%llx ip=%px pid=%d comm=%s -- inode entering real eviction while pr_sweep still believes it holds a live igrab() pin on it\n",
 			(unsigned long long)ip->i_ino, ip, current->pid,
 			current->comm);
 		mxfs_probe_stack();

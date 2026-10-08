@@ -474,7 +474,7 @@ xfs_inode_from_disk(
 			static atomic_t p33fd = ATOMIC_INIT(0);
 
 			if (atomic_inc_return(&p33fd) <= 80)
-				mxfs_probe("mxfs: P33-FROMDISK-DIRSHRINK ino=%llu old_size=%lld new_size=%lld old_nx=%llu new_nx=%llu old_fmt=%u new_fmt=%u disk_gen=%u sz_shrink=%d nx_shrink=%d comm=%s — dir data-fork REVERTED smaller (leaf-vs-data tear source)\n",
+				mxfs_probe("mxfs: P33-FROMDISK-DIRSHRINK ino=%llu old_size=%lld new_size=%lld old_nx=%llu new_nx=%llu old_fmt=%u new_fmt=%u disk_gen=%u sz_shrink=%d nx_shrink=%d comm=%s -- dir data-fork REVERTED smaller (leaf-vs-data tear source)\n",
 					(unsigned long long)ip->i_ino,
 					p33_old, p33_new,
 					(unsigned long long)p33_oldnx,
@@ -539,7 +539,7 @@ xfs_inode_from_disk(
 		static atomic_t p_fossil_ingress = ATOMIC_INIT(0);
 
 		if (atomic_inc_return(&p_fossil_ingress) <= 300)
-			mxfs_probe("mxfs: P-IUNL-FOSSIL-INGRESS ino=%llu agino=0x%x disk_next=0x%x nlink=%u mode=0%o gen=%u caller=%pS comm=%s — LINKED dinode image carries a non-NULL di_next_unlinked (platter fossil) and it is being imported into core\n",
+			mxfs_probe("mxfs: P-IUNL-FOSSIL-INGRESS ino=%llu agino=0x%x disk_next=0x%x nlink=%u mode=0%o gen=%u caller=%pS comm=%s -- LINKED dinode image carries a non-NULL di_next_unlinked (platter fossil) and it is being imported into core\n",
 				(unsigned long long)ip->i_ino,
 				XFS_INO_TO_AGINO(ip->i_mount, ip->i_ino),
 				ip->i_next_unlinked, inode->i_nlink,
@@ -661,7 +661,7 @@ xfs_inode_to_disk(
 			static atomic_t p33td = ATOMIC_INIT(0);
 
 			if (atomic_inc_return(&p33td) <= 80)
-				mxfs_probe("mxfs: P33-TODISK-DIRSHRINK ino=%llu disk_size=%lld writing_size=%lld writing_nx=%llu disk_gen=%u writing_gen=%u comm=%s — iflush REVERTING dir data-fork size smaller (leaf-vs-data tear source)\n",
+				mxfs_probe("mxfs: P33-TODISK-DIRSHRINK ino=%llu disk_size=%lld writing_size=%lld writing_nx=%llu disk_gen=%u writing_gen=%u comm=%s -- iflush REVERTING dir data-fork size smaller (leaf-vs-data tear source)\n",
 					(unsigned long long)ip->i_ino,
 					p33_old, p33_new,
 					(unsigned long long)xfs_ifork_nextents(&ip->i_df),

@@ -602,7 +602,7 @@ static void check_tcp_scale_warning(struct mxfs_mount *mnt)
 	if (count > 16) {
 		mxfs_pal_log(MXFS_LOG_WARN,
 			     "mount: TCP DLM cluster has %d nodes; "
-			     "performance degrades beyond 16 nodes — "
+			     "performance degrades beyond 16 nodes -- "
 			     "consider CAW DLM (dlm_transport=caw)",
 			     count);
 		mnt->tcp_scale_warned = true;
@@ -922,7 +922,7 @@ static void peer_disconnect_cb(void *data, mxfs_node_id_t node_id)
 		if (!t) {
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "mount: failed to spawn journal recovery thread "
-				     "for node %u — recovery deferred to lease expiry",
+				     "for node %u -- recovery deferred to lease expiry",
 				     node_id);
 			mxfs_pal_free(work);
 			return;
@@ -1260,7 +1260,7 @@ static void bast_worker_fn(void *arg)
 
 			if (qdepth >= 5)
 				mxfs_pal_log(MXFS_LOG_WARN,
-				    "mount: BAST queue backlog=%d — slow BAST "
+				    "mount: BAST queue backlog=%d -- slow BAST "
 				    "processing may cause DLM lock timeouts",
 				    qdepth);
 
@@ -1401,7 +1401,7 @@ static void dlm_bast_cb(struct mxfs_dlm_ctx *ctx,
 		if (send_ret != 0) {
 			mxfs_pal_log(MXFS_LOG_ERR,
 				     "mxfs: lock notification to node %u failed "
-				     "after retries (inode %llu) — data on that "
+				     "after retries (inode %llu) -- data on that "
 				     "node may be temporarily outdated",
 				     owner,
 				     (unsigned long long)resource->ino);
@@ -2002,7 +2002,7 @@ int mxfs_mount(const struct mxfs_mount_opts *opts,
 				 * reservation this build does not fence under; do not
 				 * carry on believing fencing is armed. */
 				mxfs_pal_log(MXFS_LOG_ERR,
-					     "mount: SCSI PR reserve refused — see the "
+					     "mount: SCSI PR reserve refused -- see the "
 					     "P304-RESV-* line above; hardware fencing is "
 					     "NOT what this build expects");
 				mxfs_scsipr_destroy(mnt->scsipr);

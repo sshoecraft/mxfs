@@ -283,7 +283,7 @@ static ssize_t mxfs_lureset_report_write(struct file *file,
 		mxfs_lureset_slot.buf[0] = '\0';
 		spin_unlock(&mxfs_lureset_slot.lock);
 		kfree(stage);
-		mxfs_probe("mxfs: P305-LURESET-STALE a report naming nonce=%s arrived while another invocation is outstanding — discarded; the channel stays armed for the report that was asked for\n",
+		mxfs_probe("mxfs: P305-LURESET-STALE a report naming nonce=%s arrived while another invocation is outstanding -- discarded; the channel stays armed for the report that was asked for\n",
 			nonce_seen);
 		return -EPERM;
 	}
@@ -536,7 +536,7 @@ int mxfs_pal_lu_reset_witness(const struct mxfs_pal_lu_reset_req *req,
 	argv[5] = (char *)MXFS_LURESET_PROC_PATH;
 	argv[6] = NULL;
 
-	mxfs_probe("mxfs: P305-LURESET-ISSUE lun=%s epoch=%llu victim=%s nonce=%s helper=%s bound_ms=%u — issuing ONE LOGICAL UNIT RESET, escalation forbidden\n",
+	mxfs_probe("mxfs: P305-LURESET-ISSUE lun=%s epoch=%llu victim=%s nonce=%s helper=%s bound_ms=%u -- issuing ONE LOGICAL UNIT RESET, escalation forbidden\n",
 		req->lun_id, (unsigned long long)req->epoch, argv[4], nonce_str,
 		helper, mxfs_lu_reset_timeout_ms);
 
@@ -564,7 +564,7 @@ int mxfs_pal_lu_reset_witness(const struct mxfs_pal_lu_reset_req *req,
 		out->verdict = MXFS_PAL_LURESET_NOT_RUN;
 		snprintf(out->reason, sizeof(out->reason), "exec-failed-%d", rc);
 		out->upcall_wall_ms = ktime_to_ms(ktime_sub(ktime_get(), t0));
-		pr_err("mxfs: P305-LURESET-NOEXEC helper='%s' rc=%d — NOTHING was issued; this attempt is retryable\n",
+		pr_err("mxfs: P305-LURESET-NOEXEC helper='%s' rc=%d -- NOTHING was issued; this attempt is retryable\n",
 		       helper, rc);
 		goto verdict;
 	}
@@ -682,7 +682,7 @@ int mxfs_pal_lu_reset_init(void)
 	mxfs_lureset_report_pde = proc_create(MXFS_LURESET_PROC_NAME, 0200,
 					      NULL, &mxfs_lureset_report_ops);
 	if (!mxfs_lureset_report_pde) {
-		pr_err("mxfs: P305-LURESET-NOCHAN could not create %s — the witnessed LOGICAL UNIT RESET has no report channel and every attempt will refuse\n",
+		pr_err("mxfs: P305-LURESET-NOCHAN could not create %s -- the witnessed LOGICAL UNIT RESET has no report channel and every attempt will refuse\n",
 		       MXFS_LURESET_PROC_PATH);
 		return -ENOMEM;
 	}
