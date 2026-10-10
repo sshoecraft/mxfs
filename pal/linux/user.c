@@ -1145,6 +1145,16 @@ void mxfs_pal_log(int level, const char *fmt, ...)
 	default:             prefix = "???";   out = stderr; break;
 	}
 
+	/* MXFS_LOG_MS set: each line carries the PAL clock, to time a race
+	 * between threads from the log alone */
+	{
+		static int stamp = -1;
+
+		if (stamp < 0)
+			stamp = getenv("MXFS_LOG_MS") != NULL;
+		if (stamp)
+			fprintf(out, "%llu ", (unsigned long long)mxfs_pal_time_ms());
+	}
 	fprintf(out, "mxfs [%s]: ", prefix);
 	va_start(ap, fmt);
 	vfprintf(out, fmt, ap);

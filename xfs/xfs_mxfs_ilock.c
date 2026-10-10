@@ -1076,7 +1076,9 @@ static atomic64_t	mxfs_unpub_owned_meta_n;
  * not by luck, and so the residual — a first-dirty that still reaches the
  * capture point unpublished, counted there as P239-OWNAUTH unpub — can be read
  * against it.  Always true: it is the last term of the gate's conjunction and
- * exists only to observe it.
+ * exists only to observe it.  A probe, not a warning: the diversion is the
+ * designed path (a new VM disk image passing its in-core extent capacity
+ * takes it), and at warning level it read to an operator as a fault.
  */
 static bool
 mxfs_unpub_owned_meta_note(
@@ -1085,7 +1087,7 @@ mxfs_unpub_owned_meta_note(
 	long long		n = atomic64_inc_return(&mxfs_unpub_owned_meta_n);
 
 	if (n <= 64 || (n & 1023) == 0)
-		pr_warn("mxfs: P-UNPUB-OWNED-META n=%lld ino=%llu fmt=%d nextents=%llu forkoff=%u af_fmt=%d af_nextents=%llu mode=%u comm=%s -- unpublished inode owns metadata outside its core; taking a real grant before it can log an unreplayable image\n",
+		mxfs_probe("mxfs: P-UNPUB-OWNED-META n=%lld ino=%llu fmt=%d nextents=%llu forkoff=%u af_fmt=%d af_nextents=%llu mode=%u comm=%s -- unpublished inode owns metadata outside its core; taking a real grant before it can log an unreplayable image\n",
 			n, (unsigned long long)ip->i_ino,
 			(int)ip->i_df.if_format,
 			(unsigned long long)ip->i_df.if_nextents,

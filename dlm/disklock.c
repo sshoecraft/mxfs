@@ -11488,13 +11488,21 @@ out:
 int mxfs_disklock_lowest_live_slot(struct mxfs_disklock_ctx *ctx,
 				   int skip_slot)
 {
+	return mxfs_disklock_lowest_live_slot_mask(ctx,
+		(skip_slot >= 0 && skip_slot < MXFS_DISKLOCK_HB_SLOTS) ?
+		(1ULL << skip_slot) : 0);
+}
+
+int mxfs_disklock_lowest_live_slot_mask(struct mxfs_disklock_ctx *ctx,
+					uint64_t skip_mask)
+{
 	int slot;
 
 	if (!ctx)
 		return -1;
 
 	for (slot = 0; slot < MXFS_DISKLOCK_HB_SLOTS; slot++) {
-		if (slot == skip_slot)
+		if ((skip_mask >> slot) & 1ULL)
 			continue;
 		if (slot == ctx->local_slot)
 			return slot;

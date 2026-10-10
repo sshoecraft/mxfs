@@ -890,6 +890,8 @@ struct mxfs_v5_dlm {
 	 * have delivered to a mount that is past its lock-holding life. */
 	uint32_t                    teardown_releases_served;
 	uint32_t                    teardown_local_basts_dropped;
+	/* page FREEZE_REQs served after mounted cleared */
+	uint32_t                    teardown_freeze_served;
 	/* instrumentation (2026-07-14): latches true the first time
 	 * is_single_node() observes multi-node.  If it is ever observed true
 	 * AGAIN afterward, that is a real regression (not a hypothesis) and
@@ -1186,6 +1188,34 @@ struct mxfs_v5_dlm {
 	mxfs_node_id_t                  tcp_suspect_node[MXFS_MAX_NODES];
 	mxfs_thread_t                   *tcp_death_thread;
 	int                             tcp_death_stop;
+	/* the view-change hand-off pass (mxfs_dlm_handoff_tick), on a thread of
+	 * its own so its ledger commits never hold a TCP death decision; when it
+	 * cannot be created the death worker runs the pass itself, as before */
+	mxfs_thread_t                   *handoff_thread;
+	int                             handoff_stop;
+	/*
+	 * The page hand-off messages peers send this node (FREEZE_REQ, FROZEN),
+	 * processed in arrival order on a worker of their own (v5_hrx_*), not
+	 * on the peer's receive thread: each one commits a ledger page, and a
+	 * lock request or notification arriving behind a stream of them waited
+	 * for all of them.  hrx_lock guards the queues, hrx_busy and hrx_closed;
+	 * hrx_cond wakes the worker and anyone draining the queues.  A
+	 * FREEZE_REQ — a peer waiting on the page — goes on hrx_ask_* and is
+	 * served first (v5_hrx_submit says when it may not); hrx_n counts both.
+	 */
+	mxfs_mutex_t                    *hrx_lock;
+	mxfs_cond_t                     *hrx_cond;
+	struct v5_hrx_item              *hrx_head, *hrx_tail;
+	struct v5_hrx_item              *hrx_ask_head, *hrx_ask_tail;
+	uint32_t                        hrx_n;
+	bool                            hrx_busy;
+	bool                            hrx_closed;
+	mxfs_thread_t                   *hrx_thread;
+	uint64_t                        hrx_queued, hrx_inline, hrx_max_n, hrx_max_wait_ms;
+	uint64_t                        hrx_ask_first, hrx_ask_merged, hrx_ask_max_wait_ms;
+	/* where the receive threads' time went, per message type (types below
+	 * 32), printed when the engine stops: P-RX-DISPATCH-STATS */
+	uint64_t                        rx_n[32], rx_ms[32], rx_max_ms[32];
 	/*
 	 * 0.89.67: the withdrawal a closure raises is driven by THIS thread, not
 	 * only by the PR worker's tick.  A task already asleep in a log wait has
@@ -1268,6 +1298,18 @@ struct mxfs_v5_dlm {
 	 */
 	bool                            refused_fswide[MXFS_DISKLOCK_HB_SLOTS];
 	uint64_t                        refused_ag_mask[MXFS_DISKLOCK_HB_SLOTS];
+	/*
+	 * Per slot: the incarnation this mount knows has left for good (0 =
+	 * none) -- its GOODBYE was processed, or its heartbeat record was
+	 * settled EMPTY here.  The departer has handed its pages and stopped
+	 * writing ledger transitions before it sends GOODBYE, but its heartbeat
+	 * slot stays live until its slot release is observed, ~0.4-2 s later.
+	 * The bootstrap election passes over such a slot while the table still
+	 * shows that node or that epoch there; a new incarnation on it carries a
+	 * new node id (never reused) and a new epoch, and is counted again.
+	 */
+	uint64_t                        gone_inc[MXFS_DISKLOCK_HB_SLOTS];
+	mxfs_node_id_t                  gone_node[MXFS_DISKLOCK_HB_SLOTS];
 	mxfs_thread_t                   *fence_retry_thread;
 	int                             fence_retry_stop;
 	/*
@@ -1525,6 +1567,12 @@ struct mxfs_v5_dlm {
 	 * (mphase or cohort marker).  Never cleared during the mount. */
 	uint64_t                        mphase_resolved_mask;
 	mxfs_node_id_t                  mphase_resolved_node[MXFS_DISKLOCK_HB_SLOTS];
+	/* slots whose last death THIS mount recovered as the replayer (set at
+	 * P163-RECOVERY-COMPLETE, under mphase_lock); void while a recovery is
+	 * pending on the slot again.  mphase_resolved_mask is the mount barrier's
+	 * witness of a recovery observed in the slot table (P163-RECOVERED),
+	 * which the replayer itself never logs */
+	uint64_t                        recovered_here_mask;
 
 	/*
 	 * the settle's phase 3 must watch a candidate slot for the
@@ -1913,15 +1961,330 @@ static void v5_bast_replay(struct mxfs_v5_dlm *ctx, uint32_t type,
 	mxfs_pal_free(take);
 }
 
+/* TEST ONLY: hold the processing of a peer's GOODBYE this long (ms) on the
+ * receive thread, so the retire worker's settle of the same departure lands
+ * first.  One-shot: cleared when taken. */
+int mxfs_dbg_goodbye_rx_delay_ms;
+module_param_named(dbg_goodbye_rx_delay_ms, mxfs_dbg_goodbye_rx_delay_ms, int, 0644);
+MODULE_PARM_DESC(dbg_goodbye_rx_delay_ms,
+    "TEST: delay (ms) before the next peer GOODBYE is processed (one-shot, 0=off)");
+
+/* TEST ONLY: on a TCP mount, hold this long (ms) after the heartbeat slot is
+ * claimed and beating and before discovery announces this node, so a peer
+ * sees the slot live while this node is not yet in its view: the window in
+ * which a rejoiner on a lower slot outranked the survivor in the bootstrap
+ * election before it could be admitted.  One-shot: cleared when taken. */
+static int mxfs_dbg_join_announce_delay_ms;
+module_param_named(dbg_join_announce_delay_ms, mxfs_dbg_join_announce_delay_ms, int, 0644);
+MODULE_PARM_DESC(dbg_join_announce_delay_ms,
+    "TEST: delay (ms) between the heartbeat slot claim and the discovery announce of the next TCP mount (one-shot, 0=off)");
+
+/*
+ * Page hand-off messages from peers run on their own worker, in arrival order.
+ *
+ * A peer's messages are read and dispatched by one receive thread, and a
+ * FREEZE_REQ or FROZEN commits a ledger page before it returns: on the
+ * physical DRBD pair 25-40 ms each, longer under guest load.  A view change
+ * streams hundreds of them, and every lock request, grant and notification
+ * from the same peer waited behind all of those already received.  Measured
+ * (0.90.111, tests/pve_depart_wall.sh lap 2): 17 s after pve1 rejoined,
+ * pve2's view-change stream was still arriving faster than pve1 activated
+ * it, and pve2's request for the root inode, sent between the FROZEN of
+ * pages 4100 and 4112 at about 849.1, was processed on pve1 at 855.82, the
+ * same millisecond as page 4100's activation: 6.7 s in the queue.  pve2's
+ * stop was waiting on that root inode, and its unmount began only once the
+ * request was granted.
+ *
+ * The engine already serves a request for a page whose FROZEN has not been
+ * processed: a page PREPARED to this node is activated on demand by the
+ * request (dlm_page_acquire), and the FROZEN that follows adopts the page as
+ * already ours.  So these messages can wait without holding anything else
+ * up.  Two orders still matter: hand-offs among themselves (a FREEZE_REQ and
+ * a FROZEN of the same page), which the single worker keeps, and a GOODBYE
+ * after the hand-offs its sender made before it, which v5_hrx_drain keeps by
+ * draining the queue before the GOODBYE is processed.
+ *
+ * A FREEZE_REQ cannot wait like that: the asker is a master with a request
+ * parked on the page until this node hands it over.  Measured on the physical
+ * DRBD pair (0.90.113, withdraw-p0 with the rejoin's announce held 10 s):
+ * after pve1 rejoined on the lower slot, every file of its first read was
+ * mastered by pve2 on a page still under pve1's dead incarnation, and pve2
+ * asked pve1, the bootstrap node, for each.  pve1's worker was activating
+ * pve2's view-change hand-off the whole time (every stack sample: FROZEN ->
+ * mxfs_tauth_ledger_activate, the swap lock 21-45 ms on average and up to
+ * 3 s); pve2 re-asked each page 20-40 times at its 500 ms cadence, and the
+ * read of 32 files took 94.7 s.  So a FREEZE_REQ is served ahead of the
+ * queued bulk, except where that would reorder what the single queue kept:
+ * behind a queued message for the same page it keeps its place, and behind a
+ * departing peer's FROZEN (MXFS_HANDOFF_F_DEPARTING changes how every later
+ * hand-off is routed) it keeps its place too.  An ask the queue already holds
+ * for the same page from the same asker is replaced by the new one where it
+ * stands: answering it twice costs a platter read each, and the asker asks
+ * again on its cadence whatever happens to either.
+ *
+ * The queue is bounded: past MXFS_HRX_MAX the receive thread waits for
+ * room, which holds the sender back through TCP as before.
+ */
+#define MXFS_HRX_MAX 8192
+
+int mxfs_handoff_rx_ask_first = 1;
+module_param_named(handoff_rx_ask_first, mxfs_handoff_rx_ask_first, int, 0644);
+MODULE_PARM_DESC(handoff_rx_ask_first,
+    "serve a peer's FREEZE_REQ ahead of queued page hand-offs (default 1; 0 restores one arrival-order queue for A/B)");
+
+struct v5_hrx_item {
+	struct v5_hrx_item              *next;
+	mxfs_node_id_t                  sender;
+	uint64_t                        queued_ms;
+	struct mxfs_dlm_page_handoff    msg;
+};
+
+int mxfs_handoff_rx_worker = 1;
+module_param_named(handoff_rx_worker, mxfs_handoff_rx_worker, int, 0644);
+MODULE_PARM_DESC(handoff_rx_worker,
+    "process peers' page hand-off messages on their own worker instead of the receive thread (default 1; 0 restores inline processing for A/B)");
+
+static void v5_hrx_worker_fn(void *arg)
+{
+	struct mxfs_v5_dlm *ctx = arg;
+
+	mxfs_pal_mutex_lock(ctx->hrx_lock);
+	for (;;) {
+		struct v5_hrx_item *it = ctx->hrx_ask_head;
+		uint64_t waited;
+
+		if (it) {
+			ctx->hrx_ask_head = it->next;
+			if (!ctx->hrx_ask_head)
+				ctx->hrx_ask_tail = NULL;
+		} else {
+			it = ctx->hrx_head;
+			if (!it) {
+				if (ctx->hrx_closed)
+					break;
+				mxfs_pal_cond_timedwait(ctx->hrx_cond, ctx->hrx_lock, 1000);
+				continue;
+			}
+			ctx->hrx_head = it->next;
+			if (!ctx->hrx_head)
+				ctx->hrx_tail = NULL;
+		}
+		ctx->hrx_n--;
+		ctx->hrx_busy = true;
+		/* room for a receive thread waiting on a full queue */
+		mxfs_pal_cond_broadcast(ctx->hrx_cond);
+		mxfs_pal_mutex_unlock(ctx->hrx_lock);
+		waited = mxfs_pal_time_ms() - it->queued_ms;
+		if (waited > ctx->hrx_max_wait_ms)
+			ctx->hrx_max_wait_ms = waited;
+		if (it->msg.kind == MXFS_HANDOFF_FREEZE_REQ) {
+			if (waited > ctx->hrx_ask_max_wait_ms)
+				ctx->hrx_ask_max_wait_ms = waited;
+			/* an ask that waited a second: a request is parked on it */
+			if (waited >= 1000)
+				mxfs_probe_ratelimited(
+				    "mxfs: P-HRX-ASK-WAIT page=%u from=%u waited_ms=%llu queued=%u -- a peer's FREEZE_REQ waited on this node's hand-off worker\n",
+				    it->msg.page, it->sender, (unsigned long long)waited,
+				    ctx->hrx_n);
+		}
+		/* the teardown quiesce, applied when the message is processed:
+		 * once the teardown has begun only a FREEZE_REQ is served, and a
+		 * page handed to this mount stays PREPARED to it for the
+		 * successor's takeover (see v5_peer_msg_cb_tcp_dispatch) */
+		if (!READ_ONCE(ctx->mounted) && it->msg.kind != MXFS_HANDOFF_FREEZE_REQ)
+			mxfs_pal_log(MXFS_LOG_DEBUG,
+				     "mxfs: P-TEARDOWN-MSG-DROP type=%u kind=%u from node %u -- "
+				     "DLM session is tearing down",
+				     MXFS_MSG_PAGE_HANDOFF, it->msg.kind, it->sender);
+		else
+			mxfs_dlm_process_page_handoff(ctx->dlm, it->sender, &it->msg);
+		mxfs_pal_free(it);
+		mxfs_pal_mutex_lock(ctx->hrx_lock);
+		ctx->hrx_busy = false;
+		mxfs_pal_cond_broadcast(ctx->hrx_cond);
+	}
+	mxfs_pal_mutex_unlock(ctx->hrx_lock);
+}
+
+/* Wait until every hand-off queued so far has been processed. */
+static void v5_hrx_drain(struct mxfs_v5_dlm *ctx)
+{
+	if (!ctx->hrx_lock)
+		return;
+	mxfs_pal_mutex_lock(ctx->hrx_lock);
+	while (ctx->hrx_thread && (ctx->hrx_head || ctx->hrx_ask_head || ctx->hrx_busy))
+		mxfs_pal_cond_timedwait(ctx->hrx_cond, ctx->hrx_lock, 1000);
+	mxfs_pal_mutex_unlock(ctx->hrx_lock);
+}
+
+/*
+ * Where a FREEZE_REQ from `sender` for `page` goes (caller holds hrx_lock):
+ * 1 = the ask queue, 0 = the bulk queue's tail, because a message queued
+ * there for the same page, or a departing peer's FROZEN, must be processed
+ * before it.  An ask already queued for the same page from the same sender
+ * is overwritten by `msg` instead, and *merged says so.
+ */
+static int v5_hrx_ask_place(struct mxfs_v5_dlm *ctx, mxfs_node_id_t sender,
+			    const struct mxfs_dlm_page_handoff *msg, bool *merged)
+{
+	struct v5_hrx_item *q;
+
+	*merged = false;
+	for (q = ctx->hrx_head; q; q = q->next)
+		if (q->msg.page == msg->page ||
+		    (q->msg.flags & MXFS_HANDOFF_F_DEPARTING))
+			return 0;
+	for (q = ctx->hrx_ask_head; q; q = q->next) {
+		if (q->sender == sender && q->msg.page == msg->page) {
+			memcpy(&q->msg, msg, sizeof(q->msg));
+			*merged = true;
+			break;
+		}
+	}
+	return 1;
+}
+
+static void v5_hrx_submit(struct mxfs_v5_dlm *ctx, mxfs_node_id_t sender,
+			  const struct mxfs_dlm_page_handoff *msg)
+{
+	struct v5_hrx_item *it = NULL;
+
+	if (ctx->hrx_lock && ctx->hrx_thread && READ_ONCE(mxfs_handoff_rx_worker))
+		it = mxfs_pal_alloc(sizeof(*it));
+	if (it) {
+		memcpy(&it->msg, msg, sizeof(it->msg));
+		it->sender = sender;
+		it->next = NULL;
+		it->queued_ms = mxfs_pal_time_ms();
+		mxfs_pal_mutex_lock(ctx->hrx_lock);
+		while (!ctx->hrx_closed && ctx->hrx_n >= MXFS_HRX_MAX)
+			mxfs_pal_cond_timedwait(ctx->hrx_cond, ctx->hrx_lock, 1000);
+		if (!ctx->hrx_closed) {
+			bool merged = false;
+			int ask = msg->kind == MXFS_HANDOFF_FREEZE_REQ &&
+				  READ_ONCE(mxfs_handoff_rx_ask_first) &&
+				  v5_hrx_ask_place(ctx, sender, msg, &merged);
+
+			if (merged) {
+				ctx->hrx_ask_merged++;
+				mxfs_pal_mutex_unlock(ctx->hrx_lock);
+				mxfs_pal_free(it);
+				return;
+			}
+			if (ask) {
+				ctx->hrx_ask_first++;
+				if (ctx->hrx_ask_tail)
+					ctx->hrx_ask_tail->next = it;
+				else
+					ctx->hrx_ask_head = it;
+				ctx->hrx_ask_tail = it;
+			} else {
+				if (ctx->hrx_tail)
+					ctx->hrx_tail->next = it;
+				else
+					ctx->hrx_head = it;
+				ctx->hrx_tail = it;
+			}
+			ctx->hrx_n++;
+			ctx->hrx_queued++;
+			if (ctx->hrx_n > ctx->hrx_max_n)
+				ctx->hrx_max_n = ctx->hrx_n;
+			mxfs_pal_cond_broadcast(ctx->hrx_cond);
+			mxfs_pal_mutex_unlock(ctx->hrx_lock);
+			return;
+		}
+		mxfs_pal_mutex_unlock(ctx->hrx_lock);
+		mxfs_pal_free(it);
+	}
+	/* inline, but never ahead of what is already queued */
+	v5_hrx_drain(ctx);
+	ctx->hrx_inline++;
+	mxfs_dlm_process_page_handoff(ctx->dlm, sender, msg);
+}
+
+/*
+ * Called once the peer transport is shut down, so nothing can be queued any
+ * more, and before the engine is destroyed: the worker processes what is
+ * queued, then exits.
+ */
+static void v5_hrx_worker_stop(struct mxfs_v5_dlm *ctx)
+{
+	int t;
+
+	if (ctx->hrx_thread) {
+		mxfs_pal_mutex_lock(ctx->hrx_lock);
+		ctx->hrx_closed = true;
+		mxfs_pal_cond_broadcast(ctx->hrx_cond);
+		mxfs_pal_mutex_unlock(ctx->hrx_lock);
+		mxfs_pal_thread_join(ctx->hrx_thread);
+		ctx->hrx_thread = NULL;
+		mxfs_pal_log(MXFS_LOG_INFO,
+			     "mxfs: P-HRX-STATS queued=%llu inline=%llu max_depth=%llu "
+			     "max_wait_ms=%llu asks_first=%llu asks_merged=%llu "
+			     "ask_max_wait_ms=%llu -- page hand-offs from peers, processed "
+			     "on their own worker",
+			     (unsigned long long)ctx->hrx_queued,
+			     (unsigned long long)ctx->hrx_inline,
+			     (unsigned long long)ctx->hrx_max_n,
+			     (unsigned long long)ctx->hrx_max_wait_ms,
+			     (unsigned long long)ctx->hrx_ask_first,
+			     (unsigned long long)ctx->hrx_ask_merged,
+			     (unsigned long long)ctx->hrx_ask_max_wait_ms);
+	}
+	for (t = 0; t < 32; t++)
+		if (ctx->rx_n[t])
+			mxfs_pal_log(MXFS_LOG_INFO,
+				     "mxfs: P-RX-DISPATCH-STATS type=%d n=%llu total_ms=%llu "
+				     "max_ms=%llu -- receive-thread time per message type",
+				     t, (unsigned long long)ctx->rx_n[t],
+				     (unsigned long long)ctx->rx_ms[t],
+				     (unsigned long long)ctx->rx_max_ms[t]);
+	if (ctx->hrx_cond) {
+		mxfs_pal_cond_destroy(ctx->hrx_cond);
+		ctx->hrx_cond = NULL;
+	}
+	if (ctx->hrx_lock) {
+		mxfs_pal_mutex_destroy(ctx->hrx_lock);
+		ctx->hrx_lock = NULL;
+	}
+}
+
+static void v5_peer_msg_cb_tcp_dispatch(struct mxfs_v5_dlm *ctx, mxfs_node_id_t sender,
+					void *msg, size_t len);
+
+/*
+ * The receive thread's entry: times each message's processing by type, for
+ * P-RX-DISPATCH-STATS.  Each peer has one receive thread; with more than one
+ * peer the counters can lose an update, which only blurs a diagnostic.
+ */
 static void v5_peer_msg_cb_tcp(void *data, mxfs_node_id_t sender,
+			       void *msg, size_t len)
+{
+	struct mxfs_v5_dlm *ctx = data;
+	uint64_t t0 = mxfs_pal_time_ms(), d;
+	uint32_t type;
+
+	if (!ctx || len < sizeof(struct mxfs_dlm_msg_hdr))
+		return;
+	type = ((const struct mxfs_dlm_msg_hdr *)msg)->type;
+	v5_peer_msg_cb_tcp_dispatch(ctx, sender, msg, len);
+	if (type < 32) {
+		d = mxfs_pal_time_ms() - t0;
+		ctx->rx_n[type]++;
+		ctx->rx_ms[type] += d;
+		if (d > ctx->rx_max_ms[type])
+			ctx->rx_max_ms[type] = d;
+	}
+}
+
+static void v5_peer_msg_cb_tcp_dispatch(struct mxfs_v5_dlm *ctx, mxfs_node_id_t sender,
 			       void *msg, size_t len)
 {
 	uint64_t goodbye_inc = 0;
 	int goodbye_slot = -1;
-	struct mxfs_v5_dlm *ctx = data;
 	const struct mxfs_dlm_msg_hdr *hdr;
 
-	if (!ctx || !ctx->dlm || len < sizeof(struct mxfs_dlm_msg_hdr))
+	if (!ctx->dlm)
 		return;
 
 	hdr = (const struct mxfs_dlm_msg_hdr *)msg;
@@ -1984,6 +2347,28 @@ static void v5_peer_msg_cb_tcp(void *data, mxfs_node_id_t sender,
 	 * v5_bast_cb_tcp once mounted is clear (release_all retires those
 	 * holdings itself).  A withdrawn context already drops releases above.
 	 */
+	/*
+	 * A page FREEZE_REQ passes the quiesce too.  It asks this node to give a
+	 * ledger page it still serves to the asker: the same transition the
+	 * departure pass makes for every page, made earlier for one page, with
+	 * no local lock state and no XFS re-entry.  Dropping it left the asker
+	 * with no answer from "DLM shutting down" until the departure pass,
+	 * behind release_all's ack waits.  Measured on the physical DRBD pair
+	 * (0.90.111, a departure begun mid view-change pass): 43 asks dropped
+	 * over 8 s, the survivor's acquires on records in those pages parked
+	 * 117-120 times and failed after 60 retries ("file operation will return
+	 * an error"), and the departer's own releases to the survivor waited
+	 * out two 3 s ack bounds because the survivor could not commit them on
+	 * those pages.  FROZEN, which would hand a page TO the leaving mount,
+	 * stays dropped here.
+	 */
+	if (!READ_ONCE(ctx->mounted) && hdr->type == MXFS_MSG_PAGE_HANDOFF &&
+	    len >= sizeof(struct mxfs_dlm_page_handoff) &&
+	    ((const struct mxfs_dlm_page_handoff *)msg)->kind == MXFS_HANDOFF_FREEZE_REQ) {
+		ctx->teardown_freeze_served++;
+		v5_hrx_submit(ctx, sender, msg);
+		return;
+	}
 	if (!READ_ONCE(ctx->mounted) && hdr->type != MXFS_MSG_NODE_LEAVE &&
 	    hdr->type != MXFS_MSG_LOCK_RELEASE_ACK &&
 	    hdr->type != MXFS_MSG_LOCK_RELEASE) {
@@ -2049,10 +2434,11 @@ static void v5_peer_msg_cb_tcp(void *data, mxfs_node_id_t sender,
 	case MXFS_MSG_PAGE_HANDOFF: {
 		/* (step 4): ledger page authority handoff (FREEZE_REQ /
 		 * FROZEN / DEFER / NOT_OWNER).  Does ledger I/O; the engine never
-		 * holds its table lock across it. */
+		 * holds its table lock across it.  On the hand-off worker, so the
+		 * messages behind it are not held for its commits (v5_hrx_submit). */
 		const struct mxfs_dlm_page_handoff *ho = msg;
 		if (len >= sizeof(*ho))
-			mxfs_dlm_process_page_handoff(ctx->dlm, sender, ho);
+			v5_hrx_submit(ctx, sender, ho);
 		break;
 	}
 	case MXFS_MSG_LOCK_BAST: {
@@ -2089,6 +2475,20 @@ static void v5_peer_msg_cb_tcp(void *data, mxfs_node_id_t sender,
 		 * (v5_recovered_cb / mxfs_v5_dlm_recovery_complete) and nowhere
 		 * else for such a node.
 		 */
+		/* the sender's hand-offs before its goodbye are processed first,
+		 * as they were when the receive thread processed them itself */
+		v5_hrx_drain(ctx);
+		{
+			int d = READ_ONCE(mxfs_dbg_goodbye_rx_delay_ms);
+
+			if (d > 0) {
+				mxfs_dbg_goodbye_rx_delay_ms = 0;
+				mxfs_pal_log(MXFS_LOG_WARN,
+					     "mxfs: P-DBG-GOODBYE-RX-DELAY node=%u ms=%d -- TEST: "
+					     "the GOODBYE is processed late", sender, d);
+				mxfs_pal_sleep_ms(d);
+			}
+		}
 		/* review item 2: the check and the purge are ONE critical
 		 * section under member_lock, against note_dead / mark-pending on
 		 * the death threads — no TOCTOU between "not dead" and "purge". */
@@ -2136,6 +2536,13 @@ static void v5_peer_msg_cb_tcp(void *data, mxfs_node_id_t sender,
 					goodbye_inc = lv->incarnation;
 			}
 			goodbye_slot = gs;
+			/* before the departure is queued, so its takeover already
+			 * counts this node bootstrap when the departer held the lower
+			 * slot */
+			if (gs >= 0 && gs < MXFS_DISKLOCK_HB_SLOTS) {
+				ctx->gone_node[gs] = sender;
+				ctx->gone_inc[gs] = goodbye_inc;
+			}
 		}
 		if (ctx->lease)
 			mxfs_lease_unregister_node(ctx->lease, sender);
@@ -2582,6 +2989,23 @@ static mxfs_node_id_t v5_slot_node_cb(void *data, int slot, uint64_t *inc_out)
  *     recovery (mphase_resolved_mask, set by v5_recovered_cb after the
  *     fence + purge) — until then that slot's occupant may still write.
  */
+extern int mxfs_bootstrap_skip_unadmitted;
+
+/* The slots whose last death this mount recovered as the replayer, less any
+ * on which a recovery is pending again (a later tenant died: the mark no
+ * longer speaks for the slot, and is dropped).  Caller holds mphase_lock. */
+static uint64_t v5_recovered_here(struct mxfs_v5_dlm *ctx)
+{
+	struct mxfs_disklock_ctx *dl = ctx->disklock;
+	int slot;
+
+	for (slot = 0; slot < MXFS_DISKLOCK_HB_SLOTS; slot++)
+		if (((ctx->recovered_here_mask >> slot) & 1ULL) &&
+		    READ_ONCE(dl->recovery_pending[slot]))
+			ctx->recovered_here_mask &= ~(1ULL << slot);
+	return ctx->recovered_here_mask;
+}
+
 static bool v5_bootstrap_ready(struct mxfs_v5_dlm *ctx)
 {
 	struct mxfs_disklock_ctx *dl = ctx->disklock;
@@ -2604,14 +3028,100 @@ static bool v5_bootstrap_ready(struct mxfs_v5_dlm *ctx)
 		if (ctx->mphase_lock) {
 			bool resolved;
 
+			/* a slot this mount recovered itself is resolved too: the
+			 * replayer never sees P163-RECOVERED for its own recovery,
+			 * so the next tenant, beating but not yet live, held the
+			 * survivor out of the role (P-BOOTSTRAP-NOT-READY live=0
+			 * resolved=0 on the nested pair, 0.90.113) */
 			mxfs_pal_mutex_lock(ctx->mphase_lock);
 			resolved = (ctx->mphase_resolved_mask >> slot) & 1ULL;
+			if (!resolved && READ_ONCE(mxfs_bootstrap_skip_unadmitted))
+				resolved = (v5_recovered_here(ctx) >> slot) & 1ULL;
 			mxfs_pal_mutex_unlock(ctx->mphase_lock);
-			if (!resolved)
+			if (!resolved) {
+				pr_warn_ratelimited(
+				    "mxfs: P-BOOTSTRAP-NOT-READY lower_slot=%d node=%u "
+				    "live=%d resolved=0 local_slot=%d -- a lower slot "
+				    "is monitored, not live and its recovery not "
+				    "resolved here, so this mount does not take the "
+				    "bootstrap role\n",
+				    slot, dl->slot_node_id[slot],
+				    dl->node_track[slot].live ? 1 : 0, dl->local_slot);
 				return false;
+			}
 		}
 	}
 	return true;
+}
+
+/*
+ * The bootstrap election: the lowest live slot, passing over a slot whose
+ * current incarnation this mount knows has left for good (its GOODBYE, or
+ * its record settled EMPTY here: gone_node / gone_inc).  Measured on the physical DRBD
+ * pair (0.90.110): when the departer held slot 0, the survivor's takeover of
+ * the pages its departure left ran 0.4 s before the slot release was
+ * observed, was refused as not-bootstrap, and was never run again — the
+ * pages stayed under the departed authority, and a stale record on one of
+ * them stalled the survivor's workload 14.5 s at the next departure.
+ *
+ * It also passes over a lower slot whose previous tenant this mount
+ * recovered, while the node now claiming that slot is not yet a member of
+ * this node's view: a rejoiner whose admission is still in progress.
+ * Measured on the nested DRBD pair (0.90.111, withdraw-guests): pve9-1
+ * withdrew from slot 0, pve9-2 recovered it and began taking over its 1877
+ * pages, and pve9-1's new incarnation claimed slot 0 again 2 s later.  The
+ * takeover stopped at page 241 (P-TAUTH-TAKEOVER-DECERTIFIED, 1809 left
+ * "to the certified node's orphan sweep"); the certified node was the
+ * rejoiner, which cannot take over anything before it is admitted.
+ * Admitting it needs pve9-2's freeze, whose superblock summary lock hashes
+ * to one of those pages: parked for good with nobody to ask
+ * (P960-PARK-NOT-TRANSITION bn=<the rejoiner> bn_in_view=0), and the
+ * rejoiner's mount waited on that admission for over 5 min.  Until the
+ * rejoiner is in the view, the established member keeps the election; two
+ * nodes claiming at once in that window is the case the ledger's
+ * conditional commit already makes safe (v5_bootstrap_ready).
+ *
+ * "Recovered" is the mount barrier's witness mask OR the slots this mount
+ * recovered as the replayer (v5_recovered_here).  The witness mask alone is
+ * set only by P163-RECOVERED, which a replayer never logs for its own
+ * recovery, so on the pair the skip never applied: with the rejoiner's
+ * announce held 10 s (dbg_join_announce_delay_ms), a lap with this knob on
+ * deadlocked exactly as with it off (nested pair, 0.90.113).
+ */
+int mxfs_bootstrap_skip_unadmitted = 1;
+module_param_named(bootstrap_skip_unadmitted, mxfs_bootstrap_skip_unadmitted, int, 0644);
+MODULE_PARM_DESC(bootstrap_skip_unadmitted,
+    "the bootstrap election passes over a recovered slot's new tenant until it is in the view (default 1; 0 restores the old election for A/B)");
+
+static int v5_bootstrap_slot(struct mxfs_v5_dlm *ctx)
+{
+	struct mxfs_disklock_ctx *dl = ctx->disklock;
+	uint64_t skip = 0, resolved = 0;
+	int slot;
+
+	for (slot = 0; slot < MXFS_DISKLOCK_HB_SLOTS; slot++) {
+		mxfs_node_id_t node = ctx->gone_node[slot];
+		uint64_t inc = ctx->gone_inc[slot];
+
+		if (!node || slot == dl->local_slot)
+			continue;
+		if (dl->slot_node_id[slot] == node ||
+		    (inc && (uint64_t)dl->node_track[slot].last_epoch == inc))
+			skip |= 1ULL << slot;
+	}
+	if (ctx->mphase_lock && READ_ONCE(mxfs_bootstrap_skip_unadmitted)) {
+		mxfs_pal_mutex_lock(ctx->mphase_lock);
+		resolved = ctx->mphase_resolved_mask | v5_recovered_here(ctx);
+		mxfs_pal_mutex_unlock(ctx->mphase_lock);
+	}
+	for (slot = 0; slot < dl->local_slot && slot < MXFS_DISKLOCK_HB_SLOTS; slot++) {
+		mxfs_node_id_t node = dl->slot_node_id[slot];
+
+		if (((resolved >> slot) & 1ULL) && node && ctx->dlm &&
+		    !mxfs_dlm_node_in_view(ctx->dlm, node))
+			skip |= 1ULL << slot;
+	}
+	return mxfs_disklock_lowest_live_slot_mask(dl, skip);
 }
 
 static bool v5_bootstrap_cb(void *data)
@@ -2621,7 +3131,7 @@ static bool v5_bootstrap_cb(void *data)
 
 	if (!ctx || !ctx->disklock)
 		return false;
-	low = mxfs_disklock_lowest_live_slot(ctx->disklock, -1);
+	low = v5_bootstrap_slot(ctx);
 	return low >= 0 && low == ctx->disklock->local_slot && v5_bootstrap_ready(ctx);
 }
 
@@ -2638,7 +3148,7 @@ static mxfs_node_id_t v5_bootstrap_node_cb(void *data, uint64_t *inc_out)
 		*inc_out = 0;
 	if (!ctx || !ctx->disklock)
 		return 0;
-	low = mxfs_disklock_lowest_live_slot(ctx->disklock, -1);
+	low = v5_bootstrap_slot(ctx);
 	if (low < 0)
 		return 0;
 	if (low == ctx->disklock->local_slot) {
@@ -3055,6 +3565,13 @@ static void v5_handoff_takeover(struct mxfs_v5_dlm *ctx, mxfs_node_id_t node,
 				     "node; the departed authority's pages (if any) stay "
 				     "parked until a bootstrap node names it",
 				     node, (unsigned long long)inc, why);
+		else
+			mxfs_pal_log(MXFS_LOG_DEBUG,
+				     "mxfs: P-TAUTH-TAKEOVER-NOTBOOT node=%u inc=%llu why=%s "
+				     "bootstrap_slot=%d local_slot=%d -- not the bootstrap node",
+				     node, (unsigned long long)inc, why,
+				     ctx->disklock ? v5_bootstrap_slot(ctx) : -1,
+				     ctx->disklock ? ctx->disklock->local_slot : -1);
 		return;
 	}
 	if (rc != 0)
@@ -3234,6 +3751,17 @@ static void v5_depart_run(struct mxfs_v5_dlm *ctx, const struct v5_depart_req *r
 			     r->node, (unsigned long long)r->inc, r->why,
 			     (unsigned long long)(t0 - r->queued_ms),
 			     (unsigned long long)(mxfs_pal_time_ms() - t0));
+		/*
+		 * A death ends with the orphan sweep too, as every departure below
+		 * does.  The takeover above moves only the pages whose authority
+		 * is the dead incarnation; a page another incarnation, gone since,
+		 * PREPARED to it and it never consumed is judged by no one else.
+		 * Measured on the physical DRBD pair (0.90.113, withdraw-p1 after a
+		 * restart of both mounts): 4 pages left PREPARED from pve1's
+		 * previous incarnation to pve2's withdrawn one after pve2's
+		 * recovery takeover, which skipped nothing.
+		 */
+		v5_orphan_sweep_queue(ctx);
 		return;
 	}
 	if (r->orphan_sweep) {
@@ -3459,6 +3987,14 @@ static int v5_depart_queue(struct mxfs_v5_dlm *ctx, mxfs_node_id_t node,
  * for it here — deferred until the ledger is attached and the departure
  * worker exists when the settle happens during mount init.
  */
+/* DEBUG: when 0, a settled incarnation's slot still counts in the bootstrap
+ * election until its slot release is observed (the pre-0.90.111 shape), so the
+ * takeover refused behind it can be measured on the same build that ends it. */
+int mxfs_tauth_settled_gone = 1;
+module_param_named(tauth_settled_gone, mxfs_tauth_settled_gone, int, 0644);
+MODULE_PARM_DESC(tauth_settled_gone,
+    "DEBUG: a heartbeat record settled EMPTY takes its slot out of the bootstrap election (1=on, 0=only once its release is observed)");
+
 static void v5_settled_incarnation(struct mxfs_v5_dlm *ctx, mxfs_node_id_t node,
 				   uint64_t inc, int slot, const char *why)
 {
@@ -3467,6 +4003,20 @@ static void v5_settled_incarnation(struct mxfs_v5_dlm *ctx, mxfs_node_id_t node,
 
 	if (!node || !inc || !ctx->tauth_offset)
 		return;
+	/*
+	 * A record settled EMPTY has left for good, as surely as a GOODBYE says
+	 * so, and the takeover this queues must count this node bootstrap.  On
+	 * the 2-node shared-LUN rig (0.90.111) the retire worker settled the
+	 * departer's record before the receive thread had processed its
+	 * GOODBYE; this takeover ran with the departer's slot 0 still live, was
+	 * refused as not bootstrap, and the GOODBYE run after it was coalesced
+	 * as already done.
+	 */
+	if (!takeover_only && slot >= 0 && slot < MXFS_DISKLOCK_HB_SLOTS &&
+	    READ_ONCE(mxfs_tauth_settled_gone)) {
+		ctx->gone_node[slot] = node;
+		ctx->gone_inc[slot] = inc;
+	}
 	if (ctx->mounted && ctx->tauth_open && ctx->dlm) {
 		mxfs_pal_log(MXFS_LOG_DEBUG,
 			     "mxfs: P-SETTLED-INCARNATION node=%u inc=%llu slot=%d why=%s -- "
@@ -12853,6 +13403,41 @@ static void v5_drbd_exclusion_check(struct mxfs_v5_dlm *ctx)
 }
 
 /*
+ * The view-change hand-off pass, every 500 ms.  It ran on the TCP death
+ * worker, ahead of the grace check, and it commits one ledger page at a time:
+ * on the physical DRBD pair a rejoin's pass of 1303 pages, ~36 ms each, held
+ * that worker 52.6 s (P-TCP-DEATH-PASS-HELD handoff=52627), and every TCP
+ * death decision waited with it.  On its own thread the pass and the grace
+ * check no longer wait for each other.  The pass stops between pages once
+ * the engine is shutting down, so the teardown's join is one page long.
+ * Ahead of it, the pages AG trylocks found not ready are prepared here, so
+ * that the trylock, which holds an ILOCK, never does the ledger I/O itself.
+ */
+static void v5_handoff_worker_fn(void *arg)
+{
+	struct mxfs_v5_dlm *ctx = arg;
+
+	while (!READ_ONCE(ctx->handoff_stop)) {
+		mxfs_pal_sleep_ms_interruptible(500);
+		if (READ_ONCE(ctx->handoff_stop))
+			break;
+		if (ctx->dlm) {
+			mxfs_dlm_prepare_wanted(ctx->dlm);
+			mxfs_dlm_handoff_tick(ctx->dlm);
+		}
+	}
+}
+
+static void v5_handoff_worker_stop(struct mxfs_v5_dlm *ctx)
+{
+	if (!ctx->handoff_thread)
+		return;
+	WRITE_ONCE(ctx->handoff_stop, 1);
+	mxfs_pal_thread_join(ctx->handoff_thread);
+	ctx->handoff_thread = NULL;
+}
+
+/*
  * grace-checker thread.  Polls the suspect table; for each node that
  * has been suspect (TCP-disconnected) longer than mxfs_tcp_death_grace_ms
  * without reconnecting, declares it dead (purge + recover).  Cancellation on
@@ -12889,8 +13474,12 @@ static void v5_tcp_death_worker_fn(void *arg)
 			mxfs_dlm_release_retry_tick(ctx->dlm);
 			t_release = mxfs_pal_time_ms();
 			/* (step 4): eager PREPARE of pages that moved away at
-			 * the last view change, FREEZE_REQ retries, retargets */
-			mxfs_dlm_handoff_tick(ctx->dlm);
+			 * the last view change, FREEZE_REQ retries, retargets --
+			 * here only when its own worker could not be created */
+			if (!ctx->handoff_thread) {
+				mxfs_dlm_prepare_wanted(ctx->dlm);
+				mxfs_dlm_handoff_tick(ctx->dlm);
+			}
 			t_handoff = mxfs_pal_time_ms();
 		}
 
@@ -17199,6 +17788,16 @@ static int v5_recovery_complete_ladder(struct mxfs_v5_dlm *ctx,
 			     "another victim while it ran; that one is still owed and "
 			     "its marker is deliberately left standing",
 			     dead_slot, dead_node, (unsigned long long)dead_epoch);
+	/* this mount recovered the slot: the bootstrap election may pass over its
+	 * next tenant until that node is in the view (v5_bootstrap_slot), and a
+	 * new tenant that is not live yet does not hold this mount back from the
+	 * role (v5_bootstrap_ready).  Before the takeover is queued, which runs
+	 * only while this mount holds the role. */
+	if (ctx->mphase_lock && (unsigned int)dead_slot < MXFS_DISKLOCK_HB_SLOTS) {
+		mxfs_pal_mutex_lock(ctx->mphase_lock);
+		ctx->recovered_here_mask |= 1ULL << (unsigned int)dead_slot;
+		mxfs_pal_mutex_unlock(ctx->mphase_lock);
+	}
 	/* The dead peer's page takeover, now that nothing judges its replay:
 	 * the sector is zeroed and the marker naming it is gone (see
 	 * v5_dead_grants_retire for what queueing it earlier did). */
@@ -17826,12 +18425,16 @@ static void v5_tcp_transport_unwind(struct mxfs_v5_dlm *ctx)
 		mxfs_pal_thread_join(ctx->tcp_death_thread);
 		ctx->tcp_death_thread = NULL;
 	}
+	/* after the death worker, which would run the pass once this is gone */
+	v5_handoff_worker_stop(ctx);
 	if (v5_depart_worker_stop(ctx, true) == -ETIMEDOUT)   /* 0.75.2 */
 		return;                 /* quarantined: nothing below may be freed */
 	if (ctx->peer) {
 		mxfs_peer_shutdown(ctx->peer);
 		ctx->peer = NULL;
 	}
+	/* nothing can queue a hand-off now; it processes what is queued */
+	v5_hrx_worker_stop(ctx);
 	if (ctx->dlm) {
 		mxfs_dlm_destroy(ctx->dlm);
 		ctx->dlm = NULL;
@@ -18402,7 +19005,6 @@ struct mxfs_v5_dlm *mxfs_v5_dlm_init(const struct mxfs_v5_dlm_opts *opts)
 		/* a volume with the ledger region grants nothing until
 		 * the ledger is attached (activation barrier, fail closed) */
 		ctx->dlm->ledger_required = (ctx->tauth_offset != 0);
-
 		ctx->dlm->send_cb = v5_dlm_send_cb_tcp;
 		ctx->dlm->bast_cb = v5_bast_cb_tcp;
 		ctx->dlm->membership_cb = v5_membership_cb_tcp;
@@ -18432,6 +19034,24 @@ struct mxfs_v5_dlm *mxfs_v5_dlm_init(const struct mxfs_v5_dlm_opts *opts)
 		 * start so any disconnect that fires immediately is handled. */
 		ctx->tcp_suspect_lock = mxfs_pal_mutex_create();
 		ctx->tcp_death_stop = 0;
+		/* before the death worker, which runs the pass itself when this
+		 * thread does not exist: the two never both run it */
+		ctx->handoff_stop = 0;
+		ctx->handoff_thread = mxfs_pal_thread_create(v5_handoff_worker_fn, ctx);
+		if (!ctx->handoff_thread)
+			mxfs_pal_log(MXFS_LOG_WARN,
+				     "mxfs: P-HANDOFF-WORKER-NOTHREAD -- the view-change "
+				     "hand-off pass runs on the TCP death worker");
+		/* before the peer transport starts: the receive threads queue
+		 * page hand-offs to it (v5_hrx_submit) */
+		ctx->hrx_lock = mxfs_pal_mutex_create();
+		ctx->hrx_cond = mxfs_pal_cond_create();
+		if (ctx->hrx_lock && ctx->hrx_cond)
+			ctx->hrx_thread = mxfs_pal_thread_create(v5_hrx_worker_fn, ctx);
+		if (!ctx->hrx_thread)
+			mxfs_pal_log(MXFS_LOG_WARN,
+				     "mxfs: P-HRX-WORKER-NOTHREAD -- peers' page hand-offs are "
+				     "processed on the receive threads");
 		if (ctx->tcp_suspect_lock)
 			ctx->tcp_death_thread =
 			    mxfs_pal_thread_create(v5_tcp_death_worker_fn, ctx);
@@ -18973,6 +19593,18 @@ tcp_bootstrap_again:
 					v5_tcp_transport_unwind(ctx);
 					goto err_disklock;
 				}
+			}
+		}
+
+		{
+			int hold = xchg(&mxfs_dbg_join_announce_delay_ms, 0);
+
+			if (hold > 0) {
+				mxfs_pal_log(MXFS_LOG_WARN,
+					     "mxfs: P-JOIN-ANNOUNCE-DELAY ms=%d slot=%d -- TEST: "
+					     "beating on the slot, not yet announced to peers",
+					     hold, ctx->node_slot);
+				mxfs_pal_sleep_ms(hold);
 			}
 		}
 
@@ -20125,6 +20757,9 @@ void mxfs_v5_dlm_shutdown_defer_release(struct mxfs_v5_dlm *ctx,
 		mxfs_pal_thread_join(ctx->tcp_death_thread);
 		ctx->tcp_death_thread = NULL;
 	}
+	/* after the death worker, which would run the pass once this is gone;
+	 * the pass stops between pages once shutting_down is up (above) */
+	v5_handoff_worker_stop(ctx);
 	/* the fence-retry worker sleeps in 250ms slices and checks the
 	 * flag between them, but a firing in progress runs a full fence round
 	 * trip, so this join can take that long.  It must be a full join: the
@@ -20325,9 +20960,11 @@ void mxfs_v5_dlm_shutdown_defer_release(struct mxfs_v5_dlm *ctx,
 		mxfs_peer_broadcast(ctx->peer, &leave, sizeof(leave));
 		mxfs_pal_log(MXFS_LOG_DEBUG,
 			     "mxfs: P-GOODBYE-SENT clean departure broadcast (node %u) "
-			     "teardown_releases_served=%u teardown_local_basts_dropped=%u",
+			     "teardown_releases_served=%u teardown_local_basts_dropped=%u "
+			     "teardown_freeze_served=%u",
 			     ctx->node_id, ctx->teardown_releases_served,
-			     ctx->teardown_local_basts_dropped);
+			     ctx->teardown_local_basts_dropped,
+			     ctx->teardown_freeze_served);
 		v5_depart_race_inject(ctx, 4);
 	}
 	/* 0.90.20: what the mount phase parked and what the installation of
@@ -20459,6 +21096,10 @@ void mxfs_v5_dlm_shutdown_defer_release(struct mxfs_v5_dlm *ctx,
 	}
 
 	if (ctx->dlm && !ctx->depart_quarantined) {
+		/* the receive threads are gone: nothing can queue a hand-off
+		 * now, and the worker processes what is queued before the
+		 * engine goes */
+		v5_hrx_worker_stop(ctx);
 		mxfs_dlm_destroy(ctx->dlm);
 		ctx->dlm = NULL;
 	}

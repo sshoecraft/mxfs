@@ -54,6 +54,15 @@
  *      the dead authority's and PREPARED to us, so the requester consumes the
  *      PREPARED image; the un-imported page is already durably ours, so the
  *      requester re-imports it
+ *  18  an AG lock's no-queue request does no ledger I/O and never waits for a
+ *      ledger page lock (dl_noqueue_ledger_nowait=1): on a page whose
+ *      activation another request holds (activate_hold_once_ms) it answers
+ *      -EAGAIN at once, where the control (0) waits out the hold; on a page
+ *      nobody holds but that is not ready it answers -EAGAIN at once with no
+ *      ledger commit, mxfs_dlm_prepare_wanted then prepares that page, and
+ *      the next no-queue request on it is granted.  The physical DRBD pair's
+ *      allocator trylock slept 30 s in that page lock holding a VM image's
+ *      ILOCK.
  */
 #define NNODES 4
 #include "dlm_mesh.h"
@@ -820,6 +829,108 @@ int main(int argc, char **argv)
         mxfs_dlm_unlock(B->dlm, &R8);
         settle(B);
         node_down(B);
+    }
+
+    /* 18 AN AG LOCK'S NO-QUEUE REQUEST DOES NO LEDGER I/O AND NEVER WAITS FOR
+     * A LEDGER PAGE LOCK.  A alone, so it masters every AG lock; each arm
+     * takes an AG on a page A has not made its own yet. */
+    {
+        extern int mxfs_dl_noqueue_ledger_nowait;
+        mxfs_node_id_t ids1[1] = { 11 };
+        const uint32_t hold_ms = 2000;
+        struct mxfs_resource_id G;
+        uint32_t agno = 1, pg = 0;
+        int arm;
+
+        membership(ids1, 1);
+        mxfs_pal_sleep_ms(50);
+        memset(&G, 0, sizeof(G));
+        G.type = MXFS_LTYPE_AG;
+        /* a page whose activation a blocking request holds (the first
+         * acquire on an unowned page activates it inside the page lock) */
+        for (arm = 0; arm <= 1; arm++) {
+            struct lock_job *jb, *jn;
+
+            for (;; agno++) {
+                G.ag_number = agno;
+                pg = tl_page(&G);
+                if (A->dlm->page_state[pg] != DLM_PS_MINE)
+                    break;
+            }
+            agno++;
+            mxfs_dl_noqueue_ledger_nowait = arm;
+            A->ledger.activate_hold_once_ms = hold_ms;
+            jb = lock_async(A, &G, MXFS_LOCK_EX, 10);
+            mxfs_pal_sleep_ms(hold_ms / 4);      /* jb is inside its hold */
+            jn = calloc(1, sizeof(*jn));
+            jn->n = A;
+            jn->res = G;
+            jn->mode = MXFS_LOCK_EX;
+            jn->flags = MXFS_LKF_NOQUEUE;
+            jn->max_retries = 10;
+            jn->t = mxfs_pal_thread_create(lock_job_fn, jn);
+            lock_wait(jn, 5000);
+            lock_wait(jb, 5000);
+            printf("  INFO 18 nowait=%d ag=%u page=%u: no-queue rc=%d wall=%llums | blocking rc=%d granted=%u wall=%llums\n",
+                   arm, G.ag_number, pg, jn->rc, (unsigned long long)(jn->t1 - jn->t0),
+                   jb->rc, jb->granted, (unsigned long long)(jb->t1 - jb->t0));
+            if (arm)
+                CHECK(jn->done && jn->rc == -EAGAIN && jn->t1 - jn->t0 < hold_ms / 4,
+                      "18 nowait=1: the no-queue AG request answers -EAGAIN at once while the page is held (rc=%d wall=%llums)",
+                      jn->rc, (unsigned long long)(jn->t1 - jn->t0));
+            else
+                CHECK(jn->done && jn->t1 - jn->t0 >= hold_ms / 2,
+                      "18 nowait=0 (control): the no-queue AG request waits behind the held page (rc=%d wall=%llums)",
+                      jn->rc, (unsigned long long)(jn->t1 - jn->t0));
+            CHECK(jb->done && jb->rc == 0 && jb->granted == MXFS_LOCK_EX,
+                  "18 nowait=%d: the blocking request is granted (rc=%d granted=%u)", arm, jb->rc,
+                  jb->granted);
+            if (jn->rc == 0)
+                mxfs_dlm_unlock(A->dlm, &G);
+            if (jb->rc == 0)
+                mxfs_dlm_unlock(A->dlm, &G);
+            lock_finish(jn);
+            lock_finish(jb);
+            settle(A);
+        }
+        /* a page nobody holds that is not ready: the no-queue request leaves
+         * it to the hand-off worker's pass, which prepares it */
+        {
+            uint64_t c0, t0, w0, wall;
+            uint8_t gm = 0;
+
+            for (;; agno++) {
+                G.ag_number = agno;
+                pg = tl_page(&G);
+                if (A->dlm->page_state[pg] != DLM_PS_MINE)
+                    break;
+            }
+            mxfs_dl_noqueue_ledger_nowait = 1;
+            mxfs_dlm_prepare_wanted(A->dlm);    /* the held arm's mark, if any */
+            c0 = A->ledger.commits;
+            w0 = A->dlm->prepare_wanted_pages;
+            t0 = mxfs_pal_time_ms();
+            rc = mxfs_dlm_lock_retries(A->dlm, &G, MXFS_LOCK_EX, MXFS_LKF_NOQUEUE, &gm, 10);
+            wall = mxfs_pal_time_ms() - t0;
+            CHECK(rc == -EAGAIN && wall < 100 && A->ledger.commits == c0 &&
+                  A->dlm->page_want[pg] == 1 && A->dlm->page_state[pg] != DLM_PS_MINE,
+                  "18 an unready page nobody holds: -EAGAIN at once, no commit, the page marked (rc=%d wall=%llums commits +%llu want=%u state=%u)",
+                  rc, (unsigned long long)wall, (unsigned long long)(A->ledger.commits - c0),
+                  A->dlm->page_want[pg], A->dlm->page_state[pg]);
+            mxfs_dlm_prepare_wanted(A->dlm);
+            CHECK(A->dlm->prepare_wanted_pages == w0 + 1 && A->dlm->page_want[pg] == 0 &&
+                  A->dlm->page_state[pg] == DLM_PS_MINE,
+                  "18 the worker's pass prepares the marked page (prepared +%llu want=%u state=%u)",
+                  (unsigned long long)(A->dlm->prepare_wanted_pages - w0), A->dlm->page_want[pg],
+                  A->dlm->page_state[pg]);
+            rc = mxfs_dlm_lock_retries(A->dlm, &G, MXFS_LOCK_EX, MXFS_LKF_NOQUEUE, &gm, 10);
+            CHECK(rc == 0 && gm == MXFS_LOCK_EX,
+                  "18 the next no-queue request on that page is granted (rc=%d granted=%u)", rc, gm);
+            if (rc == 0)
+                mxfs_dlm_unlock(A->dlm, &G);
+        }
+        mxfs_dl_noqueue_ledger_nowait = 1;
+        settle(A);
     }
 
     node_down(A);

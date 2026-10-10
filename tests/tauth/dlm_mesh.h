@@ -508,6 +508,8 @@ static struct vnode *node_up(int idx, mxfs_node_id_t id, uint64_t inc, uint16_t 
     if (vocc_on)
         n->dlm->occupant_cb = voccupant;
     n->dlm->ledger_required = true;
+    /* as the mount layer runs it: pages handed to this node are activated
+     * by the engine's pool, off the receive thread */
     if (with_ledger) {
         int rc = mxfs_tauth_ledger_open(&n->ledger, dev, base, MXFS_TAUTH_REGION_BYTES,
                                         uuid, id, inc, slot);

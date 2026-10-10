@@ -7041,9 +7041,17 @@ xfs_iunlink_reload_next(
 	rcu_read_unlock();
 	next_ip = NULL;
 
-	xfs_info_ratelimited(mp,
+	/*
+	 * On a cluster mount the inode is normally a peer's in-flight unlink,
+	 * loaded from disk because this node never cached it: nothing is being
+	 * recovered, and upstream's wording read to an operator as corruption
+	 * and recovery on a healthy filesystem.  P83-UNL-RELOAD below records
+	 * it there.
+	 */
+	if (!mp->m_mxfs_dlm)
+		xfs_info_ratelimited(mp,
  "Found unrecovered unlinked inode 0x%x in AG 0x%x.  Initiating recovery.",
-			next_agino, pag_agno(pag));
+				next_agino, pag_agno(pag));
 	/* D-AGI-UNLINKED canary detail (unconditional — this reload is
 	 * the rare precursor of the cross-node stale-stitch shutdown): under
 	 * multi-node, next_agino here is typically a PEER's in-flight unlinked
@@ -12346,9 +12354,16 @@ xfs_inode_reload_unlinked_bucket(
 
 	trace_xfs_inode_reload_unlinked_bucket(ip);
 
-	xfs_info_ratelimited(mp,
+	/* as at the per-inode reload: on a cluster mount this rebuilds in-core
+	 * back-links of a list that is intact on disk, and is not recovery */
+	if (mp->m_mxfs_dlm)
+		mxfs_probe_ratelimited(
+		    "mxfs: P83-UNL-BUCKET-RELOAD ino=%llu agino=0x%x agno=%u bucket=%u\n",
+			(unsigned long long)ip->i_ino, agino, agno, bucket);
+	else
+		xfs_info_ratelimited(mp,
  "Found unrecovered unlinked inode 0x%x in AG 0x%x.  Initiating list recovery.",
-			agino, agno);
+				agino, agno);
 
 	prev_agino = NULLAGINO;
 	next_agino = be32_to_cpu(agi->agi_unlinked[bucket]);

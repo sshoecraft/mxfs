@@ -20,6 +20,62 @@
 > Everything that turns XFS into a filesystem many machines can mount at once
 > is AI-authored.
 
+> ## 0.90.116: no guest-write freezes on slow disks, and a DRBD host that drops out and rejoins comes back cleanly
+>
+> **For `2/net/mesh/drbd`, a VM's disk writes no longer freeze on slow
+> disks.**  With seven AlmaLinux installs at once on two physical Proxmox VE 9
+> hosts whose DRBD sat on 2011-era SATA SSDs, a guest write that needed new
+> space could hold its disk image locked for 30 s to a minute. Its lock
+> request had asked only to try, but it waited on the cluster's lock-ownership
+> records, which were being written to the slow disk.  Every other write to
+> that image waited behind it, and the host kernel reported hung tasks.  No
+> write failed and no data was lost.  0.90.116's try never touches the disk
+> and never waits: when its answer is not ready, it says so at once, the write
+> takes space elsewhere, and a background worker readies the answer for next
+> time.  On the same disks and load, none of the slow waits remained, no task
+> hung, and all seven installs finished (`CHANGELOG.md`, 0.90.115 and
+> 0.90.116).
+>
+> **A host whose MXFS mount is shut down and then
+> rejoins no longer hangs or stalls.**  When a host's heartbeat writes stop
+> long enough, the other host declares its mount dead, recovers it, and the
+> host's guard unmounts and remounts it with no restart.  On two physical
+> Proxmox VE 9 hosts that rejoin had two faults when the rejoining host held
+> the lower heartbeat slot:
+>
+> - its mount could wait minutes for an admission that never came (fixed in
+>   0.90.113);
+> - its first reads could take 69 to 95 s, because its peer's requests for
+>   the lock pages those reads needed were queued behind a stream of other
+>   hand-offs (fixed in 0.90.114).
+>
+> No data was lost in either.  Both were found by forcing the dropout on
+> purpose (`tests/pve_pair_failover.sh` `withdraw-p0`), as happened for real on
+> 2026-10-06 when a swapping host's heartbeat writes stalled.  Everyday use
+> did not reach either one.  `CHANGELOG.md` has what was measured, 0.90.108
+> to 0.90.114.
+>
+> **What 0.90.116 was validated on, and nothing else:**
+>
+> - **The six shared-LUN configurations under "Released" below**
+>   (`2/net/mesh/direct`, `4/net/mesh/direct`, `2/disk/caw/direct`,
+>   `4/disk/caw/direct`, `8/disk/caw/direct`, `16/disk/caw/direct`): the
+>   31-row suite of each on the test rig (Ubuntu 24.04, iSCSI, one path per
+>   node) at its node count, and the installed packages on two nodes of each
+>   of Proxmox VE 9, RHEL 9.8, Ubuntu 24.04 and Debian 13.
+> - **`2/net/mesh/drbd`**: the DRBD rig (`tests/drbd_release_verify.sh`), the
+>   nested Proxmox VE 9 pair through every step of
+>   `tests/pve_pair_failover.sh` (crashes, power cuts, restarts, promotions, a
+>   slow heartbeat and the withdrawals), and the two physical Proxmox VE 9.1
+>   hosts: seven concurrent AlmaLinux 9.7 installs at a time on MXFS on DRBD,
+>   on both the hosts' Samsung 850 EVO and their older Kingston SATA SSDs,
+>   and repeated dropout-and-rejoin laps under load.
+>
+> No other configuration, attachment, node count, platform, kernel or DRBD
+> version was tested on this release.  In particular `8/net/mesh/direct`,
+> `16/net/mesh/direct` and every `mpath` configuration were not, and are not
+> claimed.
+
 > ## 0.90.107: MXFS on DRBD dual-primary is released again, verified on two physical Proxmox VE 9 hosts
 >
 > **`2/net/mesh/drbd` is released again**: two hosts, each with its own local
@@ -242,7 +298,7 @@
 > | `16/disk/caw/direct` | 0.90.42 | Proxmox VE 9, RHEL 9.8, Ubuntu 24.04, Debian 13 |
 > | `2/net/mesh/drbd` | 0.90.41, again in 0.90.107 | Proxmox VE 9 (kernel 6.17.2-1-pve, two physical hosts and a nested pair), Ubuntu 24.04 (the test rig); DRBD 8.4.11, installed from source with `make install` |
 >
-> All seven were verified on the current release, 0.90.107: each `direct`
+> All seven were verified on the current release, 0.90.116: each `direct`
 > configuration's suite on the test rig at its node count, and the installed
 > packages on two nodes of each of the four platforms; `2/net/mesh/drbd` on
 > its own rig and on Proxmox VE 9 as described at the top of this file. A
@@ -250,12 +306,12 @@
 >
 > ### Released in an earlier version
 >
-> An earlier release claimed these; 0.90.107 does not.  Each was verified on
+> An earlier release claimed these; 0.90.116 does not.  Each was verified on
 > the version given, and open defects found since then cross the release bar
 > on it (`tools/defects.py <configuration> --release` lists them).  Until those
 > are fixed and the configuration is verified again, treat it as unreleased.
-> 0.90.51 was never published as packages; the last published release before
-> this one is 0.90.42.
+> 0.90.51 was never published as packages.  The last release published
+> before 0.90.116 is 0.90.107.
 >
 > | configuration | verified in | platforms |
 > |---|---|---|
@@ -360,11 +416,11 @@
 > to clear to be released, and `tools/defects.py <configuration> --release`
 > shows it for each one.  The defect queue itself is public
 > (`data/defects.json`, read with `tools/defects.py`), and every record carries
-> its evidence.  It holds 114 open records.  60 of them reach only
+> its evidence.  It holds 123 open records.  60 of them reach only
 > configurations this release does not claim, such as clusters larger than 16
 > nodes and the ones under "Released in an earlier version".
-> The 54 that reach a released
-> configuration (between 12 and 40 each, depending on the configuration) are
+> The 63 that reach a released
+> configuration (between 13 and 46 each, depending on the configuration) are
 > each classified as not crossing that bar, most of them as
 > slowness in a particular operation: `tools/defects.py --at 2/net/mesh/drbd -d`
 > lists them for one configuration.

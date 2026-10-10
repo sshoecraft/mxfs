@@ -636,6 +636,30 @@ bool mxfs_tauth_ledger_page_mine(struct mxfs_tauth_ledger *l, uint32_t page_id)
 	return mine;
 }
 
+/*
+ * For a request that asked not to queue: never sleeps and never touches the
+ * platter.  The page lock is held across every read and commit of the page,
+ * so on a slow disk a thread that waits for it can wait behind several of
+ * them; measured on the physical DRBD pair, the allocator's trylock slept
+ * over 30 s in an activation's mutex_lock while it held a VM image's ILOCK.
+ */
+int mxfs_tauth_ledger_page_ready_nowait(struct mxfs_tauth_ledger *l, uint32_t page_id,
+					uint64_t gen)
+{
+	struct mxfs_tauth_lpage *pg;
+	bool ready;
+
+	if (!l || !l->pages || page_id >= l->npages || gen != l->owner_gen)
+		return 0;
+	pg = &l->pages[page_id];
+	if (!mxfs_pal_mutex_trylock(pg->lock))
+		return -EBUSY;
+	ready = !pg->poisoned && pg->img && pg->load_gen == gen &&
+		lpage_mine_locked(l, pg);
+	mxfs_pal_mutex_unlock(pg->lock);
+	return ready ? 1 : 0;
+}
+
 struct tauth_auth_scan {
 	mxfs_tauth_auth_cb  cb;
 	void               *data;

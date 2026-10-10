@@ -1,0 +1,43 @@
+---
+name: compiled-drbd-flush-barrier-cost-and-recovery-durability-ordering
+description: DRBD 8.4 flush/barrier/fence-peer semantics and the cost of flush-per-page recovery; where replay/obligation durability ordering is enforced; CAS-loc…
+metadata:
+  type: project
+tags: [compiled, drbd, recovery, durability, flush, fencing]
+---
+
+Central topic: how DRBD 8.4 (protocol C, in-kernel, Proxmox 9) turns flushes into peer barrier stalls, why flush-per-page recovery is slow, and where the recovery path's durability ordering is actually enforced.
+
+## DRBD 8.4 mechanics (read from /src/linux/drivers/block/drbd)
+
+From [[reference-drbd-84-closes-an-epoch-per-completion-and-its-receiver-drains-and-flushes-at-every-barrier]]:
+- A write completing in the current epoch closes it (`drbd_req.c:243-245`), as does an empty flush (`:880-881`) or `max-epoch-size` writes (`:705-706`). Bytes per epoch roughly equal the submitter's in-flight window.
+- An empty flush is never sent as data with DP_FLUSH. It becomes a P_BARRIER and is marked RQ_NET_OK|RQ_NET_DONE at once, so the upper flush completes on the LOCAL flush alone (`:1114-1126`, `:882`). The peer's `receive_Barrier` (`drbd_receiver.c:1602-1605`), under `wo:f`/`wo:d`, waits for all active peer writes and (wo:f) flushes the disk, synchronously, receiving nothing meanwhile.
+- Non-empty writes carry PREFLUSH/FUA as DP_FLUSH/DP_FUA.
+- Consequence: anything that keeps a writer's in-flight window small makes the peer drain and flush that often. Raw probe (scripts/drbd_write_latency_probe.sh): unbounded 48-52 MB/s, capped 4/8/16 MiB 35/31/36 MB/s.
+- `disk-flushes no` is not a tuning knob: an upper-layer empty flush reaches the peer only as a barrier, so with wo:d an fsync leaves the peer copy in a volatile cache. Safe only with battery/PLP-backed cache. Dual-primary needs protocol C.
+
+From [[reference-on-drbd-an-empty-flush-after-fua-writes-only-adds-a-peer-barrier-stall]] (measured 0.90.103, tests/pve_ledger_commit_profile.sh, 100 fsynced creates, physical pair):
+- A FUA write is acknowledged once the peer disk holds it, so a flush after FUA makes nothing more durable and stalls the NEXT replicated write behind the peer's barrier drain.
+- Dropping the ledger page commit's three flushes (store fua_durable on DRBD): commits 36-77 ms -> 20-27 ms, swaps 13-38 -> 11-17 ms, create totals 5.2-7.5 s -> 2.5 s. The flush's own idle latency (2-3 ms) understated its cost.
+- Corollary: plain write + empty flush is NOT durable on the DRBD peer; batched writers that relied on it (tauth page_write_many) must use FUA there.
+- Measurement trap: the first create run after a pair update carries the post-remount ledger takeover (600-1200 page writes per 100 creates). Compare runs only when page_write calls are back to ~0.4-0.6 per create.
+
+## Fence-peer handler
+
+[[reference-drbd-84-runs-the-fence-peer-handler-for-a-disconnected-secondarys-promotion-too]]: the handler runs in two cases: (1) a Primary loses its link (async kthread, node may demote while it runs); (2) `drbdadm primary` on a disconnected Secondary (SS_PRIMARY_NOP / SS_NO_UP_TO_DATE_DISK; synchronous, up to 4 tries; genl_lock released so drbdadm inside the handler does not deadlock). Exit codes: 7/4 outdate the peer and proceed; 5 outdates only if the local disk is UpToDate (so 5 on an UpToDate Secondary GRANTS promotion); 6 outdates the local disk; anything else is "helper broken" (Primary stays frozen, promotion fails). MDF_PEER_OUT_DATED is written to disk only by the md_sync at the end of after_state_ch, so a crash in between leaves it stale. Failure seen (0.90.68): mxfs-drbd-fence-self granted promotions on the tie-break and both sides could win (D-DRBD-SELF-AUTHORITY-CAN-ELECT-BOTH-SIDES); fixed in 0.90.69 by treating a non-Primary caller as a promotion, granted only under participant 0's own inhibit, refused with 1.
+
+## Slow-recovery diagnosis
+
+- [[technique-read-the-recovery-complete-lines-ms-walls-before-instrumenting-a-slow-recovery]]: `P163-RECOVERY-COMPLETE` (dlm/v5_mount.c) prints step walls at WARN: `total lease+milestones purge+flush grants (ledger tables handoff) zero`. `grants` = v5_dead_grants_retire; `ledger` = mxfs_dlm_ledger_purge_owner (one durable page commit per page: 2 emulated CAS + 3 flushes + FUA write on DRBD); `zero` = mxfs_disklock_purge_node (scans 65536 records). A waiter is served after `grants`, before `zero`. Measured on 0.90.81 p1-crash: ledger 17.8 s of a 50.6 s takeover wait; DRBD took 6 s from NetworkFailure to calling the fence handler (handler itself 0.12 s). The `P-TAUTH-PURGE ... total_ms` line is DEBUG-only (shared pr_debug site), so use a function profiler (tests/pve_pair_profile.sh with FNS) for page counts.
+- [[ruling-tauth-recovery-cost-is-flush-amplified-takeover-batch-it-first]] (consult 2, 2026-10-01): takeover is ~9 ms/page (708 pages in 8,221 ms; 20 GB ledger on 8 nodes left 79% owned, total 75 s) because each page is its own durable shadow write + flush. Ruling: batch authority transitions first, with two barriers per chunk (fence old authority durably, write PREPARED, FLUSH, write ACTIVE, FLUSH, then serve grants; never one flush at the end since the device may reorder; PREPARED carries transition identity; takeover idempotent; crash-inject every point). Range/view-table authority is the only asymptotic fix (O(ranges)). Release-empty-pages needs a new FREE state and measured cold-empty fraction; shrinking npages needs an overflow design first. Measure the 9 ms decomposition and sweep batch sizes 1..2048 before building.
+
+## Foreign replay durability ordering
+
+- [[reference-the-replay-writes-are-flushed-durable-before-images-replayed-but-only-at-the-one-call-site-that-does-it]]: the replay pass does not flush (`xlog_do_recovery_pass` ends at delwri_submit, which returns on completion not durability, `xfs/xfs_log_recover.c:6836`); `recov_cas_durable` flushes AFTER the CAW, not before. The ordering replay-writes-before-IMAGES_REPLAYED is enforced only by the caller: `mxfs_blkdev_flush_durable` at `xfs/xfs_mxfs_dlm.c:60512` before `mxfs_v5_dlm_recovery_complete2`, completion skipped if it fails. `mxfs_blkdev_flush_epoch` / `mxfs_dlm_peer_joined_flush` give peer VISIBILITY only (no device flush under default `mxfs_fua_disable`), the sess59 bug. The invariant is a comment (`dlm/v5_mount.c:14622`), so a second completion caller would silently reopen the hole.
+- [[reference-the-obligation-completion-engine-has-its-own-durability-point-before-it-publishes]]: resolves the open question from that note. The `goto complete_ladder` at `:60608` after `mxfs_recov_obl_complete` is not an ordering hazard: the engine does `xfs_log_force(SYNC)` then `mxfs_recov_obl_home_flush` (peer-joined flush + `mxfs_blkdev_flush_durable`, `xfs/xfs_mxfs_recov_obl.c:310-317`) before the proof write and OBLIGATIONS_DONE; failure leaves the case OPEN and retries. Lesson: read a bypassing callee to its end before calling a bypassed flush a defect.
+- [[ruling-foreign-replay-barrier-judges-retained-buffers-by-authority]] (consult, 0.90.58): the barrier around a dead peer's slice replay must not wait for an empty AIL (live survivor loads relogged inode timestamps; each round ~35 s in xfs_ail_push_all_sync; replay started 105.7 s after election and never with endless loads). Replayed images are under grants the dead node held, frozen, so nothing the survivor logged can be under them; a sampled-LSN bounded push proves nothing. Retained buffers are judged by authority, not by BLI/AIL/pinned/delwri; AG meta with local un-landed content is ours only while this node holds the AG grant; unclassifiable fails closed. Post-replay every replayed unit completes a write with final bytes before slice retirement. freeze_super is the wrong tool (deadlocks against the recovery releasing the grant). Implemented as mxfs_dlm_foreign_replay_barrier (xfs/xfs_mxfs_recovery.c) with census classes in xfs/xfs_mxfs_buf.c; oracle line P232-FREPLAY-BARRIER.
+
+## Model checking the swap lock
+
+[[technique-model-check-the-drbd-cas-lock-and-never-clip-a-counter-in-the-model]]: `tests/drbd_cas_lock_model.py` exhaustively checks the two-host one-bit lock (pal/linux/drbd.c, mxfs_drbd_lock) with per-disk landing (a write completes only when both disks hold it; each host reads its own disk). Modes: default (one-bit v2), `--bakery` (control), `--broken` (must report a violation: the negative control). Trap: clipping tickets at a cap made two tickets tie and faked a mutual-exclusion violation; model a bound by failing the operation (-EOVERFLOW past MXFS_DRBD_TICKET_MAX), never by saturating the value. Any change to the lock's entry/exit order, register fields or deferred release must be re-modelled first (0.90.101).

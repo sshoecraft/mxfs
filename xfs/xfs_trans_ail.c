@@ -1300,15 +1300,21 @@ xfs_ail_push_ag_sync_bounded(
 									 * inside the walk: the AIL entry keeps
 									 * sip live; RCU keeps the task deref
 									 * safe (rwsem_spin_on_owner pattern).
-									 * Only once a stall episode is on. */
+									 * Only once a stall episode is on, and
+									 * only with probes on: a drain that is
+									 * merely slow under write load put a
+									 * Call Trace in a production host's log
+									 * that read as a hung task, and the
+									 * kernel's own detector reports a real
+									 * one. */
 									{
 										static unsigned long mxfs_stalldump_j;
 
-										if (stall >= 4 &&
+										if (stall >= 4 && mxfs_probe_on() &&
 										    time_after(jiffies,
 											mxfs_stalldump_j + 30 * HZ)) {
 											mxfs_stalldump_j = jiffies;
-											pr_warn("mxfs: P67-STALL-OWNER-STACK agno=%u ino=%llu owner=%s/%d rd=%d state=0x%x nvcsw=%lu/%lu -- dumping holder stack\n",
+											mxfs_probe("mxfs: P67-STALL-OWNER-STACK agno=%u ino=%llu owner=%s/%d rd=%d state=0x%x nvcsw=%lu/%lu -- dumping holder stack\n",
 												agno,
 												(unsigned long long)stuck_ino,
 												stuck_owner_comm,
@@ -1384,7 +1390,16 @@ xfs_ail_push_ag_sync_bounded(
 					stall = 0;
 					last_count = total;
 				} else if (++stall >= stall_iters) {
-					pr_warn("mxfs: P67-INSTR AG-AIL-STALL-ABORT agno=%u iter=%u stall=%u total=%u(buf=%u inode=%u other=%u pinned=%u)\n",
+					/*
+					 * Probes, these and the periodic AG-AIL-STALL
+					 * below: the capped caller's drain is advisory
+					 * (Invariant 1 rides the post-commit drains),
+					 * and a writer holding the AG's items under
+					 * load stalls it on a healthy host -- the
+					 * physical pair printed them as warnings while
+					 * dd wrote and rm freed big files.
+					 */
+					mxfs_probe("mxfs: P67-INSTR AG-AIL-STALL-ABORT agno=%u iter=%u stall=%u total=%u(buf=%u inode=%u other=%u pinned=%u)\n",
 						agno, iter, stall, total,
 						n_buf, n_inode, n_other,
 						n_pinned_buf);
@@ -1395,7 +1410,7 @@ xfs_ail_push_ag_sync_bounded(
 					if (stuck_ino) {
 						struct xlog *sl = ailp->ail_log;
 
-						pr_warn("mxfs: P67-STALL-OWNER agno=%u ino=%llu lsn=0x%llx ail_min=0x%llx tail=0x%llx resv=0x%llx write=0x%llx owner=%s/%d rd=%d st=0x%x csw=%lu/%lu wr_last=%pS/%d/%s rd_last=%pS/%d/%s rd_held=%d un_last=%pS\n",
+						mxfs_probe("mxfs: P67-STALL-OWNER agno=%u ino=%llu lsn=0x%llx ail_min=0x%llx tail=0x%llx resv=0x%llx write=0x%llx owner=%s/%d rd=%d st=0x%x csw=%lu/%lu wr_last=%pS/%d/%s rd_last=%pS/%d/%s rd_held=%d un_last=%pS\n",
 							agno,
 							(unsigned long long)stuck_ino,
 							(unsigned long long)stuck_lsn,
@@ -1428,7 +1443,7 @@ xfs_ail_push_ag_sync_bounded(
 				return -EAGAIN;
 			}
 			if (iter > 0 && (iter & 255) == 0)
-				pr_warn("mxfs: P67-INSTR AG-AIL-STALL agno=%u iter=%u buf=%u(pinned=%u) inode=%u other=%u stuck_ino=%llu iflags=0x%x buf_locked=%d pin=%d libuf_null=%d buf_pinned=%d ili_fields=0x%x in_ail=%d buf_flags=0x%x ilocked=%d\n",
+				mxfs_probe("mxfs: P67-INSTR AG-AIL-STALL agno=%u iter=%u buf=%u(pinned=%u) inode=%u other=%u stuck_ino=%llu iflags=0x%x buf_locked=%d pin=%d libuf_null=%d buf_pinned=%d ili_fields=0x%x in_ail=%d buf_flags=0x%x ilocked=%d\n",
 					agno, iter, n_buf, n_pinned_buf,
 					n_inode, n_other,
 					(unsigned long long)stuck_ino,

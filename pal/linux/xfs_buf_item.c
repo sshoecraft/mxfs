@@ -2501,12 +2501,17 @@ xfs_buf_item_finish_stale(
 	 * 0.75.62 stale reclaim returned the track hold, so a second, unnamed
 	 * reference is being kept somewhere.  Name the count here so the leak
 	 * is attributed at the completion that should have ended the buffer.
+	 * A probe: another thread's lookup of the freed block can hold a second
+	 * reference here for a moment and drop it later (physical pair, 0.90.107:
+	 * three of these, then P-BUF-LEAKED-TOTAL live=0 at that module's
+	 * unload), so the line names a candidate, and the unload's count is
+	 * what decides a leak.
 	 */
 	if (mxfs_buf_is_ag_metadata(bp)) {
 		int hold = bp->b_hold;
 
 		if (hold != 1)
-			pr_warn_ratelimited("mxfs: P-STALE-FIN daddr=%lld ops=%s hold=%d pin=%d flags=0x%x agmeta_hold=%d -- stale AG-meta completion leaves more than the caller's reference (leak source)\n",
+			mxfs_probe_ratelimited("mxfs: P-STALE-FIN daddr=%lld ops=%s hold=%d pin=%d flags=0x%x agmeta_hold=%d -- stale AG-meta completion leaves more than the caller's reference (leak source)\n",
 				(long long)bp->b_maps[0].bm_bn,
 				(bp->b_ops && bp->b_ops->name) ? bp->b_ops->name : "?",
 				hold, atomic_read(&bp->b_pin_count), bp->b_flags,

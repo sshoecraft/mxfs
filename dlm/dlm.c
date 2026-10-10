@@ -91,6 +91,36 @@ module_param_named(dl_relall_skip_unreachable, mxfs_dl_relall_skip_unreachable, 
 MODULE_PARM_DESC(dl_relall_skip_unreachable,
 		 "release-all skips a master a release could not reach (1, default); 0 = test control");
 /*
+ * A request that asked not to queue answers would-block when this node, the
+ * resource's master, cannot decide yet because the resource's ledger page is
+ * not its own or is frozen in a hand-off (dlm_ledger_prepare -EAGAIN), as it
+ * already does for a page in transition.  0 = such a request parks and
+ * retries for the whole budget: the same-build control arm, never a
+ * production value.  Measured on the physical DRBD pair on slow disks: the
+ * allocator's TRYLOCK pass spent 60 retries there holding the VM image's
+ * ILOCK, and every other write to that image hung behind it (knob 0: 4
+ * exhausted budgets and 18 hung-task reports in one leg of 7 installs;
+ * knob 1: none).
+ */
+int mxfs_dl_noqueue_prepare_wouldblock = 1;
+module_param_named(dl_noqueue_prepare_wouldblock, mxfs_dl_noqueue_prepare_wouldblock, int, 0644);
+MODULE_PARM_DESC(dl_noqueue_prepare_wouldblock,
+		 "an AG lock's no-queue request answers would-block when the local ledger page is not ready (1, default); 0 = it retries for the whole budget (test control)");
+/*
+ * An AG lock's request that asked not to queue does no ledger I/O and never
+ * waits for a ledger page lock: unless its page is ready it answers
+ * would-block (and, with dl_noqueue_prepare_wouldblock, returns at once), and
+ * the hand-off worker prepares the page (mxfs_dlm_prepare_wanted).  0 = the
+ * request prepares the page itself, waiting for its lock like any other: the
+ * same-build control arm, never a production value.  Measured on the
+ * physical DRBD pair on slow disks: the allocator's TRYLOCK slept over 30 s
+ * in an activation's page lock while it held a VM image's ILOCK.
+ */
+int mxfs_dl_noqueue_ledger_nowait = 1;
+module_param_named(dl_noqueue_ledger_nowait, mxfs_dl_noqueue_ledger_nowait, int, 0644);
+MODULE_PARM_DESC(dl_noqueue_ledger_nowait,
+		 "an AG lock's no-queue request does no ledger I/O and leaves an unready page to the hand-off worker (1, default); 0 = it prepares the page itself (test control)");
+/*
  * The drop count is the harness's evidence that the target is remotely
  * mastered and that the fault fired during the armed read; the probe LINE
  * is not, because it prints only the first 8 drops and every 64th after
@@ -2699,12 +2729,14 @@ static int dlm_settle_retire(struct mxfs_dlm_ctx *ctx, uint32_t page, uint64_t g
 		if (r[k].rc != 0)
 			continue;
 		retired += held;
-		mxfs_pal_log(MXFS_LOG_WARN,
+		/* housekeeping, as P-TAUTH-SETTLED-KEPT is: a probe (the physical
+		 * pair printed it as a warning during ordinary VM installs) */
+		mxfs_probe_ratelimited(
 			     "mxfs: P-TAUTH-SETTLED-RETIRE site=%s page=%u type=%u ino=%llu ag=%u "
 			     "owner=%u inc=%llu slot=%u mode=%s why=%s bits=%#llx marks=%#llx -- "
 			     "a holder no member carries, whose tenancy the heartbeat table "
 			     "shows ended with nothing left to replay; retired, never "
-			     "installed as a blocker",
+			     "installed as a blocker\n",
 			     site, page, rr->res.type, (unsigned long long)rr->res.ino,
 			     rr->res.ag_number, r[k].ex_node, (unsigned long long)r[k].ex_inc,
 			     rr->ex_slot, r[k].ex_node ? mode_name(rr->ex_mode) : "shared",
@@ -4039,15 +4071,25 @@ static void dlm_page_explain(struct mxfs_dlm_ctx *ctx,
  * 0 = prepared (or already), -EAGAIN = drain not complete, else error. */
 static int dlm_page_hand_to(struct mxfs_dlm_ctx *ctx, uint32_t page,
 			    mxfs_node_id_t target, uint64_t target_inc,
-			    const char *why, bool departing)
+			    const char *why, bool departing, uint64_t *ph)
 {
-	uint64_t seq = 0;
+	uint64_t seq = 0, t0 = 0;
 	int rc;
 
 	if (!target_inc)
 		return -ENOENT;
+	/* ph (the departure pass): ms in the freeze drain, the prepare and the
+	 * FROZEN's send, added to ph[0..2] */
+	if (ph)
+		t0 = mxfs_pal_time_ms();
 	if (!dlm_page_freeze_drain(ctx, page))
 		return -EAGAIN;
+	if (ph) {
+		uint64_t t1 = mxfs_pal_time_ms();
+
+		ph[0] += t1 - t0;
+		t0 = t1;
+	}
 	/*
 	 * 0.75.18 (D-TCP-VIEW-CHANGE-HANDOFF-PREPARES-PAGE-TO-THE-NODE-THAT-
 	 * JUST-SAID-GOODBYE-...-0909): the caller computed `target` under the
@@ -4085,6 +4127,12 @@ static int dlm_page_hand_to(struct mxfs_dlm_ctx *ctx, uint32_t page,
 	}
 	rc = mxfs_tauth_ledger_prepare(ctx->ledger, page, ctx->ledger_gen, target,
 				       target_inc, 0, 0, false, &seq);
+	if (ph) {
+		uint64_t t1 = mxfs_pal_time_ms();
+
+		ph[1] += t1 - t0;
+		t0 = t1;
+	}
 	if (rc)
 		return rc;
 	ctx->handoff_prepares++;
@@ -4094,7 +4142,42 @@ static int dlm_page_hand_to(struct mxfs_dlm_ctx *ctx, uint32_t page,
 		     (unsigned long long)seq, why);
 	dlm_send_handoff(ctx, target, page, MXFS_HANDOFF_FROZEN, target, target_inc,
 			 seq, ctx->local_node, ctx->local_inc);
+	if (ph)
+		ph[2] += mxfs_pal_time_ms() - t0;
 	return 0;
+}
+
+/* A FROZEN page handed to this node: activate it (the receiving half of
+ * dlm_page_hand_to). */
+static int dlm_frozen_activate(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t sender,
+			       const struct mxfs_dlm_page_handoff *msg)
+{
+	uint32_t page = msg->page;
+	int rc;
+
+	if (dlm_page_handoff_owner(ctx, page) != ctx->local_node) {
+		/* ruling 2: complete the exact chain as a NON-serving relay —
+		 * activate, then hand onward on the next tick */
+		rc = mxfs_tauth_ledger_activate(ctx->ledger, page, ctx->ledger_gen,
+						msg->prepared_seq, false);
+		if (rc == 0) {
+			dlm_set_page_state(ctx, page, DLM_PS_FROZEN);
+			ctx->handoff_scan = true;
+		}
+		return rc;
+	}
+	rc = mxfs_tauth_ledger_activate(ctx->ledger, page, ctx->ledger_gen,
+					msg->prepared_seq, false);
+	if (rc == 0)
+		dlm_page_now_mine(ctx, page, "frozen-msg");
+	else
+		/* a hand-off that was announced and not consumed leaves the
+		 * page prepared to this node with nobody to repeat it */
+		pr_warn_ratelimited(
+		    "mxfs: P-TAUTH-FROZEN-NOT-CONSUMED page=%u from=%u seq=%llu rc=%d gen=%#llx -- the activation of a page handed to this node was refused\n",
+		    page, sender, (unsigned long long)msg->prepared_seq, rc,
+		    (unsigned long long)ctx->ledger_gen);
+	return rc;
 }
 
 int mxfs_dlm_process_page_handoff(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t sender,
@@ -4361,29 +4444,7 @@ int mxfs_dlm_process_page_handoff(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t sende
 					     "now maps over the view without it",
 					     sender, (unsigned long long)msg->auth_inc, page);
 		}
-		if (dlm_page_handoff_owner(ctx, page) != ctx->local_node) {
-			/* ruling 2: complete the exact chain as a NON-serving relay —
-			 * activate, then hand onward on the next tick */
-			rc = mxfs_tauth_ledger_activate(ctx->ledger, page, ctx->ledger_gen,
-							msg->prepared_seq, false);
-			if (rc == 0) {
-				dlm_set_page_state(ctx, page, DLM_PS_FROZEN);
-				ctx->handoff_scan = true;
-			}
-			return rc;
-		}
-		rc = mxfs_tauth_ledger_activate(ctx->ledger, page, ctx->ledger_gen,
-						msg->prepared_seq, false);
-		if (rc == 0)
-			dlm_page_now_mine(ctx, page, "frozen-msg");
-		else
-			/* a hand-off that was announced and not consumed leaves the
-			 * page prepared to this node with nobody to repeat it */
-			pr_warn_ratelimited(
-			    "mxfs: P-TAUTH-FROZEN-NOT-CONSUMED page=%u from=%u seq=%llu rc=%d gen=%#llx -- the activation of a page handed to this node was refused\n",
-			    page, sender, (unsigned long long)msg->prepared_seq, rc,
-			    (unsigned long long)ctx->ledger_gen);
-		return rc;
+		return dlm_frozen_activate(ctx, sender, msg);
 	case MXFS_HANDOFF_DEFER:
 		ctx->handoff_defers++;
 		return 0;
@@ -4427,6 +4488,17 @@ void mxfs_dlm_handoff_tick(struct mxfs_dlm_ctx *ctx)
 		if (dlm_authority_lost(ctx) ||
 		    ctx->ledger->store.target_refused != refused0)
 			return;
+		/* A mount that is leaving moves no page here: its departure pass
+		 * (mxfs_dlm_handoff_depart) hands every page it still serves to the
+		 * view without it, which for a pair is the same owner this pass is
+		 * moving them to.  The teardown joins the thread that runs this pass
+		 * before it reaches the departure pass, so a pass that went on held
+		 * the unmount for its whole length: on the physical DRBD pair a
+		 * rejoin's pass of 1303 pages, ~36 ms each, held a stop that began
+		 * mid-pass for 45 s (P-TCP-DEATH-PASS-HELD handoff=52627).  Stopping
+		 * between pages leaves no page half moved. */
+		if (ctx->shutting_down)
+			return;
 		if (mxfs_tauth_ledger_page_auth(ctx->ledger, p, false, &a))
 			continue;       /* not loaded: nothing of ours to move */
 		if (a.auth_node != ctx->local_node || a.auth_inc != ctx->local_inc)
@@ -4440,7 +4512,7 @@ void mxfs_dlm_handoff_tick(struct mxfs_dlm_ctx *ctx)
 			}
 			rc = dlm_page_hand_to(ctx, p, owner,
 					      ctx->node_inc_cb ? ctx->node_inc_cb(ctx->cb_data, owner) : 0,
-					      "view-change", false);
+					      "view-change", false, NULL);
 			if (rc)
 				left++;
 		} else if (a.state == MXFS_TAUTH_PG_PREPARED &&
@@ -4548,7 +4620,7 @@ static int dlm_takeover_page(struct mxfs_dlm_ctx *ctx, uint32_t p, mxfs_node_id_
 	struct mxfs_tauth_page_auth a;
 	mxfs_node_id_t owner;
 	uint64_t seq = 0, tinc;
-	bool retarget, to_self = false;
+	bool retarget, to_self = false, hand_on = false;
 	int rc;
 
 	rc = mxfs_tauth_ledger_page_auth(ctx->ledger, p, true, &a);
@@ -4630,13 +4702,41 @@ static int dlm_takeover_page(struct mxfs_dlm_ctx *ctx, uint32_t p, mxfs_node_id_
 		owner = ctx->local_node;
 		seq = a.seq;
 	} else {
-		owner = dlm_page_owner(ctx, p);
+		/*
+		 * Over the view without the members that have announced their
+		 * departure, as every hand-off is routed.  dlm_page_owner still names
+		 * a departing node until its GOODBYE is processed, and the takeover
+		 * prepared pages to it: measured on the physical DRBD pair (0.90.110),
+		 * the survivor's orphan sweep prepared and retargeted pages to the
+		 * host that was leaving (P-TAUTH-PREPARED target=<departer>,
+		 * P-TAUTH-RETARGET new_target=<departer>), commits that only had to be
+		 * redone once the GOODBYE landed, taking the pair's swap lock from the
+		 * departure itself.
+		 */
+		owner = dlm_page_handoff_owner(ctx, p);
 		tinc = (owner == ctx->local_node) ? ctx->local_inc :
 		       (ctx->node_inc_cb ? ctx->node_inc_cb(ctx->cb_data, owner) : 0);
 		if (!tinc && hint_node != 0 && owner == hint_node)
 			tinc = hint_inc;
-		if (!tinc)
-			return -EAGAIN;
+		/*
+		 * The view routes the page to a peer whose incarnation the slot map
+		 * cannot name yet: a peer that has just joined, until the heartbeat
+		 * monitor has read its beat.  This returned -EAGAIN, the pass counted
+		 * the page skipped and never came back to it, and the page stayed
+		 * under the dead authority.  Measured on the nested DRBD pair
+		 * (0.90.113, withdraw-p1, the withdrawn host rejoining 4 s into the
+		 * survivor's pass): skipped=413 noinc=413 of cand=2019, and 397 pages
+		 * still under the dead incarnation long after the pass ended.  Take
+		 * the page over to this node instead; the hand-off tick passes it to
+		 * its view owner once that owner can be named, as for a page a
+		 * departing node prepared to us.
+		 */
+		if (!tinc) {
+			ctx->takeover_skip_noinc++;
+			owner = ctx->local_node;
+			tinc = ctx->local_inc;
+			hand_on = true;
+		}
 		rc = mxfs_tauth_ledger_prepare(ctx->ledger, p, ctx->ledger_gen, owner, tinc,
 					       node, inc, retarget, &seq);
 		if (rc == -ESTALE || rc == -EBUSY) {
@@ -4760,6 +4860,8 @@ static int dlm_takeover_page(struct mxfs_dlm_ctx *ctx, uint32_t p, mxfs_node_id_
 				if (dlm_page_owner(ctx, p) != ctx->local_node)
 					ctx->handoff_scan = true;
 			}
+			if (hand_on && dlm_page_owner(ctx, p) != ctx->local_node)
+				ctx->handoff_scan = true;
 		}
 	} else {
 		dlm_send_handoff(ctx, owner, p, MXFS_HANDOFF_FROZEN, owner, tinc, seq,
@@ -4795,11 +4897,12 @@ int mxfs_dlm_handoff_takeover(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t node,
 {
 	struct dlm_takeover_scan sc;
 	uint32_t p, scanned = 0;
-	uint64_t t0, scan_ms, refused0;
+	uint64_t t0, scan_ms, refused0, noinc0;
 	int done = 0, skipped = 0, rc;
 
 	if (!ctx || !dlm_ledger_active(ctx) || !ctx->page_state)
 		return -EINVAL;
+	noinc0 = ctx->takeover_skip_noinc;
 	if (ctx->shutting_down)
 		return -ESHUTDOWN;  /* admission closed: this mount is leaving */
 	if (dlm_bootstrap_node(ctx) != ctx->local_node)
@@ -4897,20 +5000,27 @@ int mxfs_dlm_handoff_takeover(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t node,
 		 */
 		if (dlm_bootstrap_node(ctx) != ctx->local_node) {
 			uint32_t q, remaining = 0;
+			mxfs_node_id_t bn = ctx->bootstrap_node_cb ?
+				ctx->bootstrap_node_cb(ctx->cb_data, NULL) : 0;
 
 			for (q = p; q < ctx->page_count; q++)
 				if (sc.cand[q >> 3] & (1u << (q & 7)))
 					remaining++;
 			ctx->handoff_decertified++;
+			/* bn: the node the election names now (this node's own id
+			 * when it holds the lowest live slot but is not ready; 0 when
+			 * the lowest live slot's node cannot be named yet) */
 			mxfs_pal_log(MXFS_LOG_WARN,
 				     "mxfs: P-TAUTH-TAKEOVER-DECERTIFIED departed=%u/%llu "
 				     "at_page=%u pages_prepared=%d skipped=%d remaining=%u "
-				     "cand=%u elapsed_ms=%llu -- this mount no longer holds "
-				     "the lowest live slot; the remaining pages are the "
-				     "certified node's to move, through its orphan sweep",
+				     "cand=%u elapsed_ms=%llu bn=%u bn_in_view=%d -- this "
+				     "mount no longer holds the lowest live slot; the "
+				     "remaining pages are the certified node's to move, "
+				     "through its orphan sweep",
 				     node, (unsigned long long)inc, p, done, skipped,
 				     remaining, sc.ncand,
-				     (unsigned long long)(mxfs_pal_time_ms() - t0));
+				     (unsigned long long)(mxfs_pal_time_ms() - t0),
+				     bn, bn ? (dlm_node_in_view(ctx, bn) ? 1 : 0) : 0);
 			ctx->handoff_takeovers += done;
 			mxfs_tauth_pass_quiet = 0;
 			mxfs_pal_free(sc.cand);
@@ -4932,6 +5042,23 @@ int mxfs_dlm_handoff_takeover(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t node,
 		     scanned, sc.ncand, sc.bad, (unsigned long long)scan_ms,
 		     (unsigned long long)(mxfs_pal_time_ms() - t0),
 		     (unsigned long long)ctx->handoff_self_consumed);
+	/*
+	 * A skipped page stays under the departed authority and this pass does
+	 * not come back to it: name how many.  noinc counts the pages taken to
+	 * this node because the slot map could not yet name the incarnation of
+	 * the peer the view routes them to (a peer that has just joined); the
+	 * hand-off tick passes those on.
+	 */
+	if (skipped || ctx->takeover_skip_noinc != noinc0)
+		mxfs_pal_log(skipped ? MXFS_LOG_WARN : MXFS_LOG_INFO,
+			     "mxfs: P-TAUTH-TAKEOVER-SKIPPED departed=%u/%llu skipped=%d "
+			     "noinc=%llu pages_prepared=%d cand=%u total_ms=%llu -- skipped "
+			     "pages stay under the departed authority; noinc pages were "
+			     "taken to this node for the hand-off tick to pass on",
+			     node, (unsigned long long)inc, skipped,
+			     (unsigned long long)(ctx->takeover_skip_noinc - noinc0),
+			     done, sc.ncand,
+			     (unsigned long long)(mxfs_pal_time_ms() - t0));
 	mxfs_pal_free(sc.cand);
 	return skipped ? -EAGAIN : done;
 }
@@ -5165,29 +5292,70 @@ int mxfs_dlm_takeover_orphans(struct mxfs_dlm_ctx *ctx)
  */
 #define DLM_DEPART_WORKERS	8
 
+/*
+ * THE DEPARTURE'S BUDGET.  The pages a node serves grow with the volume, not
+ * with what is in use: every page ever decided on stays ACTIVE under its
+ * authority, the region holds one page per ~2 MiB of device (21,140 on a 40
+ * GiB pair), and a node can serve all of them.  Measured on the physical DRBD
+ * pair (0.90.109): 3,391-3,465 pages handed in 47-71 s, so a departure scales
+ * to minutes and past the unit's unmount bound, where a clean departure turns
+ * into a loss.  Handing a page here only saves the successor a takeover: what
+ * the departure has not handed when the budget runs out stays under this
+ * node's authority, and the successor's takeover on GOODBYE moves it (as it
+ * already does for a page whose target could not be named), with any page a
+ * request needs taken over on demand ahead of that pass.  ms; 0 = no budget.
+ *
+ * On by default at 2000 ms since 0.90.111, once the survivor's takeover on
+ * GOODBYE ran whichever heartbeat slot the departing host held: 16
+ * departures on the physical and nested DRBD pairs stopped their units in
+ * 3.6-15.8 s with 159-3219 pages left to the survivor, and every page left
+ * was taken over.
+ */
+static unsigned int mxfs_dl_depart_budget_ms = 2000;
+module_param_named(tauth_depart_budget_ms, mxfs_dl_depart_budget_ms, uint, 0644);
+MODULE_PARM_DESC(tauth_depart_budget_ms,
+    "longest a clean departure spends handing its ledger pages to the survivor before it leaves the rest to the survivor's takeover (ms; 0 = no bound; default 2000)");
+
 struct dlm_depart_job {
 	struct mxfs_dlm_ctx	*ctx;
 	const mxfs_node_id_t	*others;
 	int			n;
+	uint64_t		deadline;	/* ms; 0 = none */
 	mxfs_atomic32_t		next;	/* the next page to take */
 	mxfs_atomic32_t		left;	/* pages not handed */
+	/* where the pass's time goes: per worker, ms in the freeze drain, the
+	 * prepare and the send, and pages handed; and how many workers were
+	 * inside a hand-off at once, at most */
+	mxfs_atomic32_t		slot, inflight, peak;
+	uint64_t		ph[DLM_DEPART_WORKERS][4];
 };
 
 static void dlm_depart_worker(void *arg)
 {
 	struct dlm_depart_job *j = arg;
 	struct mxfs_dlm_ctx *ctx = j->ctx;
-	int32_t p;
+	int32_t p, me = mxfs_atomic32_inc(&j->slot) - 1;
+	uint64_t *ph = (me >= 0 && me < DLM_DEPART_WORKERS) ? j->ph[me] : NULL;
 
 	while ((p = mxfs_atomic32_inc(&j->next) - 1) < (int32_t)ctx->page_count) {
 		mxfs_node_id_t target = j->others[(uint32_t)p % (uint32_t)j->n];
+		int32_t in, pk;
 
+		if (j->deadline && mxfs_pal_time_ms() >= j->deadline)
+			break;
 		if (!mxfs_tauth_ledger_page_mine(ctx->ledger, (uint32_t)p))
 			continue;
+		in = mxfs_atomic32_inc(&j->inflight);
+		while ((pk = mxfs_atomic32_get(&j->peak)) < in &&
+		       mxfs_atomic32_cmpxchg(&j->peak, pk, in) != pk)
+			;
 		if (dlm_page_hand_to(ctx, (uint32_t)p, target,
 				     ctx->node_inc_cb ? ctx->node_inc_cb(ctx->cb_data, target) : 0,
-				     "depart", true))
+				     "depart", true, ph))
 			mxfs_atomic32_inc(&j->left);
+		mxfs_atomic32_dec(&j->inflight);
+		if (ph)
+			ph[3]++;
 	}
 }
 
@@ -5212,11 +5380,17 @@ int mxfs_dlm_handoff_depart(struct mxfs_dlm_ctx *ctx)
 	ctx->departing = true;  /* 0.75.20: every FROZEN from here carries the
 							 * departing flag (see dlm_send_handoff) */
 	t0 = mxfs_pal_time_ms();
+	memset(&job, 0, sizeof(job));
 	job.ctx = ctx;
 	job.others = others;
 	job.n = n;
+	if (READ_ONCE(mxfs_dl_depart_budget_ms))
+		job.deadline = t0 + READ_ONCE(mxfs_dl_depart_budget_ms);
 	mxfs_atomic32_set(&job.next, 0);
 	mxfs_atomic32_set(&job.left, 0);
+	mxfs_atomic32_set(&job.slot, 0);
+	mxfs_atomic32_set(&job.inflight, 0);
+	mxfs_atomic32_set(&job.peak, 0);
 	/* a thread that cannot be created leaves its share to the others */
 	for (i = 0; i < DLM_DEPART_WORKERS - 1; i++) {
 		workers[nw] = mxfs_pal_thread_create(dlm_depart_worker, &job);
@@ -5227,18 +5401,46 @@ int mxfs_dlm_handoff_depart(struct mxfs_dlm_ctx *ctx)
 	for (i = 0; i < nw; i++)
 		mxfs_pal_thread_join(workers[i]);
 	left = mxfs_atomic32_get(&job.left);
-	mxfs_pal_log(MXFS_LOG_DEBUG, "mxfs: P-TAUTH-DEPART node=%u pages_left=%d workers=%d ms=%llu",
-		     ctx->local_node, left, nw + 1,
-		     (unsigned long long)(mxfs_pal_time_ms() - t0));
+	/* the budget ran out: what is left is every page still ours, the ones
+	 * no worker reached as well as any whose hand-off failed */
+	if (mxfs_atomic32_get(&job.next) < (int32_t)ctx->page_count) {
+		uint32_t p;
+
+		left = 0;
+		for (p = 0; p < ctx->page_count; p++)
+			if (mxfs_tauth_ledger_page_mine(ctx->ledger, p))
+				left++;
+	}
+	{
+		uint64_t sum[4] = { 0, 0, 0, 0 };
+		int k;
+
+		for (i = 0; i < DLM_DEPART_WORKERS; i++)
+			for (k = 0; k < 4; k++)
+				sum[k] += job.ph[i][k];
+		mxfs_pal_log(MXFS_LOG_DEBUG,
+			     "mxfs: P-TAUTH-DEPART node=%u pages_left=%d workers=%d ms=%llu "
+			     "pages=%llu peak_inflight=%d budget_ms=%u worker_ms: drain=%llu "
+			     "prepare=%llu send=%llu",
+			     ctx->local_node, left, nw + 1,
+			     (unsigned long long)(mxfs_pal_time_ms() - t0),
+			     (unsigned long long)sum[3], mxfs_atomic32_get(&job.peak),
+			     READ_ONCE(mxfs_dl_depart_budget_ms),
+			     (unsigned long long)sum[0], (unsigned long long)sum[1],
+			     (unsigned long long)sum[2]);
+	}
 	return left;
 }
 
 /* Before any decision on `resource`: the page must be current and imported
  * under the generation the decision will record.  0, or -EAGAIN when the
- * generation moved (retry), or a fail-closed error. */
+ * generation moved (retry), or a fail-closed error.  `nowait` (an AG lock's
+ * request that asked not to queue): -EAGAIN instead of any ledger I/O or page
+ * lock wait, unless the page is already ready; the page is marked for
+ * mxfs_dlm_prepare_wanted. */
 static int dlm_ledger_prepare(struct mxfs_dlm_ctx *ctx,
 			      const struct mxfs_resource_id *resource,
-			      uint64_t *gen_out)
+			      uint64_t *gen_out, bool nowait)
 {
 	uint64_t gen;
 	int rc;
@@ -5259,6 +5461,45 @@ static int dlm_ledger_prepare(struct mxfs_dlm_ctx *ctx,
 	*gen_out = gen;
 	if (!dlm_ledger_active(ctx))
 		return 0;
+	/*
+	 * A no-queue AG request does no ledger I/O and never waits for a page
+	 * lock: its caller, the allocator's trylock pass, holds the inode's ILOCK,
+	 * and every write to that file waits behind it.  A page that is this
+	 * node's, imported under `gen`, and free this instant is decided on at
+	 * once; ensuring and importing it would find nothing to do.  Any other
+	 * page answers would-block and is marked for mxfs_dlm_prepare_wanted,
+	 * which prepares it on the hand-off worker, holding nothing.
+	 *
+	 * Measured on the physical DRBD pair on slow disks: preparing the page
+	 * here, the trylock slept over 30 s in an activation's page lock under a
+	 * VM image's ILOCK, and even with the lock free it spent up to 2.7 s on
+	 * the page's own reads and commit.  Answering would-block without having
+	 * anyone prepare the page left pages only trylocks touched unactivated:
+	 * one AG's page was skipped 26 times, the allocator piled onto the AGs it
+	 * could get, and one host's guests flushed at twice the latency.
+	 */
+	if (nowait && ctx->page_state) {
+		uint32_t page = dlm_res_page(ctx, resource);
+		int ready = 0;
+
+		if (page < ctx->page_count) {
+			if (ctx->page_state[page] == DLM_PS_MINE &&
+			    ctx->page_import_gen && ctx->page_import_gen[page] == gen)
+				ready = mxfs_tauth_ledger_page_ready_nowait(ctx->ledger, page, gen);
+			if (ready == 1)
+				return 0;
+			if (ctx->page_want) {
+				WRITE_ONCE(ctx->page_want[page], 1);
+				WRITE_ONCE(ctx->page_want_any, 1);
+			}
+			mxfs_probe_ratelimited(
+			    "mxfs: P-ACQ-NOQUEUE-LEDGER-NOTREADY type=%u ino=%llu ag=%u page=%u state=%u ready=%d comm=%s -- a no-queue request answers would-block and leaves its ledger page to the hand-off worker\n",
+			    resource->type, (unsigned long long)resource->ino,
+			    resource->ag_number, page, ctx->page_state[page], ready,
+			    dlm_cur_comm());
+			return -EAGAIN;
+		}
+	}
 	/* (step 4): the page's durable authority must be THIS node
 	 * before anything is imported or decided; otherwise the decision is
 	 * parked (the requester retries / re-routes) while the handoff runs */
@@ -5297,6 +5538,55 @@ static int dlm_ledger_prepare(struct mxfs_dlm_ctx *ctx,
 			     resource->type, (unsigned long long)resource->ino,
 			     resource->ag_number, dlm_res_page(ctx, resource), rc);
 	return rc;
+}
+
+/*
+ * The pages AG locks' no-queue requests answered would-block on, prepared
+ * exactly as a blocking request's dlm_ledger_prepare would, on a thread that
+ * holds nothing.  A mark that lands while the pass runs is taken by this pass
+ * or the next; a page that is still not ready is marked again by the next
+ * no-queue request on it, so nothing here needs to keep a failed page.
+ */
+void mxfs_dlm_prepare_wanted(struct mxfs_dlm_ctx *ctx)
+{
+	uint32_t p, done = 0, failed = 0;
+	uint64_t t0;
+	int last_rc = 0;
+
+	if (!ctx || !ctx->page_want || !READ_ONCE(ctx->page_want_any))
+		return;
+	WRITE_ONCE(ctx->page_want_any, 0);
+	t0 = mxfs_pal_time_ms();
+	for (p = 0; p < ctx->page_count; p++) {
+		uint64_t gen;
+		int rc;
+
+		if (!READ_ONCE(ctx->page_want[p]))
+			continue;
+		WRITE_ONCE(ctx->page_want[p], 0);
+		if (ctx->shutting_down || dlm_authority_lost(ctx) ||
+		    dlm_ledger_refuses(ctx) || !dlm_ledger_active(ctx))
+			break;
+		gen = ctx->ledger_gen;
+		rc = dlm_page_ensure_mine(ctx, p, gen);
+		if (rc == 0)
+			rc = dlm_ledger_import_page(ctx, p, gen);
+		if (rc) {
+			failed++;
+			last_rc = rc;
+		} else {
+			done++;
+		}
+	}
+	ctx->prepare_wanted_pages += done;
+	ctx->prepare_wanted_failed += failed;
+	if (done || failed)
+		mxfs_probe_ratelimited(
+		    "mxfs: P-PREPARE-WANTED prepared=%u failed=%u last_rc=%d ms=%llu total=%llu/%llu -- ledger pages no-queue requests met not ready, prepared on the hand-off worker\n",
+		    done, failed, last_rc,
+		    (unsigned long long)(mxfs_pal_time_ms() - t0),
+		    (unsigned long long)ctx->prepare_wanted_pages,
+		    (unsigned long long)ctx->prepare_wanted_failed);
 }
 
 /* ── 3d/3e: the transition ── */
@@ -6829,6 +7119,9 @@ void mxfs_dlm_attach_ledger(struct mxfs_dlm_ctx *ctx,
 		ctx->page_req_ms = mxfs_pal_alloc(sizeof(uint64_t) * ledger->npages);
 		if (ctx->page_req_ms)
 			memset(ctx->page_req_ms, 0, sizeof(uint64_t) * ledger->npages);
+		ctx->page_want = mxfs_pal_alloc(ledger->npages);
+		if (ctx->page_want)
+			memset(ctx->page_want, 0, ledger->npages);
 		mxfs_tauth_ledger_set_config_id(ledger, ctx->my_view_hash);
 		mxfs_pal_mutex_lock(ctx->active_nodes.lock);
 		ctx->view_seq++;
@@ -7258,6 +7551,8 @@ void mxfs_dlm_destroy(struct mxfs_dlm_ctx *ctx)
 		mxfs_pal_free(ctx->page_state);
 	if (ctx->page_req_ms)
 		mxfs_pal_free(ctx->page_req_ms);
+	if (ctx->page_want)
+		mxfs_pal_free(ctx->page_want);
 
 	mxfs_pal_log(MXFS_LOG_DEBUG,
 		     "dlm: destroyed, freed %u lock entries", freed);
@@ -8761,8 +9056,41 @@ lockreq_sent:
 	/* the ledger page must be current + imported before any
 	 * decision on this resource (activation barrier / fail-stop refuse). */
 	{
-		int prc = dlm_ledger_prepare(ctx, resource, &ledger_gen);
+		/*
+		 * Only an AG lock's no-queue request (the allocator's trylock,
+		 * which holds the inode's ILOCK) answers would-block on an unready
+		 * page.  The inode allocator's no-queue tries probe one inode
+		 * number after another, and an early would-block there skips the
+		 * number: on 4/net/mesh/direct the 256 creates of one node then
+		 * filled no inode chunk whole, and the allocation witness could
+		 * not grade the run.  Those tries keep the wait they always had.
+		 */
+		bool noqueue = flags & MXFS_LKF_NOQUEUE;
+		bool agtry = noqueue && resource->type == MXFS_LTYPE_AG;
+		uint64_t pt0 = mxfs_pal_time_ms();
+		int prc = dlm_ledger_prepare(ctx, resource, &ledger_gen,
+					     agtry && READ_ONCE(mxfs_dl_noqueue_ledger_nowait));
+		uint64_t pms = mxfs_pal_time_ms() - pt0;
 
+		if (noqueue && pms >= 1000)
+			mxfs_probe_ratelimited(
+			    "mxfs: P-ACQ-NOQUEUE-PREPARE-SLOW type=%u ino=%llu ag=%u mode=%s ms=%llu rc=%d nowait=%d comm=%s -- a no-queue request spent this long in its ledger page's preparation\n",
+			    resource->type, (unsigned long long)resource->ino,
+			    resource->ag_number, mode_name(mode),
+			    (unsigned long long)pms, prc,
+			    READ_ONCE(mxfs_dl_noqueue_ledger_nowait), dlm_cur_comm());
+		if (prc == -EAGAIN && agtry) {
+			int wb = READ_ONCE(mxfs_dl_noqueue_prepare_wouldblock);
+
+			mxfs_probe_ratelimited(
+			    "mxfs: P-ACQ-NOQUEUE-PREPARE type=%u ino=%llu ag=%u mode=%s wouldblock=%d comm=%s -- a no-queue request met its ledger page not ready on this master; %s\n",
+			    resource->type, (unsigned long long)resource->ino,
+			    resource->ag_number, mode_name(mode), wb,
+			    dlm_cur_comm(),
+			    wb ? "it answers would-block" : "it parks and retries");
+			if (wb)
+				return -EAGAIN;
+		}
 		if (prc == -EAGAIN)
 			return dlm_retry(ctx, 4);
 		/* 0.84.5 (D-...-0960): the page is in a takeover a live bootstrap
@@ -10238,14 +10566,20 @@ int mxfs_dlm_lock_retries(struct mxfs_dlm_ctx *ctx,
 
 	mxfs_pal_log(MXFS_LOG_ERR,
 		     "mxfs: lock request failed after %d retries during "
-		     "cluster membership changes -- file operation will "
-		     "return an error (type=%u ino=%llu ag=%u mode=%s last_rc=%d "
-		     "timeouts=%d transport=%d "
+		     "cluster membership changes -- %s "
+		     "(type=%u ino=%llu ag=%u mode=%s last_rc=%d "
+		     "flags=0x%x age_ms=%llu comm=%s timeouts=%d transport=%d "
 		     "why[pend-retry=%u remaster=%u ledger-busy=%u prepare=%u "
 		     "own-pending=%u own-release=%u refused=%u grant-again=%u "
 		     "wait-retry=%u capacity=%u transition-waits=%d])",
-		     retries0, resource->type, (unsigned long long)resource->ino,
-		     resource->ag_number, mode_name(mode), ret, n_timeout, n_xport,
+		     retries0,
+		     (flags & MXFS_LKF_NOQUEUE) ?
+			"a no-queue caller reads this as would-block" :
+			"file operation will return an error",
+		     resource->type, (unsigned long long)resource->ino,
+		     resource->ag_number, mode_name(mode), ret, flags,
+		     (unsigned long long)(mxfs_pal_time_ms() - acq_t0),
+		     dlm_cur_comm(), n_timeout, n_xport,
 		     ctx->retry_why[1] - why0[1], ctx->retry_why[2] - why0[2],
 		     ctx->retry_why[3] - why0[3], ctx->retry_why[4] - why0[4],
 		     ctx->retry_why[5] - why0[5], ctx->retry_why[6] - why0[6],
@@ -11785,6 +12119,12 @@ int mxfs_dlm_update_active_nodes(struct mxfs_dlm_ctx *ctx,
 	return changed ? 1 : 0;
 }
 
+/* Is `node` a member of this node's current view? */
+bool mxfs_dlm_node_in_view(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t node)
+{
+	return ctx && node && dlm_node_in_view(ctx, node);
+}
+
 bool mxfs_dlm_is_single_node(struct mxfs_dlm_ctx *ctx)
 {
 	if (!ctx)
@@ -12580,7 +12920,7 @@ int mxfs_dlm_process_remote_request(struct mxfs_dlm_ctx *ctx,
 	}
 	/* page current + blockers imported before any decision */
 	{
-		int prc = dlm_ledger_prepare(ctx, resource, &ledger_gen);
+		int prc = dlm_ledger_prepare(ctx, resource, &ledger_gen, false);
 
 		if (prc) {
 			if (prc == -EAGAIN) {
@@ -13761,7 +14101,7 @@ int mxfs_dlm_process_cancel(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t sender,
 		return -EREMOTE;
 	}
 	if (dlm_ledger_active(ctx)) {
-		int prc = dlm_ledger_prepare(ctx, resource, &ledger_gen);
+		int prc = dlm_ledger_prepare(ctx, resource, &ledger_gen, false);
 
 		if (prc) {
 			/* the page is not ours to decide on right now: the sender
@@ -13880,7 +14220,7 @@ int mxfs_dlm_process_remote_release(struct mxfs_dlm_ctx *ctx,
 	 * ledger-imported blocker of this very sender (mirror purged on its
 	 * side by a membership change, record still ACTIVE) */
 	if (dlm_ledger_active(ctx)) {
-		int prc = dlm_ledger_prepare(ctx, resource, &ledger_gen);
+		int prc = dlm_ledger_prepare(ctx, resource, &ledger_gen, false);
 
 		if (prc) {
 			if (sender != ctx->local_node)

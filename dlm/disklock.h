@@ -3453,6 +3453,9 @@ int  mxfs_disklock_incarnations_settled(struct mxfs_disklock_ctx *ctx,
  * (includes local_slot), excluding skip_slot.  -1 if none. */
 int  mxfs_disklock_lowest_live_slot(struct mxfs_disklock_ctx *ctx,
 				    int skip_slot);
+/* The same election passing over every slot in skip_mask (bit n = slot n). */
+int  mxfs_disklock_lowest_live_slot_mask(struct mxfs_disklock_ctx *ctx,
+					 uint64_t skip_mask);
 /* Position of this node in that same election: the number of live slots below
  * ours, so 0 is the elected node and N is the N-th stand-in behind it.  -1 if
  * this node holds no slot.  For work that must still happen when the elected

@@ -72,6 +72,9 @@ int mxfs_pal_bio_read_sectors_bdev(struct block_device *bdev, int n,
 				   const uint64_t *lbas, void *const *bufs, int *rcs);
 int mxfs_pal_bio_write_fua_sectors_bdev(struct block_device *bdev, int n,
 					const uint64_t *lbas, void *const *bufs, int *rcs);
+int mxfs_pal_bio_write_fua_spans_bdev(struct block_device *bdev, int n,
+				      const uint64_t *lbas, void *const *bufs,
+				      const uint32_t *lens, int *rcs);
 
 #define MXFS_DRBDW_PROC_NAME	"fs/mxfs/drbd_report"
 #define MXFS_DRBDW_PROC_PATH	"/proc/" MXFS_DRBDW_PROC_NAME
@@ -559,21 +562,24 @@ struct mxfs_drbd_cas {
 	char			proc_buf[4096];
 	u64			witness_skipped;
 	/*
-	 * The critical section's sectors, under `lock`: one read buffer and one
-	 * write buffer per swap of a batch (crit_buf, kmalloc'd at attach: a bio
-	 * cannot be built on a caller's stack image), and the vectors handed to
-	 * the PAL for a wave of them (mxfs_drbd_cas_serve).
+	 * The critical section's buffers, under `lock`, kmalloc'd at attach (a
+	 * bio cannot be built on a caller's stack image): one read sector per
+	 * swap of a batch (crit_buf), one write buffer per swap of a wave, long
+	 * enough for a span swap's whole range (crit_wbuf), and the vectors
+	 * handed to the PAL for a wave (mxfs_drbd_cas_serve).
 	 */
 	u8			*crit_buf;
+	void			*crit_wbuf[MXFS_DRBD_CAS_BATCH];
 	u64			crit_lba[MXFS_DRBD_CAS_BATCH];
 	void			*crit_ptr[MXFS_DRBD_CAS_BATCH];
+	u32			crit_len[MXFS_DRBD_CAS_BATCH];
 	int			crit_rc[MXFS_DRBD_CAS_BATCH];
 	int			crit_idx[MXFS_DRBD_CAS_BATCH];
+	u64			st_waves;	/* waves served, since the last stats line */
 };
 #define MXFS_DRBD_STATS_EVERY	512
-#define MXFS_DRBD_CRIT_BUF_BYTES	(2 * MXFS_DRBD_CAS_BATCH * 512)
-/* the longest write a span swap makes: one ledger page (it is written from the
- * critical section's write half, MXFS_DRBD_CAS_BATCH sectors long) */
+#define MXFS_DRBD_CRIT_BUF_BYTES	(MXFS_DRBD_CAS_BATCH * 512)
+/* the longest write a span swap makes: one ledger page (crit_wbuf's length) */
 #define MXFS_DRBD_SPAN_MAX	4096
 
 static LIST_HEAD(mxfs_drbd_cas_list);
@@ -599,6 +605,30 @@ static int mxfs_dbg_drbd_cas_hold_ms;
 module_param_named(dbg_drbd_cas_hold_ms, mxfs_dbg_drbd_cas_hold_ms, int, 0644);
 MODULE_PARM_DESC(dbg_drbd_cas_hold_ms,
 		 "DEBUG one-shot: the next DRBD compare-and-swap holds the lock this many ms. Never enable in production.");
+
+/*
+ * SPAN SWAPS SHARE A WAVE.  Every ledger page commit on a DRBD store is a span
+ * swap (one compared sector, the whole 4 KiB page written), and a span swap was
+ * always served in a wave of its own: under one acquisition of the pair's lock,
+ * a batch of N commits paid N reads and N replicated FUA writes in series.
+ * Measured on the physical pair (0.90.109, a departure handing 621 pages with 8
+ * threads): 2.2 swaps a batch, 14.4 ms of critical section a batch, 46 ms a
+ * batch in all.  With this set, a wave holds every swap of the batch, in queue
+ * order, up to the first whose range overlaps one already in the wave, whatever
+ * their lengths: their compared sectors are read together and the matched
+ * swaps' ranges written together.  Swaps whose ranges are disjoint touch no
+ * sector of each other's, so serving them together reads and writes exactly
+ * what serving them one after the other would.  Measured on the same pair
+ * (0.90.110, tests/pve_depart_wall.sh KNOB=drbd_span_waves): a batch of ~4
+ * page commits held the lock's critical section 17.5 ms against 25-26 ms, and
+ * a departure cost 12.4-13.3 ms a page against 13.7-15.6.  The peer's disks
+ * still take the writes one at a time (queue depth 1), which bounds the gain.
+ * 0 = the old waves.
+ */
+static int mxfs_drbd_span_waves = 1;
+module_param_named(drbd_span_waves, mxfs_drbd_span_waves, int, 0644);
+MODULE_PARM_DESC(drbd_span_waves,
+		 "1 = span swaps (ledger page commits) with disjoint ranges share a wave of the DRBD swap's critical section (the default); 0 = each span swap its own wave");
 
 static u32 mxfs_drbd_crc(const void *sec)
 {
@@ -1147,8 +1177,7 @@ static void mxfs_drbd_cas_serve(struct mxfs_drbd_cas *e)
 	struct mxfs_drbd_cas_req *batch[MXFS_DRBD_CAS_BATCH];
 	struct mxfs_drbd_cas_req *r, *tmp;
 	struct mxfs_drbd_reg *reg;
-	u8 *wbuf;
-	bool dirty = false;
+	bool dirty = false, spanw;
 	int n = 0, i, j, k, m, nw, rc, vrc;
 	u64 t1, t2, t3, t4, traised;
 
@@ -1172,14 +1201,12 @@ static void mxfs_drbd_cas_serve(struct mxfs_drbd_cas *e)
 		return;
 	}
 	/*
-	 * A target image is written from e->crit_buf, never from the caller's
+	 * A target image is written from e->crit_wbuf, never from the caller's
 	 * buffer: COMPARE AND WRITE copies its data into a page of its own, so
 	 * callers hand it stack images (mxfs_bootstrap_claim's `want`), and a
 	 * bio cannot be built on a vmalloc'd kernel stack.  Measured: the
 	 * bootstrap claim on /dev/drbd0 failed -EINVAL after a pair outage.
-	 * The second half of crit_buf holds the wave's writes.
 	 */
-	wbuf = e->crit_buf + MXFS_DRBD_CAS_BATCH * 512;
 
 	/* our register's last write (the previous release) has landed */
 	mxfs_drbd_rel_wait(e);
@@ -1204,20 +1231,24 @@ static void mxfs_drbd_cas_serve(struct mxfs_drbd_cas *e)
 			msleep(hold);
 		}
 	}
+	spanw = READ_ONCE(mxfs_drbd_span_waves);
 	for (i = 0; i < n; i = j) {
-		/* the wave: swaps i..j-1, up to the first whose sector repeats.  A
-		 * span swap writes sectors past the one it compares, so it is served
-		 * in a wave of its own: no other swap of the wave can then target a
-		 * sector it writes, in either order */
+		/* the wave: swaps i..j-1, up to the first whose range overlaps one
+		 * already in it (for one-sector swaps: whose sector repeats).  A
+		 * span swap writes sectors past the one it compares; without
+		 * drbd_span_waves it is served in a wave of its own, so no other
+		 * swap of the wave can target a sector it writes, in either order */
 		for (j = i + 1; j < n; j++) {
-			if (batch[i]->wlen > 512 || batch[j]->wlen > 512)
+			if (!spanw && (batch[i]->wlen > 512 || batch[j]->wlen > 512))
 				break;
 			for (k = i; k < j; k++)
-				if (batch[k]->lba == batch[j]->lba)
+				if (batch[k]->lba < batch[j]->lba + batch[j]->wlen / 512 &&
+				    batch[j]->lba < batch[k]->lba + batch[k]->wlen / 512)
 					break;
 			if (k < j)
 				break;
 		}
+		e->st_waves++;
 		for (k = i; k < j; k++) {
 			e->crit_lba[k - i] = batch[k]->lba;
 			e->crit_ptr[k - i] = e->crit_buf + (k - i) * 512;
@@ -1235,26 +1266,23 @@ static void mxfs_drbd_cas_serve(struct mxfs_drbd_cas *e)
 				r->rc = -EAGAIN;
 				continue;
 			}
-			memcpy(wbuf + nw * 512, r->write_buf, 512);
+			/* from a buffer of our own: a caller's image may be on a
+			 * stack, which no bio is built on */
+			memcpy(e->crit_wbuf[nw], r->write_buf, r->wlen);
 			e->crit_idx[nw++] = k;
 		}
 		if (!nw)
 			continue;
-		if (batch[i]->wlen > 512) {
-			/* a span swap, alone in its wave and matched: its whole
-			 * range in one FUA write, from the write half (a caller's
-			 * image may be on a stack, which no bio is built on) */
-			r = batch[i];
-			memcpy(wbuf, r->write_buf, r->wlen);
-			r->rc = mxfs_pal_bio_write_fua_bdev(e->bdev, r->lba, wbuf, r->wlen);
-			continue;
-		}
+		/* every matched swap's whole range, FUA, issued together */
 		for (m = 0; m < nw; m++) {
-			e->crit_lba[m] = batch[e->crit_idx[m]]->lba;
-			e->crit_ptr[m] = wbuf + m * 512;
+			r = batch[e->crit_idx[m]];
+			e->crit_lba[m] = r->lba;
+			e->crit_ptr[m] = e->crit_wbuf[m];
+			e->crit_len[m] = r->wlen;
 		}
-		vrc = mxfs_pal_bio_write_fua_sectors_bdev(e->bdev, nw, e->crit_lba,
-							  e->crit_ptr, e->crit_rc);
+		vrc = mxfs_pal_bio_write_fua_spans_bdev(e->bdev, nw, e->crit_lba,
+							e->crit_ptr, e->crit_len,
+							e->crit_rc);
 		for (m = 0; m < nw; m++)
 			batch[e->crit_idx[m]]->rc = vrc ? vrc : e->crit_rc[m];
 	}
@@ -1285,8 +1313,8 @@ release:
 		e->st_max = t4 - batch[0]->tq;
 	if (e->st_n >= MXFS_DRBD_STATS_EVERY) {
 		/* per swap: lock (its own wait); per batch: the rest */
-		mxfs_probe("mxfs: P-DRBD-CAS-STATS minor=%u swaps=%llu batches=%llu avg_us lock/swap=%llu enter/batch=%llu wait/batch=%llu crit/batch=%llu rel/batch=%llu max_us=%llu ops=%llu contended=%llu deferred=%llu backoffs=%llu miscompares=%llu witness_skipped=%llu\n",
-			   MINOR(e->devt), e->st_n, e->st_batches,
+		mxfs_probe("mxfs: P-DRBD-CAS-STATS minor=%u swaps=%llu batches=%llu waves=%llu avg_us lock/swap=%llu enter/batch=%llu wait/batch=%llu crit/batch=%llu rel/batch=%llu max_us=%llu ops=%llu contended=%llu deferred=%llu backoffs=%llu miscompares=%llu witness_skipped=%llu\n",
+			   MINOR(e->devt), e->st_n, e->st_batches, e->st_waves,
 			   e->st_lock / e->st_n / 1000,
 			   e->st_enter / e->st_batches / 1000,
 			   e->st_wait / e->st_batches / 1000,
@@ -1294,7 +1322,7 @@ release:
 			   e->st_rel / e->st_batches / 1000, e->st_max / 1000,
 			   e->ops, e->contended, e->deferred, e->backoffs,
 			   e->miscompares, e->witness_skipped);
-		e->st_n = e->st_batches = e->st_lock = e->st_enter = 0;
+		e->st_n = e->st_batches = e->st_waves = e->st_lock = e->st_enter = 0;
 		e->st_wait = e->st_crit = e->st_rel = e->st_max = 0;
 	}
 	kfree(reg);
@@ -1462,6 +1490,38 @@ int mxfs_pal_drbd_cas_emulate_many(mxfs_bdev_t *dev, int n, const uint64_t *offs
 	return 0;
 }
 
+/* An attachment's buffers (struct mxfs_drbd_cas says what each is for).  A
+ * kmalloc of MXFS_DRBD_SPAN_MAX bytes is naturally aligned, so a span swap's
+ * write never crosses a page. */
+static int mxfs_drbd_cas_bufs_alloc(struct mxfs_drbd_cas *e)
+{
+	int i;
+
+	e->crit_buf = kmalloc(MXFS_DRBD_CRIT_BUF_BYTES, GFP_KERNEL);
+	e->rel_reg = kmalloc(512, GFP_KERNEL);
+	if (!e->crit_buf || !e->rel_reg)
+		return -ENOMEM;
+	for (i = 0; i < MXFS_DRBD_CAS_BATCH; i++) {
+		e->crit_wbuf[i] = kmalloc(MXFS_DRBD_SPAN_MAX, GFP_KERNEL);
+		if (!e->crit_wbuf[i])
+			return -ENOMEM;
+	}
+	return 0;
+}
+
+static void mxfs_drbd_cas_free(struct mxfs_drbd_cas *e)
+{
+	int i;
+
+	if (!e)
+		return;
+	for (i = 0; i < MXFS_DRBD_CAS_BATCH; i++)
+		kfree(e->crit_wbuf[i]);
+	kfree(e->crit_buf);
+	kfree(e->rel_reg);
+	kfree(e);
+}
+
 /*
  * The pair's enrollment: participant 0's and 1's endpoints, bound to the
  * filesystem.  Written by whichever node arrives first; both nodes, if they
@@ -1539,16 +1599,8 @@ int mxfs_pal_drbd_cas_attach(mxfs_bdev_t *dev, uint64_t region_off,
 
 	e = kzalloc(sizeof(*e), GFP_KERNEL);
 	r = kmalloc(512, GFP_KERNEL);
-	if (e) {
-		e->crit_buf = kmalloc(MXFS_DRBD_CRIT_BUF_BYTES, GFP_KERNEL);
-		e->rel_reg = kmalloc(512, GFP_KERNEL);
-	}
-	if (!e || !r || !e->crit_buf || !e->rel_reg) {
-		if (e) {
-			kfree(e->crit_buf);
-			kfree(e->rel_reg);
-		}
-		kfree(e);
+	if (!e || !r || mxfs_drbd_cas_bufs_alloc(e)) {
+		mxfs_drbd_cas_free(e);
 		kfree(r);
 		return -ENOMEM;
 	}
@@ -1589,9 +1641,7 @@ int mxfs_pal_drbd_cas_attach(mxfs_bdev_t *dev, uint64_t region_off,
 		rc = mxfs_drbd_reg_put(e, r, 0, 0);
 	kfree(r);
 	if (rc) {
-		kfree(e->crit_buf);
-		kfree(e->rel_reg);
-		kfree(e);
+		mxfs_drbd_cas_free(e);
 		return rc;
 	}
 
@@ -1601,9 +1651,7 @@ int mxfs_pal_drbd_cas_attach(mxfs_bdev_t *dev, uint64_t region_off,
 		/* A concurrent attach on this node won: use it. */
 		have->refs++;
 		mutex_unlock(&mxfs_drbd_cas_list_lock);
-		kfree(e->crit_buf);
-		kfree(e->rel_reg);
-		kfree(e);
+		mxfs_drbd_cas_free(e);
 		mxfs_pal_bdev_set_drbd_cas(dev, true);
 		return 0;
 	}
@@ -1639,9 +1687,7 @@ void mxfs_pal_drbd_cas_detach(mxfs_bdev_t *dev)
 	pr_info("mxfs: P-DRBD-CAS-DETACH minor=%u index=%u ops=%llu contended=%llu deferred=%llu backoffs=%llu miscompares=%llu witness_skipped=%llu\n",
 		MINOR(e->devt), e->index, e->ops, e->contended, e->deferred,
 		e->backoffs, e->miscompares, e->witness_skipped);
-	kfree(e->crit_buf);
-	kfree(e->rel_reg);
-	kfree(e);
+	mxfs_drbd_cas_free(e);
 }
 EXPORT_SYMBOL_GPL(mxfs_pal_drbd_cas_detach);
 
@@ -1688,6 +1734,9 @@ module_param_named(drbd_inflight_target_ms, mxfs_drbd_inflight_target_ms, uint, 
 MODULE_PARM_DESC(drbd_inflight_target_ms,
 		 "completion time of an admitted write above which the in-flight window halves (0 = a fixed bound)");
 
+#define MXFS_IOQ_DEPTH_BUCKETS	4	/* <=4, <=8, <=16, >16 MiB in flight */
+#define MXFS_IOQ_LAT_BUCKETS	6	/* <100, <250, <500, <1000, <2000, >=2000 ms */
+
 struct mxfs_ioq {
 	spinlock_t		lock;		/* irq-safe: completions release */
 	unsigned long		bytes;		/* admitted and not yet completed */
@@ -1720,13 +1769,49 @@ struct mxfs_ioq {
 	u64			n_cut;
 	unsigned long		win_peak;
 	u64			lat_max_ns;
+	/*
+	 * Completion times by class and by the bytes in flight when the write
+	 * was admitted (MXFS_IOQ_DEPTH_BUCKETS x MXFS_IOQ_LAT_BUCKETS): whether
+	 * a slow completion follows the window's own depth or comes at any
+	 * depth decides what the window should cut on.
+	 */
+	u64			lat_hist[MXFS_IOQ_NCLASS][MXFS_IOQ_DEPTH_BUCKETS][MXFS_IOQ_LAT_BUCKETS];
 };
+
+static unsigned int mxfs_ioq_depth_bucket(unsigned long depth)
+{
+	if (depth <= 4UL << 20)
+		return 0;
+	if (depth <= 8UL << 20)
+		return 1;
+	if (depth <= 16UL << 20)
+		return 2;
+	return 3;
+}
+
+static unsigned int mxfs_ioq_lat_bucket(u64 lat_ns)
+{
+	u64 ms = lat_ns / NSEC_PER_MSEC;
+
+	if (ms < 100)
+		return 0;
+	if (ms < 250)
+		return 1;
+	if (ms < 500)
+		return 2;
+	if (ms < 1000)
+		return 3;
+	if (ms < 2000)
+		return 4;
+	return 5;
+}
 
 /* A writer waiting for its share; lives on its own stack until `go`. */
 struct mxfs_ioq_waiter {
 	struct list_head	node;
 	struct task_struct	*task;
 	unsigned int		bytes;
+	unsigned long		depth;		/* in flight once it was granted */
 	bool			go;
 };
 
@@ -1736,6 +1821,8 @@ struct mxfs_ioq_hook {
 	void			*private;
 	struct mxfs_ioq		*q;
 	unsigned int		bytes;
+	unsigned int		cls;
+	unsigned long		depth;		/* in flight once it was admitted */
 	u64			t_ns;		/* admitted, about to be submitted */
 };
 
@@ -1802,6 +1889,7 @@ static void mxfs_ioq_grant(struct mxfs_ioq *q)
 				return;
 			list_del_init(&w->node);
 			mxfs_ioq_take(q, w->bytes);
+			w->depth = q->bytes;
 			w->go = true;
 			wake_up_process(w->task);
 		}
@@ -1810,6 +1898,8 @@ static void mxfs_ioq_grant(struct mxfs_ioq *q)
 
 static void mxfs_ioq_free(struct mxfs_ioq *q)
 {
+	int c;
+
 	pr_info("mxfs: P-DRBD-IOQ-DONE minor=%u admitted=%llu split=%llu waited=%llu refused=%llu wait_avg_ms=%llu wait_max_ms=%llu peak_kib=%lu peak_reqs=%u unbounded_spans=%llu unbounded_kib=%llu unbounded_max_kib=%u win_kib=%lu win_peak_kib=%lu cuts=%llu lat_max_ms=%llu\n",
 		MINOR(q->devt), q->n_admit, q->n_split, q->n_wait, q->n_refused,
 		q->n_wait ? q->wait_ns / q->n_wait / NSEC_PER_MSEC : 0,
@@ -1817,6 +1907,17 @@ static void mxfs_ioq_free(struct mxfs_ioq *q)
 		q->n_ahead, q->ahead_bytes >> 10, q->ahead_max >> 10,
 		q->win >> 10, q->win_peak >> 10, q->n_cut,
 		q->lat_max_ns / NSEC_PER_MSEC);
+	for (c = 0; c < MXFS_IOQ_NCLASS; c++) {
+		u64 (*hd)[MXFS_IOQ_LAT_BUCKETS] = q->lat_hist[c];
+
+		/* one line per class; each depth's counts <100/<250/<500/<1000/<2000/>=2000 ms */
+		pr_info("mxfs: P-DRBD-IOQ-LAT minor=%u class=%s depth<=4M=%llu/%llu/%llu/%llu/%llu/%llu depth<=8M=%llu/%llu/%llu/%llu/%llu/%llu depth<=16M=%llu/%llu/%llu/%llu/%llu/%llu depth>16M=%llu/%llu/%llu/%llu/%llu/%llu\n",
+			MINOR(q->devt), c == MXFS_IOQ_META ? "meta" : "data",
+			hd[0][0], hd[0][1], hd[0][2], hd[0][3], hd[0][4], hd[0][5],
+			hd[1][0], hd[1][1], hd[1][2], hd[1][3], hd[1][4], hd[1][5],
+			hd[2][0], hd[2][1], hd[2][2], hd[2][3], hd[2][4], hd[2][5],
+			hd[3][0], hd[3][1], hd[3][2], hd[3][3], hd[3][4], hd[3][5]);
+	}
 	mempool_destroy(q->pool);
 	kfree(q);
 }
@@ -1862,8 +1963,10 @@ static void mxfs_ioq_adapt(struct mxfs_ioq *q, unsigned int bytes, u64 lat_ns)
 }
 
 /* Give a share back and hand it on; the last one back after the mount is gone
- * frees the bound.  Any context: completions call it. */
-static void mxfs_ioq_put(struct mxfs_ioq *q, unsigned int bytes, u64 lat_ns)
+ * frees the bound.  Any context: completions call it.  `depth` is what was in
+ * flight when the write was admitted. */
+static void mxfs_ioq_put(struct mxfs_ioq *q, unsigned int bytes, u64 lat_ns,
+			 unsigned int cls, unsigned long depth)
 {
 	unsigned long flags;
 	bool gone;
@@ -1871,6 +1974,8 @@ static void mxfs_ioq_put(struct mxfs_ioq *q, unsigned int bytes, u64 lat_ns)
 	spin_lock_irqsave(&q->lock, flags);
 	q->bytes -= bytes;
 	q->reqs--;
+	if (lat_ns && cls < MXFS_IOQ_NCLASS)
+		q->lat_hist[cls][mxfs_ioq_depth_bucket(depth)][mxfs_ioq_lat_bucket(lat_ns)]++;
 	mxfs_ioq_adapt(q, bytes, lat_ns);
 	mxfs_ioq_grant(q);
 	gone = q->dead && !q->reqs;
@@ -1884,6 +1989,8 @@ static void mxfs_ioq_end_io(struct bio *bio)
 	struct mxfs_ioq_hook *h = bio->bi_private;
 	struct mxfs_ioq *q = h->q;
 	unsigned int bytes = h->bytes;
+	unsigned int cls = h->cls;
+	unsigned long depth = h->depth;
 	u64 lat_ns = ktime_get_ns() - h->t_ns;
 
 	bio->bi_end_io = h->end_io;
@@ -1891,8 +1998,20 @@ static void mxfs_ioq_end_io(struct bio *bio)
 	/* the hook goes back first: q is alive while this share is held */
 	mempool_free(h, q->pool);
 	/* a failed write's time says nothing about the queues */
-	mxfs_ioq_put(q, bytes, bio->bi_status ? 0 : max_t(u64, lat_ns, 1));
-	bio->bi_end_io(bio);
+	mxfs_ioq_put(q, bytes, bio->bi_status ? 0 : max_t(u64, lat_ns, 1),
+		     cls, depth);
+	/*
+	 * Completed through bio_endio(), never by calling the restored
+	 * bi_end_io.  A piece mxfs_pal_ioq_admit split off is chained to the rest
+	 * of its write, so what is restored there is bio_chain_endio, which from
+	 * Linux 7.0 is a BUG() that only bio_endio() steps around (it unrolls the
+	 * chain itself).  Called directly it panicked a host on Proxmox's 7.0.14
+	 * kernel on its first write over the chunk.  The second pass through
+	 * bio_endio is the stacking drivers' own pattern (blk-crypto-fallback):
+	 * a chain count already at zero has cleared its flag, and a bio on this
+	 * bio-based device carries no QoS throttling or integrity state.
+	 */
+	bio_endio(bio);
 }
 
 /* Admit one bio of at most a chunk (or a bio that cannot be split). */
@@ -1902,6 +2021,7 @@ static int mxfs_ioq_admit_one(struct mxfs_ioq *q, struct bio *bio,
 	struct mxfs_ioq_waiter w;
 	struct mxfs_ioq_hook *h;
 	bool waited = false;
+	unsigned long depth;
 	u64 t0, ns = 0, n_wait = 0;
 
 	spin_lock_irq(&q->lock);
@@ -1909,6 +2029,7 @@ static int mxfs_ioq_admit_one(struct mxfs_ioq *q, struct bio *bio,
 	    (cls == MXFS_IOQ_META || list_empty(&q->wait[MXFS_IOQ_DATA])) &&
 	    mxfs_ioq_fits(q, bytes)) {
 		mxfs_ioq_take(q, bytes);
+		depth = q->bytes;
 		spin_unlock_irq(&q->lock);
 	} else if (bio->bi_opf & REQ_NOWAIT) {
 		spin_unlock_irq(&q->lock);
@@ -1934,6 +2055,7 @@ static int mxfs_ioq_admit_one(struct mxfs_ioq *q, struct bio *bio,
 		if (ns > q->wait_ns_max)
 			q->wait_ns_max = ns;
 		n_wait = q->n_wait;
+		depth = w.depth;
 		waited = true;
 		spin_unlock_irq(&q->lock);
 	}
@@ -1946,13 +2068,15 @@ static int mxfs_ioq_admit_one(struct mxfs_ioq *q, struct bio *bio,
 	 */
 	h = mempool_alloc(q->pool, (bio->bi_opf & REQ_NOWAIT) ? GFP_NOWAIT : GFP_NOIO);
 	if (!h) {
-		mxfs_ioq_put(q, bytes, 0);
+		mxfs_ioq_put(q, bytes, 0, cls, 0);
 		return -EAGAIN;
 	}
 	h->end_io = bio->bi_end_io;
 	h->private = bio->bi_private;
 	h->q = q;
 	h->bytes = bytes;
+	h->cls = cls;
+	h->depth = depth;
 	h->t_ns = ktime_get_ns();
 	bio->bi_private = h;
 	bio->bi_end_io = mxfs_ioq_end_io;

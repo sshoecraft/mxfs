@@ -503,11 +503,13 @@ struct mxfs_inflight {
  * DRBD compare-and-swap's critical section (pal/linux/drbd.c), which reads and
  * writes one sector per swap for every swap it serves under one acquisition of
  * the pair's lock.  Issued one after another, those writes cost one replicated
- * FUA round trip each.  Returns 0, or -ENOMEM with nothing submitted.
+ * FUA round trip each.  `lens` (NULL: 512 each) gives each I/O its own length
+ * in bytes, a multiple of 512: a span swap writes a whole ledger page from the
+ * sector it compares.  Returns 0, or -ENOMEM with nothing submitted.
  */
 static int mxfs_pal_bio_sectors_bdev(struct block_device *bdev, int n,
 				     const uint64_t *lbas, void *const *bufs,
-				     unsigned int op, int *rcs)
+				     const uint32_t *lens, unsigned int op, int *rcs)
 {
 	struct mxfs_inflight *slots;
 	int i;
@@ -518,20 +520,20 @@ static int mxfs_pal_bio_sectors_bdev(struct block_device *bdev, int n,
 	if (!slots)
 		return -ENOMEM;
 	for (i = 0; i < n; i++) {
-		unsigned int blen = 0;
+		unsigned int blen = 0, len = lens ? lens[i] : 512;
 
 		slots[i].bio = NULL;
 		rcs[i] = 0;
-		if (!bufs[i] || is_vmalloc_addr(bufs[i])) {
+		if (!bufs[i] || is_vmalloc_addr(bufs[i]) || !len || (len & 511)) {
 			rcs[i] = -EINVAL;
 			continue;
 		}
-		slots[i].bio = build_bio(bdev, lbas[i] << 9, bufs[i], 512, op, &blen);
+		slots[i].bio = build_bio(bdev, lbas[i] << 9, bufs[i], len, op, &blen);
 		if (!slots[i].bio) {
 			rcs[i] = -ENOMEM;
 			continue;
 		}
-		if (blen != 512) {
+		if (blen != len) {
 			bio_put(slots[i].bio);
 			slots[i].bio = NULL;
 			rcs[i] = -EIO;
@@ -561,7 +563,7 @@ int mxfs_pal_bio_read_sectors_bdev(struct block_device *bdev, int n,
 int mxfs_pal_bio_read_sectors_bdev(struct block_device *bdev, int n,
 				   const uint64_t *lbas, void *const *bufs, int *rcs)
 {
-	return mxfs_pal_bio_sectors_bdev(bdev, n, lbas, bufs,
+	return mxfs_pal_bio_sectors_bdev(bdev, n, lbas, bufs, NULL,
 					 REQ_OP_READ | REQ_SYNC, rcs);
 }
 EXPORT_SYMBOL_GPL(mxfs_pal_bio_read_sectors_bdev);
@@ -571,10 +573,25 @@ int mxfs_pal_bio_write_fua_sectors_bdev(struct block_device *bdev, int n,
 int mxfs_pal_bio_write_fua_sectors_bdev(struct block_device *bdev, int n,
 					const uint64_t *lbas, void *const *bufs, int *rcs)
 {
-	return mxfs_pal_bio_sectors_bdev(bdev, n, lbas, bufs,
+	return mxfs_pal_bio_sectors_bdev(bdev, n, lbas, bufs, NULL,
 					 REQ_OP_WRITE | REQ_SYNC | REQ_FUA, rcs);
 }
 EXPORT_SYMBOL_GPL(mxfs_pal_bio_write_fua_sectors_bdev);
+
+/* n FUA writes, each of lens[i] bytes, all submitted before any is waited on. */
+int mxfs_pal_bio_write_fua_spans_bdev(struct block_device *bdev, int n,
+				      const uint64_t *lbas, void *const *bufs,
+				      const uint32_t *lens, int *rcs);
+int mxfs_pal_bio_write_fua_spans_bdev(struct block_device *bdev, int n,
+				      const uint64_t *lbas, void *const *bufs,
+				      const uint32_t *lens, int *rcs)
+{
+	if (!lens)
+		return -EINVAL;
+	return mxfs_pal_bio_sectors_bdev(bdev, n, lbas, bufs, lens,
+					 REQ_OP_WRITE | REQ_SYNC | REQ_FUA, rcs);
+}
+EXPORT_SYMBOL_GPL(mxfs_pal_bio_write_fua_spans_bdev);
 
 /*
  * Pipelined read: submit up to MXFS_MAX_INFLIGHT_BIOS concurrently,

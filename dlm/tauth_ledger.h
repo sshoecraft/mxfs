@@ -438,6 +438,12 @@ int  mxfs_tauth_ledger_page_auth(struct mxfs_tauth_ledger *l, uint32_t page_id,
 /* No I/O: is the cached image ACTIVE with authority == this node? */
 bool mxfs_tauth_ledger_page_mine(struct mxfs_tauth_ledger *l, uint32_t page_id);
 
+/* No I/O and no sleep: 1 = the cached image is ACTIVE under this node and
+ * loaded under `gen`; 0 = it is not; -EBUSY = another thread holds the page
+ * (a read or commit of it is in flight). */
+int  mxfs_tauth_ledger_page_ready_nowait(struct mxfs_tauth_ledger *l, uint32_t page_id,
+					 uint64_t gen);
+
 /*
  * 0.75.1: report EVERY page's authority from the platter in one bulk pass
  * (the store's run reads, both copies, 16 pages per transfer) instead of a

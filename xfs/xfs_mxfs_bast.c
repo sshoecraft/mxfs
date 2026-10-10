@@ -7693,7 +7693,9 @@ __mxfs_dlm_bast_notify(
 			    10ULL * NSEC_PER_SEC) {
 			static atomic64_t p72live_total = ATOMIC64_INIT(0);
 
-			pr_warn_ratelimited("mxfs: P72-REQUEUE-LIVE-DEMOTER ino=%llu mode=%u dem_pid=%d dem_comm=%s dem_line=%u:%u dem_age_ms=%llu total=%lld -- a live demoter is releasing this inode; no second bast_process\n",
+			/* a probe: the designed answer to a BAST that meets a
+			 * release already under way, routine under load */
+			mxfs_probe_ratelimited("mxfs: P72-REQUEUE-LIVE-DEMOTER ino=%llu mode=%u dem_pid=%d dem_comm=%s dem_line=%u:%u dem_age_ms=%llu total=%lld -- a live demoter is releasing this inode; no second bast_process\n",
 				(unsigned long long)ino, ip->i_dlm_mode,
 				ip->i_dlm_demoter_pid, ip->i_dlm_demoter_comm,
 				MXFS_SITE_ARGS(ip->i_dlm_demoter_line),

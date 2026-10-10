@@ -81,6 +81,14 @@
 #   withdraw-p1
 #              the same on participant 1 alone: participant 0 carries on and
 #              recovers it, and participant 1 rejoins without a restart.
+#   withdraw-p0
+#              the same on participant 0 alone.  Participant 0 mounts first, so
+#              it holds the lower heartbeat slot, and its rejoin claims that
+#              slot again while participant 1 is still taking over the ledger
+#              pages its old incarnation served: the rejoiner outranks the
+#              survivor in the bootstrap election before it is admitted.  The
+#              survivor's line counts P-TAUTH-TAKEOVER-DECERTIFIED and
+#              P960-PARK-NOT-TRANSITION, which show whether that window opened.
 #   withdraw-held
 #              as withdraw-p1, while something the rejoin cannot stop holds
 #              participant 1's mount (a tmpfs mounted inside it: no process to
@@ -107,6 +115,23 @@
 #                  the HP Z400 pair boots in ~3 min, 2 of them retrying iSCSI
 #                  logins to retired targets)
 #   LOAD_S         seconds of load per step (default 120)
+#   PAIR_UP_WAIT   seconds the first step waits for both hosts to be a full
+#                  half of the pair before failing (default 0): a run that
+#                  follows one which left a host rejoining, as an A/B arm after
+#                  a failed one does
+#   JOIN_ANNOUNCE_DELAY_MS
+#                  withdraw steps: the withdrawn host's rejoin mount beats on
+#                  its heartbeat slot this long before it announces itself
+#                  (module knob dbg_join_announce_delay_ms, one-shot; default
+#                  0).  With withdraw-p0 the survivor sees a lower slot live
+#                  whose node is not yet in its view
+#   DYNDBG         withdraw steps: '|'-separated format substrings of the
+#                  module's debug lines turned on (dynamic debug) on both hosts
+#                  for the step and off again after it, e.g.
+#                  'P960-AUTH|P-TAUTH-TAKEOVER-REQUEST-DECLINED'; '%s%pV' turns
+#                  on every debug line that goes through the module's logger
+#   READ_LIMIT_S   how long a slow fsynced-set read is let run, for its
+#                  evidence, past the 60 s bound that grades it (default 300)
 #   PVE_POWER_ON   the command that powers a host on, run here with {name}
 #                  replaced by the host's name and {addr} by its address; the
 #                  steps that keep a host off need it.  The nested pair:
@@ -134,6 +159,8 @@ RES=${RES:-mxfs}
 MNT=${MNT:-/mnt/shared}
 BOOT_BUDGET=${BOOT_BUDGET:-300}
 LOAD_S=${LOAD_S:-120}
+PAIR_UP_WAIT=${PAIR_UP_WAIT:-0}
+JOIN_ANNOUNCE_DELAY_MS=${JOIN_ANNOUNCE_DELAY_MS:-0}
 # The survivor's recovery after a peer reset: DRBD notices within 2 x ping-int
 # + ping-timeout (~7 s with the guide's ping-int 3), then exclusion, witness,
 # certificate and replay (13 s from the kill on the rig): twice that, rounded up.
@@ -199,8 +226,16 @@ LEFT=""
 die() {
     local h
     say "FAIL: $*"; [ -z "$LEFT" ] || say "LEFT: $LEFT"
-    for h in "${P0:-}" "${P1:-}"; do [ -z "$h" ] || stop_loads "$h"; done
+    for h in "${P0:-}" "${P1:-}"; do [ -z "$h" ] || { stop_loads "$h"; dyndbg "$h" -p; }; done
     exit 1
+}
+# dyndbg <host> <+p|-p>: the DYNDBG formats on or off on <host>
+dyndbg() {
+    local f cmd="" fmts
+    [ -n "${DYNDBG:-}" ] || return 0
+    IFS='|' read -r -a fmts <<<"$DYNDBG"
+    for f in "${fmts[@]}"; do cmd+="echo 'module mxfs format \"$f\" $2' > /proc/dynamic_debug/control; "; done
+    on "$1" "$cmd echo DYNDBG_OK" 15 | grep -q DYNDBG_OK
 }
 on() {  # <host> <cmd> [timeout]
     timeout "${3:-60}" "$SSHP" "$1" "$2" </dev/null 2>&1 | grep -avE '^Warning:|^Unauthorized|^If you|^$'
@@ -253,8 +288,15 @@ mounted_ok() {  # <state line>
 # named in the paths its files were written under.
 declare -A NAME
 need_pair_up() {
-    local s0 s1
-    s0=$(state "$P0"); s1=$(state "$P1")
+    local s0 s1 t0
+    t0=$(date +%s)
+    while :; do
+        s0=$(state "$P0"); s1=$(state "$P1")
+        pair_ok "$s0" && pair_ok "$s1" && break
+        [ $(( $(date +%s) - t0 )) -lt "$PAIR_UP_WAIT" ] || break
+        sleep 5
+    done
+    PAIR_UP_WAIT=0
     pair_ok "$s0" || die "$P0 is not up as half of the pair: ${s0:-no answer}"
     pair_ok "$s1" || die "$P1 is not up as half of the pair: ${s1:-no answer}"
     [ "$(field "$s0" build)" = "$(field "$s1" build)" ] \
@@ -346,10 +388,31 @@ write_alone_set() {  # <step> <host>
     [ "${out:-0}" -gt 0 ] 2>/dev/null || die "INVALID RUN: no file of $2's set $1 reuses an inode core freed before it (reused: ${out:-no answer})"
     say "  $2's set $1: $out of 32 files reuse an inode core freed just before"
 }
-check_set() {  # <step> <reader> <writer>: the reader holds the writer's set as written
-    local out
-    out=$(on "$2" "cd $MNT/pvefail/$STAMP/$1/${NAME[$3]} && md5sum f* | sort -k2 | md5sum | cut -c1-32" 60)
-    [ "$out" = "${SUMS[$1.$3]}" ] || die "$2 reads $3's fsynced set differently after $1: $out (written ${SUMS[$1.$3]}; sets: $(on "$2" "ls $MNT/pvefail/$STAMP/$1" 20 | tr '\n' ' '))"
+# check_set <step> <reader> <writer>: the reader holds the writer's set as
+# written, read within READ_BOUND_S.  The read is never cut off at the bound:
+# tests/pve_read_stall_probe.sh lets it run to READ_LIMIT_S and samples where
+# it and the module's threads wait from READ_SAMPLE_S on, so a slow read
+# leaves its stacks and its real duration in the step's evidence.  On the
+# physical pair (0.90.113, withdraw-p0) the rejoined host's first read did not
+# return within 60 s, and the step's kernel logs had been collected before it.
+READ_BOUND_S=60
+READ_SAMPLE_S=10
+READ_LIMIT_S=${READ_LIMIT_S:-300}
+check_set() {
+    local out sum ms d="$EVID/$1"
+    mkdir -p "$d"
+    out=$(timeout $(( READ_LIMIT_S + 30 )) "$SSHP" "$2" "bash -s -- $MNT/pvefail/$STAMP/$1/${NAME[$3]} $READ_SAMPLE_S $READ_LIMIT_S" \
+        <"$REPO/tests/pve_read_stall_probe.sh" 2>&1 | grep -avE '^Warning:|^$')
+    sum=$(sed -n 's/^SUM=//p' <<<"$out" | tail -1)
+    ms=$(sed -n 's/^DONE_MS=//p' <<<"$out" | tail -1)
+    if grep -q '^STALL ' <<<"$out"; then
+        grep -aE '^(STALL|STACK|DONE_MS)' <<<"$out" > "$d/stall.$2.reads.${NAME[$3]}"
+        [ -z "${STEP_T0:-}" ] || collect "$1" "$STEP_T0"
+    fi
+    case "$ms" in [0-9]*) ;; *) die "$2's read of $3's fsynced set after $1 did not return within ${READ_LIMIT_S} s (${ms:-no answer}; stacks: $d/stall.$2.reads.${NAME[$3]})" ;; esac
+    [ "$sum" = "${SUMS[$1.$3]}" ] || die "$2 reads $3's fsynced set differently after $1: ${sum:-no sum} after ${ms:-?} ms (written ${SUMS[$1.$3]}; sets: $(on "$2" "ls $MNT/pvefail/$STAMP/$1" 20 | tr '\n' ' '))"
+    [ "$ms" -le $(( READ_BOUND_S * 1000 )) ] 2>/dev/null \
+        || die "$2's read of $3's fsynced set after $1 took ${ms:-no answer} ms, over the ${READ_BOUND_S} s bound (the data was intact; stacks: $d/stall.$2.reads.${NAME[$3]})"
 }
 check_writes() {  # <step> <host>
     on "$2" "touch $MNT/pvefail/$STAMP/$1/after.\$(hostname) && rm $MNT/pvefail/$STAMP/$1/after.\$(hostname) && echo W_OK" 30 | grep -q W_OK \
@@ -895,12 +958,23 @@ withdraw() {
     shift
     write_sets "$step"; start_loads "$step"
     sleep 10
-    for h in "$P0" "$P1"; do boot[$h]=$(boot_id "$h"); done
+    for h in "$P0" "$P1"; do
+        boot[$h]=$(boot_id "$h")
+        dyndbg "$h" +p || die "could not turn on the debug lines '$DYNDBG' on $h"
+    done
+    [ -z "${DYNDBG:-}" ] || say "$step: debug lines on, on both hosts: $DYNDBG"
     # The guard allows 3 rejoins an hour and keeps their times on disk, across
     # restarts; earlier steps and runs must not spend this step's.
     for h in "$@"; do on "$h" "rm -f /var/lib/mxfs/drbd-rejoin.$RES" 15 >/dev/null; done
+    if [ "$JOIN_ANNOUNCE_DELAY_MS" -gt 0 ]; then
+        for h in "$@"; do
+            on "$h" "echo $JOIN_ANNOUNCE_DELAY_MS > /sys/module/mxfs/parameters/dbg_join_announce_delay_ms && echo ARMED" 15 | grep -q ARMED \
+                || die "could not arm the announce hold on $h"
+        done
+        say "$step: the rejoin's mount on $* will beat on its slot ${JOIN_ANNOUNCE_DELAY_MS} ms before announcing itself"
+    fi
     say "$step: pausing the MXFS heartbeat of $* for $(( WITHDRAW_PAUSE_MS / 1000 )) s under load on both, past the 60 s authority lease"
-    t0=$(date +%s)
+    t0=$(date +%s); STEP_T0=$t0
     for h in "$@"; do
         on "$h" "echo $WITHDRAW_PAUSE_MS > /sys/module/mxfs/parameters/dl_inject_hb_pause_ms && echo ARMED" 15 | grep -q ARMED \
             || die "could not pause $h's heartbeat"
@@ -920,7 +994,7 @@ withdraw() {
         out=$(load_result "$h")
         [ "$(sed -n 's/.*err=\([0-9]*\).*/\1/p' <<<"$out")" = 0 ] || die "$h, which did not withdraw, saw an I/O error: ${out:-no result}"
         say "  $h carried on: $out"
-        out=$(on "$h" "journalctl -k --no-pager -o cat --since @$t0 | grep -aoE 'P163-RECOVERY-COMPLETE|P-RBLK-[A-Z-]+|P240-RBLK-[A-Z-]+' | sort | uniq -c | tr '\n' ' '" 30)
+        out=$(on "$h" "journalctl -k --no-pager -o cat --since @$t0 | grep -aoE 'P163-RECOVERY-COMPLETE|P-RBLK-[A-Z-]+|P240-RBLK-[A-Z-]+|P-TAUTH-TAKEOVER-DECERTIFIED|P960-PARK-NOT-TRANSITION' | sort | uniq -c | tr '\n' ' '" 30)
         grep -qE "$RBLK_REFUSED" <<<"$out" && die "$h refused operations as RECOVERY_BLOCKED: $out"
         say "  $h: ${out:-no recovery lines}"
     done
@@ -928,9 +1002,49 @@ withdraw() {
     say "  both mounted again, and neither host restarted"
     collect "$step" "$t0"
     verify_sets "$step"
+    census_dead "$step" "$t0"
+    # again, through the reads and the census: what a passing step's reads
+    # met (parks, transition answers) is evidence too, and the collection
+    # above was taken before them
+    collect "$step" "$t0"
+    for h in "$P0" "$P1"; do dyndbg "$h" -p; done
+    STEP_T0=""
+}
+
+# census_dead <step> <since epoch>: every incarnation a host recovered since
+# then (its P163-RECOVERY-COMPLETE names it) has no ledger page left under its
+# authority on the platter within TAKEOVER_BUDGET.  A survivor's takeover pass
+# stops between pages when a lower-slot rejoiner is certified, and leaves the
+# rest to that node's orphan sweep, and a page a pass skips it never visits
+# again; a page nobody moves stays under a dead authority, and every request
+# on it waits for an on-demand takeover.  The count must reach 0 within
+# twice what the takeover was measured to take: its wait in the departure
+# worker's queue behind a mount's orphan sweep (161 s, physical pair,
+# 0.90.113, the first withdraw after a deploy) plus the pass over the first
+# count at the slowest rate measured, 20 pages/s (physical pair, pve1).
+TAKEOVER_MIN_RATE=20
+TAKEOVER_QUEUE_S=161
+census_dead() {
+    local step=$1 h dead left first t s budget
+    for h in "$P0" "$P1"; do
+        for dead in $(on "$h" "journalctl -k --no-pager -o cat --since @$2 | grep -a 'P163-RECOVERY-COMPLETE' | grep -oE ' node=[0-9]+' | cut -d= -f2 | sort -u" 30); do
+            t=$(date +%s); first=""
+            while :; do
+                left=$(timeout 120 "$SSHP" "$h" "python3 -I - \$(drbdadm sh-dev $RES) --auth-node $dead" <"$REPO/tools/tauth_page_auth.py" 2>&1 | grep -c '^AUTHPAGE ')
+                s=$(( $(date +%s) - t ))
+                [ "$left" = 0 ] && break
+                [ -n "$first" ] || { first=$left; budget=$(( 2 * (TAKEOVER_QUEUE_S + first / TAKEOVER_MIN_RATE) )); }
+                [ "$s" -ge "$budget" ] \
+                    && die "$step: $left of $first ledger pages are still under $dead, the incarnation $h recovered, ${s}s after the step (budget ${budget}s)"
+                sleep 30
+            done
+            say "  no ledger page is under $dead (recovered by $h) ${s}s after the step${first:+ ($first left at the first look)}"
+        done
+    done
 }
 step_withdraw_both() { withdraw withdraw-both "$P0" "$P1"; }
 step_withdraw_p1() { withdraw withdraw-p1 "$P1"; }
+step_withdraw_p0() { withdraw withdraw-p0 "$P0"; }
 
 # withdraw-held: participant 1 withdraws while a tmpfs mounted inside its
 # mount holds it.  No process holds that, so nothing the rejoin stops or kills
@@ -1100,7 +1214,7 @@ STEPS=("$@")
 [ "${#STEPS[@]}" -gt 0 ] || STEPS=(p1-crash reboot power-cut p0-crash)
 for s in "${STEPS[@]}"; do
     case "$s" in
-        p1-crash|p0-crash|power-cut|reboot|promotion-race|withdraw-both|withdraw-p1|withdraw-held|withdraw-guests|answering-restart|alone-restart|slow-beat) ;;
+        p1-crash|p0-crash|power-cut|reboot|promotion-race|withdraw-both|withdraw-p1|withdraw-p0|withdraw-held|withdraw-guests|answering-restart|alone-restart|slow-beat) ;;
         survivor-restart|released-restart|stale-promotion)
             [ -n "${PVE_POWER_ON:-}" ] || { echo "$s keeps a host powered off: set PVE_POWER_ON to the command that powers one on"; exit 2; } ;;
         *) echo "unknown step: $s"; exit 2 ;;
@@ -1112,7 +1226,7 @@ done
 # (2026-10-07); those paths are proven on the nested pair.
 for s in "${STEPS[@]}"; do
     case "$s" in
-        withdraw-both|withdraw-p1|withdraw-guests|slow-beat) ;;
+        withdraw-both|withdraw-p1|withdraw-p0|withdraw-guests|slow-beat) ;;
         *) for h in "$P0" "$P1"; do
                vm_check "$h"
                case "${IS_VM[$h]}" in

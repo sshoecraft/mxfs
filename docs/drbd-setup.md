@@ -166,6 +166,22 @@ pvesm add dir shared --path /mnt/shared --shared 1 --is_mountpoint yes \
       --content images,iso,vztmpl,backup,snippets
 ```
 
+With `--shared 1`, a live migration (`qm migrate <vmid> <node> --online`)
+moves only the guest's memory: both hosts open the same disk image, the
+source until the switchover, the target from then on. Give a guest that
+must migrate a CPU type both hosts can run. `host` migrates only between
+identical CPUs, and Proxmox's default `x86-64-v2-AES` needs AES-NI on both.
+With an older CPU on one host (e.g. a Nehalem Xeon W3520, which has no
+AES-NI), use `x86-64-v2`:
+
+```
+qm set <vmid> --cpu x86-64-v2
+```
+
+`tests/pve_live_migrate.sh` checks a pair end to end: a guest writing and
+fsyncing throughout is migrated back and forth, and after every move each
+file it wrote is read back from disk on the new host and checked.
+
 ## 7. What happens when a node is lost
 
 Fencing is on by default and needs no configuration. The node with the lower

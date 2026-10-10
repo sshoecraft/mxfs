@@ -14,14 +14,16 @@
 #   to none for the phase, restored after) | seqdio | seqdio-xfs (one writer
 #   on hostA: 256 KiB O_DIRECT sequential writes at QD8 on the raw device, or
 #   on XFS made on it and mounted on hostA alone; SEQ_S seconds, default 30)
-#   | vmio-mxfs | vmio-xfs | vmio-local (one writer on hostA writing as an
+#   | vmio-mxfs | vmio-xfs | vmio-local | vmio-dir (one writer on hostA writing as an
 #   installing guest's disk does, below, VMIO_S seconds: into a sparse file on
 #   the MXFS mount MNT, on XFS made on the scratch DRBD device and mounted on
-#   hostA alone, or on XFS made on a scratch LV of hostA's own with no DRBD).
+#   hostA alone, on XFS made on a scratch LV of hostA's own with no DRBD, or
+#   on whatever filesystem the caller mounted at MNT on hostA).
 #   Default: idle bulk.
 # Env: VG (pve)  LV_SIZE (4G)  MINOR (1)  PORT (7790)  DISK (sda: the backing
 #      disk iostat watches and bulk-none switches)  IDLE_S (20)  BULK_S (90)
-#      BULK_JOBS (4)  BULK_QD (16)  BULK_BS (1M)  VMIO_S (60)  MNT (/mnt/shared)
+#      BULK_JOBS (4)  BULK_QD (16)  BULK_BS (1M)  VMIO_S (60)  VMIO_JOBS (1:
+#      vmio writers at once, each its own file)  MNT (/mnt/shared)
 #      LV_THIN (empty: thick LVs; a thin pool's name, e.g. data, puts both
 #      scratch LVs in that pool, as the MXFS resource's own LV may be, and
 #      writes them in full first so no write of a phase provisions a chunk)
@@ -47,7 +49,7 @@ PHASES=("$@"); [ "${#PHASES[@]}" = 0 ] && PHASES=(idle bulk)
 VG=${VG:-pve}; LV_SIZE=${LV_SIZE:-4G}; MINOR=${MINOR:-1}; PORT=${PORT:-7790}
 DISK=${DISK:-sda}; IDLE_S=${IDLE_S:-20}; BULK_S=${BULK_S:-90}
 BULK_JOBS=${BULK_JOBS:-4}; BULK_QD=${BULK_QD:-16}; BULK_BS=${BULK_BS:-1M}
-VMIO_S=${VMIO_S:-60}; MNT=${MNT:-/mnt/shared}; LV_THIN=${LV_THIN:-}
+VMIO_S=${VMIO_S:-60}; VMIO_JOBS=${VMIO_JOBS:-1}; MNT=${MNT:-/mnt/shared}; LV_THIN=${LV_THIN:-}
 # PROBE_PRIOCLASS=1: the reg and fua probes run in the real-time I/O priority
 # class (fio --prioclass=1 --prio=0), the bulk writers in the default one.
 # mq-deadline dispatches a real-time request ahead of every best-effort one
@@ -279,21 +281,48 @@ SEQ_S=${SEQ_S:-30}
 # scratch DRBD device and mounted on $HA alone, or on XFS made on a scratch LV
 # of $HA's own (no DRBD).  Both hosts' backing disk is sampled by iostat
 # meanwhile, and /proc/drbd, so the peer's share of the cost shows too.
-VMIO_JOB="--rw=randwrite --bssplit=4k/35:64k/25:128k/20:256k/20 --direct=1 --ioengine=io_uring --iodepth=4 --fdatasync=3 --size=3g --time_based --runtime=$VMIO_S"
+# VMIO_JOBS writers at once, each its own sparse file (fio lays nothing out:
+# fallocate=none truncates), reported together: as many guests installing at
+# once on the host.
+#
+# VMIO_PREFILL=1: each file is written out in full (and synced) before the
+# timed phase, so no write of the phase allocates a block or converts an
+# unwritten extent: the writer only overwrites written blocks, as a guest does
+# on a logical volume.  Against the default sparse file this separates what a
+# filesystem's block allocation costs a guest from what its syncs cost.
+VMIO_JOB="--rw=randwrite --bssplit=4k/35:64k/25:128k/20:256k/20 --direct=1 --ioengine=io_uring --iodepth=4 --fdatasync=3 --size=3g --fallocate=none --numjobs=$VMIO_JOBS --group_reporting --time_based --runtime=$VMIO_S"
+# The layout writes 3 GiB per writer through the replicated device first: at
+# the ~35 MB/s a single writer gets on the pair's DRBD, ~90 s each, budgeted
+# at twice that.
+PREFILL_S=0
+if [ "${VMIO_PREFILL:-0}" = 1 ]; then
+    VMIO_JOB+=" --overwrite=1"
+    PREFILL_S=$(( VMIO_JOBS * 180 ))
+fi
 run_vmio() {
     local name=$1 target=$2 out dir pre="" post="" h n f
     case "$target" in
         mxfs)  dir=$MNT/pvevmio
                pre="awk '\$2 == \"$MNT\" && \$3 == \"mxfs\"' /proc/mounts | grep -q . || { echo NOT_MXFS; exit; }; mkdir -p $dir" ;;
+        # dir: whatever filesystem is mounted at MNT, set up by the caller
+        # (e.g. XFS on the same DRBD device MXFS was on, to compare the two on
+        # the same disks)
+        dir)   dir=$MNT/pvevmio
+               pre="mountpoint -q $MNT || { echo NOT_MOUNTED; exit; }; mkdir -p $dir" ;;
         xfs)   dir=/mnt/$RES
                pre="mkfs.xfs -f -q -K $DEV && mkdir -p $dir && mount $DEV $dir || { echo XFS_FAIL; exit; }"
                post="timeout 60 umount $dir; rmdir $dir" ;;
+        # raw: the scratch DRBD device itself, as a guest's disk is a logical
+        # volume on DRBD in Proxmox's LVM-on-DRBD layout (no filesystem; the
+        # guest's flush is the device's).  Each writer gets its own 512 MiB
+        # region, so VMIO_JOBS x 512 MiB must fit in LV_SIZE.
+        raw)   dir="" ;;
         local) dir=/mnt/$LOCAL_LV
                pre="{ $(mklv "$LOCAL_LV"); } && mkfs.xfs -f -q -K /dev/$VG/$LOCAL_LV && mkdir -p $dir && mount /dev/$VG/$LOCAL_LV $dir || { echo LOCAL_FAIL; exit; }"
                post="timeout 60 umount $dir; rmdir $dir; lvremove -y $VG/$LOCAL_LV >/dev/null 2>&1" ;;
         *) log "unknown vmio target $target"; return 1 ;;
     esac
-    log "== phase $name: one writer on $NA writing as an installing guest's disk, ${VMIO_S}s, on $target"
+    log "== phase $name: $VMIO_JOBS writer(s) on $NA writing as installing guests' disks, ${VMIO_S}s, on $target"
     for h in "$HA" "$HB"; do
         on "$h" "rm -f /tmp/$RES-iostat.log /tmp/$RES-drbd.log
             setsid bash -c 'for i in \$(seq 1 $((VMIO_S + LVTIME + 30))); do echo \"\$(date +%s.%N | cut -c1-14) \$(grep -E \"^ *[0-9]+: |ns:\" /proc/drbd | tr -s \" \n\" \" \")\"; sleep 1; done > /tmp/$RES-drbd.log' >/dev/null 2>&1 </dev/null &
@@ -303,12 +332,17 @@ run_vmio() {
     # the mount's own counters (/sys/fs/<xfs|mxfs>/<dev>/stats/stats) before
     # and after the writer: how many log writes, log blocks and log forces
     # its syncs cost, the same way on MXFS and on XFS
+    if [ "$target" = raw ]; then
+        out=$(on "$HA" "fio --name=$name --filename=$DEV ${VMIO_JOB/--size=3g/--size=512m --offset_increment=512m} --output-format=json > /tmp/$RES-vmio.json 2>/tmp/$RES-vmio.err
+            echo FIO_RC=\$?" $((VMIO_S + LVTIME + 180)))
+    else
     out=$(on "$HA" "$pre
-        f=$dir/vmio.\$(uname -n); rm -f \$f; truncate -s 3G \$f || { echo TRUNC_FAIL; exit; }
+        d=$dir/vmio.\$(uname -n); rm -rf \$d; mkdir -p \$d || { echo MKDIR_FAIL; exit; }
         st=/sys/fs/\$(findmnt -n -o FSTYPE --target $dir)/\$(basename \$(readlink -f \$(findmnt -n -o SOURCE --target $dir)))/stats/stats
         cat \$st > /tmp/$RES-stats.before 2>/dev/null
-        fio --name=$name --filename=\$f $VMIO_JOB --output-format=json > /tmp/$RES-vmio.json 2>/tmp/$RES-vmio.err
-        echo FIO_RC=\$?; cat \$st > /tmp/$RES-stats.after 2>/dev/null; rm -f \$f; $post" $((VMIO_S + LVTIME + 180)))
+        fio --name=$name --directory=\$d $VMIO_JOB --output-format=json > /tmp/$RES-vmio.json 2>/tmp/$RES-vmio.err
+        echo FIO_RC=\$?; cat \$st > /tmp/$RES-stats.after 2>/dev/null; rm -rf \$d; $post" $((VMIO_S + LVTIME + PREFILL_S + 180)))
+    fi
     on "$HA" "cat /tmp/$RES-vmio.json" 30 > "$OUT/$name.$NA.vmio.json"
     for f in before after; do
         on "$HA" "cat /tmp/$RES-stats.$f 2>/dev/null" 30 > "$OUT/$name.$NA.stats.$f"
@@ -384,6 +418,8 @@ for ph in "${PHASES[@]}"; do
         vmio-mxfs) run_vmio vmio-mxfs mxfs ;;
         vmio-xfs) run_vmio vmio-xfs xfs ;;
         vmio-local) run_vmio vmio-local local ;;
+        vmio-raw) run_vmio vmio-raw raw ;;
+        vmio-dir) run_vmio vmio-dir dir ;;
         bulk-none)
             # the scheduler in force is kept in /run on the host; teardown restores it too
             for h in "$HA" "$HB"; do

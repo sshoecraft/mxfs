@@ -142,6 +142,15 @@ REJOIN_UMOUNT_TRIES = 3
 # long for the holders to be gone before it unmounts; one still there makes
 # the unmount refuse, and the next round kills it again.
 REJOIN_HOLDER_EXIT_S = 30
+# A clean stop whose umount is refused busy tries again once a second for this
+# long, inside its 170 s bound: on a Proxmox host a content scan of the storage
+# or a shell can hold the mountpoint for a moment.  Measured on the physical
+# pair (0.90.111): one stop in 32 failed on a single busy umount 2.1 s in, the
+# unit failed with DRBD Primary under the mount, and nothing said who held it.
+# Each refusal names the holders; a refusal with no holder in /proc is a
+# reference inside the kernel, not a process, and is said to be one.
+STOP_BUSY_RETRY_S = 30
+UMOUNT_BUSY_RC = 32
 QEMU_PID_DIR = "/var/run/qemu-server"
 # Tells the MXFS mount on a resource that its peer is excluded: the module
 # then asks its own witness at once instead of declaring the death after its
@@ -1397,7 +1406,27 @@ def cmd_stop(res, mountpoint):
         # umount and then waits for it, and an unmount stuck in the kernel never
         # dies, so the stop sat there until systemd killed it at its own 180 s
         # and this line was never logged (pve1, 2026-10-07).
-        rc = bounded_umount(mnt, 170)
+        t0 = time.time()
+        busy = 0
+        while True:
+            rc = bounded_umount(mnt, max(1, 170 - int(time.time() - t0)))
+            if rc != UMOUNT_BUSY_RC:
+                break
+            busy += 1
+            holders = mount_holders(mnt)
+            last = time.time() - t0 >= STOP_BUSY_RETRY_S
+            if busy == 1 or last:
+                log("%s: umount of %s refused busy (attempt %d, %.1f s): %s" % (
+                    res, mnt, busy, time.time() - t0,
+                    " ".join("%s(%d)" % (c, p) for p, c in sorted(holders.items()))
+                    if holders else "no process holds it (a reference inside the kernel)"),
+                    crit=last)
+            if last:
+                break
+            time.sleep(1)
+        if busy and rc == 0:
+            log("%s: umount of %s succeeded on attempt %d after %.1f s" % (
+                res, mnt, busy + 1, time.time() - t0))
         if rc is None:
             log("%s: umount of %s has not returned in 170 s: it is stuck in the kernel; "
                 "DRBD stays Primary under it, so the peer will treat this node's departure "

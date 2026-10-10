@@ -1,3 +1,596 @@
+## 2026-10-10 — 0.90.116 — the allocator's trylock no longer does ledger I/O while it holds a VM image's lock
+
+**An AG lock's no-queue request does no ledger I/O and never waits for a
+ledger page's lock.** 0.90.115's fix answered would-block only when the
+ledger page's preparation returned -EAGAIN. Its final run on the physical
+pair's slow spare disks still froze a guest's writes for over 30 s on pve1,
+by another route. The allocator's trylock, holding the VM image's ILOCK, slept
+in `mxfs_tauth_ledger_activate` on a page lock that a thread writing the
+page to the slow disk held. QEMU's other writers and the direct-I/O
+completion worker waited on the ILOCK behind it, and the kernel reported hung
+tasks. Two narrower answers were measured and rejected:
+- Answering would-block for any page not yet ready stopped the freeze.
+  But only trylocks touched some pages, so nothing activated them: one
+  AG's page was skipped 26 times, and pve1's installs missed packer's
+  45 minutes.
+- Answering would-block only for a page another thread held left the
+  trylock doing its own page reads and commit: 2.7 s under the ILOCK in one
+  leg.
+
+Now such a request is decided on at once only when its page is this node's,
+imported under the current generation, and its lock free this instant
+(`mxfs_tauth_ledger_page_ready_nowait`, a trylock). Any other page answers
+would-block and is marked. The hand-off worker, which holds nothing,
+prepares the marked pages every 500 ms, ahead of its hand-off pass
+(`mxfs_dlm_prepare_wanted`). So the page is ready for the next try.
+`dl_noqueue_ledger_nowait` (1; 0 restores the request preparing the page
+itself, for A/B only). New probes: `P-ACQ-NOQUEUE-LEDGER-NOTREADY`,
+`P-PREPARE-WANTED` (debug).
+
+Verified two ways:
+- **Userspace:** new case 18 of `tests/tauth/dlm_ledger_test`. With the knob
+  at 0, a no-queue request waits 1537 ms behind a held activation. With it
+  at 1, the request answers in 0 ms. On an unready page nobody holds, it
+  answers in 0 ms with no ledger commit; the worker's pass then prepares the
+  page, and the next no-queue request is granted.
+- **Physical pair:** MXFS on DRBD on the TRIMmed Kingston spare disks, 7
+  concurrent AlmaLinux installs. The would-block path ran on both hosts
+  (pve1 24, pve2 17), and the worker prepared those pages in 5 and 6 passes.
+  - No slow preparation: the knob-0 legs on these disks had up to 4.3 s.
+  - No hung task, I/O error, warning or withdrawal on either host. The
+    knob-0 legs had hung tasks.
+  - 7 of 7 installed: pve1 2311–2441 s, pve2 1856–2174 s.
+  - The guests' flush means were 40 to 54 ms, against 47 to 105 ms in the
+    earlier legs.
+
+**Only AG locks take either no-queue answer.** The inode allocator's no-queue
+tries probe one inode number after another. With 0.90.115's would-block
+applied to them too, an early would-block skipped the number. On
+4/net/mesh/direct the allocation witness then found no inode chunk filled
+whole and could not grade the run (4 of 4). Restricted to AG locks, 3 of 3
+graded and `chk_clean` read CLEAN.
+
+**`tests/pve_image_delete_logs.sh` passes.** Both hosts delete three
+fragmented images at once while still holding them open. The four runs on
+0.90.116 (256 and 512 MiB) left every file gone on both hosts, with no
+warning-level line, unrecovered-unlinked message or trace in either kernel
+log. The three earlier runs failed: one on lines that 0.90.108 made probes,
+and one, "still sees 2 files", on the test's own count. `grep -c img` matched
+the two directory headers `ls` prints. It now matches `^img`.
+
+**Defect queue:**
+- **the allocator's trylock slept on a ledger page lock while holding a VM
+  image's ILOCK** (D-NOQUEUE-AG-TRYLOCK-BLOCKS-ON-LEDGER-ACTIVATE-MUTEX-HOLDING-ILOCK)
+  — FIXED AND VERIFIED by the change above (the stacks named the cause; case
+  18 proves the behaviour; the Kingston leg exercised it with no slow
+  preparation and no hung task).
+- **0.90.115's would-block skipped inode numbers, so the allocation witness
+  could not grade** (D-NOQUEUE-WOULDBLOCK-SKIPS-INODE-NUMBERS-WITNESS-CANNOT-GRADE)
+  — FIXED AND VERIFIED. Every no-queue request: 4 of 4 runs aborted,
+  `tests/evidence/alloc_witness/20261010T040221Z-g4` and three more,
+  against 0 of 21 on 0.90.114/0.90.107. AG locks only, build
+  069D73E31601F207DF824C6: coverage PASS 3 of 3 (`20261010T044929Z-g4`,
+  `045143Z-g4`, `045355Z-g4`), `chk_clean` CLEAN.
+- **a survivor's takeover skipped, for good, the pages the view routed to a
+  peer that had just joined** (D-TAKEOVER-SKIPS-PAGES-ROUTED-TO-A-JUST-JOINED-PEER-FOR-GOOD)
+  — FIXED AND VERIFIED (fixed in 0.90.113). Before: `skipped=413 noinc=413`,
+  with 397 pages left. After, in both 16-step nested-pair suites
+  (`tests/evidence/pve_pair_failover/20261009T145710Z-192.168.120.211`,
+  `20261010T031509Z-192.168.120.211`): withdraw and power-cut steps logged
+  `skipped=0` with `noinc` 39, 91, 130 and 71, and every withdraw census
+  found no page left under the dead incarnation.
+- New: **a no-queue AG request whose master is the peer waits a whole 1 s
+  attempt when the master is slow to answer, AG after AG, under the ILOCK**
+  (D-REMOTE-NOQUEUE-AG-TRYLOCK-WAITS-A-FULL-ATTEMPT-PER-AG-UNDER-ILOCK).
+  In the same leg, QEMU's writers on pve1 met 61 such waits, in runs of 5 or
+  6 a second apart: 5 to 6 s per allocation pass. No hung task.
+- New: **`P958-ACQ-IDLE-LOST` reads as a wait of `idle_ms`, and is not one**
+  (D-IDLE-LOST-WARNS-OF-A-LONG-WAIT-FOR-A-NO-QUEUE-TRY-ABANDONED-MINUTES-AGO).
+  All 27 in that leg are the leftover records of unanswered no-queue tries,
+  each logged exactly `idle_ms` after its try. Read as AG waits of up to 20
+  minutes, they had been taken as evidence against the first rejected
+  answer above. That answer's install timeouts and flush times still rule it
+  out.
+- **The pair's corosync QDevice is not voting** (recorded in
+  D-DRBD-PAIR-NO-EXTERNAL-QUORUM-SO-P1-CANNOT-TAKE-OVER-WHEN-P0-DIES). Its
+  qnetd host, 192.168.1.108, has been unreachable since at least
+  2026-10-05, so the pair has 2 of 3 votes. No takeover design can rest on
+  that vote until it exists.
+
+**`tests/pve_build_leg_kmsg.sh`** turns on and counts the new probes, and
+counts `P-ACQ-NOQUEUE-UNANSWERED` and `P958-ACQ-IDLE-LOST`.
+
+## 2026-10-09 — 0.90.115 — IN PROGRESS, NOT RELEASED: a VM disk's writes no longer freeze for up to a minute while the allocator's trylock waits on a ledger page that is not ready
+
+**A no-queue lock request answers would-block when its ledger page is not
+ready.** On the physical DRBD pair with the slow spare disks, a guest write
+that needed new blocks ran the allocator's first, trylock pass over the AGs
+while holding the VM image's ILOCK. Where pve2 was the AG lock's master but
+the lock's ledger page was not yet its own, or was frozen in a hand-off,
+`dlm_ledger_prepare` answered -EAGAIN and the request parked and retried for
+its whole 60-retry budget before returning the "would block" its caller
+asked for. One QEMU I/O thread did that on three AGs in a row, and every
+other write to the image, plus the direct-I/O completion that converts
+unwritten extents, waited on the ILOCK behind it: hung-task reports on pve2,
+and `lock request failed after 60 retries ... file operation will return an
+error`, which was false (the allocator reads -EAGAIN as "try the next AG", and
+no write failed). A no-queue request now answers would-block at once in that
+case, as it already did for a page in transition, an unreachable master or an
+unanswered attempt; the allocator's blocking pass and the restart pregrant,
+which hold nothing while they wait, take the AG. Knob
+`dl_noqueue_prepare_wouldblock` (1; 0 restores the retries, for A/B only).
+New probe `P-ACQ-NOQUEUE-PREPARE` (debug). The exhaustion line now carries
+`flags`, `age_ms` and `comm`, and says what a no-queue caller does with it
+instead of claiming the operation fails.
+Verified on the physical pair, MXFS on DRBD on the TRIMmed Kingston spare
+disks, 7 concurrent AlmaLinux installs per leg, the same build with the knob
+set per leg, in the order 0 1 1 0: in both knob-0 legs pve2 parked no-queue
+requests on an unready page (144, 159), some used up the budget (4, 3), and
+the kernel reported hung tasks (18, 12: QEMU I/O threads and the completion
+workers); in both knob-1 legs pve2 answered them at once (35, 23), none used
+up a budget, and neither host logged a hung task, I/O error, kernel warning,
+withdrawal or self-fence. The guests' disk cost did not change: the two
+adjacent legs, knob 1 then knob 0, wrote the same 3.4-3.5 GiB per guest at a
+mean of 877-941 vs 846-926 ms per write and 63 vs 60-65 ms per flush on pve1.
+
+**Defect queue:**
+- **guest writes on the DRBD pair froze for up to a minute on slow disks**
+  (D-NOQUEUE-AG-ACQUIRE-WAITS-60-RETRIES-ON-LEDGER-PREPARE-HOLDING-ILOCK)
+  — FIXED AND VERIFIED by the change above (knob 0, two legs: 7 exhausted
+  budgets, 30 hung-task reports; knob 1, two legs: none).
+
+**`tests/pve_build_leg_kmsg.sh`** runs one MXFS build leg on the physical
+pair's spare disks (`scripts/pve_build_compare.sh <dir> mxfs`) and keeps each
+host's kernel log for the leg beside it, counting the lines that grade the
+pair and the no-queue probes, so `tests/pve_knob_ab.sh` can A/B a knob over
+whole build legs.
+
+## 2026-10-09 — 0.90.114 — a peer's request for a ledger page is no longer queued behind a view change's hand-offs; a slow fsynced-set read in the DRBD failover suite leaves its stacks
+
+**A FREEZE_REQ is served ahead of the hand-off worker's bulk.** After pve1
+withdrew and rejoined on the lower slot of the physical pair, its first read
+(32 files) took 94.7 s. Each file's inode was mastered by pve2 on a ledger
+page still under pve1's dead incarnation, so pve2 asked pve1, now the
+bootstrap node, to take each page over (FREEZE_REQ), re-asking every 500 ms:
+20 to 40 times per page. pve1 never answered them in time. In every stack
+sample its one hand-off worker was activating pve2's view-change hand-off,
+a ledger commit per page, with the DRBD swap lock averaging 21 to 45 ms and
+peaking at 3 s, and the asks were queued behind all of it. The worker now
+takes a queued FREEZE_REQ first. It does not pass a queued message for the
+same page, or a departing peer's FROZEN, whose order the single queue kept. A
+repeated ask for a page already queued replaces the queued one. Knob
+`handoff_rx_ask_first` (1; 0 restores the single queue for A/B). New probe
+`P-HRX-ASK-WAIT` (debug: an ask that waited 1 s or more); `P-HRX-STATS` adds
+`asks_first`, `asks_merged`, `ask_max_wait_ms`.
+Verified on the physical pair in the state that produced it (alternating
+withdraw laps with the 10 s announce hold): with the knob at 0, the fourth lap's
+read took 69.0 s, with 79 asks waiting 1 s or more (median 8.8 s, max 18.8 s) and
+104 parks. With the knob at 1, immediately after on the same pair, 5 of 5 laps
+read within the bound, with no ask waiting 1 s and no park.
+
+**Defect queue:**
+- **the first read on a host that had withdrawn and rejoined took up to 95 s**
+  (D-REJOINED-HOST-READ-STALLS-OVER-60S-WHILE-SURVIVOR-PARKS-ON-ITS-OLD-PAGES)
+  — FIXED AND VERIFIED by the FREEZE_REQ ordering above (fix-off lap 69.0 s,
+  fix-on 5 of 5 laps within the bound, the data intact throughout).
+- **a host that withdrew and rejoined on the lower heartbeat slot could
+  deadlock its own admission** (D-REJOINER-IN-A-RECOVERED-SLOT-DECERTIFIES-THE-SURVIVORS-TAKEOVER)
+  — FIXED AND VERIFIED by 0.90.113's `recovered_here_mask`: nested pair A/B
+  with the 10 s announce hold, old election 4/4 decertified during the hold
+  (one deadlock, one 23.4 s join), fixed 6/6 clean; physical pair, 9
+  `withdraw-p0` laps with the hold on 0.90.113 and 0.90.114, every rejoin
+  admitted in one attempt, the census clear.
+
+**`tests/pve_pair_failover.sh` records where a slow read waits.** The
+fsynced-set check used to cut the read off at its 60 s bound, and the step's
+kernel logs had been collected before the check ran, so the physical pair's
+stalled read on the rejoined host (0.90.113, `withdraw-p0`) left no evidence
+of what it waited on. The read now runs through `tests/pve_read_stall_probe.sh`
+on the host: it is still graded at 60 s, but it runs on to `READ_LIMIT_S`
+(300 s), and from 10 s on, every 5 s, the reader's kernel stack and those of
+the module's busy threads are kept in the step's evidence
+(`stall.<host>.reads.<writer>`), with the kernel logs collected again
+afterwards. `DYNDBG` turns named debug lines on for a withdraw step on both
+hosts, and off after it.
+
+## 2026-10-09 — 0.90.113 — IN PROGRESS, NOT RELEASED: a host that rejoins a DRBD pair on the lower heartbeat slot no longer deadlocks its own admission, and a survivor's takeover no longer strands ledger pages
+
+**A rejoin on the lower heartbeat slot no longer deadlocks.** When a host
+withdraws and its new incarnation claims the lower slot again while the
+survivor is still taking over the dead incarnation's ledger pages, the
+bootstrap election moved to the rejoiner the moment its slot read live,
+before it was in the survivor's view. The survivor's takeover stopped
+(`P-TAUTH-TAKEOVER-DECERTIFIED`) and left the rest to a node that could not
+move anything before it was admitted. Admitting it needed the survivor's join
+freeze, whose lock page was among those left: the request parked with nobody
+to ask (`P960-PARK-NOT-TRANSITION bn=<rejoiner> bn_in_view=0`), and the
+rejoiner's mount waited minutes. The 0.90.112 attempt passed over such a
+rejoiner only for slots in the mount barrier's resolved mask. A survivor that
+recovers the slot itself never sets that mask, so it never applied. A new
+probe (`P-BOOTSTRAP-NOT-READY`) showed a second gap: while the rejoiner was
+beating but not yet live, its slot also held the survivor out of the role. The
+survivor now marks each slot whose death it recovered as the replayer
+(`recovered_here_mask`, set at `P163-RECOVERY-COMPLETE`, void while a recovery
+is pending on the slot again). The election passes over that slot's new
+tenant until the tenant is in the view, and the readiness check counts the
+slot as resolved.
+
+The window is now reproducible: `JOIN_ANNOUNCE_DELAY_MS` in
+`tests/pve_pair_failover.sh` (knob `dbg_join_announce_delay_ms`, one-shot)
+holds the rejoin's mount 10 s between its heartbeat claim and its announce,
+and the new `withdraw-p0` step withdraws the host on the lower slot. Nested
+pair (Proxmox 7.0 kernel, build B79CB2C8F1EB8478FB59B6F), with the hold:
+- `bootstrap_skip_unadmitted=0` (the old election): 4 of 4 arms
+  decertified the survivor during the hold, 9 to 10 s before the join.
+  Earlier arms with the same cause produced the deadlock outcome: one
+  parked 50 times on page 5531 and its join took 4 attempts over 23.4 s;
+  another never rejoined within 375 s.
+- `=1` (the default): 6 of 6 laps decertified only at `P-JOIN-INSTALLED`.
+  Every join took one attempt (48 to 121 ms), the survivor's load stayed at
+  or under 190 ms, and no page was left under the dead incarnation.
+- Physical pair, one lap with the hold: the survivor kept its takeover
+  until the join, and nothing deadlocked. But after the join a read on the
+  rejoined host did not return within 60 s, while the survivor parked on
+  the old incarnation's pages. The data was intact. It is filed as
+  D-REJOINED-HOST-READ-STALLS-OVER-60S-WHILE-SURVIVOR-PARKS-ON-ITS-OLD-PAGES,
+  and the rejoin defect stays open until the physical lap passes.
+
+**A survivor's takeover no longer skips, for good, the pages the view routes
+to a peer that has just joined.** While the slot map could not name the
+joiner's incarnation, the takeover skipped each such page, and the pass never
+came back to a skipped page. On the nested pair a host's rejoin 4.4 s into the
+pass left 413 pages skipped (`P-TAUTH-TAKEOVER-SKIPPED skipped=413
+noinc=413`), and 397 were still under the dead incarnation long after the pass
+ended. Such a page is now taken over by the survivor itself, and the hand-off
+tick passes it on once its owner can be named. Same step after the change:
+`skipped=0 noinc=13`, nothing left. Defect
+D-TAKEOVER-SKIPS-PAGES-ROUTED-TO-A-JUST-JOINED-PEER-FOR-GOOD.
+
+**A death's takeover now ends with the orphan sweep, as every departure
+does.** The takeover moves only pages whose authority is the dead
+incarnation. On the physical pair, 4 pages that pve1's previous incarnation
+had PREPARED to pve2 stayed PREPARED, with both ends dead, after pve2's
+recovery takeover. D-PAGES-PREPARED-TO-A-NODE-THAT-DIES-FROM-A-DEAD-AUTHORITY-ARE-NEVER-MOVED
+stays open until a lap shows such a page moved.
+
+**`tests/pve_pair_failover.sh` now checks every withdraw step's end state on
+the platter.** It reads the ledger (`tools/tauth_page_auth.py`) until no page
+is under an incarnation a host recovered in the step. The budget is twice the
+measured takeover: its wait behind a mount's orphan sweep (161 s) plus the
+pass at 20 pages/s. `PAIR_UP_WAIT` lets an A/B arm that follows a failed one
+wait for the pair. Both checks found the two stranding defects above.
+
+## 2026-10-09 — 0.90.112 — IN PROGRESS, NOT RELEASED: a peer's lock requests no longer wait behind its ledger page hand-offs; live migration between the two DRBD hosts is tested
+
+**A lock request no longer waits on the receive thread behind page
+hand-offs.** Each peer connection has one receive thread, and it ran every
+ledger page activation inline, 25 to 40 ms each. After a rejoin on the
+physical pair the view-change stream outran the activations, and a
+root-inode request waited 6.7 s behind about 250 of them, which is what held
+the peer's unmount. Page hand-offs (FREEZE_REQ, FROZEN) now run in arrival
+order on their own worker (`handoff_rx_worker`, default on), a peer's GOODBYE
+waits for the hand-offs queued before it, and `P-RX-DISPATCH-STATS` /
+`P-HRX-STATS` print the receive thread's time per message type when the
+engine stops. On the physical pair, four departures each way with the
+survivor's workload running (`tests/pve_depart_wall.sh KNOB=handoff_rx_worker`):
+the mount was gone in 0.7 to 0.8 s with the worker against up to 2.2 s
+without, the unit stopped in 4.9 to 6.2 s against 5.1 to 12.1 s, and the
+survivor's slowest operation was 2.2 to 4.6 s against 3.1 to 8.5 s. One lap
+with the worker failed on `takeover_unrun`: the survivor's takeover ran 166 s
+and the next lap stopped that host first. That lap's swap statistics show no
+lock contention; the takeover ran standalone (the departer's unit stop tears
+DRBD down), and pve1's own flushes took 9 to 26 ms against 4 to 5 ms in the
+other laps. D-REJOINED-NODE-ANSWERED-A-ROOT-INODE-BAST-11S-LATE-HOLDING-ITS-PEERS-UNMOUNT
+stays open: no control lap reproduced the 11 s answer, and the statistics
+lines mix both arms because an engine lives across several laps.
+
+**The bootstrap election change in this version does not work.** It passed
+over a lower slot's new tenant while that node was not in the view, but only
+for slots in the mount barrier's resolved mask, which a replayer never sets
+for its own recovery. 0.90.113 replaces it.
+
+**Live migration between the two physical hosts is tested.**
+`tests/pve_live_migrate.sh` clones a guest onto /mnt/shared, migrates it back
+and forth while it fsyncs files, and re-reads every file from the platter on
+the new host after each move: 6 of 6 migrations, every file intact, no bad
+kernel line on either host or in the guest, guest pause 0.4 to 2.5 s. A guest
+with `cpu: host` dies at resume between the Xeon W3520 and the i3-8100; the
+guide now says to use `x86-64-v2` (the Proxmox default `x86-64-v2-AES` does
+not start on the Xeon). `IDLE_LAPS` migrates chosen laps with the writer
+paused.
+
+## 2026-10-09 — 0.90.111 — IN PROGRESS, NOT RELEASED: the survivor takes over what a departure leaves whichever heartbeat slot the departing host held
+
+**The survivor of a clean departure now takes over the ledger pages the
+departure left, even when the departing host held the lower heartbeat
+slot.** Only the bootstrap node (the lowest live heartbeat slot) may take
+over a departed authority's pages. The departing host's slot reads live
+until its slot release is observed, about 0.4 s after its GOODBYE. So when
+the departing host held slot 0, the survivor's takeover on GOODBYE was
+refused as "not bootstrap", silently, and nothing ran it again. Measured on
+the physical pair (0.90.110, departure budget 2000 ms): 3207 pages stayed
+under the departed authority. A stale lock record on one of them later
+stalled the survivor's workload for 14.5 s. GOODBYE now records the
+departing node and incarnation for its slot, and the bootstrap election
+passes over a slot that still shows that node or that epoch. A new
+incarnation on the slot is counted again. A refused takeover is now logged
+(`P-TAUTH-TAKEOVER-NOTBOOT`), and `tests/pve_depart_wall.sh` fails a lap on
+one, or when pages were left and the survivor logged no takeover.
+
+Verified on both pairs with four alternating departures each (budget
+2000 ms, survivor workload running): the physical pair (6.17, build
+DD230ADB8ECC5BE79973320) and the nested pair (7.0, build
+D4B7B0551B4E42043AD5C22), 8 of 8 laps PASS. The departing host held slot 0
+in four laps and slot 1 in four. In every lap the survivor's takeover
+prepared every page the departure left: 323, 3219, 3214 and 2714 on the
+physical pair; 1424, 1064, 2267 and 1040 on the nested pair. The first
+physical lap's orphan sweep also took over the 5706 pages the 0.90.110 runs
+had stranded. Each unmount finished in 3.6 to 15.8 s. Defect
+D-GOODBYE-TAKEOVER-REFUSED-WHILE-DEPARTERS-SLOT-STILL-LIVE is closed.
+
+**A survivor's file operations no longer fail while its peer unmounts
+cleanly.** From "DLM shutting down" until its departure pass began, the
+departing host dropped every page hand-off message it received. That
+included the survivor's requests for ledger pages the departer still
+served. On the physical pair a departure that began during the departer's
+view-change hand-off to the rejoined survivor dropped 43 such requests over
+8 s. The survivor's lock requests on records in those pages waited for the
+page 117 and 120 times, then failed after 60 retries ("file operation will
+return an error", EAGAIN). The departer's own releases to the survivor
+waited out two 3 s acknowledgement bounds, because the survivor could not
+commit them on those pages. The lap read PASS anyway: the harness did not
+look for lock failures on the survivor, and the workload's own operations
+were not the ones that failed. Now the departing host serves a page request
+during its teardown. That is the same transition its departure pass makes
+for every page, made earlier for the page asked for. A page handed TO the
+leaving host is still refused. `P-GOODBYE-SENT` reports how many were served
+(`teardown_freeze_served`), and `tests/pve_depart_wall.sh` fails a lap on
+any lock request the survivor gives up on. On the physical pair (build
+4DEAD58F2408EE52F1D56D5), four departures served 3, 3, 1 and 1 requests
+during teardown and dropped none. The survivor had no lock failures, and
+the departer waited on no release. In departures from slot 1, grants were
+released at +1.1 s (was +3.9 s), the departure pass ended at +3.2 to +3.8 s
+(was +8.9 s), and the unit stopped in 10.3 s (was 15.8 s). The survivor's
+slowest operation during a departure fell from 11.1 to 11.9 s to at most
+4.5 s. The nested pair (build B77BD920E9DCBDCBF9060B8) also passed four of
+four. Defect D-DEPARTER-DROPS-PAGE-FREEZE-REQS-IN-TEARDOWN-SURVIVOR-LOCKS-FAIL
+is closed.
+
+**The same takeover no longer fails when a peer's retired record is settled
+before its GOODBYE is processed.** On the shared-LUN transports, the
+survivor's reservation-retire worker can settle the departing node's
+heartbeat record before the receive thread has processed its GOODBYE. On
+the 2-node rig this happened in both departures from slot 0. The settle
+queues the departure itself. Its takeover ran while the departer's slot
+still read live, so it was refused as "not bootstrap", and the GOODBYE that
+followed was folded into it as already done. A record this mount settled
+EMPTY now takes its slot out of the bootstrap election, the same way a
+GOODBYE does. Two test knobs prove it on one build: `dbg_goodbye_rx_delay_ms`
+holds the GOODBYE so the settle always comes first, and
+`tauth_settled_gone=0` restores the old election. In the control arm the
+slot-0 departure left 598 pages and nothing took them over. In the treatment
+arm, four departures in both directions all ran as `retire-settled`, and
+each survivor took over every page left (835, 881, 931, 1046).
+`tests/rig_depart_wall.sh` is the rig twin of `tests/pve_depart_wall.sh`.
+
+**A clean unmount with the peer mounted takes seconds, not minutes, on every
+transport.** On the 2-node shared-LUN rig with the default budget, four
+departures unmounted in 1.4 to 5.5 s. Before, they took 35 to 80 s handing
+about 6700 pages. The survivor's superblock-cover worker no longer retries
+against the departing master: 0 retries, where it used to retry for 32 s.
+The survivor's slowest file operation during a departure was 2.5 to 5.6 s.
+That remaining wait is a lock request held until the departing master's
+GOODBYE, recorded as its own defect. Defect
+D-A-CLEAN-UNMOUNT-OF-ONE-NODE-WHILE-ITS-PEER is closed.
+
+**A clean departure's page hand-off is now bounded by default
+(`tauth_depart_budget_ms`, 2000 ms).** A departing host hands its ledger
+pages to the survivor for at most 2 s. Whatever is left, the survivor takes
+over on GOODBYE, now that its takeover runs whichever slot the departing
+host held. Without a bound, a departure grows with the pages the host
+serves: 1700 pages took 43 s, and a 40 GiB pair can serve 21,140, past the
+unit's 170 s unmount bound. On the default build (physical
+0F4333ED3326D55C0040A3E, nested B3F3C010248A882441C1DE4), twelve
+departures with no knob set stopped their units in 3.6 to 10.3 s, apart
+from the one below. The survivor took over every page left (9 to 3301 per departure),
+with no lock failure and no dropped hand-off request.
+
+**A clean stop no longer fails when something briefly holds the mount.**
+The unit's stop made one umount attempt. On the physical pair, one stop in
+32 was refused busy 2.1 s in, and the unit failed with DRBD left Primary
+under the still-mounted filesystem. The boot program then logged that the
+peer would treat the departure as a loss, and nothing named the holder. The
+stop now retries a busy umount once a second for up to 30 s, inside its
+170 s bound. It names the processes holding the mount, or says that no
+process holds it, which would mean a reference inside the kernel.
+`tests/pve_stop_busy.sh` holds the mountpoint from a shell for 5 s and stops
+the unit. On the old stop path it failed the same way: stop ended in 2 s,
+unit failed, still mounted. On this build it passes on both pairs: the
+first refusal names the holder, and attempt 3 unmounts 8 s in. Which
+process held the mount in the original failure is not known. Defect
+D-DRBD-UNIT-STOP-FAILS-ON-ONE-BUSY-UMOUNT is closed.
+
+`tests/pve_split_write.sh` also passed on the nested 7.0 pair on this
+build: six 256 MiB writes, 762 split pieces, and the peer read back a
+matching md5 each time.
+
+## 2026-10-09 — 0.90.110 — IN PROGRESS, NOT RELEASED: a clean departure from a DRBD pair is bounded in time however many ledger pages the host serves
+
+**A host on Proxmox's 7.0 kernel no longer crashes on its first large write
+to a DRBD pair.** The DRBD write window splits any write larger than its
+chunk (1 MiB) and chains each piece to the rest, then hooks each piece's
+completion. The hook put the piece's own completion back and called it
+directly. For a chained piece that is `bio_chain_endio`, which since Linux
+7.0 is a `BUG()` that only `bio_endio()` may route around. On the nested
+pair (7.0.14-19-pve) one host panicked during a clean departure. On the
+other, a 256 MiB write killed DRBD's ack receiver
+(`kernel BUG at block/bio.c:367`, `mxfs_ioq_end_io+0x95`, captured over
+netconsole), and the host had to be reset. The physical pair runs
+6.17.2, where that function still completes the chain, so it never hit
+this. The hook now completes through `bio_endio()`, as the kernel's own
+stacking drivers do. On the same 7.0 hosts the same write then ran three
+times on each host without a fault. The window split 752 pieces, each
+completed through the hook. The file read back from the peer matched its
+source. Defect D-DRBD-WRITE-WINDOW-CALLS-A-SPLIT-PIECES-CHAIN-ENDIO-
+DIRECTLY-AND-PANICS-ON-7-0 is closed.
+
+**A survivor's takeover no longer prepares pages to a host that is
+leaving.** It mapped each page over the whole view, which still names a
+departing host until its GOODBYE is processed. On the physical pair, the
+survivor's orphan sweep prepared and retargeted pages to the departing
+host after it had announced its departure. Every one of those commits had
+to be redone, and each took the pair's swap lock away from the departure.
+The takeover now routes as every hand-off does, over the view without
+departing members.
+
+**Verified: a peer that dies during a hand-off pass is declared dead on
+time.** 0.90.109 moved the view-change hand-off pass off the TCP death
+worker, which it had held for 52.6 s on the physical pair. The new
+`tests/pve_death_during_handoff.sh` resets a nested-pair host by sysrq
+while its peer is handing it back its pages. In two runs the death was
+declared 7.7 s and 7.5 s after the reset (budget 22 s), with 827 and 569
+hand-offs still being logged after it, and the worker was never held. The
+reset host came back whole by itself. Defect
+D-TCP-DEATH-DECISIONS-HELD-FOR-A-WHOLE-VIEW-CHANGE-HANDOFF-PASS is closed.
+
+**Ledger page commits on DRBD share the swap's critical section.** Every
+ledger page commit on a DRBD store is one emulated compare-and-swap that
+writes the whole 4 KiB page. Commits that queue together are served under
+one acquisition of the pair's swap lock, but each page commit still got a
+wave of its own inside it: one read and one replicated FUA write after
+another, while the peer waited for the lock. Commits whose sector ranges do
+not overlap now share a wave. Their compared sectors are read together and
+their pages written together, which reads and writes exactly what serving
+them one after the other would. On the physical pair a batch of about four
+commits held the critical section for 17.5 ms instead of 25-26 ms, and a
+departure cost 12.4-13.3 ms a page instead of 13.7-15.6. The peer's disks
+still take the writes one at a time, which limits the gain.
+`drbd_span_waves=0` restores the old waves. `P-DRBD-CAS-STATS` now also
+counts waves.
+
+**Measured and removed: activating handed pages on a worker pool.**
+0.90.109 could activate the pages a peer hands this node on a pool of
+eight threads instead of the peer's receive thread (`tauth_async_activation`,
+off by default). On the physical pair it made a departure slower: 70.8 s
+for 3391 pages and 70.3 s for 3450, against 47.0 s for 3465 with the
+activations in line. On DRBD every ledger commit on either host takes the
+pair's one swap lock. The survivor's parallel activations took lock time
+from the departing host, whose wait per batch rose from 12-20 ms to 27-45
+ms. The pool, its knob, the GOODBYE drain that waited for it and the
+mesh-test hook are gone.
+
+## 2026-10-08 — 0.90.109 — IN PROGRESS, NOT RELEASED: a host leaving a DRBD pair no longer waits out its peer's rejoin hand-off, and a TCP death decision no longer waits for any hand-off
+
+**An unmount no longer waits for a view-change hand-off pass to finish.**
+On the physical pair, pve2's clean unmount, started 5 s after pve1
+rejoined, took 62.5 s. 45 s of that came before it released a single grant.
+The teardown joins the TCP death worker, and that worker was inside the
+rejoin's hand-off pass. The pass moved pve1's share of the ledger back to
+it, 1303 pages one durable commit at a time at ~36 ms each
+(`P-TCP-DEATH-PASS-HELD ms=52627 handoff=52627`). The pass now stops
+between pages once the engine is shutting down. The departure pass that
+follows hands every page the host still serves to the view without it,
+which on a pair is the same owner, so no page is left half moved.
+
+**The hand-off pass has a thread of its own.** It ran on the TCP death
+worker, ahead of the grace check, so every TCP death decision waited for it:
+52.6 s in the pass above. A peer that died in that window was not judged
+dead, fenced or recovered until the pass ended. The pass now runs every
+500 ms on its own worker, and the death worker runs it only when that
+thread could not be created (`P-HANDOFF-WORKER-NOTHREAD`). The teardown and
+the refused-mount unwind join it after the death worker.
+
+**Measured and not kept: authority transitions through the group commit.**
+A page's hand-off (prepare) and its activation each pay one replicated span
+swap. Routing them through `tauth_group_commit`'s shared barriers instead
+batched about 7 pages a time on the physical pair (973 pages in 139
+batches), but each batch takes the pair's swap lock twice, under the ticket
+protocol. A departure then cost 20.8-21.9 ms a page against 12.7-16.7 ms
+one swap a page, so the change was reverted.
+
+**`tests/pve_depart_wall.sh` times the departure, not the detach.** It
+called the unmount finished when the mount left `/proc/mounts`, which
+happens 0.7-0.8 s in, and it switched the probes off at that point. The
+teardown then ran 30-60 s more with every hand-off probe lost, and "no
+P-TAUTH-DEPART line" read as nothing to hand off. It now waits for the unit
+to stop, fails a unit that ends anywhere but `inactive`, and prints the
+teardown's phases: grant release, departure pass and DLM down, in seconds
+after `DLM shutting down`. It also turns on the DRBD swap's
+`P-DRBD-CAS-STATS`, a `pr_debug` that the dlm probes' format filter does
+not match.
+
+## 2026-10-08 — 0.90.108 — IN PROGRESS, NOT RELEASED: four kernel messages that a healthy, loaded host printed as warnings or recovery are now probes; the DRBD write window reports how long its writes take at each depth
+
+**A healthy host no longer logs warnings or "recovery" for designed paths.**
+On the physical pair under VM installs, 0.90.107 printed four kinds of
+line that read to an operator as faults on a filesystem that was working.
+Each is now a dynamic-debug probe (printed on the rig, whose nodes load the
+module with every probe on, and anywhere `module mxfs +p` is set):
+- `P-UNPUB-OWNED-META` (`xfs/xfs_mxfs_ilock.c`), a warning: a new file that
+  is about to log metadata outside its inode core takes a real lock grant
+  first. That is the designed path, taken by every new VM disk image.
+- `P-STALE-FIN` (`pal/linux/xfs_buf_item.c`), a warning naming a "leak
+  source": a freed AG btree buffer with a second reference at its stale
+  completion. Another thread's lookup can hold that reference briefly; the
+  instance that logged three of them unloaded with
+  `P-BUF-LEAKED-TOTAL live=0`, which is what decides a leak.
+- `P67-STALL-OWNER-STACK` (`xfs/xfs_trans_ail.c`): a full task stack, a
+  Call Trace, for an AG drain that was only slow under write load. It now
+  dumps only with probes on; the one-line stall notices are unchanged, and
+  the kernel's hung-task detector still reports a real hang.
+- Upstream XFS's "Found unrecovered unlinked inode ... Initiating
+  recovery" / "list recovery" (`xfs/xfs_inode.c`): on a cluster mount this
+  is a peer's in-flight unlink, or this node rebuilding in-core back-links
+  of a list that is intact on disk. Neither is recovery. A cluster mount
+  records them as `P83-UNL-RELOAD` / `P83-UNL-BUCKET-RELOAD`; a non-cluster
+  mount keeps upstream's wording.
+- `P-TAUTH-SETTLED-RETIRE` (`dlm/dlm.c`), a warning: a ledger page import
+  retiring a holder record left by a departed mount incarnation whose
+  tenancy the heartbeat table shows ended with nothing to replay. That is
+  housekeeping, as its `P-TAUTH-SETTLED-KEPT` sibling (already a probe) is.
+  It printed twice on pve2 during the first verification run of the four
+  changes above.
+- `P67-INSTR AG-AIL-STALL-ABORT`, `P67-STALL-OWNER` and the periodic
+  `P67-INSTR AG-AIL-STALL` (`xfs/xfs_trans_ail.c`), and
+  `P72-REQUEUE-LIVE-DEMOTER` (`xfs/xfs_mxfs_bast.c`), all warnings. Both
+  hosts printed them while each wrote and then deleted three 512 MiB files.
+  The drain that gives up is the release worker's advisory prepass:
+  Invariant 1 rides the synchronous post-commit drains, so the abort reports
+  a writer holding the AG's items under load, not a fault. The P72 line is
+  the designed answer to a lock callback that meets a release already under
+  way.
+
+`tests/pve_image_delete_logs.sh` (new) reproduces the shape that printed
+upstream's unlinked-inode line on the physical pair. Both hosts lay down
+fragmented images, interleaved with each other's writes, then remove them at
+the same second while still holding them open, as Proxmox does when VMs on
+both hosts are destroyed together. It passes only when neither kernel log
+has a warning-level mxfs line, a "Found unrecovered unlinked inode" or a
+Call Trace, and it reports how many unlinked reloads the run took.
+
+**The DRBD write window reports its completion times by depth.** On the
+physical pair, a lone 3 GiB buffered write on 0.90.107 ran at 17.4 MB/s
+against XFS on the same replicated disks at 63 MB/s. The window was cut 134
+times in that 185 s write (`P-DRBD-IOQ-DONE`): it sat at 5.6-6.5 MiB of its
+32 MiB ceiling, because a single completion slower than 500 ms halves it,
+and the slowest took 3.2 s. Whether those slow completions come from the
+window's own depth, which cutting relieves, or from DRBD barrier and flush
+stalls that occur at any depth, decides what the window should react to.
+Each mount's DRBD write queue now prints, when it is freed, one
+`P-DRBD-IOQ-LAT` line per class (metadata, data): completion-time counts
+in six buckets (<100, <250, <500, <1000, <2000, >=2000 ms), for each of
+four depths in flight at admission (<=4, <=8, <=16, >16 MiB).
+
+What it showed for the same lone write: data writes admitted at <=4 MiB
+completed 73/188/76/5/1/0, at <=8 MiB 70/706/1285/183/0/0, at <=16 MiB
+2/93/239/151/0/0; the 29 metadata writes all under 500 ms. Latency grows
+with depth while the rate stays flat at about 17-25 MB/s from 4 to 16 MiB,
+so the replicated path on this pair reaches XFS's rate only with a far
+deeper queue than the 500 ms target allows. A window that cut on an
+8-completion moving average instead of on single slow writes was measured
+(lone 22.6 / 19.9 MB/s, flood swaps max 3.4 / 2.8 s) and not kept: it
+bought no rate.
+
 ## 2026-10-08 — 0.90.107 — MXFS on DRBD dual-primary is released again, verified on two physical Proxmox VE 9 hosts; seven configurations are claimed
 
 **What this release claims.** `2/net/mesh/drbd` again, withdrawn on

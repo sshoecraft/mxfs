@@ -650,7 +650,14 @@ filesystem can let go of it.
      aimed at a recovery-purged target); `mxfs_dlm_handoff_takeover(node,
      inc)` = the certified successor (bootstrap node) PREPAREs every page
      still ACTIVE({node,inc}) to its owner under the current view (self ⇒
-     activate at once; else FROZEN to the owner); `mxfs_dlm_handoff_depart`
+     activate at once; else FROZEN to the owner).  A page whose owner's
+     incarnation the slot map cannot name yet (a peer that has just joined)
+     is taken to the successor itself and passed on by the tick once it can
+     be named: the pass never revisits a page, so a page it skipped stayed
+     under the dead authority.  A death's takeover ends by queueing the orphan
+     sweep, as every departure does: the takeover moves only pages whose
+     authority is the dead incarnation, and a page another, departed
+     incarnation PREPARED to it is judged by nothing else; `mxfs_dlm_handoff_depart`
      = clean departure PREPAREs every served page to its successor before
      GOODBYE.  The membership change no longer purges blindly: it only
      re-keys `ledger_gen`/`config_id`, marks pages that moved away FROZEN
@@ -710,7 +717,20 @@ filesystem can let go of it.
      `-EOPNOTSUPP` clears the flag and commits with tickets from then on.
    - `v5_mount.c` (sess424): `bootstrap_cb` = `mxfs_disklock_lowest_live_slot
      == local_slot`; `bootstrap_node_cb` (sess426) = that slot's node/inc
-     via `v5_slot_node_cb`; `node_inc_cb` = node → the incarnation the disklock
+     via `v5_slot_node_cb`.  The election (`v5_bootstrap_slot`) passes over
+     two kinds of lower live slot: one whose current incarnation this mount
+     knows has left (its GOODBYE, or its record settled here), and one whose
+     last death this mount recovered while the node now claiming it is not in
+     this node's view.  The second keeps the takeover of a dead peer's pages
+     with the survivor until a rejoiner on a lower slot can be admitted: the
+     rejoiner can move nothing before then, and its admission can need one of
+     those pages.  "Recovered here" is its own per-slot mark
+     (`recovered_here_mask`, set at P163-RECOVERY-COMPLETE, void while a
+     recovery is pending on the slot), not the mount barrier's resolved mask,
+     which a replayer never sets for its own recovery.  `v5_bootstrap_ready`
+     counts the same mark as resolved, so a recovered slot's next tenant,
+     beating but not yet live, does not hold the survivor out of the role
+     either; `node_inc_cb` = node → the incarnation the disklock
      table shows in its slot; PAGE_HANDOFF dispatch; tick in the TCP death
      worker (500 ms); `v5_handoff_takeover(node, inc, why)` after the ledger
      purge at recovery completion (`recovery_complete` ladder with the

@@ -601,6 +601,13 @@ struct mxfs_dlm_ctx {
 	 */
 	uint8_t                 *page_state;        /* DLM_PS_* */
 	uint64_t                *page_req_ms;       /* last FREEZE_REQ sent */
+	/* per page: an AG lock's no-queue request met it not ready and answered
+	 * would-block; mxfs_dlm_prepare_wanted (the hand-off worker) prepares it.
+	 * page_want_any: some page is marked since the last pass. */
+	uint8_t                 *page_want;
+	int                     page_want_any;
+	uint64_t                prepare_wanted_pages;   /* prepared by that pass */
+	uint64_t                prepare_wanted_failed;  /* its attempts that did not */
 	bool                    (*bootstrap_cb)(void *data);
 	/* (D-0345): WHO the bootstrap node is (id, incarnation; 0 =
 	 * unknown), so a non-bootstrap master of an UNOWNED page can ask it to
@@ -709,6 +716,11 @@ struct mxfs_dlm_ctx {
 													  * between pages because a peer
 													  * joined on a lower slot and is
 													  * now the certified writer */
+							takeover_skip_noinc,     /* takeover pages taken to this
+													  * node because the slot map could
+													  * not name their hand-off owner's
+													  * incarnation; the hand-off tick
+													  * passes them on */
 							handoff_refused_leaving,      /* D-0953: FROZEN hand-offs
 														   * to a leaving mount, left
 														   * PREPARED for the successor */
@@ -1115,6 +1127,7 @@ void mxfs_dlm_report_peer_view(struct mxfs_dlm_ctx *ctx,
 int mxfs_dlm_update_active_nodes(struct mxfs_dlm_ctx *ctx,
 				 const mxfs_node_id_t *nodes, int count);
 bool mxfs_dlm_is_single_node(struct mxfs_dlm_ctx *ctx);
+bool mxfs_dlm_node_in_view(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t node);
 /* sess-tcp: highest mode THIS node holds for `resource` in its local mirror
  * (GRANTED/CONVERTING entry owned by local_node), or MXFS_LOCK_NL if none.
  * Used to detect a phantom-EX on the TCP transport. */
@@ -1278,6 +1291,12 @@ int  mxfs_dlm_process_page_handoff(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t send
  * was recovery-purged.  Does ledger I/O; never holds the table lock across
  * it. */
 void mxfs_dlm_handoff_tick(struct mxfs_dlm_ctx *ctx);
+
+/* Prepares (owns + imports) each ledger page an AG lock's no-queue request
+ * met not ready, on the caller's thread, which must hold no filesystem lock:
+ * the no-queue request itself does no ledger I/O.  Call it with the hand-off
+ * tick. */
+void mxfs_dlm_prepare_wanted(struct mxfs_dlm_ctx *ctx);
 
 /* The certified successor's takeover of a departed authority's pages
  * (dead: after the fence certificate, BEFORE the lease unregister; clean:
