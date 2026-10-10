@@ -416,10 +416,10 @@
 > to clear to be released, and `tools/defects.py <configuration> --release`
 > shows it for each one.  The defect queue itself is public
 > (`data/defects.json`, read with `tools/defects.py`), and every record carries
-> its evidence.  It holds 123 open records.  60 of them reach only
+> its evidence.  It holds 124 open records.  60 of them reach only
 > configurations this release does not claim, such as clusters larger than 16
 > nodes and the ones under "Released in an earlier version".
-> The 63 that reach a released
+> The 64 that reach a released
 > configuration (between 13 and 46 each, depending on the configuration) are
 > each classified as not crossing that bar, most of them as
 > slowness in a particular operation: `tools/defects.py --at 2/net/mesh/drbd -d`
