@@ -1812,6 +1812,19 @@
       "impact": "noblock",
       "impact_why": "A misleading warning-level line on a healthy host; nothing waits or fails because of it.",
       "platform": "pve9"
+    },
+    {
+      "id": "D-JOIN-OUTBOUND-HANDSHAKE-ECONNRESET-LOGGED-AS-ERROR-ON-A-JOIN-THAT-SUCCEEDS",
+      "severity": "minor",
+      "nodes": 2,
+      "config": "net/mesh/drbd",
+      "opened": "2026-10-10",
+      "summary": "A mount's outbound peer handshake read failed with -104 (ECONNRESET) and was logged at error level ('peer: handshake reply from node N failed: -104', dlm/peer.c:920-929), on a join that then completed normally.",
+      "evidence": "Physical pair pve1/pve2, 0.90.116 build 4A6E59A3DFECE4A46BBCFB5 (PVE 6.17 kernel), 2026-10-10 07:25 CDT: systemctl start mxfs-drbd@mxfssdb on both hosts at once while /mnt/shared (resource mxfs) was already mounted on both. pve2 kernel: [55883.992561] 'mxfs: peer: handshake reply from node 1852801132 failed: -104' then [55883.992642] 'P-JOIN-INSTALLED node=902241850 peer=1852801132 attempts=1 ms=118'. Both resources then Primary/Primary UpToDate, both mounted. journalctl -k over all retained boots on both hosts: 1 occurrence ever (pve1 0, pve2 1); pve1 logged 12 P-JOIN-INSTALLED this boot with no such line. Cause not established: the reading that both sides connected at once and one reset the duplicate (or that SO_REUSEPORT routed the connect to the other volume's listener, which reset it instead of replying with its volume_id, as peer.c:943-958 expects) is unproven; the accept side logs at debug only.",
+      "next": "Enable dyndbg for dlm/peer.c on both hosts, restart mxfs-drbd@mxfssdb on both at once repeatedly with mxfs mounted, and capture the accept side's decision for the reset connection (crossed-connect dedupe vs wrong-volume listener). If it is the dedupe, the outbound path must recognise that outcome rather than report a failure; if it is the wrong listener, that listener must reply with its volume_id so the -EAGAIN path runs.",
+      "impact": "noblock",
+      "impact_why": "The join completed in the same 0.1 ms and both volumes mounted Primary/Primary UpToDate with no I/O error, hang or withdrawal; the only effect observed is a false error line in the kernel log.",
+      "platform": "pve9"
     }
   ]
 }
