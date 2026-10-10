@@ -17,9 +17,9 @@
       "verify_tests": "install both .debs from the built packages on every node of the set; DKMS builds on every installed PVE kernel; for EACH claimed kernel (pinned with proxmox-boot-tool, rebooted into) and EACH configuration of the release matrix: mount with no options on every node, transport announced by every mount; cross-node checksums (each node's data read on every other); create/remote-delete counts; chk_mxfs clean; peer= between two nodes and peers= across the set with multicast blocked; pvesm add/status/remove holds one mount; O_DIRECT read on a stable-writes device; every node rebooted on that kernel, module auto-loaded with the configured transport, remount, earlier data intact (CONFIG=<configuration> KERNEL=<krel> tests/packaged_round.sh pve9, once per claimed kernel per configuration); hung-node freeze on each configuration (CONFIG=<configuration> PREP=pve9 tests/tcp_peer_freeze_death.sh: the set's second node frozen, the first measured): death declared, fence certified, replay, survivor writing",
       "verified": {
         "amd64": {
-          "version": "0.90.107",
-          "date": "2026-10-08",
-          "evidence": "tests/evidence/full_verify_0.90.107_pve9-rerun.log tests/evidence/full_verify_0.90.107_pve9.log"
+          "version": "0.90.116",
+          "date": "2026-10-10",
+          "evidence": "tests/evidence/full_verify_0.90.116_pve9.log"
         }
       },
       "priority": 1,
@@ -42,9 +42,9 @@
       "notes": "The development rig's platform.",
       "verified": {
         "amd64": {
-          "version": "0.90.107",
-          "date": "2026-10-08",
-          "evidence": "tests/evidence/full_verify_0.90.107_ubuntu2404.log"
+          "version": "0.90.116",
+          "date": "2026-10-10",
+          "evidence": "tests/evidence/full_verify_0.90.116_ubuntu2404.log"
         }
       },
       "priority": 3,
@@ -68,9 +68,9 @@
       "priority": 2,
       "verified": {
         "amd64": {
-          "version": "0.90.107",
-          "date": "2026-10-08",
-          "evidence": "tests/evidence/full_verify_0.90.107_rhel9.log"
+          "version": "0.90.116",
+          "date": "2026-10-10",
+          "evidence": "tests/evidence/full_verify_0.90.116_rhel9.log"
         }
       },
       "arch": [
@@ -156,9 +156,9 @@
       "verify_tests": "on each configuration of the release matrix: install the .deb from the built packages on every node of the set with a DKMS build and a module loaded from updates/dkms; mount with no options on every node, transport announced by every mount; cross-node checksums (each node's data read on every other); create/remote-delete counts; chk_mxfs clean; peer= between two nodes and peers= across the set with multicast blocked; O_DIRECT read on a stable-writes device; every node rebooted, module auto-loaded with the configured transport, remount, earlier data intact (CONFIG=<configuration> tests/packaged_round.sh debian13); hung-node freeze on each configuration (CONFIG=<configuration> PREP=debian13 tests/tcp_peer_freeze_death.sh: the set's second node frozen, the first measured)",
       "verified": {
         "amd64": {
-          "version": "0.90.107",
-          "date": "2026-10-08",
-          "evidence": "tests/evidence/full_verify_0.90.107_debian13.log"
+          "version": "0.90.116",
+          "date": "2026-10-10",
+          "evidence": "tests/evidence/full_verify_0.90.116_debian13.log"
         }
       }
     },
